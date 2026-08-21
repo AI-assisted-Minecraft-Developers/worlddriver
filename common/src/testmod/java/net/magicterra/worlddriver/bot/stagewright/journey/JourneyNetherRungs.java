@@ -190,7 +190,7 @@ public final class JourneyNetherRungs {
         rig.evidence("fortress.at", fortress.toShortString()
                 + "（距身体 " + away + " 格水平；地标的 y=" + fortress.getY() + " 是 locate 的占位，不是可站立高度）");
         rig.attempting("走到要塞 " + fortress.toShortString() + "（" + away + " 格）");
-        walkTheCorridor(ctx, rig, fortress, 0);
+        walkTheCorridor(ctx, rig, fortress, 0, 0);
     }
 
     /**
@@ -206,7 +206,17 @@ public final class JourneyNetherRungs {
      * whole of what a scripted route buys: it cannot fix the executor's drift and does not try, it
      * removes the case where a waypoint dead-reckoned along a bearing lands in the sea.
      */
-    private static void walkTheCorridor(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i) {
+    /**
+     * @param bridged how many cells the corridor has PLACED to stand on so far, carried across legs.
+     *                Threaded rather than kept in a field: these scenes are static and a static
+     *                counter would survive into the next run of the suite, which is the shape of
+     *                defect a scene owning a global has already cost this file once. Only the direct
+     *                legs and the re-ask add to it — the crossing hops keep their own count in their
+     *                {@code hop.flight.*} rows, and merging the two would produce a number no single
+     *                row could be checked against.
+     */
+    private static void walkTheCorridor(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
+                                        int bridged) {
         if (i >= FORTRESS_WAYPOINTS.length) {
             // The unsurveyed remainder. Full hop allowance, because past the last waypoint this is
             // an ordinary crossing over ground no run has reported on.
@@ -284,8 +294,17 @@ public final class JourneyNetherRungs {
                     + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling) + "；"
                     + JourneyLeg.walkerEnd(rig));
             flight.recordInto(leg, "direct");
-            if (off > WAYPOINT_ARRIVE_WITHIN) { detourTo(ctx, rig, fortress, i, want, leg); return; }
-            walkTheCorridor(ctx, rig, fortress, i + 1);
+            int laid = bridged + flight.moveCount("bridgePlace");
+            if (off <= WAYPOINT_ARRIVE_WITHIN) { walkTheCorridor(ctx, rig, fortress, i + 1, laid); return; }
+            // THE DETOUR IS NOT A SECOND CHANCE AT A SEARCH THAT ALREADY GAVE UP. See
+            // JourneyLeg.searchGaveUp: re-aiming six blocks PAST a cell the search could not reach
+            // asks the same search a strictly harder question, and the two measured attempts both
+            // released the body onto an open lava sea and drowned it — wp5 ended at 59,5,90 and
+            // wp11 at 62,3,86, neither recovering a single block first. What the detour IS for is a
+            // leg that ran out of TICKS while still walking, which is a different question and is
+            // the one case where it has ever worked (wp2, real ladder, arrived 1 block out).
+            if (!JourneyLeg.searchGaveUp(rig)) { detourTo(ctx, rig, fortress, i, want, leg, laid); return; }
+            corridorGaveUp(ctx, rig, i, want, now, off, laid);
         });
     }
 
@@ -313,7 +332,7 @@ public final class JourneyNetherRungs {
      * checked one step later, in {@link #reaskAfterDetour}, after the body has walked back.
      */
     private static void detourTo(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
-                                 BlockPos want, String leg) {
+                                 BlockPos want, String leg, int bridged) {
         // AIM PAST IT, and by exactly as much as the hop machinery calls "arrived". crossToColumn
         // judges arrival in XZ only (away <= tolerance + ARRIVED_WITHIN), so a body standing in the
         // right column 23 blocks below its waypoint is ARRIVED as far as it is concerned — the first
@@ -339,7 +358,7 @@ public final class JourneyNetherRungs {
                     + "在这个距离上它会当场判到达、一段都不走，而这里缺的是高度不是水平位移。"
                     + "跳过绕行，直接重问原题");
             reaskAfterDetour(ctx, rig, fortress, i, want, leg,
-                    "跳过了绕行（水平上已在到达环内，缺的是高度）");
+                    "跳过了绕行（水平上已在到达环内，缺的是高度）", bridged);
             return;
         }
         double span = Math.max(1e-6, flat);
@@ -350,8 +369,8 @@ public final class JourneyNetherRungs {
                 + " 格）—— 能到达的格未必是能瞄的格，而跳段机器只判 XZ，瞄本格会当场判到达、一段都不走。"
                 + "见 detourTo");
         crossToColumn(rig, leg + ".hop", overX, overZ, 0, HOP_TICKS, WAYPOINT_DETOUR_HOPS,
-                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行走完了整条路线"),
-                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行没走到瞄点就停了"));
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行走完了整条路线", bridged),
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行没走到瞄点就停了", bridged));
     }
 
     /**
@@ -389,7 +408,8 @@ public final class JourneyNetherRungs {
      * third case existed — a skipped detour printed as one that failed.
      */
     private static void reaskAfterDetour(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
-                                         BlockPos want, String leg, String detourOutcome) {
+                                         BlockPos want, String leg, String detourOutcome,
+                                         int bridged) {
         BlockPos over = rig.player().blockPosition();
         int fromOver = (int) Math.round(Math.sqrt(over.distSqr(want)));
         rig.evidence(leg + ".detourAt", over.toShortString() + "，距路点 " + fromOver + " 格（含 y）；"
@@ -425,10 +445,11 @@ public final class JourneyNetherRungs {
                         // own premise was wrong, and the engine had been silently re-aiming off it.
                         + "注意 FORTRESS_WAYPOINTS 混着落脚格和地板格：如果这一格不可站立，"
                         + "身体最好也只能站到它上方一格，判据的 " + WAYPOINT_ARRIVE_WITHIN
-                        + " 格容差就是留给这个的。死因在 " + leg + ".* 那几行");
+                        + " 格容差就是留给这个的。死因在 " + leg + ".* 那几行"
+                        + causewayNote(rig, bridged + flight.moveCount("bridgePlace")));
                 return;
             }
-            walkTheCorridor(ctx, rig, fortress, i + 1);
+            walkTheCorridor(ctx, rig, fortress, i + 1, bridged + flight.moveCount("bridgePlace"));
         });
     }
 
@@ -562,6 +583,66 @@ public final class JourneyNetherRungs {
      * two, so descending legs pay nothing for the height they start with and only for height they
      * ADD.
      */
+    /**
+     * Fail the corridor AT the cell the search gave up on, without letting the fallback move the
+     * body first.
+     *
+     * <h2>The old verdict described the rescue attempt, not the defect</h2>
+     *
+     * When leg 11's search gave up, the body was at {@code 100,41,120} — twelve blocks short, alive,
+     * standing on cobblestone it had placed. The detour then ran for 2069 ticks, walked it
+     * <b>43 blocks further from the goal</b>, dropped it fifteen blocks into lava and left it
+     * submerged at {@code 62,3,86}. The printed verdict was「停在 62,3,86，差 72 格」. Every number in
+     * that sentence is a true measurement of the rescue and none of them is about the failure.
+     *
+     * <p>So this reports the seat the search actually died in, and says in as many words that the
+     * fallback was skipped and why — a reader who finds no {@code .detour*} rows must not have to
+     * wonder whether the machinery is broken.
+     *
+     * <h2>What it deliberately does NOT do</h2>
+     *
+     * It does not retry, widen, or reroute. A leg whose search exhausted itself is a finding, and
+     * the next move belongs to whoever reads it — this suite has repeatedly paid for a fallback that
+     * turned a legible failure into an illegible one.
+     */
+    private static void corridorGaveUp(SceneContext ctx, JourneyRig rig, int i, BlockPos want,
+                                       BlockPos now, int off, int bridged) {
+        ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
+                + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
+                + "）。**搜索自己放弃了**（" + JourneyLeg.walkerEnd(rig) + "），不是走不完预算 —— "
+                + "所以这一次没有走绕行：瞄到路点更远处，问的是同一个搜索一个更难的问题，"
+                + "实测两次都把身体放到岩浆里（wp5 停在 59,5,90、wp11 停在 62,3,86），一格都没赚回来。"
+                + "身体现在停的就是搜索死掉的那个座位，读 fortress.wp" + (i + 1) + ".* 那几行"
+                + causewayNote(rig, bridged));
+    }
+
+    /**
+     * How much of the corridor the body had to BUILD, appended to every corridor verdict.
+     *
+     * <h2>Otherwise a placement failure reads as a pathfinding failure</h2>
+     *
+     * Legs 8, 9 and 10 came back {@code {bridgePlace=15}}, {@code {bridgePlace=13}},
+     * {@code {bridgePlace=14}} — with {@code walk=0}. The corridor's second half is not a walk over
+     * terrain, it is a causeway laid across open lava, because {@link #FORTRESS_WAYPOINTS} was baked
+     * from a run's body positions AFTER that run bridged. The waypoints record construction, not
+     * ground.
+     *
+     * <p>That changes how every failure on this corridor should be read: the pass rate is the
+     * placement success rate raised to the number of laid cells, and a body that runs out of blocks
+     * fails a SEARCH (bridge edges need something to place), which is indistinguishable from terrain
+     * being unreachable unless the stock is printed beside it. Both numbers, every verdict.
+     *
+     * <p>The stock is the whole inventory, which is the right denominator here: the server avatar's
+     * {@code holdPlaceable} swaps up from slots 9..35, so unlike the client's it is not blind to the
+     * bag. A hotbar-only reading would understate what the walker can actually spend.
+     */
+    private static String causewayNote(JourneyRig rig, int bridged) {
+        return "。这条走廊后半段是现架的栈道不是地面（路点表烘的是上一趟架完桥之后的身体位置）："
+                + "到这里为止直段已经放了 " + bridged + " 格，身上还剩 " + placeableCount(rig)
+                + " 个可放置方块（整个背包，服务端 holdPlaceable 会从 9..35 号槽换上来，不只看快捷栏）。"
+                + "缺料会以「搜索失败」的样子出现 —— 架桥的边需要有东西可放 —— 所以这两个数要一起读";
+    }
+
     private static int bandCeiling(int i) {
         int target = FORTRESS_WAYPOINTS[i][1];
         return i == 0 ? target : Math.max(target, FORTRESS_WAYPOINTS[i - 1][1]);

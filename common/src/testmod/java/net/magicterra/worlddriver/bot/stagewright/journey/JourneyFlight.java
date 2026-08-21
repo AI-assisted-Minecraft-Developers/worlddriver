@@ -136,6 +136,19 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private BlockPos lastPlanNode;
 
     /**
+     * How many nodes this leg entered by a given move — the same tally {@code 走过的边} prints,
+     * readable by the caller.
+     *
+     * <p>Exists so a caller can carry a total ACROSS legs. One leg's {@code {bridgePlace=15}} reads
+     * as a detail; the corridor's legs 6..11 summing to sixty-odd with {@code walk=0} is the finding
+     * — the surveyed waypoints are not terrain, they are the causeway a previous run BUILT, so every
+     * one of them has to be rebuilt. No single leg's row can say that.
+     */
+    int moveCount(String move) {
+        return moveTally.getOrDefault(move, 0);
+    }
+
+    /**
      * The vertical bill the PLAN ran up, split from the vertical the body took by falling.
      *
      * <h2>「y 41→5」says how far down the body got. It does not say who took it there.</h2>

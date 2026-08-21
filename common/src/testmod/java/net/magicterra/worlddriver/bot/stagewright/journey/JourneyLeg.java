@@ -107,6 +107,43 @@ final class JourneyLeg {
     }
 
     /**
+     * Did this leg end because the SEARCH gave up, as opposed to running out of tick budget?
+     *
+     * <h2>The two endings need different answers, and the corridor proved it costs a body</h2>
+     *
+     * A leg that timed out was still walking when the clock stopped: the route it was on may have
+     * been fine and merely long, so re-aiming somewhere else is a genuinely different question and
+     * can work. A leg that ended {@code no path} / {@code goal unreachable} has already had the
+     * search exhaust itself; asking it to reach a cell six blocks FURTHER is the same question with
+     * a worse answer, and the body pays for the attempt by wandering off a bridge it built.
+     *
+     * <p>Three legs, and the split is exactly along this line:
+     *
+     * <pre>
+     * wp2  (real ladder)  直段 end=unavailable（预算用完，进程还在走） → 绕行 arrived，差 1 格
+     * wp5  (real ladder)  直段 end=failed:no route progress…unreachable → 绕行 停在 59,5,90，岩浆
+     * wp11 (rehearsal)    直段 end=failed:no path (expanded=100000)     → 绕行 停在 62,3,86，岩浆
+     * </pre>
+     *
+     * The detour's one measured win followed a timeout; both measured lava deaths followed a search
+     * failure, and neither recovered anything before dying. Gating on the reason keeps the win.
+     *
+     * <h2>Unknown means「让它试」, deliberately</h2>
+     *
+     * {@code endReason == null} is the timeout case (see {@link #walkerEnd}: the field is only
+     * written on a terminating step), and an ending this method does not recognise is treated the
+     * same way. The conservative direction for a gate that SUPPRESSES a fallback is to let the
+     * fallback run — a mis-read that blocks a working detour turns a passing leg red, while a
+     * mis-read that allows a doomed one costs ticks this file already knows how to see.
+     */
+    static boolean searchGaveUp(JourneyRig rig) {
+        String end = rig.body().botState().mc_goto.endReason;
+        if (end == null) return false;
+        String e = end.toLowerCase(Locale.ROOT);
+        return e.contains("no path") || e.contains("unreachable") || e.contains("no route progress");
+    }
+
+    /**
      * The same row for a body that is driven directly rather than through a {@link JourneyRig}.
      *
      * <p>The A/B scenes in {@code JourneyPortalEntryScenes} run two drivers side by side and have no
