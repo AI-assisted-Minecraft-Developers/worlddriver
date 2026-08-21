@@ -433,3 +433,7 @@ wd.bodyParityCensus
 # uses for 36 single-shot calls) drift from the LocalPlayer the client owns. SKIPs on every
 # dedicated topology — it needs one JVM holding both bodies. See its class note.
 wd.actuatorSplitOnAnAdoptedBody
+# The A0 twin: the same two writes taken through BotApi.clientAvatar(), i.e. the avatar the
+# rungs use after the fix. Kept as a SECOND scene so the one above stays a ruler for the raw
+# divergence — if anyone routes those call sites back to the server avatar, it still says so.
+wd.actuatorSplitThroughTheClientAvatar

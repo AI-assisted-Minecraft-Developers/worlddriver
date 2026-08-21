@@ -95,7 +95,15 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                 // authorities are, and every value it can print is a legitimate answer. Marking it
                 // required would promise the gate a failure mode that does not exist.
                 Scene.of("wd.actuatorSplitOnAnAdoptedBody", 200,
-                        WorldDriverActuatorSplitScenes::actuatorSplit).withRequired(false));
+                        WorldDriverActuatorSplitScenes::actuatorSplit).withRequired(false),
+                // The A0 twin. Same measurement, taken through the avatar the rungs now use, so the
+                // pair reads as a before/after in ONE run. Deliberately a SECOND scene rather than an
+                // edit to the first: the first is the ruler for the raw divergence, and if anyone
+                // ever routes those call sites back to the server avatar, it goes on saying so.
+                // Editing it to follow the fix would have meant changing the acceptance criterion
+                // inside the change it judges.
+                Scene.of("wd.actuatorSplitThroughTheClientAvatar", 200,
+                        WorldDriverActuatorSplitScenes::actuatorSplitClient).withRequired(false));
     }
 
     /**
@@ -209,6 +217,13 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
         ctx.record("slot.前", slotBefore);
         ctx.record("slot.holdItem返回", held);
+        // WHICH THREAD DID THE WRITING. Without this row a「一致」reading is ambiguous in the one
+        // direction that matters: a cross-thread write to client state usually does NOT throw (few
+        // of these vanilla fields carry a thread assertion), so an actuator that agrees today can be
+        // sitting on a data race that disagrees under load. 「绿了」would not mean「对了」. Recorded
+        // at BOTH sample points, because the scene body and its await continuation are different
+        // moments and nothing guarantees the harness runs them on the same thread.
+        ctx.record("thread.写入时", Thread.currentThread().getName());
         ctx.record("slot.服务端.同tick", serverSlotSameTick);
         ctx.record("slot.客户端.同tick", render(clientSlotSameTick));
         ctx.record("slot.同tick一致", agree(serverSlotSameTick, clientSlotSameTick));
@@ -239,6 +254,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             float serverPitchAfter = real.getXRot();
             float[] clientLookAfter = clientLook();
 
+            ctx.record("thread.复查时", Thread.currentThread().getName());
             ctx.record("slot.服务端.过" + SETTLE_TICKS + "tick", serverSlotAfter);
             ctx.record("slot.客户端.过" + SETTLE_TICKS + "tick", render(clientSlotAfter));
             ctx.record("slot.最终一致", agree(serverSlotAfter, clientSlotAfter));
@@ -261,6 +277,126 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             ctx.check(clientSlotAfter != null && clientLookAfter != null)
                     .as("客户端侧读数拿得到（mc.client.player 报了 selectedSlot 和 look）——"
                             + "拿不到的话上面每一行「一致」都是空话，这条场景什么都没量到")
+                    .isTrue();
+        });
+    }
+
+    /**
+     * The same measurement, taken through {@code BotApi.clientAvatar()} — the avatar the rungs use
+     * after A0.
+     *
+     * <p><b>The acceptance criterion for A0, and it is designed to be able to fail.</b> Its sibling
+     * measured the raw divergence and found it total: server slot 4 vs client 0, server aim
+     * (−55.32, 29.55) vs client (283.23, 0.00), unchanged ten ticks later. If routing the same two
+     * writes through the client's own avatar does not close that gap, this scene says so.
+     *
+     * <p><b>A green row here is necessary and not sufficient</b>, and the {@code thread.*} rows are
+     * why. These calls run on the SERVER thread — the open defect stated on
+     * {@code BotApi.clientAvatar()} — and a cross-thread write to client state usually does not
+     * throw. So agreement measured here can be agreement that happens to hold, not agreement that is
+     * guaranteed. Read the thread rows before reading the numbers.
+     */
+    private static void actuatorSplitClient(SceneContext ctx) {
+        MinecraftServer server = ctx.server();
+        boolean integrated = server != null && !server.isDedicatedServer();
+        ctx.record("topology", topology(ctx));
+        if (!integrated || !BotHooks.isAvailable()) {
+            ctx.skip("这条只在集成服上有意义：需要同一个 JVM 里既有服务端身体又有真的 LocalPlayer");
+        }
+        List<ServerPlayer> humans = humanPlayers(ctx);
+        if (humans.isEmpty()) {
+            ctx.skip("集成服上没有真玩家 —— 客户端还没进世界，或已经掉线");
+        }
+        ServerPlayer real = humans.get(0);
+
+        // Same structural refusal as the sibling, and for the same reason: a body no client owns
+        // would make「两侧一致」trivially true and this scene would certify the fix on the strength
+        // of never having tested it.
+        boolean driverMinted = real instanceof JoinedPlayerBodies.JoinedBody
+                || real instanceof AvatarFakePlayer;
+        ctx.record("body", real.getGameProfile().getName() + "（" + real.getClass().getSimpleName()
+                + "，驱动器自造=" + driverMinted + "）");
+        if (driverMinted) {
+            ctx.fail("挑错了身体：拿到的是驱动器自造的 " + real.getClass().getSimpleName()
+                    + "，这一整份读数作废 —— 这条场景是 A0 的验收判据，"
+                    + "拿一具没有客户端的身体验收等于没验。");
+        }
+
+        // THE ONE DIFFERENCE from the sibling: the avatar comes from the client, not from a
+        // ServerPlayerAvatar wrapped around the ServerPlayer.
+        Avatar client = BotHooks.impl() == null ? null : BotHooks.impl().clientAvatar();
+        if (client == null) {
+            ctx.fail("BotApi.clientAvatar() 返回 null —— 客户端没有 LocalPlayer，"
+                    + "A0 的路径在这一趟根本没被走到，不能读成「修好了」");
+        }
+
+        // No inventory staging here, unlike the sibling: this scene's probe does not read contents,
+        // so putting an item in would be a write with no reader — and one more thing to restore.
+        int selectedWas = real.getInventory().selected;
+        float yawWas = real.getYRot();
+        float pitchWas = real.getXRot();
+        ctx.cleanup(() -> {
+            real.getInventory().selected = selectedWas;
+            real.setYRot(yawWas);
+            real.setXRot(pitchWas);
+        });
+
+        // ⚠️ setSelectedSlot, NOT holdItem — and this is the whole difference between measuring A0
+        // and measuring this scene's own staging mistake.
+        //
+        // `holdItem` on the client resolves through BotInteract.ensureHolding, which searches the
+        // CLIENT's inventory for the item. The staging above puts the stone into the SERVER's copy,
+        // and the client learns about it only when a container/slot packet arrives — not in this
+        // tick. So a client holdItem would return false here for a reason that has nothing to do
+        // with the actuator being tested, and the criterion below would go red while A0 was working
+        // perfectly. That is the shape this file exists to avoid: a failure whose cause is the test.
+        //
+        // setSelectedSlot asks the identical question with no dependency on inventory CONTENTS —
+        // it writes the client's `selected` and sends the ServerboundSetCarriedItemPacket, which is
+        // exactly the mechanism whose absence the sibling scene measured (server 4 / client 0).
+        ctx.record("thread.写入时", Thread.currentThread().getName());
+        client.setSelectedSlot(TARGET_SLOT);
+        int serverSlot = real.getInventory().selected;
+        Integer clientSlot = clientSelectedSlot();
+        ctx.record("slot.动作", "setSelectedSlot(" + TARGET_SLOT + ")（不用 holdItem：它按客户端"
+                + "背包内容找物品，而这条场景的布景只放进了服务端那份，会红在布景上而不是红在缺陷上）");
+        ctx.record("slot.服务端.同tick", serverSlot);
+        ctx.record("slot.客户端.同tick", render(clientSlot));
+        ctx.record("slot.同tick一致", agree(serverSlot, clientSlot));
+
+        BlockPos aimAt = real.blockPosition().offset(7, -3, 5);
+        client.aimAtBlock(aimAt);
+        float[] clientLookNow = clientLook();
+        ctx.record("aim.目标格", aimAt.toShortString());
+        ctx.record("aim.服务端.同tick", deg(real.getYRot()) + " / " + deg(real.getXRot()));
+        ctx.record("aim.客户端.同tick", renderLook(clientLookNow));
+
+        int[] waited = {0};
+        ctx.await(() -> ++waited[0] >= SETTLE_TICKS).within(SETTLE_TICKS + 100).then(() -> {
+            ctx.record("thread.复查时", Thread.currentThread().getName());
+            int serverSlotAfter = real.getInventory().selected;
+            Integer clientSlotAfter = clientSelectedSlot();
+            float[] clientLookAfter = clientLook();
+            ctx.record("slot.服务端.过" + SETTLE_TICKS + "tick", serverSlotAfter);
+            ctx.record("slot.客户端.过" + SETTLE_TICKS + "tick", render(clientSlotAfter));
+            ctx.record("slot.最终一致", agree(serverSlotAfter, clientSlotAfter));
+            ctx.record("aim.服务端.过" + SETTLE_TICKS + "tick",
+                    deg(real.getYRot()) + " / " + deg(real.getXRot()));
+            ctx.record("aim.客户端.过" + SETTLE_TICKS + "tick", renderLook(clientLookAfter));
+            ctx.record("aim.两侧差", clientLookAfter == null ? "unavailable/客户端读不到"
+                    : drift(real.getYRot(), real.getXRot(), clientLookAfter[0], clientLookAfter[1]));
+
+            // Same instrument check as the sibling: unreadable client side = measured nothing.
+            ctx.check(clientSlotAfter != null && clientLookAfter != null)
+                    .as("客户端侧读数拿得到 —— 拿不到的话上面每一行「一致」都是空话")
+                    .isTrue();
+            // And THE criterion: the slot the client actually holds must be the one that was asked
+            // for. Deliberately asserted on the CLIENT's value, not on agreement between the two:
+            // agreement would also be satisfied by both sides being wrong together.
+            ctx.check(clientSlotAfter != null && clientSlotAfter == TARGET_SLOT)
+                    .as("A0 判据：客户端自己的选中槽应为 " + TARGET_SLOT + "，实际 "
+                            + render(clientSlotAfter) + "。这一条在缺陷存在时会红 —— "
+                            + "修复之前同样的写法测出来客户端停在 0")
                     .isTrue();
         });
     }

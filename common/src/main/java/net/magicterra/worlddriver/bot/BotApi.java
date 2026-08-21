@@ -232,9 +232,34 @@ public interface BotApi {
      * {@code setSelectedSlot} sends {@code ServerboundSetCarriedItemPacket}, and the aim moves the
      * player the server is receiving movement packets from.
      *
-     * <p><b>Never blocks</b>, and callers must keep it that way: the returned avatar's methods touch
-     * client state, so a caller on an integrated server's SERVER thread must invoke them from a
-     * client-thread hop it does not wait on. Null when no {@code LocalPlayer} exists yet.
+     * <p>Null when no {@code LocalPlayer} exists yet.
+     *
+     * <h2>⚠️ KNOWN GAP: every caller today invokes the returned avatar from the SERVER thread</h2>
+     *
+     * <p>An earlier version of this comment required callers to invoke through a client-thread hop
+     * they do not wait on. <b>No caller does that, and worse, no caller CAN</b> — the requirement was
+     * incoherent, so it is stated here as the open defect it is rather than as a rule that looks
+     * satisfied. StageWright scene bodies run on the server thread, and the 33 call sites in
+     * {@code JourneyRig.avatar()}'s users are plain inline calls; on an integrated server they
+     * therefore touch {@code mc.player}'s inventory and rotation, and send packets, from the wrong
+     * thread.
+     *
+     * <p><b>Why "hop without waiting" cannot simply be applied.</b> Half the call sites branch on the
+     * result — {@code boolean held = …holdItem(COBBLESTONE); if (!held) …} — and a dispatch that does
+     * not wait can only return「已派发」, which would turn each of those guards into an always-true
+     * predicate. This repo has already paid for one of those this week. Waiting instead is the
+     * deadlock shape: {@code BotUtil.onClient} blocks the caller until the client thread answers, and
+     * on an integrated server the caller IS the thread the client is ticking against.
+     *
+     * <p><b>The only shape that satisfies both</b> is to stop issuing single-shot actions from the
+     * server thread at all — originate them from the client tick chain, the way {@code runProcess}
+     * already does, and let the scene observe the outcome through the world rather than through a
+     * return value. That is a change of call TIMING, not of call style, and it is not yet made.
+     *
+     * <p>Until it is: this is not merely untidy. A cross-thread write to client state may not throw —
+     * few of these vanilla fields carry thread assertions — so a test that reports「一致」can be
+     * sitting on a data race, and green would not mean correct. Any scene judging this path must
+     * record the calling thread alongside its readings, or it cannot tell the two apart.
      */
     net.magicterra.worlddriver.bot.movement.Avatar clientAvatar();
 

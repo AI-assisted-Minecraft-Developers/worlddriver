@@ -377,6 +377,15 @@ public final class JourneyRig {
      * changing dimension) gets the server avatar rather than a {@link NullPointerException} — with
      * the fallback RECORDED, because a silent downgrade to the broken path is the failure this
      * whole change exists to remove.
+     *
+     * <p><b>⚠️ This is called from the SERVER thread, and that is an open defect</b> — see
+     * {@link BotApi#clientAvatar()}, which states it in full. Scene bodies run on the server thread,
+     * so every use of the avatar returned here touches client state across a thread boundary. It is
+     * not fixed by hopping without waiting (half the callers branch on the return value) nor by
+     * waiting (deadlock: this thread is the one the client ticks against); the shape that works is to
+     * originate single-shot actions from the client tick chain, which is not built. A cross-thread
+     * write to these fields may not throw, so a green reading here is not by itself evidence of
+     * correctness — judge this path only with the calling thread recorded beside the numbers.
      */
     public Avatar avatar() {
         if (!realPlayerHelm(ctx)) return body().avatar();
