@@ -120,7 +120,7 @@ public final class JourneyNetherRungs {
     public static List<Scene> rungs() {
         List<Scene> out = new ArrayList<>();
         // 360 000, and the number is the arithmetic of the plan rather than caution: the crossing is
-        // up to MAX_HOPS legs of HOP_TICKS (≈22k), then the approach (6k), up to sixty quarry legs
+        // up to MAX_HOPS legs of HOP_TICKS (≈36k), then the approach (6k), up to sixty quarry legs
         // (18k), the wait for the spawner to turn (2.4k) and eight fights (9.6k). A budget sized for
         // one clean walk would turn "the fortress is far" into a timeout, which is the wrong
         // sentence about the right world. The crossing's share fell by an order of magnitude when it
@@ -131,8 +131,9 @@ public final class JourneyNetherRungs {
         // 120 000 still, and now it is the arithmetic rather than the absence of one. The old note
         // said "no build, and the walk is to whatever enderman is already loaded rather than to a
         // landmark", which is exactly what was wrong with the rung: the walk is now to a landmark,
-        // up to MAX_HOPS legs of HOP_TICKS (≈22k), then
-        // six rounds of approach-and-fight (≈48k), then up to six dry waits (≈7k), which is 77k.
+        // up to MAX_HOPS legs of HOP_TICKS (≈36k — MAX_HOPS went 24→40 for the fortress leg, and
+        // this rung's own crossing is 272 blocks, ~20 hops at the rate that raise was measured on),
+        // then six rounds of approach-and-fight (≈48k), then up to six dry waits (≈7k), which is 91k.
         out.add(rung("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL, 120_000,
                 JourneyNetherRungs::enderPearl));
         return List.copyOf(out);
@@ -1314,35 +1315,53 @@ public final class JourneyNetherRungs {
                                       int hopTicks, Runnable onArrived, Runnable onStuck) {
         BlockPos from = rig.player().blockPosition();
         recordBudget(rig, what, Math.hypot(x - from.getX(), z - from.getZ()), hopTicks);
-        oneHop(rig, what, x, z, tolerance, hopTicks, new Crossing(), onArrived, onStuck);
+        Crossing c = new Crossing();
+        c.hopTicks = hopTicks;
+        oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
     }
 
     /**
-     * What this crossing would cost if every hop were a clean one — written down BEFORE the first
-     * hop is walked.
+     * The ceilings this crossing is walking under — written down BEFORE the first hop is walked.
      *
-     * <p><b>Because「it ran out of budget」is the first thing a short crossing gets accused of, and
-     * it has now been wrong once.</b> The run of 2026-08-19 stopped 294 blocks out after three hops
-     * and read as a cap. It was not: the arithmetic below is 10 hops against a ceiling of
-     * {@link #MAX_HOPS} = 24, and roughly 3 300 ticks against 24 × {@link #HOP_TICKS} = 21 600 and a
-     * rung budget of 360 000. The crossing ended because the body was in lava and
-     * {@link #hazardBlockingARetry} correctly refused to spend a fourth hop on it — a cause the hop
-     * lines name and the numbers cannot. Recorded so that the NEXT reader of a short crossing starts
-     * from「the budget is 2.4× what this needs, so read the death」rather than re-deriving it.
+     * <h2>This row used to rule out a cause, and the cause it ruled out was the right one</h2>
+     *
+     * <p>It said, in every crossing:「段数和 tick 都不是这一趟的瓶颈（余量 2.4 倍）—— 它要是半路停了，
+     * 死因在 crossing 那一行，不在这里」. Every number in it was correct and its conclusion was
+     * backwards, which is a worse failure than a wrong number because it reads exactly like a
+     * measurement.
+     *
+     * <p>It was written for the run of 2026-08-19, which stopped 294 blocks out after three hops and
+     * was wrongly accused of running out of budget — it had in fact ended because the body was in
+     * lava and {@link #hazardBlockingARetry} refused to spend a fourth hop on it. Sparing the next
+     * reader that re-derivation was worth doing. Baking the VERDICT into the row was not.
+     *
+     * <p>On 2026-08-21 the fortress leg ran 24 hops, walked 327 of 402 blocks and died 75 short —
+     * <b>on {@link #MAX_HOPS}, the ceiling this row had pre-emptively cleared.</b> The arithmetic
+     * below is honest and still gets the answer wrong, because it extrapolates from the PLANNED
+     * rate: at {@code perHop} = 42 a 402-block crossing is 10 hops, and the measured rate was
+     * 327/24 = 13.6 blocks per hop. A wedged hop and a clean hop cost <b>the same one hop</b> and
+     * wildly different ticks, so the two ceilings are approached at different speeds and the hop
+     * ceiling arrives first. A margin computed at the planned rate is not a margin.
+     *
+     * <p>So this row now reports the ceilings and labels its own estimate as a plan, and says
+     * nothing about where the death is. The cause belongs to two rows written AFTER the walk:
+     * {@code .crossing}'s {@code why} names the ceiling that ended it, and {@code .pace} reports
+     * what both ceilings actually cost. See {@link #recordCrossing}.
      *
      * <p>Net progress per hop is the reach minus the waypoint's own radius, and that is not a
      * shortfall: {@link #HOP_ARRIVE_WITHIN} is where a hop is allowed to stop, so a healthy hop of
-     * 48 lands 43 further on by design. The run above measured exactly that, twice.
+     * 48 lands 42 further on by design. Both runs above measured exactly that on their clean hops —
+     * the 2026-08-21 leg's hops #23 and #24 netted 44 and 42. Clean hops were never the problem.
      */
     private static void recordBudget(JourneyRig rig, String what, double away, int hopTicks) {
         int perHop = NETHER_HOP - HOP_ARRIVE_WITHIN;
         int need = (int) Math.ceil(away / perHop);
-        rig.evidence(what + ".budget", Math.round(away) + " 格 ÷ 每段净进 " + perHop + " 格（伸手 "
-                + NETHER_HOP + " 减路点半径 " + HOP_ARRIVE_WITHIN + "，不是走不满）≈ " + need
-                + " 段；上限 " + MAX_HOPS + " 段 × " + hopTicks + " tick = " + (MAX_HOPS * hopTicks)
-                + " tick。段数和 tick 都不是这一趟的瓶颈（余量 "
-                + String.format(Locale.ROOT, "%.1f", MAX_HOPS / (double) Math.max(1, need))
-                + " 倍）—— 它要是半路停了，死因在 crossing 那一行，不在这里");
+        rig.evidence(what + ".budget", Math.round(away) + " 格；上限 " + MAX_HOPS + " 段 × "
+                + hopTicks + " tick = " + (MAX_HOPS * hopTicks) + " tick。若每段都干净（净进 "
+                + perHop + " 格 = 伸手 " + NETHER_HOP + " 减路点半径 " + HOP_ARRIVE_WITHIN
+                + "）要 " + need + " 段 —— 这是计划速率，不是实测速率：楔死的段和干净的段花掉一样多的"
+                + "段数、三倍的 tick，所以两个上限逼近的速度不同，别拿这一行替这一趟排除任何一个。"
+                + "两个上限各花了多少，走完之后 pace 那一行报");
     }
 
     /**
@@ -1444,6 +1463,12 @@ public final class JourneyNetherRungs {
         int falls;
         int ticks;                     // ticks, summed over hops — the denominator for noPlan
         int noPlan;                    // ticks, summed over hops — the crossing's headline reading
+        int hopTicks;                  // the per-hop ceiling this crossing runs under, kept so the
+                                        // pace row can report a share rather than a bare count.
+        int capped;                    // hops that ran to their full HOP_TICKS. The other ceiling:
+                                        // MAX_HOPS and HOP_TICKS are approached at different rates,
+                                        // so knowing which one a crossing is pressing needs both
+                                        // counted. See recordBudget for the row that guessed wrong.
         String firstLava;
         String why = "";
         final List<String> lines = new ArrayList<>();
@@ -1492,6 +1517,10 @@ public final class JourneyNetherRungs {
             c.falls += flight.fallCount();
             c.ticks += flight.ticks();
             c.noPlan += flight.noPlanTicks();
+            // Counted on EVERY hop, not just wedged ones — the 2026-08-21 leg's hop #13 walked 38
+            // blocks, gained 37 against the record and was still walking when its 900 ticks ran out,
+            // and a counter that only watched failures would have reported it as a healthy hop.
+            if (flight.ticks() >= hopTicks) c.capped++;
             if (flight.lavaLine() != null && c.firstLava == null)
                 c.firstLava = "第 " + hop + " 段 " + flight.lavaLine();
             // 纪录/净进 are the two numbers the shuttle was invisible without: every one of those 21
@@ -1527,6 +1556,17 @@ public final class JourneyNetherRungs {
                 return;
             }
             if (gained >= PROGRESS_UNDER) {
+                // A RECOVERY THROWS AWAY WHAT IT JUST BOUGHT, and this is a known cost that is
+                // deliberately still here. Resetting reach to 48 and turn to 0 means the hop right
+                // after a detour goes back to the bee-line — into the same obstacle the detour was
+                // bought to get around. The fortress leg of 2026-08-21 did it three times: #7, #11
+                // and #14 each followed a recovery, each went straight, each wedged, ~2700 ticks.
+                //
+                // Not fixed in the same round as MAX_HOPS on purpose: two variables in one crossing
+                // cannot be told apart afterwards, and MAX_HOPS is the one that ended that run.
+                // Whoever picks this up should read what it would cost to carry the turn forward for
+                // one hop rather than dropping it — the reset is right in the long run (the goal is
+                // still where it was) and wrong for exactly one hop.
                 c.best = left;
                 c.wedged = 0;
                 c.reach = NETHER_HOP;
@@ -1619,14 +1659,26 @@ public final class JourneyNetherRungs {
         // problem at 900 and a rounding error at 1517, and only the pair says which — so a future
         // reader deciding between「give it more budget」and「it cannot plan here」has the number in
         // front of them instead of a hop line to add up.
+        //
+        // BOTH CEILINGS, side by side, because they are approached at different rates and only the
+        // pair says which one a crossing is pressing. The fortress leg of 2026-08-21 read 24/24 hops
+        // against 13 260 of 21 600 ticks — the hop ceiling full, the tick ceiling at 61% — and the
+        // row that was supposed to spare the reader this arithmetic had ruled both of them out in
+        // advance. See recordBudget. Whichever ceiling is at 100% is the one that ended the walk,
+        // and c.why in the crossing row above names it in words.
         int walked = (int) Math.round(Math.max(0, c.best0 - Math.min(c.best, left)));
+        int tickCeiling = MAX_HOPS * Math.max(1, c.hopTicks);
         rig.evidence(what + ".pace", c.hop + " 段共 " + c.ticks + " tick，净走 " + walked + " 格"
                 + (walked > 0 && c.ticks > 0
                     ? "（" + String.format(Locale.ROOT, "%.1f", c.ticks / (double) walked)
                       + " tick/格，照这个脚程走完全程要 "
                       + Math.round(c.best0 * c.ticks / (double) walked) + " tick）" : "")
                 + "；其中无计划 " + c.noPlan + "/" + c.ticks + " tick = "
-                + (c.ticks > 0 ? Math.round(100.0 * c.noPlan / c.ticks) : 0) + "%");
+                + (c.ticks > 0 ? Math.round(100.0 * c.noPlan / c.ticks) : 0) + "%"
+                + "。两个上限各用了：段数 " + c.hop + "/" + MAX_HOPS + " = "
+                + Math.round(100.0 * c.hop / MAX_HOPS) + "%，tick " + c.ticks + "/" + tickCeiling
+                + " = " + Math.round(100.0 * c.ticks / tickCeiling) + "%（其中 " + c.capped + " 段"
+                + "跑满了自己那 " + c.hopTicks + " tick）—— 满掉的那个才是结束这一趟的那个");
         rig.evidence(what + ".arrivedDistance", Math.round(left));
     }
 
@@ -1838,10 +1890,33 @@ public final class JourneyNetherRungs {
      *  and a hop that turns square to the goal spends its whole reach going nowhere useful. */
     private static final int HOP_TURN = 60;
 
-    /** How many hops a crossing may spend. Twenty-four covers the 397-block fortress leg (nine
-     *  clean hops) with room for halved hops and detours, and bounds the crossing at
-     *  24 × {@link #HOP_TICKS} — see {@link #rungs()} for how that adds up. */
-    private static final int MAX_HOPS = 24;
+    /**
+     * How many hops a crossing may spend.
+     *
+     * <p><b>Forty, and the number is measured rather than reasoned.</b> It was 24, justified as
+     * "nine clean hops for the 397-block fortress leg with room for halved hops and detours". The
+     * fortress leg of 2026-08-21 spent all 24 and died <b>75 blocks short</b> — the run's only
+     * failure, on a ladder that had just reached the Nether through a portal it lit itself.
+     *
+     * <p>What the 24 got wrong is the price of a detour. Room for detours was budgeted in ticks; a
+     * detour costs a HOP. Ten of those 24 hops burned their full {@link #HOP_TICKS}, six netted
+     * nothing or went backwards, and the crossing's measured rate came out at 327/24 = 13.6 blocks
+     * per hop against the 42 a clean hop delivers. At 13.6 the 402-block leg needs 30 hops, and 40
+     * is that with the same kind of margin the old 24 was meant to carry — this time over the rate
+     * that was measured rather than the one that was planned.
+     *
+     * <p><b>It is not the tick budget that this spends, and that is the whole reason it is cheap.</b>
+     * The same run used 13 260 of the rung's 360 000 ticks — 3.7%. Even 40 hops that all run to
+     * their cap is 36 000, which leaves the rung's own arithmetic ({@link #rungs()}) intact on both
+     * rungs that cross. The crossing was never short of time; it was short of questions it was
+     * allowed to ask.
+     *
+     * <p><b>The escalation ladder is not what failed and was deliberately not touched.</b>
+     * {@link #MAX_WEDGED_HOPS} never fired on that run: halving the reach and then turning ±60° got
+     * the body out of every wedge it hit (hops #6 #10 #12 #15 #18 #22 all beat the record). The
+     * crossing could find its way; it could not afford it.
+     */
+    private static final int MAX_HOPS = 40;
 
     /** Hops that may pass without the crossing beating its own record before it gives up. Four,
      *  because the crossing has exactly four different questions to ask: the hop, the halved hop,
@@ -1990,7 +2065,7 @@ public final class JourneyNetherRungs {
      * the nearest warped column in it was {@code 136, ?, -233} — <b>272 blocks out</b>, on the rim.
      * At 256 this rung could therefore only ever report "hunt where you stand" at this seed, which is
      * what both of its runs did. The crossing has been watched carry a body 272 blocks to that same
-     * forest once already, and {@link #MAX_HOPS} × {@link #NETHER_HOP} is 1152 blocks of reach, so
+     * forest once already, and {@link #MAX_HOPS} × {@link #NETHER_HOP} is 1920 blocks of reach, so
      * the extra 128 is inside what the walk is built for — it is the SURVEY that was the binding
      * constraint, not the legs.
      *
