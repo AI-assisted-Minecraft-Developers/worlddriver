@@ -5,6 +5,69 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-21
+
+- **The integrated topology's body was driven through two authorities that never agreed.** The
+  ladder adopts the client's real player there, and drove it two ways at once: the per-tick legs
+  through the client's own chain (really `LocalPlayer`), and 36 single-shot actuations —
+  `holdItem`, `aimAtBlock`, `useItemInHand`, `useBlock` — through a `ServerPlayerAvatar` wrapped
+  around the `ServerPlayer`. Vanilla lets the CLIENT own the selected slot (it travels up as
+  `ServerboundSetCarriedItemPacket`) and the rotation (up every tick in `MovePlayerPacket.Rot`), so
+  those writes landed on a copy nobody was steering.
+- **It was measured before it was fixed, and the measurement refuted both standing hypotheses.**
+  `wd.actuatorSplitOnAnAdoptedBody` recorded server slot 4 against client 0, and server aim
+  (-55.32, 29.55) against client (283.23, 0.00) — **identical ten ticks later**. Not the race
+  everyone assumed, and not a write that survived unopposed: the two sides simply held unrelated
+  values. Measuring first was deliberate — rerouting and re-running the ladder could not have told
+  a working fix from a fix that changed nothing, because both render as green.
+- **The ladder could never have caught this.** `runJourneyServer` is headless: no client exists,
+  `realPlayerHelm` is false, both halves are the server, and a server cannot disagree with itself.
+  Rungs 1-13 are green on a topology where the defect is unreachable. A defect's absence from a
+  suite is a fact about the suite's topology, not about the defect.
+- **The fix is choosing the right avatar, not writing new actuators.** `ClientPlayerAvatar` already
+  did all of it correctly, including the `ServerboundSetCarriedItemPacket` whose absence the ruler
+  measured. `BotApi.clientAvatar()` hands it out from the client side — it cannot be constructed in
+  `JourneyRig`, because merely NAMING a `net.minecraft.client` type from code that also runs
+  headless forces the JVM to resolve it there (StageWright's `DriverFeed` records that exact
+  `NoClassDefFoundError`, whose symptom is a server running a whole suite with no player). Built
+  fresh per call: it binds `mc.player`, which dies on respawn and dimension change.
+- **33 call sites moved, 10 stayed, 2 were split — "all 36" would have created defects.** The
+  client's `breakHold` only presses a keybind, so routing `breakItWhereItStands` there turns every
+  in-place dig into a silent no-op; `canBreak` is `default -> true` on the client, so routing it
+  yields an always-true predicate, which is worse than deleting the check; `placeTally` is not on
+  the interface at all. Two sites mixed aiming with breaking on one avatar and now use one of each.
+- **A0's acceptance is a second scene, never an edit to the first.**
+  `wd.actuatorSplitOnAnAdoptedBody` stays a ruler for the raw divergence, so a future revert
+  re-reports it; `wd.actuatorSplitThroughTheClientAvatar` exercises the fixed path. Its assertion is
+  on the CLIENT's own value (`clientSlot == 4`), **not** on the two sides agreeing — agreement is a
+  symmetric predicate, equally satisfied by both sides being wrong together.
+- **The proof is the reversed asymmetry, not the equal numbers.** Same run, same body: the ruler
+  reads server 4 / client 0, the fixed path reads server 0 / client 4, converging to 4/4 within ten
+  ticks. A false fix that wrote both sides would show 4/4 immediately, with no interval where the
+  client leads — so that intermediate state is the packet going up, and it distinguishes two
+  mechanisms that share a final state.
+- **A green here means the mechanism is right, not that the threading is safe.** Both `thread.*`
+  rows read `Server thread`: these calls write client state across a thread boundary, and such
+  writes mostly do not throw, so this can be agreement that happens to hold. The coherent fix —
+  originating single-shot actions from the client tick chain — is **not built**, and
+  `BotApi.clientAvatar()` states it as an open defect rather than as a rule no caller obeys.
+- **A test that stages one side and asks the other measures nothing.** The acceptance scene's first
+  version put a stone into the SERVER's inventory and called the client's `holdItem`, which searches
+  the CLIENT's — so it failed with a symptom identical to the real defect. Reading its numbers would
+  have concluded the fix did not work and sent someone to repair working code. Its probe is now
+  `setSelectedSlot`, which is independent of inventory contents and exercises the very packet under
+  test.
+- **Which build produced a reading is now readable, not recalled.** The invalid run records
+  `slot.holdItem返回`; the corrected one records `slot.动作`. Changing an assertion's method changes
+  its evidence key, so a stale-bytecode run identifies itself instead of looking like a verdict.
+- **The gates run on the joined body.** All six now set `-Dworlddriver.realPlayerBodies=true`.
+  Predicted and confirmed: NeoForge's `wd.serverAvatarEarnsAdvancement` disappeared, because
+  `PlayerAdvancements.award` has an `instanceof FakePlayer` branch that earns nothing. One new red
+  on both loaders, `wd.crystalBlastOnThePillar` — and it is the scene losing its isolation rather
+  than a driver regression: `body.inLevelEntityIndex` flipped false->true, so `Explosion.explode`
+  now finds the body and launches it 5 blocks sideways off obsidian that never broke. The scene
+  asserts footing and is being failed by ballistics; its own class note predicted this in advance.
+
 ## 2026-08-20
 
 - **The integrated ladder climbs on the client's real player.** 集成服上验证本就需要真实玩家来执行,
