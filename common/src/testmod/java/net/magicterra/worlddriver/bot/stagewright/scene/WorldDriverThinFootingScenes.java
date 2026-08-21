@@ -993,9 +993,15 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // tail then expires and resets the streak. So「the crossing will route around」holds in one
         // of those shapes and not the other, and this row is what tells a reader which shape the
         // measurement came from instead of leaving them to re-derive the hysteresis.
+        // ⚠️ 「够得着」不再蕴含「被丢掉重找过」。`Walker.forcedRepathIfPinnedTooLong` 自 d8e4e650
+        // 起在钉满 30 tick 时先问身体这一段有没有前进：换过计划的重定基、还在推进的保留，只有真冻住
+        // 的才丢。所以这一行只报它测得到的量（钉了多久、够不够门槛），把「那一次到底丢没丢」交给
+        // JourneyFlight 的 guardForcedRepaths／guardKeptPlans 那一对——它们是并排报的，因为单独一个
+        // 0 分不清「从没钉满」和「钉满了但计划被保住」。
         ctx.record("streak", "最长一次连续钉住 " + subject.longestPin()
                 + " tick，强制重找路的门槛是 guardPinStreak ≥ 30 —— 这一趟"
-                + (subject.longestPin() >= 30 ? "够得着，钉住期间路是被丢掉重找过的"
+                + (subject.longestPin() >= 30
+                        ? "够得着（是否真的丢弃还要看身体那一段有没有前进，本场景不测这一步）"
                         : "够不着，所以从头到尾没改过道，只是一轮一轮地钉、松、再钉"));
 
         if (lava) {
