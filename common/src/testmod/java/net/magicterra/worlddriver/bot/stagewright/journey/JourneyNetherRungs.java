@@ -246,15 +246,52 @@ public final class JourneyNetherRungs {
             // difference between「on the surveyed cell」and「near it」visible.
             rig.evidence(leg + ".at", now.toShortString() + "，距路点 " + off + " 格（含 y，容差 "
                     + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
+            if (off > WAYPOINT_ARRIVE_WITHIN) { detourTo(ctx, rig, fortress, i, want, leg); return; }
+            walkTheCorridor(ctx, rig, fortress, i + 1);
+        });
+    }
+
+    /**
+     * Ask for the same cell a different way, once, before giving up on a leg.
+     *
+     * <h2>The cell a body reached is not always a cell it can aim at</h2>
+     *
+     * Leg 4 of the corridor is {71,43,69} → {63,41,87}, and both ends are cells the ladder stood in.
+     * Aimed at directly it returns {@code no progress for 1200 ticks}. <b>The ladder did not aim at
+     * it either.</b> Its hops #4 and #5 left {71,43,69} for 900 ticks each with no plan at all, and
+     * hop #6 got out by turning 60° off the bearing to the FORTRESS and aiming at {63,92} — a point
+     * nobody stood in, 5 blocks past the cell the walk actually ended in.
+     *
+     * <p>So a surveyed cell answers「is this standable」and「was this reachable」, and it does not
+     * answer「is this a goal A* can solve for from here」. {@link #crossToColumn} already owns the
+     * only thing that has ever unwedged this terrain — halve the reach, then turn ±60° — and its
+     * bearing comes from the goal, which is why it found the lateral escape when a direct goal
+     * could not.
+     *
+     * <p><b>The fallback changes the QUESTION, never the bar.</b> Arrival is still
+     * {@link #WAYPOINT_ARRIVE_WITHIN} in three dimensions, checked here again on the way out: every
+     * invariant on this ladder that ever broke, broke through a fallback that quietly relaxed it.
+     */
+    private static void detourTo(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
+                                 BlockPos want, String leg) {
+        rig.evidence(leg + ".detour", "直接瞄 " + want.toShortString() + " 走不通，改用跳段机器"
+                + "（减半 → 偏 ±60°）问同一格 —— 能到达的格未必是能瞄的格，见 detourTo");
+        Runnable judge = () -> {
+            BlockPos now = rig.player().blockPosition();
+            int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
+            rig.evidence(leg + ".detourAt", now.toShortString() + "，距路点 " + off + " 格（含 y，"
+                    + "容差 " + WAYPOINT_ARRIVE_WITHIN + " —— 后备换的是问法，不是判据）");
             if (off > WAYPOINT_ARRIVE_WITHIN) {
                 ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
-                        + now.toShortString() + "，差 " + off + " 格。这一格是真梯第 14 趟身体"
-                        + "站过的，所以它站得住 —— 死因在 " + leg + ".* 那几行，修法多半是把这个"
-                        + "路点挪一格或在它前面加一个，不是调机制");
+                        + now.toShortString() + "，差 " + off + " 格，直走和绕行都试过了。"
+                        + "这一格是真梯第 14 趟身体站过的，所以它站得住 —— 死因在 " + leg
+                        + ".* 那几行，修法是在它前面加一个路点，不是调机制");
                 return;
             }
             walkTheCorridor(ctx, rig, fortress, i + 1);
-        });
+        };
+        crossToColumn(rig, leg + ".hop", want.getX(), want.getZ(), 0, HOP_TICKS,
+                WAYPOINT_DETOUR_HOPS, judge, judge);
     }
 
     /**
@@ -2106,6 +2143,12 @@ public final class JourneyNetherRungs {
      *  cell the body stood in and the point of the whole corridor is to put the body back in it —
      *  the run that let a leg finish three blocks high proved that a column is not a cell. */
     private static final int WAYPOINT_ARRIVE_WITHIN = 2;
+
+    /** Hops the fallback detour gets. Five is the escalation ladder's four distinct questions — the
+     *  hop, the halved hop, and the halved hop turned each way — plus one, and {@link
+     *  #MAX_WEDGED_HOPS} ends it at four fruitless ones anyway. A leg that cannot be solved in four
+     *  different questions wants a new waypoint, not a sixth ask. */
+    private static final int WAYPOINT_DETOUR_HOPS = 5;
 
     /** Ticks one surveyed leg gets. The first corridor run walked its four completed legs in
      *  184–530 ticks each, so 3 000 is six times the slowest measured leg — wide enough for a leg
