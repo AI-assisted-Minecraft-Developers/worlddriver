@@ -1820,7 +1820,27 @@ public final class JourneyNetherRungs {
         rig.settle(new HoldStill(LANDING_TICKS), LANDING_TICKS + 4, then);
     }
 
-    /** Everything the crossing did, in three rows rather than one per hop. */
+    /**
+     * Everything the crossing did, in three rows rather than one per hop.
+     *
+     * <h2>Every distance in these rows is HORIZONTAL, and the rows now say so</h2>
+     *
+     * {@code 还差}, {@code 全程最近}, {@code 净走} and {@code arrivedDistance} are all
+     * {@code hypot(dx, dz)}. That matches what this crossing is for — see {@code crossToColumn}, it
+     * is handed {@code x, z} and nothing else — but a reader does not see the signature, only the
+     * number, and「还差 0 格」about a body twenty-three blocks below its caller's target is a row
+     * that ends an investigation in the wrong place. It has already done so once (2026-08-21: a
+     * fallback delegated here, was judged arrived on the spot, and reported success having walked
+     * nowhere).
+     *
+     * <p><b>Labelled rather than given a y-delta, because there is no y to compare against.</b>
+     * This crossing is never told a target height — inventing one from the body's own position, or
+     * from a landmark whose {@code y} is a structure-locate placeholder zero, would put a number in
+     * the row that means nothing and reads like a measurement. {@code IntentProcess.crossedOut}
+     * makes the same call and says why: it leaves {@code finalDist} at −1 rather than report a
+     * distance to coordinates that do not apply. A caller that needs height has to bring its own
+     * goal shape; the javadoc on {@code crossToColumn} says which.
+     */
     private static void recordCrossing(JourneyRig rig, String what, Crossing c, double left) {
         rig.evidence(what + ".hops", c.lines.isEmpty() ? "一段都没走" : String.join(" | ", c.lines));
         // 无计划 is the headline, and it is the reading that made the hop crossing worth writing:
@@ -1828,7 +1848,7 @@ public final class JourneyNetherRungs {
         // reports a big number here has NOT been fixed by being cut up, whatever its distance says.
         // 全程最近 is not the same as 还差, and the gap between them IS the finding when a crossing
         // shuttles: the run that named this ended 265 blocks out having once been 244 out.
-        rig.evidence(what + ".crossing", c.hop + " 段，还差 " + Math.round(left) + " 格（全程最近 "
+        rig.evidence(what + ".crossing", c.hop + " 段，还差 " + Math.round(left) + " 格水平（全程最近 "
                 + Math.round(Math.min(c.best, left)) + " 格），离地 "
                 + c.falls + " 次，全程无计划 " + c.noPlan + " tick"
                 + (c.firstLava == null ? "，没进过岩浆" : "，" + c.firstLava)
@@ -1857,7 +1877,20 @@ public final class JourneyNetherRungs {
                 + Math.round(100.0 * c.hop / c.maxHops) + "%，tick " + c.ticks + "/" + tickCeiling
                 + " = " + Math.round(100.0 * c.ticks / tickCeiling) + "%（其中 " + c.capped + " 段"
                 + "跑满了自己那 " + c.hopTicks + " tick）—— 满掉的那个才是结束这一趟的那个");
+        // Stays a bare number: it is quoted as one across TODO.md and CHANGELOG.md, and the sibling
+        // rows in WorldDriverJourneyScenes and JourneyEndRungs write the same key the same way — a
+        // unit glued onto this one alone would make those incomparable to buy nothing the row below
+        // does not buy properly.
         rig.evidence(what + ".arrivedDistance", Math.round(left));
+        // WHAT THAT NUMBER IS NOT. Same shape as `raiseColumnMissed` in JourneyPour, and for the
+        // same reason: `arrivedDistance` is not read as a verdict, so the honest place to say「this
+        // is horizontal only, and the crossing was never given a height to miss」is its own row,
+        // next to the y the body actually ended at. A reader who sees `还差 0` and this line
+        // together cannot conclude the body is where the caller wanted it — which is exactly the
+        // conclusion that was drawn on 2026-08-21 and cost a fallback that had never run.
+        rig.evidence(what + ".arrivedDistanceIs", "水平距离（hypot(dx,dz)），身体停在 y="
+                + rig.player().blockPosition().getY() + "；这一趟只被交代了 x,z，没有目标高度，"
+                + "所以 y 的差值无从算起 —— 要判高度的调用方得自己带目标（见 crossToColumn 的说明）");
     }
 
     /**
