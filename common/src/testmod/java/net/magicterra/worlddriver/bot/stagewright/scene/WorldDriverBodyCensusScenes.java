@@ -337,17 +337,20 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
 
         private final int tickCount0;
         private final double startY;
+        /** World time when the watch was armed, so the denominator is MEASURED, not assumed. */
+        private final long gameTime0;
         private final StringBuilder invulnerable = new StringBuilder();
         private double fallPeak;
         private int pumps;
 
         private ServerTickWatch(String column, ServerPlayer fp, String unavailable,
-                                int tickCount0, double startY) {
+                                int tickCount0, double startY, long gameTime0) {
             this.column = column;
             this.fp = fp;
             this.unavailable = unavailable;
             this.tickCount0 = tickCount0;
             this.startY = startY;
+            this.gameTime0 = gameTime0;
         }
 
         /**
@@ -355,13 +358,16 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
          *
          * <p>Lifted into the air on purpose: {@code fallDistance} can only be read through an actual
          * fall, and a body already standing on the pad would give the honest-looking zero that means
-         * nothing. The lift is 8, inside the {@code PAD+1} clear box the column already reserves, so
-         * this adds no footprint the header's hull calculation does not already cover.
+         * nothing. The lift is 8, which puts the FEET on the top layer of the {@code PAD+1} clear box
+         * and the head just above it — the horizontal hull in the header is unchanged, which is the
+         * part {@code check_scene_arena.py} scores, and the couple of blocks of headroom sit 20+
+         * above whatever the world generated.
          */
         static ServerTickWatch arm(String column, ServerPlayerAvatar avatar,
                                    int cx, int floorY, int cz) {
             if (avatar == null) {
-                return new ServerTickWatch(column, null, "unavailable/该列没能铸出身体（见 identity）", 0, 0);
+                return new ServerTickWatch(column, null, "unavailable/该列没能铸出身体（见 identity）",
+                        0, 0, 0L);
             }
             try {
                 ServerPlayer fp = avatar.fakePlayer();
@@ -369,10 +375,12 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
                 fp.setDeltaMovement(Vec3.ZERO);
                 fp.fallDistance = 0.0F;
                 fp.invulnerableTime = 20;
-                return new ServerTickWatch(column, fp, null, fp.tickCount, fp.getY());
+                return new ServerTickWatch(column, fp, null, fp.tickCount, fp.getY(),
+                        fp.level().getGameTime());
             } catch (RuntimeException | LinkageError e) {
                 return new ServerTickWatch(column, null,
-                        "unavailable/" + e.getClass().getSimpleName() + ": " + e.getMessage(), 0, 0);
+                        "unavailable/" + e.getClass().getSimpleName() + ": " + e.getMessage(),
+                        0, 0, 0L);
             }
         }
 
@@ -395,16 +403,21 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
                 return;
             }
             int gained = fp.tickCount - tickCount0;
+            // The denominator is the world clock, not the pump count. How many real ticks N pumps
+            // span depends on when ctx.await first evaluates the condition, and asserting "should be
+            // +pumps" without measuring would be an evidence row that names a number it never took.
+            long elapsed = fp.level().getGameTime() - gameTime0;
             ctx.record(key(column, "serverTickCount"), String.format(java.util.Locale.ROOT,
-                    "%d 个真实服务器 tick 里 tickCount %d→%d（+%d；真玩家应 +%d）——"
-                            + "这里的 0 是「通道一没跑」，不是「时间不够」",
-                    pumps, tickCount0, fp.tickCount, gained, pumps));
+                    "%d 次采样跨了 %d 个真实服务器 tick（世界时钟量的）：tickCount %d→%d（+%d；"
+                            + "真玩家应 +%d）——这里的 0 是「通道一没跑」，不是「时间不够」",
+                    pumps, elapsed, tickCount0, fp.tickCount, gained, elapsed));
             ctx.record(key(column, "serverInvulnerableTime"), String.format(java.util.Locale.ROOT,
-                    "置 20 后按真实服务器 tick 逐个采样：%s（真玩家应递减）", invulnerable));
+                    "置 20 后按真实服务器 tick 逐个采样（跨 %d tick）：%s（真玩家应递减）",
+                    elapsed, invulnerable));
             ctx.record(key(column, "serverFallDistance"), String.format(java.util.Locale.ROOT,
                     "从 y=%.1f 起不再驱动，%d 个真实 tick 后 y=%.1f（实际下落 %.2f 格），"
                             + "fallDistance 峰值=%.3f，末值=%.3f",
-                    startY, pumps, fp.getY(), startY - fp.getY(), fallPeak, fp.fallDistance));
+                    startY, elapsed, fp.getY(), startY - fp.getY(), fallPeak, fp.fallDistance));
         }
     }
 
