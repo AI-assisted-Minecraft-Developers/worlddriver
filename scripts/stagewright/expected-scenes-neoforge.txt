@@ -424,3 +424,8 @@ wd.rampFootholdRisesWithTheFlightItLaid
 # is the body being retired — so this loader's readings are the ones that cannot be taken again
 # afterwards. See docs/fake-player-parity.md §6.5.
 wd.bodyParityCensus
+# Also a ruler rather than a test, and its one assertion is about the INSTRUMENT: it measures how
+# far the server-side actuators (ServerPlayerAvatar.holdItem / aimAtBlock, which the ladder still
+# uses for 36 single-shot calls) drift from the LocalPlayer the client owns. SKIPs on every
+# dedicated topology — it needs one JVM holding both bodies. See its class note.
+wd.actuatorSplitOnAnAdoptedBody

@@ -20,6 +20,16 @@ etc.) working in this project. Keep it short and authoritative.
     opens its own world, so the same scenes run under an integrated server) or
     `DedicatedServerWithClient` (a headless server with a real client joined to it);
     `Loader` is `Fabric` or `Neoforge`.
+
+    **These names live at the ROOT, and the per-loader `:fabric:runStagewright…` /
+    `:fabric:runJourney…` tasks beside them are NOT the same thing.** The root name is the
+    gate: it depends on a `…Provision` task that deletes the run directory's `world/` first,
+    then judges the results. The `:<loader>:run…` task is only the bare JavaExec. Reaching for
+    it because the root name did not tab-complete gives you a run over the PREVIOUS run's
+    world — blocks a former run bridged are still standing, shafts it dug are still open — and
+    scenes then fail in ways that read exactly like real bot defects. Which scenes fail varies
+    per run, which reads exactly like flakiness. It isn't. If a root name looks missing, run
+    `./gradlew tasks --all | grep -i stagewright` rather than substituting the loader task.
   - `./gradlew stagewright<Topology><Loader>Hold` — the same topology, standing still, with
     a `TESTKIT_ENDPOINT` descriptor published into its run directory once the game is in a
     world. Ends on Ctrl-C. Everything that asserts from OUTSIDE the game attaches to one of
