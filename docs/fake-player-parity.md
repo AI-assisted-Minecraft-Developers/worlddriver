@@ -393,6 +393,83 @@ fabric/build.gradle:481   runRehearsalServer
 
 ---
 
+## 6.6 `wd.bodyParityCensus` 实测存档（NeoForge，2026-08-21）
+
+> **这一节是存档，不是分析。** `FakePlayer` 一旦按 §0 废弃，`factory` 这一列就再也取不到了，
+> 所以原始读数逐字抄在这里，而不是只留结论。
+>
+> 出处：`stagewrightDedicatedServerNeoforge`，`BUILD SUCCESSFUL`，`VERDICT: GREEN`，
+> `neoforge/run-dogfood/stagewright-results.jsonl` 写于本地时间 2026-08-21 23:52:38，
+> 302 条 scene 行，非 PASS 恰为基线的 5 条（2 条框架 canary + 3 条 `withRequired(false)` 传感器），
+> **没有多出任何红**。场景本身 `PASS (1 ticks, 201 ms)`，28 个读数一个不缺。
+> 代码 HEAD = `a50c501f`。
+
+| 量 | `factory`（**真 neoforge `FakePlayer`**） | `joined`（`JoinedBody`） | 两列一样？ |
+|---|---|---|---|
+| `identity` | `FakePlayer agent-body-236`，在玩家表=**false**，是 neoforge FakePlayer=**true** | `JoinedBody wd-census`，在玩家表=**true**，是 neoforge FakePlayer=false | **不同** |
+| `tickChain` | 在 `ServerLevel` 实体 tick 表=**false**；`tick()` 被覆盖=true；connection 在 `ServerConnectionListener`=false | 在实体 tick 表=**true**；`tick()` 被覆盖=true；connection 在 `ServerConnectionListener`=false | **不同**（前半） |
+| `advancementsWritable` | `award()` 返回 **false**，isDone=false | `award()` 返回 **true**，isDone=**true** | **不同** |
+| `walkStat` | 走到水平 2.0 格用 11 tick，位移 2.28 格（≈0.207 格/tick），`walk_one_cm` **0→0** | 同样 11 tick / 2.28 格 / ≈0.207 格/tick，`walk_one_cm` **0→227** | **不同** |
+| `isInvulnerableTo` | true | true | 一样 |
+| `invulnerableTime` | 置 20 后逐 tick：20,20,20,20,20 | 同左 | 一样 |
+| `fallDistance` | 实际下落 11.00 格，`fallDistance` 峰值 0.000、落地 0.000 | 同左 | 一样 |
+| `experienceOrbs` | 扔 3 颗，`totalExperience` 0→3，20 tick 后仍有 **2 颗**没被吸收 | 同左 | 一样 |
+| `pose` | 潜行 5 tick 后仍 `STANDING/1.80` | 同左 | 一样 |
+| `jumpApex` | 升高 1.252 格，`Stats.JUMP` **0→0** | 升高 1.252 格，`Stats.JUMP` **0→0** | 一样 |
+| `swinging` | 攻击后 `swinging=false`，`attackAnim=0.00` | 同左 | 一样 |
+| `mineDrop` | 赤手挖石头掉落 **1** 个（真玩家应 0）；铁镐耐久损耗 **0**（应 1） | 同左 | 一样 |
+| `tickCount` | 0 | 0 | 一样（**但见下面的「测不到」**） |
+
+`census.topology=dedicatedServer（真玩家 0）`，`census.armProperty=worlddriver.realPlayerBodies=false` ——
+两列确实是两具不同的身体，不是同一具被记了两遍。
+
+### 这一趟证实了什么
+
+**13 个量里只有 4 个两列不同。** 也就是说 §6.5 丙档「换身体也不会好」的判断被实测支持：
+换成 `JoinedBody` 之后，隐身、无敌、不积累坠落、吸不到经验球、潜不下去、不挥手、挖掘掉落物错、
+镐子不掉耐久——**一条都不会自己好**。
+
+- **甲档 N1/N2 当场坐实**：`advancementsWritable` 是 `false` vs `true`。这是这份文档里唯一一条
+  「换身体即消失」被实测而非推理确认的差异。
+- **乙档前提坐实**：`tickChain` 显示 `JoinedBody` **在** `ServerLevel` 实体 tick 表里，`FakePlayer` 不在。
+  通道(一)对它是接通的，掐断它的确实是我们自己 `JoinedPlayerBodies.java:217` 的空 `tick()`。
+
+### 这一趟发现了两条表里没有的差异
+
+**N18（甲档，新）：`FakePlayer` 吞掉全部统计量。**
+`walk_one_cm` 0 vs 227，而两列走的距离、tick 数、速度完全一致（2.28 格 / 11 tick / 0.207 格每 tick）——
+所以差别不在「走没走」，在「记没记」。机制是
+`FakePlayer.awardStat(Stat<?>, int) { }`，一个无条件空实现
+（neoforge 21.1.230 `forge-universal.jar` 里的 `net/neoforged/neoforge/common/util/FakePlayer.class`，
+vineflower 1.10.1 `-dgs=1` 反编译，全类只有约 60 行，这是其中一个覆盖）。
+引擎侧的授予路径是通的：`ServerPlayer.travel(Vec3)`（`:1141`）包住 `super.travel()` 后调
+`checkMovementStatistics`（`:1157`）→ `awardStat(Stats.WALK_ONE_CM, l)`（`:1191`），
+而我们的 avatar 正是调 `fp.travel(...)`（`ServerPlayerAvatar.java:1079`）。**所以拦住统计的只有那个覆盖。**
+
+> **这条对 Fabric 同样成立，而且是我们自己写的**：`AvatarFakePlayer.java:70`
+> 也有一模一样的 `@Override public void awardStat(Stat<?> stat, int amount) { }`，
+> 理由写在 `:39` 的 javadoc 里（"no client"）。所以 Fabric 的 `factory` 列预期也会读到 `0→227` 里的 `0`。
+> **影响面比「走路里程」大得多**：统计量是进度触发器的输入之一，也是
+> `Stats.JUMP`/`FALL_ONE_CM`/`DAMAGE_DEALT`/`ENTITY_KILLED` 等等的去处。
+
+**N19（丙档，新）：avatar 从不调 `Player.jumpFromGround()`。**
+`Stats.JUMP` 在**两列**都是 `0→0`，可是 `joined` 那一列的 `awardStat` 并没有被覆盖（它记下了 227 厘米）。
+所以 JUMP 是 0 只剩一个解释：**那次跳根本没走 `jumpFromGround()`**，avatar 是直接改速度把身体抬起来的。
+`Player.jumpFromGround()`（`Player.java:1471-1474`）除了记 `Stats.JUMP`，还负责冲刺跳的
+`causeFoodExhaustion(0.2F)`——**这两样今天都没发生**。换身体不会改变这一条，它在驱动器这一侧。
+
+### 这一趟**测不到**什么（必须写下来，否则下一个人会误读上表）
+
+场景 `ticks=1`：整个普查跑在**一个服务器 tick 内**，靠 `avatar.step()` 同步推进。
+凡是「只在服务器 tick 流逝时才变化」的量，这趟都**无法区分「通道死了」和「普查压根没让 tick 流过」**：
+
+- `tickCount` 两列都是 0 —— `ServerLevel.tickNonPassenger:774` 的 `var1.tickCount++` 一次都没轮到。
+- `invulnerableTime` 两列都停在 20 —— 递减发生在 `ServerPlayer.tick()` 里。
+- `fallDistance` 两列峰值都是 0.000 —— 累加同理。
+
+**这三行不是证据，是空读数。** 要判它们，需要一条让服务器真的 tick 若干次的普查
+（`ctx.await(...)` 而不是同步 `step()` 循环），那是下一轮的事，不要拿上表的「一样」当结论。
+
 ## 7. 场景归属：谁该迁走，谁迁不了
 
 **迁移机制今天就有**：`SceneContext.playerHere()`（stagewright `api/src/main/java/net/magicterra/stagewright/scene/SceneContext.java:135`）会把真玩家传送进舞台并注册还原清理；`SceneContext.player()`（`:118`）在没有真玩家时**跳过场景**（`:150`）。
