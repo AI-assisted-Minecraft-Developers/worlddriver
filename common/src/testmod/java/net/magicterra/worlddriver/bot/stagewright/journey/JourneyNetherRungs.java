@@ -1016,6 +1016,17 @@ public final class JourneyNetherRungs {
      * rung.
      */
     private static void blazeVerdict(SceneContext ctx, JourneyRig rig, StringBuilder tally, int killed) {
+        // GO AND GET THEM FIRST. A blaze dies in the air — measured up to 4.3 blocks up — so its rod
+        // lands wherever it falls, and this rung used to read the bag straight afterwards and fail on
+        // an empty one. 2026-08-21: seven kills, zero rods, `dropsNearby=2 根掉在地上没捡` printed by
+        // the row below, on the same verdict. The drops were not the problem and neither was the
+        // loot gate (wd.serverEarnsABlazeRod: 24/24 kills, 11 rods) — nobody walked over to them.
+        rig.collectByHand(BLAZE_ROD, JourneyRig.MAX_PICKUP_LEGS, "blaze",
+                () -> blazeBank(ctx, rig, tally, killed));
+    }
+
+    /** The verdict proper, taken after the collect — see {@link #blazeVerdict}. */
+    private static void blazeBank(SceneContext ctx, JourneyRig rig, StringBuilder tally, int killed) {
         int rods = rig.carrying(BLAZE_ROD);
         rig.evidence("blaze.killed", killed + " 只");
         rig.evidence("rods.perKill", tally.length() == 0 ? "一场没打" : tally.toString());
@@ -2672,22 +2683,13 @@ public final class JourneyNetherRungs {
      * <p><b>Past {@code 220,53,250} nobody has been.</b> The last leg is the generic crossing with
      * its full hop allowance, not a surveyed one, and a failure there is not a route defect.
      *
-     * <h2>The 39-block leg was the one that built a 45-block bridge</h2>
+     * <h2>Why the legs are short, and why the bar is not tighter</h2>
      *
-     * {74,41,97} → {102,41,122} was thirty-nine blocks, and a run measured it walking that distance
-     * on {@code {bridgePlace=45, walk=2}}: the body finished the previous leg <b>one block above the
-     * floor</b> (at {101,42,121} rather than {101,41,121} — both inside the two-block bar the judge
-     * uses), and from a cell one above the netherrack every forward step is「air with a floor two
-     * down」, which prices as a bridge rather than a walk. It bridged the whole way, and the leg
-     * AFTER it then failed with {@code no path (expanded=100000)} seven blocks from its waypoint —
-     * a hundred thousand nodes expanded from the tip of a self-built bridge over a lava sea.
-     *
-     * <p><b>The remedy is more waypoints, not a tighter arrival bar.</b> Tightening the bar would
-     * re-break leg 4, which legitimately finishes two blocks out because its waypoint is the solid
-     * block the ladder stood ON. A shorter leg cannot drift a block upward and then spend thirty
-     * blocks there: the next waypoint pulls it back down to the surveyed level within ten blocks.
-     * The standing instruction for this rung is scripted steps before engine capability, and this is
-     * what that looks like when a scripted step turns out to be too long.
+     * One 39-block leg once bridged its whole length ({@code {bridgePlace=45, walk=2}}) because it
+     * started one block above the floor, where every forward step prices as a bridge; the leg after
+     * it died {@code expanded=100000} off the tip. The remedy was more waypoints, NOT a tighter
+     * arrival bar — tightening it asks the executor for more than the judge requires, which is its
+     * own defect. See TODO.md for the full account and the Y-band tax that followed.
      *
      * <h2>「OCCUPIED, not surveyed」was the wrong warrant, and it is measured wrong</h2>
      *

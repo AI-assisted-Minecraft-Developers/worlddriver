@@ -1285,6 +1285,70 @@ public final class JourneyRig {
     }
 
     /**
+     * Walk to what this rung just dropped and pick it up, by hand, up to {@link #MAX_PICKUP_LEGS}
+     * legs.
+     *
+     * <h2>Why this lives here and not in one rung</h2>
+     *
+     * It was written once, for the ore rungs, and sat private in {@code WorldDriverJourneyScenes} —
+     * so rung 14 could not reach it and simply did not collect. On 2026-08-21 that rung killed seven
+     * blazes in a room it had built, and banked <b>zero</b> rods with {@code dropsNearby=2 根掉在地上
+     * 没捡} sitting right beside the verdict. The loot gate was never the problem: the dedicated
+     * sensor {@code wd.serverEarnsABlazeRod} reports {@code blaze.killed=24/24, rods.total=11}, so
+     * this body's kills register as player kills and the drops roll normally. <b>Nobody went and got
+     * them.</b>
+     *
+     * <p>Two rungs needing the same walk is what a shared rig is for, and {@link #dropsNearby} /
+     * {@link #nearestDrop} — the pair this completes — already live here.
+     *
+     * <p>The beat after each walk is not padding: vanilla gives a fresh drop a ten-tick pickup delay,
+     * and the pickup magnet only fires while something is ticking the body. Arriving and immediately
+     * asking the next question walks away from an item that was about to be collectible.
+     */
+    public void collectByHand(String itemId, int legs, Runnable then) {
+        int slash = itemId.indexOf(':');
+        collectByHand(itemId, legs, slash < 0 ? itemId : itemId.substring(slash + 1), then);
+    }
+
+    /**
+     * As above, under a caller-chosen evidence key.
+     *
+     * <p>The key is not decoration. Evidence entries overwrite by name, so two veins collecting the
+     * same item wrote {@code pickup.walks} / {@code pickup.target} over each other and the surviving
+     * pair described only the LAST vein. A run then read {@code vein1.raw_iron=0,
+     * vein1.raw_iron.onGround=2} — two ingots' worth lying where the body had just been — beside a
+     * {@code pickup.target} ten blocks away at the other vein, which says nothing about whether
+     * vein 1's collect ever walked anywhere.
+     */
+    public void collectByHand(String itemId, int legs, String key, Runnable then) {
+        if (legs <= 0) { leftOnTheGround(itemId, key, then); return; }
+        BlockPos drop = nearestDrop(itemId, PICKUP_RADIUS);
+        if (drop == null) { leftOnTheGround(itemId, key, then); return; }
+        evidence(key + ".pickup.walks", MAX_PICKUP_LEGS - legs + 1);
+        evidence(key + ".pickup.target", drop.toShortString());
+        settle(new IntentProcess(new Intent(new Goal.Block(drop))), 600,
+                () -> settle(new HoldStill(30), 50,
+                        () -> collectByHand(itemId, legs - 1, key, then)));
+    }
+
+    /** What the collect could not get, read after it stops rather than before it starts. A drop
+     *  count taken only up front cannot tell "the walk reached it" from "it despawned while the
+     *  body was at the next vein" — five minutes is a short life for an item and this ladder's
+     *  mines are long. */
+    private void leftOnTheGround(String itemId, String key, Runnable then) {
+        evidence(key + ".pickup.left", dropsNearby(itemId, PICKUP_RADIUS));
+        then.run();
+    }
+
+    /** How many hand-walked pickup legs a rung gets. Three, because the ladder's mines break a
+     *  handful of blocks and a drop that two legs cannot reach is a finding, not a budget problem. */
+    public static final int MAX_PICKUP_LEGS = 3;
+
+    /** How far a collect looks. The same number on the walk and on the leftover count, so「走过去了」
+     *  and「还剩几个」are answered about the same set of drops. */
+    private static final double PICKUP_RADIUS = 32;
+
+    /**
      * Where the nearest {@code blockId} is STANDING in the world, or null within {@code radius}.
      *
      * <p>The counterpart {@link #nearestDrop} cannot answer, and the distinction is a real one for

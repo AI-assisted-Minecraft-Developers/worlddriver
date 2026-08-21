@@ -1273,7 +1273,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.attempting("取回还立着的工作台");
             rig.settle(new IntentProcess(new Intent(new Goal.Near(standing, 2))), 600,
                     () -> rig.mineBlock(standing, 600,
-                            () -> collectByHand(rig, "minecraft:crafting_table", 1, () -> {
+                            () -> rig.collectByHand("minecraft:crafting_table", 1, () -> {
                                 rig.evidence("craftingTable.reclaimed",
                                         rig.carrying("minecraft:crafting_table"));
                                 then.run();
@@ -1282,7 +1282,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         }
 
         rig.attempting("找回工作台：上一级把它留在地下了");
-        collectByHand(rig, "minecraft:crafting_table", 1, () -> {
+        rig.collectByHand("minecraft:crafting_table", 1, () -> {
             if (rig.carrying("minecraft:crafting_table") > 0) {
                 rig.evidence("craftingTable.recovered", true);
                 makeRoomForAStation(rig, then);
@@ -1519,7 +1519,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // dropped" and "it dropped and was never collected" all read as raw_iron=0, and they
             // live in three different files.
             rig.evidence(tag + ".raw_iron.onGround", rig.dropsNearby("minecraft:raw_iron", 48));
-            collectByHand(rig, "minecraft:raw_iron", MAX_PICKUP_LEGS, tag, then);
+            rig.collectByHand("minecraft:raw_iron", MAX_PICKUP_LEGS, tag, then);
         });
     }
 
@@ -1619,7 +1619,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         if (standing == null) { then.run(); return; }
         rig.evidence("craftingTable.tookItAlong", standing.toShortString());
         rig.mineBlock(standing, 600,
-                () -> collectByHand(rig, "minecraft:crafting_table", 1, then));
+                () -> rig.collectByHand("minecraft:crafting_table", 1, then));
     }
 
     /**
@@ -1782,14 +1782,14 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // reason than that the furnace's guard was written first.
             rig.attempting("取回还立着的" + zh);
             rig.settle(new IntentProcess(new Intent(new Goal.Near(standing, 2))), 600,
-                    () -> rig.mineBlock(standing, 600, () -> collectByHand(rig, itemId, 1, () -> {
+                    () -> rig.mineBlock(standing, 600, () -> rig.collectByHand(itemId, 1, () -> {
                         rig.evidence(key + ".reclaimed", rig.carrying(itemId));
                         then.run();
                     })));
             return;
         }
         rig.attempting("找回" + zh + "：上一段把它花掉了");
-        collectByHand(rig, itemId, 1, () -> {
+        rig.collectByHand(itemId, 1, () -> {
             if (rig.carrying(itemId) > 0) { rig.evidence(key + ".recovered", true); then.run(); return; }
             rig.evidence(key + ".remade", true);
             rig.attempting("补做" + zh);
@@ -1822,10 +1822,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>Best-effort by design. Each leg is a {@link JourneyRig#settle}, so a drop in a place the
      * walker cannot stand costs one leg rather than the whole rung.
      */
-    private static void collectByHand(JourneyRig rig, String itemId, int legs, Runnable then) {
-        int slash = itemId.indexOf(':');
-        collectByHand(rig, itemId, legs, slash < 0 ? itemId : itemId.substring(slash + 1), then);
-    }
+    // MOVED TO JourneyRig. It sat private here, so rung 14 could not reach it and did not collect at
+    // all: seven blazes killed, zero rods banked, `dropsNearby=2 根掉在地上没捡` printed beside the
+    // verdict. Two rungs needing the same walk is what the shared rig is for — and dropsNearby and
+    // nearestDrop, the pair it completes, were already there.
 
     /**
      * As above, under a caller-chosen evidence key.
@@ -1838,31 +1838,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * vein 1's collect ever walked anywhere. Same shape as the shaft and climb keys, which have
      * been indexed from the start for exactly this reason.
      */
-    private static void collectByHand(JourneyRig rig, String itemId, int legs, String key, Runnable then) {
-        if (legs <= 0) { leftOnTheGround(rig, itemId, key, then); return; }
-        BlockPos drop = rig.nearestDrop(itemId, 32);
-        if (drop == null) { leftOnTheGround(rig, itemId, key, then); return; }
-        rig.evidence(key + ".pickup.walks", MAX_PICKUP_LEGS - legs + 1);
-        rig.evidence(key + ".pickup.target", drop.toShortString());
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(drop))), 600,
-                // A beat on the spot afterwards: vanilla gives a fresh drop a 10-tick pickup delay
-                // and the magnet only fires while something is ticking the body.
-                () -> rig.settle(new HoldStill(30), 50,
-                        () -> collectByHand(rig, itemId, legs - 1, key, then)));
-    }
-
-    /** What the collect could not get, read after it stops rather than before it starts. A drop
-     *  count taken only up front cannot tell "the walk reached it" from "it despawned while the
-     *  body was at the next vein" — five minutes is a short life for an item and this ladder's
-     *  mines are long. */
-    private static void leftOnTheGround(JourneyRig rig, String itemId, String key, Runnable then) {
-        rig.evidence(key + ".pickup.left", rig.dropsNearby(itemId, 32));
-        then.run();
-    }
-
-    /** How many hand-walked pickup legs a rung gets. Three, because the ladder's mines break a
-     *  handful of blocks and a drop that two legs cannot reach is a finding, not a budget problem. */
-    private static final int MAX_PICKUP_LEGS = 3;
+    /** @see JourneyRig#MAX_PICKUP_LEGS */
+    private static final int MAX_PICKUP_LEGS = JourneyRig.MAX_PICKUP_LEGS;
 
 
     // =====================================================================================
@@ -1950,7 +1927,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         // Same hand sweep the iron rung needs, and more load-bearing here: flint is
                         // a one-in-ten roll, so a single flint left lying on the floor is the whole
                         // rung. See collectByHand for why the ladder does this itself.
-                        collectByHand(rig, "minecraft:flint", 3, () -> {
+                        rig.collectByHand("minecraft:flint", 3, () -> {
                     int flint = rig.carrying("minecraft:flint");
                     rig.evidence("flint", flint);
                     rig.evidence("gravel.collected", rig.carrying("minecraft:gravel"));

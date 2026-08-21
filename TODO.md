@@ -35,6 +35,29 @@ blaze.killed 7 只      blaze_rod 0      advancement.obtain_blaze_rod not-earned
 
 **先分这两个死因再改任何东西**：一个是战利品条件，一个是拾取，改错一边看起来完全一样。
 
+### 分完了：是**拾取**，而且解法早就写好了、只是够不着
+
+两条读数一起把死因钉死：
+
+```
+wd.serverEarnsABlazeRod   blaze.killed=24/24, rods.total=11   ← 战利品闸是好的，掉率正常
+本趟 dropsNearby           2 根掉在地上没捡                     ← 掉了，没进包
+```
+
+烈焰人死在半空（实测最高离地 4.3 格），棒子落到哪算哪，而这一级**打完就直接读包**。
+
+**而 `collectByHand` 这个走过去捡的例程 2026 年早就写好了**——处理了十 tick 拾取延迟、
+带索引的证据键、事后再数一次剩多少——但它 `private` 在 `WorldDriverJourneyScenes` 里，
+**14 级够不着，于是根本没有收集这一步**。已挪到 `JourneyRig`（`dropsNearby` / `nearestDrop`
+这一对本来就在那儿，它正是那两个的另一半），七个老调用点改成 `rig.collectByHand(...)`。
+
+> 同一晚第三次同形：**问题解过一次，第二处没复用那个解法。** topology 那条
+> （按类名比对的写法已存在于 `WorldDriverBodyCensusScenes:517`，第二处没用）是同一族。
+
+**预登记**：下一趟 `blaze.pickup.walks` 应当出现（≥1），`blaze.pickup.left` 应当比
+`dropsNearby` 小；`blaze_rod ≥ 1` 则 14 级通过。**若走了但仍 0**，那才轮到怀疑拾取本身
+（`headless-avatar-could-not-gather` 那一族），别提前跳过去。
+
 ---
 
 ## 🟢 删掉 wp4 之后，走廊一次推进了整整六段；卡住它的是**石头用光了**（2026-08-21，实测）
