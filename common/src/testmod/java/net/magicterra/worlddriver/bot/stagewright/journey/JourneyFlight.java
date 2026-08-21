@@ -162,6 +162,13 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private int plannedUp;
     private final Map<String, Integer> descentByMove = new LinkedHashMap<>();
 
+    /** See {@link #openLeap} — every parkour launch, so successful ones have rows too. */
+    private final List<String> leapLines = new ArrayList<>();
+    private int leaps;
+    private String pendingLeap;
+    private BlockPos pendingLeapTarget;
+    private static final int MAX_LEAPS = 12;
+
     private boolean airborne;
     private BlockPos launchAt;
     private int launchTick;
@@ -342,6 +349,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         pendingRunUp = String.join(" | ", runUp);
         launchPlan = planCell(level, fp, at);
         launchGround = groundDump(level, fp);
+        openLeap(fp);
         if (prevSupportSolid > 0 && stillSolid == 0) {
             launchWhy = "上一 tick 撑着它的 " + prevSupportSolid + " 格没了（" + prevSupportNames
                     + " → " + names(level, prevSupport) + "）";
@@ -356,9 +364,65 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         }
     }
 
+    /**
+     * Every parkour launch, not only the ones that ended badly — <b>the control group.</b>
+     *
+     * <h2>A record that only exists when the body fell cannot say whether the fall was unusual</h2>
+     *
+     * The {@code fell.*} rows are written at {@link #land} and only when the drop is notable, so a
+     * leg where every leap worked leaves no leap rows at all. That made the rung-14 wp5 reading
+     * unreadable in the direction that matters: the body took a {@code parkour2d} whose target was
+     * <b>0.64 blocks away and one block DOWN</b>, jumped, and fell fifteen blocks into lava — and
+     * nothing in the file could say whether launching at 0.64 remaining is routine (so the distance
+     * is not the variable) or exceptional (so it is).
+     *
+     * <p>What is captured is the launch-tick <b>remaining horizontal distance to the node being
+     * steered at</b>, because that is the quantity {@code WalkerTickDrive}'s sprint exemption does
+     * NOT look at: {@code (!lethalNear || parkourEdge)} keeps the sprint impulse and
+     * {@code && !parkourEdge} drops the sneak brake for <i>any</i> parkour edge, measured on a long
+     * void leap where the impulse is required. Whether that generalises to a 0.64-block hop is the
+     * open question, and it needs a distribution rather than one anecdote.
+     *
+     * <p><b>Closed at landing with the overshoot</b>, so each row is a pair: what was asked for and
+     * what happened. A leap that lands on its node and a leap that sails past it are otherwise the
+     * same two coordinates in a log.
+     */
+    private void openLeap(ServerPlayer fp) {
+        String move = rig.body().botState().mc_goto.pathMove;
+        if (move == null || !move.startsWith("parkour")) { pendingLeap = null; return; }
+        BlockPos node = rig.body().botState().mc_goto.pathNode;
+        pendingLeapTarget = node;
+        String want = node == null ? "无节点" : node.toShortString();
+        String gap = node == null ? "没量到（起跳那一 tick 手上没有节点）"
+                : String.format(Locale.ROOT, "剩 %.2f 格水平、dy=%d",
+                        Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ()),
+                        node.getY() - launchY);
+        pendingLeap = "t=" + t + " " + move + " 从 " + launchAt.toShortString()
+                + " 起跳瞄 " + want + "（" + gap + "）";
+    }
+
+    /** Close the pending leap with where it actually put the body. */
+    private void closeLeap(BlockPos at, boolean inLava) {
+        if (pendingLeap == null) return;
+        leaps++;
+        if (leapLines.size() < MAX_LEAPS) {
+            String miss = pendingLeapTarget == null ? "没有目标可比"
+                    : String.format(Locale.ROOT, "落在 %s，离目标 %.2f 格水平、dy=%d",
+                            at.toShortString(),
+                            Math.hypot(at.getX() - pendingLeapTarget.getX(),
+                                    at.getZ() - pendingLeapTarget.getZ()),
+                            at.getY() - pendingLeapTarget.getY());
+            leapLines.add("#" + leaps + " " + pendingLeap + " → " + miss
+                    + (inLava ? "，落进岩浆" : ""));
+        }
+        pendingLeap = null;
+        pendingLeapTarget = null;
+    }
+
     /** Close a fall episode and, if it was worth recording, write its line. */
     private void land(ServerLevel level, BlockPos at, boolean onGround, boolean inLava,
                       List<BlockPos> support) {
+        closeLeap(at, inLava);
         int drop = launchY - at.getY();
         deepestDrop = Math.max(deepestDrop, drop);
         boolean worth = drop >= NOTABLE_DROP || inLava;
@@ -530,6 +594,11 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                 .append(" 格（净 ").append(plannedUp - plannedDown).append("）")
                 .append(descentByMove.isEmpty() ? "，没有一条计划边是往下的 —— 身体下去了多少全是掉的"
                         : "，下潜来自 " + descentByMove);
+        // Unconditional for the same reason the vertical bill is: 「parkour 起跳 0 次」on a leg that
+        // ended in a lava pit rules out a whole family in one word. See openLeap.
+        sb.append("；parkour 起跳 ").append(leaps).append(" 次")
+                .append(leaps > leapLines.size() ? "（只逐条记了前 " + leapLines.size() + " 次）" : "")
+                .append(pendingLeap == null ? "" : "，另有一次起跳到收工都还没落地");
         // A leg that walked 61 edges to a net −8 has either been given bad plans or has had good
         // ones taken away from it. This is the number that says which, and it is the leg's own
         // delta rather than the JVM total — see repathsAtStart.
@@ -630,6 +699,10 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         rig.evidence(what + ".flight." + tag, report());
         List<String> lines = falls();
         for (int i = 0; i < lines.size(); i++) rig.evidence(what + ".fell." + tag + "." + i, lines.get(i));
+        // The control group — see openLeap. Written even on a leg where nothing went wrong, because
+        //「起跳时还剩 0.64 格」only means something against the leaps that worked.
+        for (int i = 0; i < leapLines.size(); i++)
+            rig.evidence(what + ".leap." + tag + "." + i, leapLines.get(i));
         for (int i = 0; i < grounds.size(); i++) rig.evidence(what + ".ground." + tag + "." + i, grounds.get(i));
         if (runUpOfFirstFall != null) rig.evidence(what + ".runUp." + tag, runUpOfFirstFall);
         rig.evidence(what + ".track." + tag, trackLine());
