@@ -226,24 +226,40 @@ public final class JourneyNetherRungs {
         rig.evidence(leg + ".from", at.toShortString() + " → " + want.toShortString() + "（"
                 + Math.round(Math.sqrt(at.distSqr(want))) + " 格；第 " + (i + 1)
                 + "/" + FORTRESS_WAYPOINTS.length + " 个烘入路点，出处见 FORTRESS_WAYPOINTS）");
-        // TOLERANCE 0, AND THE ZERO IS THE POINT. The first corridor run walked legs 1-4 in one hop
-        // each and then failed leg 5 with 「goal unreachable from here」 — from 72,44,92, which is
-        // five blocks short of the surveyed cell 74,41,97 and THREE ABOVE IT. The body was standing
-        // on a shelf over the corridor, not on it, and from a shelf the way east genuinely does not
-        // exist. A surveyed waypoint is only worth what it was surveyed for if the body ends up in
-        // it; arriving near one buys nothing, because what was measured is that cell and not its
-        // neighbourhood. (The seat decides the run — the same lesson the well-bottom taught rung 12.)
+        // THE Y STILL COUNTS — the RADIUS is what changed, and those are two different claims that
+        // this comment used to run together.
         //
-        // Goal.Block, not Goal.XZ: the waypoint has a Y and the Y is what was surveyed. See
-        // FORTRESS_WAYPOINTS for the run that arrived in the right column three blocks up and then
-        // could not generate a single successor.
+        // Still not Goal.XZ: the first corridor run walked legs 1-4 in one hop each and then failed
+        // leg 5 with 「goal unreachable from here」 — from 72,44,92, five blocks short of the surveyed
+        // cell 74,41,97 and THREE ABOVE IT, standing on a shelf over the corridor rather than on it,
+        // and from a shelf the way east genuinely does not exist. A column is not a cell. That
+        // argument is about Y, and Goal.Near keeps Y: it is a 3D sphere, the same shape the judge
+        // below measures with.
+        //
+        // But the radius WAS zero, and zero is what killed the 2026-08-22 run. THE EXECUTOR MUST NOT
+        // BE ASKED FOR MORE THAN THE JUDGE REQUIRES. Goal.Block demands the exact cell; the judge
+        // accepts WAYPOINT_ARRIVE_WITHIN. Leg 4's body reached 63,42,87 — one block from the waypoint
+        // 63,41,87, comfortably inside a bar of two — and the walker, still owing an exact cell, kept
+        // working: pinned 30 ticks on the lip, guard discarded the plan as a genuine livelock (it WAS
+        // one, by a criterion that is right), then descended 22 blocks and drowned in lava at
+        // 63,20,87, where `expanded=1` meant it could not plan its way back out. Every tick after
+        // off=1 was spent buying something nobody had asked for.
+        //
+        // The waypoint itself is not standable, which is why the engine was silently re-aiming:
+        // Walker.snapGoalToStandable rewrites an unstandable Goal.Block onto the nearest standable
+        // neighbour, and the pathfinder logs read `goal=Block{63,41,86}` and later `{64,41,86}` for a
+        // leg this file believes it aimed at 63,41,87. 63,41,87 is the SOLID BLOCK the ladder's body
+        // stood ON — its feet were at 63,42,87 — so FORTRESS_WAYPOINTS mixes feet cells with floor
+        // cells. Goal.Near absorbs that (and is not snapped, the snap only handles Goal.Block); a
+        // waypoint that turns out to need more than the radius is a table edit, not a mechanism one.
         // THE SAME RECORDER THE GENERIC CROSSING HAS, and the precise legs went without it for a
         // whole run. `.at` says where the body stopped; it cannot say whether it walked there, fell
         // there, or hung in cave_air — three different bugs that print one identical coordinate,
         // which is the entire reason JourneyFlight exists. The corridor is the part of rung 14 under
         // active repair, so it is the last place that should be reading a photograph of the wreckage.
         JourneyFlight flight = JourneyFlight.watching(rig, at, want.getX(), want.getZ());
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), lipTax(rig))),
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
+                        lipTax(rig))),
                 WAYPOINT_LEG_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
@@ -300,8 +316,8 @@ public final class JourneyNetherRungs {
                 + " 格）—— 能到达的格未必是能瞄的格，而跳段机器只判 XZ，瞄本格会当场判到达、一段都不走。"
                 + "见 detourTo");
         crossToColumn(rig, leg + ".hop", overX, overZ, 0, HOP_TICKS, WAYPOINT_DETOUR_HOPS,
-                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, true),
-                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, false));
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行走完了整条路线"),
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行没走到瞄点就停了"));
     }
 
     /**
@@ -331,22 +347,27 @@ public final class JourneyNetherRungs {
      * tested: leg 4's direct ask failed from {71,43,69}, and this asks the same thing from {61,41,92}
      * six blocks out. If seats decide runs, this is where it shows.
      *
-     * <p><b>Two ways to reach the same cell must not print the same line.</b> {@code hopArrived}
-     * comes in explicitly rather than being inferred from a distance, because「the detour walked its
-     * whole route」and「the detour gave up somewhere short」are different findings that land at the
-     * same place often enough to be confused, and a future break of either half has to be legible in
-     * the results file without a rerun.
+     * <p><b>Three ways to arrive here must not print the same line.</b> {@code detourOutcome} comes
+     * in as words from the call site rather than being inferred from a distance: 「the detour walked
+     * its whole route」,「the detour gave up short」and「there was no detour, the body was already in
+     * the column」land at the same place often enough to be confused, and each one sends the reader
+     * somewhere different. It was a boolean for one round and the boolean started lying the moment a
+     * third case existed — a skipped detour printed as one that failed.
      */
     private static void reaskAfterDetour(SceneContext ctx, JourneyRig rig, BlockPos fortress, int i,
-                                         BlockPos want, String leg, boolean hopArrived) {
+                                         BlockPos want, String leg, String detourOutcome) {
         BlockPos over = rig.player().blockPosition();
         int fromOver = (int) Math.round(Math.sqrt(over.distSqr(want)));
         rig.evidence(leg + ".detourAt", over.toShortString() + "，距路点 " + fromOver + " 格（含 y）；"
-                + (hopArrived ? "跳段机器走完了整条绕行路线" : "跳段机器没走到瞄点就停了")
+                + detourOutcome
                 + " —— 瞄过头是为了让身体动起来，动起来之后还得走回路点，所以这里重问原题（同一个判据 "
                 + WAYPOINT_ARRIVE_WITHIN + " 格），不在这里判");
+        // Goal.Near for the same reason the direct leg uses it — one bar, in one place. Asking the
+        // re-ask for an exact cell while judging it at WAYPOINT_ARRIVE_WITHIN would reintroduce, in
+        // the fallback, exactly the mismatch the fallback is here to survive.
         JourneyFlight flight = JourneyFlight.watching(rig, over, want.getX(), want.getZ());
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), lipTax(rig))),
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
+                        lipTax(rig))),
                 DETOUR_REASK_TICKS, flight, () -> {
             BlockPos now = rig.player().blockPosition();
             int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
@@ -356,11 +377,16 @@ public final class JourneyNetherRungs {
                     + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + JourneyLeg.walkerEnd(rig));
             if (off > WAYPOINT_ARRIVE_WITHIN) {
                 ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
-                        + now.toShortString() + "，差 " + off + " 格。直走、绕行"
-                        + (hopArrived ? "（绕行走完了）" : "（绕行也没走到瞄点）")
-                        + "、以及从 " + over.toShortString() + " 换个座位重问，三种都试过了。"
-                        + "这一格是真梯第 14 趟身体站过的，所以它站得住 —— 死因在 " + leg
-                        + ".* 那几行，修法是在它前面加一个路点，不是调机制");
+                        + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
+                        + "）。直走、" + detourOutcome + "、以及从 " + over.toShortString()
+                        + " 换个座位重问，三条都试过了。"
+                        // NOT「这一格身体站过所以它站得住」any more. wp4 is 63,41,87 and the body that
+                        // "stood there" had its feet at 63,42,87 — the cell in the table is the FLOOR.
+                        // That sentence sent a reader looking for a mechanism fault at a cell whose
+                        // own premise was wrong, and the engine had been silently re-aiming off it.
+                        + "注意 FORTRESS_WAYPOINTS 混着落脚格和地板格：如果这一格不可站立，"
+                        + "身体最好也只能站到它上方一格，判据的 " + WAYPOINT_ARRIVE_WITHIN
+                        + " 格容差就是留给这个的。死因在 " + leg + ".* 那几行");
                 return;
             }
             walkTheCorridor(ctx, rig, fortress, i + 1);
