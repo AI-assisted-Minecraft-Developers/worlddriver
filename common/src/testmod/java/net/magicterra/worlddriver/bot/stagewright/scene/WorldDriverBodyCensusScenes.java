@@ -128,9 +128,17 @@ import net.minecraft.world.phys.Vec3;
  * <ul>
  *   <li><b>It does not fix anything.</b> Building the ruler and moving the thing being measured are
  *       different rounds, by instruction. Nothing here writes to production code.</li>
- *   <li><b>It does not call {@code level.tick()}</b>, per the Avatar-family rule. Where a quantity
- *       needs time to pass it steps the avatar directly, which is what every other server-avatar
- *       scene in this suite does.</li>
+ *   <li><b>It does not call {@code level.tick()}</b>, per the Avatar-family rule. Most quantities
+ *       get their time by stepping the avatar directly, which is what every other server-avatar
+ *       scene in this suite does. Three of them cannot: {@code tickCount},
+ *       {@code invulnerableTime} and {@code fallDistance} live in {@code ServerPlayer.tick()},
+ *       which {@code avatar.step()} never calls, so a synchronous probe reads zero whether the
+ *       channel is severed or merely unhurried. Those three are taken again in <b>phase 2</b>
+ *       ({@code ServerTickWatch}), which stops driving the body and waits out
+ *       {@link #SERVER_TICK_SAMPLES} real server ticks through {@code ctx.await} — still never
+ *       calling {@code level.tick()} itself. Read the {@code serverTickCount} /
+ *       {@code serverInvulnerableTime} / {@code serverFallDistance} keys ALONGSIDE their
+ *       synchronous namesakes; either one alone is half a reading.</li>
  *   <li><b>It does not need Python.</b> Every reading is taken in-process by the same Gradle-driven
  *       harness that runs the gates — needing an external script to measure the framework's own
  *       subject would itself be the design failure.</li>
@@ -158,6 +166,20 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      *  dropped items or experience orbs — the pickup box is 1 block, this is far outside it. */
     private static final int COLUMN_GAP = 24;
 
+    /**
+     * How many REAL server ticks phase 2 lets pass.
+     *
+     * <p>Six, not one, and the reason is the whole point of phase 2. {@code tickCount},
+     * {@code invulnerableTime} and {@code fallDistance} are the three readings the synchronous phase
+     * takes and cannot interpret: it drives the body with {@code avatar.step()} inside a SINGLE
+     * {@code tickServer()}, so a zero there has two readings — 「通道一是死的」 and 「还没到时间」 —
+     * and 0 has meant 「还没算过」 rather than 「算出来是零」 too often in this repo for that to be
+     * left ambiguous. Six ticks of real server time separates them: a body the server actually ticks
+     * gains six, and a body whose {@code tick()} is overridden to nothing gains zero no matter how
+     * long anyone waits.
+     */
+    private static final int SERVER_TICK_SAMPLES = 6;
+
     private static void bodyParityCensus(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int ox = ctx.origin().getX(), oz = ctx.origin().getZ();
@@ -169,7 +191,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
                 + "（两列都量，与这个开关无关）");
 
         // ---- column A: whatever the loader's factory mints (the body about to be retired) ----
-        measureColumn(ctx, "factory", level, ox, floorY, oz, () ->
+        ServerPlayerAvatar factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () ->
                 ServerPlayerAvatar.createUnique(level, ox + 0.5, floorY + 1, oz + 0.5));
 
         // ---- column B: a JoinedBody, minted directly rather than through the seam ----
@@ -178,7 +200,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         // whole point is comparing them, and a run that could only ever see one of the two would
         // be the single-column archive this scene exists to avoid.
         final int jx = ox + COLUMN_GAP;
-        measureColumn(ctx, "joined", level, jx, floorY, oz, () -> {
+        ServerPlayerAvatar joinedAvatar = measureColumn(ctx, "joined", level, jx, floorY, oz, () -> {
             JoinedPlayerBodies bodies = new JoinedPlayerBodies();
             GameProfile profile = new GameProfile(
                     java.util.UUID.nameUUIDFromBytes(
@@ -188,6 +210,20 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             body.setPos(jx + 0.5, floorY + 1, oz + 0.5);
             body.setDeltaMovement(Vec3.ZERO);
             return new ServerPlayerAvatar(body);
+        });
+
+        // ---- phase 2: the three quantities the synchronous phase structurally cannot read ----
+        ServerTickWatch factoryWatch = ServerTickWatch.arm("factory", factoryAvatar, ox, floorY, oz);
+        ServerTickWatch joinedWatch = ServerTickWatch.arm("joined", joinedAvatar, jx, floorY, oz);
+        ctx.await(() -> {
+            // Both, every tick, and NOT `&&` — short-circuiting would stop pumping the second body
+            // the moment the first finished, and its series would silently be the shorter one.
+            boolean a = factoryWatch.pump();
+            boolean b = joinedWatch.pump();
+            return a && b;
+        }).within(SERVER_TICK_SAMPLES + 20).then(() -> {
+            factoryWatch.finish(ctx);
+            joinedWatch.finish(ctx);
         });
     }
 
@@ -199,8 +235,11 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * census that let that throw would lose the OTHER column too. A column that cannot be built
      * records {@code unavailable/<exception>} for its identity and stops, and the run still carries
      * the column that did build.
+     *
+     * @return the body that was measured, so phase 2 can go on asking it questions across real
+     *         server ticks, or {@code null} if this column could not be minted at all.
      */
-    private static void measureColumn(SceneContext ctx, String column, ServerLevel level,
+    private static ServerPlayerAvatar measureColumn(SceneContext ctx, String column, ServerLevel level,
                                       int cx, int floorY, int cz,
                                       java.util.function.Supplier<ServerPlayerAvatar> mint) {
         pad(level, cx, floorY, cz);
@@ -215,7 +254,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             // catch of RuntimeException alone would take the whole scene down with it.
             ctx.record(key(column, "identity"), "unavailable/" + e.getClass().getSimpleName()
                     + ": " + String.valueOf(e.getMessage()));
-            return;
+            return null;
         }
         ServerPlayer fp = avatar.fakePlayer();
         ctx.cleanup(() -> {
@@ -244,7 +283,9 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         record(ctx, column, "swinging", () -> swinging(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "mineDrop", () -> mineDrop(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "tickCount", () -> String.valueOf(fp.tickCount)
-                + "（真玩家每 tick +1，见 ServerLevel.tickNonPassenger）");
+                + "（同步相，全程在一个服务端 tick 内；真玩家每 tick +1，"
+                + "见 ServerLevel.tickNonPassenger。这个数要和 serverTickCount 一起读）");
+        return avatar;
     }
 
     /**
@@ -265,6 +306,106 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             value = "unavailable/" + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
         }
         ctx.record(key(column, quantity), value);
+    }
+
+    /**
+     * One body, watched across {@link #SERVER_TICK_SAMPLES} REAL server ticks.
+     *
+     * <p><b>What makes this different from every other probe in this file, and why it had to be.</b>
+     * The rest of the census drives the body itself — {@code avatar.step()} in a loop — which is the
+     * right shape for anything the DRIVER is responsible for, and the wrong shape for anything the
+     * SERVER is responsible for. {@code tickCount}, {@code invulnerableTime} and {@code fallDistance}
+     * are all in the second category: they move in {@code ServerPlayer.tick()}, which the server
+     * calls from {@code ServerLevel.tickNonPassenger}, and which {@code avatar.step()} never calls.
+     * Measured synchronously they all read zero, and a zero measured inside one tick cannot tell
+     * 「这条通道被覆盖成空了」 from 「一个 tick 里本来就攒不出数」.
+     *
+     * <p>So this phase does the one thing that separates them: it <b>stops driving</b> and lets real
+     * ticks pass. Nothing here calls {@code avatar.step()} — deliberately. If the numbers move, the
+     * server is ticking the body and the synchronous zero merely meant 「时间不够」; if they stay at
+     * zero through six ticks the body is not on channel one at all, and the empty {@code tick()}
+     * override is the reason. That is the reading the 「能不能拆掉那行覆盖」 decision needs, and it
+     * is the one reading the old shape could never produce.
+     *
+     * <p>It still does not call {@code level.tick()} — the Avatar-family rule stands. It waits for
+     * ticks the harness is already running, through {@code ctx.await}.
+     */
+    private static final class ServerTickWatch {
+        private final String column;
+        private final ServerPlayer fp;          // null when the column could not be minted
+        private final String unavailable;
+
+        private final int tickCount0;
+        private final double startY;
+        private final StringBuilder invulnerable = new StringBuilder();
+        private double fallPeak;
+        private int pumps;
+
+        private ServerTickWatch(String column, ServerPlayer fp, String unavailable,
+                                int tickCount0, double startY) {
+            this.column = column;
+            this.fp = fp;
+            this.unavailable = unavailable;
+            this.tickCount0 = tickCount0;
+            this.startY = startY;
+        }
+
+        /**
+         * Park the body where the three quantities all have room to move, and latch their start.
+         *
+         * <p>Lifted into the air on purpose: {@code fallDistance} can only be read through an actual
+         * fall, and a body already standing on the pad would give the honest-looking zero that means
+         * nothing. The lift is 8, inside the {@code PAD+1} clear box the column already reserves, so
+         * this adds no footprint the header's hull calculation does not already cover.
+         */
+        static ServerTickWatch arm(String column, ServerPlayerAvatar avatar,
+                                   int cx, int floorY, int cz) {
+            if (avatar == null) {
+                return new ServerTickWatch(column, null, "unavailable/该列没能铸出身体（见 identity）", 0, 0);
+            }
+            try {
+                ServerPlayer fp = avatar.fakePlayer();
+                fp.setPos(cx + 0.5, floorY + 8, cz + 0.5);
+                fp.setDeltaMovement(Vec3.ZERO);
+                fp.fallDistance = 0.0F;
+                fp.invulnerableTime = 20;
+                return new ServerTickWatch(column, fp, null, fp.tickCount, fp.getY());
+            } catch (RuntimeException | LinkageError e) {
+                return new ServerTickWatch(column, null,
+                        "unavailable/" + e.getClass().getSimpleName() + ": " + e.getMessage(), 0, 0);
+            }
+        }
+
+        /** Sample once per real server tick; true when this watch has seen enough. */
+        boolean pump() {
+            if (fp == null) return true;
+            pumps++;
+            invulnerable.append(pumps == 1 ? "" : ",").append(fp.invulnerableTime);
+            fallPeak = Math.max(fallPeak, fp.fallDistance);
+            return pumps >= SERVER_TICK_SAMPLES;
+        }
+
+        void finish(SceneContext ctx) {
+            if (fp == null) {
+                // Unconditionally three keys, even for a column that never existed. A key that is
+                // simply absent is the failure mode this census is built to not have.
+                ctx.record(key(column, "serverTickCount"), unavailable);
+                ctx.record(key(column, "serverInvulnerableTime"), unavailable);
+                ctx.record(key(column, "serverFallDistance"), unavailable);
+                return;
+            }
+            int gained = fp.tickCount - tickCount0;
+            ctx.record(key(column, "serverTickCount"), String.format(java.util.Locale.ROOT,
+                    "%d 个真实服务器 tick 里 tickCount %d→%d（+%d；真玩家应 +%d）——"
+                            + "这里的 0 是「通道一没跑」，不是「时间不够」",
+                    pumps, tickCount0, fp.tickCount, gained, pumps));
+            ctx.record(key(column, "serverInvulnerableTime"), String.format(java.util.Locale.ROOT,
+                    "置 20 后按真实服务器 tick 逐个采样：%s（真玩家应递减）", invulnerable));
+            ctx.record(key(column, "serverFallDistance"), String.format(java.util.Locale.ROOT,
+                    "从 y=%.1f 起不再驱动，%d 个真实 tick 后 y=%.1f（实际下落 %.2f 格），"
+                            + "fallDistance 峰值=%.3f，末值=%.3f",
+                    startY, pumps, fp.getY(), startY - fp.getY(), fallPeak, fp.fallDistance));
+        }
     }
 
     private static String key(String column, String quantity) {
