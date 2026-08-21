@@ -225,12 +225,40 @@ public final class JourneyNetherRungs {
         rig.evidence(leg + ".from", at.toShortString() + " → " + wp[0] + "," + wp[1] + "（"
                 + Math.round(Math.hypot(wp[0] - at.getX(), wp[1] - at.getZ())) + " 格；第 " + (i + 1)
                 + "/" + FORTRESS_WAYPOINTS.length + " 个烘入路点，出处见 FORTRESS_WAYPOINTS）");
-        crossToColumn(rig, leg, wp[0], wp[1], HOP_ARRIVE_WITHIN, HOP_TICKS, WAYPOINT_LEG_HOPS,
+        // TOLERANCE 0, AND THE ZERO IS THE POINT. The first corridor run walked legs 1-4 in one hop
+        // each and then failed leg 5 with 「goal unreachable from here」 — from 72,44,92, which is
+        // five blocks short of the surveyed cell 74,41,97 and THREE ABOVE IT. The body was standing
+        // on a shelf over the corridor, not on it, and from a shelf the way east genuinely does not
+        // exist. A surveyed waypoint is only worth what it was surveyed for if the body ends up in
+        // it; arriving near one buys nothing, because what was measured is that cell and not its
+        // neighbourhood. (The seat decides the run — the same lesson the well-bottom taught rung 12.)
+        //
+        // walkToColumn rather than crossToColumn for the same reason: it is this repo's precise
+        // walk-to-a-column, it carries the midpoint retry, and a 17-48 block leg to a real cell was
+        // never the kind of question the hop machinery was built for — those legs each took exactly
+        // one hop anyway. The hop machinery stays where it belongs, on the unsurveyed remainder.
+        WorldDriverJourneyScenes.walkToColumn(rig, leg, wp[0], wp[1], 0, WAYPOINT_LEG_TICKS,
+                lipTax(rig),
                 () -> walkTheCorridor(ctx, rig, fortress, i + 1),
                 () -> ctx.fail("走不到第 " + (i + 1) + " 个路点 " + wp[0] + "," + wp[1] + "：停在 "
                         + rig.player().blockPosition().toShortString()
                         + "。这一格是真梯第 14 趟身体站过的，所以它站得住 —— 死因在 " + leg
                         + ".* 那几行，修法多半是把这个路点挪一格，不是调机制"));
+    }
+
+    /**
+     * The lip tax, built fresh for one leg.
+     *
+     * <p>The threshold is read HERE, on the server thread, and handed to the search as a plain int —
+     * the lambda runs on the search thread, where the only legal thing to touch is the
+     * {@link WorldView} snapshot. Rung 12's version of this tax says so in as many words, and a
+     * lambda holding the live {@code Player} would be calling {@code getHealth()} off-thread on
+     * every expanded node. Rebuilt per leg so the threshold follows the body's health down.
+     */
+    private static List<CostModifier> lipTax(JourneyRig rig) {
+        final int lipDepth = SurvivalMath.survivableFall(rig.player().getHealth());
+        return List.of((from, to, edge, goal, world) ->
+                WalkerGeometry.dropAdjacentExceeds(world, to, lipDepth) ? LIP_TAX : 0.0);
     }
 
     /**
@@ -1565,12 +1593,8 @@ public final class JourneyNetherRungs {
         // own thread only ever does a hash lookup against an immutable set"), and a lambda holding
         // the live Player would be calling getHealth() off-thread on every expanded node. Re-read
         // each hop so the threshold follows the body's health down.
-        final int lipDepth = SurvivalMath.survivableFall(rig.player().getHealth());
-        List<CostModifier> avoidTheLip = List.of(
-                (from, to, edge, goal, world) ->
-                        WalkerGeometry.dropAdjacentExceeds(world, to, lipDepth) ? LIP_TAX : 0.0);
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, hopTolerance),
-                        avoidTheLip, NO_PARKOUR, List.of())), hopTicks,
+                        lipTax(rig), NO_PARKOUR, List.of())), hopTicks,
                 flight, () -> settleToGround(rig, what, hop, () -> {
             BlockPos at = rig.player().blockPosition();
             double left = Math.hypot(x - at.getX(), z - at.getZ());
@@ -2042,13 +2066,12 @@ public final class JourneyNetherRungs {
             {132, 165}, {152, 178}, {154, 194}, {189, 221}, {220, 250},
     };
 
-    /** Hops one surveyed leg may spend. These legs are 18–43 blocks, so a clean one is a single hop;
-     *  six leaves room for the halved hop and both detours ({@link #MAX_WEDGED_HOPS} is 4) and still
-     *  bounds ten legs at 60 hops rather than 400. A leg that needs more than its four different
-     *  questions plus two is not going to be rescued by a seventh — that is the finding, and it
-     *  lands on a NAMED leg where the next reader moves one waypoint instead of debugging a
-     *  mechanism. */
-    private static final int WAYPOINT_LEG_HOPS = 6;
+    /** Ticks one surveyed leg gets. The first corridor run walked its four completed legs in
+     *  184–530 ticks each, so 3 000 is six times the slowest measured leg — wide enough for a leg
+     *  that has to detour, tight enough that ten of them cannot eat the rehearsal's 40 000-tick cap
+     *  before the fortress is reached. A leg that wants more than this is not slow, it is lost, and
+     *  the reading that says so belongs to a named leg. */
+    private static final int WAYPOINT_LEG_TICKS = 3_000;
 
     /**
      * How many hops a crossing may spend.
