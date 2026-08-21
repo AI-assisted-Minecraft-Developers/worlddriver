@@ -2689,14 +2689,38 @@ public final class JourneyNetherRungs {
      * The standing instruction for this rung is scripted steps before engine capability, and this is
      * what that looks like when a scripted step turns out to be too long.
      *
-     * <p><b>The three inserted cells are not surveyed — they are OCCUPIED.</b> They come from the
-     * per-100-tick track of the run that walked this leg AND the one after it successfully
-     * ({@code 73,41,96 → 82,41,100 → 89,41,108 → 95,41,115 → 98,41,118}), so each is a cell the body
-     * was standing in on a run that reached the fortress. That is a stronger warrant than a scan:
-     * a scan can name a cell that turns out to be air, and one on this ladder once did.
+     * <h2>「OCCUPIED, not surveyed」was the wrong warrant, and it is measured wrong</h2>
+     *
+     * This javadoc used to argue that the inserted cells ({@code 82,41,100}, {@code 89,41,108},
+     * {@code 95,41,115}) were safer than scanned ones because they came off the per-100-tick track of
+     * a run that reached the fortress — <b>cells a body had actually stood in</b>, which "is a
+     * stronger warrant than a scan". {@link JourneyCorridorProbe#auditWaypoints} asked all eighteen
+     * against a fresh world on 2026-08-21 and all three are 「本格空且脚下也空」, their nearest floor
+     * nineteen to twenty-one blocks down.
+     *
+     * <p><b>Occupancy warrants nothing when the occupant is carrying blocks.</b> The body stood there
+     * on a causeway it had placed one cell earlier, so the track records where the bridge WAS, not
+     * where the ground IS. Seven of the eighteen fail the audit — {@code wp4} and the whole
+     * {@code wp6..wp11} span — and every symptom the corridor has produced falls out of that one
+     * fact: {@code {bridgePlace=15, walk=0}} legs, {@code expanded=100000} off a bridge tip, and a
+     * body declared arrived in mid-air over a shaft. Four rounds read those as pathfinding defects.
+     *
+     * <p>So the audit runs before the first step now, and this table is a set of readings to be
+     * checked rather than a premise. <b>{@code wp4} is gone</b> — its column has no floor within
+     * twenty-four blocks in either direction, so there was nothing to re-bake it onto, while its two
+     * neighbours are both real ground. Waypoint NUMBERS below therefore shift by one past the third:
+     * comments naming a leg by number describe the run that produced them, not the current table.
      */
     private static final int[][] FORTRESS_WAYPOINTS = {
-            {33, 55, 36}, {62, 43, 67}, {71, 43, 69}, {63, 41, 87},
+            {33, 55, 36}, {62, 43, 67}, {71, 43, 69},
+            // {63,41,87} STOOD HERE AND IS DELETED. The audit reports it 「本格空且脚下也空」with no
+            // floor within twenty-four blocks — a shaft. It was a cell the recording run bridged to,
+            // not ground. Its leg's own evidence says the same thing without the audit: the walker
+            // reported `goalReached=true end=arrived 在 63,42,86 支撑[air air]`, one block inside the
+            // two-block sphere and in free fall, and the body then dropped fourteen blocks.
+            // Deleting rather than re-baking because there is nothing under it to re-bake ONTO, and
+            // both neighbours are verified ground: {71,43,69} → {72,42,85} is sixteen blocks between
+            // two cells the audit calls 「可站」, against the twenty-then-nine this detour cost.
             // EAST FIRST. Leg {63,41,87} → {74,41,97} is bistable across four runs — two reached the
             // waypoint, two ended in the lava at y=5 — and the two outcomes differ by DIRECTION, not
             // by luck. The runs that passed went east immediately (63,41,85 → 72,42,85 → 73,42,86);

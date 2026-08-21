@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 
@@ -120,7 +121,14 @@ final class JourneyCorridorProbe {
                       : " **本格空且脚下也空** —— 这一格在新世界里不存在")
               .append("，这一柱往下最近的实心面 ")
               .append(floor == Integer.MIN_VALUE ? COLUMN_LOOK + " 格内没有（是竖井）" : "y=" + floor)
-              .append(floor == Integer.MIN_VALUE ? "" : "（差 " + (cell.getY() - floor) + " 格）");
+              .append(floor == Integer.MIN_VALUE ? "" : "（差 " + (cell.getY() - floor) + " 格，是 "
+                      // NAMED, and asked about lava, because「下面 20 格有个面」does not say whether a
+                      // route could run along it. The whole wp6..wp11 span sits over a drop with a
+                      // floor about twenty blocks down, and re-baking that span onto it is only an
+                      // option if it is rock. A lava roof reads as a solid surface to blocksMotion().
+                      + name(level, cell.getX(), floor, cell.getZ())
+                      + (lavaAt(level, cell.getX(), floor, cell.getZ()) ? "，**而且是岩浆面**" : "")
+                      + "）");
         }
         rig.evidence("fortress.waypointAudit", "十八个烘入路点在**全新世界**里的样子：本格空的 "
                 + hollow + " 个，其中 " + unstandable + " 个**脚下也是空的**。"
@@ -239,6 +247,12 @@ final class JourneyCorridorProbe {
     private static boolean solid(ServerLevel level, int x, int y, int z) {
         BlockPos p = new BlockPos(x, y, z);
         return !level.getBlockState(p).getCollisionShape(level, p).isEmpty();
+    }
+
+    /** A block's short id, so an audit row stays readable. */
+    private static String name(ServerLevel level, int x, int y, int z) {
+        return BuiltInRegistries.BLOCK.getKey(
+                level.getBlockState(new BlockPos(x, y, z)).getBlock()).getPath();
     }
 
     private static boolean lavaAt(ServerLevel level, int x, int y, int z) {
