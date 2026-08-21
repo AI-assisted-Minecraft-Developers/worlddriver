@@ -21,6 +21,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * How far apart the two halves of an "adopted" body drift, measured rather than argued about.
@@ -116,8 +117,17 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      */
     private static final int SETTLE_TICKS = 10;
 
-    /** The slot the server-side write aims at. Deliberately not 0: a body that already sits on slot
-     *  0 would make「写成功了」and「本来就是这个值」print identically — 0==0 with extra steps. */
+    /**
+     * The slot the ruler scene's server-side write aims at, and the twin's fallback when the client
+     * cannot be read at all.
+     *
+     * <p>Not 0, so that「写成功了」and「本来就是这个值」cannot print identically — 0==0 with extra
+     * steps. But note that is only true for the RULER, which merely measures and asserts nothing
+     * about the value. <b>A constant is not good enough for a criterion</b>: the twin derives its
+     * target from the client's actual pre-write slot instead, because「故意不选 0」is an assumption
+     * about the starting state, and a criterion resting on an assumption passes for free the day
+     * the assumption stops holding.
+     */
     private static final int TARGET_SLOT = 4;
 
     private static void actuatorSplit(SceneContext ctx) {
@@ -238,6 +248,14 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         float serverYawSameTick = real.getYRot();
         float serverPitchSameTick = real.getXRot();
         float[] clientLookSameTick = clientLook();
+        // WHERE the body stood when the angle was written, and what the angle therefore had to be.
+        // An aim stores ANGLES, not a target — the body moving afterwards silently invalidates it,
+        // and at this range (~8.6 blocks) three quarters of a block of drift is worth the entire
+        // tolerance. Captured here so the continuation can say whether the requirement moved, and so
+        // the criterion below can be judged against what the actuator was ASKED for rather than
+        // against a requirement recomputed ten ticks later at a position nobody asked about.
+        Vec3 posAtWrite = real.position();
+        float[] wantAtWrite = aimFromEyeTo(real, aimAt);
 
         ctx.record("aim.目标格", aimAt.toShortString());
         ctx.record("aim.前", deg(yawBefore) + " / " + deg(pitchBefore));
@@ -269,6 +287,58 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                     serverYawAfter, serverPitchAfter));
             ctx.record("aim.两侧差", clientLookAfter == null ? "unavailable/客户端读不到"
                     : drift(serverYawAfter, serverPitchAfter, clientLookAfter[0], clientLookAfter[1]));
+
+            // ---- the twin's aim criterion, applied HERE, where it must NOT hold -----------------
+            //
+            // The negative control for `wd.actuatorSplitThroughTheClientAvatar`'s aim check. That
+            // check can only be trusted if it is capable of going red, and nothing else in the suite
+            // demonstrates that: on a healthy tree it passes every run, which is indistinguishable
+            // from a criterion that passes unconditionally.
+            //
+            // This scene aims at the SAME cell through the OLD server-side path, so evaluating the
+            // twin's exact predicate on this reading must come out FALSE. Two properties make it
+            // worth having as code rather than as a one-off experiment: it runs on every run, so it
+            // cannot rot the way「记得手动改回旧路径试一次」does; and it leaves no broken state
+            // behind if the run is interrupted, which a temporary revert of a live call site does.
+            //
+            // RECORDED, not checked. This scene has no verdict by design — see the class javadoc —
+            // and asserting here would give it one, in the direction of「缺陷必须继续存在」, which is
+            // a criterion nobody should be able to satisfy by fixing something. The ⚠️ is for the
+            // reader: if the server path ever starts driving the client's aim too, the twin's check
+            // has stopped distinguishing the two routes and is no longer evidence of anything.
+            float[] wantHere = aimFromEyeTo(real, aimAt);
+            ctx.record("aim.要求漂移",
+                    requirementDrift(posAtWrite, real.position(), wantAtWrite, wantHere));
+            boolean clientFollowed = aimSatisfies(clientLookAfter, wantAtWrite);
+            // 「客户端本来就朝着那边」是第三种结局，必须单独说。同 tick 那次读数取自服务端写完的
+            // 瞬间 —— 服务端 actuator 只碰 ServerPlayer 的字段，同一个 JVM 里的 LocalPlayer 那一刻
+            // 还没有任何理由动过，所以它就是客户端的「写之前」。如果那时客户端已经满足几何要求，
+            // 这一趟的对照什么也证明不了：满足是巧合，不满足反而说明客户端后来转开了。
+            // 不把它折进上面两支，是因为那会让一次巧合印成「⚠️ 判据失效」，
+            // 派人去查一条其实好好的判据 —— 一个假的「不行」和一个假的「可以」一样贵。
+            //
+            // 两支都拿 wantAtWrite 比，不拿 wantHere：同 tick 的读数配 +10 tick 算出来的要求，
+            // 就是把两个时刻的量放进同一个不等式，身体只要动过一点，这两支就会因为取样时刻不同
+            // 而互相矛盾，而不是因为客户端真的转了。
+            boolean clientAlreadyThere = aimSatisfies(clientLookSameTick, wantAtWrite);
+            ctx.record("aim.阴性对照", clientLookAfter == null
+                    ? "读不到客户端朝向，这一趟没法当对照"
+                    : clientAlreadyThere
+                            ? "本趟作废：写之前客户端就已经朝着 " + aimAt.toShortString()
+                                    + "（同 tick 读数 " + renderLook(clientLookSameTick)
+                                    + "，几何要求 " + deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
+                                    + "）—— 巧合，这一趟分不出「服务端驱动了客户端」和"
+                                    + "「客户端本来就在那儿」，别拿它当结论"
+                            : clientFollowed
+                                    ? "⚠️ 走服务端 actuator，客户端朝向竟然也跟到了几何要求上"
+                                            + "（写之前是 " + renderLook(clientLookSameTick)
+                                            + "，" + SETTLE_TICKS + " tick 后变成 "
+                                            + renderLook(clientLookAfter) + "）—— 双胞胎那条 A0 "
+                                            + "瞄准判据已经分不出两条路径，它的绿不再是证据，去查它"
+                                    : "有效：同一目标格走服务端 actuator 时，客户端朝向不满足几何要求"
+                                            + "（要求 " + deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
+                                            + "，实际 " + renderLook(clientLookAfter) + "）——"
+                                            + "所以双胞胎那条判据在缺陷存在时确实会红");
 
             // THE ONLY CHECK, and it is about the instrument rather than the subject: if the client
             // side could not be read, every 一致/差 row above is the string "unavailable" and the
@@ -354,17 +424,63 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // setSelectedSlot asks the identical question with no dependency on inventory CONTENTS —
         // it writes the client's `selected` and sends the ServerboundSetCarriedItemPacket, which is
         // exactly the mechanism whose absence the sibling scene measured (server 4 / client 0).
+        // ---- the probe must MOVE something, or a green here certifies nothing ----------------
+        //
+        // Both criteria in this scene have the form「客户端最后等于目标值」. If the client ALREADY
+        // sat at that value before the write, they pass while the actuator contributes exactly
+        // zero — a scene going green while the mechanism in its name did nothing at all. A fixed
+        // TARGET_SLOT can only ever be an ASSUMPTION about the starting state (「故意不选 0」is an
+        // assumption, not a guard), and assumptions about starting state are what this file exists
+        // to stop trusting.
+        //
+        // So the target is DERIVED from the reading: +4 mod 9 is provably a different slot from
+        // whatever the client is on, whatever that turns out to be. Now「客户端最后在目标槽」can
+        // only be true if something actually moved it.
+        Integer clientSlotBefore = clientSelectedSlot();
+        int targetSlot = clientSlotBefore == null ? TARGET_SLOT : (clientSlotBefore + 4) % 9;
+        ctx.record("slot.动作前客户端", render(clientSlotBefore));
+        ctx.record("slot.目标槽", targetSlot + "（由动作前的客户端读数推出，保证与它不同。"
+                + "写死常数的话，客户端恰好已经在那一格时这条判据会零贡献地绿）");
+
         ctx.record("thread.写入时", Thread.currentThread().getName());
-        client.setSelectedSlot(TARGET_SLOT);
+        client.setSelectedSlot(targetSlot);
         int serverSlot = real.getInventory().selected;
         Integer clientSlot = clientSelectedSlot();
-        ctx.record("slot.动作", "setSelectedSlot(" + TARGET_SLOT + ")（不用 holdItem：它按客户端"
+        ctx.record("slot.动作", "setSelectedSlot(" + targetSlot + ")（不用 holdItem：它按客户端"
                 + "背包内容找物品，而这条场景的布景只放进了服务端那份，会红在布景上而不是红在缺陷上）");
         ctx.record("slot.服务端.同tick", serverSlot);
         ctx.record("slot.客户端.同tick", render(clientSlot));
         ctx.record("slot.同tick一致", agree(serverSlot, clientSlot));
 
+        // Same disease on the aim half, same cure. Point the client at a cell in the OPPOSITE
+        // direction first, so「最后朝着目标格」cannot be satisfied by wherever it already happened
+        // to be looking. Without this, a client idly facing that quadrant hands the aim criterion a
+        // free pass and A0 gets credit for an angle it never wrote.
+        //
+        // Yes, the parking uses the verb under test — but it cannot manufacture a false GREEN, only
+        // a red. If aimAtBlock is broken the park does nothing, and then either the client is left
+        // where it was (the precondition check below fires and says so) or it is left satisfying the
+        // requirement by luck (same check fires). A broken actuator cannot reach a pass through
+        // this door; that is the difference between this and a cleanup that runs its own verb.
+        BlockPos parkAt = real.blockPosition().offset(-7, 3, -5);
+        client.aimAtBlock(parkAt);
+        float[] clientLookParked = clientLook();
+
         BlockPos aimAt = real.blockPosition().offset(7, -3, 5);
+        // Same reason as the sibling: the actuator writes angles, so the requirement must be pinned
+        // to the moment it was asked for. Judging at +10 ticks against a recomputed requirement would
+        // let a body that merely MOVED fail this criterion, and A0 would be blamed for physics.
+        Vec3 posAtWrite = real.position();
+        float[] wantAtWrite = aimFromEyeTo(real, aimAt);
+        // The precondition, measured BEFORE the real aim: parked and provably not already on target.
+        boolean parkedAway = !aimSatisfies(clientLookParked, wantAtWrite);
+        ctx.record("aim.停靠格", parkAt.toShortString());
+        ctx.record("aim.动作前客户端", renderLook(clientLookParked));
+        ctx.record("aim.前置成立", clientLookParked == null ? "读不到客户端朝向，判不了"
+                : parkedAway ? "是：动作前客户端不满足目标几何要求，所以「最后满足」只能是这次动作造成的"
+                        : "⚠️ 否：动作前客户端就已经满足目标几何要求了 —— "
+                                + "这一趟的瞄准判据零贡献也能绿，别把它读成 A0 通过");
+
         client.aimAtBlock(aimAt);
         float[] clientLookNow = clientLook();
         ctx.record("aim.目标格", aimAt.toShortString());
@@ -386,17 +502,92 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             ctx.record("aim.两侧差", clientLookAfter == null ? "unavailable/客户端读不到"
                     : drift(real.getYRot(), real.getXRot(), clientLookAfter[0], clientLookAfter[1]));
 
-            // Same instrument check as the sibling: unreadable client side = measured nothing.
+            // ⚠️ EVERY evidence row is written BEFORE the first ctx.check, and the order matters.
+            //
+            // A failing check throws, so anything recorded after it never reaches the results file.
+            // The two halves of A0 — the slot and the aim — are INDEPENDENT: the aim rows are not
+            // context for the slot criterion, they are the only description of a separate subject.
+            // Recording them after the slot check meant that a broken slot half deleted the entire
+            // aim diagnosis from the record, and the reader would be told nothing about the half
+            // that might still be fine. Evidence goes in the file first; verdicts come after.
+            float[] want = aimFromEyeTo(real, aimAt);
+            boolean aimed = aimSatisfies(clientLookAfter, wantAtWrite);
+
+            // THE SAME CRITERION FOR THE OTHER HALF. A0 rerouted `aimAtBlock` at 8 call sites and
+            // nothing above could go red if that regressed: every aim row was ctx.record. A scene
+            // that only PRINTS the quantity it exists to protect is the shape this repo keeps
+            // paying for — the reading is there, and no run fails when it goes wrong.
+            //
+            // The threshold comes from GEOMETRY, not from either body's reported angle. Deriving
+            // an aim criterion from the aim being measured is the same defect as taking a Y-band
+            // ceiling from the drifted body: it would be satisfied by any value the actuator
+            // happened to write, including no write at all.
+            ctx.record("aim.几何要求", deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
+                    + "（由目标格心与写入那一刻的眼位算出，与两侧读数无关）");
+            ctx.record("aim.要求漂移",
+                    requirementDrift(posAtWrite, real.position(), wantAtWrite, want));
+            // WHICH of the three ways this can go wrong, named rather than left to be inferred.
+            //
+            // The client runs LookController as a post-filter at the end of every client tick: it
+            // rewrites yaw/pitch, verbatim when the tick is snap-exempt (aimAtBlockSnap asks for
+            // that) and otherwise clamped to 30°/tick yaw and 20°/tick pitch. So a red here has a
+            // third cause besides「写失败了」—— the write landing and then being filtered or
+            // overwritten by a later actuator in the same tick. The two samples already tell those
+            // apart; without this row the reader has to notice that themselves, and the whole point
+            // of the same-tick sample is lost the moment nobody reads it next to the later one.
+            //
+            // Note SETTLE_TICKS is generous enough that slewing alone cannot explain a red: the
+            // measured gaps are 12-24° yaw and 26-30° pitch, and ten ticks of even the CLAMPED rate
+            // covers 300° / 200°. If this row says 落地后被改回, something rewrote it — not slew.
+            ctx.record("aim.客户端.落地了吗", clientLookNow == null || clientLookAfter == null
+                    ? "读不到，判不了"
+                    : aimSatisfies(clientLookNow, wantAtWrite)
+                            ? (aimed ? "落地并保持住了（同 tick 就到位，" + SETTLE_TICKS + " tick 后仍在）"
+                                     : "⚠️ 落地后被改回：同 tick 已到位 " + renderLook(clientLookNow)
+                                             + "，" + SETTLE_TICKS + " tick 后变成 "
+                                             + renderLook(clientLookAfter)
+                                             + " —— actuator 写成功了，是后面有人覆盖它，"
+                                             + "去查 LookController 和同 tick 的其它转向写入")
+                            : (aimed ? "晚到：同 tick 还是 " + renderLook(clientLookNow)
+                                             + "，" + SETTLE_TICKS + " tick 后才到位 —— 判据算过，"
+                                             + "但说明这条路径不是同步生效的"
+                                     : "⚠️ 从未落地：同 tick 和 " + SETTLE_TICKS
+                                             + " tick 后都不满足几何要求 —— 写本身没生效，"
+                                             + "这才是 A0 那条路径真的坏了的样子"));
+            // ---- verdicts, all of them after every row above is safely in the file ----------
+            // Instrument first: an unreadable client side makes every「一致」row above a空话.
             ctx.check(clientSlotAfter != null && clientLookAfter != null)
                     .as("客户端侧读数拿得到 —— 拿不到的话上面每一行「一致」都是空话")
                     .isTrue();
-            // And THE criterion: the slot the client actually holds must be the one that was asked
-            // for. Deliberately asserted on the CLIENT's value, not on agreement between the two:
-            // agreement would also be satisfied by both sides being wrong together.
-            ctx.check(clientSlotAfter != null && clientSlotAfter == TARGET_SLOT)
-                    .as("A0 判据：客户端自己的选中槽应为 " + TARGET_SLOT + "，实际 "
+            // THE criterion for the slot half. Deliberately asserted on the CLIENT's value, not on
+            // agreement between the two: agreement would also be satisfied by both sides being
+            // wrong together.
+            // The two preconditions, asserted rather than merely printed. Each one is the reason its
+            // criterion is evidence at all: if the client was already on the target slot, or already
+            // aimed at the target cell, the criterion below passes with the actuator contributing
+            // nothing. Recording that and passing anyway would be the shape we are trying to kill —
+            // a green whose named mechanism moved zero.
+            ctx.check(clientSlotBefore != null && clientSlotBefore != targetSlot)
+                    .as("前置：动作前客户端不在目标槽（动作前 " + render(clientSlotBefore)
+                            + "，目标 " + targetSlot + "）。不成立的话下面那条判据零贡献也会绿")
+                    .isTrue();
+            ctx.check(parkedAway)
+                    .as("前置：动作前已把客户端朝向停靠到别处，且不满足目标几何要求（停靠后 "
+                            + renderLook(clientLookParked) + "，目标要求 " + deg(wantAtWrite[0])
+                            + " / " + deg(wantAtWrite[1]) + "）。不成立的话瞄准判据零贡献也会绿")
+                    .isTrue();
+            ctx.check(clientSlotAfter != null && clientSlotAfter == targetSlot)
+                    .as("A0 判据：客户端自己的选中槽应为 " + targetSlot + "，实际 "
                             + render(clientSlotAfter) + "。这一条在缺陷存在时会红 —— "
-                            + "修复之前同样的写法测出来客户端停在 0")
+                            + "修复之前同样的写法测出来客户端停在动作前那一格没动")
+                    .isTrue();
+            ctx.check(aimed)
+                    .as("A0 判据（瞄准半边）：客户端自己的朝向应指向 " + aimAt.toShortString()
+                            + "，几何要求 " + deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
+                            + "，实际 " + renderLook(clientLookAfter)
+                            + "，容差 " + deg(AIM_TOLERANCE_DEG) + "°。缺陷存在时这一条会红 ——"
+                            + "尺子那条实测客户端偏了 12~24° yaw、26~30° pitch。"
+                            + "红了先看 aim.客户端.落地了吗 和 aim.要求漂移 两行分死因")
                     .isTrue();
         });
     }
@@ -442,6 +633,88 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         } catch (RuntimeException e) {
             return null;
         }
+    }
+
+    /**
+     * How far the client's own aim may sit from the geometric requirement before this scene calls it
+     * unaimed.
+     *
+     * <p>Five degrees, and the number is chosen against the MEASURED defect rather than picked for
+     * feeling safe: the ruler scene recorded gaps of 12-24° in yaw and 26-30° in pitch, so five
+     * separates「瞄准生效了」from「完全没生效」by a wide margin while leaving room for the eye-height
+     * and sub-tick position differences between the two bodies. A tolerance tuned tighter would make
+     * this criterion report the difference between two healthy implementations.
+     */
+    private static final float AIM_TOLERANCE_DEG = 5.0f;
+
+    /**
+     * The yaw/pitch that pointing at {@code cell}'s centre REQUIRES, computed from the body's eye
+     * position — the independent yardstick this scene's aim criterion is judged against.
+     *
+     * <p>Same arithmetic both actuators perform ({@code ServerPlayerAvatar.aimAtBlock} and
+     * {@code BotInteract.aimAtBlockSnap}), deliberately recomputed here instead of read back from
+     * either of them: a criterion whose expected value comes from the thing under test cannot fail.
+     */
+    /**
+     * How much the aim REQUIREMENT moved while the scene waited, and whether that invalidates the
+     * verdict.
+     *
+     * <p>An {@code aimAtBlock} stores <b>angles</b>, not a target. Once written, the body moving
+     * makes them stale, and nothing in the actuator notices. At this scene's range (~8.6 blocks
+     * horizontally) roughly three quarters of a block of drift is worth the entire
+     * {@link #AIM_TOLERANCE_DEG} tolerance — so a body that got pushed, fell, or was shoved by a mob
+     * during the settle would make the aim criterion go red <b>on a perfectly healthy actuator</b>.
+     *
+     * <p>This row exists so that failure can never be silent. Without it,「客户端朝向不对」has two
+     * causes that print identically, and the reader has no way to tell「actuator 没生效」from
+     * 「身体动了，角度过期了」— which is precisely the ambiguity that costs rounds in this repo.
+     * The criterion itself is judged against the write-time requirement, so movement does not
+     * actually change the verdict; this row is what tells a reader that, instead of asking them to
+     * take it on faith.
+     */
+    private static String requirementDrift(Vec3 from, Vec3 to, float[] wantAtWrite, float[] wantNow) {
+        double moved = from.distanceTo(to);
+        float dy = Math.abs(wrap(wantNow[0] - wantAtWrite[0]));
+        float dp = Math.abs(wantNow[1] - wantAtWrite[1]);
+        boolean stale = Math.max(dy, dp) >= AIM_TOLERANCE_DEG;
+        return (stale ? "⚠️ " : "") + "身体位移 " + String.format(Locale.ROOT, "%.3f", moved)
+                + " 格（" + pos(from) + " → " + pos(to) + "），几何要求随之从 "
+                + deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1]) + " 变成 "
+                + deg(wantNow[0]) + " / " + deg(wantNow[1]) + "，差 " + deg(dy) + "° / " + deg(dp) + "°"
+                + (stale
+                        ? "：已经吃掉整条 " + deg(AIM_TOLERANCE_DEG) + "° 容差。判据比的是写入时那份要求，"
+                                + "所以结论仍然成立；但这一趟身体确实动了，读别的行时把这件事算进去"
+                        : "，远小于 " + deg(AIM_TOLERANCE_DEG) + "° 容差 —— 身体基本没动，"
+                                + "瞄准这半边的红绿只可能来自 actuator 本身");
+    }
+
+    private static String pos(Vec3 v) {
+        return String.format(Locale.ROOT, "%.2f,%.2f,%.2f", v.x, v.y, v.z);
+    }
+
+    /**
+     * The aim predicate itself, in ONE place because two scenes must ask it identically.
+     *
+     * <p>The twin scene asserts this and {@code wd.actuatorSplitOnAnAdoptedBody} evaluates it as a
+     * negative control — and a negative control is only evidence about a criterion if it is the SAME
+     * criterion. Written out twice, an edit to the assertion would silently stop being mirrored by
+     * the control, and the control would go on reporting「有效」about a predicate that no longer
+     * exists. Sharing the method makes that divergence impossible rather than merely unlikely.
+     */
+    private static boolean aimSatisfies(float[] look, float[] want) {
+        return look != null
+                && Math.abs(wrap(look[0] - want[0])) <= AIM_TOLERANCE_DEG
+                && Math.abs(look[1] - want[1]) <= AIM_TOLERANCE_DEG;
+    }
+
+    private static float[] aimFromEyeTo(ServerPlayer body, BlockPos cell) {
+        double dx = (cell.getX() + 0.5) - body.getX();
+        double dy = (cell.getY() + 0.5) - body.getEyeY();
+        double dz = (cell.getZ() + 0.5) - body.getZ();
+        double horiz = Math.sqrt(dx * dx + dz * dz);
+        return new float[]{
+                (float) Math.toDegrees(Math.atan2(-dx, dz)),
+                (float) -Math.toDegrees(Math.atan2(dy, horiz))};
     }
 
     // ------------------------------------------------------------------ rendering
