@@ -117,15 +117,22 @@ import net.minecraft.world.phys.AABB;
  * <h2>Two limits stated on the row rather than left to be discovered</h2>
  *
  * <ul>
- *   <li><b>This body cannot be knocked by the blast, and the ladder's can.</b>
- *       {@code Explosion.explode} collects victims with {@code level.getEntities(source, aabb)},
- *       which reads the level's entity index. A gate-run body is an {@code AvatarFakePlayer} /
- *       NeoForge {@code FakePlayer} that was never added to the level, so it is absent from that
- *       index; the journey run arms {@code -Dworlddriver.realPlayerBodies=true} and its body JOINED,
- *       so it is present and does take the launch. That difference is recorded as
- *       {@code body.inLevelEntityIndex} on every run. It makes these scenes a <b>clean</b> reading of
- *       the footing — the one mechanism they claim — and it means they cannot see the ballistics.
- *       Do not read a green pillar arm as「爆炸不会把身体掀走」.</li>
+ *   <li><b>Whether the blast can knock this body depends on how the run was launched — and since
+ *       2026-08-22 the gates launch it the way that CAN.</b> {@code Explosion.explode} collects
+ *       victims with {@code level.getEntities(source, aabb)}, which reads the level's entity index.
+ *       A body that never joined is absent from that index and takes no launch; a body created under
+ *       {@code -Dworlddriver.realPlayerBodies=true} JOINED, is present, and is thrown. The ladder
+ *       always armed that flag, and the six gates now do too, so the「clean footing reading」this
+ *       note used to promise is gone: the first flipped run threw the body {@code dx=+5} and
+ *       {@code dy=−31} off a sole that was still obsidian.
+ *
+ *       <p>Clause B therefore exempts a fall whose sole stayed blast-proof AND whose body moved
+ *       horizontally — that combination is knockback, and knockback is not what B grades. The
+ *       exemption is narrow on purpose: dissolve the footing and {@code soleSurvived} goes false, so
+ *       no amount of launch can buy a green. <b>The ballistics are real, and this scene still does
+ *       not measure them</b> — there is no staging for it and no criterion on it, so a green pillar
+ *       arm remains no evidence about knockback in either direction. The {@code 弹道} row says on
+ *       every run which of the three worlds this one was.</li>
  *   <li><b>No Walker, no goal, no {@code LevelWorldView}.</b> The sibling void scenes drive a Walker
  *       because their subject is a leap; here the subject is which block is under the feet, and
  *       steering would put a second variable between the two arms. The body is created and stepped
@@ -395,7 +402,26 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         boolean tried = firstSwingTick >= 0;
         boolean broke = !crystal.isAlive();
         int swingStandY = tried ? swingStand.getY() : Integer.MIN_VALUE;
-        boolean heldItsGround = tried && minYAfterSwing > swingStandY - 2;
+        // DID THE SOLE SURVIVE? This is the mechanism clause B actually names —「爆炸不许抽走落脚」
+        // — and it is a question about the WORLD, not about where the body ended up. Obsidian is
+        // 1200 against a power-6 blast, so a cell that is still solid was never taken.
+        boolean soleSurvived = tried
+                && level.getBlockState(swingStand.below()).getBlock().getExplosionResistance()
+                        >= BlastFooting.blastProofResistance(BlastFooting.CRYSTAL_BLAST_POWER);
+        // AND WAS THE BODY LAUNCHED OFF IT? Horizontal displacement is the signature of knockback:
+        // Explosion.explode applies an impulse along the vector from the blast, and a body whose
+        // footing was removed falls STRAIGHT down. Measured on the flipped gates, 2026-08-22:
+        // dx=+5 dz=0 dy=−31 with 砍后脚下=obsidian — the sole was there the whole time.
+        boolean launchedSideways = tried
+                && (Math.abs(fp.getX() - (swingStand.getX() + 0.5)) > 1.5
+                 || Math.abs(fp.getZ() - (swingStand.getZ() + 0.5)) > 1.5);
+        // Clause B grades FOOTING. A body that lost height while its sole stood firm and its
+        // trajectory carried it sideways was thrown, not dropped, and ballistics is a mechanism this
+        // scene does not stage for or measure — see the class note. Exempting it keeps the clause
+        // falsifiable by the thing it names: remove the obsidian's resistance and `soleSurvived`
+        // goes false, and no amount of knockback can rescue it.
+        boolean knockedClear = soleSurvived && launchedSideways;
+        boolean heldItsGround = tried && (minYAfterSwing > swingStandY - 2 || knockedClear);
         String resAtSwingText = tried ? String.format(Locale.ROOT, "%.1f", resAtSwing) : null;
         // Clause 2's second half. The block id and the resistance are the scene's OWN readings of
         // the world, taken before the hit, and they are checked as ONE token: iron bars are 6.0 and
@@ -447,7 +473,21 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         // entity index, so Explosion.explode never finds it and never launches it; the journey's
         // joined body IS, and does. A green pillar arm is not a claim about knockback.
         ctx.record("body.inLevelEntityIndex", (level.getEntity(fp.getId()) != null)
-                + "（false = 这一趟身体收不到爆炸击退，只测落脚，不测弹道）");
+                + "（false = 这一趟身体收不到爆炸击退；true = 收得到，弹道真实发生，但本场景仍然只判落脚）");
+        // WHAT THE VERDICT IGNORED, and why that is not the same as「弹道不存在」. Written on every
+        // run, including the ones where nothing was exempted, so a reader can tell「没被掀走」from
+        // 「被掀走了但这一条不管」 — those are different worlds and a bare green would print alike.
+        ctx.record("弹道", !tried ? "未采样"
+                : !launchedSideways
+                    ? "身体没有横向位移（落脚 " + (soleSurvived ? "存活" : "被抽走")
+                        + "），这一趟没有可豁免的击退"
+                    : soleSurvived
+                        ? "身体被掀出去了：横move " + swingStand.toShortString() + " → "
+                            + endAt.toShortString() + "，而挥刀那一格脚下 "
+                            + blockIdAt(level, swingStand.below()) + " 抗性合格、始终没被抽走 —— "
+                            + "判为击退，B 条豁免。⚠️ 击退是真实发生的，本场景不测它（没有布景、"
+                            + "没有判据），别把这一行读成「爆炸掀不动身体」"
+                        : "身体横向位移了，且落脚也被抽走 —— 不豁免，B 条照常判红");
         ctx.record("gamerule.blockExplosionDropDecay", String.valueOf(
                 level.getGameRules().getBoolean(GameRules.RULE_BLOCK_EXPLOSION_DROP_DECAY)));
         ctx.record("gamerule.mobGriefing", level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
@@ -473,6 +513,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 + (tried ? swingStand.toShortString() + "（脚下 " + underAtSwing + "）" : "——")
                 + "，其后最低 y=" + (tried ? String.format(Locale.ROOT, "%.3f", minYAfterSwing) : "未采样")
                 + "，判据 > " + (tried ? String.valueOf(swingStandY - 2) : "无锚点")
+                + (knockedClear ? "（本趟豁免：落脚始终合格，身体是被爆炸横向掀走的，见【弹道】行——"
+                        + "掉高度是击退的后果，不是落脚被抽走）" : "")
                 + "。锚点是【决定挥刀那一刻】的站立 y，不是布景放下的位置。⚠️ 这条臂今天绿在【带理由地"
                 + "拒绝】上，不是绿在【换了落脚】上——换落脚要 X1/X2/X3，见类注释").isTrue();
     }
