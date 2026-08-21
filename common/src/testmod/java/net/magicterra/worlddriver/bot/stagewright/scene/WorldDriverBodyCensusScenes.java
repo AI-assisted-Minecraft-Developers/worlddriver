@@ -238,7 +238,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         record(ctx, column, "fallDistance", () -> fallDistanceSeries(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "experienceOrbs", () -> experienceOrbs(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "pose", () -> poseSeries(fp, avatar));
-        record(ctx, column, "walkStat", () -> walkStat(fp, avatar));
+        record(ctx, column, "walkStat", () -> walkStat(fp, avatar, cx, floorY, cz));
         record(ctx, column, "jumpApex", () -> jumpApex(fp, avatar, floorY));
         record(ctx, column, "swinging", () -> swinging(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "mineDrop", () -> mineDrop(level, fp, avatar, cx, floorY, cz));
@@ -481,18 +481,35 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     /** Distance walked, and the walk statistic that should have counted it. Both, for the same
      *  reason the fall probe records both: a zero statistic beside a zero displacement is a broken
      *  rig, not a missing statistic. */
-    private static String walkStat(ServerPlayer fp, ServerPlayerAvatar avatar) {
+    private static String walkStat(ServerPlayer fp, ServerPlayerAvatar avatar,
+                                   int cx, int floorY, int cz) {
         int before = fp.getStats().getValue(Stats.CUSTOM.get(Stats.WALK_ONE_CM));
         Vec3 from = fp.position();
         avatar.commandMove(0f, 1f);
-        for (int i = 0; i < 40; i++) avatar.step();
+        // WALK_TICKS, not「走够远」: a vanilla walk covers ~0.11 blocks/tick, so 40 ticks would
+        // carry the body ~4.3 blocks — off a pad whose half-width is 3. It would then FALL, and a
+        // falling body reports a displacement that is mostly vertical while the next probe
+        // (jumpApex) starts from mid-air and reads its own start height wrong. Two readings
+        // corrupted by a rig that walked off its own floor, which is exactly the class of bug this
+        // census exists to expose in the driver — it does not get to have one itself.
+        for (int i = 0; i < WALK_TICKS; i++) avatar.step();
         avatar.commandMove(0f, 0f);
         avatar.step();
         int after = fp.getStats().getValue(Stats.CUSTOM.get(Stats.WALK_ONE_CM));
-        return String.format(Locale.ROOT, "实际位移 %.2f 格，walk_one_cm %d→%d，jump=%d",
-                from.distanceTo(fp.position()), before, after,
-                fp.getStats().getValue(Stats.CUSTOM.get(Stats.JUMP)));
+        double moved = from.distanceTo(fp.position());
+        boolean stillOnPad = Math.abs(fp.getX() - (cx + 0.5)) <= PAD
+                && Math.abs(fp.getZ() - (cz + 0.5)) <= PAD;
+        // Back to the centre, so jumpApex starts from a known cell on solid ground.
+        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
+        fp.setDeltaMovement(Vec3.ZERO);
+        return String.format(Locale.ROOT,
+                "走 %d tick：实际位移 %.2f 格（仍在台面上=%b），walk_one_cm %d→%d",
+                WALK_TICKS, moved, stillOnPad, before, after);
     }
+
+    /** How long the walk probe drives forward. Deliberately short enough that the body cannot
+     *  reach the edge of its own pad — see {@link #walkStat}. */
+    private static final int WALK_TICKS = 20;
 
     /**
      * How high one commanded jump actually goes, from a body that is standing still.
