@@ -135,6 +135,33 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     private final Map<String, Integer> moveTally = new LinkedHashMap<>();
     private BlockPos lastPlanNode;
 
+    /**
+     * The vertical bill the PLAN ran up, split from the vertical the body took by falling.
+     *
+     * <h2>「y 41→5」says how far down the body got. It does not say who took it there.</h2>
+     *
+     * Two rung-14 legs died the same way and neither line could name the mechanism: the rehearsal's
+     * wp4 descended 22 blocks into lava, the real ladder's wp5 descended 36 to bedrock, and both
+     * ended {@code expanded=1} — unable to plan back out. Both printed a y range and an edge tally,
+     * and neither answers <b>whether A* deliberately routed downward or the body fell off something
+     * the plan expected it to stand on.</b> Those two want opposite fixes: the first is a cost the
+     * planner is missing, the second is an executor that left the path.
+     *
+     * <p>So: sum the y deltas <b>between consecutive plan nodes</b>. That is the descent the planner
+     * ASKED for. Compare it with the body's own drop (already in the y-range clause) and the
+     * difference is what gravity contributed. {@code descentByMove} attributes the planned half to
+     * the move kinds that spent it, because the evidence already showed {@code diagAscendPenalty}
+     * pricing diagonal ASCENT while {@code diagDown} edges went unpriced — and a per-move split is
+     * what turns「下潜没有标价」from a guess into a number.
+     *
+     * <p><b>Measured before priced.</b> Adding a descent penalty now would be a free parameter with
+     * no measurement behind it, and this repo has already paid for one of those; the two-armed
+     * comparison it would need has to have something to compare.
+     */
+    private int plannedDown;
+    private int plannedUp;
+    private final Map<String, Integer> descentByMove = new LinkedHashMap<>();
+
     private boolean airborne;
     private BlockPos launchAt;
     private int launchTick;
@@ -378,9 +405,22 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // set on a static and read on another tick can silently do nothing, and a leg that still
         // walks the move it was told to avoid says so here instead of being argued about.
         if (!node.equals(lastPlanNode)) {
-            lastPlanNode = node;
             String move = rig.body().botState().mc_goto.pathMove;
-            moveTally.merge(move == null ? "?" : move, 1, Integer::sum);
+            String kind = move == null ? "?" : move;
+            moveTally.merge(kind, 1, Integer::sum);
+            // The y delta BETWEEN PLAN NODES, which is the descent the planner asked for — see
+            // plannedDown. Skipped on the first node of the leg because there is no previous node to
+            // subtract, and a leg's opening node is where the body already is, not a step it took.
+            if (lastPlanNode != null) {
+                int dy = node.getY() - lastPlanNode.getY();
+                if (dy < 0) {
+                    plannedDown += -dy;
+                    descentByMove.merge(kind, -dy, Integer::sum);
+                } else {
+                    plannedUp += dy;
+                }
+            }
+            lastPlanNode = node;
         }
         if (!onGround) return;
         // IS THE PLAN POINTING BACKWARDS? The node's distance to this leg's goal, minus the body's.
@@ -481,6 +521,15 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         sb.append("；").append(ticksWithNoPlan).append("/").append(t).append(" tick 身上没有计划");
         sb.append("；").append(contactLine());
         sb.append("；走过的边 ").append(moveTally.isEmpty() ? "没有（这一段没执行过任何计划边）" : moveTally);
+        // WHO TOOK THE BODY DOWN — the plan, or gravity. The y-range clause above says how far down
+        // it got; this says how much of that A* deliberately asked for. Printed unconditionally,
+        // including on a leg that never descended, because「计划下潜 0 格」on a body that ended 36
+        // blocks lower is itself the finding, and a row that only appears when it is interesting
+        // cannot be compared across two arms. See plannedDown.
+        sb.append("；计划里的垂直账 下潜 ").append(plannedDown).append(" 格、上爬 ").append(plannedUp)
+                .append(" 格（净 ").append(plannedUp - plannedDown).append("）")
+                .append(descentByMove.isEmpty() ? "，没有一条计划边是往下的 —— 身体下去了多少全是掉的"
+                        : "，下潜来自 " + descentByMove);
         // A leg that walked 61 edges to a net −8 has either been given bad plans or has had good
         // ones taken away from it. This is the number that says which, and it is the leg's own
         // delta rather than the JVM total — see repathsAtStart.
