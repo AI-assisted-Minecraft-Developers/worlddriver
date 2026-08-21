@@ -292,19 +292,11 @@ public final class JourneyNetherRungs {
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
                         lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
                 WAYPOINT_LEG_TICKS, flight, () -> {
-            // A LEG'S VERDICT IS TAKEN FROM A BODY AT REST, AND THIS ONE'S WAS NOT. wp4 of the
-            // 2026-08-21 rehearsal ended 「goalReached=true end=arrived 在 63,42,86 onGround=false
-            // 支撑[63,42,86=air 63,42,87=air]」: off=1, comfortably inside the bar, and in free fall
-            // over a hole — the floor under that column is y=40. It passed. wp5 then opened with
-            // 「起步时就不在地上」 and was at 64,25,88 in lava a hundred ticks later, and took the
-            // blame for a fall wp4 handed it. crossToColumn has wrapped its hops in this settle
-            // since 2026-08-20 for exactly this reason; the precise legs were the one path still
-            // judging from a photograph of one tick of a fall.
-            //
-            // The settle wraps the CONTINUATION, not just the evidence row, because `off`, the
-            // arrival test, and the next leg's starting position are four readings of one body and
-            // all four want it settled. Cheap: the predicate is asked first and a leg that ends
-            // standing — nearly all of them — skips the wait outright.
+            // A LEG'S VERDICT IS TAKEN FROM A BODY AT REST. A leg once passed at off=1 with both
+            // support cells air, in free fall, and handed the fall to the NEXT leg, which drowned
+            // and took the blame. The settle wraps the whole CONTINUATION, not just the evidence
+            // row: `off`, the arrival test and the next leg's start are readings of one body and all
+            // of them want it settled. See TODO.md; crossToColumn has done this since 2026-08-20.
             BlockPos ended = rig.player().blockPosition();
             flight.recordInto(leg, "direct");
             int laid = bridged + flight.moveCount("bridgePlace");
@@ -980,7 +972,14 @@ public final class JourneyNetherRungs {
         }
 
         final Blaze target = here.get(0);
-        final int before = rods;
+        // BAG PLUS GROUND, not the bag. This tally's whole job is to separate「killed_by_player 闸没
+        // 过，所以根本没掉」from「掉了，只是这一只没掉」——and once the collect moved to AFTER the
+        // fight (see blazeVerdict), a bag delta is structurally 0 for every kill. It printed
+        // `rods.perKill=0,0,0,0,0,0,0,0` on a run that banked two rods, which is the loot-gate
+        // signature exactly, on a run whose loot gate was fine. Counting what came into EXISTENCE
+        // answers the question the row is asked; counting what reached the bag answers a different
+        // one that the pickup rows already cover.
+        final int before = rods + rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK);
         final int round = BLAZE_FIGHTS - roundsLeft + 1;
         // Re-held every round, not once. Anything that walks or digs calls `selectTool`, which
         // swaps the best TOOL for the block into the selected slot — so the hand a fight starts
@@ -997,7 +996,7 @@ public final class JourneyNetherRungs {
             rig.legReleased();
             boolean dead = !target.isAlive();
             if (dead) killed[0]++;
-            int now = rig.carrying(BLAZE_ROD);
+            int now = rig.carrying(BLAZE_ROD) + rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK);
             tally.append(tally.length() == 0 ? "" : ",").append(dead ? String.valueOf(now - before) : "×没打死");
             rig.evidence("fight." + round, (dead ? "打死" : "没打死") + "，用了 " + waited[0]
                     + " tick，手里 " + weapon + "，最高离地 " + String.format(Locale.ROOT, "%.1f",
@@ -1031,7 +1030,7 @@ public final class JourneyNetherRungs {
         rig.evidence("blaze.killed", killed + " 只");
         rig.evidence("rods.perKill", tally.length() == 0 ? "一场没打" : tally.toString());
         rig.evidence("blaze_rod", rods);
-        rig.evidence("dropsNearby", rig.dropsNearby(BLAZE_ROD, 8) + " 根掉在地上没捡");
+        rig.evidence("dropsNearby", rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK) + " 根掉在地上没捡");
         rig.noteAdvancement("minecraft:nether/obtain_blaze_rod");
         ctx.expect(rods).as("烈焰棒真的进了包（不是打死了就算）").isAtLeast(1);
         rig.reach("在自己围出来的屋子里打死 " + killed + " 只烈焰人，收 " + rods + " 根烈焰棒");
@@ -2538,6 +2537,9 @@ public final class JourneyNetherRungs {
 
     /** Item ids these rungs are about. Named rather than inlined because they are what is asserted. */
     private static final String BLAZE_ROD = "minecraft:blaze_rod";
+
+    /** One radius for the per-kill tally AND the leftover row, so both speak about the same drops. */
+    private static final double BLAZE_DROP_LOOK = 8;
     private static final String ENDER_PEARL = "minecraft:ender_pearl";
 
     /** How far the travelling chunk pin must see. Two chunks keeps a WALKING body's own chunk
