@@ -388,8 +388,44 @@ fabric/build.gradle:481   runRehearsalServer
 | N14 | 21 个动作族没有动词 | 驱动器根本没写这些动词。给它换一具更真的身体，也没有人去调 |
 | N15b | 视距**不可配** | `JoinedBody` 拿到 `ClientInformation.createDefault()`，是一份真的默认值；但没有 `handleClientInformation` 的入口去改它。从「缺失」降级为「不可配」——**降级了，没消失** |
 | N16 | 区块批次从不 ack | `SilentConnection` 吞掉一切，且没有客户端会 ack |
+| **N19** | **avatar 从不调 `Player.jumpFromGround()`** | **驱动器自己写的**，见下。换身体不动它 |
 
-**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价」；**丙档 11 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14 六条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。
+**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价」；**丙档 12 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14/N19 七条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。
+
+### N19 单列：一个缺陷被另一个缺陷完整遮住
+
+`ServerPlayerAvatar` 不调 `jumpFromGround()`，而是**手抄它的速度效果**：
+`:1030-1038` 直接把 `deltaMovement.y` 设成 `0.42`，冲刺时再加 `0.2` 的前推。
+速度抄对了，**两个副作用没抄**——`Player.jumpFromGround()`（`Player.java:1471-1474`）除了
+`super.jumpFromGround()` 还做 `awardStat(Stats.JUMP)` 和冲刺时的 `causeFoodExhaustion(0.2F)`。
+所以这具身体**跳一辈子也不饿、跳一辈子也不计数**。
+
+**为什么必须有第二列才看得见。** `Stats.JUMP` 在两列都是 `0→0`。只看 `factory` 一列，
+这个 0 会被 N18（`awardStat` 空覆盖）**完整解释掉**，而且解释得毫无破绽——
+「统计量全死了，JUMP 当然是 0」是一个正确、自洽、且**错误的**结论。
+只有当 `joined` 那一列证明 `awardStat` 是活的（它记下了 `walk_one_cm 0→227`），
+`JUMP` 仍然是 0 才裂开成一条独立的缺陷。
+**一个缺陷藏在另一个缺陷的阴影里，两条都真、上面那条足以解释全部现象**——
+这是最难发现的一类，单列普查在结构上就看不见它。这也是「同时量两具身体」这个决定的回报。
+
+> **顺带纠正一条撒谎的注释。** `ServerPlayerAvatar.java:35-37` 的类 javadoc 写着
+> 「Jump is replicated by seeding `deltaMovement.y`（the protected `jumping`/`jumpFromGround`
+> path isn't reachable externally）」。**`jumpFromGround()` 在 1.21.1 是 `public`**：
+> `LivingEntity.java:2094` `public void jumpFromGround()`，`Player.java:1471` 覆盖它也是 `public`
+> （21.1.230 patched merged jar，vineflower 1.10.1 `-dgs=1`）。真正 protected 的只有 `jumping` 字段，
+> 而那个已经被 accesswidener 放开了（见 `:1073-1075`）。
+> 所以 N19 的修法不是「补一套 hook」，是**把手抄的那段换成调用真方法**——
+> 但注释说它不可达，于是没有人试过。**这条注释的代价就是 N19 本身。**
+
+### 顺带记一条方法论账：`walkStat` 按距离收口的回报
+
+这条探针原来按 tick 数收口，注释里写着「vanilla 走路 ~0.11 格/tick」——**那个数是编的**。
+实测两列都是 **0.207 格/tick**，差了一倍。按原来的 20 tick 跑会走 **4.1 格**，而台面半宽只有 3：
+身体会掉下去，于是它自己的位移读数作废，紧接着跑的 `jumpApex` 还会从半空中读起跳高度——
+**一条撒谎的注释让两个读数一起报废。**
+改成按距离收口（走到水平 2.0 格为止，`WALK_TICK_CAP` 只兜住完全不动的身体）之后，
+两列走的是同一段距离而不是同一个 tick 数，`walk_one_cm` 的增量才可比。
+**通则：不要用一个待测量去定另一个待测量的采样窗。** 速度正是这条探针要量的东西之一。
 
 ---
 
