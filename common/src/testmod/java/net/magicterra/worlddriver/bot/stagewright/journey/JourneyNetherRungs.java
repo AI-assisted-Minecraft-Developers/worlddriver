@@ -1412,6 +1412,23 @@ public final class JourneyNetherRungs {
     /**
      * Walk to a far XZ column in BOUNDED HOPS along the straight line to it.
      *
+     * <h2>⚠️ It arrives on XZ ONLY — never hand it a three-dimensional intent</h2>
+     *
+     * The arrival test is {@code away <= tolerance + ARRIVED_WITHIN} over {@code hypot(dx, dz)}, and
+     * {@code y} appears nowhere in it. That is correct for what this is for — a fortress landmark is
+     * an XZ answer from a structure locate, wearing a {@code BlockPos} whose {@code y} is a
+     * placeholder zero — and it is a TRAP for anything else: a body in the right column but
+     * twenty-three blocks below the caller's target is「arrived」here, immediately, having walked
+     * nowhere.
+     *
+     * <p>Measured 2026-08-21, and it did not fail loudly: a precise-leg fallback delegated here, was
+     * judged arrived on the spot, and reported success with the evidence row
+     * {@code 一段都没走，还差 0 格}. <b>The fallback had never once run, and said it worked.</b> A
+     * caller that needs height must either overshoot past the column (what that fallback does now)
+     * or use a goal that owns {@code y} — {@code Goal.Block} / {@code Goal.Near} through
+     * {@code WorldDriverJourneyScenes.walkToColumn} — rather than adding a {@code y} check after
+     * this returns, which would only discover the miss once the walk is already over.
+     *
      * <h2>Why not one goal</h2>
      *
      * Because a 397-block goal is not a question this pathfinder answers, and the run that proved it
