@@ -506,6 +506,62 @@ vineflower 1.10.1 `-dgs=1` 反编译，全类只有约 60 行，这是其中一�
 **这三行不是证据，是空读数。** 要判它们，需要一条让服务器真的 tick 若干次的普查
 （`ctx.await(...)` 而不是同步 `step()` 循环），那是下一轮的事，不要拿上表的「一样」当结论。
 
+---
+
+## 6.7 同一份代码在 Fabric 上的第二趟（2026-08-22 00:08）
+
+同一个提交、同一套场景，`stagewrightDedicatedServerFabric`，
+`fabric/run-dogfood/stagewright-results.jsonl` 写于本地 00:08:26，302 条 scene 行。
+普查 `PASS (1 ticks, 444 ms)`，28 个读数一个不缺。
+
+**只有三个量与 NeoForge 那趟不同，而这三个恰好把两条结论钉死了：**
+
+| 量 | Fabric `factory`（`AvatarFakePlayer`） | Fabric `joined` | 与 NeoForge 比 |
+|---|---|---|---|
+| `identity` | `AvatarFakePlayer`，是 neoforge FakePlayer=**false** | `JoinedBody`，在玩家表=true | 身体换了，符合预期 |
+| `advancementsWritable` | `award()` → **true**，isDone=**true** | true / true | **NeoForge 上 factory 是 false** |
+| `walkStat` | `walk_one_cm` **0→0** | **0→227** | **和 NeoForge 一模一样** |
+
+其余 10 个量（`isInvulnerableTo`、`invulnerableTime`、`fallDistance`、`experienceOrbs`、`pose`、
+`jumpApex`、`swinging`、`mineDrop`、`tickCount`，以及 `tickChain` 的后两段）**两个 loader 四列全部相同**，
+连数值都一样：2.28 格 / 11 tick / 0.207 格每 tick、升高 1.252 格、3 颗球剩 2 颗、`STANDING/1.80`。
+
+### 这一趟钉死了两件事
+
+**(1) N1/N2 确实只是 NeoForge 的补丁，不是「假人」这个概念的属性。**
+Fabric 的 `AvatarFakePlayer` 拿进度 `award()` 返回 **true**——它同样不在玩家表、同样不上实体 tick 表、
+同样是一具 `ServerPlayer` 子类假人，**却拿得到进度**。差别只在 NeoForge 往
+`PlayerAdvancements.award` / `PlayerList.getPlayerAdvancements` 里塞了两个 `instanceof FakePlayer`。
+§6.5 甲档「废弃即消失」由此从「读代码推出来的」变成**两个 loader 对照实测**。
+
+**(2) N18 的预测在观测前写下，然后被观测证实。**
+NeoForge 那趟测出 `walk_one_cm 0→227` 之后，我去读了我们自己的 Fabric 身体，发现
+`AvatarFakePlayer.java:70` 有一模一样的 `awardStat` 空覆盖，于是**在跑 Fabric 之前**就写下
+「Fabric 的 factory 列预期也会读到 0」。实测 `0→0`。
+**所以这条差异不随 NeoForge `FakePlayer` 的废弃消失——它有一半是我们自己写的。**
+
+### 这一趟的闸是 RED，但不是普查造成的
+
+`VERDICT: RED`。唯一的必需失败是**框架自带**的
+`terrainGeneratedPutsTheArenaOnTheSurface` → `ENV_FAIL`：
+「the arena never became usable: only 0 of 9 arena chunks ever loaded after 201 ticks…
+Dimension `stagewright:generated` at 1124512,100000」。
+两条可选红（`vineOverWaterClimb`、`serverEscapeSealedShelter`）是基线里本来就有的。
+
+判它不是普查造成的，靠三条互相独立的证据，**不是靠「我觉得不像」**：
+
+1. **时序**：它在 00:04:52 失败，普查在 00:08:13 才运行。**一个还没跑的场景不能影响一个已经失败的场景。**
+2. **同码对照**：二十分钟前 NeoForge 用**同一个提交**跑完，这条场景 PASS
+   （`surfaceY=64, relief=4, underfoot=grass_block`），全场 GREEN。同码两趟一绿一红 → 非确定性。
+3. **早于普查存在**：同一句失败信息（「0 of 9 arena chunks ever loaded after 201 ticks」）
+   出现在 2026-08-12 的 `journey7/14/15` 排练日志里，比这个普查场景（2026-08-20 才建）早九天。
+
+所以这是一条**先前就存在的、间歇性的舞台区块加载停顿**，属于
+`stagewright:generated` 在远坐标处的 worldgen/tick 家族，不在本文档的范围内。
+**记在这里只是为了下一个人看到这趟 RED 时不必重查一遍。**
+
+---
+
 ## 7. 场景归属：谁该迁走，谁迁不了
 
 **迁移机制今天就有**：`SceneContext.playerHere()`（stagewright `api/src/main/java/net/magicterra/stagewright/scene/SceneContext.java:135`）会把真玩家传送进舞台并注册还原清理；`SceneContext.player()`（`:118`）在没有真玩家时**跳过场景**（`:150`）。
