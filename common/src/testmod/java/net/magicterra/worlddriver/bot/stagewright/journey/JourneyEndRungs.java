@@ -588,8 +588,7 @@ public final class JourneyEndRungs {
         int sx = (int) Math.round(at.getX() - dz / len * SIDESTEP_BLOCKS);
         int sz = (int) Math.round(at.getZ() + dx / len * SIDESTEP_BLOCKS);
         rig.evidence("march." + leg + ".wedged", xyz(at) + " 一段没挪动，先横走到 " + sx + "," + sz
-                + "（goto end=" + rig.body().botState().mc_goto.endReason
-                + " err=" + rig.body().botState().mc_goto.lastError + "）");
+                + "（goto " + JourneyLeg.walkerEnd(rig) + "）");
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(sx, sz, 3))), MARCH_LEG_TICKS / 2,
                 () -> march(ctx, rig, leg + 1));
     }
@@ -838,8 +837,7 @@ public final class JourneyEndRungs {
             BlockPos at = rig.player().blockPosition();
             rig.evidence("stand.at", xyz(at));
             rig.evidence("stand.in", blockAt(rig, at));
-            rig.evidence("stand.goto", "end=" + rig.body().botState().mc_goto.endReason
-                    + " err=" + rig.body().botState().mc_goto.lastError);
+            rig.evidence("stand.goto", JourneyLeg.walkerEnd(rig));
             ctx.fail("走不进末地传送门：试了 " + attempt + " 格门，身体还在 " + rig.dimension() + " " + at
                     + "。逐次落点见 step.*（要塞的门开在熔岩池上方，走进去和站到旁边是两码事）");
             return;
@@ -1076,9 +1074,8 @@ public final class JourneyEndRungs {
             BlockPos now = rig.player().blockPosition();
             rig.evidence("island." + leg + ".plan", planOf(rig, pillar, stock));
             if (flatDistance(at, now) >= WEDGED_UNDER) { marchInTheEnd(ctx, rig, leg + 1); return; }
-            rig.evidence("island." + leg + ".wedged", xyz(now) + " 一段没挪动（goto end="
-                    + rig.body().botState().mc_goto.endReason + " err="
-                    + rig.body().botState().mc_goto.lastError + "）");
+            rig.evidence("island." + leg + ".wedged",
+                    xyz(now) + " 一段没挪动（goto " + JourneyLeg.walkerEnd(rig) + "）");
             marchInTheEnd(ctx, rig, leg + 1);
         });
     }
@@ -1582,8 +1579,7 @@ public final class JourneyEndRungs {
                     + podium.toShortString() + " → 停在 " + me.toShortString() + "（距 "
                     + String.format(Locale.ROOT, "%.1f", Math.sqrt(me.distSqr(podium)))
                     + " 格，高差 " + (me.getY() - podium.getY()) + "）"
-                    + (close ? " 到了" : " 没到 end=" + rig.body().botState().mc_goto.endReason
-                            + " err=" + rig.body().botState().mc_goto.lastError));
+                    + (close ? " 到了" : " 没到 " + JourneyLeg.walkerEnd(rig)));
             if (close) { then.run(); return; }
             // Six rounds of the same stall at (43,52,13) — 46 格 out and EIGHT BELOW the podium —
             // is not bad luck a seventh round fixes. Below the target the walk has to solve「climb
@@ -2432,8 +2428,7 @@ public final class JourneyEndRungs {
             rig.evidence(what + ".arrivedDistance", Math.round(away));
             rig.evidence(what + ".walkAttempts", attempt);
             if (away <= tolerance + 3) { onArrived.run(); return; }
-            rig.evidence(what + ".goto." + attempt, "end=" + rig.body().botState().mc_goto.endReason
-                    + " err=" + rig.body().botState().mc_goto.lastError);
+            rig.evidence(what + ".goto." + attempt, JourneyLeg.walkerEnd(rig));
             if (left <= 1) { onStuck.run(); return; }
             walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck);
         });

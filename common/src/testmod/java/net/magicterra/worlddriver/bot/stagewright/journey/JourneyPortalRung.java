@@ -677,12 +677,12 @@ public final class JourneyPortalRung {
         ServerLevel level = rig.ctx().level();
         rig.evidence("stair.wedged", String.format(java.util.Locale.ROOT,
                 "%s 连着 %d 腿一格没挪（精确 %.2f/%.2f/%.2f）；想去 %s；"
-                + "end=%s err=%s；台阶四格：脚下 %s=%s，落脚 %s=%s，头 %s=%s，起跳 %s=%s；"
+                + "%s；台阶四格：脚下 %s=%s，落脚 %s=%s，头 %s=%s，起跳 %s=%s；"
                 + "canBreak(落脚)=%s，allowBreak=%s allowPlace=%s",
                 now.toShortString(), STAIR_WEDGE_WAITS,
                 rig.player().getX(), rig.player().getY(), rig.player().getZ(),
                 foot.toShortString(),
-                rig.body().botState().mc_goto.endReason, rig.body().botState().mc_goto.lastError,
+                JourneyLeg.walkerEnd(rig),
                 foot.below().toShortString(), level.getBlockState(foot.below()).getBlock(),
                 foot.toShortString(), level.getBlockState(foot).getBlock(),
                 foot.above().toShortString(), level.getBlockState(foot.above()).getBlock(),

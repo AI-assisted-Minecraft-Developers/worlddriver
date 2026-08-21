@@ -1085,8 +1085,7 @@ public final class JourneyShaft {
             // "no route exists", "the search ran out of time" and "it walked part of a plan and
             // stopped" — three findings needing three different answers, and it was the third.
             rig.evidence(climbKey(step, ".driftGoto." + n),
-                    "end=" + rig.body().botState().mc_goto.endReason
-                            + " err=" + rig.body().botState().mc_goto.lastError
+                    JourneyLeg.walkerEnd(rig)
                             + "（想去 " + (into != null ? into.toShortString()
                                     : climbColX + "," + climbColZ) + "，停在 "
                             + back.toShortString() + "）");

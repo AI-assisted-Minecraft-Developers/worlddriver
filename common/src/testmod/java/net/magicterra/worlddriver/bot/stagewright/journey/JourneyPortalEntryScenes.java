@@ -441,8 +441,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         int blindTicks = drive(blind, new IntentProcess(new Intent(column)), LEDGE_TICKS);
         boolean blindArrived = blind.fakePlayer().blockPosition().equals(step);
         ctx.record("blind.leg", "XZ 目标 " + step.toShortString() + "：" + before.toShortString()
-                + " → " + where(blind) + "（" + blindTicks + " tick） end="
-                + blind.botState().mc_goto.endReason + " " + exactly(blind));
+                + " → " + where(blind) + "（" + blindTicks + " tick） "
+                + JourneyLeg.walkerEnd(blind) + " " + exactly(blind));
         if (blindArrived)
             ctx.fail("THE RIG, not the subject: XZ 那一腿自己就走到了门口 " + step.toShortString()
                     + "，那么「换成 3D 才走得到」就分不清修好了和这座场地本来就走得通 —— " + where(blind));
@@ -454,8 +454,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         ctx.record("picked", JourneyPortalEntry.legShape(here, step, true) + " → " + picked);
         int seeTicks = drive(seeing, new IntentProcess(new Intent(picked)), LEDGE_TICKS);
         ctx.record("subject.leg", "目标 " + step.toShortString() + "：" + here.toShortString()
-                + " → " + where(seeing) + "（" + seeTicks + " tick） end="
-                + seeing.botState().mc_goto.endReason + " " + exactly(seeing));
+                + " → " + where(seeing) + "（" + seeTicks + " tick） "
+                + JourneyLeg.walkerEnd(seeing) + " " + exactly(seeing));
 
         // The alternation has to survive the fix, or this is a deletion wearing a fix's clothes.
         BlockPos far = step.offset(4, 1, 4);
@@ -542,9 +542,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         }
         int controlFaults = inPortal(control) ? 0 : 1;
         ctx.record("control.legs", String.format(Locale.ROOT,
-                "Goal.Block(%s) x%d, %d ticks | %s | end=%s err=%s", bottom.toShortString(),
-                CONTROL_LEGS, spent, trail, control.botState().mc_goto.endReason,
-                control.botState().mc_goto.lastError));
+                "Goal.Block(%s) x%d, %d ticks | %s | %s", bottom.toShortString(),
+                CONTROL_LEGS, spent, trail, JourneyLeg.walkerEnd(control)));
         ctx.record("control.after", controlFaults + " fault(s): " + where(control));
         WorldDriverCommon.LOG.info("[portalEntry] control faults={} at {}", controlFaults, where(control));
         if (controlFaults == 0)
@@ -597,8 +596,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         BlockPos atDoor = subject.fakePlayer().blockPosition();
         BlockPos ready = JourneyPortalEntry.stepFrom(level, atDoor, bottom);
         ctx.record("subject.walk", from.toShortString() + " → " + atDoor.toShortString()
-                + "（" + walked + " tick）end=" + subject.botState().mc_goto.endReason
-                + " err=" + subject.botState().mc_goto.lastError
+                + "（" + walked + " tick）" + JourneyLeg.walkerEnd(subject)
                 + "，就地能迈进的门洞格=" + (ready == null ? "无" : ready.toShortString()));
         ctx.check(ready).as("E 走完要真的站在能迈进去的那一格上，否则下面的「迈进去」是 0==0："
                 + "身体在 " + atDoor.toShortString() + "，想去 " + after.stand().toShortString()).isNotNull();

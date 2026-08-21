@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 
 import java.util.Locale;
@@ -102,7 +103,20 @@ final class JourneyLeg {
      * prove the leg is over. Read it beside {@code end=}.
      */
     static String walkerEnd(JourneyRig rig) {
-        var goto_ = rig.body().botState().mc_goto;
+        return walkerEnd(rig.body());
+    }
+
+    /**
+     * The same row for a body that is driven directly rather than through a {@link JourneyRig}.
+     *
+     * <p>The A/B scenes in {@code JourneyPortalEntryScenes} run two drivers side by side and have no
+     * rig, so they read {@code botState()} off the driver. They need this reading more than the
+     * rungs do, not less: an arm whose leg was cut off by {@code LEDGE_TICKS} and an arm whose
+     * search genuinely failed are exactly the confusion an A/B is there to rule out, and an arm
+     * that ran out of budget is not evidence about the subject at all.
+     */
+    static String walkerEnd(ServerWorldDriver driver) {
+        var goto_ = driver.botState().mc_goto;
         String end = goto_.endReason;
         String err = goto_.lastError;
         return "end=" + (end == null

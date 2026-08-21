@@ -601,8 +601,7 @@ public final class JourneyPortalEntry {
             rig.evidence("portal.walk." + leg, shape + " 目标 "
                     + door.stand().toShortString() + "：" + here.toShortString() + " → "
                     + at.toShortString() + "（挪了 " + moved + " 格，花了 " + spent + " tick）"
-                    + " end=" + rig.body().botState().mc_goto.endReason
-                    + " err=" + rig.body().botState().mc_goto.lastError);
+                    + " " + JourneyLeg.walkerEnd(rig));
             if (moved == 0) attempt.stillLegs++; else attempt.stillLegs = 0;
             if (attempt.stillLegs >= 2) {
                 neverGotIn(ctx, rig, portal, attempt, "连着两趟（XZ 和 3D 各一趟）一格没挪，停在 "

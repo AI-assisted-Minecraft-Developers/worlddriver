@@ -764,8 +764,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // blocks — about 110 searches from one cell. The end reason existed the whole time
                 // and was written only on the branch below, so the results file said nothing.
                 rig.evidence(what + ".gotoEnd." + attempt,
-                        "end=" + rig.body().botState().mc_goto.endReason
-                                + " err=" + rig.body().botState().mc_goto.lastError
+                        JourneyLeg.walkerEnd(rig)
                                 + "（判为到达：停在 " + at.toShortString() + "，距 " + x + "," + z
                                 + " " + Math.round(away) + " 格，容差 " + ARRIVED_WITHIN + "）");
                 onArrived.run();
@@ -773,9 +772,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             }
             // What the walker itself said about the leg. Ninety searches in a row left no record of
             // WHY beyond the search-begin lines, so a wedge and a slow crossing read the same.
-            rig.evidence(what + ".goto." + attempt,
-                    "end=" + rig.body().botState().mc_goto.endReason
-                            + " err=" + rig.body().botState().mc_goto.lastError);
+            rig.evidence(what + ".goto." + attempt, JourneyLeg.walkerEnd(rig));
             if (left <= 1) { onStuck.run(); return; }
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
