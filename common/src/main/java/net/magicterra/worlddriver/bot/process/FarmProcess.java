@@ -172,7 +172,7 @@ public final class FarmProcess implements BotProcess {
                 a.commandJump(false);
                 p.setSprinting(false);
                 String seedId = SEED_FOR.get(currentCropId);
-                if (seedId == null || !ensureHoldingItem(a, seedId)) {
+                if (seedId == null || !HeldItem.holdById(a, seedId)) {
                     // No seed in hand — skip this cell rather than spin.
                     skipped++;
                     blacklist.add(currentTarget);
@@ -238,35 +238,6 @@ public final class FarmProcess implements BotProcess {
         if (!crops.contains(id)) return false;
         if (!(bs.getBlock() instanceof CropBlock cb)) return false;
         return cb.isMaxAge(bs);
-    }
-
-    /** Swap hotbar to a stack matching itemId (or matching slot in main inv
-     *  in creative); reuses the same logic as BboxFillProcess.ensureHoldingBlock. */
-    private boolean ensureHoldingItem(Avatar a, String itemId) {
-        Player p = a.player();
-        if (p == null) return false;
-        Inventory inv = p.getInventory();
-        if (matchesItem(inv.getSelected(), itemId)) return true;
-        for (int slot = 0; slot < 9; slot++) {
-            if (matchesItem(inv.items.get(slot), itemId)) {
-                a.setSelectedSlot(slot);
-                return true;
-            }
-        }
-        if (p.isCreative()) {
-            for (int slot = 9; slot < inv.items.size(); slot++) {
-                if (matchesItem(inv.items.get(slot), itemId)) {
-                    inv.pickSlot(slot);
-                    return matchesItem(inv.getSelected(), itemId);
-                }
-            }
-        }
-        return false;
-    }
-
-    private boolean matchesItem(ItemStack stk, String itemId) {
-        if (stk.isEmpty()) return false;
-        return BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(itemId);
     }
 
     private BlockPos findStandAdjacent(Level lvl, BlockPos crop) {

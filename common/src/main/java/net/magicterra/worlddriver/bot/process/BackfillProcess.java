@@ -92,7 +92,7 @@ public final class BackfillProcess implements BotProcess {
                     return true;
                 }
                 String blockId = BotConfig.autoBackfillBlock;
-                if (!ensureHoldingBlock(a, blockId)) {
+                if (!HeldItem.holdById(a, blockId)) {
                     failed.add(pick);
                     return false;
                 }
@@ -246,37 +246,6 @@ public final class BackfillProcess implements BotProcess {
         if (here.blocksMotion()) return false;
         if (head.blocksMotion()) return false;
         return true;
-    }
-
-    private boolean ensureHoldingBlock(Avatar a, String blockId) {
-        Player p = a.player();
-        if (p == null) return false;
-        Inventory inv = p.getInventory();
-        ItemStack held = inv.getSelected();
-        if (matchesItem(held, blockId)) return true;
-        for (int slot = 0; slot < 9; slot++) {
-            if (matchesItem(inv.items.get(slot), blockId)) {
-                a.setSelectedSlot(slot);
-                return true;
-            }
-        }
-        for (int slot = 9; slot < inv.items.size(); slot++) {
-            if (matchesItem(inv.items.get(slot), blockId)) {
-                if (p.isCreative()) {
-                    inv.pickSlot(slot);
-                    return matchesItem(inv.getSelected(), blockId);
-                }
-                return false;
-            }
-        }
-        return false;
-    }
-
-    private boolean matchesItem(ItemStack stk, String blockId) {
-        if (stk.isEmpty()) return false;
-        Item item = stk.getItem();
-        ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
-        return rl.toString().equals(blockId);
     }
 
     private record Placement(BlockPos stand, Direction face) {}

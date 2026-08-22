@@ -133,7 +133,7 @@ public final class BuildProcess implements BotProcess {
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    if (!ensureHoldingBlock(a, schematic.entries.get(idx).blockId)) {
+                    if (!HeldItem.holdById(a, schematic.entries.get(idx).blockId)) {
                         failedIdx.add(idx);
                         skipped++;
                         idx++;
@@ -302,40 +302,6 @@ public final class BuildProcess implements BotProcess {
         if (here.blocksMotion()) return false;
         if (head.blocksMotion()) return false;
         return true;
-    }
-
-    /** Ensure the desired blockId is in the held slot — switch hotbar or pickItem from inventory. */
-    private boolean ensureHoldingBlock(Avatar a, String blockId) {
-        Player p = a.player();
-        if (p == null) return false;
-        Inventory inv = p.getInventory();
-        ItemStack held = inv.getSelected();
-        if (matchesItem(held, blockId)) return true;
-        // Scan hotbar
-        for (int slot = 0; slot < 9; slot++) {
-            if (matchesItem(inv.items.get(slot), blockId)) {
-                a.setSelectedSlot(slot);   // client syncs carried-slot; server sets directly
-                return true;
-            }
-        }
-        // Scan main inventory; in creative use pickSlot to bring to hotbar.
-        for (int slot = 9; slot < inv.items.size(); slot++) {
-            if (matchesItem(inv.items.get(slot), blockId)) {
-                if (p.isCreative()) {
-                    inv.pickSlot(slot);
-                    return matchesItem(inv.getSelected(), blockId);
-                }
-                return false; // survival can't auto-swap from main → hotbar without UI
-            }
-        }
-        return false;
-    }
-
-    private boolean matchesItem(ItemStack stk, String blockId) {
-        if (stk.isEmpty()) return false;
-        Item item = stk.getItem();
-        ResourceLocation rl = BuiltInRegistries.ITEM.getKey(item);
-        return rl.toString().equals(blockId);
     }
 
     private record Placement(BlockPos stand, Direction face) {}

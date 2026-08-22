@@ -194,7 +194,7 @@ public final class BboxFillProcess implements BotProcess {
                     phase = Phase.SEARCH;
                     return false;
                 }
-                if (!ensureHoldingBlock(a, fillId)) {
+                if (!HeldItem.holdById(a, fillId)) {
                     // No matching item in inventory — can't place this cell.
                     // Skip rather than loop forever.
                     skipped++;
@@ -326,38 +326,6 @@ public final class BboxFillProcess implements BotProcess {
         if (lvl == null || currentTarget == null) return false;
         BlockState bs = lvl.getBlockState(currentTarget);
         return bs.isAir() || !bs.getFluidState().isEmpty();
-    }
-
-    /** Ensure the held slot carries a stack matching blockId — same logic
-     *  as BuildProcess.ensureHoldingBlock (copy to keep that class minimal). */
-    private boolean ensureHoldingBlock(Avatar a, String blockId) {
-        Player p = a.player();
-        if (p == null) return false;
-        Inventory inv = p.getInventory();
-        ItemStack held = inv.getSelected();
-        if (matchesItem(held, blockId)) return true;
-        for (int slot = 0; slot < 9; slot++) {
-            if (matchesItem(inv.items.get(slot), blockId)) {
-                a.setSelectedSlot(slot);
-                return true;
-            }
-        }
-        for (int slot = 9; slot < inv.items.size(); slot++) {
-            if (matchesItem(inv.items.get(slot), blockId)) {
-                if (p.isCreative()) {
-                    inv.pickSlot(slot);
-                    return matchesItem(inv.getSelected(), blockId);
-                }
-                return false;
-            }
-        }
-        return false;
-    }
-
-    private boolean matchesItem(ItemStack stk, String blockId) {
-        if (stk.isEmpty()) return false;
-        ResourceLocation rl = BuiltInRegistries.ITEM.getKey(stk.getItem());
-        return rl.toString().equals(blockId);
     }
 
     private record Placement(BlockPos stand, Direction face) {}

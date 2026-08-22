@@ -325,31 +325,27 @@ public final class TowerProcess implements BotProcess {
         // Keep yaw stable.
     }
 
+    /**
+     * Hold something to pillar with. Two questions, deliberately kept apart:
+     *
+     * <ul>
+     *   <li><b>A NAMED block</b> ({@code preferred != null}) — the caller asked for that id and
+     *       nothing else will do, so it delegates to {@link HeldItem#holdById}, the one scan the
+     *       process family shares.</li>
+     *   <li><b>ANY placeable block</b> ({@code preferred == null}) — a different question with a
+     *       different answer, and the hotbar-only limit below is NOT an oversight. Reaching into
+     *       slots 9..35 for an unnamed block is the {@code holdPlaceable} family, where the client
+     *       body genuinely cannot move a bag stack without opening the inventory screen. Do not
+     *       "fix" this branch by pointing it at the bag; that argument has been had.</li>
+     * </ul>
+     */
     public static boolean ensureHoldingPlaceable(Avatar a, String preferred) {
         Player p = a.player();
         if (p == null) return false;
+        if (preferred != null) return HeldItem.holdById(a, preferred);
         Inventory inv = p.getInventory();
-        ItemStack held = inv.getSelected();
-        if (preferred != null) {
-            if (matchesItemId(held, preferred)) return true;
-            for (int s = 0; s < 9; s++) {
-                if (matchesItemId(inv.items.get(s), preferred)) {
-                    a.setSelectedSlot(s);
-                    return true;
-                }
-            }
-            if (p.isCreative()) {
-                for (int s = 9; s < inv.items.size(); s++) {
-                    if (matchesItemId(inv.items.get(s), preferred)) {
-                        inv.pickSlot(s);
-                        return matchesItemId(inv.getSelected(), preferred);
-                    }
-                }
-            }
-            return false;
-        }
         // Auto-pick: prefer current slot if it's a BlockItem, else scan hotbar.
-        if (isPlaceableBlockItem(held)) return true;
+        if (isPlaceableBlockItem(inv.getSelected())) return true;
         for (int s = 0; s < 9; s++) {
             if (isPlaceableBlockItem(inv.items.get(s))) {
                 a.setSelectedSlot(s);
@@ -357,11 +353,6 @@ public final class TowerProcess implements BotProcess {
             }
         }
         return false;
-    }
-
-    private static boolean matchesItemId(ItemStack stk, String id) {
-        if (stk.isEmpty()) return false;
-        return BuiltInRegistries.ITEM.getKey(stk.getItem()).toString().equals(id);
     }
 
     private static boolean isPlaceableBlockItem(ItemStack stk) {
