@@ -2694,8 +2694,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static String actingHand(JourneyRig rig) {
         var acting = rig.avatar().player();
         if (acting == null) return "";
-        var id = BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem());
-        return "（真正要动手的那只手上是 " + id + "）";
+        // THE SLOT NUMBER, not just the item — because two different failures print the same item
+        // pair and want opposite fixes. `BotInteract.ensureHolding` has two branches: the hotbar one
+        // sets `inv.selected` and sends ServerboundSetCarriedItemPacket, while the main-inventory
+        // one performs a SWAP **click** through the container menu. A click the server refuses (a
+        // stale `stateId`, say) leaves the client holding the item it predicted and the server
+        // holding what it had — and then vanilla runs the WRONG ITEM'S use, which for a pickaxe is
+        // PASS: no error, no sound, nothing changed, exactly what rung 12 measured.
+        //
+        // Same slot, different items  ⇒ the selection propagated and the CONTENTS did not (a swap
+        //                                the server rejected).
+        // Different slots             ⇒ the selection itself never arrived.
+        return "（真正要动手的那只手：槽 " + acting.getInventory().selected + " = "
+                + BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem())
+                + "；服务端槽 " + rig.player().getInventory().selected + "）";
     }
 
     /**
