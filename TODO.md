@@ -1,3 +1,81 @@
+## 🔴 一条场景把 `WorldDriver` 这个 logger 永久掐死了：专用服闸从第 106 条起再无一行日志（2026-08-22，parity 取证）
+
+**这条排在最前面，因为它决定别的结论能不能读。** 在此之前所有「日志里零行 ⇒ 这条分支从未执行」的
+论证，**只在闸的前 106 条场景内成立**。完整证据链、被否定的四条怀疑、修法和一条会红的验证在
+`docs/fake-player-parity.md` §10。
+
+**现象**：两趟独立的 `stagewrightDedicatedServerFabric`，时长不同、结局不同（一趟跑完、一趟被挂起
+看门狗杀掉），`(WorldDriver)` 行数**精确相同 = 18869**，之后永久为 0。同一份日志里
+`(StageWrightCommon)` 和 `(Minecraft)` 写到最后一秒，`latest.log` 与 `debug.log` 在同一处截断。
+
+**机制**（log4j-core 2.22.1，运行时版本已从 `fabric/build/loom-cache/argFiles/runDogfoodServer` 的
+classpath 核对）：
+
+1. loom 生成的 `fabric/.gradle/loom-cache/log4j.xml:62` 的 `<Root>` 没写 `additivity`；
+   而 `LoggerConfig$RootLogger$Builder.additivity` 是**基本类型 `boolean` 且没有 `defaultBoolean`**
+   （`LoggerConfig.java:849/872/952`，且同类的 `createLogger` 只带 `@Deprecated`、没有
+   `@PluginFactory`，builder 是唯一装配路径）→ **`root.isAdditive() == false`**。对 root 无害。
+2. `WorldDriverStationScenes.java:924` 的 `coreLogger.addAppender(catcher)` →
+   `AbstractConfiguration.java:899` `new LoggerConfig("WorldDriver", root.getLevel(), root.isAdditive())`
+   —— **把 root 那个无害的 `false` 复制给了一个 additivity 极其有害的子节点**。
+3. `LoggerConfig.java:694-698` 的 `logParent` 是 `if (additive && parent != null)` → 从此不再转发给 root。
+4. `:925` 的 cleanup 只摘 appender、**不删 LoggerConfig**（`Logger.java:346-348`）→
+   留下「零 appender + 不向父转发」= **静默丢弃全部级别，不抛异常，不打 status log，永久**。
+
+**为什么它一直没被发现**：`wd.serverCraftFailTelemetry` 自己 **PASS**——它的判据是
+「catcher 收到了 `[craft]` 行」，catcher 确实收到了，**收到的正是同时从两个日志文件里消失的那几行**。
+上一轮的搜索范围写成了「主源码」，而这一处在 `common/src/testmod/`。
+
+**代价（已实测）**：`PathFinder.java:1065-1081` 的 `RUNAWAY WATCH` 是专为「单 tick 花掉六十秒」
+写的诊断，注释逐字写着「WARN so no filter drops it」。**趟 B 正是死于这个故障**
+（栈 `PathFinder$Search.advance ← Move.eval ← Parkour3.valid ← WorldView.canStandAt`），
+而 `PathFinder.java:1128` 那条 WARN 一行都没有——它早在故障发生前两分钟就随整个 logger 哑了。
+**作者防的是 filter，杀死它的不是 filter**：零 appender 不筛级别，把 WARN/ERROR/FATAL 一并丢，
+所以「提到 WARN」这个防御在这个机制面前完全无效。
+
+**修法（一行，代码归协调者，parity 不动 `src/testmod`）**：`:924` 之后补
+`coreLogger.setAdditive(true);`（`Logger.java:428-430`）。
+**验证**：同一条场景末尾加无条件的 `ctx.record("log.additive", ...)` + `isAdditive()` 断言——
+今天会红，修完转绿，不读日志文件、不需要 Python。
+**不要改 `<Root>` 的 `additivity`**：那个 xml 是 loom 生成的、不在版本控制里。
+
+**还剩一条要跑才能钉死的**：「18869 是固定配额」和「确定性的场景顺序每趟都在同一条场景截断」
+**预测同一个数字**。分开它们的读数是**位置不是数量**——把这条场景摘掉、或挪到清单最后跑一趟：
+配额说预测截断仍在第 18869 行，真相预测截断消失。
+
+---
+
+## 🟢 专用服没有身体泄漏：「239 joined / 0 left」不是泄漏证据（2026-08-22，parity 取证，未跑 gradle）
+
+详见 `docs/fake-player-parity.md` §11。两条独立的判词：
+
+1. **那个零是结构性的。** `left the game` 只在 `ServerGamePacketListenerImpl.removePlayerFromWorld()`
+   （`:1210-1215`）广播，且只从 `onDisconnect` 进；而 vanilla 的 `PlayerList.remove(ServerPlayer)`
+   （`PlayerList.java:312-339`）**一行 INFO 都没有**（唯一日志是 `:319` 那条带条件的 debug）。
+   `JoinedBody.remove()`（`JoinedPlayerBodies.java:197`）**直奔 `PlayerList.remove`，刻意绕开
+   `onDisconnect`**——那是 T13 的设计。**⇒ 一具完全正常离场的身体必定一行都不印。**
+   这个零跟泄漏与否无关，它跟 §10 那个零是**不同**的病：那个是通道哑了，这个是通道从来就不在
+   被测对象的路径上。
+2. **不经日志的实测：残留量为 0。** `SceneContext.players()`（stagewright
+   `api/.../scene/SceneContext.java:101-103`）是**完全不过滤**的 `getPlayerList().getPlayers()`，
+   `player()`（`:118-124`）**只在表为空时**才发那句 `no connected player` 的 skip。
+   趟 A 的 `results-t17.jsonl` 里有 **14 条**这样的 skip，最晚一条在 **idx=228 / 306（75%）**。
+   身体只进不出，所以这是**累计**结论：**它之前造的每一具都已经离场。**
+   同一趟 `census.armProperty=worlddriver.realPlayerBodies=true`、vanilla 印了 239 次 `joined`
+   ——进过表，也都出来了。**T13 在工作。**
+
+**谁把它们弄出去的**：不是 `ServerAvatarManager`（`:28-41` 只动驱动器列表，一次没碰身体），
+不是 stagewright（`StageWrightCommon.java:397-399` 是唯一遍历玩家表的地方，只发 op）。
+是场景自己的 **139 处 `discard()`（22 个文件）**。
+
+**边界（别当成更强的结论用）**：只证到 idx=228，尾部 78 条没有第二个读数点；
+`SceneBody.bare` / `SceneBody.avatar` 按设计不注册 cleanup（「the caller owes a cleanup」），
+**今天残留为 0 靠的是 139 处手写 discard 都写对了，这是个没有编译期保证的不变量**。
+真正的守卫是 StageWright 的每场景 audit（「这条场景造的身体还在表里」），
+**和 §10.6 那条「留下一个非 additive 的 logger」是同一个接缝**。
+
+---
+
 ## 🟡 集成拓扑不再造假人：`SceneBody` 一个接缝 + 90 处 mint 点迁移（**预登记，跑之前写的**）（2026-08-22）
 
 ### 为什么
@@ -47,6 +125,61 @@
 
 **判据 4 是这次的负对照**，比另外三条都重要：这次改动的全部正当性建立在
 「专用服那一侧一个字都没变」上。先跑专用服闸对账，再跑集成闸。
+
+### 结果（跑完之后填，预登记原文一个字没动）
+
+**四条全部达成。**
+
+| # | 预期 | 实测 |
+|---|---|---|
+| 1 | 集成闸 `joined` ≤1 | **0 个 `agent-body`**（原 351）。玩家表只有 `Player35`（真实客户端本人）+ `wd-census`（负对照故意造的一具） |
+| 2 | skip 的每条都在专用服执行过 | 201 条 `SceneBody` 拒绝的**全部**在专用服执行过。另 4 条两边都 skip，理由是 vanilla 里没装那个 mod／维度，其中三条的名字本身就是 `…AbsentIsARecordedSkip` |
+| 3 | 22 条客户端专属照跑 | 专用服 skip 的 25 条里 **21 条在集成服上真跑了** |
+| 4 | 专用服逐条不变 | 306 vs 306，PASS=302 / FAIL=3 / TIMEOUT=1 / skipped=25 全同，**零条改变结论** |
+
+集成闸非 PASS 只有两条框架 canary。集成闸执行 101 / skip 205；专用服执行 281 / skip 25。
+
+### 中途暴露的两件事，都比原问题大
+
+**A. 一条场景一行代码永久掐掉了整个模组的日志。**
+`wd.serverCraftFailTelemetry` 为捕获 `[craft]` 行调 `coreLogger.addAppender(catcher)`；log4j 因此新建
+`new LoggerConfig("WorldDriver", root.getLevel(), root.isAdditive())`，而 loom 生成的 `<Root>` 没写
+`additivity`、构造器那个字段是**无默认值的原始 boolean** ⇒ `false`。在 root 上无害（无父可转发），
+复制到子节点上就是「不向父转发」。清理只摘 appender、**不删 LoggerConfig** ⇒ 零 appender + 不转发
+= 此后整趟静默丢弃每一行，**含 WARN/ERROR**。那条场景照样 PASS，而它 PASS 恰是证据：
+catcher 收到的正是同时从两个日志文件里消失的那几行。
+
+⇒ **代价可指名道姓**：`PathFinder.java:1080` 的 `RUNAWAY WATCH` 注释写着「WARN so no filter drops it」，
+而当天被看门狗杀掉的那趟闸死的正是这个故障，那条 WARN 一行没打。**作者防的是级别过滤器，
+杀死它的不是过滤器** —— 零 appender 根本不筛级别。
+
+⇒ **方法论教训（比机制值钱）**：我一度拿「三趟都是 18869 行」当「固定配额」的证据。
+**「配额」和「确定性场景顺序每趟在同一条场景截断」预测同一个数字**，这个量分不开两个假设。
+定案的是**位置**：趟 A 最后一行是 `[wd.serverCraftGridConservation]`，执行序 idx=105，
+idx=106 正是 `wd.serverCraftFailTelemetry`。
+
+⇒ 修法落在 testmod：`addAppender` 之后先记 `additiveAfterAttach` **再** `setAdditive(true)`，
+并写成 `ctx.record`。**同一趟里既证明缺陷存在又证明修好了**，不必先跑一趟红的；
+log4j／loom 默认哪天变了这一行会自己说出来。
+**真正该做但这轮没做的**：与场景无关的守卫。缺陷本质是「任何一条场景都能一行代码永久掐掉
+整个 logger 且不留痕迹」。正确归宿是 **StageWright 的每场景 audit**（它已经会把「留下一个没复原的
+gamerule」报成 leak），是另一个仓库、另一轮。
+
+**B. 寻路会把一个服务端 tick 挂死 60 秒，闸因此被 vanilla 看门狗杀掉。**
+一趟闸 306 条只跑到 171 条。栈：
+`PathFinder$Search.advance ← Move.eval ← Parkour3.valid ← WorldView.canStandAt ← LevelWorldView.state
+← Level.getBlockState`。**同一形状在 8-20 的崩溃报告里出现过**（那次是 `Parkour2Diagonal`）。
+`PathFinder.java` 1065–1085 的注释自己写着机制：时间片**每 N 次扩展**才读一次时钟，
+**对单个节点能耗多久毫无约束**，而一次触发区块生成的世界读会阻塞任意久；并记着
+「三次里有两次」NeoForge 专用服因此被杀。
+
+⇒ 我另外查出：**那个仪表按构造抓不到致命情形** —— `nodeCost` 是节点**跑完之后**才算的，
+致命那次节点根本没返回，看门狗先杀了 JVM。它只能报「差点」。
+加上 A 的静音，当天这两层各自独立地让它闭嘴。
+
+⇒ 已派 janitor 取证，**要求只交回「根因确证 + 度量 + 方案对比」，不许这一轮直接改**。
+倾向方向：寻路永远不生成区块（未生成读作不可通行），代价是穿过未生成区块的路不再存在 ——
+大概率正确，但这是真的设计决定。
 
 ### 明确没做、且不许报成做了的
 
