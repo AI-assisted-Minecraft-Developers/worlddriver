@@ -177,9 +177,57 @@ gamerule」报成 leak），是另一个仓库、另一轮。
 致命那次节点根本没返回，看门狗先杀了 JVM。它只能报「差点」。
 加上 A 的静音，当天这两层各自独立地让它闭嘴。
 
-⇒ 已派 janitor 取证，**要求只交回「根因确证 + 度量 + 方案对比」，不许这一轮直接改**。
-倾向方向：寻路永远不生成区块（未生成读作不可通行），代价是穿过未生成区块的路不再存在 ——
-大概率正确，但这是真的设计决定。
+#### ⚠️ 上面那条「区块生成阻塞」的死因判定**是错的**，janitor 用证据否掉了
+
+我只看了**一份**崩溃报告的栈就断言「世界读阻塞任意久」——**单样本定因**。真相：
+
+| 证据 | 内容 |
+|---|---|
+| 线程状态 | Server thread `RUNNABLE`（不是 WAITING/BLOCKED）；同一份 dump 里 **23 条 `Worker-Main-*` 全部 `WAITING on ForkJoinPool`**，世界生成工人池在被杀那刻一个活都没有 |
+| 栈形状 | `Level.getBlockState` 是**栈顶叶帧**，底下没有 `ServerChunkCache.getChunk` / `ChunkHolder` / `CompletableFuture` |
+| **八份崩溃报告**（8-09 起，全部卡在 `PathFinder$Search.advance`） | **栈顶是散的**：`ImmutableCollections$SetN.probe`、`PalettedContainer.get`、`HashMap.getNode`、`WorldView.canStandAt:277`（**纯 Java，这一帧根本没有世界读**）、`Level.getBlockState` ×4 |
+
+⇒ **判据**：看门狗的栈是**一次瞬时采样**。一次持续 60 秒的阻塞调用，八次采样该八次落在同一处；
+**均匀散布在整个热循环上是「长时间 CPU 密集循环」的签名，不是阻塞的签名。**
+
+**真机制**：崩的场景是 `wd.serverFightsAFlyingBlaze`。`WorldDriverMobFightScenes.java:94/195/306/571`
+（另有 8 个场景文件同样）设 `BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2`；
+`PathFinder.java:857` 把它变成 `sliceLimit = Long.MAX_VALUE`，于是 `:877` 的让步判断**永不成立**。
+**走查器赖以跨 tick 分片的让步，恰好在会撞看门狗的那些场景里被关掉了。**
+而 `WorldDriverMobFightScenes.java:386–399` 的 javadoc **已经逐字写着这件事**，附实测
+（`worstIterMs=80.6` 对 40 ms 预算），并注明修法「*an A/B, not a tidy-up, and not yet done*」。
+
+**未关闭的算术缺口（如实留着）**：`PathFinder.java:112` 的 `CEILING_MS = 8_000` 在 `:1038` 每次扩展都会走到，
+应当把一次搜索封在 ~8 秒；单 driver ⇒ 单 tick ≤ ~8 秒。**观测 60 秒，差 7.5 倍，无人能解释。**
+三条候选，**一条都没验，不许靠推理选**：
+(a) `ACTIVE` 里不止一个 driver（`ServerAvatarManager` 是全局静态，且被场景内层循环**和**平台每 tick 钩子
+两处同时泵；8 份崩溃里有 3 份就是从钩子进来的，不在任何场景 pump 里）——8×8=64 秒，数字对得上，
+但 blaze 场景 PREP 就 `clear()`，且没有崩溃时刻的 `activeCount()`；
+(b) **两个预算站在 `if (cur.closed) continue;`（`PathFinder.java:880`）两侧**：slice 让步在**上面**（被关掉了），
+`maxNodes`/`maxMs`/`CEILING` 全在**下面**（遇 closed 直接跳过）。节点会被重开并重新入队（`:1122`），
+所以 `open` 会攒大量陈旧副本，**排干它们的搜索不受任何约束**；
+(c) 看门狗那 60 秒可能含 tick 前积压（21:26:22 有 `Running 3443ms behind`）——**未反编译核实**。
+
+⇒ 度量（取自 results，不取日志——崩溃趟日志 18869 行就死了，`blazefight`/`SAFETY CEILING`/`RUNAWAY`
+**三个零全部无效**）：健康趟 `worstIterMs` = 5.6 / 6.8 / 8.2 / 21.4（NeoForge）/ 80.6（javadoc 记的）。
+**尾巴在拉长，而致命值是 60 000 —— 中间还差三个数量级。**
+
+⇒ **修法排期（缺口关掉前一条都不落）**：
+1. **先做「让步不可被关掉」**——唯一一条**行为不变**的（同一次搜索、同样的节点、同样的结果，
+   只是分布在更多 tick 上）；场景该关的是 `maxMs`/`maxNodes`（测量需要），不是让步。
+2. **「寻路永不生成区块」按独立缺陷单独排期**，不混进这次崩溃的修法。它是真缺陷：
+   `LevelWorldView.state()` 是强制读，`isKnown()` 用 `isLoaded`；而 `ClientWorldView.isKnown()`
+   用 `hasChunk`，`Walker.appendCell`（`Walker.java:737–745`）在一个**探针**里已精确做对，注释写着
+   *"A post-mortem must not MAKE world… a probe that hangs the gate run it was added to diagnose."*
+   **同一条规则，一个探针里遵守，111 个规划读上违反。** 风险在真梯（刚传送的身体周围少有 FULL 区块，
+   会读成一堵墙），**必须一趟双 loader 闸来定价**。
+3. per-move 循环内查截止时间——**降级**，它治的不是这个病。
+
+⇒ 关缺口的办法（已批准，等 parity 的闸跑完再跑）：**把面包屑写在工作之前，而不是之后**。
+`nodeCost`/`worstIterMs` 都是事后算的，致命那次永远写不出来——**同一个构造缺陷同时长在
+`RUNAWAY WATCH` 和 `pump` 的 WARN 上**。在 `pump()` 每次迭代前、`advance()` 入口各打一行，
+带 `activeCount()`（关 a）、`open.size()` 与 `expanded`（关 b）、`sliceMs`、goal、foot。
+崩溃后日志里最后一条面包屑就是那个没返回的状态。
 
 ### 明确没做、且不许报成做了的
 
