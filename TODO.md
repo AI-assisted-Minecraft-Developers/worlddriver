@@ -582,6 +582,35 @@ holdBoth.*     零行
 （`JourneyEndRungs:996/1512`、`JourneyShelter:163`、`JourneyStairs:363`）
 在 12 级之外，本级排练根本没覆盖到它们，回归风险只有整条梯子能看见。
 
+## 📏 真梯基线是 2/20，而排练把 1–11 级布景摆好了（run ladder-integrated-1，2026-08-22）
+
+**先把这件事摆正：排练 PASS 不等于真梯到得了 12 级。**
+`runJourneyIntegratedServer` 的已知基线（2026-08-22 17:47–17:54，本文件 :2471）是
+
+```
+rung.RECON = REACHED
+rung.SPAWN = REACHED
+rung.WOOD  = FAILED — 砍树：MineProcess 拿不到原木（TIMEOUT 8022 tick，0 根）
+其余 17 级 BLOCKED                                          成绩 2/20
+```
+
+同种子、同落点（`target.tree=65,68,63`、`arrived.horizontalDistance=1`、`arrived.y=62`
+三行与服务端逐字相同），服务端身体 **3125 tick 拿到 12 根**。唯一的变量是哪具身体在驾驶。
+
+### 预登记判据（写在读结果之前）
+
+1. **第 3 级仍是 0 根** ⇒ 与选中槽那条无关，是另一个缺陷。
+   下一个读数是**树掉没掉方块**——这一条分开两个完全不同的世界：
+   「敲击从未完成」对「敲完了但没捡起来」（[[mined-is-not-collected]]），
+   而 `拿不到原木` 这句话两个都装得下。**不要在分开它们之前动任何代码。**
+2. **第 3 级拿到原木** ⇒ 同一个字段的第三个受害动词（挖掘），
+   那么 `selectTool` / `selectBestToolFor` 这一对也要按 `holdBoth` 同形收口。
+3. **跑过 12 级** ⇒ 排练那一趟的 PASS 在真前置条件下复现，
+   且 12 级之外那四个改点第一次被见证。
+4. **任何一处 `holdBoth.*` 行** ⇒ 那一刻两份背包已分叉，按 `stockOnBoth` 的两个数分方向。
+5. **成绩低于 2/20** ⇒ 九点改动造成回归，第一嫌疑是
+   `JourneyRig:1491`（`holdBestWeapon`，唯一一个不在放置链上的改点）。
+
 ### 排队的硬化（不阻塞前沿）
 
 把顺序不变量收进一个入口：`aimThenAct` 扩成 `aimThenUse(rig, at, item, act)`
