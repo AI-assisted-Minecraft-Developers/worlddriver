@@ -692,6 +692,59 @@ march.32  连续第1次 ← 又回到 1
 ⚠️ **排练侧目前没有客户端对照任务**：`rehearsalServer` 只有 `server()` 一种拓扑。
 要让排练也能对照，得照 `journeyIntegratedServer` 补一个 `rehearsalIntegratedServer`。**待办。**
 
+## 🔴🔴 第一次客户端对照就推翻了一个前提：**14/20 是身体给的，不是能力给的**
+
+2026-08-22 17:47–17:54，`runJourneyIntegratedServer`（LocalPlayer、`免伤=false`）。
+同种子、同一批 `wd.journey*`、紧接着服务端那趟跑。**成绩 2/20**：
+
+```
+rung.RECON = REACHED
+rung.SPAWN = REACHED — 空手立于出生点 65,61
+rung.WOOD  = FAILED  — 砍树：MineProcess 拿不到原木
+其余 17 级 BLOCKED
+```
+
+### 这是一次受控对照，输入逐字相同
+
+| 行 | 专用服 JoinedBody | 集成服 LocalPlayer |
+|---|---|---|
+| `target.tree` | `65,68,63` | `65,68,63` |
+| `arrived.horizontalDistance` | `1` | `1` |
+| `arrived.y` | `62` | `62` |
+| 结果 | **PASS** 3125 tick，`logs=12`（`oak_log=12`） | **TIMEOUT** 8022 tick，0 根 |
+
+**唯一的变量是哪具身体在驾驶。** 走路那半边两具身体表现一致（落点逐字相同），
+分歧完全发生在「站到树下之后」。
+
+⇒ **服务端那趟的 14/20 不能再当作「链路能力」的证据。** 它证明的是
+「JoinedBody 能爬到 14 级」，而不是「一个真玩家能爬到 14 级」。
+真实能力的下界目前是 **2/20**。
+
+### 已确证 vs 未确证，分清楚
+
+**已确证**：目标同、落点同、结局相反；客户端那趟**一行 `[mine]` 日志都没有**；
+`journey.helm.endings` 只有 `goto→跑完` 一个 ending，**说明挖掘那一腿从未结束**，
+一路挂到 `await step exceeded within=8000`。
+
+**未确证（不要写成结论）**：
+- ~~够不着~~ —— 算过：脚在 y=62，眼高约 1.62 ⇒ 眼在 63.6，触及 4.5 ⇒ 竖直方向够到 68.1，
+  而目标 y=68。**按这个算法它是够得着的**，所以「reach 不够」不能直接当死因。
+- 客户端舵的 javadoc 自陈「途中会被 panic/dodge/combat 抢占」，而这具身体 `免伤=false`
+  （服务端那具是 `true`）。**抢占是候选，但日志里没有任何 panic/dodge 记录**，
+  所以同样只是候选。
+- 也可能 MineProcess 在客户端 tick 上**根本没起来**。
+
+三个候选要靠证据分开，别挑一个顺手的。相邻教训：
+[`one-sample-cannot-name-a-cause`]、[`a-lagging-reading-became-the-crime-scene`]。
+
+### 这条直接兑现了「FakePlayer 废弃、集成服用 LocalPlayer」那条方针的价值
+
+方针要的就是这种证据：**只要两具身体不等价，服务端跑出来的任何绿都可能是身体的特权。**
+[`the-avatar-mined-through-rock`] 已经记过服务端 `destroyBlock` 没有触及闸；
+这一趟说明这类差异**不是边角，是第三级就拦死**。
+
+⇒ 已派 `wd-parity` 查机制（它拥有 `docs/fake-player-parity.md` 的边界表）。
+
 ### 读第四趟的三条纪律
 
 1. **先看 `rehearsal.doorway` 的「垂直差」**（必须 ≤24）。布景几何变了，
