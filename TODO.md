@@ -8264,6 +8264,12 @@ integrated 拓扑里**客户端的 Walker 活在同一个 JVM 的 Render 线程�
 **顺带记录**: `wd.serverEscapeSealedShelter` 在三轮 gate 里绿一次红两次 —— 是**既有**的
 optional 传感器抖动, 与本次拆分无关(拆分那位没碰过它所在的文件)。
 
+> 📌 2026-08-22 补正：**不是抖动，是恒红。** 把 scratchpad 里 31 份归档 results 按时间排开，
+> 凡是含这一场的，**每一份都是 FAIL**，判词逐字相同（`y=221.0 slotErr=carve timeout at …, 224, 99999`）。
+> 所以「绿一次」多半是那一趟根本没跑到它，而不是它过了 —— `an-empty-output-is-not-a-dead-task` 同族：
+> **行不存在 ≠ 行是绿的**。它仍是 optional、不进闸，但要按「一直坏着」记，不是「偶尔坏」。
+> 那串坐标 `161440, 224, 99999` 本身也不像坐标，值得单独看一眼。
+
 ## 🔴 两件必须处理的事(subagent 并行开工后暴露出来的)
 
 ### 1. source-budget 硬闸现在是红的
