@@ -1,3 +1,75 @@
+## 🟡 janitor 交接：五份手抄的「握住这个 id」已合一（已提交未编译），而**放宽它的那一步被一条场景否掉了**（2026-08-22）
+
+### 已落（`common/src/main`，全部**未编译**，等第七趟排练退出后随 `:common:compileJava` 验）
+
+| commit | 干了什么 |
+|---|---|
+| `df39da0f` | 新 `bot/process/HeldItem.java`，五处手抄的 `ensureHoldingBlock`/`ensureHoldingItem`/`ensureHoldingPlaceable(preferred)` 合成一处。**逐字保行为** |
+| `4f70cc96` | `BackfillProcess` 两个 helper 的 `playerFoot` 形参从没被读过，删 |
+| `e8a4821c` | `ClientEventDetector.evtLastSubtitle` 死字段，删 |
+| `72bba933` | `BotProcess` 三段 javadoc 按代码改：迁移早已完成；`onResume`/`onCancelled` 只有 `IntentProcess` 覆写 |
+| `a29c00c0` | `BotUtil.canStandHereStatic` 的「The one answer for the process family」是**过期的**——Build/Backfill 还各自留着一份，且少了两条 WATER 例外 |
+| `3683dbf9` | `FarmProcess.findStandAdjacent` 与静态导入的 `BotUtil.findStandAdjacent` **同名同签名**，私有那份赢解析。改名 `standBesideCrop` |
+| `1903eba5` | `BboxFillProcess` PLACING 里那条「成功」分支**不可达**（`nowId` 在 `placeOn` 之前读、之后不刷新，真为真时上面早 return 了）；`Placement.stand` 唯一构造点写死 null。删两者，行为等价 |
+| `b2902b8a` | 把下面这条否定证据写进 `HeldItem` / `TowerProcess` 的注释 |
+| `7d879ec7` | testmod：`JourneyPortalRung.pourLine` 的 javadoc 说「Two rows」而循环扫 `dy=-1..2` 四行（同文件二十行下方的 javadoc 加粗写着「Four rows, not two」）；`JourneyRoute` 一处被吞掉的重复 javadoc |
+
+`python scripts/check_source_budget.py` exit 0。本轮一条 gradle 都没起。
+
+### ❌ 原计划的 commit B（改成走 `a.holdItem` 摸背包 9..35）**不能整体落，Tower/Bridge 必须排除**
+
+预登记的 grep 找到了否定证据，**在改之前**：
+
+`wd.serverTowersWithAFullBackpack`（`WorldDriverTowerScenes.java:818`）布景就是这个形状——
+快捷栏 0..8 塞满镐/桶/食物，64 圆石停在**背包 20 号槽**——断言三条：
+`spent == 0 && columnSolid == 0`、判词 `== "no placeable block in hotbar"`、判词不许含 `"out of blocks"`。
+而 `runTower`（`:358`）下的是 `new TowerProcess(targetY, BLOCK_ID)`，**`preferred != null`，正是要改的那一支**。
+
+它的 javadoc（`:794-816`）自陈这是**反过拟合臂**，不是过期期望：
+「spending blocks the caller did not put in hand is a side effect no verb should have，
+而把上面五条臂弄绿最便宜的办法就是放宽它——这条臂就是让那个代价存在的东西。」
+`JourneyEndRungs.java:1699-1707` 也记着同一条。`BridgeProcess:123` 发同一句判词。
+
+**所以：**
+- **Tower / Bridge 保持现状**（`HeldItem.holdById` 的快捷栏上限对它们是刻意的）。
+- 剩下四个（Build / Backfill / BboxFill / Farm）**没有任何场景守这条限制**，而且它们的 id 是
+  schematic/fill/补种的**硬要求**而不是偏好——理由更强，但**理由还得单独写、单独过闸**，不能顺手带过。
+- 落法是**在 `HeldItem` 旁边加第二个方法**，不是改 `holdById`。
+- 守卫别忘：`ResourceLocation.tryParse` + `BuiltInRegistries.ITEM.getOptional`。
+  `ITEM.get()` 对未知 id 返回 AIR，而 `holdItem(Items.AIR)` 对着空手返回 **true** ——
+  旧代码在未知 id 上是 false，少这条守卫就是在错误路径上放宽。
+
+### 🔴 发现但没改，按值排序（都需要闸槽）
+
+1. **`DescendProcess.digOwn` 的 `actTicks` 跨相位不清零**（`DescendProcess.java:239-264`）。
+   破块阶段 `actTicks` 累加到最多 600（`:261`）；方块一破，进落地等待分支的
+   `else if (++actTicks > 60)`（`:248`）**用的是同一个计数器**。所以只要这次破块花了 ≥60 tick
+   （裸手石头 ~150 tick，常态），落地宽限期**第一 tick 就到期**，而那一刻身体还没掉下去
+   （`p.onGround() && foot.getY() < base.getY()` 必假），于是 `phase = PICK` 且 **`steps++` 没执行**。
+   `pick()` 随即 `steps == stepsAtLastPick` → `futileCycles++`，四次就以
+   `"futile: 4 re-picks with no step progress"` 中止——**而身体实际已经下降了四格**。
+   判词把「计数器没清零」报成了几何问题。最小修法：`!w.isSolid(below)` 分支入口清零 `actTicks`。
+   同族第二条：`DescendProcess.done()`（`:75-82`）只写 `s.active=false`，
+   而孪生的 `EscapeProcess.done()`（`:85-93`）调 `s.reset()`。两者写**同一个 `st.escape` 槽**，
+   所以一次 descend 结束后 `mc.bot.status` 仍报陈旧的 goal/target/`pathLen=96`/`startedAtMs`，
+   并把这份污染留给下一个 escape。
+2. **`BboxFillProcess` / `FarmProcess` 的放置是单发**（`placeTicks == 0` 才点一次），
+   而 Build/Backfill 每 5 tick 重发一次，注释写明了原因（丢包）。这两处照样等满 60/40 tick 什么也不做。
+3. **同一个「够不够得着」有四把尺**：BboxFill 4.0（写死眼高 1.62）／Craft 4.3（活眼位）／
+   Smelt 4.3（活眼位）／Mine 4.4（写死 1.62）；Build/Backfill 干脆不判。
+   而 Build/Backfill **强制下蹲**（蹲下眼位降低、实际够得着的更短），写死 1.62 的那两把尺会高估。
+4. **`SmeltProcess.countInInventory` 不数副手**，而 `CraftProcess.inventorySnapshot`（规划器读的那把尺）数。
+   `CraftProcess:373` 的 javadoc 逐字警告过「两把尺」这件事。
+5. **`FarmProcess.BREAK_TIMEOUT_TICKS = 60` 写死**，没接 `BotConfig.breakTimeoutTicks`（200）——
+   调那个设置对种田零效果。Descend/Escape 用的是 `breakTimeoutTicks * 3`（600）。10 倍散布。
+6. **journey/ 侧**（多数在冻结/他人产权文件里，只记不动）：
+   `JourneyEndRungs.walkToColumn:2656` 比 `WorldDriverJourneyScenes.walkToColumn:751` 少三条守卫
+   （到达行 evidence、楔死重试、bias），而**同文件的 `march:762` 有**；
+   `JourneyShaft.supportUnder:1013` 读 `ctx.level()` 而 `JourneyEndRungs:2727` 不得不分叉去读身体所在世界；
+   `holdBestWeapon` 两份，End 那份 `holdItem` 失败不换下一件武器，且它的 `WEAPONS:365` 没有镐——
+   一具只带镐的身体会空手打龙而判词写 `weapon = 空手`；
+   `JourneyPour.firstStandable:717` 少了 `gradeFoot` 的浮起来顶头守卫。
+
 ## 🟢 砸笼子这一修法**实测生效**了，14 级排练 PASS（2026-08-22，`runRehearsalServer -Prehearse=BLAZE_ROD`）
 
 四条判据是**在结果存在之前**写下的，逐条对：
