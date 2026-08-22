@@ -2644,17 +2644,36 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.attempting("从 " + src.toShortString() + " 装一桶岩浆");
         holdForUse(rig, Items.BUCKET, "fill");
         aimThenAct(rig, src, () -> {
+            // The same key again, on purpose. holdForUse told the CLIENT to select the bucket and
+            // then read the SERVER's hand in the same breath, so its row is one packet early — the
+            // rehearsal printed `fill.hand=minecraft:stone_pickaxe` beside `fill.result=SUCCESS`,
+            // i.e. the row named a hand that was already stale when it was written. Writing the key
+            // a second time after the settle turns StageWright's clash guard into the instrument:
+            // it keeps a second value ONLY when it differs, so `fill.hand#2` appearing IS the proof
+            // that the first reading was stale, and its absence is the proof that it was not.
+            rig.evidence("fill.hand", String.valueOf(BuiltInRegistries.ITEM.getKey(
+                    rig.player().getMainHandItem().getItem())));
             rig.evidence("fill.aim", String.format(java.util.Locale.ROOT, "%.0f/%.0f",
                     rig.player().getYRot(), rig.player().getXRot()));
             rig.evidence("fill.result", String.valueOf(rig.avatar().useItemInHand()));
-            int filled = rig.carrying("minecraft:lava_bucket");
-            rig.evidence("lava_bucket", filled);
-            // Where the source went is the other half of the reading: a fill that worked empties the
-            // cell, and a use vanilla refused leaves it exactly as it was.
-            rig.evidence("fill.sourceAfter", String.valueOf(ctx.level().getBlockState(src).getBlock()));
-            ctx.expect(filled).as("lava bucket filled from a source (see fill.result / fill.sourceAfter)")
-                    .isAtLeast(1);
-            then.run();
+            // WAIT before judging, and that is the mirror image of aimThenAct rather than a
+            // contradiction of it. The aim must be written to the body that ACTS, with nothing
+            // between; the OUTCOME is written by that same client body and has to travel back to
+            // the server before `rig.carrying` — which reads the ServerPlayer's inventory — and
+            // `ctx.level()` can see it. Judged in the use's own tick, a fill that worked reads
+            // exactly like a fill vanilla refused: `lava_bucket=0`, source unchanged.
+            rig.settle(new HoldStill(3), 12, () -> {
+                int filled = rig.carrying("minecraft:lava_bucket");
+                rig.evidence("lava_bucket", filled);
+                // Where the source went is the other half of the reading: a fill that worked empties
+                // the cell, and a use vanilla refused leaves it exactly as it was.
+                rig.evidence("fill.sourceAfter",
+                        String.valueOf(ctx.level().getBlockState(src).getBlock()));
+                ctx.expect(filled)
+                        .as("lava bucket filled from a source (see fill.result / fill.sourceAfter)")
+                        .isAtLeast(1);
+                then.run();
+            });
         });
     }
 
