@@ -783,7 +783,18 @@ swim pose and it sinks」。
 两个都落地后我自己重跑：`git status` 干净 → `compileJava` 与 `compileTestmodJava` 都
 **executed**（不是 UP-TO-DATE）→ `check_source_budget.py` exit 0 → 才起 JVM。
 
-### 跑测序列（整梯只要 18 分钟，06:38→06:55，跑得起三趟）
+### 跑测序列（三趟连跑，**期间冻结构建**）
+
+⚠️ **三趟之间一行源码都不改，注释也不改。** 这个序列的全部价值是**同一份 build 回答三个问题**；
+中途任何一笔编辑都会让归因分叉（[[the-shared-tree-is-the-real-boundary]]）。
+**第 1 趟若出现允许清单之外的红：停下诊断，不要把修法滚进第 2、3 趟。**
+
+⚠️ **删结果文件的仪式按趟做，不是按会话做。** 每一趟起跑前删它自己那个结果文件和
+`logs/latest.log` 并验证不存在。连跑的惯性正是漏掉这一步的时候
+（[[a-stale-results-file-answers-anyway]]：闸崩了不重写 results，残留文件照样会回答）。
+
+（上一趟整梯 06:38→06:55 只有 18 分钟——**那是死在第 9 级的价格，不是梯子的价格**，
+后面 11 级一 tick 没跑。别按这个数排预算。）
 
 | 序 | 命令 | 它单独回答什么 |
 |---|---|---|
@@ -802,12 +813,77 @@ swim pose and it sinks」。
 | `canaryMustFail` | 框架自带金丝雀 |
 | `wd.vineOverWaterClimb` | optional，−711 藤蔓那条已知传感器 |
 | `wd.serverEscapeSealedShelter` | optional，长期红 |
-| `bottomedDeep` 那条新臂 | **本文件自己预登记的故意红**——臂落了、起跳闸（`ServerPlayerAvatar:1054`）还没改，parity 那条执行序停在第 3 步 |
+| `bottomedDeep` 那条新臂 | ~~**本文件自己预登记的故意红**——臂落了、起跳闸（`ServerPlayerAvatar:1054`）还没改，parity 那条执行序停在第 3 步~~ **这一行是错的，见下。** |
 
 **第五条红才是信号。** 这一趟测的实质只有 `carryTo`：槽位路由只动了 `journey/`，
 而 `wd.journey*` 不在这个套件里。
 
+#### 第 1 趟判定：**没有第五条红**（306 场景，302 PASS / 3 FAIL / 1 TIMEOUT，gradle exit 0）
+
+四条非 PASS 全部有名分，而且都不是我预登记的那一组：
+
+| 场景 | 实际 | 名分 |
+|---|---|---|
+| `canaryMustFail` | FAIL | `canary:MUST_FAIL`，框架判它红才算对 |
+| `canaryMustTimeout` | TIMEOUT | `canary:MUST_TIMEOUT`，同上——**我预登记时漏了它**，它是第二只金丝雀不是信号 |
+| `wd.vineOverWaterClimb` | FAIL | `required:false` |
+| `wd.serverEscapeSealedShelter` | FAIL | `required:false` |
+
+⚠️ **预登记的第四条本身是错的，两处都错。**
+一、`bottomedDeep` **不是一条场景**，是 `wd.buoyantJumpStaysABob` 里的一条臂——注册表里
+根本没有这个名字，所以它「不出现在红里」既不是绿也不是红，是**我点了一个不存在的名**。
+二、起跳闸**早就改了**：`edef2797 ask how deep the water is before granting a ground jump`
+在我写那张表之前就落了树。我断言「还没改」时没读 `git log`。
+
+那条臂这一趟的实测，逐字复现 vanilla 的两条分支：
+
+```
+bottomed.first     = 0.41999998688697815   fluidAtRest = 0.332  → jumpFromGround（阈下，支撑破平）
+bottomedDeep.first = 0.03499999999999659   fluidAtRest = 1.999  → jumpInLiquid（阈上，+0.04）
+jumpThreshold      = 0.4
+```
+
+⇒ **可迁移的一条：预登记一条「故意红」之前，先确认它是不是一个注册名，再 `git log` 确认
+它依赖的那笔修法还没落。** 预登记的价值全在「读结果之前就写死」，而一个点不到实物的名字
+让这条纪律空转——它既不会被兑现，也不会被证伪，只会在复盘时看起来像已经守过。
+同族 [[zero-as-evidence-needs-a-live-channel]]：**零红也需要一条活着的通道才算证据。**
+
+顺带确认第 2 趟确实是唯一能回答的地方：这一趟两条 actuator 场景都记为
+`skipped: 这条只在集成服上有意义`，`topology = {kind=dedicatedServer, 真玩家=0,
+mc.bot.*在本JVM=false}`。
+
+#### 第 2 趟预登记（**读结果之前写**）
+
+- **允许的红同上四条**，外加一条待定：`wd.actuatorSplit*` 这一趟不再 skip，
+  它俩是 `required:false`，**所以闸的颜色回答不了 `carryTo` 的问题——只有那三行能。**
+  绿闸 + 没读行 = 什么都没验。
+- **新红的头号嫌疑先点名：`stopUsingItem` 那个客户端孪生**（parity 的 N8/T4，还没落）。
+  任何拉弓／进食类场景的新红先查它，再查别的（[[stop-using-is-not-release]]）。
+- 决定行只有三行，`carryTo` 生效的形状是：
+  `slot.同tick一致` 与 `slot.最终一致` 都翻成「一致」。
+  只有后者翻 ⇒ 包晚一个来回到（回声窗口，可接受）；
+  两者都没翻 ⇒ `carryTo` 在被 adopt 的真身体上根本没走到（查 `fp.connection` 是不是 null）。
+  `slot.服务端被回滚` 是倒卷的仪器，不需要另加读数。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
+
+⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
+`stuck (no Y gain in 60t: placed=…, phase=…, overhead=…)`——`TowerProcess` 自己的三个量。
+下面四支从「用存量反推」降级成**确认支**：先读 `.stalled` 那句话，再拿存量对它。
+
+⚠️ **路由之后 `.stalled` 仍为 null，不再读作「无错」。** `STUCK_TICKS=60` < settle 的 200 tick，
+进程必然自报，所以持续 null 指向**被抢占**（去读 `journey.helm.endings` / 当前 activeChain），
+不是「它没话说」。
+
+⚠️ **最险的一条：`ProcessSlot.reset()` 故意保留 `lastError`**（原注释：「so the agent can read it
+after wait.condition fires」）。通道一修通，这个字段就**带着历史**——放弃点读到
+`done (placed=14…)` 完全可能是**第 5 级那座塔**的残留，而第 5 级恰好是本趟唯一成功的塔。
+信它之前先拿消息里的 `placed=` 对这一课自己的存量差（`climb.N.with` − `climb.N.stock`）；
+对不上就是残留。这是 [[a-stale-results-file-answers-anyway]] 的槽位版。
+
+⚠️ **判据 4 的语义被 `carryTo` 反转了。** 之前服务端够不着客户端的手，「手不同」= 背包分叉；
+现在够得着了，**「手不同 + 存量相同」要读作回声窗口**（包在路上），不是分叉。
+`stockOnBoth` 仍是那个分离器，方向反过来用。
 
 1. **塔耗石头（`climb.N.stock` < `climb.N.with`）且 `handsAtUse` 零分叉** ⇒ 因果链闭合：
    手是因，parity 的预登记兑现。
