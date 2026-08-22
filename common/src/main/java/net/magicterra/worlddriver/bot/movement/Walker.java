@@ -230,7 +230,16 @@ public final class Walker {
          * killed it.
          */
         void engage(net.minecraft.core.BlockPos b) {
-            if (b != null && pos != null && !pos.equals(b) && lastProgress > 0f) return;
+            // A LIVE CLAIM HOLDS, whatever its progress currently reads. Two earlier shapes failed:
+            // last-caller-wins (no guard at all), and hold-while-lastProgress>0 — the latter written
+            // and refuted on the same night (2026-08-22, real-client ladder rung 3). It asked the
+            // incumbent to prove itself with the one quantity the challenger had just zeroed, and
+            // worse: re-engaging the cell ALREADY held fell through to the reset below and wiped the
+            // ticks/stall counters the prelude's release reads. That is why `dig-aim RELEASE` did not
+            // fire once in 8022 ticks while the target alternated between y=62 and y=64 forever.
+            // The claim is structural now — only the prelude, which owns the release policy, hands
+            // the slot over. Re-engaging the incumbent cell is a no-op, not a refresh.
+            if (b != null && pos != null) return;
             pos = b;
             ticks = 0;
             lastProgress = 0f;
@@ -238,6 +247,11 @@ public final class Walker {
             rayMiss = 0;
             direct = false;
         }
+
+        /** Revoke unconditionally, for a preempting SAFETY dig (suffocation) — that is not a
+         *  navigation preference and must not queue behind one. The expiry policy still lives only
+         *  in the prelude; this is a named override with a caller, not a second clock. */
+        void revoke() { pos = null; ticks = 0; lastProgress = 0f; stallTicks = 0; rayMiss = 0; direct = false; }
     }
     /** In-progress pillarUp edge (task#96 step B8), owned by WalkerTickClimb; both
      *  fields cleared to -1 by both journey resets via {@link PillarEdge#reset()}. */
@@ -1434,7 +1448,38 @@ public final class Walker {
      *  client never reaches because the mouse is never grabbed — so the key by itself breaks
      *  nothing. Server avatars break on the key and take the destroy as an inherited no-op, which is
      *  why every wd.server* dig scene passed for as long as the walker drove the key alone. */
-    static void avatarDig(Avatar a, BlockPos cell) { a.breakHold(true); a.continueDestroy(cell); }
+    /** <p>THE ONE DOOR. Every walker dig routes through here, and here is where the cell is decided:
+     *  the caller's cell is a <i>request</i>, the returned cell is what was actually driven. Vanilla's
+     *  {@code MultiPlayerGameMode} tracks exactly ONE destroy target, so a phase that drives a second
+     *  cell does not merely wait its turn — it runs {@code startDestroyBlock} and throws the other
+     *  phase's accumulated {@code destroyProgress} away. Seven call sites each held their own opinion
+     *  about whether to claim the slot, whether to claim before or after digging, and which cell to
+     *  hand the avatar; three of them dug a cell nobody had claimed. Aim at the RETURNED cell. */
+    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell) { return avatarDig(wk, a, cell, false); }
+
+    /** @param selectTool pick the best tool first — only for the sites that did so before the door
+     *                    existed; a site that never swapped tools must not start now. */
+    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell, boolean selectTool) {
+        BlockPos target = cell;
+        if (wk != null && cell != null && (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority)) {
+            wk.stickyDig.engage(cell);
+            if (wk.stickyDig.pos != null) target = wk.stickyDig.pos;
+        }
+        // Tool and crosshair go on the cell actually being driven, never on the cell that was merely
+        // requested: vanilla's sameDestroyTarget compares the HELD ITEM as well as the position, so
+        // swapping the tool mid-dig throws the progress away exactly the way switching cells does.
+        if (selectTool) a.selectTool(target);
+        a.aimAtBlock(target);
+        a.breakHold(true);
+        a.continueDestroy(target);
+        return target;
+    }
+
+    /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
+    static BlockPos avatarDigPreempt(Walker wk, Avatar a, BlockPos cell, boolean selectTool) {
+        if (wk != null) wk.stickyDig.revoke();
+        return avatarDig(wk, a, cell, selectTool);
+    }
 
 
     /** Client bridge: existing callers pass {@link Minecraft}; wrap it in a

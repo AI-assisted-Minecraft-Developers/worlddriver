@@ -1,3 +1,60 @@
+## 🔬 一扇门：七个挖掘入口的认领协议（2026-08-22，run 6 判据**先于**读数登记）
+
+run 5 把病因钉死了，也**证伪了 run 5 自己的修法**。`[dig]` 探针（每 20 tick 一行，392 行）：
+
+```
+cell=65, 62, 63  progress 0.0466->0.0500      ← 行进相的 traverseBreak 节点
+cell=65, 62, 63  progress 0.1133->0.1166
+cell=65, 64, 63  progress 0.0400->0.0433      ← 爬岸相的 bank riser，从 0 重来
+cell=65, 64, 63  progress 0.1066->0.1099
+```
+
+同一柱两格，每 ~35 tick 换一次，谁都到不了 1.0（空手水下一格要 300 tick）。
+`dig-aim RELEASE` 全程 **0 次**，`isDestroying=false`、`grabbed=false` —— vanilla 没参与，
+**清零的是我们自己两个 walker 相**。
+
+### run 5 的认领为什么没拦住
+
+`engage` 的守卫写成 `!pos.equals(b) && lastProgress > 0f`，两个洞：
+
+1. **持有条件用了对方刚清零的那个量。** 挑战者一换格，`destroyProgress` 归零，
+   prelude 把 `lastProgress` 重新基线到 0，认领当场蒸发。
+2. **同格再认领会落到下面把看门狗抹掉。** `pos.equals(b)` 时守卫不返回，
+   `ticks`/`stallTicks`/`lastProgress` 全清 0 —— 所以 8022 tick 里停滞检测和 4000 绝对上限
+   **一次都没数到**，`RELEASE=0` 不是「没到期」，是「没在计时」。
+
+### 修法（`0b7a…` 待提交）
+
+- `StickyDig.engage`：**活认领一律不让位**（`if (b != null && pos != null) return;`），
+  同格再认领是 no-op 而非刷新。交接只由 prelude 做（它是唯一有释放策略的地方）。
+- `StickyDig.revoke()`：给窒息这类**安全挖掘**的具名抢占，不是第二个时钟。
+- `Walker.avatarDig(wk, a, cell[, selectTool])` 成为**唯一入口**：认领 → 选工具 → 瞄准 → 驱动，
+  返回**真正被驱动的那一格**（调用方给的只是请求）。七个入口原先各有主张：
+  三个先挖后认领、两个压根不认领、两个瞄的格和挖的格可能不是一格。
+  工具也收进门里 —— `sameDestroyTarget` 连**手上的物品**一起比，中途换工具和换格一样清零。
+
+### 预登记判据（run 6，读结果之前写下）
+
+| # | 判据 | 读哪里 |
+|---|---|---|
+| 1 | `[dig]` 里目标格**不再交替**；单格 progress 单调爬升 | `logs/latest.log` |
+| 2 | 至少一块被挖开：`dig-aim RELEASE … solid=false` 出现 ≥1 次 | 同上 |
+| 3 | 身体离开 `65,62,62`，y ≥ 63 | `[walker] t=… p=(…)` |
+| 4 | `wd.journey03Wood` 不再是 `TIMEOUT 8022` | `stagewright-results.jsonl` |
+
+**若仍卡，次级嫌疑按序**（也先登记）：
+
+- (a) **换手清零** —— 探针里 cell 不变而 progress 归零 ⇒ `selectTool` 在换主手。
+- (b) **第三个挖掘者** —— `[dig]` 出现第三格 ⇒ `MineProcess:448` 等 10 处 process 级
+  `continueDestroy` 绕开了 walker 的门（它们不共享这个槽位，是已知敞口）。
+- (c) **门没进去** —— `RELEASE` 仍为 0 且 `ticks` 从不累积 ⇒ prelude 的释放块前提假了
+  （`walkerDigAimPriority` 或 `pos != null`）。
+
+**反例条款**：若 3 级过了但 1 号判据没成立（格仍在交替），则本次成功**不归因于**这个修法，
+按未定处理 —— 成功不是证据，机制才是。
+
+---
+
 ## 🔴 真实客户端从来没走过 3 级：它在 tick 里驱动全局键位，而键位这条路会被 vanilla 反噬（2026-08-22）
 
 **先把一个数说清楚：专用服那条梯子的「14/20」不能代表通关能力。** 那具身体是 `JoinedBody`，

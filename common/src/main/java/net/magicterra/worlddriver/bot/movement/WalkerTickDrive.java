@@ -246,9 +246,9 @@ final class WalkerTickDrive {
             BlockPos recCeiling = wk.pillarRecover.cell.offset(0, 2, 0);
             if (BotConfig.allowBreak && world.isSolid(recCeiling)) {
                 wk.avatarJump(a, false);
-                a.selectTool(recCeiling);
-                a.aimAtBlock(recCeiling);
-                Walker.avatarDig(a, recCeiling);
+                // Preempting: suffocation is death, a navigation claim is a preference. The other
+                // six walker digs queue behind whoever holds the slot; this one takes it.
+                Walker.avatarDigPreempt(wk, a, recCeiling, true);
                 return Walker.Step.WALKING;
             }
             a.breakHold(false);
@@ -1281,8 +1281,7 @@ final class WalkerTickDrive {
                             wp.getX(), wp.getY(), wp.getZ(), wk.stepProg.noStepProgressTicks);
             }
             if (pad != null) {
-                a.aimAtBlock(pad);
-                Walker.avatarDig(a, pad);
+                Walker.avatarDig(wk, a, pad);
             }
         }
         // walkerWallDigFallback (§71, C49): the purest "recovery fires but does nothing"
@@ -1336,10 +1335,7 @@ final class WalkerTickDrive {
                     }
                 }
                 if (tgt != null) {
-                    a.selectTool(tgt);
-                    a.aimAtBlock(tgt);
-                    Walker.avatarDig(a, tgt);
-                    if (BotConfig.walkerDigAimPriority) wk.stickyDig.engage(tgt);
+                    Walker.avatarDig(wk, a, tgt, true);
                     if (BotConfig.walkerDebug)
                         LOG.info("[walker] wall-dig FALLBACK {},{},{} stuckT={}",
                                 tgt.getX(), tgt.getY(), tgt.getZ(), wk.stuckTicks);
@@ -1352,9 +1348,7 @@ final class WalkerTickDrive {
         // progress (the C36-J1 cave-dig replay slowdown). Movement keys stay whatever the
         // travel logic chose: a human holding W+LMB against the wall being dug.
         if (BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null && world.isSolid(wk.stickyDig.pos)) {
-            a.selectTool(wk.stickyDig.pos);
-            a.aimAtBlock(wk.stickyDig.pos);
-            Walker.avatarDig(a, wk.stickyDig.pos);   // prelude's repeat of this cell is dropped
+            Walker.avatarDig(wk, a, wk.stickyDig.pos, true);   // prelude's repeat of this cell is dropped
         }
         if (BotConfig.walkerDebug) {
             // [dbgcollide] hard physics evidence for the hill speed-sawtooth: is the

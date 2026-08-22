@@ -741,13 +741,9 @@ final class WalkerTickClimb {
                     // held was ignored here — the two phases alternated targets every 20–40 ticks
                     // and each switch threw away the other's destroyProgress. See
                     // Walker.StickyDig.engage for the measurement that named it.
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(riser);
-                    BlockPos digCell = BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null
-                            ? wk.stickyDig.pos : riser;
-                    a.aimAtBlock(digCell);
+                    BlockPos digCell = Walker.avatarDig(wk, a, riser);
                     wk.waterClimb.lastDigRiser = digCell;
                     wk.waterClimb.lastDigAimEyeY = p.getEyeY();
-                    Walker.avatarDig(a, digCell);
                     // Sticky-dig coverage gap (2026-07-21 live lake basin): the per-tick
                     // re-aim above holds the CAMERA on the riser, but a bob that dips the
                     // eye below the surface still makes the mining raycast MISS for those
@@ -867,9 +863,9 @@ final class WalkerTickClimb {
                         return Walker.Step.WALKING;
                     }
                     BotConfig.walkerDigActive = true;
-                    a.aimAtBlock(b);
-                    Walker.avatarDig(a, b);
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
+                    // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
+                    // first and claim it afterwards, so it drove a cell another phase already held.
+                    Walker.avatarDig(wk, a, b);
                     return Walker.Step.WALKING;
                 }
             }
@@ -1071,9 +1067,9 @@ final class WalkerTickClimb {
                         return Walker.Step.WALKING;
                     }
                     BotConfig.walkerDigActive = true;
-                    a.aimAtBlock(b);
-                    Walker.avatarDig(a, b);
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(b);
+                    // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
+                    // first and claim it afterwards, so it drove a cell another phase already held.
+                    Walker.avatarDig(wk, a, b);
                     boolean climbBreak = floatingPocket && b.getY() >= foot.getY();
                     if ((swimEscapeBreak && p.isInWater() && !p.isUnderWater()) || climbBreak) {
                         Walker.avatarForward(a, true);     // press into the aimed bank (surface only)
