@@ -460,7 +460,14 @@ public final class JourneyFill {
         // HoldStill for the run where a ten-tick wait dropped the body four blocks.
         var eyeBeforeSettling = rig.player().getEyePosition();
         rig.settle(new HoldStill(2), 10, () -> {
-            rig.avatar().aimAtBlock(aim);
+            // BOTH bodies, because the very next line is a PREDICTION GATE on the server one.
+            // `aimedAt(rig.player(), …)` rays the ServerPlayer; `rig.avatar()` on this topology is
+            // the client. Aim only the client and this gate reads a body nobody pointed — and it
+            // does not merely mis-report, it ACTS: `onTarget=false` sends the run into re-aim, into
+            // `mineCellOrGiveUp` on a "blocker" that was never on the line, or into
+            // `stepOutOfTheFrame`. All three change the world on a reading that was never about the
+            // ray the use would fire. (The use itself needs no server aim — see `aimBoth`.)
+            WorldDriverJourneyScenes.aimBoth(rig, aim);
             ServerLevel level = ctx.level();
             var pre = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
             // A SOURCE, not merely the right cell with the right fluid in it. `BucketItem.use` clips
@@ -603,37 +610,52 @@ public final class JourneyFill {
         // DELTA and that is impossible at any bucket count.
         int before = rig.carrying(id);
         rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
-        int after = rig.carrying(id);
-        if (after > before) { then.run(); return; }
-        var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
-        double range = rig.player().getEyePosition()
-                .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
-        rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
-                "这一次没装上（%s %d→%d）；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
-                id, before, after,
-                aim.toShortString(), level.getBlockState(aim).getBlock(), range,
-                hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                        ? hit.getBlockPos().toShortString() + " "
-                          + level.getBlockState(hit.getBlockPos()).getBlock()
-                        : String.valueOf(hit.getType())));
-        // A DIFFERENT source, explicitly. The old line asked for "the nearest one" and got back
-        // the cell that had just failed, so the guard below refused the retry and the rung died
-        // with two of its three approaches unspent — measured as
-        // 「瞄了 -11,63,21 没装上，改瞄 -11,63,21 仍然不行」.
-        BlockPos other = nextSourceBesides(ctx, rig, lava, aim);
-        if (tries > 1 && other != null) {
-            rig.evidence(tag + ".retarget." + tries, aim.toShortString() + " → "
-                    + other.toShortString());
-            fillFrom(ctx, rig, other, tag, wanted, tries - 1, then);
-            return;
-        }
-        ctx.fail("装不到 " + id + "：瞄了 " + aim.toShortString() + " 没装上，"
-                + (other == null ? "身边 " + FILL_RESEARCH + " 格内没有别的源块可换"
-                                 : "改瞄 " + other + " 仍然不行")
-                + "；身边的源块：" + sourcesNear(level, rig.player().blockPosition(),
-                        FILL_RESEARCH, lava)
-                + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
-                + "（见 " + tag + ".miss.*）");
+        // WAIT FOR THE ROUND TRIP BEFORE JUDGING — the mirror of aiming, not a contradiction of it.
+        // The aim must be adjacent to the act on the body that ACTS; the OUTCOME is produced by
+        // that client body and has to travel back before `rig.carrying` (the ServerPlayer's
+        // inventory) or `ctx.level()` can see it. Judged in the use's own tick, a fill that worked
+        // is byte-identical to one vanilla refused, and every branch below — retarget, and the
+        // `ctx.fail` that ends the rung — then fires on a reading taken too early.
+        //
+        // Rung 12's own fill (JourneyPortalRung.scoopWater) died exactly this way on 2026-08-22
+        // with `result=SUCCESS, water_bucket=0, cellAfter=water`: three rows that cannot describe
+        // one moment. This site is the same shape and had the same hole.
+        rig.settle(new HoldStill(3), 12, () -> {
+            int after = rig.carrying(id);
+            if (after > before) { then.run(); return; }
+            // Only trustworthy since `scoop` started aiming BOTH bodies. This rays rig.player(),
+            // the server body, and before that fix nothing had ever pointed it — so every
+            // 「射线停在 …」 this row printed described a direction the use never took.
+            var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
+            double range = rig.player().getEyePosition()
+                    .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
+            rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
+                    "这一次没装上（%s %d→%d，已等过 3 tick 往返）；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
+                    id, before, after,
+                    aim.toShortString(), level.getBlockState(aim).getBlock(), range,
+                    hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                            ? hit.getBlockPos().toShortString() + " "
+                              + level.getBlockState(hit.getBlockPos()).getBlock()
+                            : String.valueOf(hit.getType())));
+            // A DIFFERENT source, explicitly. The old line asked for "the nearest one" and got back
+            // the cell that had just failed, so the guard below refused the retry and the rung died
+            // with two of its three approaches unspent — measured as
+            // 「瞄了 -11,63,21 没装上，改瞄 -11,63,21 仍然不行」.
+            BlockPos other = nextSourceBesides(ctx, rig, lava, aim);
+            if (tries > 1 && other != null) {
+                rig.evidence(tag + ".retarget." + tries, aim.toShortString() + " → "
+                        + other.toShortString());
+                fillFrom(ctx, rig, other, tag, wanted, tries - 1, then);
+                return;
+            }
+            ctx.fail("装不到 " + id + "：瞄了 " + aim.toShortString() + " 没装上，"
+                    + (other == null ? "身边 " + FILL_RESEARCH + " 格内没有别的源块可换"
+                                     : "改瞄 " + other + " 仍然不行")
+                    + "；身边的源块：" + sourcesNear(level, rig.player().blockPosition(),
+                            FILL_RESEARCH, lava)
+                    + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
+                    + "（见 " + tag + ".miss.*）");
+        });
     }
 
     /**
