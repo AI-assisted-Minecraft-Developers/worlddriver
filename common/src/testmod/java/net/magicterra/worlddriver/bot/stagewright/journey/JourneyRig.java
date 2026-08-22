@@ -185,7 +185,22 @@ public final class JourneyRig {
     /** Keys this stage wrote more than once with DIFFERENT values, in the order the clashes
      *  happened. Rendered into {@code evidence.clash} — see {@link #evidence}. */
     private final List<String> clashes = new ArrayList<>();
-    private String note = "未记录原因";
+    /**
+     * What the ledger prints for a rung that failed — see {@link #attempting}, which is the only
+     * thing that sets it.
+     *
+     * <p>The default says where to look rather than 「未记录原因」, because that wording was wrong in
+     * the way that costs a reader a detour: the reason is NOT missing. {@code ctx.fail(reason)}
+     * throws, and the runner writes that text into the scene's own {@code reason} field in the
+     * results file — it simply never passes back through this rig. On 2026-08-22 rung 17 printed a
+     * full, precise diagnosis into its results row while the verdict's summary said the reason had
+     * not been recorded, and the two rows sat in the same file contradicting each other.
+     *
+     * <p>Routing the real text here needs either 127 call sites converted or a stagewright change
+     * (its {@code failureReason} is only filled for await timeouts, not for {@code fail}). Until
+     * one of those happens, the honest thing is to name the other row.
+     */
+    private String note = "这一级没写 attempting；真正的死因在结果文件里该场景自己那行的 reason 字段";
     private boolean claimed;
     /**
      * Non-null once the body has fallen out of the world, holding the reading that proves it.
