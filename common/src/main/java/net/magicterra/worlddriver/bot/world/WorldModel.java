@@ -57,11 +57,21 @@ public final class WorldModel {
      *   else    DAWN       else    sunrise
      * </pre>
      *
-     * Different thresholds AND different vocabulary, so the bot's own dusk reflex
-     * ({@code DuskSecureChain} reads this) starts 800 ticks after the agent has been told it is
-     * night, and ends 800 ticks before. Nobody wrote down which boundary is the intended one, and
-     * unifying them moves when the bunker reflex fires — a survival-path behaviour change, not a
-     * de-duplication. Only the {@code % 24000} folding is shared (via {@link TimeSnap#timeOfDay}).
+     * <p>Different thresholds AND different vocabulary — and both are exported: this one as
+     * {@code mc.client.scene.dayPhase}, the other as {@code mc.observe.player.time.phase}. An
+     * agent polling both is told two different things in two windows: {@code [13000, 13800)}
+     * (night vs DUSK) and {@code [22200, 23000)} (night vs DAWN).
+     *
+     * <p><b>Only one of those boundaries is load-bearing in code.</b> The single consumer here
+     * is {@code exposedAtNight}, which ORs DUSK with NIGHT — so 13800 gates nothing, 12000
+     * matches the other table exactly, and DAWN and DAY are equivalent to it. What is left is
+     * the dawn edge: {@code DuskSecureChain} is armed over {@code [12000, 22200)} while the
+     * agent is told it is night until 23000, so for 800 ticks at the end of the night the agent
+     * reads "night" and the shelter reflex has already stood down.
+     *
+     * <p>Left as-is because unifying moves when the bunker reflex fires — a survival-path
+     * behaviour change plus an API vocabulary change, not a de-duplication. Only the
+     * {@code % 24000} folding is shared (via {@link TimeSnap#timeOfDay}).
      */
     static String dayPhase(long t) {
         if (t < 12000) return "DAY";
