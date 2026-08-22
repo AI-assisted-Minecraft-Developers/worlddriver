@@ -871,6 +871,59 @@ else if ((onGround() || bl && d <= e) && noJumpDelay == 0) → jumpFromGround  �
 这是今天第三次「测量打死了提出者自己的计划」（前两次：第八趟打死我的横走修法、
 janitor 的预注册 grep 打死它自己的 commit B）。**这条纪律在连续起作用。**
 
+## 🟢 T17 落地，闸 GREEN，**每一个预登记的数字精确命中**
+
+`edef2797`（闸）+ `1bb3331f`（仪器拆时刻）。`stagewrightDedicatedServerFabric`：
+**VERDICT: GREEN，277 executed / 22 skipped**，三条红全是已知 optional/金丝雀。
+
+| 读数 | 预登记 | 实测 |
+|---|---|---|
+| `bottomedDeep.first` | 0.42 → **≈0.035** | **0.0350** |
+| `bottomedDeep.rises` | 4 → **0** | **0** |
+| `bottomed.first` | 保持 **0.42** | **0.4200** |
+| `bottomed.fluidAtRest` | 0.888 → **≈0.333** | **0.3323** |
+| `afloat.first` / `.rises` | 不变 | **0.0278 / 0** |
+| `climbableGroundJump` 两臂 | 不受影响 | 与 T17 前**逐字相同** |
+
+修法（`ServerPlayerAvatar` 起跳闸）换成 vanilla 复合谓词，`footed`（`soleOnSolid>0`）
+继续顶替不可靠的 `onGround()` —— **那个顶替是这个闸原本的用意，一个字没动**：
+
+```java
+boolean buoyant = inWater && fluid > 0.0;
+if (buoyant && (!footed || fluid > jumpThreshold))       → +0.04   // jumpInLiquid
+else if (footed || (buoyant && fluid <= jumpThreshold))  → 0.42    // jumpFromGround
+```
+
+### `bottomed` 那条臂：改的是布景，不是断言
+
+它的本意一直是「**浅**水池底仍应是 0.42」，而旧布景用的是**源块**（8/9=0.889，
+已在阈值 0.4 **之上**）—— 根本不浅。换成**流动 level-3**（3/9=0.333）之后，
+0.42 才是 vanilla 的正确答案，断言一个字不用改。并加了布景断言：
+液高若漂回 0.4 之上，臂自己以「The arena, not the gate, is wrong」喊。
+
+⇒ 这跟「放宽布景去迁就实现」是相反的操作：**是把布景改成它一直声称在测的那个东西。**
+分辨的办法是看断言动没动 —— 断言没动，动的是让断言成立的前提。
+
+### 两条纪律在这一轮又各兑现一次
+
+- **仪器自检生效**：字段拆成 `起跳前水中` / `收尾水中`，**每个名字带上它的时刻**。
+  上一轮那对「每个字都真、却能推出相反结论」的读数不可能再出现。
+- **parity 主动作废了自己上一轮的预登记表**（`bottomed` 15→0 是「改断言」方案下的算法，
+  「改布景」方案下应为 15→≥1、`first` 保持 0.42），并把「旧表按当时的计划是对的」
+  写进文档，免得有人拿旧表来对。
+- **它拒绝预登记一个没有数据支撑的数**：我要它预登记真梯回归，它只给方向和位置
+  （先掉在水域段，最可能第 3 级 WOOD），明确不写名次，理由是
+  「硬写一个数就是事后可挑解释的空头支票」。**这个拒绝是对的。**
+
+### ⏭ 接下来：闸也要配对，真梯也要配对
+
+那 22 条 skipped 全是客户端专属场景，**在专用服上什么都没测**（[`skip-is-not-coverage`]）。
+⇒ 已起 `stagewrightIntegratedServerFabric` 作为闸的客户端对照，
+它才是真正执行那 22 条的地方 —— 这同时是「测试全部场景」的缺口。
+
+之后再跑真梯配对（服务端 → 集成服），**预期服务端分数会掉**，
+掉在水域段就是 T17 生效的证据，而不是回归。
+
 ### 读第四趟的三条纪律
 
 1. **先看 `rehearsal.doorway` 的「垂直差」**（必须 ≤24）。布景几何变了，
