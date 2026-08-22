@@ -217,15 +217,49 @@ final class WalkerTickPrelude {
         // (drive, recovery, repath), then digAimReassert at the end of walkTick re-holds
         // ONLY crosshair+attack — a human holding W+LMB against the wall being dug.
         // Here we just expire the latch; the re-assert happens after the tick body.
-        if (BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null
-                && (!world.isSolid(wk.stickyDig.pos)
-                    || ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 300)
-                    || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20)) {
-            if (BotConfig.walkerDebug)
-                LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={}",
-                        wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks);
-            wk.stickyDig.pos = null;
-            wk.stickyDig.ticks = 0;
+        // RELEASE ON A STALL, NOT ON A CLOCK — the lesson this branch's own predecessor
+        // (walkerStickyDig, below) learned and wrote down, and that this successor never
+        // inherited. It matters because of which one runs: walkerDigAimPriority defaults ON and
+        // walkerStickyDig defaults OFF, so the progress-aware watchdog underneath is dead code
+        // and the fixed clock is the only release anyone has ever executed.
+        //
+        // Measured 2026-08-22, real-client ladder, rung 3: a bare-handed bank dig while AFLOAT
+        // advances vanilla's destroyProgress by 0.00333/tick — 300 ticks per block, because the
+        // ×5 (eye in water) and ×5 (airborne) penalties multiply. The cap was
+        // min(breakTimeoutTicks=200, 300) = 200. **The hold was released 100 ticks before the
+        // block could ever break**, vanilla zeroed the progress, the walker re-acquired the same
+        // cell, and the rung timed out after 8000 ticks having broken nothing. Highest progress
+        // ever reached: 0.77. A constant cannot bound a quantity whose scale the terrain decides.
+        //
+        // The server avatar has no progress sensor (destroyProgress() == -1), so it keeps the old
+        // time box byte for byte: stall-only there would release at 60 ticks and be TIGHTER than
+        // what it has today, which is a regression dressed as a fix.
+        if (BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
+            float prog = a.destroyProgress();
+            boolean spent;
+            if (prog < 0) {
+                spent = ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 300);
+            } else {
+                if (prog > wk.stickyDig.lastProgress + 1e-4f) {
+                    wk.stickyDig.lastProgress = prog;
+                    wk.stickyDig.stallTicks = 0;
+                } else {
+                    if (prog < wk.stickyDig.lastProgress - 0.05f)
+                        wk.stickyDig.lastProgress = prog;   // vanilla re-based it — follow
+                    wk.stickyDig.stallTicks++;
+                }
+                spent = wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
+                        || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
+            }
+            if (!world.isSolid(wk.stickyDig.pos) || spent
+                    || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20) {
+                if (BotConfig.walkerDebug)
+                    LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
+                            wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
+                            wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
+                wk.stickyDig.pos = null;
+                wk.stickyDig.ticks = 0;
+            }
         }
         if (BotConfig.walkerStickyDig && !BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
             // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the

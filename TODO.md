@@ -1,3 +1,81 @@
+## 🔴 真实客户端从来没走过 3 级：它在 tick 里驱动全局键位，而键位这条路会被 vanilla 反噬（2026-08-22）
+
+**先把一个数说清楚：专用服那条梯子的「14/20」不能代表通关能力。** 那具身体是 `JoinedBody`，
+与客户端的 `LocalPlayer` 行为不同（用户 2026-08-22 判定）。**唯一有意义的基线是
+`runJourneyIntegratedServer`（真玩家、`LocalPlayer` 驾驶），而它三趟都停在 3 级砍木
+`TIMEOUT 8022`，上面 17 级全 BLOCKED。**
+
+### 现象（三趟一致，确定性）
+
+身体钉在 `65,62,62`，**8000 tick 水平零位移**；walker 的自述里
+**`[walker] water climb-out: block-less bank dig (bob-stalled, no place block) riser=65,64,63`
+重复 1424 次、一字不差**，一块也没挖开。
+
+**两个对照否掉了两条先导假设：**
+- **出生点在水里不是差异所在**：专用服那趟身体在**完全相同的格** `64,61,60`、同样 `水=true 没顶=true`，
+  然后正常走掉了。
+- **寻路 churn 不是差异所在**：专用服同段 `search-begin owner=mine` **202** 次，客户端 **217** 次，
+  基本一样。那是 mine 进程的正常节奏。
+
+### 机制（反编译核对 1.21.1 `MultiPlayerGameMode`）
+
+```java
+static void avatarDig(Avatar a, BlockPos cell) { a.breakHold(true); a.continueDestroy(cell); }
+```
+
+**同一次挖掘挂了两个驱动者**：`breakHold` → `mc.options.keyAttack.setDown(v)`（全局共享键位，
+让 vanilla 用**摄像机命中结果**每 tick 调一次），外加直调指定坐标的 `continueDestroy`。而：
+
+- `stopDestroyBlock()` 受 `if (isDestroying)` 保护，会发 `ABORT_DESTROY_BLOCK` 并把
+  **`destroyProgress` 清零**，却**不改 `destroyBlockPos`**；
+- `sameDestroyTarget(pos)` **只比坐标和主手物品**，不看 `isDestroying`。
+
+⇒ 被清零之后，下一 tick 的直调仍然走进「累积」分支、**从 0 重新开始**。
+**一次永远完不成、也永远不报错的挖掘。**
+
+而 vanilla 那条的总开关是
+`continueAttack(screen == null && keyAttack.isDown() && mouseHandler.isMouseGrabbed())`，
+配上 `MouseYield.java:76` 一条**有意为之**的礼貌规则：
+
+> Never yank the cursor from another application: if the window isn't focused, leave it free
+
+⇒ **无人值守跑 = 窗口不活动 = 鼠标不捕获 = 每 tick `stopDestroyBlock()`。**
+这条链解释了为什么只有客户端拓扑挖不动，也意味着**真实用户 alt-tab 之后 bot 就停止挖掘**——
+是个面向用户的缺陷，不只是测试问题。
+
+**⚠️ 这条链的最后一环（窗口未聚焦）尚未实测**，探针已加在 `ClientPlayerAvatar.continueDestroy`
+（记 `progress before->after` / `isDestroying` / `windowActive` / `grabbed` / `keyAttack`），
+读数出来之前不要把它当定论。
+
+### 扫描：还有 79 处在 tick 里驱动全局键位
+
+用户指令：**「tick 里面不要驱动按键，一直都是用直调代码和发包解决」**。全仓
+`mc.options.key*.setDown(...)` 的分布：
+
+| 文件 | 处数 |
+|---|---|
+| `scheduler/DrownEscapeChain.java` | 19 |
+| `auto/AutoSwim.java` | 14 → **已改完（0）** |
+| `movement/ClutchController.java` | 12 |
+| `scheduler/BunkerChain.java` | 7 |
+| `auto/AutoEat.java` | 4 |
+| `auto/ContactDamageEscape.java` | 4 |
+| `auto/AntiSuffocate.java` | 3 |
+| `movement/AvatarInput.java` | 3（javadoc 引用，非驱动） |
+| `movement/ClientPlayerAvatar.java` | 2（`breakHold` / `breakHeld`）|
+| `auto/AutoShield.java` / `auto/AutoHeal.java` / `auto/LavaProximityEscape.java` / `scheduler/CombatChain.java` | 各 1–2 |
+
+**`AutoSwim` 已按直调改完**（提交 `70efd89d`）。改的时候发现它那 14 处**本来就是无效的**：
+`AvatarInput.tick()` 先跑 vanilla 键位 pass，**再用 walker 的指令覆盖 `forwardImpulse`** ——
+所以任何进程活跃时，`AutoSwim` 按下的横向键**每 tick 被丢弃**，而 `keyJump`（walker 通常不下指令）
+活了下来。**「跳还在、走没了」由此逐字解释。**
+
+**但它不是挡住 3 级的那个**：`AutoSwim.tick` 最前面有一道 DIG-PRIORITY YIELD，
+`walkerDigActive` 为真且氧气健康时整个后备直接让位 —— 砍木正是挖掘，所以那趟里
+`[autoSwim]` 一行都没有。
+
+---
+
 ## 10 级那次卡死的真因：身体在 9 级熔炼期间**自己沉了 25 格**（2026-08-22，取证）
 
 完整取证在 `TODO-rung10-forensics.md`（373 行，含逐条裁决的四个候选机制）。摘要：

@@ -91,9 +91,27 @@ public final class ClientPlayerAvatar implements Avatar {
         // every successful continueDestroyBlock tick. Direct-driven digs without the
         // swing are visibly armless AND emit no ServerboundSwingPacket — third-party
         // servers' anticheat flags "mining without swinging" (user report 2026-07-21).
-        if (mc.gameMode.continueDestroyBlock(cell,
-                net.magicterra.worlddriver.bot.util.BotInteract.pickFaceTowardsPlayer(cell, p)))
-            p.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        // WHO IS ZEROING THE PROGRESS. Vanilla's own Minecraft.continueAttack runs every client
+        // tick and, on any tick it does not have a block under the crosshair, calls
+        // stopDestroyBlock() — which sends ABORT and sets destroyProgress = 0 while LEAVING
+        // destroyBlockPos alone. sameDestroyTarget() compares only the position and the held item,
+        // never isDestroying, so the next direct drive walks straight back into the accumulate
+        // branch and starts from zero again: a dig that can never finish and never says so.
+        // `before` is the reading that separates "our drive is not landing" from "something zeroes
+        // it between our drives"; windowActive/grabbed are there because vanilla gates that whole
+        // path on mouseHandler.isMouseGrabbed(), and MouseYield deliberately refuses to grab the
+        // cursor while the window is unfocused — which is every unattended run.
+        float before = mc.gameMode.destroyProgress;
+        boolean ok = mc.gameMode.continueDestroyBlock(cell,
+                net.magicterra.worlddriver.bot.util.BotInteract.pickFaceTowardsPlayer(cell, p));
+        if (ok) p.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        if (net.magicterra.worlddriver.bot.BotConfig.walkerDebug && p.tickCount % 20 == 0)
+            WorldDriverCommon.LOG.info(
+                    "[dig] cell={} ok={} progress {}->{} isDestroying={} windowActive={} grabbed={} keyAttack={} screen={}",
+                    cell.toShortString(), ok, before, mc.gameMode.destroyProgress,
+                    mc.gameMode.isDestroying(), mc.isWindowActive(),
+                    mc.mouseHandler != null && mc.mouseHandler.isMouseGrabbed(),
+                    mc.options.keyAttack.isDown(), mc.screen == null ? "none" : mc.screen.getClass().getSimpleName());
     }
 
     /** {@code MultiPlayerGameMode.destroyProgress} (private in vanilla, opened by
