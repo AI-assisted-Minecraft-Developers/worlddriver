@@ -47,6 +47,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   floor-guard` and `footing guard` refused every step, correctly, while A* kept returning routes
   through those cells — 816 identical searches from one cell to one goal. The fixture had reproduced
   the class of defect the scene exists to look for.
+- **A portal is two doorways, and staging only the far one staged a different world.** With the
+  crossing itself finally working, the body left the Nether, arrived `@minecraft:overworld` — and
+  stood at `825,10,83` underground in an aquifer, bobbing between two y values while the march burned
+  4238 searches on one leg on the `swimUp` branch. Nether y is **not** part of the 8:1 rule; only x
+  and z are. So a doorway staged at nether y=33 asks vanilla for an overworld exit at y=33, and with
+  no existing portal inside `PortalForcer`'s horizontal search radius to land on, it carves a fresh
+  one right there. The real ladder never meets that, because rung 12 lights its portal on the SURFACE
+  and rung 13 walks through it — the nether doorway a run banks is the far end of a *pair*.
+  `raiseAPortal(level, foot)` is now one implementation used twice, and `raiseTheOverworldHalf` puts
+  the near end on the heightmap at the scaled coordinate. Failures there say STAGING, because a body
+  that cannot leave the Nether for want of this half reads exactly like rung 17 failing to walk home.
 - **Known and unfixed: the futile-search guard cannot see an unexecutable plan.** Two independent
   reasons it stayed silent through those 816 searches. It counts only searches where
   `!res.goalReached()`, and A* *did* reach the goal — the terrain was connected, the drive layer just
