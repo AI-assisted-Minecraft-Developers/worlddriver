@@ -27,6 +27,11 @@
   修后同一条闸从 18869 行涨到 35557 行，且不再截断。
   本文档一律用**场景自己的 `ctx.record` 证据**（落在 `stagewright-results.jsonl`），不用日志文件里的行——
   §10 给了机制、否定掉的五条怀疑，和一条缺陷存在时会红的验证。
+- **⛔「专用服上身体泄漏」这个说法已被否证，别再查一遍。** 如果你是从旧 TODO 或旧会话里读到
+  「239 具身体加入、0 具离场」才找过来的：**那两个数不是同一条通道的两端**，它们相减没有意义。
+  一具完全健康的 `JoinedBody` 离场时，vanilla **必定**一行都不印（§11.1）。
+  补上对称通道之后整趟实测是 **239 进 / 239 出 / 玩家表峰值 3 / 关服残留 0**（§11.5）。
+  **没有泄漏。** 要重新怀疑它，请先读 §11.5 里那张表，并注意它是怎么被量出来的。
 
 ## 边界表的四类
 
@@ -1504,7 +1509,7 @@ private void removePlayerFromWorld() {                       // ← 只从 onDis
 
 ```
 [realbody] agent-body-86 joined minecraft:overworld at BlockPos{x=-7, y=-60, z=0} (players=1)
-[realbody] agent-body-86 left   minecraft:overworld (players=0)
+[realbody] agent-body-86 left minecraft:overworld (players=0)
 ```
 
 **为什么这把尺子是穷尽的而不是抽样的**：全 `common/src/main/` 里
@@ -1520,8 +1525,8 @@ private void removePlayerFromWorld() {                       // ← 只从 onDis
 | `[realbody] … left` | **239** | **逐条配对，差 0** |
 | 出现过的身体名 | joined 239 个 / left 239 个 | **每一个名字都离场了** |
 | 关服时最后一条 realbody 事件 | `wd-census left … (players=0)` | **终局残留 = 0** |
-| `players=` 在 join 上的峰值 | 1×210、2×26、3×4 | 峰值 3 |
-| `players=` 在 leave 上 | 0×209、1×26、2×4 | **和 join 完全镜像、严格 LIFO 嵌套** |
+| `players=` 在 join 上的峰值 | 1×209、2×26、3×4（合计 239 ✓） | 峰值 3 |
+| `players=` 在 leave 上 | 0×209、1×26、2×4（合计 239 ✓） | **和 join 完全镜像、严格 LIFO 嵌套** |
 | 离场路径的 WARN/ERROR | **0** | |
 | vanilla `joined the game` | **239** | **和本通道逐条相等**——这把尺子和 vanilla 是 1:1 |
 | vanilla `left the game` | **0** | 在一趟已证明发生了 239 次离场的运行里 |
@@ -1539,6 +1544,9 @@ private void removePlayerFromWorld() {                       // ← 只从 onDis
 > `wd.serverCraftFailTelemetry` 的 `CraftLogCatcher` **捕获并原文回显**了 `agent-body-87` 的
 > join 行，把它印进了自己的证据 `lines=[…]` 里，而我的 grep 把那份回显当成了第二次 join。
 > 把匹配锚到消息开头（`^(WorldDriver) [realbody] …`）之后立刻变成 239/239。
+> **上面那张表里每一个数都是用锚定后的模式重新量过的**——第一版的 `players=` 分布同样中招
+> （`1×210`，合计 240），因为那条回显里也带着 `(players=1)`。所以表里补了「合计 239 ✓」：
+> **一张证据表应该让读者能就地把它加起来对上。**
 > **一个会被别处引用原文的日志行，同时也是别人日志里的一行**——按子串统计它，量到的就不只是它自己。
 > 这和 §10 是同一类错误的两面：那次是通道没出声被当成事情没发生，这次是回声出了声被当成事情多发生了一次。
 
