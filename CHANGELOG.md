@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-22
 
+- **The last unscripted rung has steps, and the flock is chosen by colour rather than by distance.**
+  `wd.journey07Bed` was the ladder's only remaining `unscripted(...)` placeholder. It printed
+  `NOT_SCRIPTED` and — because that path records PASS with `skipped=true` — **counted as a pass in
+  every summary that did not read the flag**, which is how a ladder with a hole in it kept reporting
+  a clean rung 7. It now hunts sheep and crafts a bed. The difficulty is not the hunting: a bed wants
+  three wool of ONE colour and a sheep drops a single wool of whatever colour it happens to be, so
+  killing the three nearest sheep yields white + brown + black and crafts nothing — the same shape as
+  the plank-variant trap the craft resolver taught this ladder once already. The target is therefore
+  picked on colour first and distance second, greedily toward whichever colour the bag is nearest
+  three of, and `CombatProcess` is handed that individual's **entity id** rather than
+  `"minecraft:sheep"`, so the sheep that dies is the sheep that was chosen. `JourneyRig.woolNearby`
+  filters out lambs and already-sheared sheep, both of which are sheep and neither of which drops
+  wool. The rung stays off the critical path (`JourneyStage.requires()` skips it, `criticalPath()`
+  excludes it), so a failure still blocks nothing — but "no sheep within 176 blocks, only
+  `[chicken, cow, frog, pig]`" is a measured statement about the world, where `NOT_SCRIPTED` was a
+  statement about us. **Half the rung is deliberately not done**: `JourneyStage.BED` describes a bed
+  "slept in, spawn point moved", and sleeping needs the bed placed (the only placement verb,
+  `PlaceNearby`, is package-private) and needs it to be night (forcing night is staging, and this
+  ladder's `stagingCalls` must stay 0). The rung records `bed.dayTime` so that half can be decided
+  from a reading rather than a guess. `walkHome` grew a key prefix in the same change — two rungs
+  chase animals now, and a bed rung recording `food.strandedAt` would name the right cell under the
+  wrong rung.
 - **A scene gets its body from one place, and that place asks whether minting one is legal here.**
   `SceneBody` replaces 165 direct calls to `ServerWorldDriver.createIsolated` and
   `ServerPlayerAvatar.createUnique`, six of which had been copied into per-file `body(ctx, foot)`
