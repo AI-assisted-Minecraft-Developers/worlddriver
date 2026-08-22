@@ -604,26 +604,84 @@ public final class JourneyEndRungs {
                 + " 格），但门在 y=" + home.getY() + " 而身体在 y=" + at.getY()
                 + "，差 " + dy + " 格 —— 行军判的是平面距离，确认门用的是 24 格球形半径，"
                 + "两者不一致时就会出现「走到了却没有门」");
-        rig.attempting("贴到门那一格上（3D 目标，行军只管平面）：" + xyz(home));
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(home, RETURN_ARRIVED_WITHIN))),
-                MARCH_LEG_TICKS, () -> {
-            BlockPos third = rig.nearestBlock("minecraft:nether_portal", 24);
-            BlockPos now = rig.player().blockPosition();
-            rig.evidence("return.portalAfterClimb", xyz(third) + "（收工时身体在 " + xyz(now)
-                    + "，距门 " + Math.round(Math.sqrt(now.distSqr(home))) + " 格）");
-            if (third != null) {
-                stepThroughPortal(ctx, rig, third, then);
-                return;
-            }
-            if (Math.abs(home.getY() - now.getY()) > RETURN_ARRIVED_WITHIN) {
+        climbLeg(ctx, rig, home, 1, (int) Math.round(Math.sqrt(at.distSqr(home))), then);
+    }
+
+    /** How many tries the last stretch gets. Not one — see {@link #climbLeg}. */
+    private static final int CLIMB_LEGS = 5;
+
+    /**
+     * One try at the last stretch, then a different try, until the door is in scan range.
+     *
+     * <p><b>Why this is not a single settle.</b> It was, and two rehearsals off the same staged
+     * world, from a byte-identical body position, went opposite ways:
+     *
+     * <pre>{@code
+     * 起点 99,41,11 门 104,93,7   第二趟 → 121, 75, 10  （升 34，扫到了门）
+     * 起点 99,41,11 门 104,93,7   第三趟 → 100, 23, 20  （降 18，扫不到）
+     * }</pre>
+     *
+     * <p>Same state, same goal, opposite outcome — the walker's per-tick search budget is spent
+     * against a wall-clock slice, so the route it has found when the settle ends is not a function
+     * of the world alone. A stretch that gets exactly one attempt against a nondeterministic search
+     * is a coin flip, and reporting a coin flip as「爬不上去」names the wrong thing.
+     *
+     * <p><b>And the legs have to differ, or it is the same refused question five times</b> — the
+     * shape {@code a-retry-that-changes-nothing} is about. Two things vary. The scan happens after
+     * EVERY leg rather than only the last, which matters more than it looks: the radius is 24 and
+     * the second rehearsal found the door from 24.3 blocks away, so a body that passes through
+     * range mid-climb and drifts out again used to throw that away. And a leg that ends no closer
+     * than it began, with the door overhead, stops asking the pathfinder and pillars up instead —
+     * {@code TowerProcess} builds the route rather than searching for one, which is the answer when
+     * the terrain genuinely has no way up.
+     */
+    private static void climbLeg(SceneContext ctx, JourneyRig rig, BlockPos home, int leg, int best,
+                                 Runnable then) {
+        BlockPos at = rig.player().blockPosition();
+        BlockPos found = rig.nearestBlock("minecraft:nether_portal", 24);
+        int away = (int) Math.round(Math.sqrt(at.distSqr(home)));
+        if (found != null) {
+            rig.evidence("return.portalAfterClimb", xyz(found) + "（第 " + leg + " 段扫到，身体在 "
+                    + xyz(at) + "，距门 " + away + " 格）");
+            stepThroughPortal(ctx, rig, found, then);
+            return;
+        }
+        if (leg > CLIMB_LEGS) {
+            rig.evidence("return.portalAfterClimb", "无（" + CLIMB_LEGS + " 段之后身体在 " + xyz(at)
+                    + "，距门 " + away + " 格，最近一次到过 " + best + " 格）");
+            if (Math.abs(home.getY() - at.getY()) > RETURN_ARRIVED_WITHIN) {
                 ctx.fail("走回了记下的那一柱，但够不着门本身：门在 " + xyz(home) + "，身体停在 "
-                        + xyz(now) + "，垂直还差 " + Math.abs(home.getY() - now.getY())
-                        + " 格。这不是「门被毁了」，也不是「走不回来」——是最后这一段爬不上/下去");
+                        + xyz(at) + "，垂直还差 " + Math.abs(home.getY() - at.getY())
+                        + " 格，" + CLIMB_LEGS + " 段（含垒柱）都没贴上。这不是「门被毁了」，"
+                        + "也不是「走不回来」——是最后这一段爬不上/下去，逐段落点见 return.climb.*");
                 return;
             }
-            ctx.fail("站到了记下的落点 " + xyz(home) + " 跟前（身体在 " + xyz(now)
+            ctx.fail("站到了记下的落点 " + xyz(home) + " 跟前（身体在 " + xyz(at)
                     + "，垂直已经贴上），24 格内仍然没有 nether_portal 方块 —— 这一次是真的没门了："
                     + "要么被毁，要么 13 级记下的坐标就不对");
+            return;
+        }
+        // A leg that gained nothing and a door overhead is the one case where asking again is
+        // pointless and building is not. Below the door only: TowerProcess climbs, it cannot descend.
+        boolean stalled = leg > 1 && away >= best;
+        boolean overhead = home.getY() - at.getY() > RETURN_ARRIVED_WITHIN;
+        BotProcess run;
+        String what;
+        if (stalled && overhead) {
+            String pillar = pillarBlock(rig);
+            run = new TowerProcess(home.getY(), pillar);
+            what = "上一段没拉近，改垒柱上到 y=" + home.getY() + "（用 " + pillar + "）";
+        } else {
+            run = new IntentProcess(new Intent(new Goal.Near(home, RETURN_ARRIVED_WITHIN)));
+            what = "贴到门那一格上（3D 目标，行军只管平面）";
+        }
+        rig.attempting("第 " + leg + "/" + CLIMB_LEGS + " 段：" + what + " → " + xyz(home));
+        rig.settle(run, MARCH_LEG_TICKS, () -> {
+            BlockPos now = rig.player().blockPosition();
+            int ended = (int) Math.round(Math.sqrt(now.distSqr(home)));
+            rig.evidence("return.climb." + leg, what + "：" + xyz(at) + " → " + xyz(now)
+                    + "（距门 " + away + " → " + ended + " 格）" + JourneyLeg.walkerEnd(rig));
+            climbLeg(ctx, rig, home, leg + 1, Math.min(best, ended), then);
         });
     }
 
