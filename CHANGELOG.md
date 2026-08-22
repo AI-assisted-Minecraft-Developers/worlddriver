@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-22
 
+- **A scene gets its body from one place, and that place asks whether minting one is legal here.**
+  `SceneBody` replaces 165 direct calls to `ServerWorldDriver.createIsolated` and
+  `ServerPlayerAvatar.createUnique`, six of which had been copied into per-file `body(ctx, foot)`
+  helpers. The rule it carries is the 2026-08-20 body-selection instruction — `JoinedBody` on the
+  dedicated test server *only*, a real client's `LocalPlayer` where there is one — and the word that
+  decides the shape is *only*: it divides by TOPOLOGY, not by what a scene is testing. On an
+  integrated server the seam refuses and records a skip naming where the coverage lives; everywhere
+  else it is the same four lines the call sites already wrote. **Covering only the driver factory
+  would have been a lie**: `createUnique` is the other half, 92 of the 165 sites take it, and both
+  bottom out in `ServerAvatarBodies.unique`, so a half-gate would have halved the bodies and reported
+  the rule as enforced. Three factories (`mint` / `managed` / `bare`), deliberately not merged —
+  merging would have added an `unregister` where there was none or emptied an inventory a scene had
+  just filled, and the dedicated arm has to stay byte-identical because it is what every skipped
+  scene's coverage is handed to. Verified: `stagewrightDedicatedServerFabric` before and after are
+  the same 306 scenes with the same 302/3/1 and the same 25 skips, and **not one scene changed its
+  conclusion**.
+- **The integrated gate holds until a player is really there.** Both loaders' `stagewrightIntegratedServer`
+  were missing `stagewright.awaitPlayer`, so the suite armed at `SERVER_STARTED` — before the local
+  player is placed. A body-source rule that asked 「is a human here」 would then answer differently
+  part-way through one run: scenes that got in early mint, later ones skip, and the split is decided
+  by boot speed. Fixed on both sides — the predicate now asks only about the shape of the JVM (a
+  client hosting its own world, with the client half of the driver loaded), which is settled before
+  the first scene, and the run configuration guarantees the client is actually there.
+- **The comment that denied a seam its own run had exercised.** `fabric/build.gradle` told the reader
+  all three ladder topologies drive the ladder's own avatar and that driving the human client's player
+  「does not exist」. `journeyIntegratedServer` has adopted the real player for some time, and a run of
+  it recorded `journey.body=real:ServerPlayer Player452` against the headless arm's `joined` — that
+  pair is how the deep-water jump gate was found. Rewritten to say which topology does which, and why
+  `realPlayerBodies` stays on regardless.
 - **Both portal directions now share one crossing driver.** `JourneyPortalEntry.crossThrough(ctx, rig,
   portal, Crossing)` is what rung 13 already was, with the only two direction-specific things — which
   world the body is leaving, and what happens once it is out — lifted into a parameter. Rung 17's walk
