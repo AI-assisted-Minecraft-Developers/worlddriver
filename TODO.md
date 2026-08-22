@@ -865,6 +865,40 @@ BotApiImpl.java:73          private final BotState state   = new BotState();
 而 `JourneyFlight` 有 11 处直接读它们。那一档要扩 `status()` 才能修，
 **属于 19–20 级，先记不修**——现在改它会把这一趟的归因弄脏。
 
+### 已落地（`748ac471`），以及我给的任务书里被量出来的三处错
+
+`JourneyRig.slot/slotError/slotEnd` 与 `startLeg` 同形分流，19 处槽位读数改成走它；
+`BotHooks.impl()` 为 null 时退回服务端**并写 `slotRead.fellBackToServerState`**——
+静默退回死通道正是这一轮要消掉的东西本身。
+
+**我的任务书有三处说错了，janitor 都用读数顶了回来，采纳：**
+
+1. 我说 `JourneyFlight:299` 读的是 `pathMove` 那批所以转不了。**不成立**——它读的是
+   `goalReached`/`endReason`，两个都在 snapshot 里。真理由是它上面那道闸
+   `rig.body().finished()` **本身就是同族死通道**，把读数路由到一道死闸底下什么都不会变。
+   ⇒ **修好通道却留一条假注释，比不修更坏。**
+2. 我说「journey 包里的都要改」。`JourneyUnwedgeScenes:273`、`JourneyLeg.walkerEnd`
+   **不能改**：它们没有 rig，自己 `driver.runProcess` + `driver.tick()` 驱动一具隔离 driver，
+   服务端那份 BotState 就是写它的那份，**任何拓扑上都是**。
+3. 我说 `JourneyPortalRung:1931` 可能是同一个误读。**不是**——它讲的是「服务端哪个 writer
+   写 `botState().mine`」，讲的是 writer 不是哪一侧，而且那两行读数早就删了，没有活着的读数在误导人。
+
+### 同族的另外三条死读数（已确认，本轮没改）
+
+| 处 | 读什么 | 为什么是死的 |
+|---|---|---|
+| `JourneyFlight:298` | `rig.body().finished()` | 进程给了 `BotHooks.impl().runProcess`，服务端 driver 从没拿到过进程。`JourneyRig.legEnded` 已经用 `userTaskLeg()` 路由对了，**这一处绕过了 rig** |
+| `JourneyFlight:561` | `rig.body().avatar().dbgSneak()` | 跑的是客户端 walker，蹲的是客户端 avatar |
+| `JourneyEndRungs:1385` | `rig.body().avatar().placeTally()` | 累加器挂在没在放方块的那具身上 |
+
+更弱一档但记一笔：`rig.body().world()`（`JourneyEndRungs:1371`、`JourneyNetherRungs:1602`）——
+`ClientWorldView` 接了 `WorldModel`/HazardField，服务端 view 没有，
+所以「规划器会怎么看这一格」两边能给出不同答案。**不是死通道，但不是同一个证人。**
+
+查过并确认**没有**分裂的（零结果是在通道活着时查的，范围是整个 `journey/` 29 个文件不是抽样）：
+`canBreak`（谓词，非累加状态）、`BotConfig.*`（同 JVM 同一批 static 字段）、
+`ServerAvatarManager.*`（已分流）、`Walker.lastStats`（journey 包里根本没人读）。
+
 ## 🌊 淹死那一格：**逃生反射开火了，而它带的预算比它自己的补救所需要的还少**
 
 ```
