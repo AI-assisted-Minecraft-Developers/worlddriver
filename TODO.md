@@ -214,6 +214,61 @@ blocks.carried  279 个可放置方块（cobblestone×122，dirt×140，andesite
 **仍然复现的老缺陷**：`advancement.obtain_blaze_rod = not-earned`，而包里有 1 根。
 真梯上也一样，不是排练特有的。
 
+### 整趟真梯跑完了：**零布景爬到 16 级**，卡在 17 级（2026-08-22 08:0x）
+
+```
+journey.height        EYE_OF_ENDER      ← 爬到 16 级
+journey.floor         PORTAL_KIT        ← 承诺的地板，10 级
+journey.summit        DRAGON
+journey.stagingCalls  0                 ← 全程零布景
+```
+
+**先纠正一个我差点写反的读法。** results 里 22 行有 20 行 PASS，包括
+`journey18EndPortal` / `19End` / `20Dragon`，我第一眼当成了假绿。**不是。**
+它们的 `reason` 写着 `skipped: BLOCKED: 上游阶段 … 未达成`——**跳过，如实登记**。
+`journey99Verdict` 也不是「通关判词」，它是一个**棘轮**：只在**跌破承诺地板**时判负
+（`reached < floor`），并且先断言 `stagingCalls` 为空。按它自己的契约，这个 PASS 诚实。
+
+**但棘轮已经落后六级。** 地板还钉在 `PORTAL_KIT`(10)，而这趟零布景到了 `EYE_OF_ENDER`(16)。
+也就是说**现在从 16 级退回 10 级，判词照样绿**——棘轮眼下几乎什么都没护住。
+
+**不在这一趟抬地板**，理由是我自己记过的
+[[three-greens-cannot-see-a-one-in-four]] / [[the-ladder-is-not-reproducible]]：
+一趟就抬，等于把方差改判成回归，后面每趟都要花时间去洗假红。
+抬到哪一级要看**多趟同死因分布**，不是看最好的一趟。**这条单独立项。**
+
+**另有一处名副其实的空洞**：`rung.BED FAILED — 尚未脚本化`，而 `wd.journey07Bed` 报 **PASS**
+（`reason: skipped: NOT_SCRIPTED`）。这一级**从来没写过写死步骤**，一直以 PASS 的样子躺在
+结果文件里。`skip-is-not-coverage` 的又一例，只是这次跳过是合法的、登记也是诚实的，
+危险的是**只 grep outcome 的读者**（包括我）。
+
+### 真正的阻塞：17 级要回主世界，而这趟没留下回得去的门
+
+```
+rung.STRONGHOLD  FAILED
+reason  回不去主世界：身边 24 格内没有 nether_portal 方块
+        （身体在 the_nether 332,41,348）——要塞在主世界，这一级必须先走回去，
+         而这个运行没有留下能走回去的门
+return.needed    True
+return.portal    无
+start.at         332, 41, 348   （进下界时落在 6,41,3）
+stronghold.baked -1168, 64, 1296
+stronghold.away  1774 格
+```
+
+**死因清楚且是「缺一个写死步骤」，不是引擎缺陷**：14~16 级把身体越带越深
+（进门时 6,41,3，现在 332,41,348），而**梯子里没有任何一级负责走回传送门**。
+17 级到场时身体在下界深处，脚下没有门。
+
+按定序（先写死步骤，不要上来补引擎能力）：下一步是给 17 级——或它之前——补上
+**「回到自己点亮的那道门并走回去」**。门的两侧坐标梯子都记过
+（地表门 2,58,20；下界侧落点 6,41,3）。
+
+**要先量、别先写**：从 332,41,348 走回 6,41,3 是 ~470 格下界路程，
+而 14 级那条走廊 200 格石料就走得很吃力。所以第一件事是**量这段路要多少**，
+而不是直接写一个「走回去」然后看它超时——
+上一次我用读代码抢答产量，就错了两处（[[a-threshold-is-not-a-yield]]）。
+
 ### 还开着（不在这一轮）
 
 - **`advancement.obtain_blaze_rod = not-earned`，而包里有 2 根。** 这具身体拿到了物品却没拿到
