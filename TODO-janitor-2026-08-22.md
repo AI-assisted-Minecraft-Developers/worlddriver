@@ -1511,4 +1511,71 @@ javadoc 把规则写死：**scheduler 里的类可以「传递」客户端类型
   「a guard that refuses what works replaces a route with a worse one rather than a safer one」）。
   **F9 只针对比 3 更远的那四个**，不要把这两个一起改。
 
+### 3a. 两个 use 点的判定（coordinator 08-22 只读任务）
+
+**`JourneyEndRungs:1001`（`setOneEye`，装 12 只末影之眼）—— 三问全清。**
+
+- **(1) 瞄准**：全文没有 `aimAtBlock` / `aimBoth` / `aimThenAct` / `aimedAt`（整文件 0 命中）。
+  **不是缺陷**，而且理由比「包里带 hit result」更硬：`BotInteract.clientUseItemOn:123-127`
+  自己合成 `new BlockHitResult(new Vec3(cx,cy,cz), face, clickBlock, false)`，
+  **客户端也不射线**，所以朝向对两侧都不是输入。类 javadoc 第 98 行已经写了这一条。
+  文件里没有任何 `aimedAt(rig.player(), …)` 消费者。
+- **(2) 判据**：服务端。`hasEye(level, frame)`（:2610）读 `EndPortalFrameBlock.HAS_EYE`，
+  `level = levelOf(rig)`（:2797）= `(ServerLevel) rig.player().level()`。
+  `useBlock` 的 `InteractionResult` **被丢弃**，没有依赖客户端预测。
+  use 与读之间**有往返**：`rig.settle(new HoldStill(2), 10, …)`（:1002）。
+  形状正确，但 **2/10 是这一族里最薄的余量**（`pourInto` 10/20，`strike` 5/20），
+  且连做 12 次 —— 真有往返边际问题会先在这里、以「第 N 只眼 missed」的散布形态冒出来，
+  读起来像瞄准／距离缺陷。
+- **(3) 失败分支**：只 `rig.evidence(...)` 然后无条件 `setOneEye(i+1)`。**不改世界 → 读数问题**，
+  不进高一档。`!held` 分支同样只打印后照点（在框上是 no-op）。
+  唯一能改行为的闸是 :987 的 `rig.carrying("minecraft:ender_eye") < 1`，
+  而陈旧读数只会偏**高**（消耗使其递减），错向「继续」，安全。
+- 附带（B-1 族）：证据行里的 `reach` 是
+  `Math.sqrt(rig.player().blockPosition().distSqr(frame))` —— **脚下格心到方块格心**，
+  与服务端真正判的量不是一回事（见 3b）。只进证据不进分支，但拿它跟 4.5/5.5 比会被误导。
+
+**`JourneyPortalRung:2741`（`strike`，打火石点门）—— 三问全清，但瞄准是死码。**
+
+- **(1) 瞄准**：有 —— :2740 `WorldDriverJourneyScenes.aimThenAct(rig, hearth, …)`
+  = `settle(HoldStill(2), 10, () -> { aimBoth(rig, at); act.run(); })`，`aimBoth` 两具身体都瞄。
+  **但没有消费者**：`JourneyPortalRung` 里仅有的两处 `aimedAt(rig.player(), …)` 在 **2320 / 2555**，
+  而 `strike` 是 **2729-2755**。按 `aimBoth` 自己 javadoc 收尾那句
+  （「a fill/pour site with **no** server-side prediction gate needs none of this」），
+  服务端那半在这里是惰性的；客户端那半也不承重（合成 hit result + `FlintAndSteelItem.useOn`
+  只读 clicked pos/face/state）。**:2735-2739 那段注释把 strike 说成依赖瞄准，
+  而机制上并不依赖 —— 正是 `aimBoth` 的 javadoc 想拦的误导。**
+- **(2) 判据**：服务端。在 `rig.settle(new HoldStill(5), 20, …)` 之后数
+  `level = ctx.level()`（ServerLevel）上 2×3 框里的 `Blocks.NETHER_PORTAL`；
+  `useBlock` 返回值**被丢弃**。正确，余量宽裕。
+- **(3) 失败分支**：`ctx.expect(lit).isEqualTo(6)` + evidence。**不改世界 → 读数问题**。
+  而且是该级末步，后续没有步骤会拿错读数去动手。
+
+### 3b. `handleUseItemOn` 的服务端闸（javap -c 实测，不是推理）
+
+`ServerGamePacketListenerImpl.handleUseItemOn`（1.21.1 named jar，
+`.gradle/loom-cache/…/minecraft-merged-0c62d10ff0-…jar`）按字节码顺序：
+
+1. `ackBlockChangesUpTo(seq)`；
+2. **off 82-95**：`player.canInteractWithBlock(hit.getBlockPos(), 1.0)` 为假 → **静默 `return`**。
+   `Player.canInteractWithBlock` 实测是
+   `new AABB(pos).distanceToSqr(getEyePosition()) < (blockInteractionRange() + padding)²`，
+   `blockInteractionRange()` = 属性 `BLOCK_INTERACTION_RANGE`（默认 4.5）→ 阈值 **5.5**，
+   量的是**眼睛到方块 AABB 表面**，既不是脚也不是格心。
+3. **off 96-196**：`|hit.getLocation() - Vec3.atCenterOf(pos)|` 每轴必须 < `1.0000001`，
+   否则 WARN `Rejecting UseItemOnPacket from {}: Location {} too far away from hit block {}.` 并 return。
+   `clientUseItemOn` 合成的点恰在面心，单轴偏移 **0.5**，**合法且余量一倍**。
+4. `awaitingPositionFromClient != null` → 跳过整个 `useItemOn`，**静默**。
+5. `level.mayInteract(player, pos)`（出生保护／世界边界）→ 假则跳过。
+6. **全程不读任何角度**：服务端这条路上 `useBlock` 确实与瞄准无关，实测坐实。
+
+可操作的三条：
+- **`Goal.Near(frame, 3)` / `Goal.Near(hearth, 3)` 相对 5.5 有余量**，两处都不是距离问题。
+- **第 2 步失败零日志零聊天**，所以「眼没装上」在服务端不会留痕，只会剩 `eye.N.missed` ——
+  这正是把距离问题读成瞄准问题的入口。
+- 第 4 步只在**真玩家被服务端 tp 后、客户端确认前**的窗口内咬人。
+  journey 里唯一 tp 真玩家的地方是 `JourneyRig.java:352`（SPAWN 级），
+  离这两个 use 点隔着整条梯子，**当前不构成风险**；其余 `moveTo`/`teleportTo` 都作用在
+  `fakePlayer()` 上，根本不走这条包路径。**记下来，免得下一个人重新推一遍。**
+
 （随确认随记）
