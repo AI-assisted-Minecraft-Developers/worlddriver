@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-22
 
+- **A hand is held on both bodies now, because only one of them was ever told.** On
+  `runJourneyIntegratedServer` the ladder's body is an adopted real `ServerPlayer` with a live
+  client, and its selected hotbar slot has **two authors that cannot see each other**.
+  `ServerPlayerAvatar.selectTool` — the engine's `MineProcess` path, which this ladder still steers
+  for `d.mine` — writes `inv.selected` on the server and sends no packet; its comment says "this
+  body's connection swallows them anyway", which is true of a headless `AvatarFakePlayer` and false
+  here. `BotInteract.ensureHolding` then opens with `if (inv.getSelected().getItem() == item) return
+  true;`, correct for a real player whose selected slot only ever moves from the client, and wrong
+  for a body a second helm steers. So a mine between two uses moved the server's hand, the next hold
+  saw the client's hand already right and sent nothing, and the server ran the **wrong item's**
+  `use`. A pickaxe's `use` returns `PASS`: no exception, no chat, no sound, no log line — byte-
+  identical to every other way a use can do nothing. Measured on rung 12: exactly **one** use ever
+  took effect server-side (the first, before any mining), and every one after it was silent.
+  `WorldDriverJourneyScenes.holdBoth` is the twin of `aimBoth`, one field over — each body resolves
+  the slot **by item within its own inventory**, so it stays correct even after two inventories have
+  diverged, and it returns the CLIENT's answer because the client is the body that runs `useItem`.
+- **What it cost to find, and the three readings that could not say it.** The pour had
+  `.hand` (the SERVER, before the selection packet has flown), `.result` (the CLIENT's own return
+  value — and `sidedSuccess` makes `SUCCESS` mean only "the client ran it") and `.spent` (the SERVER
+  after a round trip): three readings, two bodies, three moments, no two describing the same thing.
+  Two prettier mechanisms died to `javap -c` first — the server re-raying with a stale angle
+  (`ServerboundUseItemPacket` **carries** yRot/xRot and `handleUseItem` adopts them at bytecode 123,
+  before `useItem` at 141) and the slot packet losing a race to the use packet
+  (`ensureHasSentCarriedItem()` is at offset 15, ahead of `startPrediction`). Both exclusions are now
+  in the javadoc so the next reader cannot re-walk them. What actually named the defect was the
+  **stock table** — `waterFill` succeeded, `water0.spent = water_bucket 1→1`, `lava0 lava_bucket
+  0→0`, server stock `空=0 水=1 岩浆=0` — plus the run's own prediction gate exonerating the ray
+  (`lava0.aimsAt#3 = -9,63,18 minecraft:lava 源块=true` at 3.5 m).
+- **`handsAtUse` is the repo's first reading of two bodies at one moment.** One row, at the instant
+  of the use: both bodies' slot, item, eye to the centimetre, angle, and where each one's ray stops
+  in **both** fluid modes (an empty bucket clips `SOURCE_ONLY`, a full one `NONE`, and the two differ
+  exactly where this rung lives). It exists because a pour that does nothing has two causes vanilla
+  logs identically — wrong item in hand, or `getPlayerPOVHitResult` returning `MISS` inside the 4.5-
+  block cap — and neither speaks. Post-fix it reads 16 rows with **zero divergence**, and rung 12's
+  ten pours went from 0 spent to 16 of 16 (`ticks 5312 → 14525`). `aimedAt` was widened from
+  `ServerPlayer` to `Player` to make it; `Player` is also the widest type safe to name in code that
+  also runs headless, which is why `Avatar.player()` is declared to return it.
+- **The engine-side half is filed, not fixed here.** `ServerPlayerAvatar.selectTool` / `holdItem` /
+  `setSelectedSlot` all write `inv.selected` without a `ClientboundSetCarriedItemPacket`. Correct for
+  a headless body, a silent two-way divergence source for an adopted one. The ladder is covered by
+  `holdBoth`; any caller going through the engine helm still steps in it.
 - **The last unscripted rung has steps, and the flock is chosen by colour rather than by distance.**
   `wd.journey07Bed` was the ladder's only remaining `unscripted(...)` placeholder. It printed
   `NOT_SCRIPTED` and — because that path records PASS with `skipped=true` — **counted as a pass in
