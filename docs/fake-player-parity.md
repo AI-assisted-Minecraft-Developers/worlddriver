@@ -233,7 +233,7 @@ fabric/build.gradle:481   runRehearsalServer
 | T14 | `changeDimension` 目的地丢失 | 已修：`AvatarNetHandler.java:81-88` 让 `teleport(...)` 真的 `absMoveTo`（neoforge 的 `FakePlayerNetHandler.teleport` 在 `:254` 是 no-op，这就是 87501 格的来源） | 换维后断言坐标等于期望坐标（±1）。**但这条只覆盖 A/B**：C 穿的是 vanilla 的真 listener，走的是另一条路，必须**单独**验证一遍 |
 | T15 | 传送不重算流体标志 | 补一次 `updateInWaterStateAndDoFluidPushing()` | 在水里传送到干黑曜石上，断言 `isInWater() == false`。缺陷存在时为 `true` → 红 |
 | T16 | 装备属性同步 | 已有：`EQUIP_MEMO` + `syncEquipmentAttributes()`（`:668-711`，gap #46） | 换上钻石靴断言 `Attributes.ARMOR` 变化；脱下断言回落。两条臂 |
-| **T17** | **水底起跳：闸问错了量（新发现 N21，行号锚 `b71981e3`）** | 跳跃闸是 `soleOnSolid(...) > 0`（`ServerPlayerAvatar.java:1054-1055`）→ `fp.jumpFromGround()`（`:1087`），**只问脚底贴没贴住实心，从不问水有多深**。vanilla 的判据是流体高度：`LivingEntity.aiStep` 的 jump 分支里 `bl && (!onGround() \|\| g > h)` → `jumpInLiquid`（+0.04），只有 `onGround() \|\| (bl && g <= h)` 才 `jumpFromGround()`，其中 `h = getFluidJumpThreshold()`（`Entity`：`eyeHeight < 0.4 ? 0.0 : 0.4`，玩家 = 0.4）。补法：把 `footed` 改成 vanilla 那个复合谓词，`getFluidHeight(WATER)` 在 `step()` 里是活的（`fp.baseTick()` 每 tick 跑） | **实测已在手**（§6.8）：同一格 `64,61,60`、同一 tick、同一 `支=stepUp`，服务端首 tick **+0.420**、客户端 **+0.035**。验收臂见 §6.8 末尾的 `bottomedDeep` 预登记：两格水、踩池底、按住跳，断言**没有**单 tick 抬升 > 0.3。今天红，修好转绿。**注意 `wd.buoyantJumpStaysABob` 现有的 `bottomed` 臂断言的是 vanilla 没有的行为，必须一起改，否则 T17 一修它就红** |
+| **T17** | **水底起跳：闸问错了量（新发现 N21，行号锚 `b71981e3`）** | 跳跃闸是 `soleOnSolid(...) > 0`（`ServerPlayerAvatar.java:1054-1055`）→ `fp.jumpFromGround()`（`:1087`），**只问脚底贴没贴住实心，从不问水有多深**。vanilla 的判据是流体高度：`LivingEntity.aiStep` 的 jump 分支里 `bl && (!onGround() \|\| g > h)` → `jumpInLiquid`（+0.04），只有 `onGround() \|\| (bl && g <= h)` 才 `jumpFromGround()`，其中 `h = getFluidJumpThreshold()`（`Entity`：`eyeHeight < 0.4 ? 0.0 : 0.4`，玩家 = 0.4）。补法：把 `footed` 改成 vanilla 那个复合谓词，`getFluidHeight(WATER)` 在 `step()` 里是活的（`fp.baseTick()` 每 tick 跑） | **实测已在手**（§6.8）：同一格 `64,61,60`、同一 tick、同一 `支=stepUp`，服务端首 tick **+0.420**、客户端 **+0.035**。验收臂见 §6.8 末尾的 `bottomedDeep` 预登记：踩池底、按住跳，断言**没有**单 tick 抬升 > 0.3。今天红，修好转绿。**注意 `wd.buoyantJumpStaysABob` 现有的 `bottomed` 臂断言的是 vanilla 没有的行为，必须一起改，否则 T17 一修它就红** |
 | **T18** | **起跳没有冷却（新发现 N22）** | vanilla 每次 `jumpFromGround()` 后置 `noJumpDelay = 10`，并以 `noJumpDelay == 0` 为闸；`ServerPlayerAvatar` 写了 `lastJumpTick`（`:884` 声明、`:1058` 写入）却**只被一个调试读数读**（`:881` `dbgLastJumpTick`），**从来不是闸**。补法：加 10 tick 冷却 | 按住跳 30 tick，断言 `jumpFromGround` 触发次数 ≤ 3。缺陷存在时每 tick 一次 → 红。**必须和 T17 分开验收**：T17 的臂在水里，这条的臂在干地上，否则两个自变量混在一起 |
 | **T19** | **客户端身体没有 `canBreak`（新发现 N20）——这一条是「客户端缺能力」** | `Avatar.canBreak` 的默认实现是 `default boolean canBreak(BlockPos pos) { return true; }`（`bot/movement/Avatar.java:120`），`ClientPlayerAvatar` 不覆盖它；只有 `ServerPlayerAvatar.canBreak`（`:471` 起 → `canBreakFromHere`：exposed + `blockInteractionRange() + 0.5`）是真的。后果：`MineProcess.java:424` 那条「exposed 却仍然 break 不了 ⇒ 退掉树冠、去砍齐眼高的树干」的退路在客户端是**死代码**，而它的注释写着不走这条退路「cost the journey's wood rung all six logs」。补法：在 `ClientPlayerAvatar` 覆盖 `canBreak`，用客户端自己的 `blockInteractionRange`。**⚠️ 这个文件在 `bot/movement/`，不是 parity 的产权** | 站在 8 格外对一根暴露的原木问 `canBreak`，断言 `false`；站在 3 格内问，断言 `true`。缺陷存在时前者也是 `true` → 红。**两条臂缺一不可**，只测近的那条就是 `0==0` |
 
@@ -869,12 +869,47 @@ else if (inWater) { … dm.y + 0.04 … }                                       
 所以这条场景今天绿，绿的原因是它要求这具身体**保留**一条特权。
 （这一条是从源码推的算术，不是实测；实测只覆盖了两格深水那一侧。所以下面第二点是必须做的。）
 
+> **第 2 步那趟闸会把这句算术变成实测。** 落地的臂给三条臂都记了 `<arm>.fluidAtRest`
+> （`heldJump` 在三次 settle 之后、起跳循环之前采样），所以 `bottomed.fluidAtRest` 会直接印出来：
+> **若它 ≈ 0.889 且 > `jumpThreshold`（0.4），上面这段推理即被这趟运行证实**，
+> 第 3 步改 `bottomed` 就不再是「按源码推的」。**这条读数是白拿的**——它跟着新臂一起落地，
+> 不占额外闸位。若它反而 ≤ 0.4，那是我推错了，第 3 步的第 2 点作废，届时照实说。
+
 **T17 的验收设计（预登记，缺陷存在时会红）**：
 
-1. 加第三条臂 `bottomedDeep` —— **两格**水、身体踩在池底、按住跳，断言**没有**任何单 tick 抬升 > 0.3。
+1. 加第三条臂 `bottomedDeep` —— 身体踩在池底、按住跳，断言**没有**任何单 tick 抬升 > 0.3。
    **今天这条会红**（本节实测 +0.420），修好转绿。这条臂就是这次对照缺的那一条：
    现有两条臂一条「浮着」一条「一格水」，**没有一条问「踩在深水底」**，
    而真梯死在的正是那一格。
+
+   > **落地时对本条预登记的修订（2026-08-22，臂已落地，闸未跑）。** 上面原本写的是「**两格**水」，
+   > 实际落地的是**复用 `afloat` 那口五格深池的池底**，不新建水池。理由是几何而非偏好：
+   > `buildFloor` 只在 ±5 铺石头（`WorldDriverCoreScenes.java:129-136`），`afloat` 占了
+   > `dz -5..-1`、`bottomed` 占了 `dz 1..5`，中间那排干的 `dz=0` 是**把两池隔开的承重结构**，
+   > 第四口池没有受保护的中心。复用还有一个白拿的好处：**这次改动一块方块都没新增**，
+   > 于是不给场景的漏水审计增加任何新面。新臂放在 `dz=-2`（`afloat` 在 `dz=-3`），
+   > 两具身体宽 0.6、中心相距 1.0，包围盒不相交。
+   >
+   > **这个修订不放宽判据，只是换了个更深的座位**，而且要点在于：
+   > **两种布景读出来的液高几乎一样**。`updateFluidHeightAndDoFluidPushing` 只遍历
+   > `q ∈ [floor(aabb.minY), ceil(aabb.maxY))`——**身体自己占的那两排，不是它上方的水柱**。
+   > 所以两格水读 ≈1.889、五格水读 ≈1.999，**都不是 4.89**。谁要是期待「五格水就该读 5」，
+   > 那是把「水有多深」和「身体淹了多深」搞混了。
+   >
+   > **预登记第 2 步应当看到的红是什么形状**（不只是「必须红」——本仓库被「方向对、原因错的红」
+   > 坑过：`the-test-reproduced-the-bug-in-its-own-staging`）：
+   >
+   > | 读数 | 预期值 | 若不符则说明 |
+   > |---|---|---|
+   > | `bottomedDeep.restY` | **== standY**（严格相等） | 身体没坐到池底 ⇒ 布景错，臂会以「arena, not the gate」判词红 |
+   > | `bottomedDeep.fluidAtRest` | **≈ 2.0**（> 阈值 0.4） | 淹得不够深 ⇒ 布景错，同上 |
+   > | `bottomedDeep.first` | **≈ 0.42** | 这是本节实测的 +0.420，不是算术 |
+   > | `bottomedDeep.rises` | **≥ 1** | 若为 0，说明闸已经是 vanilla 的了，而 §6.8 的实测否定这一点 |
+   >
+   > 于是第 2 步的读法是三分的，不是二分的：**带上表签名的红 = 缺陷证实，进第 3 步**；
+   > **判词里出现 "The arena, not the gate, is wrong" 的红 = 臂自己错了，退回第 1 步**；
+   > **绿 = 臂没咬住**。这四条读数都无条件写进 results 的 `data`（`ctx.record`，不是 `passNote`
+   > ——`passNote` 只在 PASS 时出现，而这条臂预期是 FAIL，用它等于把证据写进一个不会被打印的字段）。
 2. `bottomed` 那条臂必须同时改成「**流动水/低液面**（`getFluidHeight ≤ 0.4`）里踩在实心上仍要 0.42」，
    否则 T17 一修它就红——**而那条红会是断言错了，不是修法错了**。改完之后它才真的在测
    vanilla 的浅水地面跳，而不是在测这具身体的特权。

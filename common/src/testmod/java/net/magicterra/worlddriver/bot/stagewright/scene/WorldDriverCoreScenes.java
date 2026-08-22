@@ -42,6 +42,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -826,11 +827,52 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *       must still make a {@code 0.42}. This is the "ground / shallow-water jump" the branch has
      *       always promised, and it is the direction an over-correction breaks — a fix that refused
      *       all jumps in water would pass the afloat arm and fail here.</li>
+     *   <li><b>bottomedDeep</b> — the SAME pool as afloat, but the body released on its BOTTOM
+     *       instead of at its surface. Neither of the first two arms asks this: one has no support
+     *       under it, the other has support but only a finger of water over it. See below.</li>
      * </ul>
      *
      * <p>The discriminator is the same one {@code wd.climbableGroundJump} uses and needs no internal
      * state: a single-tick rise {@code > 0.3} can only be the ground jump, since the buoyant bob adds
      * {@code 0.04} and vanilla's own water travel is slower still.
+     *
+     * <h2>Why a third arm, and what the first two were quietly agreeing to</h2>
+     *
+     * <p>The two arms above split the space by SUPPORT and then stopped, so the whole of "supported
+     * AND deeply submerged" fell outside both. Vanilla does not split it that way. Its rule
+     * ({@code LivingEntity.aiStep}, jump branch) never asks about support first: with
+     * {@code g = getFluidHeight(WATER)} and {@code h = getFluidJumpThreshold()}, {@code g > h} sends
+     * the body to {@code jumpInLiquid} (+0.04) <em>whether or not it is standing on anything</em>,
+     * and only {@code onGround() || (inWater && g <= h)} reaches {@code jumpFromGround()} (0.42).
+     * Support is the tiebreak in the shallow case, not the question.
+     *
+     * <p>{@code ServerPlayerAvatar} asks support and nothing else — {@code soleOnSolid(...) > 0}
+     * (ServerPlayerAvatar.java:1054-1055) gates straight to {@code jumpFromGround()} (:1087), with
+     * the {@code +0.04} only as the else-branch (:1094). Over a floor the two rules agree; on a pool
+     * bottom they disagree by an order of magnitude, and this arm is the cell where they do.
+     *
+     * <p>This was not hypothetical when the arm was written. A controlled A/B on one seed had the
+     * dedicated-server body take {@code +0.420} out of a two-deep swamp cell and walk ashore, while
+     * the client body in the byte-identical cell took {@code +0.035} and bobbed at the surface until
+     * the leg timed out — see {@code docs/fake-player-parity.md} §6.8 (T17 / N21).
+     *
+     * <p><b>The arena adds no blocks.</b> It reuses afloat's five-deep pool one column over
+     * ({@code dz=-2} against afloat's {@code dz=-3}: the bodies are 0.6 wide and their centres 1.0
+     * apart, so their boxes never meet). That is deliberate beyond thrift — {@code buildFloor} lays
+     * stone only within ±5, afloat and bottomed already own {@code dz -5..-1} and {@code 1..5}, and
+     * the dry {@code dz=0} row between them is load-bearing separation. A fourth pool would have had
+     * no protected centre. Reusing this one also states the finding plainly: the deep water was here
+     * the whole time; the arena was never asked to put a body at the bottom of it.
+     *
+     * <p><b>On the {@code bottomed} arm as it stands.</b> Under one source block with air above,
+     * {@code FlowingFluid.getHeight} returns {@code getOwnHeight() = amount/9 = 0.889}, which is
+     * already above the {@code 0.4} threshold — so vanilla bobs there too, and that arm's demand for
+     * a {@code 0.42} is a demand that this body KEEP a privilege vanilla does not grant. A scene that
+     * asserts behaviour vanilla does not have, and is green for years because of it, has turned a
+     * privilege into a contract. It is left exactly as it is here on purpose: this commit only adds
+     * the arm that should be red, so that the red can be observed before anything is fixed. Correct
+     * it to genuinely shallow water ({@code getFluidHeight <= 0.4}) in the same commit that fixes the
+     * gate — before then, changing it would hide which of the two the gate run is answering.
      */
     private static void buoyantJumpStaysABob(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -848,10 +890,27 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             for (int dz = 1; dz <= 5; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.WATER.defaultBlockState());
 
-        int afloat = heldJump(ctx, level, cx, standY + 4, cz - 3, "afloat").rises();
-        int bottomed = heldJump(ctx, level, cx, standY, cz + 3, "bottomed").rises();
-        WorldDriverCommon.LOG.info("[wd.buoyantJumpStaysABob] afloat={} bottomed={}", afloat, bottomed);
-        ctx.passNote("afloat=" + afloat + " bottomed=" + bottomed);
+        // Order is load-bearing: afloat and bottomed run first and in their original order, so this
+        // commit cannot move either of the two readings that are already green.
+        HeldJump afloatArm = heldJump(ctx, level, cx, standY + 4, cz - 3, "afloat");
+        HeldJump bottomedArm = heldJump(ctx, level, cx, standY, cz + 3, "bottomed");
+        HeldJump deepArm = heldJump(ctx, level, cx, standY, cz - 2, "bottomedDeep");
+        int afloat = afloatArm.rises(), bottomed = bottomedArm.rises(), deep = deepArm.rises();
+        WorldDriverCommon.LOG.info("[wd.buoyantJumpStaysABob] afloat={} bottomed={} bottomedDeep={}",
+                afloat, bottomed, deep);
+
+        // ctx.record, not passNote: a passNote is surfaced only when the scene resolves PASS, and the
+        // new arm is expected to FAIL first. Recorded values travel into the results row AND onto every
+        // failure message, so a red is diagnosable from the run that produced it rather than from a
+        // second run with more logging. Keys are distinct per arm; a second write to one key would
+        // silently swallow the first. Recorded BEFORE any fail() — fail throws, so anything recorded
+        // after the first failing check would never reach the row.
+        double threshold = deepArm.jumpThreshold();
+        recordArm(ctx, "afloat", afloatArm);
+        recordArm(ctx, "bottomed", bottomedArm);
+        recordArm(ctx, "bottomedDeep", deepArm);
+        ctx.record("jumpThreshold", threshold);
+        ctx.passNote("afloat=" + afloat + " bottomed=" + bottomed + " bottomedDeep=" + deep);
 
         if (afloat > 0)
             ctx.fail("buoyantJumpStaysABob: a body floating in deep water launched " + afloat
@@ -861,6 +920,50 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("buoyantJumpStaysABob: a body resting on rock under one block of water never"
                     + " jumped. The shallow-water ground jump is what this branch has always promised;"
                     + " refusing every jump in water is an over-correction, not a fix.");
+
+        // ---- bottomedDeep: staging first, verdict second ----
+        //
+        // The two staging checks below run BEFORE the verdict, and fail() throws, so an arena that
+        // never built the stance can never reach the verdict and be scored on it. They are the
+        // difference between a green that means something and a green that means nothing was asked.
+        // Both are fix-invariant — correcting the gate changes WHICH jump the body takes, not where it
+        // was resting or how deep it was — so a failure here is always the arena's fault and says so.
+        // It must never be read as evidence about the gate.
+        if (Math.abs(deepArm.restY() - standY) > 1.0E-6)
+            ctx.fail("buoyantJumpStaysABob/bottomedDeep: the body did not come to rest on the pool"
+                    + " floor before the jump was held — restY=" + deepArm.restY() + ", expected "
+                    + standY + " (inWater=" + deepArm.inWater() + "). A body that floated here is a"
+                    + " duplicate of the afloat arm and would pass this arm without testing anything."
+                    + " The arena, not the gate, is wrong.");
+        if (deepArm.fluidAtRest() <= threshold)
+            ctx.fail("buoyantJumpStaysABob/bottomedDeep: the body was not deep enough for the question"
+                    + " to exist — getFluidHeight(WATER)=" + deepArm.fluidAtRest() + " is not above"
+                    + " vanilla's getFluidJumpThreshold()=" + threshold + ", so vanilla would take the"
+                    + " ground jump here too and this arm would be asserting a defect that is not one."
+                    + " The arena, not the gate, is wrong.");
+        if (deep > 0)
+            ctx.fail("buoyantJumpStaysABob/bottomedDeep: a body standing on the bottom of deep water"
+                    + " launched " + deep + " ground jump(s) (first-tick rise " + deepArm.first()
+                    + "). At getFluidHeight(WATER)=" + deepArm.fluidAtRest() + " > threshold "
+                    + threshold + ", vanilla's LivingEntity.aiStep takes jumpInLiquid (+0.04) and never"
+                    + " reaches jumpFromGround (0.42) — support does not enter the decision until the"
+                    + " water is shallower than the threshold. The gate at ServerPlayerAvatar.java:1054"
+                    + " asks only soleOnSolid>0, so it answers this cell with 0.42. That is the body"
+                    + " being MORE permissive than a real player, not less: see"
+                    + " docs/fake-player-parity.md T17 / N21.");
+    }
+
+    /** One arm's readings into the results row, under that arm's own key prefix. {@code later} is
+     *  left out because {@code rises} and {@code first} already determine it, and {@code jumpThreshold}
+     *  because it is a property of the body's pose rather than of the arm — the scene records it once.
+     *  Recorded values are appended to every failure message this scene raises, so each extra key is
+     *  paid for by every red, including the two arms' reds that have nothing to do with it. */
+    private static void recordArm(SceneContext ctx, String arm, HeldJump h) {
+        ctx.record(arm + ".rises", h.rises());
+        ctx.record(arm + ".first", h.first());
+        ctx.record(arm + ".fluidAtRest", h.fluidAtRest());
+        ctx.record(arm + ".restY", h.restY());
+        ctx.record(arm + ".inWater", h.inWater());
     }
 
     /** A ladder hung on a wall to its EAST (so it faces west). */
@@ -881,6 +984,20 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * came back down to jump from" produce the same count and mean opposite things, so the floor of
      * the trajectory has to be recorded, not inferred from the count.
      *
+     * <p>{@code fluidAtRest} and {@code restY} describe the STANCE the first jump was taken from,
+     * sampled after the settle steps and before the loop. They are here because the count alone
+     * cannot distinguish "the gate answered wrongly" from "the arena never produced the stance the
+     * question is about" — a body meant to rest on a pool bottom that instead floated reports the
+     * same silence a correct refusal does. {@code fluidAtRest} is vanilla's own input to the water
+     * jump rule ({@code Entity.getFluidHeight(WATER)} vs {@code getFluidJumpThreshold()}), so an arm
+     * can state its precondition in the same terms the rule reads rather than in block counts.
+     *
+     * <p>Beware what {@code fluidAtRest} is NOT: {@code updateFluidHeightAndDoFluidPushing} iterates
+     * only {@code q} in {@code [floor(aabb.minY), ceil(aabb.maxY))} — the rows the BODY occupies,
+     * never the column above it. A body standing on the bottom of a pool five deep therefore reads
+     * about 2.0, the same as one standing in a pool two deep, because both read their own two rows.
+     * It is a submersion depth of the body, not a depth of the water.
+     *
      * <p><b>It excludes the release tick, and that is the whole point.</b> The body is created AT
      * {@code standY}, so seeding {@code minY} with its starting {@code y} makes "did it come back to
      * the floor" answer YES before a single tick runs — a criterion comparing the setup with itself.
@@ -888,7 +1005,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * minimum over the ticks AFTER the first jump: the only ones during which returning to the floor
      * means anything.
      */
-    private record HeldJump(double first, int later, double minY, int minTick, boolean climbable, boolean inWater) {
+    private record HeldJump(double first, int later, double minY, int minTick, boolean climbable,
+                            boolean inWater, double fluidAtRest, double restY, double jumpThreshold) {
         int rises() {
             return (first > 0.3 ? 1 : 0) + later;
         }
@@ -904,6 +1022,13 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
+        // The stance the FIRST jump is decided from — sampled HERE, not after the loop, because a
+        // body that rose during the loop would report the depth it ended at as if it were the depth
+        // its decision was made at. ServerPlayerAvatar.step() runs fp.baseTick() every tick
+        // (ServerPlayerAvatar.java:1003), which is what keeps getFluidHeight live for a body that is
+        // on none of vanilla's tick chains; without those three settle steps it would read 0.
+        double fluidAtRest = fp.getFluidHeight(FluidTags.WATER);
+        double restY = fp.getY();
         StringBuilder head = new StringBuilder();
         double prev = fp.getY(), first = 0.0, minY = Double.POSITIVE_INFINITY;
         int later = 0, minTick = -1;
@@ -920,12 +1045,19 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             if (i < 10) head.append(String.format(java.util.Locale.ROOT, " t%d:y=%.4f dy=%.4f", i, fp.getY(), rise));
             prev = fp.getY();
         }
-        HeldJump out = new HeldJump(first, later, minY, minTick, fp.onClimbable(), fp.isInWater());
+        // Vanilla's own threshold, read off the body rather than written as 0.4 here: it is derived
+        // from eye height (Entity.getFluidJumpThreshold — eyeHeight < 0.4 ? 0.0 : 0.4), so a body in
+        // a non-standing pose answers differently, and an arm that hardcoded the standing value would
+        // compare against a number its own body was not using.
+        HeldJump out = new HeldJump(first, later, minY, minTick, fp.onClimbable(), fp.isInWater(),
+                fluidAtRest, restY, fp.getFluidJumpThreshold());
         // 底tick sits next to 底y because "came back to the floor on the LAST tick" and "came back
         // with forty ticks left and stayed silent" are the same y and opposite verdicts.
-        WorldDriverCommon.LOG.info("[held-jump] {} 首跳={} 之后>0.3={} 之后底y={} 底tick={} climbable={} inWater={}{}",
+        WorldDriverCommon.LOG.info("[held-jump] {} 首跳={} 之后>0.3={} 之后底y={} 底tick={} climbable={} inWater={} 起跳前液高={} 起跳前y={}{}",
                 arm, String.format(java.util.Locale.ROOT, "%.4f", first), later,
-                String.format(java.util.Locale.ROOT, "%.4f", minY), minTick, out.climbable(), out.inWater(), head);
+                String.format(java.util.Locale.ROOT, "%.4f", minY), minTick, out.climbable(), out.inWater(),
+                String.format(java.util.Locale.ROOT, "%.4f", fluidAtRest),
+                String.format(java.util.Locale.ROOT, "%.4f", restY), head);
         return out;
     }
 
