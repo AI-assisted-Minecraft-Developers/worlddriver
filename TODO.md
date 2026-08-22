@@ -811,6 +811,48 @@ swim pose and it sinks」。
 `YLevel` 后备本轮不修是对的——塔修好它就没机会开火。但它**已经连续两次出现在致命链上**
 （第 12 级第九格、第 9 级两条矿脉）。若本趟塔仍零收益，它升为前沿。
 
+## 🔴🔴🔴 **集成拓扑上，场景读的 `botState()` 是一份没有任何进程写过的状态**
+
+`JourneyRig.startLeg`（`:513-525`）在 `realPlayerHelm(ctx)` 时把进程交给
+`BotHooks.impl().runProcess(process)`——**客户端 helm**。而每一条槽位读数写的是
+`rig.body().botState()`，也就是 `ServerWorldDriver` 的那份。两者是**两个独立对象**：
+
+```
+ServerWorldDriver.java:46   private final BotState botState = new BotState();
+BotApiImpl.java:73          private final BotState state   = new BotState();
+```
+
+⇒ **集成拓扑上，34 处槽位读数按构造恒为 null。** 不是通道坏了，也不是没起来，
+是**读的那一份从来没有作者**。[[zero-as-evidence-needs-a-live-channel]] 的第四例，
+也是最贵的一例——它同时污染了两条已经写进结论的推理：
+
+| 行 | 我当时的读法 | 实际 |
+|---|---|---|
+| `climb.N.stalled = null` | 「builder 说没错，所以是静默失败」 | 塔很可能一直在写 `stuck (no Y gain in 60t: placed=…, phase=…, overhead=…)`，**我们从没看见过** |
+| `gotoEnd.N = end=unavailable（endReason 只在终止步写，没写=没走到终止步）` | 「进程还在走」 | endReason 写在客户端那份上了；这句解释是**从一条死通道推出来的结论** |
+
+整梯那一趟里由它派生的每一行都是 null（`vein1.mine.lastError`、`vein1.mine.endReason`、
+三处 `craftError`、每一级的 `gotoEnd`），**零个反例**——这个分布本身就该早点让人起疑。
+
+### 这是「写入侧已经修过、读取侧漏掉」的那同一个分裂
+
+`JourneyRig.avatar()`（`:378` 往下那段 javadoc）记着：36 处调用点直接拿
+`body().avatar()`，在集成拓扑上写了服务端那份 vanilla 只让客户端拥有的量，
+`wd.actuatorSplitOnAnAdoptedBody` 实测「服务端槽 4 / 客户端槽 0」。
+**执行器的分裂修了，状态读取的分裂没修。** 同一个身体、同一条边界、同一个错误方向。
+
+### 修法（起塔那一趟之前落）
+
+`BotState.snapshot()` 与 `BotApi.status()` 返回同一套槽位键
+（`goto` / `mine` / `builder` / `craft` / `smelt` …，注意是 `goto` 不是 `mc_goto`），
+每个槽里有 `lastError` / `endReason` / `goalReached` / `finalDist`。
+所以 rig 上加一个与 `startLeg` 同形的分流读法即可：真玩家 helm 走 `status()`，
+否则走 `body().botState().snapshot()`。
+
+⚠️ **`pathMove` / `pathNode` / `driveTag` / `jumpTag` 不在 snapshot 里**，
+而 `JourneyFlight` 有 11 处直接读它们。那一档要扩 `status()` 才能修，
+**属于 19–20 级，先记不修**——现在改它会把这一趟的归因弄脏。
+
 ---
 
 ## 📏 清理了 733 行预算，而顶着上限的那个文件一行都没省下（J5 的否定结果，2026-08-22）
