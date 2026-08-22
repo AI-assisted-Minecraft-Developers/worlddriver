@@ -627,22 +627,47 @@ public final class JourneyEndRungs {
         });
     }
 
-    /** Stand in the doorway and wait for the dimension to change. */
+    /**
+     * Stand in the doorway and be taken by it — driven by {@link JourneyPortalEntry#crossThrough},
+     * because rung 13 has already paid for every mistake this used to make.
+     *
+     * <p><b>What it used to be, and why that could never work.</b> A {@code settle} onto the portal
+     * cell followed by an {@code await} for the dimension to change. Both halves look right and the
+     * pair is inert: {@code settle} ends — and unregisters the driver — the instant its process
+     * reports finished, and an {@code IntentProcess} already at its goal finishes on tick one. So
+     * the body was placed in the doorway and then stopped being ticked, and vanilla only notices a
+     * portal through {@code Entity.move → checkInsideBlocks → NetherPortalBlock.entityInside}, a
+     * one-tick flag that nothing but a {@code move()} re-arms. Measured on rung 17's first two
+     * rehearsals — the body stood INSIDE a {@code nether_portal} block for the entire 1600-tick
+     * wait and was never taken:
+     *
+     * <pre>{@code
+     * return.portalAfterClimb = 105, 93, 7   （收工时身体在 121, 75, 10，距门 25 格）
+     * return.at               = 105, 93, 7   站的格子是 Block{minecraft:nether_portal}
+     * }</pre>
+     *
+     * <p>Rung 13 hit exactly this, diagnosed it, and fixed it with {@link HoldStill} — a process
+     * that does nothing and <em>keeps being ticked</em>. Writing the wait a second time meant
+     * writing the bug a second time, so the second copy is gone and both directions share one
+     * driver. The departure world is read here rather than named, which is what the crossing
+     * actually needs to watch: {@code changeDimension} has put a body somewhere unexpected before,
+     * and 「is it still where it started」 stays true wherever it lands.
+     */
     private static void stepThroughPortal(SceneContext ctx, JourneyRig rig, BlockPos portal,
                                           Runnable then) {
         rig.attempting("走回自己点亮的那道门，回主世界");
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(portal))), 3_000,
-                () -> waitFor(rig, () -> OVERWORLD.equals(rig.dimension()), 1_600, () -> {
-                    rig.evidence("return.dimension", rig.dimension());
-                    rig.evidence("return.at", xyz(rig.player().blockPosition()));
-                    if (!OVERWORLD.equals(rig.dimension())) {
-                        ctx.fail("站进门里也没回去：仍在 " + rig.dimension() + " "
-                                + rig.player().blockPosition() + "（站的格子是 "
-                                + blockAt(rig, rig.player().blockPosition()) + "）");
-                        return;
-                    }
-                    then.run();
-                }));
+        final String leaving = rig.dimension();
+        JourneyPortalEntry.crossThrough(ctx, rig, portal,
+                new JourneyPortalEntry.Crossing(leaving, () -> {
+            rig.evidence("return.dimension", rig.dimension());
+            rig.evidence("return.at", xyz(rig.player().blockPosition()));
+            // The crossing only promises the body LEFT. Where it landed is this rung's problem: the
+            // stronghold is in the overworld, and a body that came out somewhere else would go on
+            // to march hundreds of blocks through the wrong world before anything noticed.
+            ctx.expect(rig.dimension()).as("从自己点亮的门走出来之后，身体必须落在主世界")
+                    .isEqualTo(OVERWORLD);
+            then.run();
+        }));
     }
 
     /**
@@ -966,6 +991,14 @@ public final class JourneyEndRungs {
             return;
         }
         BlockPos cell = doorways.get(attempt);
+        // WHY THIS ONE MAY WAIT UNDRIVEN AND THE NETHER ONE MAY NOT. `waitFor` is `rig.await`, which
+        // ticks the SCENE and not the BODY — no process is registered, so no `move()`, so vanilla's
+        // one-tick portal flag is never re-armed. An End portal survives that only because its
+        // transition time is ZERO: the flag is armed by the walk's own last `move()` and consumed on
+        // that same tick, before `settle` unregisters anything. A nether portal's is 80, which is
+        // 80 ticks this loop would not supply — see stepThroughPortal, where writing this shape a
+        // second time cost two rehearsals. So the resemblance is a coincidence, not a pattern to
+        // copy: the thing that makes it safe here is a constant nothing in this file controls.
         rig.settle(new IntentProcess(new Intent(new Goal.Block(cell))), PORTAL_WALK_TICKS,
                 () -> waitFor(rig, () -> THE_END.equals(rig.dimension()), PORTAL_TRANSIT_TICKS, () -> {
                     rig.evidence("step." + attempt, "瞄 " + xyz(cell) + " → 停在 "

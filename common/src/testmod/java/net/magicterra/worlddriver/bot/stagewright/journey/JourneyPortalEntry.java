@@ -452,6 +452,21 @@ public final class JourneyPortalEntry {
     }
 
     /**
+     * One crossing: the world the body is LEAVING, and what happens once it is out.
+     *
+     * <p>These two are the only direction-specific things in this whole file. Everything else — the
+     * doorway survey, choosing a doorstep, digging one open, the walk legs, the push across the last
+     * block, the hold under {@link HoldStill}, the drift recovery, and both failure messages — is
+     * geometry and driving that a body going the other way needs identically.
+     *
+     * <p>Naming the departure world rather than the arrival one is deliberate: {@code changeDimension}
+     * can drop a body somewhere unexpected ({@code changed-worlds-but-not-places}), so "is it still
+     * where it started" is the one question that stays true no matter where it lands, and the
+     * arrival assertions belong to the caller that knows what it was hoping for.
+     */
+    public record Crossing(String from, Runnable onCrossed) {}
+
+    /**
      * Step through and assert the body actually MOVED, not merely that the dimension changed.
      *
      * <p>{@code wd.serverEntersTheNether} exists because that distinction was worth a bug: vanilla
@@ -463,7 +478,6 @@ public final class JourneyPortalEntry {
      */
     static void nether(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.NETHER);
-        ServerLevel level = rig.player().serverLevel();
         BlockPos portal = rig.nearestBlock("minecraft:nether_portal", 24);
         rig.evidence("portal.found", portal == null ? "无" : portal.toShortString());
         if (portal == null) {
@@ -471,6 +485,37 @@ public final class JourneyPortalEntry {
                     + "两者必有一个是假的（身体在 " + rig.player().blockPosition() + "）");
             return;
         }
+        final BlockPos from = rig.player().blockPosition();
+        crossThrough(ctx, rig, portal, new Crossing("minecraft:overworld",
+                () -> arrivedInTheNether(ctx, rig, from)));
+    }
+
+    /**
+     * Get this body through that portal, from wherever it is standing, and run {@code onCrossed}
+     * once it is out — or fail here, saying which of the two failures it was.
+     *
+     * <p><b>Extracted because rung 17 wrote it again and got it wrong again.</b> The walk home from
+     * the Nether ended with an eight-line 「settle onto the portal cell, then {@code await} for the
+     * dimension to change」, which is the exact defect this rung's first three executions had: an
+     * {@code IntentProcess} already at its goal finishes on tick one, {@code settle} unregisters the
+     * driver the moment it does, and a body nobody ticks never calls {@code move()} — the only thing
+     * that re-arms vanilla's one-tick portal flag. Rung 17's run of 2026-08-22 stood inside a
+     * {@code nether_portal} block at {@code 105,93,7} for 1600 ticks and was never taken:
+     *
+     * <pre>{@code
+     * return.portalAfterClimb = 105, 93, 7   ← it found the door and stood in it
+     * return.at               = 105, 93, 7   ← and was still there, still in the_nether
+     * }</pre>
+     *
+     * <p>A second copy of a driving loop is a second copy of every bug the first one has already
+     * paid for. Both directions now share this one, so rung 17 also inherits what it had never
+     * asked for: a doorway survey, digging a blocked doorstep open, a body that drifts out being
+     * walked back in, and — the reading that made the original diagnosis possible —
+     * {@code portal.ticked}, which separates 「nobody was pushing it」 from 「the timer did not run」.
+     */
+    public static void crossThrough(SceneContext ctx, JourneyRig rig, BlockPos portal,
+                                    Crossing crossing) {
+        ServerLevel level = rig.player().serverLevel();
         final BlockPos from = rig.player().blockPosition();
         rig.evidence("portal.expectedTicks", portalDelay(rig));
         rig.evidence("portal.doorway", survey(level, portal));
@@ -489,11 +534,11 @@ public final class JourneyPortalEntry {
             return;
         }
         if (!door.clear().isEmpty()) {
-            clearTheDoorway(ctx, rig, portal, door, from, attempt, 0);
+            clearTheDoorway(ctx, rig, portal, door, crossing, attempt, 0);
             return;
         }
         rig.attempting("走到门口 " + door.stand().toShortString() + " 再迈进传送门");
-        walkToTheDoorstep(ctx, rig, portal, door, from, attempt, DOOR_LEGS);
+        walkToTheDoorstep(ctx, rig, portal, door, crossing, attempt, DOOR_LEGS);
     }
 
     /**
@@ -506,7 +551,8 @@ public final class JourneyPortalEntry {
      * other than what it aimed at cannot be mistaken for one that worked.
      */
     private static void clearTheDoorway(SceneContext ctx, JourneyRig rig, BlockPos portal,
-                                        Doorstep door, BlockPos from, Attempt attempt, int done) {
+                                        Doorstep door, Crossing crossing, Attempt attempt,
+                                        int done) {
         ServerLevel level = rig.player().serverLevel();
         if (done < door.clear().size()) {
             BlockPos cell = door.clear().get(done);
@@ -520,7 +566,7 @@ public final class JourneyPortalEntry {
                         + now.getBlockState(cell).getBlock() + "（身体在 "
                         + rig.player().blockPosition().toShortString() + "，canBreak="
                         + rig.body().avatar().canBreak(cell) + "）");
-                clearTheDoorway(ctx, rig, portal, door, from, attempt, done + 1);
+                clearTheDoorway(ctx, rig, portal, door, crossing, attempt, done + 1);
             });
             return;
         }
@@ -534,7 +580,7 @@ public final class JourneyPortalEntry {
             return;
         }
         rig.attempting("走到门口 " + open.stand().toShortString() + " 再迈进传送门");
-        walkToTheDoorstep(ctx, rig, portal, open, from, attempt, DOOR_LEGS);
+        walkToTheDoorstep(ctx, rig, portal, open, crossing, attempt, DOOR_LEGS);
     }
 
     /**
@@ -590,7 +636,8 @@ public final class JourneyPortalEntry {
      * it counts toward the still-leg terminator. See that method for the ladder rows.
      */
     private static void walkToTheDoorstep(SceneContext ctx, JourneyRig rig, BlockPos portal,
-                                          Doorstep door, BlockPos from, Attempt attempt, int left) {
+                                          Doorstep door, Crossing crossing, Attempt attempt,
+                                          int left) {
         if (rig.lostTheWorld() != null) {
             neverGotIn(ctx, rig, portal, attempt, "身体已经掉出世界");
             return;
@@ -598,7 +645,7 @@ public final class JourneyPortalEntry {
         ServerLevel level = rig.player().serverLevel();
         final BlockPos here = rig.player().blockPosition();
         BlockPos ready = stepFrom(level, here, portal);
-        if (ready != null) { stepIn(ctx, rig, portal, ready, from, attempt); return; }
+        if (ready != null) { stepIn(ctx, rig, portal, ready, crossing, attempt); return; }
         if (left <= 0) {
             neverGotIn(ctx, rig, portal, attempt,
                     DOOR_LEGS + " 趟都没走到门口 " + door.stand().toShortString());
@@ -633,13 +680,13 @@ public final class JourneyPortalEntry {
                         + at.toShortString() + " —— 再问一次也是同一个答案");
                 return;
             }
-            walkToTheDoorstep(ctx, rig, portal, door, from, attempt, left - 1);
+            walkToTheDoorstep(ctx, rig, portal, door, crossing, attempt, left - 1);
         }));
     }
 
     /** Push across the last block, then hold and let vanilla's timer run. */
     private static void stepIn(SceneContext ctx, JourneyRig rig, BlockPos portal, BlockPos cell,
-                               BlockPos from, Attempt attempt) {
+                               Crossing crossing, Attempt attempt) {
         final BlockPos stand = rig.player().blockPosition();
         final boolean braking = rig.player().isShiftKeyDown();
         rig.attempting("从 " + stand.toShortString() + " 迈进 " + cell.toShortString());
@@ -656,7 +703,7 @@ public final class JourneyPortalEntry {
                     + (in ? "（进去了）" : "（没进去）") + "，起步时 shiftKeyDown=" + braking
                     + "（推的每一 tick 都会清掉它）");
             attempt.tickedFrom = rig.player().tickCount;
-            holdInThePortal(ctx, rig, portal, from, PORTAL_LEGS, attempt);
+            holdInThePortal(ctx, rig, portal, crossing, PORTAL_LEGS, attempt);
         });
     }
 
@@ -679,9 +726,9 @@ public final class JourneyPortalEntry {
      * ticked, and {@code portal.ticked} is the reading that proves it did.
      */
     private static void holdInThePortal(SceneContext ctx, JourneyRig rig, BlockPos portal,
-                                        BlockPos from, int legs, Attempt attempt) {
-        if (!"minecraft:overworld".equals(rig.dimension())) {
-            arrivedInTheNether(ctx, rig, from);
+                                        Crossing crossing, int legs, Attempt attempt) {
+        if (!crossing.from().equals(rig.dimension())) {
+            crossing.onCrossed().run();
             return;
         }
         ServerLevel level = rig.player().serverLevel();
@@ -743,7 +790,7 @@ public final class JourneyPortalEntry {
                         + " —— 再问一次也是同一个答案");
                 return;
             }
-            holdInThePortal(ctx, rig, portal, from, legs - 1, attempt);
+            holdInThePortal(ctx, rig, portal, crossing, legs - 1, attempt);
         });
     }
 
