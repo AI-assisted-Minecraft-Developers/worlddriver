@@ -754,6 +754,78 @@ rung.WOOD  = FAILED  — 砍树：MineProcess 拿不到原木
 
 ⇒ 已派 `wd-parity` 查机制（它拥有 `docs/fake-player-parity.md` 的边界表）。
 
+## 🔬 客户端砍不下树的机制查清了：**起跳闸问错了量，而错的是服务端**
+
+`wd-parity` 查完（只改了 `docs/fake-player-parity.md`，没动产品代码）。
+
+```
+ServerPlayerAvatar.java:1054-1055   闸只问「脚底贴没贴住实心」，从不问水有多深
+vanilla 的判据是流体高度：LivingEntity.aiStep 的 jump 分支，getFluidJumpThreshold() = 0.4
+```
+
+同一格、同一分支、逐字相同的 `[walker] 起跳来源` 行，只差 tick 号：
+
+| 首 tick 抬升 | 专用服 JoinedBody | 集成服 LocalPlayer |
+|---|---|---|
+| | **+0.420** = `jumpFromGround()` | **+0.035** = `jumpInLiquid` 的 0.04 过 0.8 水阻 |
+
+服务端三 tick 升出水面、约 120 tick 上岸；客户端停在水面**浮着挖岸壁**——
+而 `WalkerTickClimb.java:1039-1047` 自己的注释**逐字预言了这个结局**：
+「it bobs forever hand-mining the bank without escaping」。
+
+### 定性：四条差异里三条是「服务端有特权」
+
+| 条目 | 定性 | 谁偏离 vanilla |
+|---|---|---|
+| 起跳闸（本次近因） | **服务端有特权** | 服务端：vanilla 深水底给 0.04，它给 0.42 |
+| 无 `noJumpDelay` 冷却 | **服务端有特权** | 服务端：vanilla 每跳后 10 tick 冷却 |
+| `faithfulBreak` 默认关 | **服务端有特权** | 服务端：一 tick 拆一格，丢工具需求/精准/时运/耐久 |
+| 客户端无 `canBreak` | 客户端缺能力 | 客户端 |
+
+⇒ **修法是「把服务端身体改诚实」，不是给客户端补能力。** 与「不要一上来就补引擎能力」一致。
+**客户端那趟没做错任何事** —— 它做的正是真玩家会做的（浮着），
+然后被一个假设「身体能跳出水」的上层计划坑了。
+
+⚠️ **这不会因为换 `JoinedBody` 而消失**：三条都在 `ServerPlayerAvatar` 里，而 `JoinedBody` 仍由它驱动。
+
+### 顺带查出一条把特权变成契约的场景
+
+`wd.buoyantJumpStaysABob` 的 `bottomed` 臂（`WorldDriverCoreScenes.java:835`）
+断言**必须**出现单 tick 抬升 > 0.3。但源块上方是空气时 `getFluidHeight` = 8/9 ≈ 0.889 > 0.4
+⇒ **vanilla 也走 `jumpInLiquid`**。
+**这条场景今天绿，绿的原因是它要求身体保留一条特权。** 修起跳闸它就红，而那条红是断言错了。
+必须同一笔提交改掉。且现有两条臂一条「浮着」一条「一格水」，**没有一条问「踩在深水底」——真梯死的正是那一格**。
+
+### 执行序（已发给 parity）：**臂先落地并被观察到红，再修**
+
+| 步 | 做什么 | 判据 |
+|---|---|---|
+| 1 | 落 `bottomedDeep` 臂，不改产品代码 | — |
+| 2 | 跑 `stagewrightDedicatedServerFabric` | **`bottomedDeep` 必须红**；绿了说明臂没抓住缺陷 |
+| 3 | 起跳闸 + 冷却 + `bottomed` 改判据，**同一笔** | 提交里**预登记**预期哪些场景/级会红 |
+| 4 | 再跑整闸 | `bottomedDeep` 转绿；回归按第 3 步的预登记读 |
+
+**第 2 步那个红是全部价值所在。** 没有它，第 4 步的绿证明不了任何事。
+
+⚠️ **预期：修完之后真梯服务端分数会掉。** 出生就在沼泽水里
+（`survey.firstWater=64,62,60`，离出生点 6 格），水域段大概率回归。
+**那不是失败，是把虚账冲掉** —— 今天 14/20 里有多少是买来的，本来就是要量的数。
+
+### ❌ 我在这次调查里犯的错：拿死通道当证据，还写进了任务书
+
+我给出的前提是「客户端那趟一行 `[mine]` 日志都没有」。
+真相：那六处 `LOG.info("[mine] …")` 全包在 `if (BotConfig.walkerDebug)` 里，
+而这一级第一件事 `rig.generousPathfinding()` 就把它置 false（`JourneyRig.java:1254`）——**两趟都关着**。
+那个「0 行」跟身体类型毫无关系。
+
+真正回答问题的是**无条件**读数：`PathFinder.java:412` 自称 "always-on telemetry" 的
+`search-begin`（客户端 **217 次**）+ 40 条 `心跳 WOOD mine` ⇒ 进程跑满整条腿，
+「进程没起来」这个候选被干净排除。
+
+⇒ [`zero-as-evidence-needs-a-live-channel`] 的第三例，且是最隐蔽的一种：
+**通道不是坏的、也不是没起来，是被同一趟里另一处正常代码按设计关掉的。**
+附带教训：**把未经验证的零写进任务书，会把它变成别人的公理。**
+
 ### 读第四趟的三条纪律
 
 1. **先看 `rehearsal.doorway` 的「垂直差」**（必须 ≤24）。布景几何变了，
