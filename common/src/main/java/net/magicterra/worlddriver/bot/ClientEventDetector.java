@@ -66,8 +66,10 @@ final class ClientEventDetector {
     // Captures system messages, command results and server broadcasts too.
     private long evtChatSeq = -1;
     private String evtLastActionBar = null;
+    // Only the TITLE is edge-tracked. The subtitle rides along in the payload when the title
+    // changes and is never compared, so a subtitle that changes under a steady title emits
+    // nothing — there was a field here suggesting otherwise that nothing ever read or wrote.
     private String evtLastTitle = null;
-    private String evtLastSubtitle = null;
 
     /** Rising-edge scene events: emit duskExposed / cornered once per
      *  false→true transition so the Agent learns of these without polling.
