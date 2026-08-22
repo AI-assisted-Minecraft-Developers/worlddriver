@@ -167,13 +167,22 @@ public final class BotUtil {
      * Can a body stand with its feet in {@code foot}: a floor that blocks motion under it, and
      * both body cells clear of anything that does (water excepted — a body wades).
      *
-     * <p><b>The one answer for the process family.</b> {@code BboxFillProcess}, {@code FarmProcess}
-     * and {@code MineProcess} each carried a byte-identical private copy of this, which is how a
-     * stand test comes to mean three things: the day somebody teaches one of them about a
-     * half-slab, the other two keep walking onto it. {@code MineProcess} still refuses more than
-     * this — it additionally vetoes a cell lava touches — and that is written there as
-     * {@code canStandHereStatic(...) && no lava}, so the extra clause is visibly extra rather than
-     * a second opinion about the same question.
+     * <p><b>The answer for most of the process family — not yet all of it.</b>
+     * {@code BboxFillProcess}, {@code FarmProcess} and {@code MineProcess} each carried a
+     * byte-identical private copy of this, which is how a stand test comes to mean three things:
+     * the day somebody teaches one of them about a half-slab, the other two keep walking onto it.
+     * {@code MineProcess} still refuses more than this — it additionally vetoes a cell lava
+     * touches — and that is written there as {@code canStandHereStatic(...) && no lava}, so the
+     * extra clause is visibly extra rather than a second opinion about the same question.
+     *
+     * <p><b>Two members never joined, and their copy has since diverged.</b>
+     * {@code BuildProcess.canStand} and {@code BackfillProcess.canStand} are still private, still
+     * byte-identical to each other, and are missing BOTH water clauses below — so a WATERLOGGED
+     * cell (a waterlogged slab/stairs/fence: {@code blocksMotion()} true, fluid WATER) is standable
+     * here and refused there. Those two are therefore STRICTER than the rest of the family, and a
+     * build over a waterlogged surface reports {@code skipped} for a cell the goto selector would
+     * happily walk to. Left as-is deliberately: adopting this method there LOOSENS two placement
+     * paths, which is the direction that needs a measurement, not a tidy-up.
      *
      * <p>Cell-shaped, deliberately: this decides where to SEND a body, before it is there. Whether
      * a body already standing somewhere is actually supported is a different question with a
