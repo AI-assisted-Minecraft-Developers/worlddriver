@@ -1591,6 +1591,39 @@ public final class JourneyRig {
         return java.util.List.copyOf(seen);
     }
 
+    /** A wool source: one sheep, where it stands, and the item it will actually drop. */
+    public record Woolly(int entityId, BlockPos where, double distance, String woolId, String colour) {}
+
+    /**
+     * Every sheep near the body that would really drop wool, nearest first.
+     *
+     * <p><b>The colour is part of the answer, not a detail.</b> A bed wants three wool of ONE
+     * colour, so a haul of white + brown + black is worth exactly nothing — the same shape as the
+     * plank-variant trap the craft resolver taught this ladder once already. Which sheep to kill is
+     * therefore a decision that has to be made BEFORE the kill, and that is also why the entity id
+     * comes back: {@link net.magicterra.worlddriver.bot.process.CombatProcess} accepts one, so the
+     * rung can name the individual instead of naming the species and hoping the nearest match is
+     * the colour it needed.
+     *
+     * <p>Lambs and already-sheared sheep are left out. Both are sheep and neither drops wool, so a
+     * rung that walked to one would report "killed a sheep, got no wool" — a sentence that reads
+     * like a broken drop table and is really a bad choice of target.
+     */
+    public java.util.List<Woolly> woolNearby(int radius) {
+        ServerPlayer fp = player();
+        var box = fp.getBoundingBox().inflate(radius, radius / 2.0, radius);
+        java.util.List<Woolly> out = new java.util.ArrayList<>();
+        for (var entity : fp.serverLevel().getEntities(fp, box)) {
+            if (!(entity instanceof net.minecraft.world.entity.animal.Sheep sheep)) continue;
+            if (sheep.isBaby() || sheep.isSheared()) continue;
+            String colour = sheep.getColor().getName();
+            out.add(new Woolly(sheep.getId(), sheep.blockPosition(),
+                    Math.sqrt(fp.distanceToSqr(sheep)), "minecraft:" + colour + "_wool", colour));
+        }
+        out.sort(java.util.Comparator.comparingDouble(Woolly::distance));
+        return java.util.List.copyOf(out);
+    }
+
     /** The dimension the body is standing in, as {@code "minecraft:overworld"}. */
     public String dimension() {
         return player().serverLevel().dimension().location().toString();

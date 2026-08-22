@@ -92,19 +92,24 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         out.add(stage("wd.journey03Wood", JourneyStage.WOOD, 40_000, WorldDriverJourneyScenes::wood));
         out.add(stage("wd.journey04WoodTools", JourneyStage.WOOD_TOOLS, 6_000, WorldDriverJourneyScenes::woodTools));
 
-        // ---- the frontier: declared, registered, and not yet scripted ----
+        // ---- every rung from here up has scripted steps ----
         //
-        // Registered rather than omitted, deliberately. A ladder that only lists the rungs somebody
-        // has already built reports a complete climb every time the frontier is where it was, and
-        // the whole point of this suite is to show where the frontier IS. Each of these runs, records
-        // NOT_SCRIPTED against its stage, and lets everything above it report BLOCKED — so the
-        // ledger reads as a map of the climb rather than as a list of passes.
+        // It did not always. This block used to hold the frontier — rungs registered but not
+        // written, each recording NOT_SCRIPTED and letting everything above it report BLOCKED, so
+        // that the ledger read as a map of the climb rather than as a list of passes. That was the
+        // right shape while there was a frontier, and it has one lasting cost worth remembering: a
+        // NOT_SCRIPTED rung records PASS with skipped=true, so it counts as a pass in every summary
+        // that does not look at the flag. The last of them (BED) was written on 2026-08-22.
         out.add(stage("wd.journey05StoneTools", JourneyStage.STONE_TOOLS, 40_000,
                 WorldDriverJourneyScenes::stoneTools));
         // 30 000: the hunt walks out to the animal and now walks back to spawn, and the return
         // leg is the whole reason the rungs above it start somewhere they can navigate from.
         out.add(stage("wd.journey06Food", JourneyStage.FOOD, 30_000, WorldDriverJourneyScenes::food));
-        out.add(unscripted("wd.journey07Bed", JourneyStage.BED));
+        // 26 000: this rung's length is the flock's to decide, not ours. It kills up to
+        // WOOL_HUNT_ROUNDS sheep because three wool of ONE colour is what a bed wants and a sheep
+        // drops one of whatever colour it happens to be, and each kill is a walk. Cheap when the
+        // seed has no sheep at all — two scans and a finding.
+        out.add(stage("wd.journey07Bed", JourneyStage.BED, 26_000, WorldDriverJourneyScenes::bed));
         out.add(stage("wd.journey08Furnace", JourneyStage.FURNACE, 8_000,
                 WorldDriverJourneyScenes::furnace));
         // 90 000, because this rung can dig TWICE: seed 5471's first vein is one ore, so a run that
@@ -171,16 +176,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static Scene stage(String name, JourneyStage rung, int budget,
                                java.util.function.Consumer<SceneContext> body) {
         return Scene.of(name, budget, body).withRequired(rung.gating()).withArena(false);
-    }
-
-    /** A rung nobody has written the steps for yet. Never required — it is a placeholder for work,
-     *  not a sensor for a bug. */
-    private static Scene unscripted(String name, JourneyStage rung) {
-        return Scene.of(name, 200, ctx -> {
-            JourneyRig rig = JourneyRig.enter(ctx, rung);
-            rig.attempting("尚未脚本化：这一级的写死步骤还没写");
-            ctx.skip("NOT_SCRIPTED: " + rung.name() + "(" + rung.label() + ") 的写死步骤尚未编写");
-        }).withRequired(false);
     }
 
     // =====================================================================================
@@ -1159,19 +1154,32 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * instead of investigated on its own terms.
      */
     private static void walkHome(JourneyRig rig, Runnable then) {
+        walkHome(rig, "food", then);
+    }
+
+    /**
+     * As above, under the calling rung's own evidence prefix.
+     *
+     * <p>Two rungs chase animals now — {@link #food} and {@link #bed} — and both have to hand the
+     * body back somewhere the rungs above can navigate from. Sharing the walk but not the key
+     * matters: a bed rung that recorded {@code food.strandedAt} would be describing the right cell
+     * under the wrong rung's name, and the next reader would go and investigate a hunt that was
+     * never the one that stranded it.
+     */
+    private static void walkHome(JourneyRig rig, String key, Runnable then) {
         BlockPos home = rig.ctx().level().getSharedSpawnPos();
         BlockPos at = rig.player().blockPosition();
-        rig.evidence("food.huntEndedAt", at.toShortString() + "，离出生点 "
+        rig.evidence(key + ".huntEndedAt", at.toShortString() + "，离出生点 "
                 + Math.round(Math.hypot(at.getX() - home.getX(), at.getZ() - home.getZ())) + " 格");
         rig.attempting("打完猎回出生点，别把下一级留在荒野里");
         walkToColumn(rig, "home", home.getX(), home.getZ(), 3, 12_000,
                 () -> {
-                    rig.evidence("food.home", rig.player().blockPosition().toShortString());
+                    rig.evidence(key + ".home", rig.player().blockPosition().toShortString());
                     then.run();
                 },
                 () -> {
                     BlockPos stuck = rig.player().blockPosition();
-                    rig.evidence("food.strandedAt", stuck.toShortString() + "，离出生点 "
+                    rig.evidence(key + ".strandedAt", stuck.toShortString() + "，离出生点 "
                             + Math.round(Math.hypot(stuck.getX() - home.getX(), stuck.getZ() - home.getZ()))
                             + " 格 —— 上面的每一级都会从这里出发");
                     then.run();
@@ -1198,6 +1206,145 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static final List<String> RAW_FOODS = List.of(
             "minecraft:beef", "minecraft:porkchop", "minecraft:chicken",
             "minecraft:mutton", "minecraft:rabbit", "minecraft:cod", "minecraft:salmon");
+
+    // =====================================================================================
+    // 07 — the bed. Three wool of ONE colour, and the colour is the whole difficulty.
+    // =====================================================================================
+
+    /** How many sheep this rung will chase before it stops and says so. A bed wants three wool of
+     *  one colour and a sheep drops one of whatever colour it is; at vanilla's 82% white the third
+     *  kill usually closes it, and five covers the tail without letting a rung that is not on the
+     *  critical path spend the whole ladder's afternoon on it. */
+    private static final int WOOL_HUNT_ROUNDS = 5;
+
+    private static final int WOOL_PER_BED = 3;
+
+    /**
+     * Craft a bed from wool taken off the flock.
+     *
+     * <p><b>Off the critical path on purpose.</b> {@link JourneyStage#requires()} skips this rung and
+     * {@link JourneyStage#criticalPath()} excludes it, because nothing on the road to the dragon
+     * needs a bed and seed 5471's spawn swamp has no sheep in it. Writing the steps does not change
+     * that — a FAIL here still blocks nothing. What it changes is which of the two possible
+     * sentences the ladder prints: {@code NOT_SCRIPTED} was a statement about us, and "there are no
+     * sheep within 176 blocks, only [chicken, cow, frog, pig]" is a statement about the world.
+     *
+     * <p><b>The colour IS the rung.</b> A bed is three wool of ONE colour plus three planks, and a
+     * sheep drops a single wool of whatever colour it happens to be. So killing the three nearest
+     * sheep is not a plan: white + brown + black crafts nothing, and the run would come home holding
+     * three wool and reporting a recipe that looks broken. The target is therefore chosen on colour
+     * first and distance second — greedily toward whichever colour the bag is already closest to
+     * three of — and {@link CombatProcess} is handed that individual's entity id rather than
+     * {@code "minecraft:sheep"}, so the sheep that dies is the sheep that was chosen. (Same family
+     * as the plank-variant trap the craft resolver taught this ladder once already.)
+     *
+     * <p><b>The half this does not do yet.</b> {@link JourneyStage#BED} describes a bed "slept in,
+     * spawn point moved". Sleeping needs the bed PLACED and needs it to be NIGHT. Neither is in
+     * reach today: the only placement verb is package-private ({@code PlaceNearby}), and forcing
+     * night would be staging — which this ladder measures and keeps at zero, so buying the
+     * assertion that way would cost the number the whole suite exists to report. The rung asserts
+     * the half it can prove and records {@code bed.dayTime}, so the next pass decides about the
+     * other half from a reading instead of from a guess.
+     */
+    private static void bed(SceneContext ctx) {
+        JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.BED);
+        rig.generousPathfinding();
+        rig.attempting("猎羊取三块同色羊毛，合一张床");
+        rig.evidence("bed.dayTime", ctx.level().getDayTime() % 24_000L);
+        // Widen the pin, WAIT, then look — the food rung's lesson, and it applies identically here:
+        // an entity scan only sees loaded chunks, so scanning on the same line as the pin reports
+        // an empty world rather than "I cannot see that far".
+        ctx.cleanup(JourneyRig::seeNormally);
+        JourneyRig.seeAtLeast(PREY_SEARCH_CHUNKS);
+        rig.settle(new HoldStill(40), 100,
+                () -> woolRound(ctx, rig, WOOL_HUNT_ROUNDS, PREY_SEARCH_BLOCKS, true));
+    }
+
+    /** The colour the bag holds most of, or null when there is no wool at all. */
+    private static String bestWoolColour(JourneyRig rig) {
+        String best = null;
+        int bestCount = 0;
+        for (net.minecraft.world.item.DyeColor dye : net.minecraft.world.item.DyeColor.values()) {
+            int have = rig.carrying("minecraft:" + dye.getName() + "_wool");
+            if (have > bestCount) { bestCount = have; best = dye.getName(); }
+        }
+        return best;
+    }
+
+    /** One kill's worth of the hunt: bank what we have, pick the next sheep by colour, repeat. */
+    private static void woolRound(SceneContext ctx, JourneyRig rig, int roundsLeft, int radius,
+                                  boolean mayWiden) {
+        String colour = bestWoolColour(rig);
+        int have = colour == null ? 0 : rig.carrying("minecraft:" + colour + "_wool");
+        rig.evidence("bed.wool", colour == null ? "0" : have + " × " + colour);
+        if (have >= WOOL_PER_BED) { craftTheBed(ctx, rig, colour); return; }
+
+        List<JourneyRig.Woolly> flock = rig.woolNearby(radius);
+        if (flock.isEmpty()) {
+            if (mayWiden) {
+                // Look FURTHER from here rather than walking somewhere else to look — the food
+                // rung's second premise, refuted there by its own survey: this seed has no herd at
+                // spawn either, so a walk home would ask the same question from a worse place.
+                rig.evidence("bed.noSheepAt", rig.player().blockPosition().toShortString()
+                        + " —— " + radius + " 格内没有可剪的羊，改用 " + PREY_SEARCH_WIDE + " 格再找一次");
+                JourneyRig.seeAtLeast(PREY_SEARCH_WIDE_CHUNKS);
+                rig.settle(new HoldStill(40), 100,
+                        () -> woolRound(ctx, rig, roundsLeft, PREY_SEARCH_WIDE, false));
+                return;
+            }
+            ctx.fail("方圆 " + radius + " 格内没有可剪的羊（已按 " + PREY_SEARCH_WIDE_CHUNKS
+                    + " 区块钉住并等到装载）—— 附近只有 " + rig.animalsNearby(radius)
+                    + "；这颗种子的出生沼泽没有羊群，这一级需要一条先去草地群系的腿");
+            return;
+        }
+        if (roundsLeft <= 0) {
+            ctx.fail("猎了 " + WOOL_HUNT_ROUNDS + " 只羊仍没凑齐 " + WOOL_PER_BED + " 块同色羊毛 —— "
+                    + "手上最多的是 " + have + " × " + colour + "，" + radius + " 格内还剩 "
+                    + flock.size() + " 只可剪");
+            return;
+        }
+
+        // Colour first, distance second. `flock` arrives distance-sorted and the comparison is
+        // strict, so among colours the bag holds equally much of, the nearest sheep wins — but two
+        // white wool in the bag will send the body past a brown sheep standing right next to it,
+        // which is exactly the point: the brown one is worth nothing at all.
+        JourneyRig.Woolly pick = flock.get(0);
+        int pickScore = -1;
+        for (JourneyRig.Woolly w : flock) {
+            int score = rig.carrying(w.woolId());
+            if (score >= WOOL_PER_BED) continue;
+            if (score > pickScore) { pickScore = score; pick = w; }
+        }
+        final JourneyRig.Woolly target = pick;
+        rig.evidence("bed.flock", flock.size() + " 只可剪，选 " + target.colour() + " @ "
+                + target.where().toShortString() + "（" + Math.round(target.distance()) + " 格，"
+                + "已有同色 " + rig.carrying(target.woolId()) + "）");
+
+        // Walk first, engage second — CombatProcess scans 32 blocks and gives up at once, so handing
+        // it a sheep 90 blocks away fails in two ticks and reads like a broken verb.
+        rig.attempting("走向 " + Math.round(target.distance()) + " 格外的 " + target.colour() + " 羊");
+        rig.drive(new IntentProcess(new Intent(new Goal.Near(target.where(), 6))), 6_000, () -> {
+            rig.attempting("猎杀 " + target.colour() + " 羊（id=" + target.entityId()
+                    + "）：CombatProcess 没能拿到羊毛");
+            rig.drive(new CombatProcess(CombatProcess.Mode.KILL, target.entityId(), "minecraft:sheep"),
+                    4_000, () -> rig.collectByHand(target.woolId(), 2, "bed.pickup",
+                            () -> woolRound(ctx, rig, roundsLeft - 1, radius, mayWiden)));
+        });
+    }
+
+    private static void craftTheBed(SceneContext ctx, JourneyRig rig, String colour) {
+        String bedId = "minecraft:" + colour + "_bed";
+        rig.evidence("bed.colour", colour);
+        rig.attempting("合成 " + bedId + "：3 " + colour + "_wool + 3 木板");
+        // Through the table guard like every other craft on this ladder, which is also what buys the
+        // three planks: a bare CraftProcess here would fail on wood the rung never went to get.
+        craftKeepingTheTable(rig, bedId, 6_000, () -> {
+            int made = rig.carrying(bedId);
+            rig.evidence("bed.crafted", made);
+            ctx.expect(made).as("bed crafted from same-colour wool").isAtLeast(1);
+            walkHome(rig, "bed", () -> rig.reach("合成 " + bedId + " ×" + made));
+        });
+    }
 
     // =====================================================================================
     // 08 — the furnace. Eight of the cobblestone the stone rung banked.
