@@ -38,6 +38,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code BotConfig.applyGameTestBaseline()} sets to {@code false} at server start — a second way
  * to get a green that never ran. This test has no gate to fail to enter: it reads the source.
  *
+ * <p><b>What it does not check, and once cost a gate.</b> It sees THAT a site drives the
+ * pipeline, never from which layer. The first fix for the two unpaired sites wrote
+ * {@code mc.gameMode.continueDestroyBlock(...)} inline inside {@code bot/scheduler/**}, which
+ * this test accepted — and both loaders then died at 0 ticks on five pure-logic matrix scenes
+ * ({@code Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER}),
+ * because those scenes construct the chains on a dedicated server and the new
+ * {@code invokevirtual MultiPlayerGameMode} drags {@code LocalPlayer} in with it. The chains had
+ * always PASSED {@code LocalPlayer} around and always called {@code BotInteract}'s statics on it;
+ * what was new was calling a client class's method. Hence the layering rule now in
+ * {@code BotInteract#continueDestroy}: a scheduler class may name client types, but must not
+ * invoke them. Catching that needs a bytecode scan of {@code bot/scheduler/**}, not a source
+ * scan — a separate guard, not this one.
+ *
  * <p><b>What it does not check.</b> Pairing is asserted per FILE, not per block: a file that
  * holds the key in one method and drives the pipeline in another passes. Proving the two name the
  * same cell needs a parser, and the failure this exists for was never subtle — it was two files
@@ -97,8 +110,14 @@ class ClientBreakSitePairingTest {
                 + "On a bot-driven client that breaks nothing at all — the mouse is never grabbed, "
                 + "so vanilla calls stopDestroyBlock() every tick and destroyProgress stays 0.0 "
                 + "while every log line reads as a dig in progress. Pair the hold with "
-                + "a.continueDestroy(cell), or mc.gameMode.continueDestroyBlock(cell, "
-                + "pickFaceTowardsPlayer(cell, p)) if the site has no Avatar: " + unpaired);
+                + "a.continueDestroy(cell) if the site has an Avatar, else "
+                + "BotInteract.continueDestroy(mc, p, cell). Do NOT write "
+                + "mc.gameMode.continueDestroyBlock(...) inline: that puts an invokevirtual on a "
+                + "client-only class into the caller's own bytecode, and a dedicated server "
+                + "refuses to load the class the moment it is constructed (both loaders, 2026-08-22, "
+                + "five pure-logic matrix scenes dead at 0 ticks). Going through BotInteract "
+                + "leaves an invokestatic, which resolves the owner without its dependencies: "
+                + unpaired);
     }
 
     @Test
