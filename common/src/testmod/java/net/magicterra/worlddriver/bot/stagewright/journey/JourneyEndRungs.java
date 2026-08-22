@@ -790,7 +790,19 @@ public final class JourneyEndRungs {
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, MARCH_LEG_TOLERANCE))),
                 MARCH_LEG_TICKS, () -> {
             BlockPos now = rig.player().blockPosition();
-            if (flatDistance(at, now) >= WEDGED_UNDER) { march(ctx, rig, trek, leg + 1, 0); return; }
+            // MOVED decides whether to sidestep; CLOSED decides whether the wedge streak is over.
+            // They are not the same question, and conflating them made the escalation below dead
+            // code. Measured 2026-08-22: `stuck` reset on "moved ≥ 4 blocks", and a sidestep MOVES
+            // THE BODY 24 BLOCKS by construction — so the recovery satisfied its own counter's
+            // reset condition every time, no streak ever reached 3, and the ±135°/±45° turns and
+            // the widening reach never once executed. The body oscillated inside a 20-block pocket
+            // (x −794…−816, z 1060…1097) for 22 legs and the march died 412 blocks out.
+            // Closing on the goal is the only movement that proves the wedge was escaped.
+            boolean closed = away - flatDistance(now, goal) >= WEDGED_UNDER;
+            if (flatDistance(at, now) >= WEDGED_UNDER) {
+                march(ctx, rig, trek, leg + 1, closed ? 0 : stuck);
+                return;
+            }
             sidestep(ctx, rig, trek, leg, now, stuck);
         });
     }
