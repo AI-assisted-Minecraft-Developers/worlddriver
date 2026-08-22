@@ -58,6 +58,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `raiseAPortal(level, foot)` is now one implementation used twice, and `raiseTheOverworldHalf` puts
   the near end on the heightmap at the scaled coordinate. Failures there say STAGING, because a body
   that cannot leave the Nether for want of this half reads exactly like rung 17 failing to walk home.
+- **Rung 17 passes for the first time.** `wd.rehearse17Stronghold` PASS in 26 261 ticks: out of the
+  Nether at `832,64,56` — the 8:1 point exactly, drift 0 — then 28 march legs over 2353 blocks, a
+  114-step shaft from y=94 down to y=26, and the portal room with all 12 frames found and the nearest
+  2 blocks away. Two `no route progress after 5 consecutive searches` wedges en route; the sidestep
+  recovery cleared both. The return now asserts that landing point rather than only the dimension,
+  mirroring rung 13 but multiplying by 8 where that one divides, with the forcer's own 128-block
+  horizontal search radius as the tolerance.
+- **`portal.ticked` is written when the crossing WORKS, not only when it fails.** It sat on two
+  failure paths, so the first run that actually crossed produced no row for it at all and the
+  question 「how did this one get through」 had to be answered from heartbeats.
+- **The heartbeat counted per leg, so the phases that need it most were the silent ones.** The gate
+  was `waited % 200 == 0` against a counter that restarts every leg. Rung 17's descent is
+  `digDownTo`, and every step of it is `settle(new HoldStill(40), 60, …)` — 114 legs, none longer
+  than 60 ticks, so not one ever reached 200 and the counter went back to zero at each. Measured
+  result: **5.7 minutes of complete silence from a run that was working**, and separating that from a
+  wedge cost a thread dump and two CPU samples (Server thread parked in `waitUntilNextTick`, 5% of a
+  24-core box, no application thread busy). The counter is now rig-level and accumulates across legs.
+  A phase built from many short legs is not a quiet phase — it is one whose clock keeps being reset.
 - **Known and unfixed: the futile-search guard cannot see an unexecutable plan.** Two independent
   reasons it stayed silent through those 816 searches. It counts only searches where
   `!res.goalReached()`, and A* *did* reach the goal — the terrain was connected, the drive layer just
