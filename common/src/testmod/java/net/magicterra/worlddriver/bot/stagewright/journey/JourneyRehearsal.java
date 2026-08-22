@@ -419,6 +419,10 @@ public final class JourneyRehearsal {
             stageEyeOfEnder(ctx);
             return;
         }
+        if (target == JourneyStage.STRONGHOLD) {
+            stageStronghold(ctx);
+            return;
+        }
         if (target == JourneyStage.END_PORTAL) {
             stageEndPortal(ctx);
             return;
@@ -779,6 +783,126 @@ public final class JourneyRehearsal {
         kit.put("minecraft:blaze_rod", EYES_A_PORTAL_COSTS / 2);
         kit.put("minecraft:ender_pearl", EYES_A_PORTAL_COSTS);
         crossToTheNether(ctx, "EYE_OF_ENDER", kit, "一只末影之眼都没给 —— 合成本身就是这一级要证明的事");
+    }
+
+    /**
+     * Rung 17's starting conditions: eyes in the bag, a body deep in the Nether, and a doorway home
+     * that it has to WALK to rather than see.
+     *
+     * <p>This recipe exists because rung 17's return path had no way to run. The rung's first act is
+     * {@code backToTheOverworld}, and on the real ladder it has only ever been reached once, before
+     * the return was rewritten — so the march home, {@code stepBackThrough}, and the ledger's banked
+     * doorway are all code that has never executed. Without a recipe here, {@code -Prehearse=STRONGHOLD}
+     * started the rung on an empty body at world spawn: already in the overworld, so
+     * {@code backToTheOverworld} returns on its FIRST branch and the whole return stays untested
+     * while the scene reports a pass.
+     *
+     * <p><b>The doorway is put {@link #STAGED_DOOR_AWAY} blocks away on purpose.</b> Rung 17 scans 24
+     * blocks for a portal first and only falls back to the banked coordinate when that misses. A
+     * doorway placed next to the body would take the fast path — the one branch that already worked —
+     * and the rehearsal would prove nothing about the branch it was built for.
+     *
+     * <p>Blocks are handed over for the same reason the fortress corridor needs them: the march runs
+     * under {@code generousPathfinding}, which leaves {@code allowPlace} on, and a body with nothing
+     * to bridge with reports「架不起桥」as「走不到」.
+     */
+    private static void stageStronghold(SceneContext ctx) {
+        Map<String, Integer> kit = new LinkedHashMap<>();
+        kit.put("minecraft:iron_sword", 1);
+        kit.put("minecraft:cooked_beef", 16);
+        kit.put("minecraft:ender_eye", EYES_A_CLIMB_ARRIVES_WITH);
+        kit.put("minecraft:cobblestone", 128);
+        crossToTheNether(ctx, "STRONGHOLD", kit,
+                "要塞、回程的路、以及那道门在哪儿，都不告诉这一级 —— 门只记进账本");
+        buildTheDoorwayAndBankIt(ctx);
+    }
+
+    /** How far the staged doorway sits from the body. Past rung 17's 24-block local scan, so the
+     *  return is forced down the BANKED route — see {@link #stageStronghold}. */
+    private static final int STAGED_DOOR_AWAY = 96;
+
+    /** A nether portal's interior: two wide, three tall. */
+    private static final int DOOR_WIDTH = 2, DOOR_HEIGHT = 3;
+
+    /**
+     * Build the doorway rung 13 would have left behind, and bank it the way rung 13 banks it.
+     *
+     * <p>The portal blocks are set directly rather than lit with flint and steel. That is the same
+     * licence {@code openTheDoorLikeVanilla} takes and for the same reason — lighting is rung 12's
+     * subject, not this one's — but it carries a risk that one does not: {@code NetherPortalBlock}
+     * pops itself off when its frame does not hold, so a frame built wrong yields a portal that is
+     * gone by the time the rung walks back to it, and rung 17 would then report
+     * {@code 门被毁了}, a true sentence about a world nobody staged correctly.
+     *
+     * <p><b>So it asserts on the cells after the fact</b>, which is the only reading that can tell
+     * "the staging built a portal" from "the staging built something portal-shaped".
+     */
+    private static void buildTheDoorwayAndBankIt(SceneContext ctx) {
+        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        if (body == null) {
+            ctx.fail("排练：没有身体 —— 摆不了回程的门");
+            return;
+        }
+        ServerPlayer fp = body.fakePlayer();
+        ServerLevel nether = (ServerLevel) fp.level();
+        BlockPos from = fp.blockPosition();
+        BlockPos want = new BlockPos(from.getX() + STAGED_DOOR_AWAY, from.getY(), from.getZ());
+        loadAround(nether, want, 2);
+        BlockPos foot = netherStandNear(nether, want);
+        if (foot == null) {
+            ctx.fail("排练：身体东边 " + STAGED_DOOR_AWAY + " 格附近找不到能立门的落脚点"
+                    + "（想放在 " + want.toShortString() + "）");
+            return;
+        }
+        // Clear the pocket the frame stands in, so worldgen rock does not decide whether the
+        // doorway is enterable. One cell of margin all round the 4x5 frame.
+        for (int dx = -2; dx <= DOOR_WIDTH + 1; dx++)
+            for (int dy = -1; dy <= DOOR_HEIGHT + 2; dy++)
+                for (int dz = -1; dz <= 1; dz++)
+                    nether.setBlockAndUpdate(foot.offset(dx, dy, dz), Blocks.AIR.defaultBlockState());
+        // The frame: obsidian everywhere on the ring, corners included (vanilla ignores the corners,
+        // and filling them keeps this from depending on that).
+        for (int dx = -1; dx <= DOOR_WIDTH; dx++)
+            for (int dy = -1; dy <= DOOR_HEIGHT; dy++) {
+                boolean ring = dx == -1 || dx == DOOR_WIDTH || dy == -1 || dy == DOOR_HEIGHT;
+                if (ring) nether.setBlockAndUpdate(foot.offset(dx, dy, 0),
+                        Blocks.OBSIDIAN.defaultBlockState());
+            }
+        // Standing room in front of it, or the body arrives at a doorway it cannot reach.
+        for (int dx = -1; dx <= DOOR_WIDTH; dx++)
+            nether.setBlockAndUpdate(foot.offset(dx, -1, -1), Blocks.OBSIDIAN.defaultBlockState());
+        BlockState door = Blocks.NETHER_PORTAL.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.NetherPortalBlock.AXIS, Direction.Axis.X);
+        for (int dx = 0; dx < DOOR_WIDTH; dx++)
+            for (int dy = 0; dy < DOOR_HEIGHT; dy++)
+                nether.setBlock(foot.offset(dx, dy, 0), door, 2);
+        // Poke the frame so a neighbour update actually reaches the cells before they are counted.
+        // Without this the count is taken in the window BEFORE NetherPortalBlock.updateShape has had
+        // a chance to reject the frame — six cells would be reported for a doorway that is gone by
+        // the time the rung walks back to it, which is the one failure this assertion exists to catch.
+        nether.setBlockAndUpdate(foot.offset(-1, -1, 0), Blocks.OBSIDIAN.defaultBlockState());
+        int cells = 0;
+        for (int dx = 0; dx < DOOR_WIDTH; dx++)
+            for (int dy = 0; dy < DOOR_HEIGHT; dy++)
+                if (nether.getBlockState(foot.offset(dx, dy, 0)).is(Blocks.NETHER_PORTAL)) cells++;
+
+        JourneyLedger.staged("rehearsal: built the return doorway at " + foot.toShortString()
+                + " and banked it, instead of walking back through one rung 12 lit");
+        JourneyLedger.noteNetherPortal(foot);
+        long away = Math.round(Math.sqrt(foot.distSqr(from)));
+        ctx.record("rehearsal.doorway", foot.toShortString() + " 起 " + DOOR_WIDTH + "×" + DOOR_HEIGHT
+                + "，成了 " + cells + " 格 nether_portal；离身体 " + away + " 格"
+                + "（17 级先扫 24 格，扫不到才走账本记下的那条路 —— 这里要的就是后者）");
+        if (cells < DOOR_WIDTH * DOOR_HEIGHT) {
+            ctx.fail("排练立不起门：" + DOOR_WIDTH + "×" + DOOR_HEIGHT + " 只成了 " + cells
+                    + " 格 nether_portal —— 这是布景的问题，不是 STRONGHOLD 这一级的问题"
+                    + "（多半是框架不闭合，NetherPortalBlock 自己弹掉了）");
+            return;
+        }
+        if (away <= 24) {
+            ctx.fail("排练把门放得太近了（" + away + " 格）：17 级的 24 格局部扫描会直接扫到它，"
+                    + "走的是快路径，而这套布景存在的意义正是逼它走账本那条路");
+        }
     }
 
     /** How many blaze rods a fortress trip is worth. Seven — see {@link #stageEnderPearl}. */
