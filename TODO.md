@@ -711,6 +711,65 @@ parity 在查背包交换分支时发现的：交换把 X 换进**服务端的**
 ⇒ **存量相等不是手一致的证据，连旁证都不是。** `holdBoth` 的分歧行里那两个数
 只能用来分方向，不能用来判「有没有分叉」——判分叉的是 `handsAtUse` 的槽号那一列。
 
+## 🏁 整梯跑完：**8/20**（2/20 → 8/20），死在第 9 级 IRON，死因是**淹死**
+
+判据 3、4 落定：**没跑到 12 级**（第 9 级就死了），**`holdBoth.*` 全程零行**。
+
+### 死因那一行什么都没说，而正确答案在同一份日志里，早一 tick
+
+```
+1857  [06:55:48] [Server thread/INFO] (Minecraft) Player118 drowned          ← vanilla 知道
+1858  [06:55:48] [Server thread/ERROR] (WorldDriver) [journey] 身体死了：Player118 died   ← 我们问到的
+```
+
+`bodyDied()` 问的是 `getCombatTracker().getDeathMessage()`——**完全正确的问题**，
+返回了泛型的 "died"，因为 `CombatTracker.recheckStatus()` 在 `!mob.isAlive()` 那一支
+把条目全清了，而那一支跑在死亡的同一个服务端 tick 里。
+**一个逐 tick 的轮询看见血为零的时候，它想读的那份记录已经被它正在反应的这次死亡清空了。**
+`getLastDamageSource()` 也一样，40 tick 后自己置 null。
+
+⇒ 改成**趁身体还活着的时候逐 tick 采样**（`rememberTheBlow`，已落 `2c96642b`）。
+这条修法的验证不用重跑：**手上这份日志就是它的对照组**——第 1857 行是它本该打出的字。
+
+### 因果链：塔零收益 → 后备把身体带走 → 掉进积水洞 → 淹死
+
+```
+vein2.mineFrom = 92, 54, 83      挖完掉到 y=48（下面是洞）
+vein2.exit#3.climb.0        = 92,48,83 above=air onGround=true water=false
+vein2.exit#3.climb.0.with   = minecraft:cobblestone ×74     课前
+vein2.exit#3.climb.0.stock  = minecraft:cobblestone ×74     课后，一块没消耗
+vein2.exit#3.climb.0.stalled= null                          builder 说没错
+vein2.exit#3.walkerFallback = true
+death.at = 94, 40, 89        drowned
+```
+
+**同一趟里有对照组**：第 5 级同样的出井塔 `stone.exit#1.gained = 14/14`、
+圆石 32 → 18，十四课每课都消耗。**所以不是「塔不会爬」，是某些场次拿错了手。**
+干地 + 有存量 + 头顶空气 + builder 无错 + 存量纹丝不动 = 镐面右键那个逐字节相同的签名
+（[[a-field-with-two-authors]] 的第二个受害动词，同一个签名第三次出现）。
+第一条矿脉同形：`vein1.exit#2.gained = 0/5`，后备把身体带到 `endedIn=80,78`（起塔柱是 `82,75`），
+落在 `脚格=water`——**那条 `YLevel` 后备按构造盲于柱，这已经是它第二次被记录**。
+
+已在放弃点加 `handsAtUse`（`321fb714`），下一趟能直接读到两具身体此刻的槽号。
+parity 的预登记（补包后那座塔应当开始耗石头）与这一条是同一个判据。
+
+### 🔴 深水这条线现在是致命的，而且是同一个缺口的两次露头
+
+| 何时 | 现象 | 结局 |
+|---|---|---|
+| 基线第 3 级 | 浮在沼泽水面挖岸壁 | TIMEOUT 8022 tick |
+| 本趟第 9 级 | 掉进 y=40 的积水洞 | **淹死** |
+
+`WalkerTickClimb.java` 的两条水中守卫**都够不到这一格**：
+`swimEscapeBreak` 要求 move 名字以 `swimAshore`/`swimTraverseBreak` 开头，
+`floatingPocket` 要求 `isInWater() && !onGround() && !isUnderWater()`。
+**一具完全没入水中的身体两条都不满足**——而那正是淹死的那一格。
+注释自己写着为什么不能简单放宽：「forward input while SUBMERGED drops it into the prone
+swim pose and it sinks」。
+
+⇒ 这一条**先按写死步骤绕开**（种子已知，第 9 级两条矿脉的坐标是烘入的），
+**不要一上来就补引擎能力**。真正该先修的是上面那座塔——塔不失败，身体根本不会遇到那片水。
+
 ---
 
 ## 📏 清理了 733 行预算，而顶着上限的那个文件一行都没省下（J5 的否定结果，2026-08-22）
