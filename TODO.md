@@ -292,6 +292,62 @@ then.run();                                    // 零 tick，直接走人
    而预测闸放行了它——那时该查的是闸与 vanilla 判据的差，不是时序。
 3. 总判据不变：**够到点火那一步或更远**。
 
+### 结果：命中判据 2 —— 往返不是死因
+
+```
+water0.spent = minecraft:water_bucket 1→1，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生
+```
+
+**等过往返，桶仍然没空。** 所以时序不是这一处的死因，
+`placeFluid` 的往返修法（`880e37d7`）是**对的但不够**——它把一个假绿变成了一条准确的红。
+这本身有价值：在此之前这一浇失败时全仓没有任何一行说得出「没浇成」。
+
+## 📏 三个读数，两具身体，两个时刻，没有两个说的是同一件事（Q18，2026-08-22）
+
+到这一步，同一次浇水攒下了三行，**每一行都真，合起来却指不出一个原因**：
+
+| 行 | 哪具身体 | 哪个时刻 |
+|---|---|---|
+| `water0.hand = minecraft:stone_pickaxe` | **服务端** | 换手包发出前（早一包） |
+| `water0.result = SUCCESS` | **客户端** | use 当场（本地预测） |
+| `water0.spent = water_bucket 1→1` | **服务端** | 往返之后 |
+
+**缺的那一个读数一直是同一个：客户端手上到底是什么。**
+`holdItem` 返回 true 不是这个证据——那是 `BotInteract.ensureHolding` 的**意见**，
+而它的主背包分支走的是一次 swap **click**，效果不在同一条语句里可见。
+
+**修法是仪器不是逻辑（`e5b0…`，见 `holdForUse`）**：一行里同时印两只手。
+在专用服 helm 上两次调用落到同一个对象，这一行退化成重复，不会说谎。
+
+### 预登记判据（写在读结果之前）
+
+`water0.hand` 里新增的「真正要动手的那只手上是 X」：
+
+1. **X = `minecraft:water_bucket`** ⇒ 客户端拿对了、瞄对了、use 了，而服务端没消耗
+   ⇒ 死因在服务端侧的 vanilla 判据（`BucketItem.use` 的 `mayInteract` / 落点计算），
+   **下一步是反编译 `BucketItem.use` 逐条对照，不是再改时序**。
+2. **X = 其他** ⇒ `ensureHolding` 返回了 true 却没换成手
+   ⇒ 死因在换手，与浇筑无关，而且**会影响每一个 `holdForUse` 调用点**。
+
+### 顺带查出第五处，本轮不动
+
+`JourneyFill:738`（`topUpBuckets`，装第二桶及以后）是同族第五处，且形状最全：
+
+```java
+rig.avatar().aimAtBlock(more);          // 只瞄客户端，没 settle
+holdForUse(rig, Items.BUCKET, …);       // 换手
+int before = rig.carrying("minecraft:lava_bucket");
+var result = rig.avatar().useItemInHand();
+int after = rig.carrying("minecraft:lava_bucket");   // 同 tick 读服务端
+```
+
+失败时**「不判红」**，静默少装一桶——正是 [[trips-are-decided-by-bucket-count]]
+那条（往返趟数由桶数决定）的上游。**本轮不动它**：当前这条线只允许一个变量。
+
+九个 use 点普查结果：`fillFrom` / `scoopWater` / `spendTheBucket` / `placeFluid` 已修，
+`pourInto`（`WorldDriverJourneyScenes:2914`）**本来就有** `settle(HoldStill(10), 20)`，安全；
+`topUpBuckets` 待修；`JourneyEndRungs:1001` 与 `JourneyPortalRung:2741`（点火）待查。
+
 ---
 
 ## 📏 清理了 733 行预算，而顶着上限的那个文件一行都没省下（J5 的否定结果，2026-08-22）
