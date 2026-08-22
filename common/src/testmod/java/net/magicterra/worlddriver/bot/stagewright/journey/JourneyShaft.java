@@ -847,6 +847,15 @@ public final class JourneyShaft {
             // What it was holding when it gave up. "Out of blocks?" is the builder's guess and it is
             // usually wrong here — the stone rung stalled forty times holding thirty cobblestone.
             rig.evidence(climbKey(step, ".stock"), pillar + " ×" + rig.carrying(pillar));
+            // Both hands at the moment it gave up. `holdBoth` above sets them BOTH, correctly, once —
+            // and then `TowerProcess` runs for two hundred ticks deciding its own hand every course
+            // through `ensureHoldingPlaceableAny`, whose fast path asks only the CLIENT's slot. If
+            // anything moved the server's hand in between, that fast path sends no packet and the
+            // server keeps placing with whatever it holds. So the hand the scene arranged is not the
+            // hand that mattered, and the only reading that can say so is one taken HERE. Rung 9 of
+            // 2026-08-22 gave up on course 0 at both veins — `stalled=null`, stock untouched, dry
+            // ground, 74 cobblestone — which is the pickaxe signature with no way to confirm it.
+            WorldDriverJourneyScenes.handsAtUse(rig, climbKey(step, ""));
             // Washed off, not stuck. In moving water the state at the end of a course is not the
             // state the next one starts from, so this is the one case where asking again is a real
             // retry — see WASHED_OFF_RETRIES for the measurement. Recorded every time, so a climb
