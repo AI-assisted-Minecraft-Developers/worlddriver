@@ -964,6 +964,57 @@ bottomed.inWater     = false                  ← 若为真，vanilla 在这一�
 > 一份只记录「查出了什么」的文档会漏掉这种事，因为它没有失败；
 > 它只是差一点让一个正确的结论被一个正确的读数推翻。
 
+### 6.8.2 T17 落地：预登记（**写在跑闸之前**）
+
+**本轮只动 T17 一条自变量。T18（`noJumpDelay` 冷却）不碰，连注释都没提前改。**
+理由不是保守：`wd.climbableGroundJump` 的 `underfoot` 臂判词是
+「the ground gate self-locking on a climbable … **Fix the gate, do not relax this arena**」，
+若 T18 压掉那一跳，这条红会**指着一个没坏的东西喊「去修它」**——
+方向错误的假线索比没有线索贵。
+
+**改法**：`ServerPlayerAvatar` 的跳跃闸从 `if (footed)` 换成 vanilla 的复合谓词，
+`footed`（`soleOnSolid > 0`）继续顶替不可靠的 `onGround()`——**那个顶替是这个闸原本的用意，没动**：
+
+```java
+boolean buoyant = inWater && fluid > 0.0;                        // fluid = getFluidHeight(WATER)
+if (buoyant && (!footed || fluid > jumpThreshold))  → +0.04      // jumpInLiquid
+else if (footed || (buoyant && fluid <= jumpThreshold)) → 0.42   // jumpFromGround
+```
+
+**同一笔里 `bottomed` 臂改判据**：从**源块**（`8/9 = 0.889`，已在阈值之上）
+改成**流动 level-3**（`3/9 = 0.333`，阈值之下）。它原本断言的是一条 vanilla 没有的行为。
+
+#### 预期读数（`wd.buoyantJumpStaysABob`）
+
+| 臂 | `rises` 今天 → 之后 | `first` 今天 → 之后 | `fluidAtRest` |
+|---|---|---|---|
+| `bottomed` | 15 → **≥1**（判据不变，布景换到阈值下） | 0.4200 → **0.4200** | 0.8879 → **≈0.333** |
+| `bottomedDeep` | 4 → **0** | 0.4200 → **≈0.035** | 1.9990（不变） |
+| `afloat` | 0 → **0**（不变） | 0.0278 → **≈0.028**（不变） | 0.8929（不变） |
+
+**注意 `bottomed` 那一格的预登记与我上一轮给你的表不同，这是有意改的**：上一轮我写「15 → 0」，
+那是**没换布景**的算法。换成 level-3 之后它落在阈值**下**，走 `jumpFromGround`，
+所以 `first` 仍是 0.42、`rises ≥ 1`。**上一轮那个数按当时的计划是对的，按现在的计划是错的**——
+记在这里，免得有人拿旧表来对。
+
+#### 预期不受影响（若这些红了，是 T17 出了计划外的事）
+
+| 场景 | 为什么不受影响 |
+|---|---|
+| `wd.climbableGroundJump` 两臂 | 干地，实测 `起跳前液高=0.0000` ⇒ `buoyant=false` ⇒ 直接落到 `footed` 那一支，与旧闸同路 |
+| `wd.flushJumpIgnoresOnGround` | 干地，同上 |
+| 任何岩浆里的身体 | `isInWater()` 为假 ⇒ `buoyant=false` ⇒ 逐位走旧路径；**本轮没加 vanilla 的岩浆分支** |
+
+#### 真梯（`wd.journey*`）：**预期回归，且这正是要买的东西**
+
+专用服出生就在沼泽水里（`survey.firstWater=64,62,60`，离出生点 6 格），
+今天服务端 14/20 的成绩里有一部分是靠「从两格深水底 0.42 弹出水面」买来的。
+**修完之后水域段大概率变慢或卡住，服务端分数掉下来——那不是失败，是把虚账冲掉。**
+预登记：**第 3 级（WOOD）最可能首先受影响**，因为 §6.8 的实测分歧就发生在它的第一段。
+
+> **不预登记具体名次。** 我没有数据支撑「会掉到几分」，硬写一个数字就是事后可挑解释的空头支票。
+> 能诚实预登记的只有方向和位置：**掉，且先掉在水域段。**
+
 ---
 
 ## 7. 场景归属：谁该迁走，谁迁不了

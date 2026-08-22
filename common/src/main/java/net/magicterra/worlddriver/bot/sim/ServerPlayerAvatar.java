@@ -14,6 +14,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.Entity;
@@ -1047,14 +1048,57 @@ public class ServerPlayerAvatar implements Avatar {
             // The flush-contact test already covers the buoyancy motive, which is why nothing replaces
             // the term. soleOnSolid reads the row `floor(minY − 1e-7)` — the row the sole SITS on — so
             // a body held up by water is not flush on anything and answers 0; the only way a body in
-            // water answers > 0 is by genuinely resting on the bottom, which is the shallow-water
-            // ground jump this branch is documented to serve. `wd.buoyantJumpStaysABob` pins both
-            // halves: afloat over deep water the rise must stay bob-sized, resting on the bottom of a
-            // shallow pool it must still be a 0.42.
+            // water answers > 0 is by genuinely resting on the bottom.
+            //
+            // AND THAT LAST SENTENCE IS TRUE AND WAS STILL NOT ENOUGH. The paragraph above used to
+            // finish: "...which is the shallow-water ground jump this branch is documented to serve.
+            // `wd.buoyantJumpStaysABob` pins both halves: afloat over deep water the rise must stay
+            // bob-sized, resting on the bottom of a SHALLOW pool it must still be a 0.42." Read the
+            // word "shallow" and then read the code that followed it: `if (footed)`. The comment
+            // stated a depth precondition the gate never tested. Nothing asked how deep the water
+            // was, so "resting on the bottom of a shallow pool" and "resting on the bottom of an
+            // ocean" took the same branch — and the scene cited as pinning both halves had no arm
+            // standing on a deep bottom either, so the claim went unchecked for as long as it stood.
+            //
+            // Vanilla does not gate on support first. `LivingEntity.aiStep`'s jump branch asks the
+            // FLUID first and lets support break the tie only once the water is shallower than the
+            // threshold:
+            //
+            //   g  = getFluidHeight(WATER); bl = isInWater() && g > 0; h = getFluidJumpThreshold()
+            //   if (bl && (!onGround() || g > h))                    jumpInLiquid   // +0.04
+            //   else if ((onGround() || (bl && g <= h)) && …)        jumpFromGround // 0.42
+            //
+            // so a real player standing on a lake bed gets the 0.04 bob, not the leap. This body took
+            // the leap, which is the body being MORE permissive than a player rather than less — the
+            // rare direction, and the one a parity suite is least likely to notice, because nothing
+            // fails: the body simply does things a player cannot. Measured: on seed 5471 the
+            // dedicated-server body took +0.420 out of a two-deep swamp cell and walked ashore in
+            // ~120 ticks while the client body in the byte-identical cell took +0.035 and bobbed at
+            // the surface until its leg timed out. See docs/fake-player-parity.md §6.8 (T17 / N21).
+            //
+            // The predicate below is vanilla's, with `footed` substituted for `onGround()` for all the
+            // reasons above — that substitution is the ORIGINAL point of this gate and is unchanged.
+            // Deliberately NOT included: vanilla's `noJumpDelay == 0` cooldown (still absent — that is
+            // T18, landing on its own so its effect on `wd.climbableGroundJump` can be read alone) and
+            // vanilla's lava branch. Lava behaviour is bit-unchanged here: with `isInWater()` false,
+            // `buoyant` is false, so a body in lava reaches exactly the branch it reached before.
             double sole = WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp);
             boolean footed = sole > 0.0;
             noteGateDisagreement(footed, sole);
-            if (footed) {
+            // getFluidHeight is live because step() runs fp.baseTick() first (see :1003), which is
+            // what refreshes both this cache and isInWater(). Vanilla writes the two from one call, so
+            // they cannot disagree at one instant — `inWater` above and `fluid` here are one fact.
+            double fluid = fp.getFluidHeight(FluidTags.WATER);
+            double jumpThreshold = fp.getFluidJumpThreshold();
+            boolean buoyant = inWater && fluid > 0.0;
+            if (buoyant && (!footed || fluid > jumpThreshold)) {
+                // Buoyant bob: vanilla aiStep calls jumpInLiquid every tick the jump is held while the
+                // water is over the threshold — floating, OR standing on the bottom of water this
+                // deep. Adds 0.04 * swimSpeed upward (swim_speed attr = 1.0 for a vanilla player).
+                // This is the weak rise that famously cannot mount a sheer wall from water.
+                Vec3 dm = fp.getDeltaMovement();
+                fp.setDeltaMovement(dm.x, dm.y + 0.04, dm.z);
+            } else if (footed || (buoyant && fluid <= jumpThreshold)) {
                 lastJumpTick = fp.level().getGameTime();
                 // Ground / shallow-water jump: CALL vanilla's jump, do not re-implement it.
                 //
@@ -1085,13 +1129,6 @@ public class ServerPlayerAvatar implements Avatar {
                 // ordinary case is bit-identical to the copy; the differences are exactly the cases
                 // the copy got wrong.
                 fp.jumpFromGround();
-            } else if (inWater) {
-                // Buoyant bob: vanilla aiStep calls jumpInLiquid every tick the
-                // jump is held while FLOATING (not a one-shot) — adds 0.04*swimSpeed
-                // upward (swim_speed attr = 1.0 for a vanilla player). This is the
-                // weak rise that famously can't mount a sheer wall from water.
-                Vec3 dm = fp.getDeltaMovement();
-                fp.setDeltaMovement(dm.x, dm.y + 0.04, dm.z);
             }
         }
         // Sneak-SINK in water: the exact counterpart of the jumpInLiquid bob above.

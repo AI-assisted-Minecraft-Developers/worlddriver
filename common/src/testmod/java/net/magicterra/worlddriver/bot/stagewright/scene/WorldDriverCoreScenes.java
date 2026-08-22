@@ -46,6 +46,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.Vec3;
 
 /**
@@ -823,10 +824,13 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *       Rises must stay bob-sized. A fix that widened the support test (say "solid anywhere below
      *       within N", or a "can't tell → count it as standing" fallback) makes this arm launch a
      *       {@code 0.42} and the arm goes red. This is the direction the deleted term was aimed at.</li>
-     *   <li><b>bottomed</b> — one block of water over rock, body resting on the floor, jump held. It
+     *   <li><b>bottomed</b> — water BELOW vanilla's {@code getFluidJumpThreshold()} (a flowing
+     *       level-3 state, {@code 3/9 = 0.333}) over rock, body resting on the floor, jump held. It
      *       must still make a {@code 0.42}. This is the "ground / shallow-water jump" the branch has
      *       always promised, and it is the direction an over-correction breaks — a fix that refused
-     *       all jumps in water would pass the afloat arm and fail here.</li>
+     *       all jumps in water would pass the afloat arm and fail here. It was staged on a SOURCE
+     *       block until T17 landed, which is {@code 8/9 = 0.889} and therefore already over the
+     *       threshold: the arm was demanding a jump vanilla does not give, and passing.</li>
      *   <li><b>bottomedDeep</b> — the SAME pool as afloat, but the body released on its BOTTOM
      *       instead of at its surface. Neither of the first two arms asks this: one has no support
      *       under it, the other has support but only a finger of water over it. See below.</li>
@@ -864,15 +868,19 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * no protected centre. Reusing this one also states the finding plainly: the deep water was here
      * the whole time; the arena was never asked to put a body at the bottom of it.
      *
-     * <p><b>On the {@code bottomed} arm as it stands.</b> Under one source block with air above,
-     * {@code FlowingFluid.getHeight} returns {@code getOwnHeight() = amount/9 = 0.889}, which is
-     * already above the {@code 0.4} threshold — so vanilla bobs there too, and that arm's demand for
-     * a {@code 0.42} is a demand that this body KEEP a privilege vanilla does not grant. A scene that
-     * asserts behaviour vanilla does not have, and is green for years because of it, has turned a
-     * privilege into a contract. It is left exactly as it is here on purpose: this commit only adds
-     * the arm that should be red, so that the red can be observed before anything is fixed. Correct
-     * it to genuinely shallow water ({@code getFluidHeight <= 0.4}) in the same commit that fixes the
-     * gate — before then, changing it would hide which of the two the gate run is answering.
+     * <p><b>What the {@code bottomed} arm was, and why it moved.</b> Under one source block with air
+     * above, {@code FlowingFluid.getHeight} returns {@code getOwnHeight() = amount/9 = 0.889}, which
+     * is already above the {@code 0.4} threshold — so vanilla bobs there too, and that arm's demand
+     * for a {@code 0.42} was a demand that this body KEEP a privilege vanilla does not grant. It was
+     * green for as long as it stood, because the body did grant it. A scene that asserts behaviour
+     * vanilla does not have, and is green because of it, has turned a privilege into a contract.
+     *
+     * <p>The arm was deliberately NOT corrected in the commit that added {@code bottomedDeep}: that
+     * commit's only job was to make a red observable before anything was fixed, and moving this arm
+     * at the same time would have blurred which of the two the run was answering. It moved in the
+     * commit that fixed the gate, to flowing level-3 water, where it now tests the thing it always
+     * claimed to: support breaking the tie BELOW the threshold. Its own reading is asserted, so it
+     * cannot silently drift back above 0.4 and become a {@code bottomedDeep} demanding the opposite.
      */
     private static void buoyantJumpStaysABob(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -885,10 +893,20 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             for (int dz = -5; dz <= -1; dz++)
                 for (int dy = 1; dy <= 5; dy++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.WATER.defaultBlockState());
-        // BOTTOMED: one block of water, so the body stands on rock with its feet wet.
+        // BOTTOMED: genuinely SHALLOW water — a flowing level-3 state, height 3/9 = 0.333, under
+        // vanilla's 0.4 jump threshold. It used to be a source block, and that was the bug: a source
+        // with air above it is getOwnHeight() = 8/9 = 0.889, already OVER the threshold, so vanilla
+        // bobs there and this arm's demand for a 0.42 was a demand that the body keep a privilege no
+        // player has. Measured 0.8879 by the arm itself before it was corrected. The distinction the
+        // arm exists to draw is threshold-crossing, not "wet feet", so the staging has to be on the
+        // other side of the threshold and not merely thin.
+        //
+        // Fluid ticks never run during the measurement — a scene body executes synchronously inside a
+        // single server tick — so this level-3 state cannot settle or spread before the arm reads it.
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = 1; dz <= 5; dz++)
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.WATER.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz),
+                        Fluids.FLOWING_WATER.getFlowing(3, false).createLegacyBlock());
 
         // Order is load-bearing: afloat and bottomed run first and in their original order, so this
         // commit cannot move either of the two readings that are already green.
@@ -929,10 +947,22 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("buoyantJumpStaysABob: a body floating in deep water launched " + afloat
                     + " ground jump(s) (single-tick rise >0.3). Afloat is not standing: the support test"
                     + " must read the row the sole SITS on, not 'solid somewhere below'.");
+        // Staging first, same discipline as bottomedDeep: this arm is only meaningful BELOW the
+        // threshold, and a source block put it above. If the staging drifts back over 0.4 the arm
+        // silently becomes a second bottomedDeep that demands the opposite answer.
+        if (!(bottomedArm.fluidAtRest() > 0.0 && bottomedArm.fluidAtRest() <= threshold))
+            ctx.fail("buoyantJumpStaysABob/bottomed: this arm needs water BELOW vanilla's jump"
+                    + " threshold and got getFluidHeight(WATER)=" + bottomedArm.fluidAtRest()
+                    + " against threshold " + threshold + ". Above it vanilla bobs, so demanding a"
+                    + " 0.42 here would be demanding a privilege no player has — which is exactly what"
+                    + " this arm did while it was staged on a source block (8/9 = 0.889)."
+                    + " The arena, not the gate, is wrong.");
         if (bottomed < 1)
-            ctx.fail("buoyantJumpStaysABob: a body resting on rock under one block of water never"
-                    + " jumped. The shallow-water ground jump is what this branch has always promised;"
-                    + " refusing every jump in water is an over-correction, not a fix.");
+            ctx.fail("buoyantJumpStaysABob: a body resting on rock in water shallower than vanilla's"
+                    + " jump threshold (getFluidHeight(WATER)=" + bottomedArm.fluidAtRest() + " <= "
+                    + threshold + ") never jumped. Below the threshold vanilla's own rule reaches"
+                    + " jumpFromGround via (onGround || (inWater && g <= h)), so the 0.42 is required"
+                    + " here; refusing every jump in water is an over-correction, not a fix.");
 
         // ---- bottomedDeep: staging first, verdict second ----
         //
