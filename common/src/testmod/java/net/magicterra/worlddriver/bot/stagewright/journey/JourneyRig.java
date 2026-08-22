@@ -1343,14 +1343,27 @@ public final class JourneyRig {
      * vein 1's collect ever walked anywhere.
      */
     public void collectByHand(String itemId, int legs, String key, Runnable then) {
+        collectByHand(itemId, legs, legs, key, then);
+    }
+
+    /**
+     * As above, carrying the leg TOTAL so the walk index is right whatever the caller asked for.
+     *
+     * <p>The index used to be {@code MAX_PICKUP_LEGS - legs + 1}, which is only correct while every
+     * caller starts from that one constant. It stopped being true the moment a caller needed more:
+     * the blaze rung fights up to 24 rounds and the bodies land all over the room, so three walks
+     * banked four rods and left two lying — {@code blaze.pickup.left 2} beside
+     * {@code blaze_rod.quota 4/6}, i.e. the two missing rods were the two nobody walked to.
+     */
+    public void collectByHand(String itemId, int legs, int total, String key, Runnable then) {
         if (legs <= 0) { leftOnTheGround(itemId, key, then); return; }
         BlockPos drop = nearestDrop(itemId, PICKUP_RADIUS);
         if (drop == null) { leftOnTheGround(itemId, key, then); return; }
-        evidence(key + ".pickup.walks", MAX_PICKUP_LEGS - legs + 1);
+        evidence(key + ".pickup.walks", total - legs + 1);
         evidence(key + ".pickup.target", drop.toShortString());
         settle(new IntentProcess(new Intent(new Goal.Block(drop))), 600,
                 () -> settle(new HoldStill(30), 50,
-                        () -> collectByHand(itemId, legs - 1, key, then)));
+                        () -> collectByHand(itemId, legs - 1, total, key, then)));
     }
 
     /** What the collect could not get, read after it stops rather than before it starts. A drop

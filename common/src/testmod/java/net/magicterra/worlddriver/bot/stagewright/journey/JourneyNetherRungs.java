@@ -875,7 +875,11 @@ public final class JourneyNetherRungs {
         // signature exactly, on a run whose loot gate was fine. Counting what came into EXISTENCE
         // answers the question the row is asked; counting what reached the bag answers a different
         // one that the pickup rows already cover.
-        final int before = rods + rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK);
+        // `rods` ALREADY counts the ground — adding it again double-counted it, and the row printed
+        // 「0,0,1,-1,-1,-1,0,-2,…」 on 2026-08-22. A count of things that came into existence cannot
+        // be negative, so the row said plainly that it was broken; the arithmetic was
+        // before = carrying + 2×ground while now = carrying + ground, i.e. now-before = -ground.
+        final int before = rods;
         final int round = BLAZE_FIGHTS - roundsLeft + 1;
         // Re-held every round, not once. Anything that walks or digs calls `selectTool`, which
         // swaps the best TOOL for the block into the selected slot — so the hand a fight starts
@@ -916,8 +920,53 @@ public final class JourneyNetherRungs {
         // an empty one. 2026-08-21: seven kills, zero rods, `dropsNearby=2 根掉在地上没捡` printed by
         // the row below, on the same verdict. The drops were not the problem and neither was the
         // loot gate (wd.serverEarnsABlazeRod: 24/24 kills, 11 rods) — nobody walked over to them.
-        rig.collectByHand(BLAZE_ROD, JourneyRig.MAX_PICKUP_LEGS, "blaze",
-                () -> blazeBank(ctx, rig, tally, killed));
+        // More legs than the shared default, because this rung now fights for a QUOTA rather than
+        // for one rod: fourteen blazes die in fourteen places, and three walks banked four rods with
+        // two still on the floor — exactly the two the quota was short. The legs are cheap (a walk
+        // and a 30-tick hold each) and they stop early the moment nothing is left within reach.
+        rig.collectByHand(BLAZE_ROD, BLAZE_PICKUP_LEGS, "blaze",
+                () -> silenceTheSpawner(ctx, rig, tally, killed));
+    }
+
+    /**
+     * Break the spawner on the way out, the way a player who is finished with one does.
+     *
+     * <p>This is cleanup for the NEXT rung, and it was bought at that rung's expense before it
+     * existed. Raising this rung's rod quota kept the body beside a live spawner far longer, and the
+     * spawner went on working: measured 2026-08-22, the blaze census around the body went 3 → 60
+     * across rungs 14 and 15, against a hostile mob cap that the whole neighbourhood shares. With
+     * sixty blazes holding that cap, <b>no enderman spawned within the hunt's 48-block radius for
+     * thirty consecutive rounds</b> — {@code enderman.found 2/30, killed 0/30} — and the next rung
+     * failed for want of a mob this rung had crowded out. The run before it, which fought five
+     * blazes instead of fourteen, left {@code blaze=2} behind and found thirty-two endermen.
+     *
+     * <p>So the quota did not merely cost time, it spent a budget belonging to somebody else. Ending
+     * the spawn is the cheap half of giving it back; it costs one block-break and the rung is done
+     * with the spawner by definition — the rods are already collected when this runs.
+     *
+     * <p>Recorded and never asserted. A spawner that will not break is worth knowing about and is
+     * not this rung's claim, which is the rod in the bag.
+     */
+    private static void silenceTheSpawner(SceneContext ctx, JourneyRig rig, StringBuilder tally,
+                                          int killed) {
+        BlockPos spawner = rig.nearestBlock("minecraft:spawner", SPAWNER_BREAK_SEARCH);
+        if (spawner == null) {
+            rig.evidence("spawner.silenced", "找不到刷怪笼方块了，跳过（不影响本级判据）");
+            blazeBank(ctx, rig, tally, killed);
+            return;
+        }
+        rig.attempting("临走把刷怪笼砸了 —— 否则它会一直刷，把怪物上限占满，下一级就找不到末影人");
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(spawner, 3))), 900,
+                () -> rig.mineBlock(spawner, 900, () -> {
+                    var now = BuiltInRegistries.BLOCK.getKey(
+                            rig.player().serverLevel().getBlockState(spawner).getBlock());
+                    boolean gone = now == null || !"minecraft:spawner".equals(now.toString());
+                    rig.evidence("spawner.silenced", gone
+                            ? "已砸掉 " + spawner.toShortString()
+                            : "没砸掉 " + spawner.toShortString() + "（还立着 —— 下一级的刷怪窗口会被烈焰人占住）");
+                    rig.evidence("spawner.blazesLeft", blazesNear(rig.player().serverLevel(), spawner).size());
+                    blazeBank(ctx, rig, tally, killed);
+                }));
     }
 
     /** The verdict proper, taken after the collect — see {@link #blazeVerdict}. */
@@ -2760,6 +2809,16 @@ public final class JourneyNetherRungs {
      *  twelve kills and wants headroom above that. The real cost is not the fighting — the measured
      *  fights took 52–59 ticks each — it is waiting for the spawner to turn between them. */
     private static final int BLAZE_FIGHTS = 24;
+
+    /** Collect legs for the rods. Above the shared default of 3 because a quota's worth of blazes
+     *  dies in a quota's worth of places — three walks left two rods on the floor and the quota
+     *  short by exactly two. Each leg ends the moment nothing is left in range, so an easy run does
+     *  not pay for the headroom. */
+    private static final int BLAZE_PICKUP_LEGS = 10;
+
+    /** How far to look for the spawner when leaving. Small: the rung fought in a room built around
+     *  it, so if it is not close the body is not where it thinks it is. */
+    private static final int SPAWNER_BREAK_SEARCH = 12;
     private static final int BLAZE_FIGHT_TICKS = 1_200;
     private static final double BLAZE_SEARCH = 16.0;
 
