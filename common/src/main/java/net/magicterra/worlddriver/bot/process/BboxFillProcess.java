@@ -205,29 +205,32 @@ public final class BboxFillProcess implements BotProcess {
                 }
                 // Pick a supporting neighbor and click its face that points
                 // at currentTarget. The supporting block must be solid.
-                Placement pl = findPlacement(lvl, currentTarget);
-                if (pl == null) {
+                Direction face = supportFace(lvl, currentTarget);
+                if (face == null) {
                     skipped++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                     return false;
                 }
-                aimAtSupportFace(p, currentTarget, pl.face);
+                aimAtSupportFace(p, currentTarget, face);
                 if (placeTicks == 0) {
                     BlockPos support = new BlockPos(
-                            currentTarget.getX() - pl.face.getStepX(),
-                            currentTarget.getY() - pl.face.getStepY(),
-                            currentTarget.getZ() - pl.face.getStepZ());
-                    a.placeOn(support, pl.face);
+                            currentTarget.getX() - face.getStepX(),
+                            currentTarget.getY() - face.getStepY(),
+                            currentTarget.getZ() - face.getStepZ());
+                    a.placeOn(support, face);
                 }
                 placeTicks++;
-                if (nowId.equals(fillId)) {
-                    placed++;
-                    done.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
-                } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
+                // NOTE: a success is recognised only by the `nowId.equals(fillId)` shortcut at the
+                // TOP of this arm, i.e. one tick late. There used to be a second copy of that test
+                // down here, after the click — but it re-tested `nowId`, which was read BEFORE the
+                // click and never refreshed, so it could not fire: had it been true, control had
+                // already returned above. Deleting it changed nothing and stopped this arm from
+                // looking like it verifies its own placement. It does not, and it also clicks only
+                // once (placeTicks == 0) where Build/Backfill re-fire every 5 ticks for a dropped
+                // packet — so the remaining ~59 ticks here are spent doing nothing at all.
+                if (placeTicks > PLACE_TIMEOUT_TICKS) {
                     skipped++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
@@ -278,14 +281,22 @@ public final class BboxFillProcess implements BotProcess {
         return null;
     }
 
-    /** Pick the supporting face — Dyn copy of BuildProcess.findPlacement. */
-    private Placement findPlacement(Level lvl, BlockPos block) {
+    /**
+     * The face of a solid neighbour that points at {@code block}, or null if it has none.
+     *
+     * <p>Deliberately NOT what {@code BuildProcess.findPlacement} does, though a comment here used
+     * to call it a copy: that one also picks the cell to stand in, this one never did — the fill
+     * walks to a stand chosen much earlier by {@link #findStandableAdjacent}. It returned a
+     * two-field {@code Placement} whose {@code stand} was hardcoded null at the one construction
+     * site and read by nobody, which is what made the copy claim look true.
+     */
+    private Direction supportFace(Level lvl, BlockPos block) {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
             BlockState ss = lvl.getBlockState(support);
             if (!ss.isSolid()) continue;
-            return new Placement(null, d.getOpposite());
+            return d.getOpposite();
         }
         return null;
     }
@@ -328,5 +339,4 @@ public final class BboxFillProcess implements BotProcess {
         return bs.isAir() || !bs.getFluidState().isEmpty();
     }
 
-    private record Placement(BlockPos stand, Direction face) {}
 }
