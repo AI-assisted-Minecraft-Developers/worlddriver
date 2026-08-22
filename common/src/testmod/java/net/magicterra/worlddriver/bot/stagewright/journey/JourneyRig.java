@@ -1285,6 +1285,29 @@ public final class JourneyRig {
         BotConfig.pathfinderMaxNodes = 100_000;
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
+        // ⚠️ THE BASELINE ABOVE IS NOT WHAT A PLAYER RUNS. `pinnedBaseline()` applies
+        // `applyGameTestBaseline()`, which exists so the ARENA suite's assertions keep the
+        // historical default-OFF flag set they were authored against — and it turns off ~30 flags
+        // whose live default is ON. This ladder is not the arena suite: it asks whether the driver
+        // can finish the GAME, so every flag it leaves off is a capability the answer is silently
+        // being measured without. That baseline's own comment says the way out: "scenes that WANT a
+        // flag still set it explicitly."
+        //
+        // This one is armed because it was measured to be the rung-3 blocker (2026-08-22, real
+        // client, seed 5471). With it OFF there is NO dig arbitration at all: two walker phases
+        // — the travel drive on its traverseBreak node 65,62,63 and the water climb-out on its bank
+        // riser 65,64,63 — each ran startDestroyBlock on its own cell every ~35 ticks, and vanilla's
+        // MultiPlayerGameMode tracks exactly ONE destroy target, so every switch threw the other's
+        // destroyProgress away. A bare-handed afloat block needs 300 ticks (the ×5 in-water and ×5
+        // airborne penalties multiply); neither cell ever passed 0.16. The rung timed out at 8000
+        // ticks having broken nothing, three runs running.
+        //
+        // The tell was a zero: `dig-aim RELEASE` never appeared, not once in 8022 ticks. That read
+        // as "the hold never expired" and cost two wrong fixes — a progress-aware release and a
+        // claim protocol, both written into a branch this topology had switched off. The zero meant
+        // the guard was never ENTERED. The other ~29 flags are listed in TODO.md; arming them is a
+        // separate experiment, one variable at a time.
+        BotConfig.walkerDigAimPriority = true;
     }
 
     // ---- reading the body ----

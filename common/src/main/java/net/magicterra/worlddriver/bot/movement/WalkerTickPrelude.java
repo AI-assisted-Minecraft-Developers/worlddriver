@@ -62,6 +62,69 @@ final class WalkerTickPrelude {
     private static final int STICKY_DIG_RAY_MISS_LATCH = 4;
     private WalkerTickPrelude() {}
 
+    /**
+     * The dig claim's RELEASE POLICY, and the only place it lives.
+     *
+     * <p>{@code walkerStickyDig}: a planned break, once started, OWNS the tick until the block breaks
+     * (or the watchdog/range check bails). Without it, ticks where the break-edge gate flickers
+     * (buoyant bob off the within stance, projection jitter) fall through to the travel drive, which
+     * releases attack for that tick — and ONE released tick resets vanilla mining progress to zero,
+     * so an underwater 25×-slow dig interleaved with travel ticks NEVER completes (C28-J1 DIG-slow:
+     * 200t held in aggregate, block still solid, walk-keys showed attack=false travel ticks threaded
+     * through the dig). Exclusive aim+attack until done. Default OFF.
+     *
+     * <p>{@code walkerDigAimPriority} — the NON-exclusive successor (KILLED §66: owning the whole
+     * tick starved travel/recovery when the latched block wasn't the way out). Same disease, opposite
+     * temperament: the ENTIRE travel tick runs (drive, recovery, repath), then digAimReassert at the
+     * end of walkTick re-holds only crosshair+attack — a human holding W+LMB against the wall being
+     * dug. Here we only EXPIRE the claim; the re-assert happens after the tick body.
+     *
+     * <p><b>Release on a stall, not on a clock</b> — the lesson this branch's own predecessor
+     * (walkerStickyDig, below) learned and wrote down, and that this successor never inherited. It
+     * mattered because of which one runs: digAimPriority defaults ON and stickyDig defaults OFF, so
+     * the progress-aware watchdog underneath was dead code and the fixed clock was the only release
+     * anyone ever executed.
+     *
+     * <p>Measured 2026-08-22, real-client ladder, rung 3: a bare-handed bank dig while AFLOAT advances
+     * vanilla's destroyProgress by 0.00333/tick — 300 ticks per block, because the ×5 (eye in water)
+     * and ×5 (airborne) penalties multiply. The cap was {@code min(breakTimeoutTicks=200, 300)} = 200,
+     * so the hold was released 100 ticks before the block could ever break, vanilla zeroed the
+     * progress, the walker re-acquired the same cell, and the rung timed out after 8000 ticks having
+     * broken nothing. Highest progress ever reached: 0.77. A constant cannot bound a quantity whose
+     * scale the terrain decides.
+     *
+     * <p>The server avatar has no progress sensor ({@code destroyProgress() == -1}), so it keeps the
+     * old time box byte for byte: stall-only there would release at 60 ticks and be TIGHTER than what
+     * it has today, which is a regression dressed as a fix.
+     */
+    private static void expireDigClaim(Walker wk, Avatar a, WorldView world, Player p) {
+        if (!BotConfig.walkerDigAimPriority || wk.stickyDig.pos == null) return;
+        float prog = a.destroyProgress();
+        boolean spent;
+        if (prog < 0) {
+            spent = ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 300);
+        } else {
+            if (prog > wk.stickyDig.lastProgress + 1e-4f) {
+                wk.stickyDig.lastProgress = prog;
+                wk.stickyDig.stallTicks = 0;
+            } else {
+                if (prog < wk.stickyDig.lastProgress - 0.05f)
+                    wk.stickyDig.lastProgress = prog;   // vanilla re-based it — follow
+                wk.stickyDig.stallTicks++;
+            }
+            spent = wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
+                    || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
+        }
+        if (!world.isSolid(wk.stickyDig.pos) || spent
+                || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20) {
+            if (BotConfig.walkerDebug)
+                LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
+                        wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
+                        wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
+            wk.stickyDig.revoke();
+        }
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         Player p = a.player();
@@ -202,65 +265,7 @@ final class WalkerTickPrelude {
                     Walker.classifyArrival(wk.seg.pathBestEffort, wk.goal.reached(foot), wk.goalSnapped), foot);
         }
 
-        // walkerStickyDig: a planned break, once started, OWNS the tick until the block
-        // breaks (or the watchdog/range check bails). Without this, ticks where the
-        // break-edge gate flickers (buoyant bob off the within stance, projection jitter)
-        // fall through to the travel drive, which releases attack for that tick — and ONE
-        // released tick resets vanilla mining progress to zero, so an underwater 25×-slow
-        // dig interleaved with travel ticks NEVER completes (C28-J1 DIG-slow: 200t held
-        // in aggregate, block still solid, walk-keys showed attack=false travel ticks
-        // threaded through the dig). Exclusive aim+attack until done; solid-gone or
-        // timeout or drifted-away clears it. Default OFF.
-        // walkerDigAimPriority — the NON-exclusive successor to stickyDig (KILLED §66:
-        // owning the whole tick starved travel/recovery when the latched block wasn't
-        // the way out). Same disease, opposite temperament: the ENTIRE travel tick runs
-        // (drive, recovery, repath), then digAimReassert at the end of walkTick re-holds
-        // ONLY crosshair+attack — a human holding W+LMB against the wall being dug.
-        // Here we just expire the latch; the re-assert happens after the tick body.
-        // RELEASE ON A STALL, NOT ON A CLOCK — the lesson this branch's own predecessor
-        // (walkerStickyDig, below) learned and wrote down, and that this successor never
-        // inherited. It matters because of which one runs: walkerDigAimPriority defaults ON and
-        // walkerStickyDig defaults OFF, so the progress-aware watchdog underneath is dead code
-        // and the fixed clock is the only release anyone has ever executed.
-        //
-        // Measured 2026-08-22, real-client ladder, rung 3: a bare-handed bank dig while AFLOAT
-        // advances vanilla's destroyProgress by 0.00333/tick — 300 ticks per block, because the
-        // ×5 (eye in water) and ×5 (airborne) penalties multiply. The cap was
-        // min(breakTimeoutTicks=200, 300) = 200. **The hold was released 100 ticks before the
-        // block could ever break**, vanilla zeroed the progress, the walker re-acquired the same
-        // cell, and the rung timed out after 8000 ticks having broken nothing. Highest progress
-        // ever reached: 0.77. A constant cannot bound a quantity whose scale the terrain decides.
-        //
-        // The server avatar has no progress sensor (destroyProgress() == -1), so it keeps the old
-        // time box byte for byte: stall-only there would release at 60 ticks and be TIGHTER than
-        // what it has today, which is a regression dressed as a fix.
-        if (BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
-            float prog = a.destroyProgress();
-            boolean spent;
-            if (prog < 0) {
-                spent = ++wk.stickyDig.ticks > Math.min(BotConfig.breakTimeoutTicks, 300);
-            } else {
-                if (prog > wk.stickyDig.lastProgress + 1e-4f) {
-                    wk.stickyDig.lastProgress = prog;
-                    wk.stickyDig.stallTicks = 0;
-                } else {
-                    if (prog < wk.stickyDig.lastProgress - 0.05f)
-                        wk.stickyDig.lastProgress = prog;   // vanilla re-based it — follow
-                    wk.stickyDig.stallTicks++;
-                }
-                spent = wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
-                        || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
-            }
-            if (!world.isSolid(wk.stickyDig.pos) || spent
-                    || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20) {
-                if (BotConfig.walkerDebug)
-                    LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
-                            wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
-                            wk.stickyDig.stallTicks, String.format("%.2f", wk.stickyDig.lastProgress));
-                wk.stickyDig.pos = null;
-                wk.stickyDig.ticks = 0;
-            }
-        }
+        expireDigClaim(wk, a, world, p);
         if (BotConfig.walkerStickyDig && !BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null) {
             // Tightened after C31-J1 (-325,64,-47): the 25 (5-block) drift radius held the
             // latch on a cell 5 below the bot — OUTSIDE mining reach (~4.5) — so the latch
