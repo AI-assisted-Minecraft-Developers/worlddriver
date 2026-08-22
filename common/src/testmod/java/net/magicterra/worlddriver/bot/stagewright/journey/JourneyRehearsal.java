@@ -279,9 +279,25 @@ public final class JourneyRehearsal {
      * <p>So the floor here is the declaration itself, which makes the default cap a no-op for this
      * one rung. An explicit {@code -PrehearseBudget=N} still wins outright — that is the brake, and a
      * floor that overrode it would take the brake away exactly when it is wanted.
+     *
+     * <p><b>{@code STRONGHOLD} joined the list on 2026-08-22, and here is its argument.</b> The rule
+     * above is that a rung added here must be argued for rather than inherit the exemption, and the
+     * argument has two halves. First, it does not fit, by the same order of magnitude the dragon does
+     * not: the rung is「the longest walk in the game」— a march home across the Nether and then 1745
+     * blocks of overworld terrain, at {@code MARCH_LEG_TICKS} = 4 000 a leg and up to
+     * {@code MAX_MARCH_LEGS} = 48 legs, so the walk ALONE can want 192 000. Second — and this is what
+     * separates it from {@code PORTAL_LIT}, which declares 250 000 and is deliberately left capped —
+     * <b>no rehearsal of this rung has ever run</b>, because it had no staging recipe until the same
+     * day. There is therefore no existing measurement for the floor to move, which is the exact
+     * objection that keeps PORTAL_LIT capped.
+     *
+     * <p>Its first run is why this is not theoretical: capped at 40 000 it recorded
+     * {@code rehearse.budgetCapped} and then failed on the return, and the two readings would have
+     * been indistinguishable from each other — a rung that ran out of fixture budget and a rung that
+     * cannot walk home look identical from the outside.
      */
     private static int budgetFloor(JourneyStage rung, int declared) {
-        return rung == JourneyStage.DRAGON ? declared : 0;
+        return rung == JourneyStage.DRAGON || rung == JourneyStage.STRONGHOLD ? declared : 0;
     }
 
     // =====================================================================================

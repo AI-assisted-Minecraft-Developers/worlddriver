@@ -565,13 +565,66 @@ public final class JourneyEndRungs {
     private static void stepBackThrough(SceneContext ctx, JourneyRig rig, Runnable then) {
         BlockPos again = rig.nearestBlock("minecraft:nether_portal", 24);
         rig.evidence("return.portalAfterWalk", xyz(again));
-        if (again == null) {
-            ctx.fail("走回了记下的落点 " + xyz(JourneyLedger.netherPortal()) + "，但那里已经没有"
-                    + " nether_portal 方块了（身体在 " + rig.player().blockPosition()
-                    + "）——门被毁了，或者落点记的位置离门太远。这跟「走不回来」是两回事");
+        if (again != null) {
+            stepThroughPortal(ctx, rig, again, then);
             return;
         }
-        stepThroughPortal(ctx, rig, again, then);
+        climbToTheDoor(ctx, rig, then);
+    }
+
+    /**
+     * The march home arrived, and there is still no door in sight — because the march never looked
+     * up.
+     *
+     * <p>{@link #march} judges arrival with {@link #flatDistance} and steers with {@code Goal.XZ}:
+     * y-blind by construction, which is right for a surface trek to an XZ target and wrong for the
+     * one target in this rung that is a specific CELL. The confirmation scan is a 3D radius, so the
+     * two disagree, and the disagreement is silent — measured 2026-08-22 on rung 17's first
+     * rehearsal:
+     *
+     * <pre>{@code
+     * return.banked   104, 93, 7      home.3   99, 41, 11   距门 6 格
+     * return.portalAfterWalk 无
+     * }</pre>
+     *
+     * <p>Six blocks away and fifty-two below. The old message here said 「门被毁了，或者落点记的位置
+     * 离门太远」— every word true, neither cause correct, and it named the two things a reader would
+     * then go and check. A body that has walked to the right column has not walked to the door.
+     *
+     * <p>So the flat march gets a 3D finish: one settle on {@code Goal.Near}, which is a sphere and
+     * therefore does include y, letting the pathfinder close a gap it already knows how to close.
+     * Only if THAT fails is the door genuinely out of reach — and then the message says so with the
+     * vertical gap in it, so the next reader is not sent after a destroyed portal that is standing.
+     */
+    private static void climbToTheDoor(SceneContext ctx, JourneyRig rig, Runnable then) {
+        BlockPos home = JourneyLedger.netherPortal();
+        BlockPos at = rig.player().blockPosition();
+        int dy = home.getY() - at.getY();
+        rig.evidence("return.verticalGap", "水平已到（" + Math.round(flatDistance(at, home))
+                + " 格），但门在 y=" + home.getY() + " 而身体在 y=" + at.getY()
+                + "，差 " + dy + " 格 —— 行军判的是平面距离，确认门用的是 24 格球形半径，"
+                + "两者不一致时就会出现「走到了却没有门」");
+        rig.attempting("贴到门那一格上（3D 目标，行军只管平面）：" + xyz(home));
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(home, RETURN_ARRIVED_WITHIN))),
+                MARCH_LEG_TICKS, () -> {
+            BlockPos third = rig.nearestBlock("minecraft:nether_portal", 24);
+            BlockPos now = rig.player().blockPosition();
+            rig.evidence("return.portalAfterClimb", xyz(third) + "（收工时身体在 " + xyz(now)
+                    + "，距门 " + Math.round(Math.sqrt(now.distSqr(home))) + " 格）");
+            if (third != null) {
+                stepThroughPortal(ctx, rig, third, then);
+                return;
+            }
+            if (Math.abs(home.getY() - now.getY()) > RETURN_ARRIVED_WITHIN) {
+                ctx.fail("走回了记下的那一柱，但够不着门本身：门在 " + xyz(home) + "，身体停在 "
+                        + xyz(now) + "，垂直还差 " + Math.abs(home.getY() - now.getY())
+                        + " 格。这不是「门被毁了」，也不是「走不回来」——是最后这一段爬不上/下去");
+                return;
+            }
+            ctx.fail("站到了记下的落点 " + xyz(home) + " 跟前（身体在 " + xyz(now)
+                    + "，垂直已经贴上），24 格内仍然没有 nether_portal 方块 —— 这一次是真的没门了："
+                    + "要么被毁，要么 13 级记下的坐标就不对");
+        });
     }
 
     /** Stand in the doorway and wait for the dimension to change. */
