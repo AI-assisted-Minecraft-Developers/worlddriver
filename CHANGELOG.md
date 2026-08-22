@@ -48,6 +48,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `setSelectedSlot` all write `inv.selected` without a `ClientboundSetCarriedItemPacket`. Correct for
   a headless body, a silent two-way divergence source for an adopted one. The ladder is covered by
   `holdBoth`; any caller going through the engine helm still steps in it.
+- **The same defect had a second, costlier victim: placing.** Every hold in the journey package went
+  through the client alone, while `placeInto` → `placeOn` → `gameMode.useItemOn` and `TowerProcess`
+  are all decided by the **server's** hand. Rung 12's ninth cell died on it in a way that read as a
+  terrain problem: the tower stopped on DRY ground (`climb.2 = 3,56,19 above=air onGround=true
+  water=false`) with `stalled=null`, `state onGround=true inWater=false y=56.00` and `stock
+  minecraft:cobblestone ×137` — **the server count never moving**, the `spent 1→1` signature one verb
+  over. A pickaxe's `useOn` against a block face does nothing, silently; the client's builder saw no
+  error because its own prediction had placed the block. `JourneyShaft` then ends the whole tower
+  after one course with no Y gain, so a wrong hand cost the entire raise, and the pinned climb fell
+  through to a `Goal.YLevel` fallback that is **column-blind by construction** and walked the body
+  four cells off the column the pour's ray was computed for (`endedIn=-1,19`, ray pinned to `3,19`).
+  That fallback's own justification (`JourneyShaft` climbPinned) rests on the alcove being flooded —
+  "a tower cannot START in water" — and this run measured `water=false`: a remedy admitted for one
+  occasion firing on an occasion where its premise does not hold. All nine single-body holds now go
+  through `holdBoth`.
+- **Rung 12 lights the portal.** `wd.rehearse12PortalLit` PASS at 20487 ticks: `frame.cast = 10/10`
+  with `0` cells lost, `frame.obsidian = 10/10`, portal lit 6 cells, and the two raises that failed
+  the run before now land (`water9.raisedY = 60/60`, `cast9.raisedY = 59/59`) with `spent 1→0` on
+  each. Zero `holdBoth.*` rows — the two inventories never diverged. Four of the nine converted call
+  sites live outside rung 12 (`JourneyEndRungs`, `JourneyShelter`, `JourneyStairs`), so this
+  rehearsal cannot speak for them; the full ladder is what does.
 - **The last unscripted rung has steps, and the flock is chosen by colour rather than by distance.**
   `wd.journey07Bed` was the ladder's only remaining `unscripted(...)` placeholder. It printed
   `NOT_SCRIPTED` and — because that path records PASS with `skipped=true` — **counted as a pass in
