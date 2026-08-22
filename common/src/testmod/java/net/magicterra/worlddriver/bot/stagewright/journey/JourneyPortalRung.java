@@ -2307,7 +2307,10 @@ public final class JourneyPortalRung {
                 BlockPos settled = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away,
                         tag + "." + tries + ".settled");
                 BlockPos at = settled != null ? settled : planned;
-                rig.avatar().aimAtBlock(at);
+                // BOTH bodies: the next statement is a prediction gate on the SERVER one. Same
+                // reason as JourneyFill.scoop — see WorldDriverJourneyScenes.aimBoth — and the same
+                // stakes, because this gate's failure branch runs clearPourLine, which mines.
+                WorldDriverJourneyScenes.aimBoth(rig, at);
                 // Where the fluid is actually going to land, recorded BEFORE it is spent. A filled
                 // bucket clips with `Fluid.NONE` and empties into the cell in front of the face it
                 // hits, so this pick IS the destination — and without it a pour that succeeded into
@@ -2359,8 +2362,39 @@ public final class JourneyPortalRung {
                             + "然后这一级会把失败写成「浇不出黑曜石」");
                     return;
                 }
+                // WHAT THE BUCKET BECAME, not what the use returned. `result` was never able to
+                // answer this — the comment eight lines up already says a pour that goes nowhere
+                // still reports CONSUME — and on the client topology it is worse than uninformative:
+                // the use runs on the client and every reading of it is taken from the server, so
+                // judging in the use's own tick reads a world the packet has not reached.
+                //
+                // Measured, rung 12's client rehearsal 2026-08-22, and it took a purpose-built row
+                // to see at all. The pour reported `water0.result=SUCCESS`, `water.fell.0` said the
+                // wet cell was empty, and the rung walked on — then died two steps later on
+                // `lava0.hand#2 = 拿不到 minecraft:bucket … 桶存量 空=0 水=1 岩浆=0`. THE BUCKET WAS
+                // STILL FULL. Nothing had been poured; three separate rows had said otherwise, and
+                // `water.fell`'s own wording (「水多半落进了目标格」) shows it was inferring, not
+                // measuring — its test is `getFluidState(wet).isEmpty()`, which cannot tell 「the
+                // water flowed away」 from 「the water was never placed」.
+                //
+                // A spend is a state change of one object: bucket → water_bucket → bucket. Measure
+                // that and none of the three ambiguities above can survive. Recorded rather than
+                // enforced, deliberately: this rung already fails downstream on an empty-handed
+                // cast (line 1995) and on `cast.missed`, and a new hard gate here would change what
+                // the next run is measuring at the same moment as the round trip does.
+                java.util.function.Supplier<Integer> stock = () -> rig.carrying(
+                        BuiltInRegistries.ITEM.getKey(held).toString());
+                int before = stock.get();
                 rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
-                then.run();
+                rig.settle(new HoldStill(3), 12, () -> {
+                    int after = stock.get();
+                    rig.evidence(tag + ".spent", after < before
+                            ? BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
+                              + "（倒出去了）"
+                            : BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
+                              + "，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生");
+                    then.run();
+                });
             }));
         });
     }
