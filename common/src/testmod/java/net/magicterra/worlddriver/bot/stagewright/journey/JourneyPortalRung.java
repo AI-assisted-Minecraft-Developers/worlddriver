@@ -2385,6 +2385,13 @@ public final class JourneyPortalRung {
                 java.util.function.Supplier<Integer> stock = () -> rig.carrying(
                         BuiltInRegistries.ITEM.getKey(held).toString());
                 int before = stock.get();
+                // Both bodies, at the instant of the use — the only moment at which the two halves
+                // of a use can be compared. Everything else this rung records is one body at one
+                // moment: `.picks` is the SERVER's ray (and it was right all along), `.result` is
+                // the CLIENT's own return value, `.spent` is the SERVER after a round trip. The
+                // question they could not answer between them is what the SERVER was holding when
+                // the packet landed, which is what `holdBoth` now sets and this row now checks.
+                WorldDriverJourneyScenes.handsAtUse(rig, tag);
                 rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
                 rig.settle(new HoldStill(3), 12, () -> {
                     int after = stock.get();

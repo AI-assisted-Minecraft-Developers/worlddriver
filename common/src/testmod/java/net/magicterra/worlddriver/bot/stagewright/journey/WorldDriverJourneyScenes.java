@@ -2558,8 +2558,15 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>(That {@code aimAtBlock} leaves the head rotation behind is an engine-side finding in its
      * own right — anything reading head rotation sees a stale direction — and is logged as one
      * rather than fixed from a test.)
+     *
+     * <p><b>Takes {@code Player}, not {@code ServerPlayer}, on purpose.</b> Every existing caller
+     * passes {@code rig.player()} and still compiles, but the widening lets the SAME clip run over
+     * {@code rig.avatar().player()} — and comparing the two bodies' rays is the only way to tell a
+     * pour whose server ray missed from a pour the server never held the bucket for. {@code Player}
+     * is also the widest type that is safe to name here: {@code Avatar.player()} is declared to
+     * return it precisely so that headless code never resolves {@code LocalPlayer}.
      */
-    static net.minecraft.world.phys.BlockHitResult aimedAt(net.minecraft.server.level.ServerPlayer fp,
+    static net.minecraft.world.phys.BlockHitResult aimedAt(net.minecraft.world.entity.player.Player fp,
                                                                   double range, boolean hitFluids) {
         net.minecraft.world.phys.Vec3 eye = fp.getEyePosition();
         net.minecraft.world.phys.Vec3 look =
@@ -2664,12 +2671,56 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * keeps the second value only when it differs, which makes {@code .hand#2} a staleness instrument.
      */
     static boolean holdForUse(JourneyRig rig, net.minecraft.world.item.Item item, String what) {
-        boolean ok = rig.avatar().holdItem(item);
+        boolean ok = holdBoth(rig, item);
         rig.evidence(what + ".hand", (ok ? "" : "拿不到 " + BuiltInRegistries.ITEM.getKey(item) + "，手上是 ")
                 + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
                 + actingHand(rig)
                 + (ok ? "" : "；" + bucketStock(rig)));
         return ok;
+    }
+
+    /**
+     * Put the item in BOTH bodies' hands — the twin of {@link #aimBoth}, one field over.
+     *
+     * <p><b>Why one call is not enough, measured.</b> Rung 12's client rehearsal spent one use
+     * successfully and then every later use did nothing, silently. The server's ray was never at
+     * fault: {@code water0.picks.3 = 5,57,19 stone face=west → 落进 4,57,19}, dead on the target
+     * cell, and {@code lava0.aimsAt#3 = -9,63,18 minecraft:lava 源块=true} at 3.5 m. What the server
+     * was holding was: {@code stone_pickaxe}, while the client held the bucket. A pickaxe's
+     * {@code use} returns {@code PASS} — no exception, no chat, no sound, no log line — which is
+     * byte-identical to every other way a use can do nothing.
+     *
+     * <p><b>The drift has two authors and neither can see the other.</b>
+     * {@code ServerPlayerAvatar.selectTool} (the engine's {@code MineProcess} path, which this
+     * ladder still steers for {@code d.mine}) writes {@code inv.selected} on the {@code ServerPlayer}
+     * and deliberately sends no packet — its comment says "this body's connection swallows them
+     * anyway", true of a headless {@code FakePlayer} and <b>false here</b>, where the body is an
+     * adopted player with a live client. Then {@code BotInteract.ensureHolding} opens with
+     * {@code if (inv.getSelected().getItem() == item) return true;} — correct for a real player,
+     * whose selected slot only ever moves from the client, and wrong for a body a second helm
+     * steers. So a mine between two uses moves the server's hand, the next hold sees the CLIENT's
+     * hand already right, sends nothing, and the server uses the wrong item.
+     *
+     * <p>Asked by ITEM on each side rather than by slot index, deliberately: each body then resolves
+     * the slot within its own inventory, which stays correct even after the two have diverged.
+     * {@code ServerPlayerAvatar.holdItem}'s bag branch swaps stacks server-side, and
+     * {@code broadcastChanges} pushes that to the client on the next tick — the corrective
+     * direction.
+     *
+     * <p>Returns the CLIENT's answer, because the client is the body that runs {@code useItem} and
+     * predicts. The server's answer is recorded rather than returned: a false there with a true here
+     * is the diverged-inventory case, and it must not silently cancel a use the caller can still
+     * make land.
+     */
+    static boolean holdBoth(JourneyRig rig, net.minecraft.world.item.Item item) {
+        boolean client = rig.avatar().holdItem(item);
+        boolean server = rig.body().avatar().holdItem(item);
+        if (client != server) {
+            rig.evidence("holdBoth." + BuiltInRegistries.ITEM.getKey(item).getPath(),
+                    "两具身体对同一件物品给了不同答案：客户端 " + client + "，服务端 " + server
+                            + " —— 两份背包已经分叉，" + bucketStock(rig));
+        }
+        return client;
     }
 
     /**
@@ -2697,17 +2748,77 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // THE SLOT NUMBER, not just the item — because two different failures print the same item
         // pair and want opposite fixes. `BotInteract.ensureHolding` has two branches: the hotbar one
         // sets `inv.selected` and sends ServerboundSetCarriedItemPacket, while the main-inventory
-        // one performs a SWAP **click** through the container menu. A click the server refuses (a
-        // stale `stateId`, say) leaves the client holding the item it predicted and the server
-        // holding what it had — and then vanilla runs the WRONG ITEM'S use, which for a pickaxe is
-        // PASS: no error, no sound, nothing changed, exactly what rung 12 measured.
+        // one performs a SWAP **click** through the container menu.
         //
-        // Same slot, different items  ⇒ the selection propagated and the CONTENTS did not (a swap
-        //                                the server rejected).
-        // Different slots             ⇒ the selection itself never arrived.
+        // ⚠️ BUT THE SERVER HALF OF THIS ROW CANNOT DECIDE BETWEEN THEM, because of WHEN it is read.
+        // `holdItem` only queues the packet; this line runs in the same client tick, so the server
+        // number is the PRE-selection one **whenever the hold did anything at all**. "Different
+        // slots" here is the healthy reading, not evidence of a lost selection — and the first
+        // version of this comment said the opposite, which would have sent the next round chasing
+        // a selection that was merely in flight. `waterFill.hand#2 = minecraft:bucket` (the clash
+        // guard's second write, taken later) is the proof: the server DID catch up.
+        //
+        // The matrix that comment wanted lives in `handsAtUse`, which reads both bodies at the
+        // moment of the use, after the settle. Read that row, not this one.
         return "（真正要动手的那只手：槽 " + acting.getInventory().selected + " = "
                 + BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem())
-                + "；服务端槽 " + rig.player().getInventory().selected + "）";
+                + "；服务端槽 " + rig.player().getInventory().selected + "，换手包还没往返，这个数按定义是旧的）";
+    }
+
+    /**
+     * Both bodies, at the instant of the use — the reading every earlier row was too early to take.
+     *
+     * <p>Rung 12's pour has three rows and no two of them describe the same thing:
+     * {@code .hand} is the SERVER before the selection packet has flown, {@code .result} is the
+     * CLIENT's own return value (and {@code sidedSuccess} makes {@code SUCCESS} mean nothing more
+     * than "the client ran it"), and {@code .spent} is the SERVER after a round trip. Three
+     * readings, two bodies, three moments. This row collapses them: one line, one moment, both
+     * bodies, everything the use consumes.
+     *
+     * <p><b>Why the ray is here and not left to be inferred.</b> A pour that does nothing has two
+     * causes that every other row prints identically. Either the server is holding the wrong item —
+     * a pickaxe's {@code use} is {@code PASS} — or the server holds the bucket and its
+     * {@code getPlayerPOVHitResult} came back {@code MISS}, which also returns {@code PASS}.
+     * Vanilla logs neither: {@code handleUseItem} has no refusal branch that speaks, and the range
+     * cap inside the clip ({@code blockInteractionRange()}, 4.5) fails silently. So the ray has to
+     * be printed, and printed for BOTH bodies, because they can disagree — the use packet carries
+     * yRot/xRot so the ANGLES always agree, but the eye POSITIONS are one movement packet apart.
+     *
+     * <p>Both fluid modes, deliberately, so no caller has to pass a flag it can get backwards: an
+     * empty bucket clips {@code SOURCE_ONLY} and a full one clips {@code NONE}, and the two answers
+     * differ exactly where this rung lives — over water and lava.
+     */
+    static void handsAtUse(JourneyRig rig, String tag) {
+        var client = rig.avatar().player();
+        var server = rig.player();
+        rig.evidence(tag + ".atUse", client == server
+                ? "两半是同一个对象（无客户端拓扑）：" + oneBodyAtUse(server)
+                : "客户端 " + oneBodyAtUse(client) + "\n            服务端 " + oneBodyAtUse(server));
+    }
+
+    private static String oneBodyAtUse(net.minecraft.world.entity.player.Player p) {
+        if (p == null) return "没有身体";
+        return String.format(java.util.Locale.ROOT,
+                "槽 %d = %s；眼睛 %.2f/%.2f/%.2f 朝 yaw=%.2f pitch=%.2f；满桶线 %s；空桶线 %s",
+                p.getInventory().selected,
+                BuiltInRegistries.ITEM.getKey(p.getMainHandItem().getItem()),
+                p.getEyePosition().x, p.getEyePosition().y, p.getEyePosition().z,
+                p.getYRot(), p.getXRot(),
+                describeRay(p, false), describeRay(p, true));
+    }
+
+    private static String describeRay(net.minecraft.world.entity.player.Player p, boolean hitFluids) {
+        var hit = aimedAt(p, p.blockInteractionRange(), hitFluids);
+        if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+            return String.format(java.util.Locale.ROOT,
+                    "MISS（%.2f 格内什么都没挡住 —— vanilla 到这里就 return PASS，一个字都不打印）",
+                    p.blockInteractionRange());
+        }
+        return hit.getBlockPos().toShortString() + " "
+                + BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(hit.getBlockPos()).getBlock())
+                + " 面=" + hit.getDirection()
+                + String.format(java.util.Locale.ROOT, "（%.2f 格）",
+                        Math.sqrt(hit.getLocation().distanceToSqr(p.getEyePosition())));
     }
 
     /**
