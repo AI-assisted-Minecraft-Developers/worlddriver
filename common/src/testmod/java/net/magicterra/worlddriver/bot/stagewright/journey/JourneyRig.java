@@ -1300,9 +1300,14 @@ public final class JourneyRig {
         if (diedOf != null) return true;
         if (driver == null) return false;
         ServerPlayer fp = driver.fakePlayer();
+        rememberTheBlow(fp);
         if (fp.getHealth() > 0f && !fp.isDeadOrDying()) return false;
         String how = fp.getCombatTracker().getDeathMessage().getString();
         evidence("death.cause", how);
+        evidence("death.blow", blows.isEmpty() ? "整段没有记到任何一次扣血 —— 掉血不是通过 hurt() 发生的" : String.join("；", blows));
+        evidence("death.food", fp.getFoodData().getFoodLevel() + "/20，饱和度 "
+                + String.format(java.util.Locale.ROOT, "%.1f", fp.getFoodData().getSaturationLevel()));
+        evidence("death.standingIn", deathCell(fp));
         evidence("death.at", fp.blockPosition().toShortString());
         evidence("death.stage", stage.name());
         evidence("death.legTicks", legTicks);
@@ -1313,6 +1318,68 @@ public final class JourneyRig {
                 + "背包已掉落、按键不再产生位移、挖掘不再推进，而行走的判词会把这一切报成「走不到」。";
         WorldDriverCommon.LOG.error("[journey] {}", diedOf);
         return true;
+    }
+
+    /** How many recent blows the death row carries. Enough to tell one big hit from a slow drain. */
+    private static final int BLOWS_KEPT = 8;
+
+    /** The last few times this body lost health, newest last. Never cleared — a rung does not recover. */
+    private final java.util.List<String> blows = new java.util.ArrayList<>();
+
+    /** Health as of the previous tick, so a DROP can be noticed at the tick it happens. */
+    private float healthSeen = Float.NaN;
+
+    /**
+     * Note it every tick the body loses health, because both vanilla readings expire before the
+     * poll that notices the death can ask for them.
+     *
+     * <h2>Why polling for the cause does not work</h2>
+     *
+     * The IRON rung ended 2026-08-22 with {@code death.cause = Player118 died} — the body dead at
+     * {@code 94,40,89} and the verdict naming no killer at all. That row is not broken: it calls
+     * {@code getCombatTracker().getDeathMessage()}, which is exactly the right question. It came back
+     * generic because {@link net.minecraft.world.damagesource.CombatTracker#recheckStatus} clears
+     * every entry the moment {@code !mob.isAlive()}, and that runs inside the same server tick as the
+     * death. <b>By the time a per-tick poll sees health at zero, the tracker it wants to read has
+     * already been emptied by the death it is reacting to.</b> {@code getLastDamageSource()} expires
+     * on its own timer too — it nulls itself 40 ticks after the hit.
+     *
+     * <p>So the reading has to be taken while the body is still alive: sample health every tick and
+     * name the source at the tick it drops. Falling 8 blocks and starving to death both end with a
+     * corpse at the bottom of a shaft; {@code fall −3.0→17.0@2711} and eight rows of
+     * {@code starve −1.0} are different worlds, and the difference is not recoverable afterwards.
+     *
+     * <p>Same family as {@link #bodyDied} itself: a state that stops existing keeps answering, only
+     * this time what answers is the shape of a cleared record rather than a corpse's position.
+     */
+    private void rememberTheBlow(ServerPlayer fp) {
+        float now = fp.getHealth();
+        if (Float.isNaN(healthSeen) || now >= healthSeen) { healthSeen = now; return; }
+        var src = fp.getLastDamageSource();
+        String named = src == null ? "来源已过期（超过 40 tick）" : src.getMsgId()
+                + (src.getEntity() == null ? "" : "（" + src.getEntity().getName().getString() + "）");
+        blows.add(String.format(java.util.Locale.ROOT, "%s −%.1f→%.1f@%d", named, healthSeen - now, now, legTicks));
+        while (blows.size() > BLOWS_KEPT) blows.remove(0);
+        healthSeen = now;
+    }
+
+    /**
+     * What the body was standing in when it died — the half of the cause the damage type leaves out.
+     *
+     * <p>{@code inFire} does not say whether the fire was lava, and {@code fall} does not say whether
+     * the landing was into water the body then drowned in. The cell is also the only reading that
+     * survives being wrong about the mechanism entirely.
+     *
+     * <p>{@code fallDistance} is included but is NOT trustworthy on every body: a headless FakePlayer
+     * reports 0 for it always ({@code fakeplayer-falldistance-is-always-zero}), so read it as
+     * corroboration on the client-driven body and as nothing at all on the other two topologies.
+     */
+    private String deathCell(ServerPlayer fp) {
+        var level = fp.serverLevel();
+        var at = fp.blockPosition();
+        return "脚格=" + level.getBlockState(at) + "，脚下=" + level.getBlockState(at.below())
+                + "，头格=" + level.getBlockState(at.above())
+                + "，坠落距离=" + String.format(java.util.Locale.ROOT, "%.1f", fp.fallDistance);
     }
 
     /** Move the region ticket to the body's current chunk, if it has left the pinned one. */
@@ -1574,6 +1641,31 @@ public final class JourneyRig {
     }
 
     /**
+     * Everything lying on the ground within {@code radius} of the body, as {@code id×n, id×n}.
+     *
+     * <p>The other three drop readers ({@link #dropsNearby}, {@link #dropStacks},
+     * {@link #nearestDrop}) all take the item id as an argument, so all three can only answer
+     * "is THIS here?". That is the wrong question when a kill banks nothing: the bed rung read
+     * {@code pickup.left=0} for eight rounds running with {@code PICKUP_RADIUS} at 32 blocks, which
+     * proves no wool was on the ground and says nothing at all about whether the loot table rolled.
+     * Mutton without wool means the sheep died sheared; nothing at all means it did not die, or died
+     * outside the loot path. Those are opposite repairs, and no id-taking reader can separate them.
+     */
+    public String dropCensus(double radius) {
+        ServerPlayer fp = player();
+        var tally = new java.util.TreeMap<String, Integer>();
+        for (var drop : fp.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                fp.getBoundingBox().inflate(radius))) {
+            tally.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM
+                    .getKey(drop.getItem().getItem()).toString(), drop.getItem().getCount(), Integer::sum);
+        }
+        if (tally.isEmpty()) return "地上空无一物（" + (int) radius + " 格内）";
+        var sb = new StringBuilder();
+        tally.forEach((id, n) -> sb.append(sb.isEmpty() ? "" : ", ").append(id).append("×").append(n));
+        return sb.toString();
+    }
+
+    /**
      * How many {@code itemId} came into existence since {@code beforeStacks} / {@code beforeBag}
      * were read — non-negative by construction.
      *
@@ -1831,20 +1923,51 @@ public final class JourneyRig {
      * <p>Lambs and already-sheared sheep are left out. Both are sheep and neither drops wool, so a
      * rung that walked to one would report "killed a sheep, got no wool" — a sentence that reads
      * like a broken drop table and is really a bad choice of target.
+     *
+     * <p><b>And so are corpses, since 2026-08-22.</b> The filter used to ask only about lambs and
+     * shearing, so a sheep with its health at zero — still in the level for the twenty ticks its
+     * death animation runs, still unsheared, still an adult — counted as a candidate and could be
+     * picked again. The bed rung then reported {@code flock = 6 只可剪} unchanged across five rounds
+     * that each claimed a kill, and the round that "killed" a body already at zero banked nothing.
+     * A method whose first line of documentation promises sheep <i>that would really drop wool</i>
+     * cannot leave the one question out that decides it. Count the corpses with
+     * {@link #deadSheepNearby} rather than hiding them: how many are lying around is itself the
+     * reading that separates "the flock is thin" from "the same body is being re-killed".
      */
     public java.util.List<Woolly> woolNearby(int radius) {
         ServerPlayer fp = player();
-        var box = fp.getBoundingBox().inflate(radius, radius / 2.0, radius);
         java.util.List<Woolly> out = new java.util.ArrayList<>();
-        for (var entity : fp.serverLevel().getEntities(fp, box)) {
-            if (!(entity instanceof net.minecraft.world.entity.animal.Sheep sheep)) continue;
-            if (sheep.isBaby() || sheep.isSheared()) continue;
+        for (var sheep : sheepNearby(radius)) {
+            if (sheep.isBaby() || sheep.isSheared() || !sheep.isAlive()) continue;
             String colour = sheep.getColor().getName();
             out.add(new Woolly(sheep.getId(), sheep.blockPosition(),
                     Math.sqrt(fp.distanceToSqr(sheep)), "minecraft:" + colour + "_wool", colour));
         }
         out.sort(java.util.Comparator.comparingDouble(Woolly::distance));
         return java.util.List.copyOf(out);
+    }
+
+    /** Every sheep in the box around the body, alive or not — the one scan both readers share. */
+    private java.util.List<net.minecraft.world.entity.animal.Sheep> sheepNearby(int radius) {
+        ServerPlayer fp = player();
+        var box = fp.getBoundingBox().inflate(radius, radius / 2.0, radius);
+        var out = new java.util.ArrayList<net.minecraft.world.entity.animal.Sheep>();
+        for (var entity : fp.serverLevel().getEntities(fp, box))
+            if (entity instanceof net.minecraft.world.entity.animal.Sheep sheep) out.add(sheep);
+        return out;
+    }
+
+    /**
+     * How many sheep near the body are dead — the ones {@link #woolNearby} now drops.
+     *
+     * <p>Kept as a separate reading rather than folded into the candidate list, because the two
+     * numbers answer different questions and a rung that only ever sees the filtered one cannot tell
+     * a flock that has been hunted out from a flock whose corpses it kept walking back to.
+     */
+    public int deadSheepNearby(int radius) {
+        int n = 0;
+        for (var sheep : sheepNearby(radius)) if (!sheep.isAlive()) n++;
+        return n;
     }
 
     /** The dimension the body is standing in, as {@code "minecraft:overworld"}. */

@@ -143,8 +143,14 @@ final class JourneyBedRung {
         }
         final JourneyRig.Woolly target = pick;
         final int woolBefore = rig.carrying(target.woolId());
-        rig.evidence(r + ".flock", flock.size() + " 只可剪，选 " + target.colour() + " @ "
-                + target.where().toShortString() + "（" + Math.round(target.distance()) + " 格，"
+        // The id is in the row because five rounds picking the same CELL is ambiguous and five rounds
+        // picking the same ID is not. Rounds 2–6 of 2026-08-22 all chose white @ -16,64,73 and all
+        // reported a kill while the flock size never moved off 6, which one id would have explained
+        // in a single glance. The corpse count beside it is the other half: it says whether the
+        // scan was ever offering bodies at all.
+        rig.evidence(r + ".flock", flock.size() + " 只可剪（另有尸体 "
+                + rig.deadSheepNearby(radius) + " 具），选 " + target.colour() + " id=" + target.entityId()
+                + " @ " + target.where().toShortString() + "（" + Math.round(target.distance()) + " 格，"
                 + "已有同色 " + woolBefore + "）");
 
         // Walk first, engage second — CombatProcess scans 32 blocks and gives up at once, so handing
@@ -169,7 +175,19 @@ final class JourneyBedRung {
                 // between "the flock is thin" and "the verb reports a kill it did not make".
                 var still = ctx.level().getEntity(target.entityId());
                 rig.evidence(r + ".target", still == null ? "已从世界消失"
-                        : (still.isAlive() ? "仍活着 —— 这一轮没有杀成" : "已死"));
+                        : (still.isAlive() ? "仍活着 —— 这一轮没有杀成" : "已死")
+                          + "（血 " + (still instanceof net.minecraft.world.entity.LivingEntity le
+                                  ? String.format(java.util.Locale.ROOT, "%.1f", le.getHealth()) : "?")
+                          + "，已移除=" + still.isRemoved()
+                          + (still.getRemovalReason() == null ? "" : "/" + still.getRemovalReason())
+                          + "，在 " + still.blockPosition().toShortString() + "）");
+                // What is on the ground, whatever it is. `pickup.left` and the three id-taking drop
+                // readers all ask "is wool here?", and eight rounds of `pickup.left=0` at a 32-block
+                // radius answered that question perfectly while leaving the useful one untouched:
+                // mutton without wool means the sheep died already sheared, and an empty ground means
+                // it did not die at all. Those are opposite repairs and no wool-shaped question can
+                // tell them apart.
+                rig.evidence(r + ".ground", rig.dropCensus(16));
                 rig.collectByHand(target.woolId(), 2, r, () -> {
                     rig.evidence(r + ".gained", (rig.carrying(target.woolId()) - woolBefore)
                             + " 块 " + target.colour() + "（此前 " + woolBefore + "）");
