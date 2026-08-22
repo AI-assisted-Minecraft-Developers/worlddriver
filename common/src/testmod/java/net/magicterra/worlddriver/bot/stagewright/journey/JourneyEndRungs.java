@@ -760,6 +760,12 @@ public final class JourneyEndRungs {
     private record Trek(BlockPos goal, int arriveWithin, String key, String what, Runnable onArrive) {}
 
     private static void march(SceneContext ctx, JourneyRig rig, Trek trek, int leg) {
+        march(ctx, rig, trek, leg, 0);
+    }
+
+    /** @param stuck how many legs in a row have gone nowhere — see {@link #sidestep}, which needs it
+     *               to ask a DIFFERENT question each time rather than the same one again. */
+    private static void march(SceneContext ctx, JourneyRig rig, Trek trek, int leg, int stuck) {
         BlockPos goal = trek.goal();
         BlockPos at = rig.player().blockPosition();
         double away = flatDistance(at, goal);
@@ -784,8 +790,8 @@ public final class JourneyEndRungs {
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, MARCH_LEG_TOLERANCE))),
                 MARCH_LEG_TICKS, () -> {
             BlockPos now = rig.player().blockPosition();
-            if (flatDistance(at, now) >= WEDGED_UNDER) { march(ctx, rig, trek, leg + 1); return; }
-            sidestep(ctx, rig, trek, leg, now);
+            if (flatDistance(at, now) >= WEDGED_UNDER) { march(ctx, rig, trek, leg + 1, 0); return; }
+            sidestep(ctx, rig, trek, leg, now, stuck);
         });
     }
 
@@ -794,21 +800,40 @@ public final class JourneyEndRungs {
      *
      * <p>The re-plan assumes each attempt starts somewhere better, and usually it does — but a body
      * can also be WEDGED, and then three attempts are three identical searches with three identical
-     * refusals, each burning a leg's whole budget. Stepping sideways, perpendicular to the goal,
-     * asks the pathfinder a question it has not already answered. That is what a player does when a
-     * route will not come, and it needs nothing from the engine.
+     * refusals, each burning a leg's whole budget. Stepping sideways asks the pathfinder a question
+     * it has not already answered. That is what a player does when a route will not come, and it
+     * needs nothing from the engine.
+     *
+     * <p><b>Which is why the offset has to depend on how many times this has already failed.</b> It
+     * used to be a fixed perpendicular computed from {@code at} and {@code goal} alone — and both of
+     * those are unchanged precisely when the body has not moved, so every retry produced the
+     * identical target. Measured 2026-08-22, rung 17: legs 37 through 48 all sat at
+     * {@code -1076,67,1260} and all stepped to {@code -1085,1238}, twelve times, with the identical
+     * {@code best dist=970} refusal, until the march ran out of legs 99 blocks short of the
+     * stronghold. The paragraph above claimed the sidestep 「asks a question it has not already
+     * answered」, and that was true of the first one and false of the eleven after it.
+     *
+     * <p>{@code stuck} therefore turns the offset: 90° off the goal bearing, then −90°, then ±135°,
+     * then ±45°, widening by {@link #SIDESTEP_BLOCKS} each full cycle. The FIRST attempt is
+     * arithmetically identical to what it always was, so a body that used to escape on its first
+     * sidestep still does, on the same cell, by the same route.
      */
-    private static void sidestep(SceneContext ctx, JourneyRig rig, Trek trek, int leg, BlockPos at) {
+    private static final int[] SIDESTEP_TURNS = {90, -90, 135, -135, 45, -45};
+
+    private static void sidestep(SceneContext ctx, JourneyRig rig, Trek trek, int leg, BlockPos at,
+                                 int stuck) {
         BlockPos goal = trek.goal();
-        double dx = goal.getX() - at.getX();
-        double dz = goal.getZ() - at.getZ();
-        double len = Math.max(1.0, Math.hypot(dx, dz));
-        int sx = (int) Math.round(at.getX() - dz / len * SIDESTEP_BLOCKS);
-        int sz = (int) Math.round(at.getZ() + dx / len * SIDESTEP_BLOCKS);
-        rig.evidence(trek.key() + "." + leg + ".wedged", xyz(at) + " 一段没挪动，先横走到 "
-                + sx + "," + sz + "（goto " + JourneyLeg.walkerEnd(rig) + "）");
+        double bearing = Math.atan2(goal.getZ() - at.getZ(), goal.getX() - at.getX());
+        int turn = SIDESTEP_TURNS[stuck % SIDESTEP_TURNS.length];
+        int reach = SIDESTEP_BLOCKS * (1 + stuck / SIDESTEP_TURNS.length);
+        double aim = bearing + Math.toRadians(turn);
+        int sx = (int) Math.round(at.getX() + Math.cos(aim) * reach);
+        int sz = (int) Math.round(at.getZ() + Math.sin(aim) * reach);
+        rig.evidence(trek.key() + "." + leg + ".wedged", xyz(at) + " 一段没挪动（连续第 "
+                + (stuck + 1) + " 次），转 " + turn + "° 横走 " + reach + " 格到 " + sx + "," + sz
+                + "（goto " + JourneyLeg.walkerEnd(rig) + "）");
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(sx, sz, 3))), MARCH_LEG_TICKS / 2,
-                () -> march(ctx, rig, trek, leg + 1));
+                () -> march(ctx, rig, trek, leg + 1, stuck + 1));
     }
 
     /**
