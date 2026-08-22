@@ -76,6 +76,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wedge cost a thread dump and two CPU samples (Server thread parked in `waitUntilNextTick`, 5% of a
   24-core box, no application thread busy). The counter is now rig-level and accumulates across legs.
   A phase built from many short legs is not a quiet phase — it is one whose clock keeps being reset.
+- **The march's sidestep asked the same question twelve times.** A leg that goes nowhere steps
+  sideways rather than re-asking the pathfinder what it just refused — but the offset was a fixed
+  perpendicular computed from the body's position and the goal, and **both of those are unchanged
+  precisely when the body has not moved**. So every retry produced the identical target. Rung 17,
+  measured: legs 37–48 all sat at `-1076,67,1260` and all stepped to `-1085,1238`, twelve times,
+  with the identical `best dist=970` refusal, until the march ran out of legs **99 blocks short of
+  the stronghold**. The method's own javadoc claimed the sidestep 「asks a question it has not
+  already answered」 — true of the first one, false of the eleven after it. The offset now turns with
+  the consecutive-wedge count (90°, −90°, ±135°, ±45°, widening each cycle). The first attempt is
+  arithmetically identical to what it always was, so a body that used to escape on its first
+  sidestep still does, on the same cell by the same route; only the retries differ.
 - **Known and unfixed: the futile-search guard cannot see an unexecutable plan.** Two independent
   reasons it stayed silent through those 816 searches. It counts only searches where
   `!res.goalReached()`, and A* *did* reach the goal — the terrain was connected, the drive layer just
