@@ -45,7 +45,22 @@ classpath 核对）：
 
 ---
 
-## 🟢 专用服没有身体泄漏：「239 joined / 0 left」不是泄漏证据（2026-08-22，parity 取证，未跑 gradle）
+## 🟢 专用服没有身体泄漏：整趟 **239 进 / 239 出 / 关服残留 0**（2026-08-22，parity，已实测）
+
+> **2026-08-22 晚更新（`3a416a4f`）：下面第 2 条的「只证到 idx=228」已经作废，尾部盲区关闭了。**
+> 做法不是再找一个采样点，而是**把缺的那条通道补上**：`JoinedBody.remove()` 在
+> `PlayerList.remove` 成功返回后印一行 `[realbody] … left … (players=N)`，join 那行也补了
+> `players=`。全 `common/src/main/` 里 `placeNewPlayer` 和 `getPlayerList().remove` **各只有一处**，
+> 都紧贴日志行且中间无分支，所以这把尺子是**穷尽的**，不是抽样的。
+> 完整一趟 `stagewrightDedicatedServerFabric` 实测：
+> **joined 239 / left 239（逐条配对，差 0）／239 个身体名全部离场／玩家表峰值 3／
+> 关服最后一条 `wd-census left …(players=0)`／离场路径 0 条 WARN**。
+> 同趟 vanilla `joined the game` 也是 **239**（与本通道 1:1），而 vanilla `left the game` 是 **0**
+> ——**在一趟已证明发生了 239 次离场的运行里**。第 1 条从「代码推论」升级成了实测。
+> 判词零移动：306 场 302 PASS / 3 FAIL / 1 TIMEOUT，与 `results-t17.jsonl` 逐项相同。
+> 证据已固化：`fabric/run-dogfood/results-realbody-239.jsonl`、`realbody-census-2026-08-22.log`。
+> 峰值 3 是**结构性**的（`SceneBody.bare` 那批「一次造两三具、一起拆」的场景），不是残留。
+> 详见 `docs/fake-player-parity.md` §11.5。
 
 详见 `docs/fake-player-parity.md` §11。两条独立的判词：
 
@@ -68,7 +83,8 @@ classpath 核对）：
 不是 stagewright（`StageWrightCommon.java:397-399` 是唯一遍历玩家表的地方，只发 op）。
 是场景自己的 **139 处 `discard()`（22 个文件）**。
 
-**边界（别当成更强的结论用）**：只证到 idx=228，尾部 78 条没有第二个读数点；
+**边界（别当成更强的结论用）**：~~只证到 idx=228，尾部 78 条没有第二个读数点~~
+（**已关闭，见本节顶部的更新**）；
 `SceneBody.bare` / `SceneBody.avatar` 按设计不注册 cleanup（「the caller owes a cleanup」），
 **今天残留为 0 靠的是 139 处手写 discard 都写对了，这是个没有编译期保证的不变量**。
 真正的守卫是 StageWright 的每场景 audit（「这条场景造的身体还在表里」），
@@ -132,10 +148,19 @@ join/left 两边都带 `players=`），一整趟专用服闸：
 
 | 读数 | 值 |
 |---|---|
-| `[realbody] joined` / `left` | 240 / **239** |
-| 整趟 `players=` **峰值** | **3** |
+| `[realbody] joined` / `left` | **239 / 239**（逐条配对，差 0） |
+| 整趟 `players=` **峰值** | **3**（join 分布 1×209、2×26、3×4，合计 239 ✓） |
 | 关服时最后一个 `players=` | **0** |
 | 末行 | `wd-census left minecraft:overworld (players=0)` |
+| 同趟 vanilla `joined the game` | **239**（与本通道 1:1） |
+| 同趟 vanilla `left the game` | **0** —— 在一趟**已逐条证明发生了 239 次离场**的运行里 |
+
+> ⚠️ 我第一次报的是 `240 / 239`，**错的**。那个多出来的 1 是 grep 数到了**回声**：
+> `wd.serverCraftFailTelemetry` 的捕获器把 `agent-body-87` 的 join 行**原文回显**进了自己的
+> 证据 `lines=[…]`，按子串统计就成了第二次加入。锚到消息开头即修正。
+> **又是那条场景** —— 它先掐死整个日志通道，又把日志行回显进 results 污染子串统计。
+> ⇒ **判据：一个会被别处引用原文的日志行，同时也是别人日志里的一行。** 统计它要锚定发射点，
+> 不能按子串。
 
 **峰值 3 比「0 残留」更值钱**：身体是即用即走的，不是攒到最后一起清，所以**中途任何一条场景
 看到的 `level.players()` 都是干净的**。刷怪上限、`BaseSpawner.isNearPlayer`、`EndDragonFight.tick`
@@ -261,6 +286,20 @@ gamerule」报成 leak），是另一个仓库、另一轮。
 `RUNAWAY WATCH` 和 `pump` 的 WARN 上**。在 `pump()` 每次迭代前、`advance()` 入口各打一行，
 带 `activeCount()`（关 a）、`open.size()` 与 `expanded`（关 b）、`sliceMs`、goal、foot。
 崩溃后日志里最后一条面包屑就是那个没返回的状态。
+
+### ⚠️ 已知失败清单要补一条：`wd.serverEscapeSealedShelter`
+
+`stagewrightDedicatedServerFabric` 的非 PASS 有四条，其中两条是框架 canary（`canaryMustFail`、
+`canaryMustTimeout`，本来就该红）。**真实失败有两条，不是一条**：
+
+| 场景 | 判词 | 状态 |
+|---|---|---|
+| `wd.vineOverWaterClimb` | VINE-OVER-WATER repro: bot WEDGED in the water POC | 已知 optional，文档里有 |
+| **`wd.serverEscapeSealedShelter`** | `sealed-shelter escape did not reach the surface: y=221.0 slotErr=carve timeout` | **既有缺陷，但没进任何清单** |
+
+改动前的 `results-t17.jsonl` 里它同样 FAIL —— **不是本轮回归**。
+但工作区文档里写的是「唯一的失败是 `wd.vineOverWaterClimb`」，
+**下一个人会把它当新回归查一遍**。（工作区那份是用户的私有文件，改不改由用户定；这里先记下。）
 
 ### 明确没做、且不许报成做了的
 
