@@ -323,7 +323,28 @@ public final class EscapeProcess implements BotProcess {
     private boolean vertRise(Avatar a, WorldView w, Player p, BlockPos foot, BotState st) {
         a.breakHold(false);
         BlockPos dest = base.above();
-        if (foot.getY() >= dest.getY() && p.onGround()) {
+        // Same column, not just the right height. The centring snap below is a discrete write that
+        // does not sweep, so it is only safe while the body is already IN the cell it centres on —
+        // which is what its two sibling arrival gates require and this one did not: STEP_DOWN
+        // (DescendProcess:216-218) and STEP_UP (EscapeProcess:256-258) both test X and Z equality,
+        // and only this one tested height alone.
+        //
+        // The gap is reachable because VERT_RISE is a JUMP: this phase commands a jump and, unlike
+        // the other phases, neither zeroes the horizontal velocity nor re-pins the body per tick. A
+        // dozen airborne ticks with any lateral component — a leftover forward key, flowing water,
+        // a mob's Entity.push — can land the body in a neighbouring column, and a neighbour with a
+        // solid face at dest.getY() satisfies the old gate. The snap then moves the body a whole
+        // cell or more sideways; across two columns the cell in between may be solid rock, and
+        // nothing checked it. VERT_RISE is entered precisely when no side is steppable — terrain
+        // that HAS such neighbours.
+        //
+        // Not observed: EscapeProcess appears in none of the logs on disk (see
+        // docs/parity-setpos-centre-snap.md). This closes a hole in the shape its own siblings
+        // already closed, rather than answering a failure. A body that lands off-column now falls
+        // to the phase's own 100-tick stall and re-PICKs, which is the escape this process already
+        // has for every other way a rise can fail.
+        if (foot.getX() == dest.getX() && foot.getZ() == dest.getZ()
+                && foot.getY() >= dest.getY() && p.onGround()) {
             p.setPos(dest.getX() + 0.5, p.getY(), dest.getZ() + 0.5);
             p.setDeltaMovement(0, Math.min(0, p.getDeltaMovement().y), 0);
             a.releaseInputs();
