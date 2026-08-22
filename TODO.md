@@ -372,7 +372,34 @@ y=42~54，自己挖了两条竖井，头顶的树冠在 20 多格之上。
 **另一件事没修，单独记着**：`furnace.before 1 → after 0`，熔炉在这一级中途被花掉了。
 文件里的旧注释判断是「被那个只想要*一块可放置方块*的选择器拿去垫脚了」，
 本趟 `vein1.held minecraft:oak_log`（挖铁矿时手里攥着一根原木）与之吻合。
-真玩家不会拿熔炉垫脚。这是引擎侧 `holdPlaceable` 的选择问题，按定序先不动。
+
+**读过引擎代码之后，这个判断可以从推测升级成机制**
+（`ServerPlayerAvatar.holdPlaceable:203`）：
+
+```java
+for (int slot = 0; slot < 9;  slot++) if (isSupport(...)) { selected = slot; return true; }
+for (int slot = 9; slot < 36; slot++) if (isSupport(...)) { /* 换上来 */ return true; }
+
+private static boolean isSupport(ItemStack stk) {
+    return !stk.isEmpty() && stk.getItem() instanceof BlockItem bi
+            && !(bi.getBlock() instanceof FallingBlock) ...
+```
+
+**按槽位顺序取第一个命中，不按堆大小取。** 而 `isSupport` 接受**任何** `BlockItem`——
+熔炉是 `BlockItem`，原木是 `BlockItem`，工作台也是。所以身上有 66 个圆石也救不了：
+只要熔炉的槽位靠前，垫脚就会拿熔炉。**真玩家不会拿自己唯一的熔炉垫脚。**
+
+**这一格归 wd-parity（`common/src/main/.../bot/sim/**`），我不动它。** 处方记在这里：
+
+> **两遍扫描，而不是加黑名单。** 第一遍跳过「贵重方块」（工作台、熔炉、原木、
+> 以及任何有配方价值的），第二遍**接受一切**。
+> 保留成**偏好**而不是**禁令**，是因为垫脚的另一半用途是保命——
+> `holdplaceable-blindness-priced` 记过反面代价：没方块可垫的身体会掉下去。
+> 禁令会把「浪费一个熔炉」换成「摔死」，两遍扫描两头都占。
+
+配套：加一条证据，记下垫脚**实际花掉的是什么方块**。现在只有
+「放了 N 块」，看不出那 N 块里有没有一个是熔炉——
+这正是[[a-stock-reading-is-not-a-spend]]今天已经吃过一次的亏。
 
 ### 还开着（不在这一轮）
 
