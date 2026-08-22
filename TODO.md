@@ -502,6 +502,57 @@ water0.spent = minecraft:water_bucket 1→0（倒出去了）
 **没有浪费桶：** `placeFluid:2339` 的 `lands != target` 闸接住了三次，一滴没倒，
 本级以「浇不到指定格」明红收场。**这是一条诚实的红**——缺的是能力，不是判据。
 
+#### 但把塔读完之后，(1) 塌回了同一个根因
+
+`water8#4` 的三行给出的不是「够不到那一柱」，而是**站在那一柱上垒不动**：
+
+```
+climb.0.drift  = 4,57,19 偏离起塔柱 3,19，先走回去再垒     ← 漂移修正做对了
+climb.2        = 3,56,19 above=air onGround=true water=false
+climb.2.with   = minecraft:cobblestone ×137
+climb.2.stalled= null                                      ← builder 报告没有任何错误
+climb.2.state  = onGround=true inWater=false y=56.00
+climb.2.stock  = minecraft:cobblestone ×137                ← 服务端存量一个没少
+```
+
+**干地、落地、手上 137 圆石、builder 无错、服务端存量纹丝不动。**
+这就是浇筑那条线 `.spent 1→1` 的签名换了一个动词。而 `JourneyShaft:812` 拿手的那一行是
+
+```java
+if (!rig.avatar().holdItem(pillarItem)) {      // 只拿客户端那一只手
+```
+
+放置走 `TowerProcess` → `gameMode.useItemOn` → 服务端，**落什么由服务端那只手决定**，
+而这一轮之前刚挖过。镐对着方块面右键什么都不发生，静默。
+`JourneyShaft:850` 又规定**一轮不涨高度就整座塔放弃**（水里除外），
+所以一只错手的代价是整次升高——然后掉进那条为「水里起不了塔」开的、按构造盲于柱的
+`YLevel` 后备，把身体带到 `-1,19`。
+
+**那条后备的正当性论证（`JourneyShaft:126-145`）前提是「壁龛在淹水」，
+而这一趟 `water=false / inWater=false`。** 为特例开的退路在特例不成立时照常开火：
+[[a-remedy-gated-on-what-it-replaces]]。
+
+#### 修法：把 `holdBoth` 铺到全部九个只拿一只手的点
+
+普查结果：`JourneyShaft:812`、`JourneyStairs:363`、`JourneyRig:1491`、`JourneyShelter:163`、
+`JourneyEndRungs:996/1512`、`JourneyPortalRung:1707/2134/2660/2697` —— 全是
+「客户端拿手 → 服务端执行」。这是**同一条不变量的九个漏点**，一起收口算一个变量。
+
+`holdBoth` 的分叉行不再打桶存量（那是水桶专用的噪声），改打**这件物品自己在两具身体上的数量**
+（`stockOnBoth`）——「客户端有、服务端没有」和「两边都没有」要的下一步完全不同。
+
+### 预登记判据（run 12g，写在读结果之前）
+
+1. **`climb.*.stock` 开始下降（圆石被花掉）或爬升越过 step 2** ⇒ 错手机制在放置动词上同样成立。
+2. **`water8.raisedY = 60/60（就是那一柱）`**，随后第九格 `.picks` 落进 `4,61,19`
+   ⇒ 升高能力补齐，第九格通。
+3. **`stock` 仍然一个不动且 `stalled=null`** ⇒ **手不是死因**，下一嫌疑是 `TowerProcess`
+   自己的放置路径（它到底走不走 `Avatar.placeOn`），要取的读数是客户端 `useItemOn` 的返回值
+   —— **不要再改拿手**。
+4. **出现 `holdBoth.*` 行** ⇒ 两份背包在那一刻已分叉，按 `stockOnBoth` 的两个数分方向。
+
+**本级总判据不变：够到点火那一步或更远。**
+
 ### 排队的硬化（不阻塞前沿）
 
 把顺序不变量收进一个入口：`aimThenAct` 扩成 `aimThenUse(rig, at, item, act)`
