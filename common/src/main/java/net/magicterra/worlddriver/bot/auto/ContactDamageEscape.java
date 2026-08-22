@@ -99,17 +99,16 @@ public final class ContactDamageEscape {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         p.setYRot(yaw);
         p.setXRot(0f);
-        // Raw camera-frame forward along the yaw just set — what keyUp meant. Driving the
-        // SHARED keybind did not reach the body at all while a process was running:
-        // AvatarInput.tick runs vanilla's key pass and then overwrites forwardImpulse with the
-        // walker's command, so this reflex's step-out-of-the-cactus was silently discarded on
-        // exactly the ticks it was written for (an active `goto` is what put the hull against
-        // the cactus in the first place — see death #14 above). keyJump survived only because
-        // the walker rarely commands jump, which is why the reflex looked half-alive.
-        // NOTE: commandForward is still outranked by a same-tick walker commandMove (see
-        // BotInput's class doc) — the class doc's "overrides an active walker" claim needs
-        // commandMove(0,1) to be literally true. Flagged, not changed.
-        BotInput.forward(mc, true);
+        // Forward along the yaw just set, on the channel that OUTRANKS the walker's own per-tick
+        // command — which is what this class's "overrides an active walker's keys" contract has
+        // always claimed and never delivered. Two channels failed it in turn: the SHARED keybind
+        // never reached the body at all (AvatarInput.tick runs vanilla's key pass and then
+        // overwrites forwardImpulse), and commandForward is itself discarded whenever the Walker
+        // commands a move that tick. Both failures land on exactly the ticks this reflex is for —
+        // an active `goto` is what pressed the hull into the cactus in the first place (death #14
+        // above). keyJump survived only because the Walker rarely commands jump, which is why the
+        // reflex looked half-alive rather than dead.
+        BotInput.driveForward(mc);
         BotInput.jump(mc, p.horizontalCollision);
         return true;
     }

@@ -95,16 +95,14 @@ public final class LavaProximityEscape {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         p.setYRot(yaw);
         p.setXRot(0f);
-        // Raw camera-frame forward along the yaw just set — what keyUp meant. The SHARED
-        // keybind never reached the body while a process was driving: AvatarInput.tick runs
-        // vanilla's key pass and then overwrites forwardImpulse with the walker's command.
-        // This reflex was written FOR the case where a process is stuck against a front (the
-        // ep-026 shape: brake vetoes every move, repath loop holds position), which is exactly
-        // the case where its forward key was discarded — so on the old channel the reflex was
-        // inert precisely on the occasion it was built for.
-        // NOTE: commandForward is still outranked by a same-tick walker commandMove — see
-        // BotInput's class doc. Flagged, not changed.
-        BotInput.forward(mc, true);
+        // Forward along the yaw just set, on the channel that OUTRANKS the walker's own per-tick
+        // command. This reflex was written FOR the case where a process is pinned against an
+        // advancing front (the ep-026 shape: the brake vetoes every forward move, the repath loop
+        // holds position, the lava arrives) — and that is exactly the case where a movement
+        // process is commanding every tick. On the SHARED keybind the steer never reached the
+        // body at all; on commandForward it was discarded whenever the Walker commanded a move.
+        // Either way the reflex was inert precisely on the occasion it was built for.
+        BotInput.driveForward(mc);
         BotInput.jump(mc, p.horizontalCollision || p.isInLava());
         return true;
     }

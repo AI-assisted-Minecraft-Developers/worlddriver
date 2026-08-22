@@ -53,10 +53,33 @@ public final class BotInput {
         return (AvatarInput) p.input;
     }
 
-    /** Forward intent — {@code forward(mc, true)} ≡ keyUp held, {@code forward(mc, false)} ≡ released. */
+    /** Forward intent — {@code forward(mc, true)} ≡ keyUp held, {@code forward(mc, false)} ≡ released.
+     *  Loses to a same-tick Walker {@code commandMove} (see the class doc); a reflex that must
+     *  override a running process wants {@link #driveForward} or {@link #halt} instead. */
     public static void forward(Minecraft mc, boolean v) {
         LocalPlayer p = mc.player;
         if (p != null) ai(p).commandForward(v ? 1f : 0f);
+    }
+
+    /**
+     * Full-speed forward along the body's own yaw, OVERRIDING a running process.
+     *
+     * <p>Identical in effect to {@link #forward}{@code (mc, true)} — {@code commandMove(0, 1)}
+     * sets exactly the {@code forwardImpulse = 1, leftImpulse = 0} that a held W key produces —
+     * and different in exactly one way: it wins the precedence check in {@link AvatarInput#tick},
+     * so the Walker's own command for that tick cannot silently discard it.
+     *
+     * <p>For the survival reflexes (contact damage, lava front) that difference is the whole
+     * point. Their class docs claim to "override an active walker's keys during the episode", and
+     * on the weaker channel that claim was false on precisely the ticks it mattered: a body
+     * wedged against a hazard by a running {@code goto} is the case those reflexes exist for, and
+     * it is also the case where a movement process is commanding every tick.
+     *
+     * <p>Callers must aim first — this drives along the camera, so the yaw is the steering.
+     */
+    public static void driveForward(Minecraft mc) {
+        LocalPlayer p = mc.player;
+        if (p != null) ai(p).commandMove(0f, 1f);
     }
 
     /**
