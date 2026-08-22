@@ -1,3 +1,37 @@
+## 🔴🔴🔴 真梯在和平模式里通关：世界被钉成永夜、无怪、无天气（2026-08-22）
+
+StageWright 给整个套件钉的世界，日志第一行就写着：
+
+```
+WORLD PINNED for this suite — clock=frozen@midnight doDaylightCycle=false
+doWeatherCycle=false doMobSpawning=false weather=clear.
+Scenes do NOT run in a vanilla world; a scene that needs otherwise declares its own clock.
+```
+
+`JourneyRig#liveWorld(mobs)` 存在，下界级用它开刷怪；**其余每一级都没有开**。
+FOOD 级把不开的理由写在注释里：
+
+> a scene that turned mob spawning on would also be turning on the hostile mobs that
+> **this invulnerable body** cannot meaningfully fight
+
+**这条理由在真客户端上已经不成立。** run 7 实测证据行 `免伤=false`（4 次）——
+integrated 拓扑上身体是真玩家，会掉血、会饿、会死、会重生。
+`JourneyRig` 的类注释自己也写了「That bound is exactly what the integrated topology lifts」。
+
+所以现在的状况是：**一具会死的真身体，在一个没有敌对生物、没有天气、永远午夜的世界里通关。**
+这个数不能叫「能通关」，它叫「能在和平模式通关」。
+
+→ 判（**需要用户拍板，因为它改变「通关」这个词的含义**）：
+- (a) 保持现状，但**把这三条钉法写进 99 级判词**，让每一份绿报告自带这句限定；
+- (b) integrated 拓扑开 `liveWorld(true)` + 放开时钟，真梯变成真游戏 —— 会变难，
+  而且会把 `walkerDrowningEscape` / 战斗 / 饥饿这些从没被这条梯子测过的路径全部拉进来；
+- (c) 折中：先做 (a)，同时新增一条「真世界」拓扑单独跑 (b)，两个数并排报。
+
+**我的建议是 (c)**：(a) 一行就能做且立刻停止误报；(b) 是一次真正的能力扩张，值得单独一条跑道。
+无论哪条，**现在这份「3/4/5 级 PASS」都必须带着「和平模式」这个限定被引用**。
+
+---
+
 ## 👁️ 用户看画面看出来的五条（2026-08-22，run 7 现场）
 
 用户在真客户端旁边看着 run 7 跑，问了五个问题。**四条当场被日志坐实是缺陷，一条我只能答一半。**
@@ -26,13 +60,27 @@
 但 151 行 ÷ 12480 tick 的采样密度说明**驱动约四 tick 才发生一次**，而挥手动画只有 6 tick。
 **需要一次专门探针（每 tick 记 `swinging`/`swingTime`/是否驱动）才能定因。不写结论。**
 
-### V4 杀动物不带石剑
+### V4 杀动物不带石剑 —— **helper 早就写好了，只是没在这一级用**
 
 `stoneTools` 全程只合成 `minecraft:stone_pickaxe` —— **没有剑**。
 `CombatProcess` 里没有任何 `holdItem` / `ensureHolding` / `bestWeapon`：**开打前从不换手**。
-而采石就在猎食的前一级，圆石和木棍都在手上。
-→ 修：**先改脚本**（按「不要上来就补引擎能力」的规矩）：石器级顺手合一把石剑，
-猎食级开打前拿在手上。脚本走不通再谈给 `CombatProcess` 补选武器。
+
+而 `JourneyNetherRungs:1739` 有现成的：
+
+```java
+private static String holdBestWeapon(JourneyRig rig) {
+    for (String id : WEAPONS) {
+        if (rig.carrying(id) < 1) continue;
+        if (rig.avatar().holdItem(JourneyRig.item(id))) return id;
+    }
+    return "空手（包里一件武器都没有）";
+}
+```
+
+下界打烈焰人前调它、猎末影人前也调它，**只有 6 级猎动物没调**。
+所以这不是缺能力，是**漏了两行**：5 级顺手合一把石剑（圆石和木棍都在手上），
+6 级开打前调 `holdBestWeapon` 并把结果写成 `weapon` 证据行（下界级已经这么写了）。
+→ 顺带：`holdBestWeapon` 现在私有在 `JourneyNetherRungs` 里，要提到共用位置（`JourneyRig`）。
 
 ### V5 工作台不回收、掉落物不捡
 
