@@ -1300,6 +1300,234 @@ connection.send(new ClientboundSetCarriedItemPacket(inventory.selected));
 
 ---
 
+## 6.10 第二轮：把 §6.9 的三条推断换成证据，并找出一条第一轮漏掉的代价（2026-08-22 夜）
+
+**为什么还有第二轮**：§6.9 的三条关键结论里，一条标着「读代码得出，本轮未实测」（背包交换分支），
+一条只查了一个类（`broadcastChanges`），一条把「零成本」说得比实际干净（补包对无头身体的代价）。
+这一轮把三条各自补完，并且**多出来一条第一轮没有的代价和一条第一轮没有的因果**。
+
+**这一轮的 vanilla 证据怎么来的**：从 §9 那张表里的 canonical jar
+（`minecraft-merged-1.21.1-loom.mappings.1_21_1.layered+hash.652182843-v2.jar`）解出目标 class，
+用同一个 vineflower 1.10.1（`-dgs=1 -hdc=0`）反编译。
+**⚠️ 我反编译的是子集而不是整个 jar，import 集合不同，所以行号与 §3 那份不可比**
+（实测：`handleSetCarriedItem` 在 §3 是 `:1230`，在这一份是 `:1196`）。
+**因此本节一律按方法名引用，并把关键代码整块抄下来**——和 §6.8 同一条规矩，读者不必信任任何一个行号。
+
+### 甲：`broadcastChanges` 不同步 `selected`——证据从「一个类」升到「整个 jar」，外加一条正向证据
+
+§6.9 用的是「`AbstractContainerMenu` 整类零命中」。这一轮把范围拉到 8269 个 class 的**全 jar**：
+解包后按常量池 grep `ClientboundSetCarriedItemPacket`，**全部命中七个**——
+
+```
+net/minecraft/client/multiplayer/ClientPacketListener.class              ← 收
+net/minecraft/server/network/ServerGamePacketListenerImpl.class          ← 发（handlePickItem，一处）
+net/minecraft/server/players/PlayerList.class                            ← 发（两处）
+net/minecraft/network/protocol/game/ClientboundSetCarriedItemPacket.class
+net/minecraft/network/protocol/game/ClientGamePacketListener.class       ← 协议管线
+net/minecraft/network/protocol/game/GamePacketTypes.class                ← 协议管线
+net/minecraft/network/protocol/game/GameProtocols.class                  ← 协议管线
+```
+
+`AbstractContainerMenu`、`ServerPlayer`、`Inventory`、`InventoryMenu` **一个都不在里面**。
+零命中是**结构性**的：承载「手在第几个槽」的包一共只有一种，而菜单同步那一整条链子从不构造它。
+
+**而且有一条比零命中更硬的正向证据（§6.9 没有）**——vanilla 自己在同一个方法里把两件事分两步发：
+
+```java
+public void sendAllPlayerInfo(ServerPlayer player) {          // PlayerList
+   player.inventoryMenu.sendAllDataToRemote();                                                   // 槽里的东西
+   player.resetSentInfo();
+   player.connection.send(new ClientboundSetCarriedItemPacket(player.getInventory().selected));  // 手在哪个槽
+}
+```
+
+**如果内容同步顺带覆盖了槽号，第三行就是死代码。** 它不是。
+
+`broadcastChanges` 的三个出口逐条读过，一条也不碰 `selected`：
+
+| 出口 | 发出去的包 |
+|---|---|
+| `synchronizeSlotToRemote` → `synchronizer.sendSlotChange` | `ClientboundContainerSetSlotPacket(containerId, stateId, slot, stack)` |
+| `synchronizeCarriedToRemote` → `sendCarriedChange` | `ClientboundContainerSetSlotPacket(-1, stateId, -1, stack)` |
+| `synchronizeDataSlotToRemote` | `ClientboundContainerSetDataPacket` |
+
+> **⚠️ 一个命名陷阱，写下来免得下一轮再被骗一次。**
+> `synchronizeCarriedToRemote` 里的 "carried" 指的是**鼠标光标上叼着的那一摞**（`getCarried()`，
+> 容器界面里拖着的 stack），和 `ClientboundSetCarriedItemPacket` 的 "carried"（**手在第几个热键槽**）
+> 是两个毫不相干的东西。同一个词，两个含义，而且都出现在 `broadcastChanges` 这一条链子的可视范围内——
+> 「broadcastChanges 里明明有一句 carried 同步」是一个非常容易得出的错误结论。
+
+**判定：Q2 = 不同步。读码得出（全 jar 级），与 §6.9 的 10 tick 实测互相独立、结论一致。**
+
+### 乙：背包交换分支的内容**确实**推得过去——它不是第二个分叉源
+
+§6.9 把这条标成「读代码得出，本轮未实测」。这一轮把链子逐段读完，**结论不变，但补上了原先缺的最后一段**：
+
+1. `ServerPlayer.tick()` 里就是 `this.gameMode.tick(); … this.containerMenu.broadcastChanges();`
+   ——身体 D 是真玩家，通道(一)对它**真的在跑**（对 A/B/C 是空覆盖，见 §2）。
+2. `broadcastChanges` → `synchronizeSlotToRemote(i, …)`：拿 `remoteSlots.get(i)` 与当前 stack
+   `ItemStack.matches` 比，不同才发。**交换两个槽必然让两个槽都不匹配，所以两个包都会发。**
+3. `ServerPlayer.containerSynchronizer.sendSlotChange` → `connection.send(new
+   ClientboundContainerSetSlotPacket(container.containerId, container.incrementStateId(), slot, itemStack))`。
+4. **（这一段 §6.9 没读，是本轮补的）** 客户端 `ClientPacketListener.handleContainerSetSlot` 的落地分支：
+
+   ```java
+   if (packet.getContainerId() == 0 && InventoryMenu.isHotbarSlot(i)) {
+      …
+      player.inventoryMenu.setItem(i, packet.getStateId(), itemStack);
+   } else if (packet.getContainerId() == player.containerMenu.containerId && (packet.getContainerId() != 0 || !bl)) {
+      player.containerMenu.setItem(i, packet.getStateId(), itemStack);
+   }
+   ```
+
+   **没有任何 ack / 预测门。** 不像那些会被 stateId 卡住的路径，这一条是无条件写
+   （`bl` 只在创造模式背包界面开着时为真）。
+
+**判定：Q3 = 服务端权威，方向正确，有通道。这不是第二个分叉源，下一轮不要再查它。**
+
+**但这半边「正确」会制造一个专门骗人的读数，必须写下来**：交换分支把 X 换进**服务端的** `selected`
+（比如 4 号槽）。内容同步之后，**客户端的 4 号槽里也是 X**——而客户端的手还在 0 号槽。于是
+
+> **两份背包逐槽相同，两只手却拿着不同的东西。**
+
+后果是 `WorldDriverJourneyScenes.stockOnBoth` 这类「两边各有几个」的读数，在这条差异上
+**恒等且恒为正**——**存量相等不是手一致的证据**，它连一点旁证都不是。要判手，只能读两边的
+`getMainHandItem()`（`holdBoth` 的 `.hand` 证据行就是这么写的）。
+
+### 丙：补包对无头身体的代价——**是零，但 §6.9 少读了一层，而那一层里有一个 `close()`**
+
+§6.9 的说法是「A/B 的 `AvatarNetHandler.send` 和 C 的 `SilentConnection.send` 都是空方法」。
+**对 A/B 逐字为真**（`AvatarNetHandler.java:69`、`:71` 两个重载都空）。**对 C 少了一层**：
+`JoinedBody.connection` 是 vanilla 的真 `ServerGamePacketListenerImpl`，
+`fp.connection.send(pkt)` 先进 `ServerCommonPacketListenerImpl.send`：
+
+```java
+public void send(Packet<?> packet) { this.send(packet, null); }
+
+public void send(Packet<?> packet, @Nullable PacketSendListener listener) {
+   if (packet.isTerminal()) { this.close(); }                       // ← 这一层 §6.9 没读
+   boolean bl = !this.suspendFlushingOnServerThread || !this.server.isSameThread();
+   try { this.connection.send(packet, listener, bl); }
+   catch (Throwable var7) { … throw new ReportedException(crashReport); }
+}
+```
+
+`ClientboundSetCarriedItemPacket` 整个类只有一个 `int slot` 字段，**不覆盖 `isTerminal()`** →
+默认 `false` → `close()` 分支不进。然后落在 `SilentConnection` 的**三参** `send` 重载上，
+它和另外两个重载一样是空方法（`JoinedPlayerBodies.java` 三个 `send` 全空）。
+
+> **所以 C 也是零——但零的理由多一层，而那一层里有一个会断开连接的分支。**
+> 它没被走到是因为**这个包不是终止包**，不是因为连接是哑的。
+> 下一次有人想在这条缝上补别的包时，`isTerminal()` 是必须先问的那一句。
+
+**这就是「headless 零行为变化」这条准入门槛的完整证明链**（三具身体各自一条，全部读码得出）：
+
+| 身体 | `fp.connection` 是什么 | 走到哪里为止 |
+|---|---|---|
+| A `AvatarFakePlayer` | `AvatarNetHandler`（构造函数里 `AvatarNetHandler.install(this)`，`AvatarFakePlayer.java:65`，**永不为 null**） | `send` 空方法，**一层就到底** |
+| B neoforge `FakePlayer` | 同上（`WorldDriverNeoForge.java:52,55` 两条工厂路径都 `install`） | 同上 |
+| C `JoinedBody` | vanilla 真 listener + `SilentConnection` | `ServerCommonPacketListenerImpl.send` → `isTerminal()==false` → `SilentConnection.send(p,l,bl)` 空方法 |
+| **D 被 adopt 的真玩家** | vanilla 真 listener + 真连接 | **真的发出去——这才是要的** |
+
+### 丁：客户端收到之后会不会打回来打架——**会回声，不会打架；但有一个 ≤1 tick 的倒卷窗口**
+
+客户端那一端逐字，**只做一件事**：
+
+```java
+public void handleSetCarriedItem(ClientboundSetCarriedItemPacket packet) {   // ClientPacketListener
+   PacketUtils.ensureRunningOnSameThread(packet, this, this.minecraft);
+   if (Inventory.isHotbarSlot(packet.getSlot())) {
+      this.minecraft.player.getInventory().selected = packet.getSlot();
+   }
+}
+```
+
+**它不更新 `MultiPlayerGameMode.carriedIndex`。** 于是客户端下一个 tick 的
+`MultiPlayerGameMode.tick()` → `ensureHasSentCarriedItem()` 会看到
+`selected(新) != carriedIndex(旧)` → **回发一个 `ServerboundSetCarriedItemPacket(新)`**。
+服务端收到的是它自己刚发出去的那个值，`selected` 不变 → **收敛**。
+**这是 vanilla 中键取方块每天在走的同一条回声**（`handlePickItem` 发的就是这个包），不是我们引入的。
+
+> **⚠️ 新代价，§6.9 完全没有：回声在「服务端一个 tick 内改两次手」的时候会倒卷。**
+>
+> 服务端那一端逐字：
+>
+> ```java
+> public void handleSetCarriedItem(ServerboundSetCarriedItemPacket packet) {
+>    PacketUtils.ensureRunningOnSameThread(packet, this, this.player.serverLevel());
+>    if (packet.getSlot() >= 0 && packet.getSlot() < Inventory.getSelectionSize()) {
+>       if (this.player.getInventory().selected != packet.getSlot()
+>               && this.player.getUsedItemHand() == InteractionHand.MAIN_HAND) {
+>          this.player.stopUsingItem();
+>       }
+>       this.player.getInventory().selected = packet.getSlot();
+>       this.player.resetLastActionTime();
+>    } else { LOGGER.warn("{} tried to set an invalid carried item", …); }
+> }
+> ```
+>
+> 服务端若在客户端的**一个 tick 之内**发了两次（`selectTool` 挖完紧接着 `holdPlaceable` 要放，
+> 就是这个形状），客户端只会看见最后一个值、只回声一次——**但先到的那个回声携带的是旧值**，
+> 落回服务端会把手**倒卷**回旧槽；而且**如果此刻主手正在使用（拉弓、吃东西），还会顺手
+> `stopUsingItem()`**——注意那正是 N8/T4 要求我们补的那一句，**从对面回来的时候它是一次误伤**。
+>
+> - **上界是一个来回**；集成服是内存连接，实际就是一个 tick。
+> - **今天没有这个风险，因为今天根本不发包——今天的代价是永久分叉。**
+>   用一个 ≤1 tick 的倒卷窗口换掉一个永久分叉是划算的，**但它不是「零成本」，§6.9 把这一条写漏了。**
+> - **缓解，两条，都不需要判拓扑**：(1) 只在**值真的变了**的时候写、才发
+>   （`if (inv.selected == slot) return;`），把同 tick 的重复发包降到最少；
+>   (2) 不要把「服务端的手会跨 tick 保持」当前提——`placeOn`（`ServerPlayerAvatar.java:375`）
+>   和 `holdItem` 每次调用都自己重新确认一次，**这个习惯本来就在，落地时别顺手优化掉它**。
+
+### 戊：本轮才补上的因果——为什么同一段 `TowerProcess` 无头上能垒、集成服上一块都垒不上
+
+§6.9 有「浇水」那条链（`useItem`），**没有「放置」这条**。而放置这条更贵，也更容易被误读成寻路/物料问题。
+**两条路根本不是同一条**：
+
+| 拓扑 | `TowerProcess.java:256` 的 `a` 是谁 | 它做了什么 | **服务端最后拿哪只手放** |
+|---|---|---|---|
+| 无头（专用服） | `ServerPlayerAvatar` | `placeOn` **自己先调 `holdPlaceable()`**（`ServerPlayerAvatar.java:375`）把**服务端**的手挪到可放置方块上，然后 `fp.gameMode.useItemOn(fp, …, fp.getMainHandItem(), …)`（`:385`） | **它自己刚挪好的那只** |
+| 集成服 + 客户端 | `ClientPlayerAvatar` | `placeOn` → `BotInteract.clientUseItemOn`（`BotInteract.java:123-138`）→ `mc.gameMode.useItemOn(p, MAIN_HAND, hit)`；而 `holdPlaceable`（`ClientPlayerAvatar.java:41`）走 `BotInteract.ensureHoldingPlaceableAny`，**只动客户端** | **服务端自己的 `Inventory.selected`** |
+
+服务端那一端逐字（vanilla `ServerGamePacketListenerImpl.handleUseItemOn`）：
+
+```java
+InteractionHand interactionHand = packet.getHand();
+ItemStack itemStack = this.player.getItemInHand(interactionHand);      // ← 服务端自己的 selected
+…
+InteractionResult interactionResult =
+        this.player.gameMode.useItemOn(this.player, serverLevel, itemStack, interactionHand, blockHitResult);
+```
+
+> **`ServerboundUseItemOnPacket` 里没有物品，只有「哪只手」。**
+> 所以集成服上「客户端把手准备好」这件事，**对服务端最后放下去的是什么一点影响都没有**，
+> 除非那一步顺带发了 `ServerboundSetCarriedItemPacket`。
+
+于是第 12 级第九格那份读数逐行都对得上，**没有一行需要新的假设**：
+
+| 证据行 | 为什么长这样 |
+|---|---|
+| `with = minecraft:cobblestone ×137` | 读的是**背包**。背包里确实有——**背包不是手**，而这次差的还不只是槽，是**哪具身体的手** |
+| `stalled = null`（`builder.lastError` 无错误） | 镐对着方块面右键：非 `BlockItem` 的 `useOn` 合法返回 `PASS`。**vanilla 在这条路上没有任何一句会说话的拒绝**（`handleUseItemOn` 只有「太远」和「太高」两条会出声，两条都不成立） |
+| `stock` 一个没少 | 服务端从没消耗过任何东西，因为它从没拿着 cobblestone |
+| `above=air onGround=true water=false` | 地形完全正常——**这一行的作用是排除掉所有地形解释**，它做到了 |
+
+代价：`JourneyShaft:850` 一轮不涨高度就整座塔放弃 → **一只错手 = 整次升高**。
+
+**这条差异的定性**（按 §6.8 末尾那张表的口径，那里只有两类）：**它是第三类**——
+既不是「客户端身体缺能力」，也不是「服务端身体有特权」，而是
+**两个执行器各自完整，但它们操作的是同一具身体的两个不相通的副本**。
+
+**§0 的身体选型指令消不掉它。** 即便 A0 把 36 处单发动作全改成 `ClientPlayerAvatar`，
+`handleUseItemOn` 从**服务端** `selected` 取物品这条规则也不会变——那是 vanilla 的规则，不是我们的。
+A0 之后这条差异确实不会再被触发（`ClientPlayerAvatar.setSelectedSlot` 在 `:45-50` 自己就带着
+`ServerboundSetCarriedItemPacket`，**客户端那一侧从一开始就守规矩**），
+**但 `ServerPlayerAvatar` 仍然是无头拓扑和任何被 adopt 的身体的执行器**——
+把「connection swallows them anyway」这句假前提留在四具身体共用的代码里，
+就是下一个人重踩这个坑的完整配方。
+
+---
+
 ## 7. 场景归属：谁该迁走，谁迁不了
 
 **迁移机制今天就有**：`SceneContext.playerHere()`（stagewright `api/src/main/java/net/magicterra/stagewright/scene/SceneContext.java:135`）会把真玩家传送进舞台并注册还原清理；`SceneContext.player()`（`:118`）在没有真玩家时**跳过场景**（`:150`）。
