@@ -334,8 +334,25 @@ public final class JourneyRig {
             ServerPlayer real = humans.get(0);
             real.setGameMode(GameType.SURVIVAL);
             real.getInventory().clearContent();
+            // How far that teleport actually moves the body, on the row, every run.
+            //
+            // `stagingCalls()` does not see this — it counts fixture verbs, and this is the rig
+            // placing its own body before the first rung. So the ladder's headline number can read
+            // 「零布景」while the body was carried somewhere, and a reader has no way to tell a
+            // one-block centring nudge from a hundred blocks of walking nobody had to do. That
+            // distinction is the whole of gap V6:「走路也是要测的一环」.
+            //
+            // A number rather than a guard, deliberately. The threshold at which a placement nudge
+            // becomes stolen walking is not something to invent here — and on a freshly provisioned
+            // world vanilla places the client near shared spawn anyway, so the honest first move is
+            // to publish the distance and let the next pass decide from a reading.
+            net.minecraft.world.phys.Vec3 wasAt = real.position();
             real.teleportTo(level, spawn.getX() + 0.5, surface, spawn.getZ() + 0.5,
                     real.getYRot(), real.getXRot());
+            evidence("spawn.teleport", String.format(java.util.Locale.ROOT,
+                    "%.1f 格：%.0f,%.0f,%.0f → %d,%d,%d（世界出生点）",
+                    wasAt.distanceTo(real.position()),
+                    wasAt.x, wasAt.y, wasAt.z, spawn.getX(), surface, spawn.getZ()));
             driver = new ServerWorldDriver(new ServerPlayerAvatar(real));
             adoptedRealPlayer = true;
         } else {
