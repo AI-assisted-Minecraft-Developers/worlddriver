@@ -2667,8 +2667,35 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         boolean ok = rig.avatar().holdItem(item);
         rig.evidence(what + ".hand", (ok ? "" : "拿不到 " + BuiltInRegistries.ITEM.getKey(item) + "，手上是 ")
                 + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
+                + actingHand(rig)
                 + (ok ? "" : "；" + bucketStock(rig)));
         return ok;
+    }
+
+    /**
+     * The hand that will actually be used, beside the hand this row has always printed.
+     *
+     * <p>Every reading in this file came from {@code rig.player()} — the ServerPlayer — while the
+     * use runs on the client. That is one packet of lag on a good day, and this row said so. What
+     * it could never say is the thing a reader actually needs when a use does nothing: <b>whether
+     * the client is holding the right item at all</b>. {@code holdItem} returning true is not that
+     * evidence; it is {@code BotInteract.ensureHolding}'s opinion, and its main-inventory branch
+     * goes through a swap CLICK whose effect is not visible in the same statement.
+     *
+     * <p>Rung 12 spent three rounds without it. The pour reported
+     * {@code water0.hand=minecraft:stone_pickaxe} (server, stale), {@code water0.result=SUCCESS}
+     * (client, predicted) and {@code water0.spent=water_bucket 1→1} (server, after a round trip) —
+     * three readings from two bodies and two moments, and no two of them describe the same thing.
+     * Printing both hands in one row costs nothing and collapses that.
+     *
+     * <p>Identical on the dedicated-server helm, where both calls reach the same object — the row
+     * degrades to a repetition rather than a lie.
+     */
+    private static String actingHand(JourneyRig rig) {
+        var acting = rig.avatar().player();
+        if (acting == null) return "";
+        var id = BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem());
+        return "（真正要动手的那只手上是 " + id + "）";
     }
 
     /**
