@@ -27,9 +27,72 @@
 | 🧊 冻结中 | J4 | `keyAttack` 五取用者协议 —— 只做诊断表，**不要发明全局仲裁器** | janitor |
 | ✅ 已落 | J5 | 724 → 0 死 import，五笔纯删除，733 行净减。**但见下：省下的额度没人在用** | janitor |
 | 🔴 排队 | J7 | **`BotConfig.java` 2993/3000，零死 import**——顶着上限而 J5 对它无效。要拆不要刮 | 我（梯子稳后） |
+| 🔄 在跑 | Q14 | 12 级装水：三笔（`fcbbd66b`/`c83e7d76`/`371cb137`）。**判据预登记在下面那节** | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
+
+---
+
+## 📏 12 级装水：三行证据不可能同时为真，而两条更漂亮的解释都被字节码否掉（Q14，2026-08-22）
+
+客户端排练 `wd.rehearse12PortalLit` FAIL，`ticks=83`。证据只有四行，但它们互相矛盾：
+
+```
+waterFill.result    = SUCCESS
+water_bucket        = 0
+waterFill.cellAfter = Block{minecraft:water}
+waterFill.hand      = minecraft:stone_pickaxe
+```
+
+**前三行不可能描述同一个时刻。** `SUCCESS` 是 `sidedSuccess(true)`；对一只**空桶**而言，
+那只能来自客户端自己的射线**打中了水源**的那条 pickup 路径。所以 use 那一刻是成功的，
+而判它的两个读数（`rig.carrying` 走 ServerPlayer 背包、`ctx.level()` 是服务端 level）
+**都在服务端**，都在 use 的同一 tick 里被读。
+
+**已证的死因只有一条：判早了。** 这是 11 级第 3 条的镜像——
+瞄准要贴着动作（同一具身体），结果要留出往返（跨身体）。
+
+**对照组是现成的，而且一次性定了案**：2026-08-16 那趟专用服真爬在这里记的是
+`waterFill.result = CONSUME`，即 `sidedSuccess(false)`。**同一段代码、同一个判据、
+换一具身体就是另一个返回值**——服务端身体没有包要等，所以它一直是过的。
+
+### 两条更漂亮的解释，都被 `javap -c` 一分钟否掉
+
+| 我推出的机制 | 字节码事实 |
+|---|---|
+| 服务端拿自己过期的角度重新射线 | `ServerboundUseItemPacket` **携带 yRot/xRot**；`handleUseItem` 在 `useItem`(141) **之前** `absRotateTo`(123) |
+| 换槽包输给 use 包，服务端跑的是镐的 use | `MultiPlayerGameMode.useItem` **第 15 条字节码**就是 `ensureHasSentCarriedItem()`，在发包的 `startPrediction` 之前 |
+
+两条都能解释全部四行证据，两条都是假的。`waterFill.hand=stone_pickaxe` 只是
+**`holdForUse` 读服务端手、早一包**的显示问题，不是执行问题。
+
+**这两条排除已经钉进注释**（`aimBoth` 与 `holdForUse` 的 javadoc），因为它们是
+**排除性证据**：不写下来，下一个人看到那两行还会再走一遍同样的两条死路。
+
+### 落地的三笔
+
+- `fcbbd66b` 把 `aimThenAct` 里的两具身体瞄准提成 `aimBoth`。
+  **服务端那一瞄不是为了 use**（见上表），是为了本仓自己那些射服务端身体的**预测闸**——
+  `JourneyFill.scoop` 的 `onTarget` 一旦读到一具没人瞄过的身体，它不是报错，
+  而是去 re-aim、去 `mineCellOrGiveUp` 敲一个从不在线上的「障碍」、去 `stepOutOfTheFrame`。
+  **三条分支都改世界。**
+- `c83e7d76` `scoopWater` 判据挪到 `HoldStill(3)` 之后。
+  这个点位**没有**预测闸，所以它连 `aimBoth` 的后半都不需要——注释里写明了，
+  免得下一个人把「不是死因」的那一条当成死因。
+- `371cb137` `JourneyFill.scoop` 改用 `aimBoth`；`spendTheBucket` 的 `after` / miss 诊断 /
+  retarget / `ctx.fail` **全部**挪进后置 settle。副产品：那条 `.miss.N` 里的
+  「射线停在 …」**从这一笔起才是可信的**——在此之前它射的是一具从没被瞄过的身体。
+
+### 预登记判据（写在读结果之前）
+
+1. **12 级要够到点火那一步或更远**——这一条才证明修的是一类而不是一处。
+2. 若仍死在装水，先看 `waterFill.hand#2`：**出现**=第一行确实是陈旧的（clash guard 只留不同值）；
+   **不出现**=手从头到尾没换成桶，那是另一个缺陷。
+3. 只有在「`.hand#2=bucket` 且等过往返 delta 仍为 0」时，才轮到去挖包机制——
+   而那时手上已经有能区分的仪器了。
+4. 预算按 `-PrehearseBudget=250000` 跑满。上一趟的 120000 是**夹具帽**，
+   证据行自己就在警告；别让下一条 FAIL 是预算伪影。
 
 ---
 
