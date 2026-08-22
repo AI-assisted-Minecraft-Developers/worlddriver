@@ -795,6 +795,18 @@ swim pose and it sinks」。
 不需要另加读数，那一行就是它。同 tick 与稳定后分两行（`slot.同tick一致` / `slot.最终一致`），
 所以「补包生效但晚一 tick」和「根本没生效」也是分开的。
 
+⚠️ **第 1 步这一趟本来就该是 RED，不要把它当回归。** 允许的红是这四条，一条不多：
+
+| 场景 | 为什么允许 |
+|---|---|
+| `canaryMustFail` | 框架自带金丝雀 |
+| `wd.vineOverWaterClimb` | optional，−711 藤蔓那条已知传感器 |
+| `wd.serverEscapeSealedShelter` | optional，长期红 |
+| `bottomedDeep` 那条新臂 | **本文件自己预登记的故意红**——臂落了、起跳闸（`ServerPlayerAvatar:1054`）还没改，parity 那条执行序停在第 3 步 |
+
+**第五条红才是信号。** 这一趟测的实质只有 `carryTo`：槽位路由只动了 `journey/`，
+而 `wd.journey*` 不在这个套件里。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 1. **塔耗石头（`climb.N.stock` < `climb.N.with`）且 `handsAtUse` 零分叉** ⇒ 因果链闭合：
