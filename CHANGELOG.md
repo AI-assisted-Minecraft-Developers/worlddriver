@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-22
+
+- **The server planner counted the hotbar; the executor it drives reaches the whole inventory.**
+  `LevelWorldView.placeableBlockCount()` scanned slots 0..8, while `ServerPlayerAvatar.holdPlaceable()`
+  has for some time swapped a stack up from slots 9..35 when the hotbar has none. A* was therefore
+  stricter than the body it plans for. Two consumers turn that gap into a dead leg: `BridgePlace.eval`
+  emits no bridge edge at all when `canPlace()` is false, and `WalkerTickSearch`'s block budget throws
+  away a path A* has ALREADY FOUND and re-searches with placing OFF whenever the plan's place edges
+  outnumber the count. Over a gap, place-off leaves only walking. Now it counts every slot.
+- **Deliberately not mirrored on the client.** `BotInteract.ensureHoldingPlaceableAny` really does stop
+  at slot 8 in survival — a real client cannot move a bag stack to the hotbar without working the
+  inventory menu — so widening `ClientWorldView` would promise placements that body cannot make. Each
+  planner counts its own executor's reach.
+- **Two probes, one variable.** `wd.serverPlansABridgeFromTheHotbar` / `…FromTheBackpack` put the same
+  64 cobblestone in slot 0 vs slot 20 over the same 4-cell void gap. The backpack arm asserts three
+  things, and the first is not decoration: the hotbar really is empty (without it, staging that left a
+  stack in slot 0 would make the other two clauses true for the wrong reason), the planner's own count
+  is 64, and the body actually bridges across.
+- **What this is NOT.** It was found while autopsying a rung-14 corridor death (`fortress.wp8`,
+  `failed:no path (expanded=100000)` with 205 placeable blocks carried), and it is **not established as
+  that death's cause**: the wp7 leg minutes earlier planned and executed 15 bridge edges, and the
+  block-budget consumer's unconditional log line appears zero times in a run whose walker channel was
+  live (2021 `[walker]` lines). The corridor cause stays open.
+- **`rods.perKill` / the pearl equivalent stopped going negative.** They differenced two ground TOTALS,
+  and `dropsNearby` inflates around the BODY — so a rod dropped at one fight simply leaves the window
+  once the body walks to the next, and the row printed `…,0,1,0,-1,…` for things coming into existence.
+  `JourneyRig.dropStacks` returns entity id → count and `gained()` sums only the positive per-id
+  differences, so a new stack contributes its count, a merged stack contributes its growth, and one
+  that drifted out contributes nothing.
+
 ## 2026-08-21
 
 - **The integrated topology's body was driven through two authorities that never agreed.** The
