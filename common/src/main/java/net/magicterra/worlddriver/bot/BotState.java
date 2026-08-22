@@ -116,17 +116,48 @@ public final class BotState {
         public volatile boolean active;
         public volatile String goal;       // human-readable
         public volatile BlockPos target;   // current goal target if any
-        public volatile int pathLen;       // remaining nodes
-        public volatile int pathStep;      // current node index
+        /**
+         * Progress through whatever this slot's process is doing — <b>and the unit is the
+         * process's, not a fixed one</b>. These said "remaining nodes" / "current node index"
+         * until it was measured; ten writers disagreed.
+         *
+         * <table><caption>what each writer puts here</caption>
+         * <tr><th>writer</th><th>{@code pathLen}</th><th>{@code pathStep}</th></tr>
+         * <tr><td>builder / mine / follow / explore / mc_goto</td>
+         *     <td>{@code walker.pathLen()} — remaining path NODES</td>
+         *     <td>{@code walker.pathStep()} — node index</td></tr>
+         * <tr><td>{@code BridgeProcess}</td><td>blocks the bridge will span</td>
+         *     <td>Manhattan blocks travelled from the start foot</td></tr>
+         * <tr><td>{@code TowerProcess}</td><td>blocks of HEIGHT to gain</td>
+         *     <td>blocks placed</td></tr>
+         * <tr><td>{@code DescendProcess} / {@code EscapeProcess} (both on {@code st.escape})</td>
+         *     <td>{@code MAX_STEPS} — a compile-time cap, never the real length</td>
+         *     <td>iterations of that process's own step loop</td></tr>
+         * <tr><td>{@code ElytraProcess}</td><td>blocks of distance left to the goal</td>
+         *     <td>waypoint index</td></tr>
+         * </table>
+         *
+         * <p>So {@code pathStep/pathLen} is a fraction only within one verb, and comparing the
+         * pair across verbs — or reading either as a node count — is wrong for half the surface.
+         * The escape pair is the sharpest case: {@code pathLen} there is a constant, so a
+         * descend that is nearly done and one that just started report the same denominator.
+         *
+         * <p>Written down rather than unified because unifying changes what
+         * {@code mc.bot.status} reports to every existing client. If it is ever unified, the
+         * unit has to be named in the key, not in a comment.
+         */
+        public volatile int pathLen;
+        public volatile int pathStep;
         /**
          * WHERE the plan is steering, and by what move — the cell {@link #pathStep} names, plus the
          * edge that enters it ({@code walk} / {@code stepDown} / {@code fall7} / …).
          *
-         * <p>{@code pathLen}/{@code pathStep} say how far along a plan the body is and nothing about
-         * what the plan asked for. That gap ended a diagnosis: a nether crossing left the ground and
-         * fell eleven blocks into lava, and the only readings anyone had were about the cell under
-         * the body's FEET — which cannot distinguish "the next node really is across a gap" from
-         * "the node is fine and the body overshot it". Those want opposite fixes.
+         * <p>On the slots where {@code pathLen}/{@code pathStep} really are a walker's (see their
+         * javadoc — on five other writers they are not), they say how far along a plan the body is
+         * and nothing about what the plan asked for. That gap ended a diagnosis: a nether crossing
+         * left the ground and fell eleven blocks into lava, and the only readings anyone had were
+         * about the cell under the body's FEET — which cannot distinguish "the next node really is
+         * across a gap" from "the node is fine and the body overshot it". Those want opposite fixes.
          *
          * <p>Deliberately NOT in {@link #snapshot()}: every {@code mc.bot.status} poll ships every
          * slot's map to an LLM client, and this is a debugging reading for in-process consumers
