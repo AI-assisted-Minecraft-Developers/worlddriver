@@ -408,8 +408,30 @@ lava0.aimsAt#3 = -9,63,18 Block{minecraft:lava} 源块=true 液位=8    ← 正�
    下一步查 hold 与 use 之间还有谁动了 `inv.selected`。
 4. **出现 `holdBoth.*` 行** ⇒ 两份背包在这一刻已经分叉，那是比换手更早的一个缺陷，
    单独立项。
+5. **water0 命中判据 1，而 lava0 仍 `lava_bucket 0→0`** ⇒ 机制被**确认**而不是被推翻，
+   死因是 hold 的**位置**。上一趟的证据顺序已经写着它了：
+
+   ```
+   lava0.hand → clearedLine.3（敲掉它）→ clearedLine.2（敲掉它）→ aimsAt#3 → result
+   ```
+
+   `clearedLine` 分支调的是 `rig.mineCellOrGiveUp(wall, 600, retry)`（`JourneyFill:543`），
+   即同一条 `MineProcess` → `selectTool`。**挖掘夹在 hold 和 use 中间**，
+   于是它在 `holdBoth` 之后又把服务端的手挪回镐上。
+   注意 lava0 **没有 `atUse` 行**（本轮只把仪器接到了 `placeFluid`），
+   它的红只能靠 `miss` 行加这一支认领。
+   `placeFluid` 自己的重试臂（`clearPourLine` 也挖）有同样的暴露，
+   本趟 water0 是 `.3` 首试直过才没踩到。
 
 **本级总判据不变：够到点火那一步或更远。**
+
+### 由这一支引出的不变量（不管本趟结果如何都成立）
+
+**手和瞄是同一类量：use 时刻的状态，不是流程开头的布置。**
+这个文件已经为瞄准付过一次学费（`lava0.aimsAt` 那句「瞄准是落定后重算的」），
+hold 是同一课的第二次点名。凡是 hold 与 use 之间还会改世界的流程，hold 就已经过期。
+**durable 修法是把 `holdBoth` 挪到「最后一次改世界之后、use 之前」，
+而不是每个站点各贴一次补丁。**
 
 ### 引擎侧待办（交给 wd-parity，不在本轮）
 
