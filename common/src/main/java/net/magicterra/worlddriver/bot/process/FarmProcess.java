@@ -219,7 +219,7 @@ public final class FarmProcess implements BotProcess {
                     BlockPos bp = new BlockPos(x, y, z);
                     if (blacklist.contains(bp)) continue;
                     if (!stillMature(lvl, bp)) continue;
-                    BlockPos stand = findStandAdjacent(lvl, bp);
+                    BlockPos stand = standBesideCrop(lvl, bp);
                     if (stand == null) continue;
                     long d2 = (long) bp.distSqr(foot);
                     if (d2 < bestD2) {
@@ -240,7 +240,18 @@ public final class FarmProcess implements BotProcess {
         return cb.isMaxAge(bs);
     }
 
-    private BlockPos findStandAdjacent(Level lvl, BlockPos crop) {
+    /**
+     * The stand cell for harvesting {@code crop} — deliberately NOT the same search as
+     * {@code BotUtil.findStandAdjacent}, which this file also pulls in through its
+     * {@code import static ...BotUtil.*}.
+     *
+     * <p>It used to carry that exact name and signature, so the private one silently won
+     * overload resolution at the call site and anyone following the static import read the wrong
+     * function. The two really do differ: the shared one varies dy over {0,-1,+1} and falls back
+     * to the cell on top, this one stays at dy=0 and adds the four diagonals. Renamed so the
+     * difference is visible instead of shadowed.
+     */
+    private BlockPos standBesideCrop(Level lvl, BlockPos crop) {
         // Crops are 1 tall; the stand cell is the same Y as the farmland +1
         // = same Y as the crop cell (player feet level with crop). Try 4
         // cardinals; allow standing on the farmland itself (Y same) since
