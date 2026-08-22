@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-22
 
+- **`ServerPlayerAvatar` publishes the selected slot instead of writing it in secret.** Every place
+  this avatar moved the hand — `holdPlaceable` (twice), `selectTool`, `setSelectedSlot`, `holdItem`
+  — assigned `inv.selected` and sent nothing, on the reasoning that "this body's connection swallows
+  packets anyway". True of a headless `AvatarFakePlayer`; false of an adopted real player, which has
+  a live connection and a client that goes on believing its own slot. `carryTo` now sends a
+  `ClientboundSetCarriedItemPacket` whenever the value actually changes, which is the same path
+  vanilla's own middle-click takes (`handlePickItem`), and `grep "selected\s*=" bot/sim/` is down to
+  the two lines inside `carryTo` itself. Headless behaviour is unchanged three ways over: the packet
+  dies in `AvatarNetHandler.send` for bodies A and B and in `SilentConnection` for body C
+  (`isTerminal()` is false, so the `close()` branch is never taken); `fp.connection` is non-null on
+  all four bodies today; and the packet class carries no `@Environment(CLIENT)` — `PlayerList`, a
+  pure server class, constructs it twice. The published slot is not free: a divergence that used to
+  be permanent becomes an echo window of at most one round trip, mitigated by not sending when the
+  value has not moved. Two comments that asserted the old reasoning were removed rather than left to
+  send the next reader back down the same path.
 - **A corpse is no longer offered as a sheep worth killing.** `JourneyRig.woolNearby` filtered lambs
   and sheared sheep — both of which drop no wool — and never asked whether the sheep was alive, even
   though its own first line promises "every sheep near the body that **would really drop wool**". A
