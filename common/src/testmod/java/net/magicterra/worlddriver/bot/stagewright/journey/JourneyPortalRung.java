@@ -134,24 +134,62 @@ public final class JourneyPortalRung {
             BlockPos aim = JourneyTerrain.shallowWaterNear(rig, 8);
             if (aim == null) aim = water;
             WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, "waterFill");
-            rig.avatar().aimAtBlock(aim);
             final BlockPos at = aim;
-            rig.settle(new HoldStill(2), 10, () -> {
+            // JUDGE AFTER THE ROUND TRIP. The use runs on the CLIENT (rig.avatar() is the client
+            // avatar on this topology) and everything that judges it reads the SERVER —
+            // `rig.carrying` walks the ServerPlayer's inventory, `ctx.level()` is the server level.
+            // Read in the use's own tick, a fill that worked is byte-identical to one vanilla
+            // refused, so the old shape could only ever produce the failing reading.
+            //
+            // Measured, client rehearsal 2026-08-22: `waterFill.result=SUCCESS` beside
+            // `water_bucket=0` and `waterFill.cellAfter=water`. Those three cannot be true of one
+            // moment — SUCCESS is `sidedSuccess(true)`, which for an EMPTY bucket only comes from a
+            // pickup the client's own ray landed — so the scene killed a fill it had not yet let
+            // finish. The dedicated-server climb of 2026-08-16 recorded `CONSUME` here, i.e.
+            // `sidedSuccess(false)`: same code, server body, no packet to wait for, PASS.
+            //
+            // NOT the aim, and NOT the hand — both matter for whoever reads this next, because the
+            // two rows most likely to catch their eye are exactly the two dead ends.
+            //
+            // The aim: `aimThenAct` replaces an aim-then-settle with a settle-then-aim and is kept
+            // because it is strictly safer, but it did not fix this run and there is no evidence it
+            // was ever broken here — `result=SUCCESS` says the client's ray was on the water at the
+            // instant of the use. This site also has no server-side prediction gate, so it needs
+            // nothing from the second half of `aimBoth` either; see that helper's note.
+            //
+            // The hand: `waterFill.hand=minecraft:stone_pickaxe` invites the theory that the
+            // select-slot packet lost the race to the use packet, so the server ran a PICKAXE's
+            // use. Disassembled, that race cannot happen: `MultiPlayerGameMode.useItem` calls
+            // `ensureHasSentCarriedItem()` at bytecode offset 15 — before `startPrediction`, which
+            // is what sends `ServerboundUseItemPacket` — so the slot change is always already in
+            // flight ahead of the use. The row is one packet early, and nothing more.
+            WorldDriverJourneyScenes.aimThenAct(rig, at, () -> {
                 // Increment, for the same reason `scoop` measures one — see its own note. The
                 // short-circuit above means `before` is 0 today, so this changes nothing now and
                 // stops being a lie the moment the body arrives here already holding water.
                 int before = rig.carrying("minecraft:water_bucket");
+                // The same key `holdForUse` already wrote, on purpose: it tells the CLIENT to
+                // select the bucket and reads the SERVER's hand in the same breath, so its row is
+                // one packet early — this run printed `waterFill.hand=minecraft:stone_pickaxe`
+                // beside a SUCCESS that only a bucket can return. StageWright's clash guard keeps a
+                // second value ONLY when it differs, so `waterFill.hand#2` appearing IS the proof
+                // that the first reading was stale, and its absence is the proof that it was not.
+                rig.evidence("waterFill.hand", String.valueOf(BuiltInRegistries.ITEM.getKey(
+                        rig.player().getMainHandItem().getItem())));
                 rig.evidence("waterFill.result", String.valueOf(rig.avatar().useItemInHand()));
-                int after = rig.carrying("minecraft:water_bucket");
-                rig.evidence("water_bucket", after);
-                rig.evidence("waterFill.cellAfter", String.valueOf(ctx.level().getBlockState(at).getBlock()));
-                if (after <= before) {
-                    ctx.fail("装水失败：瞄了 " + at.toShortString() + "，这一次没装上（water_bucket "
-                            + before + "→" + after + "）—— "
-                            + "这一级底下全程靠这一桶水，装不上就没有下一步");
-                    return;
-                }
-                then.run();
+                rig.settle(new HoldStill(3), 12, () -> {
+                    int after = rig.carrying("minecraft:water_bucket");
+                    rig.evidence("water_bucket", after);
+                    rig.evidence("waterFill.cellAfter",
+                            String.valueOf(ctx.level().getBlockState(at).getBlock()));
+                    if (after <= before) {
+                        ctx.fail("装水失败：瞄了 " + at.toShortString() + "，这一次没装上（water_bucket "
+                                + before + "→" + after + "，已等过 3 tick 往返）—— "
+                                + "这一级底下全程靠这一桶水，装不上就没有下一步");
+                        return;
+                    }
+                    then.run();
+                });
             });
         });
     }
