@@ -527,6 +527,62 @@ loom {
             vmArg '-Xmx2g'
             source sourceSets.testmod
         }
+        // The SAME rehearsal, on a body whose rotation belongs to a client.
+        //
+        // `rehearsalServer` above rehearses on a fake player, and a fake player is exactly the body
+        // that cannot show the defect this task exists for: a real player's yaw/pitch are
+        // client-authoritative, so a server-side `aimAtBlock` is overwritten by the next
+        // `ServerboundMovePlayerPacket` — and the client, meanwhile, pulls pitch back to the horizon
+        // every tick it is not bridging or diving. Rung 11 passes on the dedicated ladder and failed
+        // on the client one for precisely that reason, on the same code and the same seed.
+        //
+        // So the two rehearsals answer different questions and BOTH are needed: the server one asks
+        // "does this rung's plan work", this one asks "does it survive a body that argues back".
+        // Without it, an aim fix can only be tested by climbing eleven rungs and being lucky.
+        //
+        //   ./gradlew :fabric:runRehearsalIntegratedServer -Prehearse=OBSIDIAN
+        //
+        // The levers below are the same properties `rehearsalServer` declares; the reasoning for
+        // each one lives there and is deliberately NOT repeated here. Add a lever in both places or
+        // in neither — a rehearsal that answers a question on one body and cannot be asked it on the
+        // other is how the pair stops being a pair.
+        rehearsalIntegratedServer {
+            client()
+            property 'stagewright.autorun', 'true'
+            property 'stagewright.awaitPlayer', 'true'
+            property 'stagewright.client.world', 'RehearsalClient'
+            property 'stagewright.client.exitWhenDone', 'true'
+            property 'worlddriver.journey', 'true'
+            property 'worlddriver.journey.walkerDebug', (project.findProperty('walkerDebug') ?: '')
+            property 'worlddriver.journey.rehearse', project.findProperty('rehearse') ?: 'PORTAL_LIT'
+            property 'worlddriver.journey.rehearse.budget',
+                    (project.findProperty('rehearseBudget') ?: '').toString()
+            property 'worlddriver.journey.breakAStair',
+                    (project.findProperty('breakAStair') ?: 'false').toString()
+            property 'worlddriver.journey.wetShaft',
+                    (project.findProperty('wetShaft') ?: 'false').toString()
+            property 'worlddriver.journey.landOnFloor',
+                    (project.findProperty('landOnFloor') ?: 'false').toString()
+            property 'worlddriver.journey.forgeAway',
+                    (project.findProperty('forgeAway') ?: '').toString()
+            property 'worlddriver.journey.shaftColumn',
+                    (project.findProperty('shaftColumn') ?: '').toString()
+            property 'worlddriver.journey.buckets',
+                    (project.findProperty('buckets') ?: '1').toString()
+            property 'worlddriver.journey.eyes',
+                    (project.findProperty('eyes') ?: '').toString()
+            property 'worlddriver.journey.roomScanChunks',
+                    (project.findProperty('roomScanChunks') ?: '').toString()
+            property 'worlddriver.realPlayerBodies', 'true'
+            property 'stagewright.scenes', 'wd.rehearse*'
+            property 'worlddriver.rpcPort', '0'
+            property 'worlddriver.mcpPort', '0'
+            // Its own runDir: a rehearsal PLAYS its world exactly as the ladder does, and the two
+            // rehearsals must not measure each other's dug shafts.
+            runDir 'run-rehearsal-integrated'
+            vmArg '-Xmx2g'
+            source sourceSets.testmod
+        }
     }
     runConfigs.configureEach {
         // contractServer and dogfoodServer pin their own ephemeral ports
@@ -705,8 +761,15 @@ def provisionJourneyWithClientRun =
         provisionRun('provisionJourneyWithClientRun', 'run-journey-with-client', 'the journey', '25701')
 def provisionJourneyJoiningClientRun =
         provisionRun('provisionJourneyJoiningClientRun', 'run-journey-joining-client', 'the journey')
+// The client rehearsal needs its own, and needing it is not optional: every rehearsal stands the
+// body at coordinates baked from seed 5471, so a directory provisioned without that seed rehearses
+// a rung against terrain it was never written for — and it does that GREENLY, staging its kit into
+// whatever happens to be there. This line is the difference between a rehearsal and a fiction.
+def provisionRehearsalIntegratedRun =
+        provisionRun('provisionRehearsalIntegratedRun', 'run-rehearsal-integrated', 'the rehearsal')
 tasks.named('runJourneyServer') { dependsOn provisionJourneyRun }
 tasks.named('runRehearsalServer') { dependsOn provisionRehearsalRun }
+tasks.named('runRehearsalIntegratedServer') { dependsOn provisionRehearsalIntegratedRun }
 tasks.named('runJourneyIntegratedServer') { dependsOn provisionJourneyIntegratedRun }
 tasks.named('runJourneyDedicatedServerWithClient') {
     dependsOn provisionJourneyWithClientRun, provisionJourneyJoiningClientRun
