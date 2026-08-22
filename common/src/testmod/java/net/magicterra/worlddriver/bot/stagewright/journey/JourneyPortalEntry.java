@@ -728,6 +728,11 @@ public final class JourneyPortalEntry {
     private static void holdInThePortal(SceneContext ctx, JourneyRig rig, BlockPos portal,
                                         Crossing crossing, int legs, Attempt attempt) {
         if (!crossing.from().equals(rig.dimension())) {
+            // Written on the way OUT too, not only on the two failure paths below. A reading that
+            // exists only when the scene fails cannot certify the scene that passes: the run that
+            // finally crossed had no `portal.ticked` at all, so 「这次门是怎么过的」 had to be
+            // reconstructed from heartbeats. Costs one row; buys the pass its own evidence.
+            rig.evidence("portal.ticked", ticked(rig, attempt));
             crossing.onCrossed().run();
             return;
         }

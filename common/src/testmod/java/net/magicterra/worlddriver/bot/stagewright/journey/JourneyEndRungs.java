@@ -718,12 +718,24 @@ public final class JourneyEndRungs {
         JourneyPortalEntry.crossThrough(ctx, rig, portal,
                 new JourneyPortalEntry.Crossing(leaving, () -> {
             rig.evidence("return.dimension", rig.dimension());
-            rig.evidence("return.at", xyz(rig.player().blockPosition()));
+            BlockPos now = rig.player().blockPosition();
+            rig.evidence("return.at", xyz(now));
             // The crossing only promises the body LEFT. Where it landed is this rung's problem: the
             // stronghold is in the overworld, and a body that came out somewhere else would go on
             // to march hundreds of blocks through the wrong world before anything noticed.
             ctx.expect(rig.dimension()).as("从自己点亮的门走出来之后，身体必须落在主世界")
                     .isEqualTo(OVERWORLD);
+            // The mirror of rung 13's check, and this direction MULTIPLIES by 8 where that one
+            // divides. Asserting only the dimension is what let a run report a clean crossing while
+            // standing in an aquifer 1500 blocks from where the pair should have put it — the
+            // dimension was right, so nothing objected, and the march spent its whole budget
+            // walking out of the hole. Tolerance is the forcer's own horizontal search radius:
+            // landing up to 128 away is vanilla doing its job, further is a different doorway.
+            int wantX = portal.getX() * 8, wantZ = portal.getZ() * 8;
+            int drift = Math.max(Math.abs(now.getX() - wantX), Math.abs(now.getZ() - wantZ));
+            rig.evidence("return.scaledXZ", wantX + "," + wantZ + "（漂移 " + drift + " 格）");
+            ctx.expect(drift).as("回程也要落在 8:1 折算过去的那一点附近，不是随便一道门")
+                    .isAtMost(128);
             then.run();
         }));
     }
