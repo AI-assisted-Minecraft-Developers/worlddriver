@@ -73,9 +73,5 @@ public final class DiagonalAscend extends Move {
                 && Move.bottomless(w, sideA) && Move.bottomless(w, sideB)) return false;
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
-    private static boolean clearColumn(WorldView w, BlockPos p) {
-        return w.isPassable(p) && w.isPassable(p.offset(0, 1, 0))
-            && !w.isHazard(p) && !w.isHazard(p.offset(0, 1, 0));
-    }
     public String name() { return "diagUp"; }
 }

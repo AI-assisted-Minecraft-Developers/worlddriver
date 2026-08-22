@@ -254,6 +254,20 @@ public abstract class Move {
     }
 
     /**
+     * A body-height column the player can occupy: foot and head both passable and neither a
+     * hazard. The diagonal moves gate their two corner columns on this — a diagonal step cuts
+     * the corner, so the body sweeps both of them even though it stands in neither.
+     *
+     * <p>Here rather than three times over, which is how it was written: {@code Diagonal},
+     * {@code DiagonalAscend} and {@code DiagonalDescend} each carried a byte-identical private
+     * copy. They are subclasses, so the call sites did not have to change at all.
+     */
+    public static boolean clearColumn(WorldView w, BlockPos p) {
+        return w.isPassable(p) && w.isPassable(p.offset(0, 1, 0))
+            && !w.isHazard(p) && !w.isHazard(p.offset(0, 1, 0));
+    }
+
+    /**
      * True when {@code from} sits in a "water-edge" context — the only place the
      * water-escape break moves ({@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimAshoreBreak} /
      * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimTraverseBreak}) are

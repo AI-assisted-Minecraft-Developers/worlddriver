@@ -52,9 +52,5 @@ public final class DiagonalDescend extends Move {
 
         return clearColumn(w, sideA) && clearColumn(w, sideB);
     }
-    private static boolean clearColumn(WorldView w, BlockPos p) {
-        return w.isPassable(p) && w.isPassable(p.offset(0, 1, 0))
-            && !w.isHazard(p) && !w.isHazard(p.offset(0, 1, 0));
-    }
     public String name() { return "diagDown"; }
 }
