@@ -2598,28 +2598,49 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     static void aimThenAct(JourneyRig rig, BlockPos at, Runnable act) {
         rig.settle(new HoldStill(2), 10, () -> {
-            // BOTH bodies, and that is the whole correction. On the client topology
-            // `rig.avatar()` is the CLIENT avatar (JourneyRig:422 hands back
-            // BotHooks.impl().clientAvatar()) while `rig.player()` is the ServerPlayer — so the
-            // first version of this helper aimed one body and rayed the other, with a
-            // ServerboundMovePlayerPacket in between. Putting the two calls on adjacent lines
-            // bought nothing, because adjacency is about ticks and this gap is about objects.
-            //
-            // Measured, client rehearsal of rung 11: the body sat in cell -4,27,56 for seven
-            // consecutive steps and the target never moved, yet the recorded angle changed every
-            // step (yaw 142→116→102→98→96→95, pitch 35→7→4→2→2→1). One body and one target can
-            // only produce one angle, so the printed angle was never the one just written.
-            //
-            // Aiming both is exact rather than approximate: aimAtBlock is a pure function of (body
-            // position, target cell), and the two bodies are the same body one packet apart, so
-            // both get the same angle to within that lag. The ACT still runs on the client — that
-            // is where the use happens, and Item.getPlayerPOVHitResult reads getXRot()/getYRot()
-            // live, so the client's own aim is what the pour will actually see. The server-side
-            // aim exists only so the PREDICTION rays down the same line the use will.
-            rig.avatar().aimAtBlock(at);
-            rig.body().avatar().aimAtBlock(at);
+            aimBoth(rig, at);
             act.run();
         });
+    }
+
+    /**
+     * Point BOTH bodies at one cell — the client's, which acts, and the server's, which predicts.
+     *
+     * <p>On the client topology {@code rig.avatar()} is the CLIENT avatar (JourneyRig:422 hands back
+     * {@code BotHooks.impl().clientAvatar()}) while {@code rig.player()} is the {@code ServerPlayer}.
+     * The first version of {@link #aimThenAct} aimed one body and rayed the other, with a
+     * {@code ServerboundMovePlayerPacket} in between; putting the two calls on adjacent lines bought
+     * nothing, because <b>adjacency is about ticks and that gap is about objects</b>.
+     *
+     * <p>Measured, client rehearsal of rung 11: the body sat in cell −4,27,56 for seven consecutive
+     * steps and the target never moved, yet the recorded angle changed every step (yaw
+     * 142→116→102→98→96→95, pitch 35→7→4→2→2→1). One body and one target can only produce one angle,
+     * so the printed angle was never the one just written.
+     *
+     * <p><b>What the server-side aim is FOR, precisely.</b> It is not for the use — that would be
+     * the tidier story and it is false. Disassembled from 1.21.1 (mojang mappings),
+     * {@code ServerGamePacketListenerImpl.handleUseItem} runs, in this order:
+     * {@code packet.getYRot()} → {@code Mth.wrapDegrees} (72), {@code packet.getXRot()} (81),
+     * {@code player.absRotateTo(F,F)} (123), {@code gameMode.useItem(…)} (141) — because
+     * {@code ServerboundUseItemPacket} <b>carries yRot/xRot</b> and the server adopts them before
+     * using anything. {@code ServerboundUseItemOnPacket} is stronger still: it carries the client's
+     * whole {@code BlockHitResult}. So a use aimed only on the client is aimed correctly on both.
+     *
+     * <p>The aim on the server is owed entirely to the code in THIS repo that rays the server body:
+     * {@code aimedAt(rig.player(), …)} prediction gates such as {@code JourneyFill.scoop}'s
+     * {@code onTarget}. Those gates decide whether to re-aim, to MINE a supposed blocker, or to walk
+     * the body somewhere else — <b>branches that change the world</b> — so a gate reading an unaimed
+     * body does not merely mis-report, it acts. Aiming both is exact rather than approximate:
+     * {@code aimAtBlock} is a pure function of (body position, target cell) and the two bodies are
+     * the same body one packet apart.
+     *
+     * <p>Consequence worth carrying: a fill/pour site with <b>no</b> server-side prediction gate
+     * needs none of this, and reading a failure there as an aiming bug sends the next person to the
+     * wrong file. See {@code JourneyPortalRung.scoopWater}, whose only defect was judging early.
+     */
+    static void aimBoth(JourneyRig rig, BlockPos at) {
+        rig.avatar().aimAtBlock(at);
+        rig.body().avatar().aimAtBlock(at);
     }
 
     /**
@@ -2631,6 +2652,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * is byte-identical to a bucket whose ray missed. Run 15 read {@code fill.result=PASS,
      * lava_bucket=0, fill.sourceAfter=lava} while the aim was dead on the source at 2.5 m, and the
      * only way to tell those two apart afterwards is this evidence line.
+     *
+     * <p><b>The row it writes is one packet early on the client topology, and that is display only.</b>
+     * {@code holdItem} tells the CLIENT to select the slot; {@code rig.player().getMainHandItem()}
+     * reads the SERVER. So a correct run can still print {@code .hand=minecraft:stone_pickaxe} — rung
+     * 12 did, beside a {@code SUCCESS} only a bucket can return. Do not follow that row into a
+     * packet-race theory: {@code MultiPlayerGameMode.useItem} calls {@code ensureHasSentCarriedItem()}
+     * at bytecode offset 15, ahead of the {@code startPrediction} that sends
+     * {@code ServerboundUseItemPacket}, so the slot change cannot arrive after the use. Write the same
+     * key again after a settle if you want the reading rather than the row — StageWright's clash guard
+     * keeps the second value only when it differs, which makes {@code .hand#2} a staleness instrument.
      */
     static boolean holdForUse(JourneyRig rig, net.minecraft.world.item.Item item, String what) {
         boolean ok = rig.avatar().holdItem(item);
