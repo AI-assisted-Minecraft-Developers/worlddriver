@@ -19,11 +19,14 @@
   `FlowingFluid.getHeight` / `getOwnHeight`、`Entity.getFluidJumpThreshold`），
   并把关键代码整块抄进文档，让读者不必信任任何一个行号就能复核。
 - 写「已核对否定」的条目，是我怀疑过、查了、发现**没有**差异的。留着它们，因为一个诚实的「行」和一个诚实的「不行」一样贵。
-- **⚠️ 先读 §10 再读任何一条基于日志的断言。** 专用服闸跑到第 106 条场景
-  （`wd.serverCraftFailTelemetry`）时，`WorldDriver` 这个 logger 会被**永久静默**——
-  两趟独立的闸在同一处截断，之后 `debug.log` 和 `latest.log` 里一行 `(WorldDriver)` 都不再有。
-  所以本文档一律用**场景自己的 `ctx.record` 证据**（落在 `stagewright-results.jsonl`），
-  不用日志文件里的行。§10 给了机制、否定掉的四条怀疑，和一条缺陷存在时会红的验证。
+- **⚠️ 先读 §10 再读任何一条基于日志的断言——尤其是 2026-08-22 之前写下的。**
+  **该缺陷已于 2026-08-22 修复**（commit `38d4c857`），但**它污染的是历史读数，不是当前代码**，
+  所以这条警告不能随修复一起删。症状：专用服闸跑到第 106 条场景（`wd.serverCraftFailTelemetry`）时，
+  `WorldDriver` 这个 logger 被**永久静默**——三趟独立的闸在同一处截断，之后 `debug.log` 和
+  `latest.log` 里一行 `(WorldDriver)` 都不再有。**只伤闸**：真梯／排练不跑那条场景，日志是完整的。
+  修后同一条闸从 18869 行涨到 35557 行，且不再截断。
+  本文档一律用**场景自己的 `ctx.record` 证据**（落在 `stagewright-results.jsonl`），不用日志文件里的行——
+  §10 给了机制、否定掉的五条怀疑，和一条缺陷存在时会红的验证。
 
 ## 边界表的四类
 
@@ -253,7 +256,7 @@ fabric/build.gradle:481   runRehearsalServer
 | T10 | 移动统计从不累加 | `handleMovePlayer` 末尾的 `checkMovementStatistics(dx,dy,dz)` 没有对应物 | 走 100 格，断言 `Stats.WALK_ONE_CM` 大于 0。缺陷存在时恒 0 → 红 |
 | T11 | 挖掘走 `Level#destroyBlock` 而不是 `gameMode` | `ServerPlayerAvatar.java:426-439`；`:484-525` 的 javadoc 自己承认掉落走的是 `Block.dropResources(..., ItemStack.EMPTY)`：**无工具要求、无精准采集、无时运、不掉耐久**。补法：改走 `fp.gameMode.destroyBlock(pos)`（javadoc `:519` 已点名这条路） | 四条臂：赤手挖石头断言**没有**掉落；铁镐挖石头断言掉圆石且 `getDamageValue()` 增加；精准采集挖草方块断言掉草方块；时运 III 挖煤矿断言掉落数 > 1。缺陷存在时四条全部掉落且耐久不动 → 至少三条红 |
 | T12 | 放置/使用/攻击没有到达距离闸（新发现 N9/N10） | vanilla `handleUseItemOn:1118` 先 `canInteractWithBlock(pos,1.0)`，`handleInteract:1557` 先 `canInteractWithEntity(aabb,1.0)`；avatar 直接进 `gameMode.*` / `Player.attack`。**同一具身体两套规矩**：`canBreak`（`:471-482`）是含 reach 的 | 站在 8 格外放置，断言**失败**；站在 3 格内放置，断言成功。缺陷存在时前者成功 → 红。两条臂缺一不可 |
-| T13 | `discard()` 留尸 | 已修：`JoinedPlayerBodies.java:192-205` 把 `remove` 路由到 `PlayerList.remove`，带 `leaving` 重入闸。**2026-08-22 已实测生效，见 §11** | 造 5 具、全部 `discard()`，断言 `level.players().size()` 回到基线。缺陷存在时留 5 具 → 红。**注意别用日志验**：正常离场的 `JoinedBody` 不印任何一行（`left the game` 只在 `ServerGamePacketListenerImpl:1215` 广播，而这条路径它刻意不走），§11.1 |
+| T13 | `discard()` 留尸 | 已修：`JoinedPlayerBodies.java:192-205` 把 `remove` 路由到 `PlayerList.remove`，带 `leaving` 重入闸。**2026-08-22 已实测生效：整趟 239 进 / 239 出 / 终局残留 0，见 §11.5** | 造 5 具、全部 `discard()`，断言 `level.players().size()` 回到基线。缺陷存在时留 5 具 → 红。**注意别用日志验**：正常离场的 `JoinedBody` 不印任何一行（`left the game` 只在 `ServerGamePacketListenerImpl:1215` 广播，而这条路径它刻意不走），§11.1 |
 | T14 | `changeDimension` 目的地丢失 | 已修：`AvatarNetHandler.java:81-88` 让 `teleport(...)` 真的 `absMoveTo`（neoforge 的 `FakePlayerNetHandler.teleport` 在 `:254` 是 no-op，这就是 87501 格的来源） | 换维后断言坐标等于期望坐标（±1）。**但这条只覆盖 A/B**：C 穿的是 vanilla 的真 listener，走的是另一条路，必须**单独**验证一遍 |
 | T15 | 传送不重算流体标志 | 补一次 `updateInWaterStateAndDoFluidPushing()` | 在水里传送到干黑曜石上，断言 `isInWater() == false`。缺陷存在时为 `true` → 红 |
 | T16 | 装备属性同步 | 已有：`EQUIP_MEMO` + `syncEquipmentAttributes()`（`:668-711`，gap #46） | 换上钻石靴断言 `Attributes.ARMOR` 变化；脱下断言回落。两条臂 |
@@ -1144,7 +1147,7 @@ else if (footed || (buoyant && fluid <= jumpThreshold)) → 0.42   // jumpFromGr
 
 ---
 
-## 10. 这份文档引用的每一条日志证据都有一条保质期：专用服闸跑到第 106 条场景，`WorldDriver` 这个 logger 就永久哑了（2026-08-22）
+## 10. 这份文档引用的每一条日志证据都有一条保质期：专用服闸跑到第 106 条场景，`WorldDriver` 这个 logger 就永久哑了（2026-08-22 发现并修复，`38d4c857`）
 
 **先说为什么这一节在这份文档里。** 上面九节里几乎每一条断言的形式都是「日志里有这一行」或
 「日志里零行，所以这条分支没进过」。`AGENT_TEAM.md` §3 的第二条规矩写着「零行日志有两种解释：
@@ -1209,7 +1212,8 @@ idx=107 wd.serverCraftFailGridReturn    PASS
 
 ### 10.3 机制（log4j-core **2.22.1**，运行时版本从 `fabric/build/loom-cache/argFiles/runDogfoodServer` 的 classpath 读出，与我读的 sources jar 同版本）
 
-配置是 loom 生成的 `fabric/.gradle/loom-cache/log4j.xml`（`neoforge/` 下同一份，逐字相同）：
+配置是 loom 生成的 `fabric/.gradle/loom-cache/log4j.xml`（`neoforge/` 下那份**实测同一个 SHA256**
+`D16AE069…B231C`，所以两个 loader 是同一个缺陷，不是两个）：
 
 ```xml
 :62  <Root level="${sys:fabric.log.debug.level:-debug}">
@@ -1276,7 +1280,7 @@ catcher 确实收到了；**收到的正是同时从两个日志文件里消失�
 
 | 怀疑 | 判词 | 打死它的读数 |
 |---|---|---|
-| log4j2 异步队列满时丢弃（`DiscardingAsyncQueueFullPolicy` 丢 INFO 及以下） | **否**。而且配置里根本没有 `<Async*>`，classpath 上也没有 disruptor | 丢弃是突发的、队列会排空；这里是**永久**静默。且同一时段 stagewright 的 INFO 一条没丢 |
+| log4j2 异步队列满时丢弃（`DiscardingAsyncQueueFullPolicy` 丢 INFO 及以下） | **否**。配置里根本没有 `<Async*>`；classpath 上也没有 disruptor（实测 `fabric/build/loom-cache/argFiles/runDogfoodServer` 里只有 3 条 log4j 依赖，无 disruptor —— 没有它 `AsyncLogger` 根本装不起来） | 丢弃是突发的、队列会排空；这里是**永久**静默。且同一时段 stagewright 的 INFO 一条没丢 |
 | 某处运行时改 log4j（`Configurator` / `setLevel` / `BurstFilter` / `addFilter`） | **否** | 全仓库只有 `WorldDriverStationScenes.java:920-925` 一处碰 log4j 内部，而它碰的是 appender 不是 filter/level |
 | 文件轮转或写盘失败 | **否** | `(Minecraft)` 332 行、`(StageWrightCommon)` 204 行写到最后一秒；`latest.log` 与 `debug.log` 截断点相同 |
 | INFO 这个级别被掐了 | **否** | stagewright 的 INFO 在 19:39/19:40/19:41 各 16/85/58 行 |
@@ -1289,8 +1293,29 @@ catcher 确实收到了；**收到的正是同时从两个日志文件里消失�
 区分两者的读数是**位置而不是数量**：配额说预测截断点落在「第 18869 行」这个纯粹的计数位置，
 真相预测它**永远落在 `wd.serverCraftFailTelemetry` 的 `:924` 上**。
 趟 A 的最后一行正是它前一条场景的证据行——**位置说赢了**。
-**要一劳永逸地分开：把这条场景从清单里摘掉跑一趟，或把它挪到清单最后跑一趟。**
-配额说预测截断仍在第 18869 行；真相预测截断消失（或搬到清单末尾）。
+
+**后来这条被一个不用改清单的读数彻底钉死了**（2026-08-22，由 topology 提供）。不必摘场景重跑——
+仓库里**本来就存着**一批不跑那条场景的运行目录：
+
+| 运行目录 | `(WorldDriver)` 行数 | 被截断吗 |
+|---|---|---|
+| `fabric/run-journey`（真梯，几小时） | **19137** | **否** —— 末条 WorldDriver 的时刻 = 日志末行时刻 |
+| `fabric/run-rehearsal` | 4133 | 否 |
+| `fabric/run-dogfood`（闸，修前） | 18869 ×3 趟 | 是 |
+
+**19137 > 18869，而且没被截断。** 固定配额说预测真梯也该在第 18869 行断掉——它没有。
+真相说预测它根本不该断：真梯按 `wd.journey*` 过滤，**压根不跑 `wd.serverCraftFailTelemetry`**，
+那个非 additive 的 `LoggerConfig` 从来没被建出来过。
+
+> **附带价值——爆炸半径就此被框住了。** 这个缺陷只伤**闸**。所有真梯／排练的历史诊断读的都是
+> 完整日志，不需要重新怀疑。这正是「先量出边界再改数字」该有的收尾：既知道它有多严重，
+> 也知道它到哪儿为止。
+
+**修后复验**（topology 跑的完整一趟）：`(WorldDriver)` 从 18869 涨到 **35557**，末条 WorldDriver
+`21:52:42` 对日志末行 `21:53:12`（差 30 秒，是关服阶段）。场景本身新加的两条证据行同趟都在：
+`log.additiveAfterAttach = false`（缺陷当天确实存在）、`log.additiveNow = true`（已修好）。
+判据 4 复验 306 vs 306，**零条结论改变**——这一条很重要：它说明这个缺陷**只偷日志，不改判词**，
+所以历史上的 PASS/FAIL 不用重审，要重审的只有「从日志的零行推出来的结论」。
 
 ### 10.5 代价：为这个故障专门造的仪表，在故障真正发生的那一趟里是哑的
 
@@ -1363,20 +1388,51 @@ if (!coreLogger.isAdditive())
 
 ## 11. 「239 具身体加入、0 具离场」不是泄漏证据（2026-08-22）
 
-**判词：专用服上没有观测到身体泄漏。** 而那个看起来很吓人的 239/0，是**两条不同通道的对比**，
-它在身体一切正常的时候也一定长这样。这一节把 T13 从「已修，但没人再量过」升级成「已量过」。
+**判词：专用服上没有身体泄漏——239 具进、239 具出、关服时残留 0（§11.5 实测）。**
+而那个看起来很吓人的 239/0，是**两条不同通道的对比**，它在身体一切正常的时候也一定长这样。
+这一节把 T13 从「已修，但没人再量过」一路推到「整趟每一具都量过」。
+
+> **读法**：§11.1 是**为什么那个零不能用**（结构性论证），§11.2 是**当时手头已有的替代读数**
+> （只覆盖到 75%），§11.5 是**后来补齐通道之后的实测**（覆盖 100%，并把 §11.1 的推论变成实测）。
+> 只想要结论看 §11.5；想知道为什么原来那个数字不算数，看 §11.1。
 
 ### 11.1 那个零是结构性的，不是观测出来的
 
 | | 谁发这句话 | `JoinedBody` 走这条路吗 |
 |---|---|---|
-| `X joined the game` | `PlayerList.placeNewPlayer`（vanilla `PlayerList.java:204-209` 的 `broadcastSystemMessage`） | **走**：`JoinedPlayerBodies.java:141` 就是调它 |
-| `X left the game` | **`ServerGamePacketListenerImpl.removePlayerFromWorld()`**（`:1210-1215`），只从 `onDisconnect`（`:1204-1206`）和 `:1534` 进 | **不走** |
+| `X joined the game` | `PlayerList.placeNewPlayer` 里的 `broadcastSystemMessage` | **走**：`JoinedPlayerBodies.java` 的 `join()` 就是调它 |
+| `X left the game` | **`ServerGamePacketListenerImpl.removePlayerFromWorld()`**，只从 `onDisconnect` 和断线那一处进 | **不走** |
 
-关键是 vanilla 的 `PlayerList.remove(ServerPlayer)`（`PlayerList.java:312-339`）**一行 INFO 都没有**——
-整个方法里唯一的日志是 `:319` 那条**带条件**的 `LOGGER.debug("Removing player mount")`
-（只有骑着东西才印）。那句 `left the game` 是在**调用 `PlayerList.remove` 之前**由包监听器广播的
-（`:1215` 在 `:1217` 之前）。
+> **本节引用 vanilla 的方式：认方法名，不认行号。** 下面这些是从 1.21.1 的 vanilla 类**反编译**
+> 出来的，而反编译器版本一换行号就漂——本文档 §6.8 已经为「无锚点的行号」付过一次账。所以凡是
+> 结论所依赖的地方一律**贴原文**，行号只当路标。
+
+关键是 vanilla 的 `PlayerList.remove(ServerPlayer)` **一行 INFO 都没有**。整个方法里唯一的日志是
+vehicle 分支里那条**带条件**的 `LOGGER.debug`（只有骑着东西才印）：
+
+```java
+public void remove(ServerPlayer player) {
+   ServerLevel serverLevel = player.serverLevel();
+   player.awardStat(Stats.LEAVE_GAME);
+   this.save(player);
+   if (player.isPassenger()) {
+      Entity entity = player.getRootVehicle();
+      if (entity.hasExactlyOnePlayerPassenger()) {
+         LOGGER.debug("Removing player mount");     // ← 唯一的日志，且有条件
+```
+
+它确实广播了一个东西，但那是 `ClientboundPlayerInfoRemovePacket`（一个**包**，给客户端更新玩家
+列表用），不是聊天里那句话。而那句话在这里，只有一处：
+
+```java
+private void removePlayerFromWorld() {                       // ← 只从 onDisconnect 进
+   ...
+   .broadcastSystemMessage(Component.translatable(
+        "multiplayer.player.left", this.player.getDisplayName())...);
+```
+
+顺序也值得记一笔：那句 `left the game` 是在**调用 `PlayerList.remove` 之前**由包监听器广播的。
+换句话说，广播它的根本不是「移除」这个动作，而是「socket 断了」这个事件。
 
 而 `JoinedBody.remove(RemovalReason)`（`JoinedPlayerBodies.java:192-205`）**直奔
 `getServer().getPlayerList().remove(this)`**（`:197`），整条 `onDisconnect` 路径根本不进——
@@ -1426,8 +1482,8 @@ if (!coreLogger.isAdditive())
 
 ### 11.4 这条结论的边界（写下来，免得被当成比它更强的东西用）
 
-- **只证到 idx=228。** idx=229–305（78 条，主要是 `pack.*`）之后没有第二个读数点。
-  一条「跑完之后残留是多少」的读数仍然值得加——**但它现在是补一个尾部盲区，不是查一个已知缺陷。**
+- ~~**只证到 idx=228。** idx=229–305（78 条，主要是 `pack.*`）之后没有第二个读数点。~~
+  **✅ 该盲区已于 2026-08-22 关闭，见 §11.5** —— 现在每一具身体的进出都有读数，覆盖整趟 100%。
 - **`bare` / `avatar` 这两个工厂在类型上不保证有人收尾。** 今天残留是 0，靠的是 139 处手写
   `discard()` 都写对了。**这是一个没有编译期保证的不变量**，它会随着新场景一起腐化。
   真正的守卫属于 stagewright 的每场景 audit（「这条场景造的身体还在表里」），和 §10.6 末尾说的
@@ -1436,3 +1492,58 @@ if (!coreLogger.isAdditive())
 - **正样本存在**：同一批 `cap.*` 场景在有真玩家的拓扑上是**执行**而不是 skip
   （stagewright `CoverageTest.java:79-80` 就是拿这个形状当例子的），所以「表为空 → skip」
   这条通道确实会在表非空时改口。**不是一个没有正样本的零。**
+
+### 11.5 补上缺的那条通道，然后整趟直接量（2026-08-22，实测）
+
+§11.1 证明的是「那个零是结构性的」，但它留下一个不舒服的状态：**我们没有离场通道，只有「vanilla
+不该出声」这个推论。** 一个只能靠推论说「没坏」的量，迟早会被下一个人重新怀疑一遍。
+
+所以补了它——在 `JoinedPlayerBodies.java`（parity 自己的产权）里，`JoinedBody.remove()` 于
+`getPlayerList().remove(this)` **成功返回之后**印一行，形状**刻意做成和 join 那行一样**，
+两条边都盖上当时的 `getPlayerList().getPlayerCount()`：
+
+```
+[realbody] agent-body-86 joined minecraft:overworld at BlockPos{x=-7, y=-60, z=0} (players=1)
+[realbody] agent-body-86 left   minecraft:overworld (players=0)
+```
+
+**为什么这把尺子是穷尽的而不是抽样的**：全 `common/src/main/` 里
+`placeNewPlayer` **只有一处**（`JoinedPlayerBodies.java:141`）、
+`getPlayerList().remove(...)` 也**只有一处**（`:214`），两处都紧贴各自的日志行、中间没有分支。
+**一具身体不印这一行就进不了／出不了玩家表。**
+
+`stagewrightDedicatedServerFabric` 完整一趟（2026-08-22 22:08，`BUILD SUCCESSFUL in 4m 44s`）：
+
+| 读数 | 值 | 说明 |
+|---|---|---|
+| `[realbody] … joined` | **239** | |
+| `[realbody] … left` | **239** | **逐条配对，差 0** |
+| 出现过的身体名 | joined 239 个 / left 239 个 | **每一个名字都离场了** |
+| 关服时最后一条 realbody 事件 | `wd-census left … (players=0)` | **终局残留 = 0** |
+| `players=` 在 join 上的峰值 | 1×210、2×26、3×4 | 峰值 3 |
+| `players=` 在 leave 上 | 0×209、1×26、2×4 | **和 join 完全镜像、严格 LIFO 嵌套** |
+| 离场路径的 WARN/ERROR | **0** | |
+| vanilla `joined the game` | **239** | **和本通道逐条相等**——这把尺子和 vanilla 是 1:1 |
+| vanilla `left the game` | **0** | 在一趟已证明发生了 239 次离场的运行里 |
+
+**最后两行就是这一节的全部意义。** 同一趟里，离场**确凿发生了 239 次**，而 vanilla 那条通道
+**一次都没响**。§11.1 原本只能从代码推出这一点，现在它是一条实测：
+**「0 次 `left the game`」是那条通道的沉默，不是身体的滞留。** 一开始那份任务书拿
+「239 joined / 0 left」当泄漏征兆，前提就此正式撤回。
+
+峰值 3 也不是残留，是**结构性**的：`SceneBody.bare` 的 javadoc（`:127-135`）写明它是给
+「一次造两具、一起拆」的场景用的，那 26+4 次正是它们。
+
+> **顺带一条方法论，值得单记：这把尺子差点数了自己的回声。**
+> 第一次统计得到 240 joined / 239 left，差 1，看着就像一具泄漏的身体。真相是
+> `wd.serverCraftFailTelemetry` 的 `CraftLogCatcher` **捕获并原文回显**了 `agent-body-87` 的
+> join 行，把它印进了自己的证据 `lines=[…]` 里，而我的 grep 把那份回显当成了第二次 join。
+> 把匹配锚到消息开头（`^(WorldDriver) [realbody] …`）之后立刻变成 239/239。
+> **一个会被别处引用原文的日志行，同时也是别人日志里的一行**——按子串统计它，量到的就不只是它自己。
+> 这和 §10 是同一类错误的两面：那次是通道没出声被当成事情没发生，这次是回声出了声被当成事情多发生了一次。
+
+**这条改动没有移动任何判词**：本趟 306 条场景 302 PASS / 3 FAIL / 1 TIMEOUT，
+与改动前的 `results-t17.jsonl` **逐项相同**，连四条非 PASS 的名字都一样
+（`canaryMustFail`、`canaryMustTimeout` 两条是框架自带的必红金丝雀；
+`wd.vineOverWaterClimb` 是已知的 −711 可选传感器；
+`wd.serverEscapeSealedShelter` 在改动前的那趟里**同样是 FAIL**，属既有缺陷，不是本次回归）。

@@ -147,8 +147,13 @@ public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory 
             WorldDriverCommon.LOG.error("[realbody] placeNewPlayer failed for {}", profile.getName(), e);
             throw e;
         }
-        WorldDriverCommon.LOG.info("[realbody] {} joined {} at {}", profile.getName(),
-                level.dimension().location(), body.blockPosition());
+        // `players=` is half of a matched pair — see JoinedBody.remove() for the other half and for
+        // why the vanilla log cannot answer this question. Stamping the list size on both edges is
+        // what makes residue readable at every moment of a run rather than only where a scene
+        // happened to ask: peak = max over the joins, leak = the last value at shutdown.
+        WorldDriverCommon.LOG.info("[realbody] {} joined {} at {} (players={})", profile.getName(),
+                level.dimension().location(), body.blockPosition(),
+                level.getServer().getPlayerList().getPlayerCount());
         return body;
     }
 
@@ -188,6 +193,18 @@ public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory 
          * <p>{@code PlayerList.remove} routes back here through
          * {@code ServerLevel.removePlayerImmediately}, hence the guard — without it this recurses
          * until the stack gives out.
+         *
+         * <p><b>Why this logs at all.</b> A departure here is REQUIRED to be silent in the vanilla
+         * channel, and that silence has already been misread once as a leak. The chat line
+         * 「X left the game」 is broadcast from {@code ServerGamePacketListenerImpl}'s
+         * {@code removePlayerFromWorld()}, reached only from {@code onDisconnect} — a socket path
+         * this body deliberately never enters. {@code PlayerList.remove} itself broadcasts a
+         * {@code ClientboundPlayerInfoRemovePacket} and logs nothing. Meanwhile the ARRIVAL is
+         * announced by vanilla, from {@code PlayerList.placeNewPlayer}, which this body does call.
+         * So counting 「joined」 against 「left」 in a server log compares two unrelated channels and
+         * will report a totally healthy run as 239 joins and 0 departures. The line below is this
+         * class's own leave channel, deliberately shaped like the join line, so the comparison is
+         * finally between two things that answer the same question.
          */
         @Override
         public void remove(RemovalReason reason) {
@@ -195,6 +212,9 @@ public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory 
                 leaving = true;
                 try {
                     getServer().getPlayerList().remove(this);
+                    WorldDriverCommon.LOG.info("[realbody] {} left {} (players={})",
+                            getGameProfile().getName(), level().dimension().location(),
+                            getServer().getPlayerList().getPlayerCount());
                     return;
                 } catch (RuntimeException e) {
                     WorldDriverCommon.LOG.warn("[realbody] {} could not leave the player list: {}",
