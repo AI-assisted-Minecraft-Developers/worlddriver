@@ -153,6 +153,10 @@ final class JourneyBedRung {
         rig.drive(new IntentProcess(new Intent(new Goal.Near(target.where(), 6))), 6_000, () -> {
             rig.evidence(r + ".arrived", rig.player().blockPosition().toShortString() + "，离目标 "
                     + Math.round(Math.sqrt(rig.player().blockPosition().distSqr(target.where()))) + " 格");
+            // Weapon in hand before the swing — same reason as the food rung: CombatProcess swings
+            // whatever is selected and has no picker of its own. Keyed by round, because which round
+            // was fought bare-handed is exactly the question a thin wool haul raises.
+            rig.evidence(r + ".weapon", rig.holdBestWeapon());
             rig.attempting("猎杀 " + target.colour() + " 羊（id=" + target.entityId()
                     + "）：CombatProcess 没能拿到羊毛");
             rig.drive(new CombatProcess(CombatProcess.Mode.KILL, target.entityId(), "minecraft:sheep"),

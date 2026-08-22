@@ -825,7 +825,7 @@ public final class JourneyNetherRungs {
                         + " tick 一只烈焰人都没出来 —— " + whyNothingSpawns(nether));
                 return;
             }
-            rig.evidence("weapon", holdBestWeapon(rig));
+            rig.evidence("weapon", rig.holdBestWeapon());
             rig.attempting("在屋里把烈焰人打死并捡起烈焰棒");
             fightOneBlaze(ctx, rig, spawner, BLAZE_FIGHTS, new StringBuilder(), new int[]{0});
         });
@@ -890,7 +890,7 @@ public final class JourneyNetherRungs {
         // swaps the best TOOL for the block into the selected slot — so the hand a fight starts
         // with is whatever the last approach or quarry leg left there, and a fight lost bare-handed
         // reads exactly like a fight lost to a broken combat loop.
-        final String weapon = holdBestWeapon(rig);
+        final String weapon = rig.holdBestWeapon();
         rig.legStart(new CombatProcess(CombatProcess.Mode.KILL, target.getId(), null));
         double[] highest = {target.getY()};
         int[] waited = {0};
@@ -1035,7 +1035,7 @@ public final class JourneyNetherRungs {
         rig.evidence("gamerule.doMobSpawning",
                 nether.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING));
         rig.evidence("ender_pearl.before", rig.carrying(ENDER_PEARL));
-        rig.evidence("weapon", holdBestWeapon(rig));
+        rig.evidence("weapon", rig.holdBestWeapon());
         rig.evidence("hunt.census", census(nether, rig.player()));
 
         // found/killed, carried in an array because the hunt is a chain of continuations and a
@@ -1471,7 +1471,7 @@ public final class JourneyNetherRungs {
             }
             // Re-held after the approach: the walk may have swapped a pickaxe into the hand — see
             // the same note on the blaze fight.
-            final String weapon = holdBestWeapon(rig);
+            final String weapon = rig.holdBestWeapon();
             rig.legStart(new CombatProcess(CombatProcess.Mode.KILL, man.getId(), null));
             int[] waited = {0};
             rig.await(() -> !man.isAlive() || rig.legDone() || ++waited[0] >= ENDERMAN_FIGHT_TICKS,
@@ -1728,21 +1728,8 @@ public final class JourneyNetherRungs {
     // belongs to another dimension, which is what theViewMatchesTheWorld above catches — moved
     // with it, onto the surviving method.
 
-    /**
-     * Put the best melee weapon this body owns in its hand, and say what that turned out to be.
-     *
-     * <p>{@code CombatProcess} swings whatever is SELECTED — it has no weapon picker of its own —
-     * and the ladder arrives in the Nether holding whatever the last dig left in the slot. A fight
-     * lost bare-handed and a fight lost to a broken combat loop read identically afterwards unless
-     * the hand is on the record.
-     */
-    private static String holdBestWeapon(JourneyRig rig) {
-        for (String id : WEAPONS) {
-            if (rig.carrying(id) < 1) continue;
-            if (rig.avatar().holdItem(JourneyRig.item(id))) return id;
-        }
-        return "空手（包里一件武器都没有）";
-    }
+    // holdBestWeapon moved to JourneyRig.holdBestWeapon() — JourneyEndRungs had its own drifted copy,
+    // and the rungs that fight FIRST (FOOD, BED) could reach neither.
 
     // =====================================================================================
     // Walking — copied from the ladder's own leg, deliberately.
@@ -2936,13 +2923,5 @@ public final class JourneyNetherRungs {
      *  does not. Kept where it was so the crossing is the same question rung 14 asks. */
     private static final int WARPED_ARRIVE_WITHIN = 8;
 
-    /** Melee weapons, best first. A pickaxe is on the list on purpose: it is what this ladder
-     *  actually owns by the time it reaches the Nether, and it still beats a bare hand. */
-    private static final List<String> WEAPONS = List.of(
-            "minecraft:netherite_sword", "minecraft:diamond_sword", "minecraft:iron_sword",
-            "minecraft:golden_sword", "minecraft:stone_sword", "minecraft:wooden_sword",
-            "minecraft:netherite_axe", "minecraft:diamond_axe", "minecraft:iron_axe",
-            "minecraft:stone_axe", "minecraft:wooden_axe",
-            "minecraft:netherite_pickaxe", "minecraft:diamond_pickaxe", "minecraft:iron_pickaxe",
-            "minecraft:stone_pickaxe", "minecraft:wooden_pickaxe");
+    // The weapon list moved to JourneyRig with the helper that reads it.
 }

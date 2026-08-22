@@ -1330,9 +1330,28 @@ public final class JourneyRig {
         //
         // The tell was a ZERO: `dig-aim RELEASE` never appeared, not once in 8022 ticks. Read as
         // "the hold never expired" it bought two wrong fixes; it actually meant the guard was never
-        // ENTERED. Ordering matters below — this resets every persistable field, so everything this
-        // method wants must be assigned AFTER it.
-        BotConfig.applyCompiledDefaults();
+        // ENTERED.
+        //
+        // ⚠️ AND THEN THE SHIPPING TABLE WAS MEASURED, AND IT IS WORSE HERE. `applyCompiledDefaults()`
+        // ran on this line for exactly one run. Rung 3, same seed, one variable:
+        //
+        //     arena baseline + digAimPriority :  13 logs,  2 914 ticks, 2 trees   → PASS
+        //     shipping compiled defaults      :   6 logs, 13 899 ticks, 4 trees   → FAIL (bill is 8)
+        //
+        // Named cause, not a shrug: `pathfinderLogBreakTax` ships at 3.0 and the baseline pins it to
+        // 1.0, and ClientWorldView multiplies a LOG cell's break cost by it. Reaching the fifth log
+        // of a trunk means breaking the four under it, so at 3× those paths price out — 49 rows of
+        // `[mine] no approach to stand` and a first tree that yielded 4 instead of 7.
+        // `pathfinderBreakCostMultiplier` (2.5 vs 1.0) pushes the same way. Both taxes exist to stop
+        // the walker chewing through trees it is merely PASSING, and rung 3 is the one rung whose
+        // whole job is to chew through a tree.
+        //
+        // So the honest state is: the ladder cannot yet be measured on the configuration it ships,
+        // and that is a finding about the taxes, not a reason to keep quiet about the gap. Until the
+        // two costs are reconciled, this arms the one flag that was measured to unblock rung 3 and
+        // leaves the other 37 on the arena table — with the gap written down rather than papered over.
+        // TODO.md carries the full 38-flag delta and the bisect plan.
+        BotConfig.walkerDigAimPriority = true;
         // Off by default because a journey leg is thousands of ticks and this logs per-tick, but
         // openable, because the things it prints are the only account of what the CLIENT helm is
         // doing to the body. `AutoSwim`'s shore search — the code that owns a submerged real player
@@ -1379,6 +1398,64 @@ public final class JourneyRig {
      * same two lines out by hand, and one of them was private in a rung class where a second class
      * that needed it could not reach it.
      */
+    /**
+     * Melee weapons this ladder knows, best first — swords, then axes, then pickaxes as a last
+     * resort. A pickaxe is a bad weapon and belongs at the bottom, but a pickaxe in the hand still
+     * beats a fist, and the ladder owns one from rung 4 onward.
+     */
+    private static final List<String> WEAPONS = List.of(
+            "minecraft:netherite_sword", "minecraft:diamond_sword", "minecraft:iron_sword",
+            "minecraft:golden_sword", "minecraft:stone_sword", "minecraft:wooden_sword",
+            "minecraft:netherite_axe", "minecraft:diamond_axe", "minecraft:iron_axe",
+            "minecraft:stone_axe", "minecraft:wooden_axe",
+            "minecraft:netherite_pickaxe", "minecraft:diamond_pickaxe", "minecraft:iron_pickaxe",
+            "minecraft:stone_pickaxe", "minecraft:wooden_pickaxe");
+
+    /**
+     * Put the best weapon this body owns into its main hand, and say what that turned out to be.
+     *
+     * <h2>Why every fight must call this</h2>
+     *
+     * {@code CombatProcess} swings whatever is SELECTED — <b>it has no weapon picker of its own</b> —
+     * and the body arrives at a fight holding whatever the last dig left in the slot. A fight lost
+     * bare-handed and a fight lost to a broken combat loop read identically afterwards unless the hand
+     * is on the record, which is why the return value is written to a {@code weapon} evidence row at
+     * every call site.
+     *
+     * <h2>Why it lives here</h2>
+     *
+     * It was written twice — {@code JourneyNetherRungs} and {@code JourneyEndRungs} each had a private
+     * copy, and they had already drifted: one fell through to the next weapon when the hold failed,
+     * the other committed to the first one it owned and reported a weapon it was not holding. Worse,
+     * the rungs that fight FIRST — FOOD (rung 6) and BED (rung 7) — could reach neither copy, so the
+     * ladder hunted its first animals with a pickaxe or a fist while every later fight was equipped.
+     * One implementation, reachable from every rung, with the better of the two behaviours: fall
+     * through on a failed hold, and name what is actually in the hand when nothing can be held.
+     */
+    public String holdBestWeapon() {
+        String bestOwned = null;
+        for (String id : WEAPONS) {
+            if (carrying(id) < 1) continue;
+            if (bestOwned == null) bestOwned = id;
+            if (avatar().holdItem(item(id))) return id;
+        }
+        if (bestOwned == null) return "空手（包里一件武器都没有）";
+        return "空手（包里最好的是 " + bestOwned + "，但拿不到手上；手里是 " + heldItemId() + "）";
+    }
+
+    /** The best weapon in the bag, or {@code "空手"} — a read, without touching the hand. */
+    public String bestWeaponOwned() {
+        for (String id : WEAPONS) if (carrying(id) > 0) return id;
+        return "空手";
+    }
+
+    /** The id of whatever is in the main hand right now — the reading that tells a failed hold apart
+     *  from an empty bag. */
+    public String heldItemId() {
+        return String.valueOf(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(
+                player().getMainHandItem().getItem()));
+    }
+
     public static net.minecraft.world.item.Item item(String itemId) {
         return net.minecraft.core.registries.BuiltInRegistries.ITEM
                 .get(net.minecraft.resources.ResourceLocation.parse(itemId));

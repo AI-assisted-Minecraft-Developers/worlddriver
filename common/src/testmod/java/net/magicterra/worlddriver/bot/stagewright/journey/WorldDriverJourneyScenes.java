@@ -971,8 +971,26 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         rig.evidence("craft.lastError", String.valueOf(rig.body().botState().craft.lastError));
                         rig.noteAdvancement("minecraft:story/upgrade_tools");
                         ctx.expect(picks).as("stone pickaxes crafted").isAtLeast(1);
-                        rig.reach("石镐 ×" + picks + " 到手，剩余圆石 "
-                                + rig.carrying("minecraft:cobblestone"));
+                        // AND A SWORD, WHILE THE TABLE AND THE COBBLE ARE BOTH STILL HERE.
+                        //
+                        // The next two rungs are the ladder's first fights — FOOD kills an animal,
+                        // BED kills three sheep — and until 2026-08-22 it walked into both with a
+                        // pickaxe in hand, because no rung before them ever crafted a weapon. That
+                        // was not a considered trade: the two ingredients (2 cobblestone, 1 stick)
+                        // are in the bag at exactly this moment and nowhere later, since the table
+                        // does not reliably survive the walk (`craftingTable=0` measured here).
+                        //
+                        // Best-effort on purpose: a missing sword must not fail the STONE_TOOLS rung,
+                        // whose contract is the pickaxe. It gets recorded either way, so a later
+                        // fight lost bare-handed can be traced back to this line rather than blamed
+                        // on the combat verb.
+                        // (craftKeepingTheTable always runs its continuation — a failed craft writes
+                        //  stone_sword.crafted=0 and carries on, so this cannot turn the rung red.)
+                        craftKeepingTheTable(rig, "minecraft:stone_sword", 6_000, () -> {
+                            rig.reach("石镐 ×" + picks + " 到手，石剑 ×"
+                                    + rig.carrying("minecraft:stone_sword") + "，剩余圆石 "
+                                    + rig.carrying("minecraft:cobblestone"));
+                        });
                     });
                     });
                 });
@@ -1123,6 +1141,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.attempting("走向猎物 " + prey.species());
         rig.drive(new IntentProcess(new Intent(new Goal.Near(prey.where(), 6))), 8_000, () -> {
             rig.evidence("prey.arrived", rig.nearestPrey(24));
+            // Weapon in hand BEFORE the swing. CombatProcess has no weapon picker — it swings
+            // whatever the last dig left selected — so this rung fought its first animal with a
+            // pickaxe until 2026-08-22, while every fight from the Nether onward was equipped.
+            rig.evidence("weapon", rig.holdBestWeapon());
             rig.attempting("猎杀 " + prey.species() + "：CombatProcess 没能拿到生肉");
             rig.drive(new CombatProcess(CombatProcess.Mode.KILL, null, prey.species()), 6_000, () -> {
                 int raw = rig.carryingAnyOf(RAW_FOODS);

@@ -360,13 +360,8 @@ public final class JourneyEndRungs {
             "minecraft:end_stone", "minecraft:tuff", "minecraft:andesite", "minecraft:diorite",
             "minecraft:granite");
 
-    /** Weapons in the order a player would reach for them. Axes are in the list because this ladder
-     *  can genuinely arrive at the End with an axe and no sword, and an axe hits harder than a fist. */
-    private static final List<String> WEAPONS = List.of(
-            "minecraft:netherite_sword", "minecraft:diamond_sword", "minecraft:iron_sword",
-            "minecraft:stone_sword", "minecraft:wooden_sword",
-            "minecraft:netherite_axe", "minecraft:diamond_axe", "minecraft:iron_axe",
-            "minecraft:stone_axe", "minecraft:wooden_axe");
+    // The weapon list moved to JourneyRig with the two helpers that read it — this copy had already
+    // drifted from the Nether one (no golden_sword, no pickaxe fallback).
 
     // =====================================================================================
     // 16 — the eye of ender. A craft whose ingredients two unscripted rungs owe it.
@@ -1222,7 +1217,7 @@ public final class JourneyEndRungs {
         }
         ServerLevel end = levelOf(rig);
         rig.evidence("start.at", xyz(rig.player().blockPosition()));
-        rig.evidence("weapon.best", bestWeapon(rig));
+        rig.evidence("weapon.best", rig.bestWeaponOwned());
         rig.evidence("blocks.forBridging", pillarBlock(rig) + " ×" + rig.carrying(pillarBlock(rig)));
         recordTheFight(rig, end);
 
@@ -1540,7 +1535,7 @@ public final class JourneyEndRungs {
                                     + "「not needed」不是到位而是叠得太高；"
                                     + "接下来能不能够着完全取决于走位能不能自己降下去");
                 }
-                holdBestWeapon(rig);
+                rig.evidence("weapon", rig.holdBestWeapon());
                 // CLOSE THE LAST FEW BLOCKS. SwingAt's first statement is `commandMove(0,0)` — it
                 // stands still and swings whatever comes within reach, and a crystal never moves. So
                 // the whole rung rested on the walk and the tower happening to land inside 4.5, and
@@ -1898,7 +1893,7 @@ public final class JourneyEndRungs {
         }
         rig.evidence("dragon.hp0", String.format(Locale.ROOT, "%.1f", dragon.getHealth()));
         rig.evidence("dragon.at", xyz(dragon.blockPosition()));
-        holdBestWeapon(rig);
+        rig.evidence("weapon", rig.holdBestWeapon());
         // WALK TO THE CENTRE FIRST. DuelTheDragon's first statement is `commandMove(0,0)` — it stands
         // still and lets the dragon come to it — and the line below has always said「在中央」while
         // nothing ever put the body there. Measured 2026-08-18: the duel began wherever the last
@@ -2816,17 +2811,8 @@ public final class JourneyEndRungs {
         return best;
     }
 
-    private static String bestWeapon(JourneyRig rig) {
-        for (String id : WEAPONS) if (rig.carrying(id) > 0) return id;
-        return "空手";
-    }
-
-    private static void holdBestWeapon(JourneyRig rig) {
-        String id = bestWeapon(rig);
-        if ("空手".equals(id)) { rig.evidence("weapon", "空手"); return; }
-        boolean ok = rig.avatar().holdItem(itemOf(id));
-        rig.evidence("weapon", id + (ok ? "" : "（拿不到手上，手里是 " + heldItem(rig) + "）"));
-    }
+    // bestWeapon / holdBestWeapon moved to JourneyRig — they existed here AND in JourneyNetherRungs,
+    // had drifted apart, and the rungs that fight FIRST (FOOD, BED) could reach neither.
 
     private static Item itemOf(String id) {
         return BuiltInRegistries.ITEM.get(ResourceLocation.parse(id));
