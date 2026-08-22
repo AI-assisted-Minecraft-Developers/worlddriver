@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.bot.world.ServerWorldView;
 import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
@@ -201,12 +202,65 @@ public class ServerPlayerAvatar implements Avatar {
     }
     @Override public void requestLookSnap() { /* no camera slew server-side */ }
 
+    /**
+     * Move the hand AND publish it — the one and only way this class may write {@code selected}.
+     *
+     * <p><b>Why publishing is not optional.</b> Every write site here used to carry the comment
+     * "server-authoritative, so no packet: this body's connection swallows them anyway". That is
+     * true of the three headless bodies and <b>false of the fourth</b> — the integrated-server
+     * topology adopts the client's real {@code ServerPlayer} and wraps it in this avatar, and that
+     * body's connection reaches a live {@code LocalPlayer}. Nothing on the client can notice the
+     * drift on its own: the driver's own {@code BotInteract.ensureHolding} opens with
+     * {@code if (inv.getSelected().getItem() == item) return true;}, and vanilla's
+     * {@code MultiPlayerGameMode.ensureHasSentCarriedItem} compares against {@code carriedIndex},
+     * which is "what I last sent", not "what the server has". Both look at their OWN copy, so the
+     * two hands never reconverge. Measured: {@code wd.actuatorSplitOnAnAdoptedBody} reports server
+     * slot 4 / client slot 0, identical at the same tick and ten ticks later.
+     *
+     * <p><b>What that costs when it is missing.</b> The server is the hand that acts:
+     * {@code ServerboundUseItemOnPacket} carries a hand, never an item, so
+     * {@code handleUseItemOn} resolves {@code getItemInHand} from the SERVER's {@code selected}.
+     * A tower whose client hand holds cobblestone while the server hand still holds the pickaxe a
+     * preceding mine selected right-clicks a block face with a pickaxe: {@code useOn} returns PASS,
+     * legally and silently. Rung 9's exit towers gave up on dry ground with cobblestone x74 before
+     * and x74 after, {@code builder.lastError == null} — the client's own prediction had placed the
+     * block, so the only reading that could have told the truth was the server's stock, which never
+     * moved. One course with no Y gain ends a whole raise.
+     *
+     * <p><b>No topology test, deliberately.</b> A/B's {@code AvatarNetHandler.send} and C's
+     * {@code SilentConnection.send} are empty methods, so for the headless bodies this is one
+     * allocation and one no-op virtual call. An {@code if (isARealPlayer)} would be a branch that
+     * can be written backwards.
+     *
+     * <p><b>The equality guard is not an optimisation.</b> The client applies the packet but does
+     * NOT update {@code carriedIndex}, so its next tick echoes the value back as a
+     * {@code ServerboundSetCarriedItemPacket}. Normally that echo is convergent — it carries what
+     * the server just published. But an echo already in flight when a SECOND write happens carries
+     * the older value, and {@code handleSetCarriedItem} will roll the hand back to it (and
+     * {@code stopUsingItem()} on the way, cancelling a drawn bow). Bounded by one round trip, and
+     * publishing a value that did not change would open that window for nothing.
+     *
+     * <p>Vanilla has no {@code setSelectedSlot(player, slot)} to reuse: {@code Inventory.selected}
+     * is a public field that {@code ServerGamePacketListenerImpl.handlePickItem} writes directly
+     * before sending this packet by hand. What is reusable is the PACKET, not a method. See
+     * {@code docs/fake-player-parity.md} §6.9/§6.10 for the full derivation, the jar-wide proof
+     * that no menu path ever syncs this field, and the residuals this does not close.
+     */
+    private void carryTo(int slot) {
+        var inv = fp.getInventory();
+        if (slot < 0 || slot > 8 || inv.selected == slot) return;
+        inv.selected = slot;
+        // Null only for a body nobody installed a listener on; all four of today's are covered
+        // (AvatarFakePlayer's constructor, the NeoForge factory, placeNewPlayer, a real login).
+        if (fp.connection != null) fp.connection.send(new ClientboundSetCarriedItemPacket(slot));
+    }
+
     @Override public boolean holdPlaceable() {
         ItemStack main = fp.getMainHandItem();
         if (isSupport(main)) return true;
         var inv = fp.getInventory();
         for (int slot = 0; slot < 9; slot++) {
-            if (isSupport(inv.items.get(slot))) { inv.selected = slot; return true; }
+            if (isSupport(inv.items.get(slot))) { carryTo(slot); return true; }
         }
         // The bag counts, and this scan not reaching it is a defect with a measured price. A body
         // holding 110 cobblestone in slots 9..35 is not out of blocks; it is out of reach of a scan
@@ -223,7 +277,10 @@ public class ServerPlayerAvatar implements Avatar {
             ItemStack bag = inv.items.get(slot);
             inv.items.set(slot, inv.items.get(to));
             inv.items.set(to, bag);
-            inv.selected = to;
+            // `to` starts AS the selected slot and only moves if an empty hotbar slot was found, so
+            // this is often a no-op write; carryTo's equality guard is what keeps it from putting a
+            // pointless packet on the wire.
+            carryTo(to);
             return true;
         }
         return false;
@@ -286,17 +343,22 @@ public class ServerPlayerAvatar implements Avatar {
         }
         if (bestSlot < 0) return;
         if (bestSlot < 9) {
-            inv.selected = bestSlot;
+            carryTo(bestSlot);
             return;
         }
-        // Out of the bag and into the hand. Server-authoritative, so no packet: this body's
-        // connection swallows them anyway.
+        // Out of the bag and into the hand. This half needs no packet of its own: swapping stacks
+        // inside `inv.items` moves SLOT CONTENTS, and those already have a channel — every slot of
+        // the inventory is a slot of `inventoryMenu`, and `ServerPlayer.tick` runs
+        // `containerMenu.broadcastChanges()`, which diffs against `remoteSlots` and sends a
+        // ClientboundContainerSetSlotPacket for each one that moved. The field with NO channel is
+        // `selected`, which this branch does not touch (the promotion lands in whichever slot is
+        // already selected) — see carryTo for the half that does.
         ItemStack promoted = inv.items.get(bestSlot);
         inv.items.set(bestSlot, inv.items.get(inv.selected));
         inv.items.set(inv.selected, promoted);
     }
     @Override public void setSelectedSlot(int slot) {
-        if (slot >= 0 && slot <= 8) fp.getInventory().selected = slot;   // server-authoritative; no packet
+        carryTo(slot);   // range-checked inside, and published: see carryTo
     }
 
     @Override public void aimAtBlock(BlockPos cell) {
@@ -638,9 +700,10 @@ public class ServerPlayerAvatar implements Avatar {
         var inv = fp.getInventory();
         if (inv.getSelected().getItem() == item) return true;
         for (int i = 0; i < 9; i++) {
-            if (inv.items.get(i).getItem() == item) { inv.selected = i; return true; }
+            if (inv.items.get(i).getItem() == item) { carryTo(i); return true; }
         }
-        // In the main inventory but not the hotbar — swap it into the selected slot.
+        // In the main inventory but not the hotbar — swap it into the selected slot. Contents only,
+        // so it rides broadcastChanges; `selected` does not move. Same reasoning as selectTool's.
         for (int i = 9; i < inv.items.size(); i++) {
             if (inv.items.get(i).getItem() == item) {
                 ItemStack held = inv.items.get(inv.selected);
