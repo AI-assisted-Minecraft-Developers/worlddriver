@@ -14,6 +14,7 @@ import net.minecraft.world.phys.AABB;
 import java.util.Locale;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.bot.util.BotUtil.yawFor;
 
 /**
  * Agent-invoked "挖三填一" bunker — a sand-SAFE emergency shelter. The Agent calls
@@ -386,13 +387,4 @@ public final class BunkerProcess implements BotProcess {
     }
 
     /** Yaw that faces the given cardinal (MC: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east). */
-    private static float yawFor(Direction d) {
-        return switch (d) {
-            case SOUTH -> 0f;
-            case WEST  -> 90f;
-            case NORTH -> 180f;
-            case EAST  -> -90f;
-            default    -> 0f;
-        };
-    }
 }

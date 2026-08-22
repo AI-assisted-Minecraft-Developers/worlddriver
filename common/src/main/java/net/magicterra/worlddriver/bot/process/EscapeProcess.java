@@ -11,6 +11,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.FallingBlock;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.bot.util.BotUtil.yawFor;
 
 /**
  * Block-less vertical pit / well escape — carve a staircase UP through the solid
@@ -402,13 +403,4 @@ public final class EscapeProcess implements BotProcess {
     }
 
     /** Yaw facing the given cardinal (MC: 0=+Z south, 90=-X west, 180=-Z north, -90=+X east). */
-    private static float yawFor(Direction d) {
-        return switch (d) {
-            case SOUTH -> 0f;
-            case WEST  -> 90f;
-            case NORTH -> 180f;
-            case EAST  -> -90f;
-            default    -> 0f;
-        };
-    }
 }

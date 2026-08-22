@@ -322,4 +322,25 @@ public final class BotUtil {
                  support.getY() + 0.5 + face.getStepY() * 0.5,
                  support.getZ() + 0.5 + face.getStepZ() * 0.5);
     }
+
+    /**
+     * The yaw that faces a cardinal direction, for the shaft-walking processes that steer by
+     * setting a yaw and holding forward (bunker step-in, descend stair, escape climb-out).
+     *
+     * <p><b>Not {@link Direction#toYRot()}, on purpose.</b> That returns {@code 270f} for EAST
+     * where this returns {@code -90f}. The two are the same angle and are NOT the same number,
+     * and {@code setYRot} stores the number: rendering interpolates between the previous yaw and
+     * this one by difference, so swapping {@code -90} for {@code 270} makes the body spin a full
+     * turn where it used to snap. This body was identical in three processes; it was moved here
+     * unchanged rather than replaced with the vanilla helper for exactly that reason.
+     */
+    public static float yawFor(Direction d) {
+        return switch (d) {
+            case SOUTH -> 0f;
+            case WEST  -> 90f;
+            case NORTH -> 180f;
+            case EAST  -> -90f;
+            default    -> 0f;
+        };
+    }
 }
