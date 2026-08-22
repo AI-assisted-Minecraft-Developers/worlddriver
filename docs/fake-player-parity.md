@@ -1526,6 +1526,99 @@ A0 之后这条差异确实不会再被触发（`ClientPlayerAvatar.setSelectedS
 把「connection swallows them anyway」这句假前提留在四具身体共用的代码里，
 就是下一个人重踩这个坑的完整配方。
 
+### 己：**更正 §6.9 那张「三处写入点」表——它两个方向都错了**
+
+§6.9 说「三处写入点，五行」，并把 `selectTool:294-296` 和 `holdItem:646-648` 列成写 `selected` 的行。
+**重读同一个锚点（`git show ead5923f:…/ServerPlayerAvatar.java`）逐行核对，那张表两个方向都错**：
+
+| §6.9 说 | 实际 | 依据 |
+|---|---|---|
+| `selectTool:294-296` 写 `selected` | **不写**。它是 `items.set(bestSlot, items.get(selected)); items.set(selected, promoted)`——**把东西换进已经选中的槽**，`selected` 本身不动 | 逐行 |
+| `holdItem:646-648` 写 `selected` | **不写**，同上形状 | 逐行 |
+| 一共三个方法 | **四个**。漏掉的是 **`holdPlaceable`**，它在 `:209` 和 `:226` 各写一次 | 逐行 |
+
+`grep -rn "selected\s*=" common/src/main/java/net/magicterra/worlddriver/bot/sim/`
+在 HEAD 上**恰好五行，一行不多一行不少**：
+
+| # | 方法 | 行 | 场合 | 会不会真的改变值 |
+|---|---|---|---|---|
+| 1 | **`holdPlaceable`** | `:209` | 热键栏 0..8 里扫到可放置方块 → 换过去 | 会 |
+| 2 | **`holdPlaceable`** | `:226` | 背包 9..35 → 手（挑一个空热键槽，**挑不到就用当前槽**） | **可能不变**（`to` 初值就是 `inv.selected`） |
+| 3 | `selectTool` | `:289` | 热键栏里换到更好的工具 | 会 |
+| 4 | `setSelectedSlot` | `:299` | 直接指定槽 | 会 |
+| 5 | `holdItem` | `:641` | 热键栏里扫到指定物品 → 换过去 | 会 |
+
+另有**两处只换内容、不换槽号**的（就是 §6.9 误列的那两处）：`selectTool:294-296`、`holdItem:646-648`。
+它们走的是**乙**那条已经证明畅通的通道，**不需要补 `ClientboundSetCarriedItemPacket`**——
+要逐位一致才需要补 `ClientboundContainerSetSlotPacket`（见 §6.9 残留表第三行）。
+
+> **这条更正为什么重要，而不只是数字对不对**：漏掉的那个方法是 **`holdPlaceable`——放置动词唯一的取手入口**
+> （`ServerPlayerAvatar.placeOn:375` 第一句就是 `if (!holdPlaceable()) { … return; }`）。
+> 一份把「哪几处会偷偷挪手」列错的表，会让下一个人按表补包，**补完之后放置这条路仍然是坏的**，
+> 而且他手上会有一份「已经按表补全了」的记录。
+>
+> 顺带记一条方法论账：§6.9 那张表是**从 N8 那条旧结论继承来的**（原文逐字写着「这三处正是 N8 点名的同三处」），
+> 没有重新 grep 一遍。**继承一张表比重新数一遍便宜，代价是继承了它当时的边界**——
+> N8 关心的是「换槽时该不该 `stopUsingItem`」，那条差异确实只在那三个方法上被讨论过。
+
+### 庚：最小改动建议（**代码不在本轮交付，排队等编译窗口**）
+
+**形状：一个私有 helper + 五个调用点替换，全部在 `ServerPlayerAvatar.java` 内，全部在 parity 的产权内。**
+
+```java
+/**
+ * Move the hand AND publish it, the way the only server-side mover of this field in vanilla does.
+ *
+ * <p>There is no {@code setSelectedSlot(player, slot)} in vanilla: {@code Inventory.selected} is a
+ * public field that {@code ServerGamePacketListenerImpl.handlePickItem} writes directly and then
+ * follows with this packet by hand. Reusable is the PACKET, not a method.
+ *
+ * <p>No topology test, deliberately. A/B's {@code AvatarNetHandler.send} and C's
+ * {@code SilentConnection.send} are empty, so for the three headless bodies this costs one
+ * allocation and one no-op virtual call; only an adopted real player (body D) actually receives it.
+ * An {@code if (isARealPlayer)} would be a branch that can be written backwards.
+ *
+ * <p>The equality guard is not an optimisation: publishing a value that did not change is what
+ * lets a stale client echo roll the hand BACK a tick later — see docs/fake-player-parity.md §6.10丁.
+ */
+private void carryTo(int slot) {
+    var inv = fp.getInventory();
+    if (slot < 0 || slot > 8 || inv.selected == slot) return;
+    inv.selected = slot;
+    if (fp.connection != null)
+        fp.connection.send(new ClientboundSetCarriedItemPacket(slot));
+}
+```
+
+五个调用点（上表 1–5）各自把 `inv.selected = X;` 换成 `carryTo(X);`。
+
+**为什么这是最小的**：
+
+- **不加开关、不判拓扑、不判身体类别。** 上面丙那张表证明了四具身体各自会走到哪里为止。
+- **不碰那两处内容交换**（`selectTool:294-296`、`holdItem:646-648`）——乙证明它们已经有通道。
+  补 `ClientboundContainerSetSlotPacket` 是「逐位一致」的事，不是「修好这个缺陷」的事，**分开做**。
+- **不顺手补 `stopUsingItem()`**（N8 / T4）。那是另一条差异，**而且丁指出它从对面回来的时候是一次误伤**——
+  两件事塞进一笔提交，出问题时分不开。
+
+**对 headless 是不是零行为变化——是，三条各自成立，全部读码得出，本轮未跑闸**：
+
+| 需要成立的 | 证据 |
+|---|---|
+| 包发不出去 | 丙那张表：A/B 一层到底的空方法；C 两层，第二层空，中间那个 `close()` 分支因 `isTerminal()==false` 不进 |
+| `fp.connection` 不会是 null | A 在构造函数里 `AvatarNetHandler.install(this)`（`AvatarFakePlayer.java:65`）；B 在工厂两条路径上都 `install`（`WorldDriverNeoForge.java:52,55`）；C 由 `placeNewPlayer` 装真 listener。**helper 里那个 null 检查是给未来某个裸 `new ServerPlayer` 的人留的，不是给今天的四具身体** |
+| 这个类在专用服上加载得动 | `ClientboundSetCarriedItemPacket` **没有 `@Environment(EnvType.CLIENT)`**（整个类逐字抄在丙上面，只有一个 `int slot` 字段）；对照组：同一份反编译里 `ClientPacketListener` 和 `MultiPlayerGameMode` **都有**。而且 `net.minecraft.server.players.PlayerList`（纯服务端类）自己就构造它两次。**这一条必须显式查**——「双端类里一行 invokevirtual 到客户端类型，专用服构造那刻才炸」在这个仓库出过事 |
+| 语义等价 | 新增的只有一条「值没变就不写不发」的早退。旧代码在那种情况下执行的是一次把字段赋成它已有的值的赋值——**无可观测差别** |
+
+**验收判据不变，仍是 §6.9 那两条**（`wd.actuatorSplitOnAnAdoptedBody` 的 `slot.最终一致` 翻成「一致」；
+四步臂第 4 步读到 X）。**本轮多一条预测，写在跑之前**：
+
+> 第 12 级第九格那座塔（戊）**应当开始耗石头**。机制是绕的，写清楚免得被当成巧合：
+> 补包让 `selectTool` 把客户端的 `selected` 一起挪到镐上 → 客户端 `ensureHoldingPlaceableAny`
+> 的 fast path **不再成立** → 它走发包分支 → 服务端的手被客户端**合法地**改成 cobblestone →
+> `handleUseItemOn` 取到的是 cobblestone。
+> **注意修好它的不是服务端自己放对了东西，是客户端终于知道自己需要重新取手。**
+> 缺陷存在时 `stock` 一个不少、`stalled=null`；修好后 `stock` 应当逐格递减。
+
 ---
 
 ## 7. 场景归属：谁该迁走，谁迁不了
