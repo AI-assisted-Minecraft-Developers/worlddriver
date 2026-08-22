@@ -1607,7 +1607,7 @@ A0 之后这条差异确实不会再被触发（`ClientPlayerAvatar.setSelectedS
 > 没有重新 grep 一遍。**继承一张表比重新数一遍便宜，代价是继承了它当时的边界**——
 > N8 关心的是「换槽时该不该 `stopUsingItem`」，那条差异确实只在那三个方法上被讨论过。
 
-### 庚：最小改动建议（**代码不在本轮交付，排队等编译窗口**）
+### 庚：最小改动——**已落地（`d187cc13`，2026-08-22）**
 
 **形状：一个私有 helper + 五个调用点替换，全部在 `ServerPlayerAvatar.java` 内，全部在 parity 的产权内。**
 
@@ -1664,6 +1664,32 @@ private void carryTo(int slot) {
 > `handleUseItemOn` 取到的是 cobblestone。
 > **注意修好它的不是服务端自己放对了东西，是客户端终于知道自己需要重新取手。**
 > 缺陷存在时 `stock` 一个不少、`stalled=null`；修好后 `stock` 应当逐格递减。
+
+#### 落地记录（`d187cc13`，`:common:compileJava` BUILD SUCCESSFUL，`1 actionable task: 1 executed`）
+
+`private void carryTo(int slot)` 落在 `ServerPlayerAvatar.java:249`，五个调用点
+`:263`（`holdPlaceable` 热键栏）、`:283`（`holdPlaceable` 背包→手）、`:346`（`selectTool`）、
+`:361`（`setSelectedSlot`）、`:703`（`holdItem`）。落地后
+`grep -rn "selected\s*=" bot/sim/` **只剩 `carryTo` 自己那两行**——
+这是「五处都换到了」的可复核判据，比数调用点可靠。
+
+**三条准入论证在落地后的代码上逐条复核**（不是设计时成立，是对着提交后的字节路径重问一遍）：
+
+| 论证 | 落地后是否仍成立 | 复核方式 |
+|---|---|---|
+| 包发不出去（A/B/C） | **成立** | 落地代码是 `fp.connection.send(new ClientboundSetCarriedItemPacket(slot))`，`fp.connection` 静态类型 `ServerGamePacketListenerImpl`，虚派发：A/B → `AvatarNetHandler.send` 空覆盖，一层到底；C → vanilla `ServerCommonPacketListenerImpl.send` → `isTerminal()==false` → `SilentConnection.send(p,l,bl)` 空覆盖 |
+| `fp.connection` 不为 null | **成立** | 判空就写在 `:255`，是落地代码的一部分，不是设计时的打算 |
+| 专用服加载得动 | **成立，但只到「读码 + 注解」这一级** | `ClientboundSetCarriedItemPacket` 无 `@Environment(EnvType.CLIENT)`（对照组 `ClientPacketListener`/`MultiPlayerGameMode` 都有），纯服务端类 `PlayerList` 自己构造它两次。**`:common:compileJava` 编的是 merged jar，它证明不了这一条**——真正的证明要等一趟 `stagewrightDedicatedServer*`。**本轮没跑闸，这条按「未运行时验证」记。** |
+| 语义等价（新增的早退不改变行为） | **成立，五处逐个走过** | `:263`/`:703`：旧代码在「已经是这个槽」时执行一次把字段赋成它已有值的赋值再 `return true`，新代码直接 `return true`——无可观测差别。`:283`：`to` 初值就是 `inv.selected`，同上。`:346`：`selectTool` 的候选循环有 `if (slot == inv.selected) continue;`，所以 `bestSlot` **不可能**等于当前槽，早退分支在这里永远不进。`:361`：`carryTo` 的 `slot < 0 \|\| slot > 8` 与旧的 `slot >= 0 && slot <= 8` 是同一个区间 |
+
+**顺带修掉两条撒谎的注释**（AGENT_TEAM「注释撒谎比代码重复贵」）：`selectTool` 原本的
+「Server-authoritative, so no packet: this body's connection swallows them anyway」和
+`setSelectedSlot` 行尾的「server-authoritative; no packet」——**这两句正是本条差异的来源**，
+留着它们等于把下一个人重新推进同一个坑。换成了两句说明「为什么内容交换这一半确实不需要补包」的话。
+
+**还没做的**（写下来免得被当成修完了）：§6.9「残留」那三条一条都没变——
+`stopUsingItem` 的客户端孪生半边（N8/T4）、一个来回的窗口、以及背包→手那两处
+「内容晚一 tick」的逐位不一致。**尤其不要把 T4 顺手塞进这一笔**，丁那一段说明了它从对面回来时是误伤。
 
 ---
 
