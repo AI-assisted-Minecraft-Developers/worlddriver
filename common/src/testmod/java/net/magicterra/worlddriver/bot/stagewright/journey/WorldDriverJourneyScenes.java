@@ -647,6 +647,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     /** How far to look for the next trunk. */
     private static final int TRUNK_SEARCH = 40;
 
+    /** How long the walk back up to the treeline gets. Generous because it starts at the bottom of
+     *  a mineshaft the run dug itself: the body has to climb out before it can go anywhere, and
+     *  that climb is the expensive half — the surface walk that follows is a few hundred blocks of
+     *  ordinary ground the route has already crossed once. */
+    private static final int WOOD_RETURN_TICKS = 12_000;
+
     /** The nearest log of one species at least {@code minAway} blocks off. */
     private static BlockPos nearestTrunkBeyond(JourneyRig rig,
                                                net.minecraft.world.level.block.Block species,
@@ -1325,8 +1331,24 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static void topUpWood(JourneyRig rig, Runnable then) {
         var species = rig.ctx().level().getBlockState(JourneyRoute.firstTree).getBlock();
         BlockPos trunk = nearestTrunkBeyond(rig, species, 0, TRUNK_SEARCH);
-        rig.evidence("wood.topUpTarget", trunk == null ? "无" : trunk.toShortString());
-        if (trunk == null) { then.run(); return; }
+        rig.evidence("wood.topUpTarget", trunk == null ? "无（身边这一带没有树干）" : trunk.toShortString());
+        if (trunk == null) {
+            // THE SCAN CANNOT SUCCEED WHERE THIS IS NEEDED. nearestTrunkBeyond looks around the
+            // BODY with dy limited to ±8, and wood runs out precisely when the body has been
+            // mining — 2026-08-22 measured it at y=42..54 with two shafts dug and six raw iron in
+            // the bag, twenty-odd blocks below any canopy. So the band excludes every tree in the
+            // world, the row printed 「无」, and the rung failed with 缺 1 个 oak_log while a forest
+            // stood overhead. A remedy that is unreachable exactly when it is required is the same
+            // shape as the run being out of wood in the first place.
+            //
+            // The answer is the one the rest of this ladder already uses: go to the LANDMARK. The
+            // route surveyed the first tree, and its column is on the surface by definition.
+            rig.evidence("wood.topUpFallback", "改用烘入的第一棵树 "
+                    + JourneyRoute.firstTree.toShortString() + " 那一柱（地表），"
+                    + "因为身边的扫描带是 ±8 格，而身体在地下");
+            walkToTheTreesAndCut(rig, species, then);
+            return;
+        }
         rig.attempting("木头用光了，去砍一棵补上");
         BlockPos target = trunk;
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(target.getX(), target.getZ(), 2))), 6_000,
@@ -1335,6 +1357,39 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                             rig.evidence("wood.toppedUp", totalLogs(rig) + " 根");
                             then.run();
                         }));
+    }
+
+    /**
+     * Climb back to the surveyed treeline and cut whatever is standing there.
+     *
+     * <p>Two steps rather than one, and the second is not redundant: the baked coordinate names the
+     * tree the WOOD rung already felled, so the block there is usually air by now. What survives is
+     * the <i>place</i> — a forest column on the surface — and once the body is standing in it the
+     * ordinary ±8 scan is looking at canopy instead of at stone.
+     *
+     * <p>Goal.XZ rather than Goal.Block for the same reason: the target is the column, not a cell,
+     * and demanding the cell would fail on the stump of the run's own first tree.
+     */
+    private static void walkToTheTreesAndCut(JourneyRig rig,
+                                             net.minecraft.world.level.block.Block species,
+                                             Runnable then) {
+        BlockPos grove = JourneyRoute.firstTree;
+        rig.attempting("木头用光了，而身边扫不到树 —— 先回烘入的林地那一柱，再砍");
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(grove.getX(), grove.getZ(), 3))),
+                WOOD_RETURN_TICKS, () -> {
+            BlockPos here = rig.player().blockPosition();
+            rig.evidence("wood.backAtTheGrove", here.toShortString()
+                    + "（目标柱 " + grove.getX() + "," + grove.getZ() + "）");
+            BlockPos trunk = nearestTrunkBeyond(rig, species, 0, TRUNK_SEARCH);
+            rig.evidence("wood.topUpTarget2", trunk == null
+                    ? "回到林地也没扫到树干 —— 这一带被砍光了，或者根本没走到"
+                    : trunk.toShortString());
+            if (trunk == null) { then.run(); return; }
+            rig.settle(new MineProcess(List.of(logIdAt(rig.ctx(), trunk)), 6, 24), 8_000, () -> {
+                rig.evidence("wood.toppedUp", totalLogs(rig) + " 根");
+                then.run();
+            });
+        });
     }
 
     // =====================================================================================
