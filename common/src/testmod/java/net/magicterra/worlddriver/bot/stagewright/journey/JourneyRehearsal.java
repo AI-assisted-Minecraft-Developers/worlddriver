@@ -870,55 +870,7 @@ public final class JourneyRehearsal {
                     + "（想放在 " + want.toShortString() + "）");
             return;
         }
-        // Clear the pocket the frame stands in, so worldgen rock does not decide whether the
-        // doorway is enterable. One cell of margin all round the 4x5 frame — starting at dy=0,
-        // because dy=-1 is the FLOOR and clearing it is what dug the pit below.
-        for (int dx = -2; dx <= DOOR_WIDTH + 1; dx++)
-            for (int dy = 0; dy <= DOOR_HEIGHT + 2; dy++)
-                for (int dz = -1; dz <= 1; dz++)
-                    nether.setBlockAndUpdate(foot.offset(dx, dy, dz), Blocks.AIR.defaultBlockState());
-        // FLOOR THE WHOLE POCKET, not a strip in front of the door.
-        //
-        // This clear used to run from dy=-1, taking the ground out from under the entire pocket,
-        // and only one 4×1 strip of it was put back. Everything else the clear touched became a
-        // hole — so the frame stood on a ledge over a void, which is a shape no nether portal has
-        // and which rung 17 therefore had no business being asked about. The body walked in on the
-        // surrounding rock, arrived on top of the FRAME (the only solid thing at that height), and
-        // then could not get off it: the walker's own guards refused every step, correctly —
-        //
-        //   [walker] stride floor-guard: bottomless stride 105,37,8 → sneak-pin
-        //   [walker] footing guard: sole 0.1787 < 0.18 at 105,37,8 beside a lethal drop → sneak-pin
-        //
-        // — while A* went on returning routes through those cells, 816 identical searches from one
-        // cell to one goal. The staging had reproduced, in its own fixture, exactly the class of
-        // defect the scene exists to look for. Obsidian rather than netherrack so a pathfinder
-        // running with allowBreak cannot decide the floor is the cheap way through.
-        for (int dx = -2; dx <= DOOR_WIDTH + 1; dx++)
-            for (int dz = -1; dz <= 1; dz++)
-                nether.setBlockAndUpdate(foot.offset(dx, -1, dz), Blocks.OBSIDIAN.defaultBlockState());
-        // The frame: obsidian everywhere on the ring, corners included (vanilla ignores the corners,
-        // and filling them keeps this from depending on that).
-        for (int dx = -1; dx <= DOOR_WIDTH; dx++)
-            for (int dy = -1; dy <= DOOR_HEIGHT; dy++) {
-                boolean ring = dx == -1 || dx == DOOR_WIDTH || dy == -1 || dy == DOOR_HEIGHT;
-                if (ring) nether.setBlockAndUpdate(foot.offset(dx, dy, 0),
-                        Blocks.OBSIDIAN.defaultBlockState());
-            }
-        BlockState door = Blocks.NETHER_PORTAL.defaultBlockState()
-                .setValue(net.minecraft.world.level.block.NetherPortalBlock.AXIS, Direction.Axis.X);
-        for (int dx = 0; dx < DOOR_WIDTH; dx++)
-            for (int dy = 0; dy < DOOR_HEIGHT; dy++)
-                nether.setBlock(foot.offset(dx, dy, 0), door, 2);
-        // Poke the frame so a neighbour update actually reaches the cells before they are counted.
-        // Without this the count is taken in the window BEFORE NetherPortalBlock.updateShape has had
-        // a chance to reject the frame — six cells would be reported for a doorway that is gone by
-        // the time the rung walks back to it, which is the one failure this assertion exists to catch.
-        nether.setBlockAndUpdate(foot.offset(-1, -1, 0), Blocks.OBSIDIAN.defaultBlockState());
-        int cells = 0;
-        for (int dx = 0; dx < DOOR_WIDTH; dx++)
-            for (int dy = 0; dy < DOOR_HEIGHT; dy++)
-                if (nether.getBlockState(foot.offset(dx, dy, 0)).is(Blocks.NETHER_PORTAL)) cells++;
-
+        int cells = raiseAPortal(nether, foot);
         JourneyLedger.staged("rehearsal: built the return doorway at " + foot.toShortString()
                 + " and banked it, instead of walking back through one rung 12 lit");
         JourneyLedger.noteNetherPortal(foot);
@@ -950,6 +902,57 @@ public final class JourneyRehearsal {
                     + "）：真梯记下的那一格是身体自己走出来的地方，跟身体同层。这样摆出来的是一段"
                     + "「爬 " + Math.abs(rise) + " 格」的考题，不是 17 级的回程 —— 布景的问题，"
                     + "不是 STRONGHOLD 这一级的问题");
+            return;
+        }
+        raiseTheOverworldHalf(ctx, nether, foot);
+    }
+
+    /**
+     * Light the OTHER half of the pair — the surface portal rung 12 would have left in the overworld.
+     *
+     * <p><b>A portal is not one doorway, it is two, and staging only the far one is what put a body
+     * in an aquifer.</b> Rehearsal of 2026-08-22: the crossing itself finally worked, the body left
+     * the Nether and arrived {@code @minecraft:overworld} — and then stood at {@code 825,10,83}
+     * bobbing between two y values while the march burned 4238 searches on one leg, jumping on the
+     * {@code swimUp} branch. Nether y is <b>not</b> scaled by the 8:1 rule, only x and z, so a
+     * doorway staged at nether y=33 asks vanilla for an overworld exit at y=33 — and with no
+     * existing portal within the forcer's search radius to land on, it carved a fresh one there,
+     * underground, inside water.
+     *
+     * <p>That is not something the real ladder can meet. Rung 12 lights its portal on the SURFACE
+     * and rung 13 walks through it, so the nether doorway the run banks is the far end of a pair
+     * whose near end is standing in open air at the coordinate the return maps back to. Staging one
+     * end and letting vanilla invent the other staged a different world.
+     *
+     * <p>Placed on the heightmap at the 8:1 coordinate so the forcer finds it rather than digging:
+     * its search is horizontal, so being tens of blocks higher than the requested y costs nothing,
+     * and being the nearest portal is what decides that the body comes out here.
+     *
+     * <p>Failures here are STAGING failures and say so — a body that cannot get out of the Nether
+     * because this half is missing would otherwise be read as rung 17 failing to walk home.
+     */
+    private static void raiseTheOverworldHalf(SceneContext ctx, ServerLevel nether, BlockPos foot) {
+        ServerLevel overworld = nether.getServer().getLevel(net.minecraft.world.level.Level.OVERWORLD);
+        if (overworld == null) {
+            ctx.fail("排练：这台服务器没有主世界 —— 摆不出回程门的另一半");
+            return;
+        }
+        double scale = net.minecraft.world.level.dimension.DimensionType.getTeleportationScale(
+                nether.dimensionType(), overworld.dimensionType());
+        BlockPos want = new BlockPos((int) Math.round(foot.getX() * scale), foot.getY(),
+                (int) Math.round(foot.getZ() * scale));
+        loadAround(overworld, want, 2);
+        BlockPos surface = overworld.getHeightmapPos(
+                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, want);
+        int cells = raiseAPortal(overworld, surface);
+        ctx.record("rehearsal.overworldHalf", surface.toShortString() + " 成了 " + cells
+                + " 格 nether_portal（下界那道门在 " + foot.toShortString() + "，按 "
+                + Math.round(1 / scale) + ":1 折算过来是 " + want.getX() + "," + want.getZ()
+                + "，抬到地表 y=" + surface.getY() + "）—— 12 级本来会留下的就是这一道");
+        if (cells < DOOR_WIDTH * DOOR_HEIGHT) {
+            ctx.fail("排练立不起回程门的主世界那一半：只成了 " + cells + " 格 nether_portal —— "
+                    + "这是布景的问题。少了它，身体出下界时 vanilla 会就地现挖一道门，"
+                    + "而下界的 y 不参与 8:1 折算，于是它挖在 y=" + foot.getY() + " 的地下");
         }
     }
 
@@ -957,6 +960,68 @@ public final class JourneyRehearsal {
      *  the one the body walked out of, so the honest number is 0; this is the slack that lets
      *  {@link #netherStandNear} step off a wall of netherrack without changing what is measured. */
     private static final int STAGED_DOOR_RISE = 24;
+
+    /**
+     * Stand a lit 2×3 portal on {@code foot}, in a pocket with a floor, and say how many cells took.
+     *
+     * <p>One implementation because the staging needs TWO of these and they are the same object —
+     * see {@link #buildTheDoorwayAndBankIt}, where the second one exists so the first has somewhere
+     * to come out.
+     *
+     * <p>The portal cells go in with {@code setBlock(…, 2)} and the frame is then poked with
+     * {@code setBlockAndUpdate}, which is not a flourish: {@code NetherPortalBlock} pops itself off
+     * when its frame does not hold, and without a neighbour update reaching the cells before they
+     * are counted, the count is taken in the window BEFORE {@code updateShape} could reject them.
+     * Six cells would be reported for a doorway that is gone by the time anything walks back to it —
+     * the one failure the count exists to catch.
+     */
+    private static int raiseAPortal(ServerLevel level, BlockPos foot) {
+        // Clear the pocket the frame stands in, so worldgen rock does not decide whether the
+        // doorway is enterable. One cell of margin all round the 4x5 frame — starting at dy=0,
+        // because dy=-1 is the FLOOR and clearing it is what dug the pit below.
+        for (int dx = -2; dx <= DOOR_WIDTH + 1; dx++)
+            for (int dy = 0; dy <= DOOR_HEIGHT + 2; dy++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(foot.offset(dx, dy, dz), Blocks.AIR.defaultBlockState());
+        // FLOOR THE WHOLE POCKET, not a strip in front of the door.
+        //
+        // This clear used to run from dy=-1, taking the ground out from under the entire pocket,
+        // and only one 4×1 strip of it was put back. Everything else the clear touched became a
+        // hole — so the frame stood on a ledge over a void, which is a shape no nether portal has
+        // and which rung 17 therefore had no business being asked about. The body walked in on the
+        // surrounding rock, arrived on top of the FRAME (the only solid thing at that height), and
+        // then could not get off it: the walker's own guards refused every step, correctly —
+        //
+        //   [walker] stride floor-guard: bottomless stride 105,37,8 → sneak-pin
+        //   [walker] footing guard: sole 0.1787 < 0.18 at 105,37,8 beside a lethal drop → sneak-pin
+        //
+        // — while A* went on returning routes through those cells, 816 identical searches from one
+        // cell to one goal. The staging had reproduced, in its own fixture, exactly the class of
+        // defect the scene exists to look for. Obsidian rather than the local ground so a pathfinder
+        // running with allowBreak cannot decide the floor is the cheap way through.
+        for (int dx = -2; dx <= DOOR_WIDTH + 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(foot.offset(dx, -1, dz), Blocks.OBSIDIAN.defaultBlockState());
+        // The frame: obsidian everywhere on the ring, corners included (vanilla ignores the corners,
+        // and filling them keeps this from depending on that).
+        for (int dx = -1; dx <= DOOR_WIDTH; dx++)
+            for (int dy = -1; dy <= DOOR_HEIGHT; dy++) {
+                boolean ring = dx == -1 || dx == DOOR_WIDTH || dy == -1 || dy == DOOR_HEIGHT;
+                if (ring) level.setBlockAndUpdate(foot.offset(dx, dy, 0),
+                        Blocks.OBSIDIAN.defaultBlockState());
+            }
+        BlockState door = Blocks.NETHER_PORTAL.defaultBlockState()
+                .setValue(net.minecraft.world.level.block.NetherPortalBlock.AXIS, Direction.Axis.X);
+        for (int dx = 0; dx < DOOR_WIDTH; dx++)
+            for (int dy = 0; dy < DOOR_HEIGHT; dy++)
+                level.setBlock(foot.offset(dx, dy, 0), door, 2);
+        level.setBlockAndUpdate(foot.offset(-1, -1, 0), Blocks.OBSIDIAN.defaultBlockState());
+        int cells = 0;
+        for (int dx = 0; dx < DOOR_WIDTH; dx++)
+            for (int dy = 0; dy < DOOR_HEIGHT; dy++)
+                if (level.getBlockState(foot.offset(dx, dy, 0)).is(Blocks.NETHER_PORTAL)) cells++;
+        return cells;
+    }
 
     /** How many blaze rods a fortress trip is worth. Seven — see {@link #stageEnderPearl}. */
     private static final int RODS_A_FORTRESS_PAYS = 7;
