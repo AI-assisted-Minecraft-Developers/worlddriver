@@ -58,6 +58,29 @@ public final class ClutchController {
 
     boolean armed() { return armed; }
 
+    /**
+     * Yield the movement channel for this tick: the clutch OWNS the descent, so nothing the
+     * walker or a process commanded may move the body sideways or add a jump.
+     *
+     * <p>Was two byte-identical six-line blocks clearing keyUp/Down/Left/Right/Jump/Sprint —
+     * and clearing those keys did nothing at all while a process was driving:
+     * {@link AvatarInput#tick} runs vanilla's key pass and then OVERWRITES the impulses with
+     * the walker's command, so the four direction keys were the one input nobody read. During
+     * an MLG that is not cosmetic: the drift-damping spring below fights the residual momentum
+     * one way while the still-live walker command pushes the other, and coasting one block off
+     * a 1-wide landing column is exactly the failure the spring exists to prevent.
+     * {@link BotInput#halt} is the channel that outranks the walker's own command.
+     *
+     * <p>{@code keySprint.setDown(false)} is gone rather than translated: both sites already
+     * paired it with {@code setSprinting(false)}, which is the flag {@code aiStep} actually
+     * reads to emit STOP_SPRINTING. The key was redundant at both.
+     */
+    private static void yieldMovement(Minecraft mc) {
+        BotInput.halt(mc);
+        BotInput.jump(mc, false);
+        BotInput.sprint(mc, false);
+    }
+
     /** One-word state for {@code mc.bot.status.clutch}: idle / lip (planned,
      *  awaiting walk-off) / falling (placing water) / landed (scooping). */
     public String phase() {
@@ -142,13 +165,7 @@ public final class ClutchController {
         if (!p.onGround()) {
             airborne = true;
             lipTicks = 0;
-            mc.options.keyUp.setDown(false);
-            mc.options.keyDown.setDown(false);
-            mc.options.keyLeft.setDown(false);
-            mc.options.keyRight.setDown(false);
-            mc.options.keyJump.setDown(false);
-            mc.options.keySprint.setDown(false);
-            p.setSprinting(false);
+            yieldMovement(mc);
             // Drift control: a walk-off leaves the lip with residual horizontal
             // momentum, and air has no friction, so over a tall fall the body
             // coasts a full block sideways — clean off a 1-wide landing column
@@ -190,13 +207,7 @@ public final class ClutchController {
         } else if (airborne) {
             // Landed after the fall → scoop the source back, then disarm.
             if (scoopPending(world, p) && ensureHolding(mc, Items.BUCKET)) {
-                mc.options.keyUp.setDown(false);
-                mc.options.keyDown.setDown(false);
-                mc.options.keyLeft.setDown(false);
-                mc.options.keyRight.setDown(false);
-                mc.options.keyJump.setDown(false);
-                mc.options.keySprint.setDown(false);
-                p.setSprinting(false);
+                yieldMovement(mc);
                 scoopTicks++;
                 BlockPos feet = new BlockPos((int) Math.floor(p.getX()),
                         (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));

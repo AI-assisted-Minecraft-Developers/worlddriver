@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.movement.BotInput;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -94,8 +95,17 @@ public final class LavaProximityEscape {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         p.setYRot(yaw);
         p.setXRot(0f);
-        mc.options.keyUp.setDown(true);
-        mc.options.keyJump.setDown(p.horizontalCollision || p.isInLava());
+        // Raw camera-frame forward along the yaw just set — what keyUp meant. The SHARED
+        // keybind never reached the body while a process was driving: AvatarInput.tick runs
+        // vanilla's key pass and then overwrites forwardImpulse with the walker's command.
+        // This reflex was written FOR the case where a process is stuck against a front (the
+        // ep-026 shape: brake vetoes every move, repath loop holds position), which is exactly
+        // the case where its forward key was discarded — so on the old channel the reflex was
+        // inert precisely on the occasion it was built for.
+        // NOTE: commandForward is still outranked by a same-tick walker commandMove — see
+        // BotInput's class doc. Flagged, not changed.
+        BotInput.forward(mc, true);
+        BotInput.jump(mc, p.horizontalCollision || p.isInLava());
         return true;
     }
 
@@ -140,6 +150,11 @@ public final class LavaProximityEscape {
         return firstClear;
     }
 
+    /** No key/command release here, unlike the sibling {@link ContactDamageEscape#reset}: the
+     *  {@code BotInput} commands this reflex drives are per-tick, so an episode that stops
+     *  re-asserting has already handed the channel back. (Under the old keybinds that made
+     *  this an actual latch leak — {@code keyUp.setDown(true)} stays down — which is why the
+     *  sibling had a release and this one's absence was a divergence, not a simplification.) */
     private static void reset(String why) {
         if (active) LOG.info("[lavaEscape] handing back ({}), {} ticks", why, episodeTicks);
         active = false;

@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.movement.BotInput;
 import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -98,8 +99,18 @@ public final class ContactDamageEscape {
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         p.setYRot(yaw);
         p.setXRot(0f);
-        mc.options.keyUp.setDown(true);
-        mc.options.keyJump.setDown(p.horizontalCollision);
+        // Raw camera-frame forward along the yaw just set — what keyUp meant. Driving the
+        // SHARED keybind did not reach the body at all while a process was running:
+        // AvatarInput.tick runs vanilla's key pass and then overwrites forwardImpulse with the
+        // walker's command, so this reflex's step-out-of-the-cactus was silently discarded on
+        // exactly the ticks it was written for (an active `goto` is what put the hull against
+        // the cactus in the first place — see death #14 above). keyJump survived only because
+        // the walker rarely commands jump, which is why the reflex looked half-alive.
+        // NOTE: commandForward is still outranked by a same-tick walker commandMove (see
+        // BotInput's class doc) — the class doc's "overrides an active walker" claim needs
+        // commandMove(0,1) to be literally true. Flagged, not changed.
+        BotInput.forward(mc, true);
+        BotInput.jump(mc, p.horizontalCollision);
         return true;
     }
 
@@ -163,8 +174,14 @@ public final class ContactDamageEscape {
             LOG.info("[contactEscape] episode end ({}) after {}t — last hazard {}",
                     outcome, episodeTicks,
                     lastHazard == null ? "unseen" : lastHazard.toShortString());
-            mc.options.keyUp.setDown(false);
-            mc.options.keyJump.setDown(false);
+            // Belt-and-braces: BotInput's commands are per-tick, so an episode that simply
+            // stops re-asserting already hands the channel back on the next tick. Under the
+            // old keybinds this release was load-bearing — keyUp.setDown(true) LATCHES — and
+            // the sibling LavaProximityEscape, which drives the same two keys, never had it:
+            // its reset() only logs, so every lava episode left the forward key held until
+            // something else happened to clear it. The channel swap retires that asymmetry.
+            BotInput.forward(mc, false);
+            BotInput.jump(mc, false);
         }
         active = false;
         linger = 0;

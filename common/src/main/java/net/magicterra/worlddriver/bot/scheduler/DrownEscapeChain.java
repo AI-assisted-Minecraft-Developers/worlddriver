@@ -6,6 +6,7 @@ import java.util.function.IntSupplier;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.auto.DrownEscapeGate;
+import net.magicterra.worlddriver.bot.movement.BotInput;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -148,13 +149,13 @@ public final class DrownEscapeChain implements Chain {
             if (dir != null) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(0f);
-                mc.options.keyJump.setDown(true);   // stay buoyant crossing under the lid
-                mc.options.keyUp.setDown(true);     // swim toward open water
-                mc.options.keyDown.setDown(false);
-                mc.options.keyLeft.setDown(false);
-                mc.options.keyRight.setDown(false);
-                mc.options.keySprint.setDown(false);
-                mc.options.keyShift.setDown(false);
+                BotInput.jump(mc, true);            // stay buoyant crossing under the lid
+                // Raw camera-frame forward: the yaw was just set at the open column, so "along
+                // the body" IS "toward open water". commandForward also forces leftImpulse to 0,
+                // which is what the keyDown/keyLeft/keyRight clears were for.
+                BotInput.forward(mc, true);         // swim toward open water
+                BotInput.sprint(mc, false);
+                BotInput.sneak(mc, false);
                 mc.options.keyAttack.setDown(false);
                 keysHeld = true;
                 if (BotConfig.walkerDebug && (dbg++ % 10 == 0))
@@ -169,13 +170,17 @@ public final class DrownEscapeChain implements Chain {
         // PURE VERTICAL: hold jump, actively zero every horizontal/turn input the
         // preempted process may have left pressed (mirrors AutoSwim's deep-ascent
         // discipline). Yaw/pitch are left untouched — zero turning.
-        mc.options.keyJump.setDown(true);
-        mc.options.keyUp.setDown(false);
-        mc.options.keyDown.setDown(false);
-        mc.options.keyLeft.setDown(false);
-        mc.options.keyRight.setDown(false);
-        mc.options.keySprint.setDown(false);
-        mc.options.keyShift.setDown(false);         // a held sneak SINKS the bot (aiStep sink)
+        //
+        // This chain PREEMPTS an active process, so the zeroing must use the channel that
+        // outranks the Walker's own per-tick command — BotInput.halt (commandMove(0,0)), not
+        // forward(false). Clearing the four direction KEYS, which is what this block used to
+        // do, never zeroed anything while a process was running: AvatarInput.tick overwrites
+        // the impulses after vanilla's key pass, so the keys were the one input nobody read.
+        // That is the same failure this class's own doc describes AutoSwim losing to.
+        BotInput.jump(mc, true);
+        BotInput.halt(mc);
+        BotInput.sprint(mc, false);
+        BotInput.sneak(mc, false);                  // a held sneak SINKS the bot (aiStep sink)
         keysHeld = true;
         // Sealed lid: the cell two above the foot (the bunker roof-seal cell) is
         // solid while we're trying to rise — break it (allowBreak permitting).
@@ -278,15 +283,20 @@ public final class DrownEscapeChain implements Chain {
         return null;
     }
 
-    /** Release exactly the keys OUR tick() pressed. Guarded on {@link #keysHeld}
+    /** Release exactly what OUR tick() drove. Guarded on {@link #keysHeld}
      *  so a dedicated GameTest server (where tick(mc=null) never actuates) never
-     *  resolves a client class here. */
+     *  resolves a client class here.
+     *
+     *  <p>The movement half self-releases — {@code BotInput}'s commands are per-tick and an
+     *  uncommanded tick falls back to the real keybind — so the explicit jump(false) below is
+     *  only belt-and-braces for the one tick between interrupt and the next scheduler pass.
+     *  {@code keyAttack} is a genuinely LATCHED keybind and its release is load-bearing. */
     private void releaseHeldKeys() {
         if (!keysHeld) return;
         keysHeld = false;
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.options == null) return;
-        mc.options.keyJump.setDown(false);
+        BotInput.jump(mc, false);
         mc.options.keyAttack.setDown(false);
     }
 }
