@@ -1109,7 +1109,8 @@ public final class JourneyRig {
     private static final int HEARTBEAT_TICKS = 200;
 
     /**
-     * Say where the body is, every {@link #HEARTBEAT_TICKS}, for as long as a leg is running.
+     * Say where the body is, every {@link #HEARTBEAT_TICKS} ticks of waiting, across however many
+     * legs those ticks fall in — see {@link #sinceHeartbeat} for why that distinction is the point.
      *
      * <p>A rung's evidence map is printed once, at the end. The legs in between are silent unless the
      * walker happens to emit one of its own capped debug lines, and those caps are per body — once a
@@ -1123,11 +1124,27 @@ public final class JourneyRig {
      * ticking a body that {@code level.players()} no longer contains, and every other row —
      * position, dimension, progress — looks perfectly healthy in that state.
      */
+    /**
+     * Ticks waited since the last heartbeat, <b>counted across legs, not within one</b>.
+     *
+     * <p>It used to be {@code waited % HEARTBEAT_TICKS == 0} against the per-leg counter, which
+     * silences exactly the phases that need it most. Measured 2026-08-22, rung 17: the descent into
+     * the portal room is {@code digDownTo}, and every step of it is
+     * {@code settle(new HoldStill(40), 60, …)} — 114 legs, none longer than 60 ticks, so no leg ever
+     * reached 200 and the counter went back to zero at each one. The result was <b>5.7 minutes of
+     * total silence</b> from a run that was working perfectly, and telling that apart from a wedge
+     * cost a thread dump and two CPU samples. A phase built out of many short legs is not a quiet
+     * phase; it is a phase whose clock keeps getting reset.
+     */
+    private int sinceHeartbeat;
+
     private void heartbeat(int waited, int ticks, BotProcess process) {
-        if (waited == 0 || waited % HEARTBEAT_TICKS != 0 || driver == null) return;
+        if (driver == null) return;
+        if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
+        sinceHeartbeat = 0;
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info(
-                "[journey] 心跳 {} {} 第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
+                "[journey] 心跳 {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
                 stage.name(), process.kind(), waited, ticks,
                 fp.blockPosition().getX(), fp.blockPosition().getY(), fp.blockPosition().getZ(),
                 fp.level().dimension().location(), fp.level().players().contains(fp),
