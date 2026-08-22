@@ -492,6 +492,8 @@ public final class JourneyRig {
      * instead of conventionally avoided.
      */
     private void startLeg(ServerWorldDriver d, BotProcess process) {
+        driving = process.kind();
+        legTicks = 0;
         if (realPlayerHelm(ctx)) {
             BotApi bot = BotHooks.impl();
             if (bot == null) {
@@ -530,6 +532,7 @@ public final class JourneyRig {
      * on the one path that carries a body out of the world.
      */
     private void endLeg(ServerWorldDriver d) {
+        driving = null;
         noteLeg();
         if (realPlayerHelm(ctx)) return;
         ServerAvatarManager.unregister(d);
@@ -865,6 +868,10 @@ public final class JourneyRig {
             return;
         }
         ServerAvatarManager.register(d.mine(target));
+        // Named here rather than left to startLeg, because this path does not go through it — that
+        // is the same asymmetry the out-of-world note below is about.
+        driving = "mine(" + target.toShortString() + ")";
+        legTicks = 0;
         int[] waited = {0};
         // The SAME out-of-world guard settle() has. It was missing here, and the omission was not
         // free: a body that left the world during a mine kept the whole budget running against a
@@ -1031,7 +1038,6 @@ public final class JourneyRig {
         int[] waited = {0};
         await(() -> {
             if (watcher != null) watcher.tick();
-            heartbeat(waited[0], ticks, process);
             if (legEnded(d)) return true;
             if (bodyLeftTheWorld()) {
                 // Latched HERE, where the process that was actually driving is in scope. The walker
@@ -1138,14 +1144,28 @@ public final class JourneyRig {
      */
     private int sinceHeartbeat;
 
-    private void heartbeat(int waited, int ticks, BotProcess process) {
+    /** What is driving right now, and how long the current wait has run — set wherever a leg begins,
+     *  read only by {@link #heartbeat}. */
+    private String driving;
+    private int legTicks;
+
+    /**
+     * <b>Called from {@link #await}, which is the only place any of this rig waits.</b>
+     *
+     * <p>It used to be called from {@link #settle} alone, and {@code settle} is not the only waiter:
+     * {@link #mineCellOrGiveUp} runs its own {@code await} loop, and the comment beside that loop
+     * already names the hazard — 「an invariant with a sibling path that ignores it」. A clock wired
+     * into one of two waiting paths measures one of two waits. Wiring it into the choke point they
+     * share is what makes the reading total rather than merely usual.
+     */
+    private void heartbeat(int budget) {
         if (driver == null) return;
         if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
         sinceHeartbeat = 0;
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info(
                 "[journey] 心跳 {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
-                stage.name(), process.kind(), waited, ticks,
+                stage.name(), driving == null ? "等待中（无驱动器）" : driving, legTicks, budget,
                 fp.blockPosition().getX(), fp.blockPosition().getY(), fp.blockPosition().getZ(),
                 fp.level().dimension().location(), fp.level().players().contains(fp),
                 driver.finished());
@@ -1180,6 +1200,8 @@ public final class JourneyRig {
     public void await(BooleanSupplier done, int withinTicks, Runnable then) {
         ctx.await(() -> {
             pinAroundBody();
+            legTicks++;
+            heartbeat(withinTicks);
             return done.getAsBoolean();
         }).within(withinTicks).then(then);
     }
