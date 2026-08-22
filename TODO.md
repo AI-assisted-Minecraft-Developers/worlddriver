@@ -865,6 +865,36 @@ mc.bot.*在本JVM=false}`。
   两者都没翻 ⇒ `carryTo` 在被 adopt 的真身体上根本没走到（查 `fp.connection` 是不是 null）。
   `slot.服务端被回滚` 是倒卷的仪器，不需要另加读数。
 
+#### 第 2 趟判定：**`carryTo` 生效，落在回声窗口内，没有倒卷**（306 场景，304 PASS，红只有两只金丝雀）
+
+`wd.actuatorSplitOnAnAdoptedBody`（`topology = {kind=integratedServer, 真玩家=1,
+mc.bot.*在本JVM=true}`，身体 `Player116`，`驱动器自造=false` —— 确是被 adopt 的真玩家）：
+
+```
+slot.前            = 0
+slot.服务端.同tick  = 4      slot.客户端.同tick  = 0
+slot.同tick一致     = ⚠️ 不一致：服务端 4，客户端 0
+slot.服务端.过10tick = 4      slot.客户端.过10tick = 4
+slot.最终一致       = 一致（都是 4）          ← 上一趟逐字是「⚠️ 不一致：服务端 4，客户端 0」
+slot.服务端被回滚   = 否（服务端仍是 4）
+```
+
+⇒ 预登记的三种形状里落在**第二种**：包晚一个来回到。同 tick 仍不一致是
+`ClientboundSetCarriedItemPacket` 的物理下限（客户端 `handleSetCarriedItem` 不动
+`MultiPlayerGameMode.carriedIndex`，要等它回一个同值的 `ServerboundSetCarriedItemPacket`
+才收敛），不是缺陷。**关键是它收敛到服务端那个值而不是把服务端卷回去**——
+`slot.服务端被回滚 = 否` 就是这句话的仪器。
+
+反向那条（`wd.actuatorSplitThroughTheClientAvatar`，客户端 actuator → 服务端）本来就好：
+`slot.服务端.过10tick = 8`，`slot.最终一致 = 一致（都是 8）`。
+
+⚠️ **瞄准那半边仍然是分裂的，而且这一趟自带阴性对照证明判据有效**：
+`aim.两侧差 = 是：yaw 差 34.53°，pitch 差 33.75°`，
+`aim.阴性对照 = 有效：同一目标格走服务端 actuator 时，客户端朝向不满足几何要求`。
+这是 [[a-server-side-aim-dies-at-the-next-packet]] 那条，属于 parity 未落的孪生，
+不属于 `carryTo`。**第三趟里 `aimBoth` 仍然是必须的，不要因为槽位修好了就以为瞄准也好了**
+（[[a-fix-can-expose-a-freeloader]] 的反面：这里是一个修法**不会**顺带修好另一个）。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 ⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
