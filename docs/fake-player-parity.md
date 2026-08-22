@@ -43,7 +43,14 @@
 
 - **废弃即消失：3 条**（N1、N2，加 N15 的一半）
 - **`JoinedBody` 一行可达：4 条**（N4、N13，加 X2-3、X2-5）——它们全都卡在**我们自己写的**那一行 `tick()` 空覆盖上
-- **换身体也不会好：11 条**——它们卡在驱动器自己的代码里，或卡在通道(二)上
+- **换身体也不会好：16 条**——它们卡在驱动器自己的代码里，或卡在通道(二)上
+  （2026-08-22 从 11 改到 16：原来的 11 本来就与下表行数对不上，另加 §6.8 查出的 N20–N23）
+
+**⚠️ 这条区分还有第三个方向，第一版漏了，2026-08-22 的受控对照把它逼了出来**：
+一条差异除了「哪具身体」，还要问**它是「客户端身体缺能力」还是「服务端身体有特权」**——
+因为这两个方向的修法**正相反**，而仓库方针（「不要一上来就补引擎能力」）只对前者收紧。
+今天表里绝大多数是**后者**：`ServerPlayerAvatar` 手写的那套物理和挖掘比真玩家**宽松**，
+所以正确的修法是把服务端身体改诚实，不是给客户端补能力。逐条定性见 §6.8 末尾那张表。
 
 ---
 
@@ -135,7 +142,7 @@ fabric/build.gradle:481   runRehearsalServer
 | 22a | `handlePlayerAction:1048` **SWAP_ITEM_WITH_OFFHAND** | — | 无动词（vanilla 这里还会 `stopUsingItem()`） |
 | 22b | 同上 **DROP_ITEM / DROP_ALL_ITEMS** | — | 无动词 → `Player.drop` 从不被调用，丢物、`Stats.DROP` 全测不到 |
 | 22c | 同上 **RELEASE_USE_ITEM** | `commandUseItem` → `fp.releaseUsingItem()`（`:188`） | **等价**（`7855a349` 修好的那一条） |
-| 22d | 同上 **START/ABORT/STOP_DESTROY_BLOCK** | `destroyAimed()` → `fp.level().destroyBlock(pos, true, fp)`（`:426-439`） | **近似，第二贵**。走的不是 `gameMode.handleBlockBreakAction`：没有分段挖掘、没有工具要求、没有精准采集/时运、不掉耐久、不触发 `CommonHooks.fireBlockBreak`、不走 `block.playerDestroy` 的统计 |
+| 22d | 同上 **START/ABORT/STOP_DESTROY_BLOCK** | `destroyAimed()` → `fp.level().destroyBlock(pos, true, fp)`（`:426-439`） | **近似，第二贵**。走的不是 `gameMode.handleBlockBreakAction`：没有工具要求、没有精准采集/时运、不掉耐久、不触发 `CommonHooks.fireBlockBreak`、不走 `block.playerDestroy` 的统计。**分段挖掘这一条要更正**，见下面的方框 |
 | 23 | `handleUseItemOn:1108` | `place`/`placeOn`/`useBlock` → `fp.gameMode.useItemOn(...)`（`:349-375`、`:535-545`） | 近似：跳过 `canInteractWithBlock(pos,1.0)`（vanilla `:1118`）、跳过命中向量合理性检查、跳过 `CriteriaTriggers.ANY_BLOCK_USE`（`:1129`）、跳过 `swing(hand,true)`（`:1139`）、跳过 `awaitingPositionFromClient` 闸（`:1126`） |
 | 24 | `handleUseItem:1160` | `useItemInHand()` → `fp.gameMode.useItem(...)`（`:622-624`） | 近似：内核等价，丢掉 `absRotateTo` 与 `swing` |
 | 25 | `handleTeleportToEntityPacket:1182` | — | 管道（旁观者） |
@@ -176,11 +183,29 @@ fabric/build.gradle:481   runRehearsalServer
 
 **这张表最该被记住的一行**：真玩家的 51 个动作入口里，**22 个驱动器一个动词都没有**，另有 2 个只覆盖了一半；其中「交互实体」（`interactOn`/`interactAt`）、「丢物」、「容器按钮」、「自定义 payload」四族，是驱动器作为**模组包测试工具**时最贵的四个洞。
 
+> **更正 #22d 的「没有分段挖掘」（2026-08-22，行号锚 `b71981e3`）。** 分段挖掘**是有的**，
+> 藏在一个开关后面，而**那个开关默认关着，梯子和六条闸一处都不开**：
+>
+> ```java
+> public static boolean faithfulBreak = false;                    // ServerPlayerAvatar.java:115
+> …
+> if (!faithfulBreak) { destroyAimed(); return; }                 // :399  ← 一 tick 拆一格
+> breakProg += st.getDestroyProgress(fp, fp.level(), aimTarget);  // :409  ← 真的分段
+> ```
+>
+> `grep -rn faithfulBreak` 全仓库只有两个写入点，都在场景里
+> （`WorldDriverProcessScenes.java:1334`、`WorldDriverWaterBankScenes.java:606`），
+> 且都带 `ctx.cleanup` 还原。**所以生产路径上跑的永远是 `:399` 那条一 tick 分支。**
+> 这不是文字游戏：它决定了服务端身体的每一次「挖开挡路的东西」都是免费的，而真玩家的不是。
+> 后果记在 N23，实测见 §6.8。
+> 注意即便 `faithfulBreak` 打开，`destroyAimed()` 落地仍是 `Level#destroyBlock`——
+> 工具要求、精准采集、时运、耐久、`BreakEvent` 这五条**一条都不会回来**，那半边仍属 T11。
+
 ---
 
 ## 4. 边界表
 
-### 4.1 真等价（16 条）
+### 4.1 真等价（19 条）
 
 「真等价」= 补得到逐位一致，且我能写出一个**缺陷存在时会红**的验证。
 
@@ -202,6 +227,9 @@ fabric/build.gradle:481   runRehearsalServer
 | T14 | `changeDimension` 目的地丢失 | 已修：`AvatarNetHandler.java:81-88` 让 `teleport(...)` 真的 `absMoveTo`（neoforge 的 `FakePlayerNetHandler.teleport` 在 `:254` 是 no-op，这就是 87501 格的来源） | 换维后断言坐标等于期望坐标（±1）。**但这条只覆盖 A/B**：C 穿的是 vanilla 的真 listener，走的是另一条路，必须**单独**验证一遍 |
 | T15 | 传送不重算流体标志 | 补一次 `updateInWaterStateAndDoFluidPushing()` | 在水里传送到干黑曜石上，断言 `isInWater() == false`。缺陷存在时为 `true` → 红 |
 | T16 | 装备属性同步 | 已有：`EQUIP_MEMO` + `syncEquipmentAttributes()`（`:668-711`，gap #46） | 换上钻石靴断言 `Attributes.ARMOR` 变化；脱下断言回落。两条臂 |
+| **T17** | **水底起跳：闸问错了量（新发现 N21，行号锚 `b71981e3`）** | 跳跃闸是 `soleOnSolid(...) > 0`（`ServerPlayerAvatar.java:1054-1055`）→ `fp.jumpFromGround()`（`:1087`），**只问脚底贴没贴住实心，从不问水有多深**。vanilla 的判据是流体高度：`LivingEntity.aiStep` 的 jump 分支里 `bl && (!onGround() \|\| g > h)` → `jumpInLiquid`（+0.04），只有 `onGround() \|\| (bl && g <= h)` 才 `jumpFromGround()`，其中 `h = getFluidJumpThreshold()`（`Entity`：`eyeHeight < 0.4 ? 0.0 : 0.4`，玩家 = 0.4）。补法：把 `footed` 改成 vanilla 那个复合谓词，`getFluidHeight(WATER)` 在 `step()` 里是活的（`fp.baseTick()` 每 tick 跑） | **实测已在手**（§6.8）：同一格 `64,61,60`、同一 tick、同一 `支=stepUp`，服务端首 tick **+0.420**、客户端 **+0.035**。验收臂见 §6.8 末尾的 `bottomedDeep` 预登记：两格水、踩池底、按住跳，断言**没有**单 tick 抬升 > 0.3。今天红，修好转绿。**注意 `wd.buoyantJumpStaysABob` 现有的 `bottomed` 臂断言的是 vanilla 没有的行为，必须一起改，否则 T17 一修它就红** |
+| **T18** | **起跳没有冷却（新发现 N22）** | vanilla 每次 `jumpFromGround()` 后置 `noJumpDelay = 10`，并以 `noJumpDelay == 0` 为闸；`ServerPlayerAvatar` 写了 `lastJumpTick`（`:884` 声明、`:1058` 写入）却**只被一个调试读数读**（`:881` `dbgLastJumpTick`），**从来不是闸**。补法：加 10 tick 冷却 | 按住跳 30 tick，断言 `jumpFromGround` 触发次数 ≤ 3。缺陷存在时每 tick 一次 → 红。**必须和 T17 分开验收**：T17 的臂在水里，这条的臂在干地上，否则两个自变量混在一起 |
+| **T19** | **客户端身体没有 `canBreak`（新发现 N20）——这一条是「客户端缺能力」** | `Avatar.canBreak` 的默认实现是 `default boolean canBreak(BlockPos pos) { return true; }`（`bot/movement/Avatar.java:120`），`ClientPlayerAvatar` 不覆盖它；只有 `ServerPlayerAvatar.canBreak`（`:471` 起 → `canBreakFromHere`：exposed + `blockInteractionRange() + 0.5`）是真的。后果：`MineProcess.java:424` 那条「exposed 却仍然 break 不了 ⇒ 退掉树冠、去砍齐眼高的树干」的退路在客户端是**死代码**，而它的注释写着不走这条退路「cost the journey's wood rung all six logs」。补法：在 `ClientPlayerAvatar` 覆盖 `canBreak`，用客户端自己的 `blockInteractionRange`。**⚠️ 这个文件在 `bot/movement/`，不是 parity 的产权** | 站在 8 格外对一根暴露的原木问 `canBreak`，断言 `false`；站在 3 格内问，断言 `true`。缺陷存在时前者也是 `true` → 红。**两条臂缺一不可**，只测近的那条就是 `0==0` |
 
 ### 4.2 只能近似（10 条）
 
@@ -286,11 +314,14 @@ fabric/build.gradle:481   runRehearsalServer
 | 9. `changeDimension` 目的地丢失 87501 格 | **真等价 T14**，A/B 已修 | `AvatarNetHandler.java:81-88`。**C 未验证**——它穿 vanilla 真 listener，走的是另一条路 |
 | 10. 传送不重算流体标志 | **真等价 T15** | 见 T15 |
 
-**分类计数（§0 的身体选型指令生效之后）**：真等价 **16**、只能近似 **10**、不可能且不需要 **9**、不可能但仍需要 **4**。合计 39 条。
+**分类计数（§0 的身体选型指令生效之后，2026-08-22 加进 T17/T18/T19）**：真等价 **19**、只能近似 **10**、不可能且不需要 **9**、不可能但仍需要 **4**。合计 42 条。
 
-折回原本要求的三类：**真等价 16 / 只能近似 10 / 不可能 13**（13 = 不需要 9 + 仍需要 4）。总数没变，**第四类从 6 缩到 4**，缩掉的两条（原 X2-1/X2-2）是被「废弃 `FakePlayer` + `JoinedBody` 上专用服」这条指令直接消掉的。
+折回原本要求的三类：**真等价 19 / 只能近似 10 / 不可能 13**（13 = 不需要 9 + 仍需要 4）。**第四类从 6 缩到 4**，缩掉的两条（原 X2-1/X2-2）是被「废弃 `FakePlayer` + `JoinedBody` 上专用服」这条指令直接消掉的。
 
-**另一个更有用的切法在 §6.5**：按「废弃即消失 / `JoinedBody` 一行可达 / 换身体也不会好」分，是 **3 / 4 / 11**。这个切法才直接对应第二阶段的工作量。
+**另一个更有用的切法在 §6.5**：按「废弃即消失 / `JoinedBody` 一行可达 / 换身体也不会好」分，是 **3 / 4 / 16**。这个切法才直接对应第二阶段的工作量。
+
+**第三个切法，2026-08-22 才被逼出来，而它才是决定修法方向的那个**：按「客户端缺能力 / 服务端有特权」分。
+今天可归的条目里**只有 N20 一条是前者**，其余全是后者。见 §6.8。
 
 ---
 
@@ -315,6 +346,10 @@ fabric/build.gradle:481   runRehearsalServer
 | N15 | `updateOptions` no-op → 视距恒为默认 | `AvatarFakePlayer.java:80` | 加载半径与真玩家不同，间接影响一切「周围有没有在跑」的断言 |
 | N16 | 区块批次从不 ack | vanilla `handleChunkBatchReceived:1844` | 只对 joined body 有意义 |
 | N17 | **已核对否定**：`closeContainer` 是等价的 | `ServerPlayer.java:1147-1149` 内部就调 `doCloseContainer()` | 我怀疑过「合成格里的东西不会掉回来、箱子开启计数会泄漏」，查了，不成立 |
+| **N20** | **客户端身体没有触及闸**：`Avatar.canBreak` 默认 `true`，`ClientPlayerAvatar` 不覆盖 | `bot/movement/Avatar.java:120`；`MineProcess.java:424` 是它唯一的消费者 | **这是本文档唯一一条「客户端缺能力」而不是「服务端有特权」的差异。** 它让 MineProcess 的树冠退路在客户端成为死代码，而那条退路的注释写着它救过梯子的六根木头。归 T19 |
+| **N21** | **水底起跳给了 0.42**：跳跃闸用 `soleOnSolid > 0` 代替 vanilla 的流体高度判据 | `ServerPlayerAvatar.java:1054-1055`、`:1087` vs `LivingEntity.aiStep` 的 jump 分支 + `Entity.getFluidJumpThreshold`（vanilla merged 1.21.1 jar，见 §6.8） | **实测因果**：它就是 2026-08-22 那次受控对照里两具身体分岔的第一步（+0.420 vs +0.035）。归 T17 |
+| **N22** | **起跳没有 `noJumpDelay` 冷却** | vanilla `LivingEntity.aiStep` 置 `noJumpDelay = 10` 并以它为闸；`ServerPlayerAvatar.lastJumpTick`（`:884`/`:1058`）只被 `dbgLastJumpTick`（`:881`）读，不是闸 | 同一个闸的第二个齿。今天没有单独的实测，与 N21 一起修、分开验收。归 T18 |
+| **N23** | **`faithfulBreak` 默认关着 ⇒ 服务端身体一 tick 拆一格** | `ServerPlayerAvatar.java:115`（默认 `false`）、`:399`（关着就直接 `destroyAimed()`）。全仓库只有两条场景开它，梯子和六条闸一处都不开 | **潜伏但昂贵**：它让每一条 `allowBreak` 的寻路计划对服务端身体定价全错。客户端那具走真的分段挖掘（`continueDestroy` = 一 tick 的 `continueDestroyBlock`）外加 vanilla 的 ÷5 悬空惩罚，同一条计划它跑不完。更正了 §3 #22d 的「没有分段挖掘」 |
 
 ---
 
@@ -371,7 +406,11 @@ fabric/build.gradle:481   runRehearsalServer
 
 ⚠️ **删那一行 `tick()` 覆盖不是免费的**，见附录雷 3：`ServerPlayer.tick()` 的最后一行是 `this.advancements.flushDirty(this)`（vanilla `:503`），并行跑多具身体时是每身体每 tick 一次落盘检查。**并行执行能力是硬约束，这个代价必须先量再改**，而量它正是普查场景的事。
 
-### 丙：换身体也不会好（11 条）——第二阶段的真工作量
+### 丙：换身体也不会好（16 条）——第二阶段的真工作量
+
+> **这个数原来写的是 11，而下表当时就有 12 行（13 条，N9/N10 合占一行）。** 现在补进
+> N20–N23 之后是 16 行。同族的旧错还在 §0 的摘要和本节末尾的结账里，一并改了。
+> 记下这条更正，是因为一个对不上的计数会让下一个人先怀疑整张表，而不是先怀疑那个数。
 
 这些差异的机制都不在身体的类型上，而在**驱动器绕过了真 handler**，或在**通道(二)整条不跑**上。`JoinedBody` 一样绕、一样不跑。
 
@@ -388,7 +427,11 @@ fabric/build.gradle:481   runRehearsalServer
 | N14 | 21 个动作族没有动词 | 驱动器根本没写这些动词。给它换一具更真的身体，也没有人去调 |
 | N15b | 视距**不可配** | `JoinedBody` 拿到 `ClientInformation.createDefault()`，是一份真的默认值；但没有 `handleClientInformation` 的入口去改它。从「缺失」降级为「不可配」——**降级了，没消失** |
 | N16 | 区块批次从不 ack | `SilentConnection` 吞掉一切，且没有客户端会 ack |
-| **N19** | **avatar 从不调 `Player.jumpFromGround()`** | **驱动器自己写的**，见下。换身体不动它 |
+| **N19** | **avatar 从不调 `Player.jumpFromGround()`** | **驱动器自己写的**，见下。换身体不动它。**已修（`e110fcb3`）**，但修法把 N21/N22 露了出来：现在调的是真方法，闸却还是驱动器自己那个 |
+| **N20** | 客户端身体没有触及闸 | `Avatar.canBreak` 的默认实现，与身体类型无关；换 `JoinedBody` 只会换掉服务端那一侧 |
+| **N21** | 水底起跳给了 0.42 | `ServerPlayerAvatar.java:1054-1055` 的闸是**驱动器自己写的**。`JoinedBody` 走同一个 `step()`，同一个闸 |
+| **N22** | 起跳没有 10 tick 冷却 | 同上，同一个闸 |
+| **N23** | `faithfulBreak` 默认关 ⇒ 一 tick 拆一格 | `ServerPlayerAvatar.breakHold` 是驱动器自己写的；`JoinedBody` 也从这里拆方块 |
 
 ### 乙档落地前**必须先解决**的前置：跳跃现在会扣饥饿，而这具身体不会吃饭
 
@@ -410,7 +453,7 @@ fabric/build.gradle:481   runRehearsalServer
 
 ---
 
-**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价 + **先还上面那笔饥饿账**」；**丙档 12 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14/N19 七条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。
+**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价 + **先还上面那笔饥饿账**」；**丙档 16 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14/N19/N21/N22/N23 十条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。**唯一的例外是 N20，它在 `bot/movement/ClientPlayerAvatar.java`，不是 parity 的产权。**
 
 ### N19 单列：一个缺陷被另一个缺陷完整遮住
 
@@ -642,6 +685,183 @@ Dimension `stagewright:generated` at 1124512,100000」。
 
 ---
 
+## 6.8 一次受控对照：同一棵树，专用服 12 根，集成服 0 根（2026-08-22）
+
+> **本节的行号锚在 `b71981e3`**，不是文首那个 `fba07d8b`。`bot/sim/` 在两者之间被改过
+> （`e110fcb3` 起 avatar 调真的 `jumpFromGround()`），**不要拿本节的行号去对 §1–§6 的行号**。
+
+这是这份文档第一次有**一对真正可比的臂**：同种子（5471）、同一批 `wd.journey*` 场景、
+前后脚跑的两趟真梯，唯一的自变量是拓扑（因而是身体 + 舵）。
+
+### 读数
+
+| 行 | `runJourneyServer`（`JoinedBody`） | `runJourneyIntegratedServer`（`LocalPlayer`） |
+|---|---|---|
+| `target.tree` | `65,68,63` | 同 |
+| `arrived.horizontalDistance` / `arrived.y` | `1` / `62` | 同 |
+| `journey.body` | `joined`，免伤=**true** | `real:ServerPlayer Player452`，免伤=**false** |
+| `journey.steer` | `serverTick/ServerAvatarManager` | `clientUserTask/ClientPlayerAvatar` |
+| 结果 | **PASS** 3125 tick，`logs=12`（`oak_log=12`） | **TIMEOUT** 8022 tick，**0 根** |
+
+出处：`fabric/run-journey/stagewright-results.jsonl` 与
+`fabric/run-journey-integrated/stagewright-results.jsonl` 的 `wd.journey03Wood`（`.type=="scene"` 那一行）；
+`fabric/run-journey/logs/latest.log`（服务端 15:41–15:44 本地时）；客户端控制台日志（17:47–17:54 本地时）。
+
+### 三个候选的判词（**被否定的两条也留在这里**）
+
+**候选三「MineProcess 在客户端根本没被注册／没被 tick」——排除。**
+`[pathfinder] search-begin owner=mine` 在客户端日志里出现 **218 次**，而这条 telemetry 是
+**无条件**的（`bot/pathfinder/PathFinder.java:412`，它自己的注释写着 "always-on telemetry"）；
+另有 40 条 `[journey] 心跳 WOOD mine 本段第N/8000 tick`。进程跑满了整条腿。
+
+> **「客户端一行 `[mine]` 都没有」这条前提是一条死通道，不是一个信号。**
+> `MineProcess` 里六处 `LOG.info("[mine] …")` 全部包在 `if (BotConfig.walkerDebug)` 里
+> （`:321`、`:365`、`:809`、`:824`、`:843`、`:899`），而 WOOD 级第一件事就是
+> `rig.generousPathfinding()`（`WorldDriverJourneyScenes.java:508`），它第三行是
+> `BotConfig.walkerDebug = false`（`JourneyRig.java:1254`）。**零行来自通道关着，两趟都关着。**
+> 「零行日志有两种解释，先证明通道是开的」——这次差点又是它。
+
+**候选二「途中被 panic/dodge/combat 抢占」——真的发生了，但不是死因。**
+整条腿只有**两次**抢占，都是 `drownEscape`，各约 1 秒：
+`[scheduler] chain user -> drownEscape` @17:47:48 → `-> user` @17:47:49；@17:51:06 → @17:51:07。
+腿本身 8000 tick ≈ 400 秒。而且它**没有结束这条腿**——跨过这两次交换的心跳仍然印
+`进程完成=false`，`journey.helm.endings` 也自始至终只有 `goto→跑完` 一条。
+（`drownEscape` 出价 500 本身是一条读数：这具身体在淹水，而服务端那具免伤、又不跑通道(二)，
+它的 `airSupply` 永远不动。`ClientPlayerAvatar` javadoc 说的抢占是真的，只是这一趟只值 2 秒。）
+
+**候选一「够不着」——不是近因，而且提问的那个闸在这具身体上根本不存在。**
+近因不成立：身体**从来没有走到任何一个 stand**，所以 `MineProcess` 的 `BREAKING` 一次都没进过，
+「够不够得着」还轮不到被问。证据是 218 条 `search-begin` 里 **171 条的 `start` 是同一格
+`65, 62, 62`**（另加 9 条 `65,61,62`、3 条 `65,62,63`），40 条心跳无一例外是 `65,61..63,62`。
+对照臂——**同一级、同一段、同一个 `arrived.y=62`** 的服务端心跳是
+`64,62,66 → 69,62,61 → 69,62,57 → 67,62,59 → 57,63,55 → 47,62,60 → … → 53,63,62`。
+**同一个座位，一具走遍四十格，一具八千 tick 没挪出一格。**
+
+> 顺带答完那道算术题（眼高 1.62、触及 4.5、竖直够到 68.1 > 68）：**它在客户端这具身体上是空谈**，
+> 因为客户端**没有触及闸**。`Avatar.canBreak` 的默认实现是
+> `default boolean canBreak(BlockPos pos) { return true; }`（`bot/movement/Avatar.java:120`），
+> `ClientPlayerAvatar` 不覆盖它；只有 `ServerPlayerAvatar.canBreak`（`:471` 起 → `canBreakFromHere`）
+> 是真的含 reach。见 N20 / T19。
+
+### 真正的机制：两具身体在同一格水里以不同的高度浮着
+
+第一次分歧发生在**同一格、同一 tick、同一分支**上，只差一个自变量：
+
+| | 服务端 `JoinedBody` | 客户端 `LocalPlayer` |
+|---|---|---|
+| 那一行 | `[walker] 起跳来源 序=1/6 t=95 支=stepUp 处=WalkerTickDrive.java:1181 身体=64,61,60 精确=(64.500,61.000,60.500) 路点=65,62,61 wp.y-foot.y=1 水=true 没顶=true 脚格=water 脚上=water` | 逐字相同，只有 `t=168` |
+| 之后六 tick 的 y | 61.000 → **61.420** → 61.791 → 62.123 → 62.423 → 62.704 | 61.000 → **61.035** → 61.098 → 61.183 → 61.287 → 61.404 |
+| 首 tick 抬升 | **+0.420** | **+0.035** |
+
+`+0.420` 只可能是 `jumpFromGround()`（平地无药水时 `getJumpPower()` = 0.42）。
+`+0.035` 正是 `jumpInLiquid` 的 `+0.04` 过一次 0.8 水阻，后续 0.063/0.085/0.104/0.117 收敛向
+`0.04×0.8/(1−0.8)`。服务端那五 tick 也吻合「一次 0.42 之后每 tick 再叠一个 0.04、乘 0.8 水阻」
+（0.42×0.8+0.04 = 0.376 ≈ 实测 0.371，依此类推）。
+**两具身体在同一格水底做了不同的动作**，而 `脚上=Block{minecraft:water}` 就是「水至少两格深」的直读。
+
+**vanilla 的规矩**（`LivingEntity.aiStep` 的 jump 分支，反编译自
+`.gradle/loom-cache/…/minecraft-merged-99176ea0e7-1.21.1-loom.mappings.1_21_1.layered+hash.40359-v2.jar`，
+按方法名引用，行号随反编译参数漂移）：
+
+```java
+if (this.jumping && this.isAffectedByFluids()) {
+    g  = isInLava() ? getFluidHeight(LAVA) : getFluidHeight(WATER);
+    bl = isInWater() && g > 0.0;
+    h  = getFluidJumpThreshold();          // Entity: eyeHeight < 0.4 ? 0.0 : 0.4 → 玩家 = 0.4
+    if (bl && (!onGround() || g > h))               jumpInLiquid(WATER);   // +0.04
+    else if (isInLava() && (!onGround() || g > h))  jumpInLiquid(LAVA);
+    else if ((onGround() || (bl && g <= h)) && noJumpDelay == 0) { jumpFromGround(); noJumpDelay = 10; }
+}
+```
+
+**而 `ServerPlayerAvatar` 的闸只问「脚底贴没贴住实心」，从不问水有多深，也没有冷却：**
+
+```java
+double sole = WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp);  // :1054
+boolean footed = sole > 0.0;                                                          // :1055
+if (footed) { lastJumpTick = …; fp.jumpFromGround(); }                                // :1058、:1087
+else if (inWater) { … dm.y + 0.04 … }                                                 // :1088、:1094
+```
+
+于是**一具站在两格深水底的身体拿到 0.42**，vanilla 会给它 0.04。
+（`lastJumpTick` 写在 `:1058`、声明在 `:884`，**只被 `:881` 的 `dbgLastJumpTick` 读**，从来不是闸 → N22。）
+
+后果是**两具身体从此站在不同的高度上，于是寻路器被问的是两道不同的题**：
+
+- **服务端**三 tick 就升出水面（`支` 从 `stepUp` 变成 `deepWaterRise`）。采木腿开始时它的脚格还在
+  `65,61,62`（`脚上=water`，仍在水下），走 `swimColumn`；到 15:42:00 已经站在 `65,62,63`、
+  `onGround=true 脚底实心=0.3600`——**上岸了**，约 120 tick。
+- **客户端**六 tick 只升了 0.4 格，最后停在水面（`精确 y=62.2…62.5`，`脚上=air`）。
+  采木腿第一条边落在 `WalkerTickClimb.java:1073`，而那一行在
+  `for (BlockPos b : edge.toBreak) { if (world.isSolid(b)) { … } }` **里面**——
+  即**计划的第一步是「一边浮着一边挖开岸壁」**（`BotConfig.allowBreak = true` 由 `JourneyRig.java:1278` 打开）。
+  这条分支自己的注释（`WalkerTickClimb.java:1039-1047`）逐字写着这种情形的结局：
+  「the buoyant bot drifts off its foot cell and the edge invalidates before the block breaks
+  → it bobs forever hand-mining the bank without escaping」。
+
+**第二条特权在这里生效。** 服务端那具身体挖开挡路的东西是**一 tick 一格**：
+`ServerPlayerAvatar.breakHold` 在 `faithfulBreak` 关着时直接 `destroyAimed()` → `Level#destroyBlock`
+（`:399`），而 `faithfulBreak` 默认就是 `false`（`:115`），全仓库只有两条场景开它，
+**梯子和六条闸一处都不开**。客户端那具走的是真的分段挖掘
+（`ClientPlayerAvatar.breakHold` = `keyAttack.setDown`；`continueDestroy` = 一 tick 的
+`continueDestroyBlock`），带 vanilla 的 ÷5 悬空惩罚（浮着 ⇒ `onGround()` 为假）——
+赤手一根橡木原木要三百 tick 以上，而边在那之前早就失效了。
+
+> **诚实边界，三条：**
+> 1. **第一次尝试**的「浮着挖」是**直接证据**（`WalkerTickClimb.java:1073` 在 `toBreak` 循环里）。
+>    其后 7800 tick 的每一次尝试是**推断**——依据是那 171 条同格 `search-begin` 加上
+>    `GOING_STALL_TICKS = 100`（`MineProcess.java:115`）的重扫节奏，不是逐次观测。
+> 2. **不能说服务端那具「没挖就上岸了」**：walker 的挖不是无条件记日志的，
+>    零行不构成证据。成立的是它 15:42:00 的定点读数 `onGround=true 脚底实心=0.3600`。
+> 3. `faithfulBreak` 这一条在**这次**分歧里是**潜伏**的（服务端的上岸没用到它），
+>    它的代价在别处：每一条 `allowBreak` 的计划对服务端身体都定价错了。
+
+### 定性：这是「服务端身体有特权」，不是「客户端身体缺能力」
+
+**这两个方向的修法正相反，所以定性必须先做。**
+
+| 差异 | 方向 | 在这次分歧里的角色 |
+|---|---|---|
+| 跳跃闸用 `soleOnSolid > 0` 代替 vanilla 的流体高度判据（**T17 / N21**） | **服务端特权** | **因果**。它就是两具身体高度分岔的那一步 |
+| 跳跃没有 `noJumpDelay` 十 tick 冷却（**T18 / N22**） | **服务端特权** | 同一个闸的第二个齿，本例未单独证实 |
+| `faithfulBreak = false` ⇒ 一 tick 拆一格（**N23**） | **服务端特权** | **潜伏**，见上面第 3 条 |
+| `Avatar.canBreak` 默认 `true`，客户端不覆盖（**N20 / T19**） | **客户端缺能力** | 非因果，但它让 `MineProcess` 的树冠退路在客户端成为死代码 |
+
+**四条里三条是特权。** 按仓库方针（「不要一上来就补引擎能力」），正确的修法方向是
+**把服务端身体改诚实**，不是给客户端补能力——只有 N20 那条是补。
+
+⚠️ **代价先写下来：专用服真梯的涉水级骑在这两条特权上。**
+把跳跃闸改成 vanilla 判据之后，`JoinedBody` 将**不能再从水底一跃出水**——
+而这颗种子的出生点就在沼泽水里（`survey.firstWater = 64,62,60`，离出生点 6 格）。
+**3 级和其它涉水段大概率退级，那些红是真的**：是本来就被特权盖住的东西被暴露，不是新缺陷。
+所以这一改必须**单独一轮、由协调者排期**，不能和别的自变量混进同一趟。
+
+### 一条现有断言把这条特权钉成了「必须」
+
+`wd.buoyantJumpStaysABob`（`common/src/testmod/.../scene/WorldDriverCoreScenes.java:835`）有两条臂：
+
+- `afloat`：**五格**深水、身体从水面附近释放 ⇒ `soleOnSolid = 0` ⇒ 只准 bob。今天绿，**vanilla 同意**。
+- `bottomed`：**一格**水、身体踩在岩石上 ⇒ 断言**必须**出现一次单 tick 抬升 > 0.3，也就是 0.42。
+
+**第二条臂断言的是 vanilla 没有的行为。** 一格满水源块里，
+`getFluidHeight(WATER)`（`Entity.updateFluidHeightAndDoFluidPushing`：`e = max(fluidTopY − aabb.minY)`）
+等于 **1.0**，而 `getFluidJumpThreshold()` 是 **0.4**；`1.0 > 0.4` ⇒ vanilla 走 `jumpInLiquid`，也是 0.04。
+**真玩家踩在一格水里按住跳，是浮起来，不是跳。**
+所以这条场景今天绿，绿的原因是它要求这具身体**保留**一条特权。
+（这一条是从源码推的算术，不是实测；实测只覆盖了两格深水那一侧。所以下面第二点是必须做的。）
+
+**T17 的验收设计（预登记，缺陷存在时会红）**：
+
+1. 加第三条臂 `bottomedDeep` —— **两格**水、身体踩在池底、按住跳，断言**没有**任何单 tick 抬升 > 0.3。
+   **今天这条会红**（本节实测 +0.420），修好转绿。这条臂就是这次对照缺的那一条：
+   现有两条臂一条「浮着」一条「一格水」，**没有一条问「踩在深水底」**，
+   而真梯死在的正是那一格。
+2. `bottomed` 那条臂必须同时改成「**流动水/低液面**（`getFluidHeight ≤ 0.4`）里踩在实心上仍要 0.42」，
+   否则 T17 一修它就红——**而那条红会是断言错了，不是修法错了**。改完之后它才真的在测
+   vanilla 的浅水地面跳，而不是在测这具身体的特权。
+
+---
+
 ## 7. 场景归属：谁该迁走，谁迁不了
 
 **迁移机制今天就有**：`SceneContext.playerHere()`（stagewright `api/src/main/java/net/magicterra/stagewright/scene/SceneContext.java:135`）会把真玩家传送进舞台并注册还原清理；`SceneContext.player()`（`:118`）在没有真玩家时**跳过场景**（`:150`）。
@@ -686,7 +906,7 @@ Dimension `stagewright:generated` at 1124512,100000」。
 
 ---
 
-## 9. 最值得先做的三件事
+## 9. 最值得先做的四件事
 
 ### 一、先加一条只测量、不断言的普查场景
 
@@ -714,6 +934,23 @@ Dimension `stagewright:generated` at 1124512,100000」。
 **这一条必须先被第一件事证明**：普查场景的「`advancements` 是否可写」一列，在 NeoForge 上 `FakePlayer` 那一列应报 `false`、`JoinedBody` 那一列应报 `true`。**先看到这两个读数，再翻闸。**
 
 ⚠️ **翻闸要单独一轮**：六条闸一处都不设 `realPlayerBodies`，一翻就是 241 条 `wd.*` 同时换被测对象，会红一批，**那些红是真的**。不要和普查混进同一趟 gate，否则谁红了都归不了因。翻闸的文件（`fabric/build.gradle` / `neoforge/build.gradle`）也不是 parity 的产权。
+
+### 四、把水底起跳闸改成 vanilla 的判据（T17 + T18）——**2026-08-22 新增，而且它插到了第二位**
+
+上面三件事都是**读代码推出来的**优先级。T17 不是：**它有一次受控对照，直接证明了它让一趟真梯从 12 根木头掉到 0 根**（§6.8）。
+这份文档到今天为止，只有它和甲档 N1/N2 是被**实测**而不是被推理确认的。
+
+**它同时是这份文档第一条被明确定性为「服务端身体有特权」的差异**，所以修法是**减**不是**加**——
+把 `ServerPlayerAvatar.java:1054-1055` 的 `footed` 换成 vanilla 的复合谓词，加上 `:1058` 那个
+已经写好却从来没被当成闸的 10 tick 冷却。改动全部落在 `bot/sim/`，是 parity 的产权。
+
+**但它的验收比修法贵，而且顺序不能反：**
+
+1. **先加臂，后改代码。** `wd.buoyantJumpStaysABob` 的 `bottomedDeep` 新臂必须**先落地并观察到它是红的**——
+   一条修好之后才第一次运行的断言，证明不了自己在缺陷存在时会红。
+2. **同一笔提交里改 `bottomed` 那条旧臂**，它今天断言的是 vanilla 没有的行为（§6.8 末尾）。
+3. **专用服真梯会退级**，因为这颗种子的出生点就在水里。**先跟协调者要一个单独的闸槽**，
+   不要和别的自变量混跑；退下来的级要按「特权被拿掉之后暴露出来的真问题」记账，不是回归。
 
 ---
 
