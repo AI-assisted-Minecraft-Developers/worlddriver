@@ -449,6 +449,51 @@ portal.walk.4  104,37,7 → 104,37,7（挪了 0 格，409 tick）
 
 ⚠️ 这段是**跑中读的日志**，不是 results 行。第七趟的正式判据仍以结果文件为准。
 
+### 死因再收窄一层：卡死的计时器被卡死本身每 tick 清零
+
+上面说「先查 `crossDesc` 被谁拒绝」，查下去发现了更根本的一层，而且**代码里早就写着**。
+
+先纠正一句我自己的读法：`crossDesc` **不是移动分支，是「步进指针为什么前进」的原因名**
+（`WalkerTickProgress:55` 的 `ADVANCE_NAMES`）。所以那 160 tick 里发生的是：
+
+```
+每 tick：重新规划 → 指针 1→2（因=crossDesc）→ 身体一格没动 → 下一 tick 再来一遍
+精确=(-1075.700,67.122,1260.300)  逐 tick 逐字节相同
+```
+
+**指针在前进，身体没有。** 而 worlddriver 用来抓「卡死」的计时器 `noStepProgressTicks`
+恰好被这两件事清零，而这两件事正是本卡死每 tick 都在做的：
+
+| 清零点 | 原注释 |
+|---|---|
+| `Walker.java:2640` | `// new path → restart the wedge timer (else a same-index step re-triggers instantly)` |
+| `WalkerTickProgress.java:441-443` | `if (npStepFresh) { noProgressStep = wk.step; noStepProgressTicks = 0; …}` |
+
+⇒ 于是那条**专门为这个现象写的**诊断 `STEP-ADV-DIAG`（`WalkerTickProgress:58`，
+自陈是为 `-823 dimple churn` 加的）**整趟打了 0 行** —— 它的准入条件里有
+`noStepProgressTicks > 6`。**仪表的准入条件把它要解释的那个现象排除在外了。**
+
+而 `WalkerTickProgress:280-282` 的注释早就把话说明白了：
+
+> `noStepProgressTicks == 0` … it is a statement about the plan, and
+> **a body can satisfy it forever while standing perfectly still.**
+
+### 今天第三次同一个形状
+
+| # | 仪表 | 准入条件假设的故障样子 | 真实故障样子 |
+|---|---|---|---|
+| 1 | 心跳 | 一段能活到 200 tick | 114 段没一段活过 60 |
+| 2 | futile-search guard | A\* 找不到路（`!goalReached`） | A\* 找得到，驱动层执行不了 |
+| 3 | `STEP-ADV-DIAG` / `noStepProgressTicks` | 指针不动 | **指针每 tick 都动，身体不动** |
+
+**共同点：仪表假设「故障 = 什么都不在推进」，而真实故障是「推进的是错的那个量」。**
+⇒ 下次加任何「卡住多久」的计数器，先问一句：**这个计数器的清零条件，
+会不会正好是故障现象每 tick 都在做的事？**
+
+⚠️ 按拍板第 4 条，这些仍然**只记录不改**（引擎侧、222 场爆炸半径）。
+但优先级顺序现在明确了：真要修，**先修 `noStepProgressTicks` 的清零条件**（它是三者里最上游的，
+另外两个的失明都能由它解释），而不是先去动 futile-search guard 的计数。
+
 ### 读第四趟的三条纪律
 
 1. **先看 `rehearsal.doorway` 的「垂直差」**（必须 ≤24）。布景几何变了，
