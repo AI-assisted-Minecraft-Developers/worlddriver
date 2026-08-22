@@ -35,6 +35,7 @@ import net.magicterra.worlddriver.bot.scheduler.Priorities;
 import net.magicterra.worlddriver.bot.scheduler.ProcessScheduler;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -161,8 +162,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // VERT_RISE fallback
         driver.runProcess(new EscapeProcess(floorY + 4));
@@ -214,8 +214,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // server breaks drop nothing → pre-stock plug blocks
         driver.runProcess(new BunkerProcess(2));
@@ -328,8 +327,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BotConfig.allowPlace = true;
         BotConfig.walkerDebug = false;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));   // VERT_RISE fallback
         driver.runProcess(new EscapeProcess(floorY + 6));
@@ -396,8 +394,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 13, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 13, cz + 0.5);
         driver.fakePlayer().setHealth(2.0f);
         driver.runProcess(new RunAwayProcess(from, minDist));
         ServerAvatarManager.register(driver);
@@ -461,8 +458,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 64));
         driver.runProcess(new BunkerProcess(2));
@@ -543,8 +539,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         // FakePlayer starts IN the water AT the surface — surfaceY-1: only the new opt-in
         // SurfaceDive can start the descent (SwimDown is isSubmergedFoot-gated).
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, surfaceY - 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, surfaceY - 1, cz + 0.5);
         BlockPos start = driver.fakePlayer().blockPosition();
 
         // PLANNER-ONLY proof: the plan reaches the floor and its edge list actually contains
@@ -666,8 +661,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         List<Constraint> constraints = List.of(new NoBreak());
         SearchProfile diveSearch = new SearchProfile(List.of(), diveProfile, constraints);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, surfaceY - 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, surfaceY - 1, cz + 0.5);
         SimProbes.grantWaterEffects(driver.fakePlayer());
         BlockPos start = driver.fakePlayer().blockPosition();
 
@@ -970,8 +964,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
                             (dx == 0 && dz == 0 ? Blocks.WATER : Blocks.STONE).defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
 
         DrownEscapeChain drown = new DrownEscapeChain();
@@ -1062,8 +1055,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         BotConfig.walkerDebug = false;
         level.setBlockAndUpdate(new BlockPos(cx, floorY, cz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.setAirSupply(42);
 

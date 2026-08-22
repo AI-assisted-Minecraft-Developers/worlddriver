@@ -27,6 +27,7 @@ import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -842,7 +843,7 @@ public final class WorldDriverScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc).
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
@@ -1015,7 +1016,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). Unlike
         // gearScope's no-op, this unregister is the REAL teardown: this scene registers.
@@ -1283,7 +1284,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // ±1.5 but the exact cell never latched → finished=false forever).
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
         // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
-        final ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        final ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         final ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). This scene
         // registers, so unregister is the REAL teardown. Also carries the legacy finally's
@@ -1546,7 +1547,7 @@ public final class WorldDriverScenes implements SceneProvider {
 
         EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
-        final ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        final ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         final ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> {
             ServerAvatarManager.unregister(driver);

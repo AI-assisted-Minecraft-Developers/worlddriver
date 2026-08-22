@@ -5,6 +5,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;
@@ -93,8 +94,7 @@ public final class WorldDriverMobFightScenes {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -199,8 +199,7 @@ public final class WorldDriverMobFightScenes {
                         net.minecraft.world.entity.boss.enderdragon.EnderDragon.class,
                         WorldDriverProcessScenes.entityBox(cx, floorY, cz)).isEmpty())
                 .within(200).then(() -> {
-            ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-            ctx.cleanup(() -> driver.fakePlayer().discard());
+            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             var fp = driver.fakePlayer();
             fp.getInventory().clearContent();
             fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
@@ -307,8 +306,7 @@ public final class WorldDriverMobFightScenes {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
@@ -573,8 +571,7 @@ public final class WorldDriverMobFightScenes {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIAMOND_SWORD));
@@ -685,8 +682,7 @@ public final class WorldDriverMobFightScenes {
                         net.minecraft.world.entity.boss.enderdragon.EndCrystal.class,
                         WorldDriverProcessScenes.entityBox(cx, floorY, cz)).isEmpty())
                 .within(200).then(() -> {
-            ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-            ctx.cleanup(() -> driver.fakePlayer().discard());
+            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             var fp = driver.fakePlayer();
             fp.getInventory().clearContent();
             fp.getInventory().add(new ItemStack(Items.IRON_SWORD));

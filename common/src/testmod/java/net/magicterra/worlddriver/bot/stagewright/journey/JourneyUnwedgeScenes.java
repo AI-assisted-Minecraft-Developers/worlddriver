@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.bot.process.TowerProcess;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -241,11 +242,8 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
 
     /** A body standing in {@code foot}, stocked and settled, with the cleanup that removes it. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(ctx.level(),
-                foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
+        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
-        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
-        fp.getInventory().clearContent();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, STOCK));
         fp.getInventory().selected = 0;
         ServerPlayerAvatar av = driver.avatar();

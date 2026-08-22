@@ -16,6 +16,7 @@ import net.magicterra.worlddriver.bot.process.RecipeResolver;
 import net.magicterra.worlddriver.bot.process.SmeltProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.model.Params;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -155,8 +156,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_LOG, 1));
         driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
@@ -331,8 +331,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver da = ServerWorldDriver.createIsolated(level, ax + 0.5, floorY + 1, az + 0.5);
-        ctx.cleanup(() -> da.fakePlayer().discard());
+        ServerWorldDriver da = SceneBody.mint(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
         da.fakePlayer().getInventory().clearContent();
         da.fakePlayer().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
         da.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
@@ -381,8 +380,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
         BlockPos preExisting = new BlockPos(bx + 1, floorY + 1, bz);   // within reach
         level.setBlockAndUpdate(preExisting, Blocks.CRAFTING_TABLE.defaultBlockState());
-        ServerWorldDriver db = ServerWorldDriver.createIsolated(level, bx + 0.5, floorY + 1, bz + 0.5);
-        ctx.cleanup(() -> db.fakePlayer().discard());
+        ServerWorldDriver db = SceneBody.mint(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
         db.fakePlayer().getInventory().clearContent();
         db.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
         db.fakePlayer().getInventory().add(new ItemStack(Items.STICK, 2));   // NO table item
@@ -418,8 +416,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
 
@@ -517,8 +514,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().setItem(9, new ItemStack(Items.COBBLESTONE, 208));
@@ -599,8 +595,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 4));
         driver.fakePlayer().getInventory().add(new ItemStack(Items.COAL, 4));
@@ -665,8 +660,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
             }
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());   // the 1-deep hole
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.CRAFTING_TABLE, 1));
         driver.fakePlayer().getInventory().add(new ItemStack(Items.OAK_PLANKS, 3));
@@ -716,8 +710,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
             }
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();
         driver.fakePlayer().getInventory().add(new ItemStack(Items.FURNACE, 1));
         driver.fakePlayer().getInventory().add(new ItemStack(Items.RAW_IRON, 3));
@@ -763,8 +756,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
 
         Container furnace = (Container) level.getBlockEntity(fpos);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, x0 + 0.5, floorY + 1, z0 + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, z0 + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         // Slot order is the trap: the workstation sits FIRST, the real fuel last.
@@ -840,8 +832,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;
@@ -878,8 +869,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.ACACIA_LOG, 1));
@@ -940,8 +930,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().clearContent();   // zero materials: plan() must report "缺 …"
         driver.runProcess(new CraftProcess("minecraft:oak_planks", 4));
         ServerAvatarManager.register(driver);
@@ -988,8 +977,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();   // zero materials: plan() must report "缺 …", never reach STATION
         InventoryMenu invMenu = (InventoryMenu) fp.inventoryMenu;

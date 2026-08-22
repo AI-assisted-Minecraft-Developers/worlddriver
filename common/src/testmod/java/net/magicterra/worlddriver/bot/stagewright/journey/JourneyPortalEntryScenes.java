@@ -15,6 +15,7 @@ import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -261,11 +262,9 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     /** The same, with the body's z inside its own cell named — a stance on the LIP of a block is a
      *  different situation from one at its centre, and one arm here needs the lip. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot, double dz) {
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(ctx.level(),
+        ServerWorldDriver driver = SceneBody.managed(ctx,
                 foot.getX() + 0.5, foot.getY(), foot.getZ() + dz);
         ServerPlayer fp = driver.fakePlayer();
-        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
-        fp.getInventory().clearContent();
         // A pickaxe because the ladder's body has one by rung 13 and because destroyBlock hands the
         // held item to dropResources — a fist opens the cell and drops nothing.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));

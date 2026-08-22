@@ -22,6 +22,7 @@ import net.magicterra.worlddriver.bot.scheduler.Priorities;
 import net.magicterra.worlddriver.bot.scheduler.RetreatChain;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.world.SurvivalFacts;
@@ -785,8 +786,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
             }
         level.setBlockAndUpdate(new BlockPos(cx, floorY + 1, cz), Blocks.AIR.defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.DIRT, 64));  // server breaks drop nothing → pre-stock plug blocks

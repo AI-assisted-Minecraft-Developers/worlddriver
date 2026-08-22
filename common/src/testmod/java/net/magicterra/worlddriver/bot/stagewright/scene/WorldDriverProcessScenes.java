@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.process.RunAwayProcess;
 import net.magicterra.worlddriver.bot.process.Schematic;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
@@ -255,7 +256,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
         });
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -331,8 +332,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.gotoGoal(new Goal.Block(goal));
         ServerAvatarManager.register(driver);
         if (ServerAvatarManager.activeCount() != 1) { ctx.fail("driver failed to register"); return; }
@@ -385,8 +385,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx - 3 + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx - 3 + 0.5, floorY + 1, cz + 0.5);
         driver.mine(target);
         ServerAvatarManager.register(driver);
         for (int t = 0; t < 200 && ServerAvatarManager.activeCount() > 0; t++)
@@ -432,8 +431,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new IntentProcess(new Intent(new Goal.Block(goal))));   // the REAL client process, server-side
         ServerAvatarManager.register(driver);
 
@@ -483,8 +481,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new RunAwayProcess(from, minDist));
         ServerAvatarManager.register(driver);
 
@@ -543,8 +540,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // Hold a pickaxe: stone requiresCorrectToolForDrops, and the tool gate (gap#2)
         // now keeps a toolless bot from futilely "mining" harvest-requiring blocks for
         // zero drops — so the mine happy-path must actually carry the harvesting tool.
@@ -663,7 +659,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = 20;
         BotConfig.pathfinderMaxMs = 2000;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -780,7 +776,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.allowPlace = false;
         BotConfig.walkerDebug = false;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -864,7 +860,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = 2000;
 
         final int pitFloorY = floorY - 4;
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, pitFloorY, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, pitFloorY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -953,7 +949,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = 2000;
 
         final int shaftFloorY = floorY - 9;
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 1.5, shaftFloorY, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 1.5, shaftFloorY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -1056,7 +1052,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = 20;
         BotConfig.pathfinderMaxMs = 2000;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -1145,7 +1141,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = 20;
         BotConfig.pathfinderMaxMs = 2000;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
         fp.getInventory().clearContent();
@@ -1251,8 +1247,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // NO pickaxe — empty-handed, matching the campaign soft-lock (broken pickaxe, no craft path).
         driver.runProcess(new MineProcess(List.of("minecraft:stone"), 3, 8));
         ServerAvatarManager.register(driver);
@@ -1333,8 +1328,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         ServerPlayerAvatar.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // NO pickaxe — empty-handed, matching the campaign soft-lock at y-14 deepslate.
         driver.gotoGoal(new Goal.Block(goal));       // real Walker executor, no MineProcess
         ServerAvatarManager.register(driver);
@@ -1439,7 +1433,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 .within(100).then(() -> {
             // ---- Phase A: forbidDig (NoBreak) — the plug MUST survive, bot must NOT get past it. ----
             setPlug.run();
-            ServerWorldDriver driverA = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
+            ServerWorldDriver driverA = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             driverA.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));  // NOT tool-gated: only forbidDig can stop the dig
             driverA.fakePlayer().getInventory().selected = 0;
             Intent intentA = new Intent(new Goal.Near(standCell, 1), List.of(), CapabilityProfile.ALL, List.of(new NoBreak()), leash);
@@ -1466,8 +1460,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
             // ---- Phase B: precision — SAME rig, NO forbidDig — must dig through and REACH the stand. ----
             setPlug.run();
-            ServerWorldDriver driverB = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-            ctx.cleanup(() -> driverB.fakePlayer().discard());
+            ServerWorldDriver driverB = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             driverB.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
             driverB.fakePlayer().getInventory().selected = 0;
             Intent intentB = new Intent(new Goal.Near(standCell, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);   // no NoBreak = digging allowed
@@ -1526,8 +1519,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.fakePlayer().getInventory().items.set(0, new ItemStack(Blocks.COBBLESTONE, 64));
         driver.fakePlayer().getInventory().selected = 0;
         driver.runProcess(new BuildProcess(origin, schem));
@@ -1580,8 +1572,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BlockPos target = new BlockPos(cx + 2, floorY + 1, cz);   // a stone 2 cells east at foot height
         level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayerAvatar av = driver.avatar();
         av.aimAtBlock(target);                       // sets yaw/pitch toward the cell
         BlockPos look = av.lookingAtBlock();         // eye→view clip raycast
@@ -1631,8 +1622,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // it; poll (bounded) until the stand appears, then run the drive loop + assertion VERBATIM.
         ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class, entityBox(cx, floorY, cz)).isEmpty())
                 .within(100).then(() -> {
-            ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-            ctx.cleanup(() -> driver.fakePlayer().discard());
+            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             driver.runProcess(new FollowProcess("minecraft:armor_stand", null, 2, 0));
             ServerAvatarManager.register(driver);
 
@@ -1695,8 +1685,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         // loop: poll (bounded) until the fresh zombie is queryable, then run the fight VERBATIM.
         ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty())
                 .within(100).then(() -> {
-            ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-            ctx.cleanup(() -> driver.fakePlayer().discard());
+            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             driver.fakePlayer().getInventory().clearContent();
             driver.fakePlayer().getInventory().add(new ItemStack(Items.IRON_SWORD));
             // KILL by TYPE (scans Level.getEntities) rather than by id — the by-id lookup is not
@@ -1787,8 +1776,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         ctx.await(() -> !level.getEntitiesOfClass(Zombie.class, entityBox(cx, floorY, cz)).isEmpty()
                         && !level.getEntitiesOfClass(ItemEntity.class, entityBox(cx, floorY, cz)).isEmpty())
                 .within(100).then(() -> {
-            ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-            ctx.cleanup(() -> driver.fakePlayer().discard());
+            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
             driver.fakePlayer().getInventory().clearContent();
             driver.fakePlayer().getInventory().add(new ItemStack(Items.IRON_SWORD));
             driver.runProcess(new CombatProcess(CombatProcess.Mode.KILL, null, "minecraft:zombie"));
@@ -1861,8 +1849,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         BotConfig.walkerDebug = false;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver.runProcess(new LookProcess(track, 0f, 0f));
         ServerAvatarManager.register(driver);
         for (int t = 0; t < 300 && ServerAvatarManager.activeCount() > 0; t++)
@@ -1921,8 +1908,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Phase 1 — radius=16 (regression: already worked before the fix, must still work after it).
-        ServerWorldDriver driver16 = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver16.fakePlayer().discard());
+        ServerWorldDriver driver16 = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver16.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
         driver16.fakePlayer().getInventory().selected = 0;
         driver16.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 16));
@@ -1938,8 +1924,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         // Phase 2 — radius=32, the exact live repro: respawn the log and re-run with the wider radius.
         level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
-        ServerWorldDriver driver32 = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver32.fakePlayer().discard());
+        ServerWorldDriver driver32 = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         driver32.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
         driver32.fakePlayer().getInventory().selected = 0;
         driver32.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 32));
@@ -2001,8 +1986,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
         });
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5 + xOff, feetY, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5 + xOff, feetY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.setYRot(startYaw); fp.yHeadRot = startYaw; fp.yBodyRot = startYaw;
         fp.getInventory().clearContent();

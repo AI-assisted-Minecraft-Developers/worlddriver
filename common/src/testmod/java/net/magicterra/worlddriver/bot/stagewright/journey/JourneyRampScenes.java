@@ -13,6 +13,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -183,11 +184,8 @@ public final class JourneyRampScenes implements SceneProvider {
 
     /** A body standing in {@code foot}, settled, carrying the rung's own cobblestone. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(ctx.level(),
-                foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
+        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
-        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
-        fp.getInventory().clearContent();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().selected = 0;
         settle(driver);

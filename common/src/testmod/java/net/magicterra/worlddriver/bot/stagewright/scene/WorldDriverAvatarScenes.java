@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.bot.process.ElytraProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -128,8 +129,8 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                 level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
                 level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
             }
-        ServerWorldDriver a = ServerWorldDriver.createIsolated(level, ax + 0.5, floorY + 1, az + 0.5);
-        ServerWorldDriver b = ServerWorldDriver.createIsolated(level, bx + 0.5, floorY + 1, bz + 0.5);
+        ServerWorldDriver a = SceneBody.bare(ctx, level, ax + 0.5, floorY + 1, az + 0.5);
+        ServerWorldDriver b = SceneBody.bare(ctx, level, bx + 0.5, floorY + 1, bz + 0.5);
         ctx.cleanup(() -> { a.fakePlayer().discard(); b.fakePlayer().discard(); });
         ServerPlayer fpA = a.fakePlayer(), fpB = b.fakePlayer();
 
@@ -173,8 +174,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
 
         // --- (A) A HELD USE COMPLETES: eating. ---
@@ -244,8 +244,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         equipMainHand(fp, new ItemStack(Items.IRON_SWORD));
@@ -384,8 +383,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 40, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 40, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.ELYTRA));   // fresh wing (full durability)

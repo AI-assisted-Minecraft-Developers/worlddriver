@@ -221,10 +221,22 @@ loom {
         stagewrightIntegratedServer {
             client()
             property 'stagewright.autorun', 'true'
-            // Same body everywhere — see dogfoodServer. A topology must vary the RUN, never the
-            // subject: two topologies testing different bodies produce rows that look comparable
-            // and are not.
+            // ⚠️ THIS TOPOLOGY NO LONGER VARIES ONLY THE RUN, and that is now on purpose. The
+            // 2026-08-20 body-selection instruction puts JoinedBody on the DEDICATED server only, so
+            // `SceneBody` refuses to mint one here and every scene that needs a headless body is a
+            // recorded skip until its family is converted to the client helm. The flag stays because
+            // it still decides what the ladder's topologies get, and because turning it off would
+            // put the retired FakePlayer back — a worse body, not a smaller change.
+            // The old doctrine「a topology must vary the RUN, never the subject」still applies to
+            // every OTHER pair of topologies, and it is why the skips have to be reconciled against
+            // the dedicated gate rather than counted as coverage.
             property 'worlddriver.realPlayerBodies', 'true'
+            // Hold the suite until the local player is actually placed. Without it the suite arms at
+            // SERVER_STARTED — before that happens — and `SceneBody`'s refusal would be answering a
+            // question whose answer changes part-way through the run: scenes that got in early would
+            // mint a body, later ones would skip, and the split would be decided by boot speed.
+            // `journeyIntegratedServer` has always set this for the same reason.
+            property 'stagewright.awaitPlayer', 'true'
             property 'stagewright.client.world', 'StageWrightClient'
             property 'stagewright.client.exitWhenDone', 'true'
             property 'worlddriver.rpcPort', '0'

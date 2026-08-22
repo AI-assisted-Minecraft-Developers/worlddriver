@@ -1,3 +1,64 @@
+## 🟡 集成拓扑不再造假人：`SceneBody` 一个接缝 + 90 处 mint 点迁移（**预登记，跑之前写的**）（2026-08-22）
+
+### 为什么
+
+2026-08-20 的身体选型指令：废弃 `FakePlayer`，`JoinedBody` **仅**用于专用测试服，集成服 + 客户端用
+`LocalPlayer` 驱动。今天数出来的实况是反的：
+
+| 趟 | joined | left | maxBody |
+|---|---|---|---|
+| `stagewrightDedicatedServerFabric`（两趟） | 239 | **0** | 238 |
+| `stagewrightIntegratedServerFabric` | **351** | **0** | 175 |
+| `runJourneyServer` | 1 | 0 | 1 |
+
+两个独立问题，**不要混成一个**：
+
+1. **专用服的 239/0 是泄漏** —— 身体加入了player表却从不离场。`JoinedPlayerBodies.remove()` 有覆盖、
+   javadoc 就记着这个症状，但没生效。**这一侧继续用 JoinedBody（指令允许），泄漏是真 bug，派给 parity。**
+2. **集成服的 351 是违规** —— 那个拓扑根本不该有假人。**这条由本次改动解决。**
+
+### 落了什么
+
+`common/src/testmod/.../bot/stagewright/SceneBody.java`：所有场景造身体的唯一入口。
+专用服上逐字节等价于原来的四行；集成服（`!isDedicatedServer() && BotHooks.isAvailable()`）**`ctx.skip`**。
+
+三个工厂对应三种真实形态（50 处 `mint` / 12 处 `managed` / 其余 `bare`），
+**故意不合并** —— 合并会给专用服凭空加上 `unregister` 或清掉刚布好的背包，而专用服必须不变，
+因为所有被 skip 的场景的覆盖率都要交给它。
+
+顺带修的两条：
+- `fabric/build.gradle:310` 那段注释说「三个梯子拓扑都不改爬的是哪具身体、真玩家这个接缝不存在」——
+  **是陈的**。`journeyIntegratedServer` 早就领养真玩家，且**跑过**：
+  `journey.body=real:ServerPlayer Player452`、`journey.steer=clientUserTask/ClientPlayerAvatar`。
+- 两个 loader 的 `stagewrightIntegratedServer` 都**缺 `stagewright.awaitPlayer`**。套件在 `SERVER_STARTED`
+  武装，那时本地玩家还没被放进世界。判据若含「有没有真人」，同一趟里闸会自己翻面：
+  早跑的场景 mint、晚跑的 skip，分界由开机快慢决定。**判据已改成只看拓扑（不随时间变），并补上等真人。**
+
+### 判据（跑之前写死，读 results 之前不许改）
+
+集成闸 `stagewrightIntegratedServerFabric` 重跑后：
+
+| # | 预期 | 怎么算不达标 |
+|---|---|---|
+| 1 | 日志里 `joined` 计数 **≤1**（只剩真人自己） | 还有两位数的 `agent-body-N` 加入 |
+| 2 | skip 的场景数 ≈ 造身体的那些，且**每一条都在专用服闸里执行过** | 有一条两边都没执行 = 覆盖真空 |
+| 3 | 那 22 条客户端专属场景**照跑不误**（它们不造无头身体） | 任何一条因本次改动变成 skip |
+| 4 | 专用服闸 `stagewrightDedicatedServerFabric` 的执行/跳过数**与改动前逐条相同** | 任何一条改变结论 = 我碰坏了不该碰的那一侧 |
+
+**判据 4 是这次的负对照**，比另外三条都重要：这次改动的全部正当性建立在
+「专用服那一侧一个字都没变」上。先跑专用服闸对账，再跑集成闸。
+
+### 明确没做、且不许报成做了的
+
+- **执行层没转。** 被 skip 的场景不等于在集成拓扑上测过了。真正的转换是按场景族改走
+  `BotApi.runProcess` 客户端舵（`JourneyRig.startLeg` 是范本），一族一族来。
+  优先转**只有这个拓扑能观测**的族 —— 弓那条 bug 和 T17 都活在客户端侧。
+- **skip 不是覆盖。** 判据 2 那条对账不做完，这次改动只是把违规换成了沉默。
+- `dedicatedServerWithClient`（joining 拓扑）**没动**：它的客户端在另一个进程，`BotProcess` 过不了 socket，
+  梯子早把这条记成 documented compromise。要不要一起改是**单独一个决定**，不是本次的副作用。
+
+---
+
 ## 🟡 janitor 交接：五份手抄的「握住这个 id」已合一（已提交未编译），而**放宽它的那一步被一条场景否掉了**（2026-08-22）
 
 ### 已落（`common/src/main`，全部**未编译**，等第七趟排练退出后随 `:common:compileJava` 验）

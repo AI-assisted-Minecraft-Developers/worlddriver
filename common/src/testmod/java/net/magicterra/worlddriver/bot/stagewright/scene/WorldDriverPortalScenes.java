@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 import java.util.ArrayList;
 import java.util.List;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
@@ -140,8 +141,7 @@ public final class WorldDriverPortalScenes {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = true;
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         var fp = driver.fakePlayer();
         // A WATER bucket, not an empty one, and that is the order the plan runs in: the water is what
         // gets carried to the site, and the bucket is empty from then on except while it is holding
@@ -372,8 +372,7 @@ public final class WorldDriverPortalScenes {
         BlockPos well = new BlockPos(cx - 6, floorY, cz - 8);
         level.setBlockAndUpdate(well, Blocks.WATER.defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, x0 + 0.5, floorY + 2, cz - 1.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 2, cz - 1.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
@@ -551,8 +550,7 @@ public final class WorldDriverPortalScenes {
             for (int dy = 1; dy <= 3; dy++)
                 level.setBlockAndUpdate(new BlockPos(x0 + dx, y0 + dy, cz), Blocks.AIR.defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, x0 + 0.5, floorY + 1, cz + 2.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, cz + 2.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.FLINT_AND_STEEL, 1));
         fp.getInventory().selected = 0;
@@ -682,8 +680,7 @@ public final class WorldDriverPortalScenes {
         BlockPos well = new BlockPos(cx - 8, floorY, cz - 8);
         level.setBlockAndUpdate(well, Blocks.WATER.defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 7.5, floorY + 1, cz - 5.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 7.5, floorY + 1, cz - 5.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().items.set(1, new ItemStack(Items.BUCKET, 1));
@@ -852,8 +849,7 @@ public final class WorldDriverPortalScenes {
         }
         ctx.record("frame.blocks", frames.size() + "");
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 3.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 3.5);
         var fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.ENDER_EYE, 12));
         fp.getInventory().selected = 0;
@@ -969,8 +965,7 @@ public final class WorldDriverPortalScenes {
                 level.setBlockAndUpdate(new BlockPos(x0 + dx, y0 + dy, cz), Blocks.AIR.defaultBlockState());
         ctx.record("frame.blocks", frame.size() + " obsidian");
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, x0 + 0.5, floorY + 1, cz + 2.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, x0 + 0.5, floorY + 1, cz + 2.5);
         var fp = driver.fakePlayer();
         // Pickaxe selected, flint-and-steel behind it — the arena starts the way the rung arrives.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));

@@ -4,6 +4,7 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -53,7 +54,8 @@ import net.minecraft.server.level.ServerPlayer;
  * <h2>Which topologies this refuses on</h2>
  *
  * Only the integrated one — a game client hosting its own world, with the client half of the driver
- * in the JVM and a human in the player list. That is the topology the instruction names.
+ * in the JVM. That is the topology the instruction names, and both halves of that question are
+ * settled before the first scene runs, which is the point.
  * {@code dedicatedServerWithClient} keeps minting on purpose: its client lives in the OTHER process
  * and a {@code BotProcess} object cannot cross a socket, which is the same reason the ladder keeps
  * a headless body there. If that should change, it is a decision to take deliberately rather than a
@@ -142,6 +144,31 @@ public final class SceneBody {
     }
 
     /**
+     * A bare {@link ServerPlayerAvatar}, for the scenes that never wanted a driver around it.
+     *
+     * <p><b>This is the other half of the rule, and forgetting it would have made the first half a
+     * lie.</b> {@code ServerWorldDriver.createIsolated} is only one of two ways a scene mints a body:
+     * ninety sites take that one, and NINETY-TWO more call {@code ServerPlayerAvatar.createUnique}
+     * directly because they want to pose and step a body without a driver wrapped around it. Both
+     * bottom out in {@code ServerAvatarBodies.unique}, so both produce a {@code JoinedBody} when the
+     * flip is armed — a gate that covered only the first would have left the integrated topology
+     * minting roughly half as many bodies as before and reported the rule as enforced.
+     *
+     * <p>Deliberately nothing but the gate and the mint: the call sites downstream differ too much
+     * to share a tail, and the value of this method is that substituting it for
+     * {@code ServerPlayerAvatar.createUnique} at a call site cannot change what that site does.
+     */
+    public static ServerPlayerAvatar avatar(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+        refuseWhereAClientShouldDrive(ctx);
+        return ServerPlayerAvatar.createUnique(level, x, y, z);
+    }
+
+    /** {@link #avatar} in this scene's own level. */
+    public static ServerPlayerAvatar avatar(SceneContext ctx, double x, double y, double z) {
+        return avatar(ctx, ctx.level(), x, y, z);
+    }
+
+    /**
      * Whether a headless body may be minted in this run at all.
      *
      * <p>For the scene that must BRANCH rather than skip. There is one: {@code wd.bodyParityCensus}
@@ -153,13 +180,30 @@ public final class SceneBody {
         return !aClientShouldDrive(ctx);
     }
 
-    /** The predicate, kept identical in shape to {@code JourneyRig.realPlayerHelm} so the two
-     *  cannot drift into disagreeing about what「集成服 + 真玩家」means. */
+    /**
+     * The predicate — <b>deliberately time-invariant, and deliberately NOT the same as
+     * {@code JourneyRig.realPlayerHelm}.</b>
+     *
+     * <p>That one also asks 「is a human in the player list right now」, because it is about to ADOPT
+     * one and would get a {@link NullPointerException} otherwise. This one is about to REFUSE, and
+     * asking the same question here would be a bug: the suite arms at {@code SERVER_STARTED}, which
+     * on an integrated server is before the local player has been placed, so the answer CHANGES
+     * PART-WAY THROUGH A RUN. The scenes that happened to run before the player joined would mint,
+     * the ones after would skip, and which scenes fell on which side would be decided by how fast
+     * the machine booted. A gate whose coverage depends on boot timing reports a different set of
+     * skips every run and none of them mean anything.
+     *
+     * <p>So the question asked here is only about the SHAPE OF THE JVM, and both halves of it are
+     * settled before the first scene: is this a client hosting its own world, and is the client half
+     * of the driver in this process. Whether a player has actually arrived is a separate concern,
+     * and it belongs to the run configuration — {@code stagewrightIntegratedServer} sets
+     * {@code stagewright.awaitPlayer} so a run cannot start without one. {@link #hasHumanPlayer}
+     * stays as a reading for whoever wants it, and is not part of the decision.
+     */
     private static boolean aClientShouldDrive(SceneContext ctx) {
         MinecraftServer server = ctx.server();
         if (server == null || server.isDedicatedServer()) return false;
-        if (!BotHooks.isAvailable()) return false;
-        return hasHumanPlayer(ctx);
+        return BotHooks.isAvailable();
     }
 
     private static void refuseWhereAClientShouldDrive(SceneContext ctx) {
@@ -169,7 +213,9 @@ public final class SceneBody {
                 + "覆盖率记在 stagewrightDedicatedServer* 闸上。");
     }
 
-    private static boolean hasHumanPlayer(SceneContext ctx) {
+    /** Whether anyone in the player list is a person rather than one of our own bodies. A reading,
+     *  not a gate — see {@link #aClientShouldDrive} for why it must not decide anything here. */
+    public static boolean hasHumanPlayer(SceneContext ctx) {
         for (ServerPlayer p : ctx.players()) {
             if (!(p instanceof JoinedPlayerBodies.JoinedBody)) return true;
         }

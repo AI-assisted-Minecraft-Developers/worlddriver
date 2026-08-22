@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.process.SmeltProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;
@@ -93,8 +94,7 @@ public final class WorldDriverSmeltDeliveryScenes {
             for (int dz = -3; dz <= 3; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(level, cx + 0.5, floorY + 1, cz + 0.5);
-        ctx.cleanup(() -> driver.fakePlayer().discard());
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.FURNACE, 1));
