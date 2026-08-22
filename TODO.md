@@ -54,6 +54,58 @@
 **这一趟不管红绿都有价值**：它是 `noteNetherPortal`、`march(home)`、`stepBackThrough`
 三段代码的**首次执行**。红了就知道哪一段断；绿了才第一次有资格说 17 级的回程能走。
 
+### 两趟实测：判据 1–4 全中，5 未中，6 未到（第二趟 `d1749e2d`）
+
+| # | 行 | 第一趟 | 第二趟 |
+|---|---|---|---|
+| 1 | `rehearsal.doorway` | 6 格，离身体 109 | 6 格，离身体 109 ✅ |
+| 2 | `return.needed` | `true` ✅ | `true` ✅ |
+| 3 | `return.portal` | `无` ✅ | `无` ✅ |
+| 4 | `return.banked` | `104, 93, 7` ✅ | `104, 93, 7` ✅ |
+| 5 | `return.portalAfterWalk` | `无` ❌ | `无` ❌ |
+| 6 | `stronghold.away` | 未到 | 未到 |
+
+布景合格（1–4），所以两趟量到的都是 17 级自己的毛病，不是布景的。
+`march(home)` 两趟都**走到了**（`home.legs=3`，其中一趟 `home.1.wedged` 的横走解卡真的解开了）。
+
+**第一趟的死因**：`march` 判到达用 `flatDistance`、导航用 `Goal.XZ`，
+而确认门用的是 24 格**球形**半径 —— 身体停在 `99,41,11`，门在 `104,93,7`：平面 6 格，垂直 52 格。
+旧判词说「门被毁了，或者落点记的位置离门太远」，**每个字都真，两个因都不对**
+（`a-row-that-rules-out-the-cause` 同族）。补了 `climbToTheDoor`：平面行军末尾接一次 3D `Goal.Near`。
+
+**第二趟：爬上去了，站进门里了，没被送走。**
+
+```
+return.portalAfterClimb = 105, 93, 7   ← 3D 收尾成功，找到门了
+return.at               = 105, 93, 7   站的格子是 Block{minecraft:nether_portal}
+维度仍是 minecraft:the_nether，等了 1600 tick
+```
+
+这正是 `a-body-that-stands-still-in-a-portal` 那条记忆：**`settle` 一finish 就注销驱动器**，
+而 vanilla 认门只认 `Entity.move → checkInsideBlocks → NetherPortalBlock.entityInside` 这条链上
+那个**一 tick 的旗标**，只有 `move()` 能重新上膛。13 级为此付过账并用 `HoldStill` 修好了；
+17 级把这段**又写了一遍**，于是把 bug 也又写了一遍。
+
+## ⏳ 第三趟：两个方向共用一个过门驱动器（2026-08-22，`9660dc81`，判据先写在这里）
+
+`JourneyPortalEntry` 里那台驱动器本来就只有**两行**跟方向有关（判「是不是还在主世界」、
+和过完之后干什么）。抽成 `Crossing(from, onCrossed)` + `crossThrough(...)` 之后，
+13 级和 17 级共用同一台；17 级顺带白捡了它从来没有过的东西：门洞勘测、挖开被堵的门口、
+身体漂出去再走回来、以及**两句分得开的失败词**（「到不了门」vs「站进去了没被送走」）。
+
+**四条判据**：
+
+| # | 行 | 必须是 | 不满足说明 |
+|---|---|---|---|
+| 1 | `portal.ticked` | 「站桩这一段里身体被 tick 了 N 次」，N > 0 | 驱动器还是没注册，抽取白做 |
+| 2 | `portal.expectedTicks` | 80（`invulnerable=false` 那条分支） | 走的是创造分支，1 tick 就过 ≠ 真梯的身体 |
+| 3 | `return.dimension` | `minecraft:overworld` | 还是没被送走，那就不是「没人 tick 它」 |
+| 4 | `stronghold.away` | 主世界量的合理值（~1700） | 又在跨维度量直线距离 |
+
+判据 1 是这次的**关键**：它是那条把「没人推它」和「计时器没走」分开的读数。
+13 级当年就是靠它才没有跑去补引擎能力 —— 如果这一趟 3 红而 1 绿（被 tick 了却还是没过去），
+那才第一次有资格谈 vanilla 机制本身。
+
 ## 🟢 规划器改动跑过整闸，276 场无回归（2026-08-22，三趟 `stagewrightDedicatedServerFabric`）
 
 ```

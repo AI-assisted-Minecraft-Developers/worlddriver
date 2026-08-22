@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-22
 
+- **Both portal directions now share one crossing driver.** `JourneyPortalEntry.crossThrough(ctx, rig,
+  portal, Crossing)` is what rung 13 already was, with the only two direction-specific things — which
+  world the body is leaving, and what happens once it is out — lifted into a parameter. Rung 17's walk
+  home had a second, eight-line implementation of the same wait, and it carried the same defect rung 13
+  had already diagnosed and fixed: `settle` unregisters the driver the moment its process reports
+  finished, an `IntentProcess` already at its goal finishes on tick one, and vanilla notices a portal
+  only through a one-tick flag that nothing but a `move()` re-arms. Measured — the body stood INSIDE
+  `nether_portal` at `105,93,7` for the whole 1600-tick wait and was never taken. Rung 17 also inherits
+  what it never had: the doorway survey, digging a blocked doorstep open, walking a drifted body back
+  in, the two failure messages that distinguish 「could not reach the door」 from 「stood in it and was
+  not sent」, and the `portal.ticked` reading that separates those two causes.
+- **The End-portal wait keeps its undriven shape, with the reason written down.** It is safe only
+  because `EndPortalBlock`'s transition time is zero, so the flag is armed and consumed inside the
+  walk's own last tick. That is a constant this code does not control, not a pattern to copy.
+- **The walk home finishes in 3D.** `march()` judges arrival with `flatDistance` and steers with
+  `Goal.XZ` — right for a surface trek to an XZ target, wrong for the one target in rung 17 that is a
+  specific CELL, since the portal confirmation is a 3D radius. The body stopped 6 blocks away flat and
+  52 below, and the old message blamed a destroyed portal that was standing. A `Goal.Near` settle now
+  closes the gap, and if that fails the message quotes the vertical distance.
+- **`wd.serverEarnsAnEnderPearl` asks for 2 kills, not 4.** Nine runs of the same code scored
+  `6,6,6,4,4,4,3,1,3`: the old threshold sat inside the natural spread of the quantity it measured and
+  went red about one run in three. The comment beside it already said the systematic break it wanted to
+  catch 「would show up as 0 or 1」, which `>= 2` catches and `>= 4` over-claimed. The slowness that used
+  to be judged is now only recorded (`fights.slow`), and the first run with that row showed the real
+  shape: `80,77,4000,73,79,4000` — bimodal, not slow. A fight resolves in four seconds or never.
 - **The server planner counted the hotbar; the executor it drives reaches the whole inventory.**
   `LevelWorldView.placeableBlockCount()` scanned slots 0..8, while `ServerPlayerAvatar.holdPlaceable()`
   has for some time swapped a stack up from slots 9..35 when the hotbar has none. A* was therefore
