@@ -19,6 +19,11 @@
   `FlowingFluid.getHeight` / `getOwnHeight`、`Entity.getFluidJumpThreshold`），
   并把关键代码整块抄进文档，让读者不必信任任何一个行号就能复核。
 - 写「已核对否定」的条目，是我怀疑过、查了、发现**没有**差异的。留着它们，因为一个诚实的「行」和一个诚实的「不行」一样贵。
+- **⚠️ 先读 §10 再读任何一条基于日志的断言。** 专用服闸跑到第 106 条场景
+  （`wd.serverCraftFailTelemetry`）时，`WorldDriver` 这个 logger 会被**永久静默**——
+  两趟独立的闸在同一处截断，之后 `debug.log` 和 `latest.log` 里一行 `(WorldDriver)` 都不再有。
+  所以本文档一律用**场景自己的 `ctx.record` 证据**（落在 `stagewright-results.jsonl`），
+  不用日志文件里的行。§10 给了机制、否定掉的四条怀疑，和一条缺陷存在时会红的验证。
 
 ## 边界表的四类
 
@@ -79,6 +84,25 @@
 **`-Dworlddriver.realPlayerBodies=true` 到底切换了什么**（`JoinedPlayerBodies.java:81`／`:83`）：它把 A/B 换成 C。换来的**唯一**东西是「这具身体在 `level.players()` 里」，以及随之而来的 `ChunkMap` 注册和一个真的 packet listener。它**不改变**这具身体的免伤、不改变 `tick()` 是空的、不改变 `fallDistance`。
 
 **这个开关装在哪里** —— 这是本节最重要的一行事实：
+
+> **⚠️ 本小节的下面这段已被 `efc8e155` 翻掉，2026-08-22 更正。** 原文写的是「全仓库只有四处，
+> 六条闸一处都不设，NeoForge 一处都不设」。**今天是反的**：`grep -rn realPlayerBodies --include=*.gradle`
+> 命中 **11 处**——`fabric/build.gradle` 的 `:198`（`runDogfoodServer`）、`:233`、`:254`、`:290`、
+> `:334`（注释）、`:354`、`:371`、`:513`，`neoforge/build.gradle` 的 `:226`、`:258`、`:276`。
+> **六条闸和 NeoForge 现在都设。** 2026-08-22 跑着的 dogfood server 命令行里逐字带着
+> `-Dworlddriver.realPlayerBodies=true`，趟 A 的 `wd.bodyParityCensus` 也把
+> `census.armProperty = worlddriver.realPlayerBodies=true` 记进了成绩单。
+>
+> **这条更正会改动下面几处的结论**：X2-5（`ChunkMap` 刷怪窗口）今天已经对闸生效，
+> §5 第 5 条「今天靠 `realPlayerBodies=true` 硬撑，但六条闸一处都不开」整句作废，
+> §9 第三件事（「把 `realPlayerBodies=true` 装到 NeoForge 上」）**已经做完了**。
+> 保留原文是为了让下一个人看得见这份文档在哪一天说了什么——**不是因为它还成立**。
+>
+> **唯一仍然刻意不翻的是普查场景自己的「工厂列」**：`census.factoryColumnSource =
+> net.magicterra.worlddriver.fabric.sim.FabricAvatarBodies（绕过 require()，所以翻闸不会把这一列
+> 变成 JoinedBody）`。那是 §6.6 说的对照列，必须绕开开关才能继续取到 A/B 这一侧的读数。
+
+以下为原文（**已过时，勿据以行动**）：
 
 ```
 fabric/build.gradle:262   runJourneyServer
@@ -229,7 +253,7 @@ fabric/build.gradle:481   runRehearsalServer
 | T10 | 移动统计从不累加 | `handleMovePlayer` 末尾的 `checkMovementStatistics(dx,dy,dz)` 没有对应物 | 走 100 格，断言 `Stats.WALK_ONE_CM` 大于 0。缺陷存在时恒 0 → 红 |
 | T11 | 挖掘走 `Level#destroyBlock` 而不是 `gameMode` | `ServerPlayerAvatar.java:426-439`；`:484-525` 的 javadoc 自己承认掉落走的是 `Block.dropResources(..., ItemStack.EMPTY)`：**无工具要求、无精准采集、无时运、不掉耐久**。补法：改走 `fp.gameMode.destroyBlock(pos)`（javadoc `:519` 已点名这条路） | 四条臂：赤手挖石头断言**没有**掉落；铁镐挖石头断言掉圆石且 `getDamageValue()` 增加；精准采集挖草方块断言掉草方块；时运 III 挖煤矿断言掉落数 > 1。缺陷存在时四条全部掉落且耐久不动 → 至少三条红 |
 | T12 | 放置/使用/攻击没有到达距离闸（新发现 N9/N10） | vanilla `handleUseItemOn:1118` 先 `canInteractWithBlock(pos,1.0)`，`handleInteract:1557` 先 `canInteractWithEntity(aabb,1.0)`；avatar 直接进 `gameMode.*` / `Player.attack`。**同一具身体两套规矩**：`canBreak`（`:471-482`）是含 reach 的 | 站在 8 格外放置，断言**失败**；站在 3 格内放置，断言成功。缺陷存在时前者成功 → 红。两条臂缺一不可 |
-| T13 | `discard()` 留尸 | 已修：`JoinedPlayerBodies.java:192-205` 把 `remove` 路由到 `PlayerList.remove`，带 `leaving` 重入闸 | 造 5 具、全部 `discard()`，断言 `level.players().size()` 回到基线。缺陷存在时留 5 具 → 红 |
+| T13 | `discard()` 留尸 | 已修：`JoinedPlayerBodies.java:192-205` 把 `remove` 路由到 `PlayerList.remove`，带 `leaving` 重入闸。**2026-08-22 已实测生效，见 §11** | 造 5 具、全部 `discard()`，断言 `level.players().size()` 回到基线。缺陷存在时留 5 具 → 红。**注意别用日志验**：正常离场的 `JoinedBody` 不印任何一行（`left the game` 只在 `ServerGamePacketListenerImpl:1215` 广播，而这条路径它刻意不走），§11.1 |
 | T14 | `changeDimension` 目的地丢失 | 已修：`AvatarNetHandler.java:81-88` 让 `teleport(...)` 真的 `absMoveTo`（neoforge 的 `FakePlayerNetHandler.teleport` 在 `:254` 是 no-op，这就是 87501 格的来源） | 换维后断言坐标等于期望坐标（±1）。**但这条只覆盖 A/B**：C 穿的是 vanilla 的真 listener，走的是另一条路，必须**单独**验证一遍 |
 | T15 | 传送不重算流体标志 | 补一次 `updateInWaterStateAndDoFluidPushing()` | 在水里传送到干黑曜石上，断言 `isInWater() == false`。缺陷存在时为 `true` → 红 |
 | T16 | 装备属性同步 | 已有：`EQUIP_MEMO` + `syncEquipmentAttributes()`（`:668-711`，gap #46） | 换上钻石靴断言 `Attributes.ARMOR` 变化；脱下断言回落。两条臂 |
@@ -276,7 +300,7 @@ fabric/build.gradle:481   runRehearsalServer
 |---|---|---|---|
 | X2-3 | **不死**：`isInvulnerableTo → true` | `JoinedPlayerBodies.java:221` **是我们自己写的一行**，`JoinedBody` 也照样不死。但删掉它是一行的事（§6.5 乙档），配套要 N4（`invulnerableTime--`）和 A10（饥饿）一起，否则得到一具「半死不活」的身体 | **(a)** 做一个可关的开关，配套补 T6 + A10 + 重生；**(b)** 让断言诚实地只说「打得赢」不说「活得下来」——今天 `WorldDriverMobFightScenes.java:338` 就是这么写的：`ctx.record("body.invulnerable", "true —— 所以这一条只说打得赢, 不说活得下来")` |
 | X2-4 | `fallDistance ≡ 0` | **换身体完全不管用**：`ServerPlayer.checkFallDamage` 是空覆盖（vanilla `:1012-1014`），对任何 `ServerPlayer` 都一样。这是 §6.5 丙档的典型 | 它**真等价可达**（T1），所以正确归属是 T1；这里只记「今天它让每一条落差断言撒谎」。`JourneyNetherRungs.java:1762-1770` 记着一条 `fallDistance > 2.0f` 的分支**永远不可能触发**（已改判） |
-| X2-5 | `ChunkMap` 刷怪窗口 | **对 `JoinedBody` 其实已经是好的**（`tellTheChunkMapWeMoved()` 的早退条件是 `level.players().contains(fp)`，而它在表里）。留在这一类只因为**六条闸一处都不设 `realPlayerBodies`**——这是配置，不是能力 | 翻闸的配置（不是我的产权，也**不该和普查同一轮做**：241 条同时换被测对象会红一批，那些红是真的） |
+| ~~X2-5~~ | ~~`ChunkMap` 刷怪窗口~~ **已出表（2026-08-22）** | **对 `JoinedBody` 其实已经是好的**（`tellTheChunkMapWeMoved()` 的早退条件是 `level.players().contains(fp)`，而它在表里）。原文说「留在这一类只因为六条闸一处都不设 `realPlayerBodies`」——**那个前提已经被 `efc8e155` 翻掉了**，闸和 NeoForge 现在都设（见 §1 顶部的更正框，11 处）。**所以这一条既不是「不可能」也不再欠什么，它只是好了。** | ~~翻闸的配置~~ 已完成。**下一个人不要再为它写代码**；要确认就读成绩单里 `census.armProperty` 那一行 |
 | X2-6 | **驱动器自身就是被测对象的那些场景** | `wd.serverCapability`、`wd.serverAgentDistinctBodies`、`wd.serverAvatarTickFidelity`、`wd.serverAttackCooldown`、`wd.serverElytra`（`WorldDriverAvatarScenes.java:59-63`）、`wd.serverObservePlayerInventory`（`WorldDriverStationScenes.java:93`） | **迁走就把被测对象删掉了。** 拿真玩家测这些，等于测 vanilla 有没有实现 vanilla |
 
 **X1-0a / X1-0b 的机制（原 X2-1/X2-2），以及为什么它们降级了**：
@@ -313,7 +337,7 @@ fabric/build.gradle:481   runRehearsalServer
 | 2. `fallDistance` 恒为 0 | **真等价 T1**（可达），今天在 X2-4 撒谎 | 机制是 `ServerPlayer.checkFallDamage` 空覆盖（vanilla `:1012-1014`），这一阶段才查清 |
 | 3. `isInvulnerableTo → true`，永不死、永不重生 | **不可能但仍需要 X2-3** | 三具身体全有。掉出世界变成无限下坠：`JourneyRig.java:196`（`lostTheWorld` 字段 `:205`）记录了 y=−55767，每条腿跑满 2999 tick |
 | 4. 屠龙拿不到 `kill_dragon` | **X1-1（有真玩家时）/ X2-1（专用服上）** | NeoForge 上是 `award` 直接 return false；Fabric 上是「没进玩家表 → 龙战不启动」。两个不同的病，同一个症状 |
-| 5. `level.players()` 一族 | **X1-2 / X2-2** | 今天靠 `realPlayerBodies=true` 硬撑，但**六条闸一处都不开** |
+| 5. `level.players()` 一族 | **X1-2 / X2-2** | ~~今天靠 `realPlayerBodies=true` 硬撑，但**六条闸一处都不开**~~ **2026-08-22 更正：六条闸和 NeoForge 现在都开**（11 处，见 §1 顶部的更正框）。这一条已经落地，不欠代码 |
 | 6. 背包满时 `quickMoveStack` 静默无操作 | **不属于身体保真度** | 真玩家背包满时 shift-click 也是同一个 no-op。这是**证据/断言的缺口**，不是假人的缺陷。归 §8 的断言设计 |
 | 7. `discard()` 留尸 79 具 | **真等价 T13**，已修 | `JoinedPlayerBodies.java:192-205` |
 | 8. `ChunkMap` 里从未移动 → 刷怪窗口钉死 | **X2-5**，且**只在开关开时修好** | `ServerPlayerAvatar.java:1116-1125` 的早退条件是 `level.players().contains(fp)`。假人身体**依然**从不在 `ChunkMap` 里移动 |
@@ -1117,3 +1141,298 @@ else if (footed || (buoyant && fluid <= jumpThreshold)) → 0.42   // jumpFromGr
 4. **不许退回单例**。`FakePlayerFactory.getMinecraft(level)` 是每 level 单例，`wd.serverAgentDistinctBodies`（`WorldDriverAvatarScenes.java:109`）就是钉这个的。任何「让身体更真」的改动都不能把两具身体变回一具。
 5. **对外接口是硬约束**。身体保真度的改动只能落在 `common/src/main/java/net/magicterra/worlddriver/bot/sim/`，不能落在 `rpc/` 或 `mcp/`——`DriverApi.route` 是唯一真源，传输层不放游戏行为。
 6. **不许引入 Python**。上面每一条验证都是一条 StageWright 场景，用 `ctx.record` / `ctx.check` / `ctx.expect` 写（stagewright `SceneContext.java:598`、`:570`、`:562`）。需要 Python 才能测量，本身就是设计失败。
+
+---
+
+## 10. 这份文档引用的每一条日志证据都有一条保质期：专用服闸跑到第 106 条场景，`WorldDriver` 这个 logger 就永久哑了（2026-08-22）
+
+**先说为什么这一节在这份文档里。** 上面九节里几乎每一条断言的形式都是「日志里有这一行」或
+「日志里零行，所以这条分支没进过」。`AGENT_TEAM.md` §3 的第二条规矩写着「零行日志有两种解释：
+守卫从未进入，或这个日志通道压根没开」。**这一节证明：在专用服闸上，第二种解释不是理论风险，
+它每一趟都发生，而且发生的位置是固定的。** 在此之后写下的每一条「零行」都必须先回答
+「这一行本该在第几条场景印出来」。
+
+### 10.1 读数（两趟独立的 `stagewrightDedicatedServerFabric`）
+
+| 趟 | 跨度 | 结局 | `(WorldDriver)` 行数 | 按分钟分布 |
+|---|---|---|---|---|
+| A | 19:37:23–19:42:01 | 正常跑完 | **18869** | 19:37→18483，19:38→386，之后 **0** |
+| B | 21:23:47–21:27:23 | 被挂起看门狗杀掉 | **18869** | 21:23→6，21:24→18863，之后 **0** |
+
+同一份日志里的对照（趟 A，`fabric/run-dogfood/logs/debug.log` 按「分钟 / logger / 级别」直方图）：
+
+| logger | 19:37 | 19:38 | 19:39 | 19:40 | 19:41 | 19:42 |
+|---|---|---|---|---|---|---|
+| `WorldDriver` INFO | 18479 | 386 | **0** | **0** | **0** | **0** |
+| `net.magicterra.stagewright.StageWrightCommon` INFO | 78 | 114 | 16 | 85 | 58 | — |
+| `net.minecraft.server.MinecraftServer` INFO | 67 | 87 | 18 | 54 | 105 | — |
+| `net.minecraft.server.players.PlayerList` INFO | 61 | 70 | 13 | 42 | 53 | — |
+
+**这张对照表本身就是判词的一半**：非 vanilla 的 INFO（stagewright）活到最后一秒，
+所以死的不是「INFO 这个级别」，也不是「模组的日志」，是 **`WorldDriver` 这一个 logger 名**。
+`latest.log` 和 `debug.log` 在**同一处**截断，所以损失发生在 appender **上游**，
+不是某一个文件的轮转或写盘问题。
+
+### 10.2 现场：最后一行是哪一行，下一条场景是谁
+
+```
+[19:38:11] [Server thread/INFO] (WorldDriver) [wd.serverCraftGridConservation] gridEmpty=true logs=0 planks=4 finished=true err=null
+```
+
+这是整趟里**最后一行** `(WorldDriver)`。按 `fabric/run-dogfood/results-t17.jsonl`（趟 A 的成绩单副本）
+的执行顺序：
+
+```
+idx=104 wd.serverCraftGridClearHelper   PASS
+idx=105 wd.serverCraftGridConservation  PASS   ← 它的证据行是最后一行 (WorldDriver)
+idx=106 wd.serverCraftFailTelemetry     PASS   ← 静音从这一条**里面**开始
+idx=107 wd.serverCraftFailGridReturn    PASS
+```
+
+而 `wd.serverCraftFailTelemetry` 是**全仓库唯一**碰 log4j2 内部对象的地方
+（`grep -rn 'addAppender|removeAppender|Configurator|LoggerContext'` 只命中它）：
+
+```java
+// common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/scene/WorldDriverStationScenes.java
+:920  org.apache.logging.log4j.core.Logger coreLogger =
+:921          (org.apache.logging.log4j.core.Logger) org.apache.logging.log4j.LogManager.getLogger("WorldDriver");
+:922  CraftLogCatcher catcher = new CraftLogCatcher();
+:923  catcher.start();
+:924  coreLogger.addAppender(catcher);
+:925  ctx.cleanup(() -> { coreLogger.removeAppender(catcher); catcher.stop(); });
+...
+:943  WorldDriverCommon.LOG.info("[wd.serverCraftFailTelemetry] err={} sawFailLog={} sawPlanLog={} lines={}", ...);
+```
+
+> **前一轮为什么没查到**：搜索范围写成了「stagewright 和 worlddriver **主源码**」。
+> 这一处在 `common/src/testmod/`，不是 `src/main`。
+
+### 10.3 机制（log4j-core **2.22.1**，运行时版本从 `fabric/build/loom-cache/argFiles/runDogfoodServer` 的 classpath 读出，与我读的 sources jar 同版本）
+
+配置是 loom 生成的 `fabric/.gradle/loom-cache/log4j.xml`（`neoforge/` 下同一份，逐字相同）：
+
+```xml
+:62  <Root level="${sys:fabric.log.debug.level:-debug}">
+:63      <AppenderRef ref="DebugFile"        level="${sys:fabric.log.debug.level:-debug}"/>
+:64      <AppenderRef ref="SysOut"           level="${sys:fabric.log.level:-info}"/>
+:65      <AppenderRef ref="LatestFile"       level="${sys:fabric.log.level:-info}"/>
+:66      <AppenderRef ref="ServerGuiConsole" level="${sys:fabric.log.level:-info}"/>
+:67  </Root>
+```
+
+**注意 `<Root>` 上没有 `additivity` 属性。** 这一点看起来无关紧要——root 没有父节点，
+它自己的 additivity 本来就没有意义。链条就从这里开始：
+
+1. **root 的 `additive` 是 `false`。** `<Root>` 由 `LoggerConfig$RootLogger$Builder` 装配
+   （`LoggerConfig.java:834-837` 的 `@PluginBuilderFactory newRootBuilder()`；同类里那个
+   `createLogger` 只带 `@Deprecated`，**没有** `@PluginFactory`，所以 builder 是唯一装配路径）。
+   而这个 builder 的字段是**基本类型 `boolean` 且没有 `defaultBoolean`**：
+
+   ```java
+   :849  @PluginBuilderAttribute
+         private boolean additivity;              // ← 非 root 的 Builder 是 Boolean + "== null || additivity"
+   :872  public boolean isAdditivity() { return additivity; }
+   :947  return new LoggerConfig(LogManager.ROOT_LOGGER_NAME, container.refs, filter,
+   :952          container.level, additivity, properties, config, ...);
+   ```
+
+   XML 不写 → Java 默认 `false` → **`root.isAdditive() == false`**。对 root 无害。
+
+2. **`addAppender` 把这个「无害的 false」复制给了一个 additivity 极其有害的子节点。**
+   `Logger.addAppender`（`Logger.java:337-339`）转给
+   `AbstractConfiguration.addLoggerAppender`（`AbstractConfiguration.java:888-906`）：
+
+   ```java
+   :895  final LoggerConfig lc = getLoggerConfig(loggerName);      // "WorldDriver" 无点号 → 返回 root
+   :896  if (lc.getName().equals(loggerName)) { ... } else {
+   :899      final LoggerConfig nlc = new LoggerConfig(loggerName, lc.getLevel(), lc.isAdditive());
+   :900      nlc.addAppender(appender, null, null);
+   :901      nlc.setParent(lc);
+   :902      loggerConfigs.putIfAbsent(loggerName, nlc);
+   ```
+
+   于是凭空多出一个 `LoggerConfig("WorldDriver", DEBUG, additive=false)`。
+
+3. **从这一瞬间起，`WorldDriver` 的事件只进 catcher，不再进任何文件。**
+   `LoggerConfig.logParent`（`LoggerConfig.java:694-698`）是
+   `if (additive && parent != null) parent.log(...)`——`additive=false`，直接不往 root 走。
+
+4. **`ctx.cleanup` 摘掉 catcher，留下一个零 appender 的非附加 LoggerConfig。**
+   `Logger.removeAppender`（`Logger.java:346-348`）只从 LoggerConfig 里摘 appender，
+   **不删除 LoggerConfig 本身**。结果：零 appender + 不向父转发 = **静默丢弃全部事件，
+   不抛异常，不打 status log，永久**。没有任何代码会再重配这个 context。
+
+5. **`WorldDriverCommon.LOG` 就是它。** `WorldDriverCommon.java:44` =
+   `LoggerFactory.getLogger("WorldDriver")`，经 `log4j-slf4j2-impl-2.22.1` 落到同一个 core Logger。
+   `PathFinder.java:6` 那句 `import static ...WorldDriverCommon.LOG` 也是它。
+
+**这条链解释了全部五个观察**，包括一个乍看矛盾的：`wd.serverCraftFailTelemetry` 自己
+**PASS 了**——它的判据是「catcher 收到了 `[craft] plan` 和 `[craft] …fail…`」，
+catcher 确实收到了；**收到的正是同时从两个日志文件里消失的那几行**。
+一个「静默丢弃」的机制才能同时给出「场景绿」和「文件里零行」；
+任何「抛异常」的机制都会让后面 200 条场景炸掉，而它们全 PASS。
+
+### 10.4 被否定的怀疑（留在这里，免得下一轮重新怀疑一遍）
+
+| 怀疑 | 判词 | 打死它的读数 |
+|---|---|---|
+| log4j2 异步队列满时丢弃（`DiscardingAsyncQueueFullPolicy` 丢 INFO 及以下） | **否**。而且配置里根本没有 `<Async*>`，classpath 上也没有 disruptor | 丢弃是突发的、队列会排空；这里是**永久**静默。且同一时段 stagewright 的 INFO 一条没丢 |
+| 某处运行时改 log4j（`Configurator` / `setLevel` / `BurstFilter` / `addFilter`） | **否** | 全仓库只有 `WorldDriverStationScenes.java:920-925` 一处碰 log4j 内部，而它碰的是 appender 不是 filter/level |
+| 文件轮转或写盘失败 | **否** | `(Minecraft)` 332 行、`(StageWrightCommon)` 204 行写到最后一秒；`latest.log` 与 `debug.log` 截断点相同 |
+| INFO 这个级别被掐了 | **否** | stagewright 的 INFO 在 19:39/19:40/19:41 各 16/85/58 行 |
+| **「18869 是一个固定配额」** | **不成立，但它和真相给出同一个数字，必须分清** | 见下 |
+
+**关于 18869 这个数**：两趟时长不同、结局不同，行数精确相同——这确实排除了速率限制和异步丢弃
+（两者都不会给出确定性的同一个数）。但「固定配额」和真相**预测同一个读数**：
+闸的场景顺序是确定的、世界是钉住的，所以**「从 JVM 启动到第 106 条场景调用 `addAppender` 为止
+一共印了多少行」本来就是一个常数**。
+区分两者的读数是**位置而不是数量**：配额说预测截断点落在「第 18869 行」这个纯粹的计数位置，
+真相预测它**永远落在 `wd.serverCraftFailTelemetry` 的 `:924` 上**。
+趟 A 的最后一行正是它前一条场景的证据行——**位置说赢了**。
+**要一劳永逸地分开：把这条场景从清单里摘掉跑一趟，或把它挪到清单最后跑一趟。**
+配额说预测截断仍在第 18869 行；真相预测截断消失（或搬到清单末尾）。
+
+### 10.5 代价：为这个故障专门造的仪表，在故障真正发生的那一趟里是哑的
+
+`PathFinder.java:1065-1081` 的 `RUNAWAY WATCH` 是专为「一次 tick 花掉六十秒」写的诊断，
+注释逐字写着：
+
+```
+:1080  // produce the record. WARN so no filter drops it, and capped so one bad search
+:1081  // cannot flood the log.
+```
+
+**趟 B 正是死于这个故障**（挂起看门狗报单 tick 60 秒，栈 `PathFinder$Search.advance ← Move.eval
+← Parkour3.valid ← WorldView.canStandAt`），而 `PathFinder.java:1128` 那条 WARN
+在趟 B 的日志里**一行都没有**——它在 21:24 就随整个 logger 一起哑了，故障发生在 21:26–21:27。
+
+这条注释同时也说明了为什么这个缺陷这么难看见：**作者防的是 filter，而杀死它的不是 filter。**
+零 appender + 非附加不筛任何级别，`WARN`、`ERROR`、`FATAL` 一并丢。
+把诊断从 INFO 提到 WARN 在这个机制面前**没有任何作用**。
+
+### 10.6 修法与验证（**代码不在 parity 的产权内**——`common/src/testmod/**` 归协调者，这里只给判词）
+
+**首选（一行，且不改场景的被测对象）**：在 `:924` 之后立刻把 additivity 显式设回来。
+
+```java
+coreLogger.addAppender(catcher);
+coreLogger.setAdditive(true);     // Logger.java:428-430 → AbstractConfiguration.setLoggerAdditive
+```
+
+`addAppender` 已经创建了名为 `WorldDriver` 的 LoggerConfig，所以 `setLoggerAdditive`
+会走 `lc.getName().equals(loggerName)` 的 `if` 分支，直接把那个节点改成附加。
+之后 `removeAppender` 留下的就是「零 appender + 附加」，事件照常转给 root。
+
+**次选（结构上不产生新 LoggerConfig）**：把 catcher 挂到 **root** 上
+（`LogManager.getRootLogger()`），`addLoggerAppender` 会走 `if` 分支直接加进 root 的 LoggerConfig，
+全程不新建节点、不复制 additivity。代价是 catcher 会收到全场事件，`append()` 里必须按
+`event.getLoggerName()` 过滤。
+
+**不要采用**「把 `<Root>` 加上 `additivity="true"`」：那个文件是 **loom 生成的**，
+不在版本控制里，改了下一次生成就没了。
+
+**会红的验证**（缺陷存在时必须红，否则就是 `0==0`）：在 `wd.serverCraftFailTelemetry`
+的**最后**加一句无条件断言——
+
+```java
+ctx.record("log.additive", String.valueOf(coreLogger.isAdditive()));   // Logger.java:418-420
+if (!coreLogger.isAdditive())
+    ctx.fail("wd.serverCraftFailTelemetry: 这条场景把 WorldDriver logger 变成了非附加，"
+           + "整趟闸后面所有的 WorldDriver 日志会被静默丢弃");
+```
+
+今天这条断言**会红**（`isAdditive()` 返回 `false`）；`setAdditive(true)` 之后转绿。
+它不需要读日志文件，也不需要 Python。
+**更值得做的是把它做成与场景无关的守卫**——因为真正的缺陷不是「这一条场景写错了」，
+而是「任何一条场景都能一行代码永久掐掉整个 logger，而且不留任何痕迹」。
+
+### 10.7 对本文档已有条目的追溯影响（**读上面九节之前先看这一段**）
+
+- **写「日志里零行 ⇒ 这条分支从未进入」的条目，只有在那一行本该出现在第 106 条场景之前时才成立。**
+  §6 的普查读数、§6.8 的受控对照都是**场景自己的证据 map**（走
+  `stagewright-results.jsonl`，不走 `WorldDriver` 这个 logger），**不受影响**——
+  这正是「PASS 的证据在 results 文件里」那条纪律救回来的一次。
+- **受影响的是任何直接引用 `debug.log` / `latest.log` 里 `(WorldDriver)` 行的论证。**
+  本文档目前没有这样的条目；**以后也不要有**——要证据就写进 `ctx.record`。
+- **真梯（`runJourneyServer` / `runRehearsalServer`）不跑 `wd.*` 场景清单**，
+  所以它的 `(WorldDriver)` 日志不受这条缺陷影响。**但这是「这具身体没走那条路」，不是
+  「这个缺陷不存在」**：任何在真梯 JVM 里调一次 `Logger.addAppender("WorldDriver")` 的代码
+  都会立刻复现同一个永久静音。
+
+---
+
+## 11. 「239 具身体加入、0 具离场」不是泄漏证据（2026-08-22）
+
+**判词：专用服上没有观测到身体泄漏。** 而那个看起来很吓人的 239/0，是**两条不同通道的对比**，
+它在身体一切正常的时候也一定长这样。这一节把 T13 从「已修，但没人再量过」升级成「已量过」。
+
+### 11.1 那个零是结构性的，不是观测出来的
+
+| | 谁发这句话 | `JoinedBody` 走这条路吗 |
+|---|---|---|
+| `X joined the game` | `PlayerList.placeNewPlayer`（vanilla `PlayerList.java:204-209` 的 `broadcastSystemMessage`） | **走**：`JoinedPlayerBodies.java:141` 就是调它 |
+| `X left the game` | **`ServerGamePacketListenerImpl.removePlayerFromWorld()`**（`:1210-1215`），只从 `onDisconnect`（`:1204-1206`）和 `:1534` 进 | **不走** |
+
+关键是 vanilla 的 `PlayerList.remove(ServerPlayer)`（`PlayerList.java:312-339`）**一行 INFO 都没有**——
+整个方法里唯一的日志是 `:319` 那条**带条件**的 `LOGGER.debug("Removing player mount")`
+（只有骑着东西才印）。那句 `left the game` 是在**调用 `PlayerList.remove` 之前**由包监听器广播的
+（`:1215` 在 `:1217` 之前）。
+
+而 `JoinedBody.remove(RemovalReason)`（`JoinedPlayerBodies.java:192-205`）**直奔
+`getServer().getPlayerList().remove(this)`**（`:197`），整条 `onDisconnect` 路径根本不进——
+这是 T13 那笔修法**刻意**的设计（它的 javadoc `:188-190` 写着为什么）。
+
+> **⇒ 一具完全正常离场的 `JoinedBody`，必定一行日志都不印。**
+> 「0 次 `left the game`」预测得到的是「没有一具身体走过 `onDisconnect`」——
+> 而**没有一具身体应该走过 `onDisconnect`**。这个零跟泄漏与否无关。
+
+这是「零有两种解释」的一个新变种，值得单独记住：**前一轮的零（§10）是通道哑了；这一轮的零是
+通道从来就不在被测对象的路径上。** 两者都不是「事情没发生」。
+
+### 11.2 不经日志的正路：**残留量在第 228 条场景上是 0**
+
+`stagewright` 的 `SceneContext.players()`（`api/.../scene/SceneContext.java:101-103`）是
+**完全不过滤的** `level.getServer().getPlayerList().getPlayers()`；`playerOrNull()`（`:106-109`）
+取 `get(0)`；`player()`（`:118-124`）**只在这张表为空时**才抛出那句
+`skip("no connected player — this scene only runs on a topology that has one")`。
+
+也就是说：**成绩单里每一条带这句判词的 skip，都是一次「那一刻玩家表是空的」的读数**——
+不经日志、不需要新场景、已经在文件里了。趟 A（`fabric/run-dogfood/results-t17.jsonl`，306 条执行序）：
+
+| idx | 场景 |
+|---|---|
+| 4 | `remotePlayerIsPresent` |
+| 83 / 84 | `wd.fullInventoryVisible` / `wd.attackCooldownSurface` |
+| 208–228 | `cap.advancementsGrantCompletesAndRemainingEmpties` … `cap.menuRefusesABlockWithNoMenu`（共 11 条） |
+
+**idx=228 是整趟的 75%。** 身体只会被加进玩家表、不会自己出去，所以「跑到第 228 条时表是空的」
+是一个**累计**结论：**在它之前造的每一具身体都已经离场了。**
+同一趟里 `census.armProperty = worlddriver.realPlayerBodies=true`，vanilla 也印了 239 次
+`joined the game`——**身体确实进过表，而且确实都出来了。**
+
+### 11.3 是谁把它们弄出去的
+
+不是 `ServerAvatarManager`：`clear()` / `unregister()` / `tickAll()`
+（`ServerAvatarManager.java:28-41`）动的全都是 `CopyOnWriteArrayList<ServerWorldDriver>`，
+**一次都没碰过身体**。也不是 stagewright——`StageWrightCommon.java` 里唯一遍历玩家表的地方
+是 `:397-399` 的发 op，没有清扫。
+
+是场景**自己**：`common/src/testmod/` 里有 **139 处 `discard()`，分布在 22 个文件**。
+`SceneBody.mint`（`:87`）和 `SceneBody.managed`（`:112`）各自注册一条
+`ctx.cleanup(() -> …discard())`；`SceneBody.bare`（`:136`）和 `SceneBody.avatar`（`:161`）
+按设计**不注册**（「the caller owes a cleanup」），由调用点自己写。
+`discard()` → `Entity.remove(RemovalReason.DISCARDED)` → `JoinedBody.remove` 覆盖
+→ `PlayerList.remove` → `players.remove(player)`（`PlayerList.java:328`）。**T13 的修法在工作。**
+
+### 11.4 这条结论的边界（写下来，免得被当成比它更强的东西用）
+
+- **只证到 idx=228。** idx=229–305（78 条，主要是 `pack.*`）之后没有第二个读数点。
+  一条「跑完之后残留是多少」的读数仍然值得加——**但它现在是补一个尾部盲区，不是查一个已知缺陷。**
+- **`bare` / `avatar` 这两个工厂在类型上不保证有人收尾。** 今天残留是 0，靠的是 139 处手写
+  `discard()` 都写对了。**这是一个没有编译期保证的不变量**，它会随着新场景一起腐化。
+  真正的守卫属于 stagewright 的每场景 audit（「这条场景造的身体还在表里」），和 §10.6 末尾说的
+  「留下一个非 additive 的 logger」是同一类，**同一个接缝**。
+- **这条只说专用服。** 集成拓扑的 351 joins 不归 parity，另有人在办。
+- **正样本存在**：同一批 `cap.*` 场景在有真玩家的拓扑上是**执行**而不是 skip
+  （stagewright `CoverageTest.java:79-80` 就是拿这个形状当例子的），所以「表为空 → skip」
+  这条通道确实会在表非空时改口。**不是一个没有正样本的零。**
