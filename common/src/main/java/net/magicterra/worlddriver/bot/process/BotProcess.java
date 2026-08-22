@@ -19,14 +19,14 @@ import net.minecraft.client.Minecraft;
  *  {@code mc} in a {@link ClientPlayerAvatar} (1:1 passthrough, zero regression),
  *  so the client scheduler/chains keep calling it unchanged.
  *
- *  <p>Processes migrate ONE AT A TIME:
- *  <ul>
- *    <li><b>Migrated</b> process overrides {@code tick(Avatar,...)} only — the
- *        client reaches it via the bridge, the server calls it directly.</li>
- *    <li><b>Not-yet-migrated</b> process overrides {@code tick(Minecraft,...)}
- *        only — the client works as before; the server hits the default
- *        {@code tick(Avatar,...)} which throws (correct: it is client-only).</li>
- *  </ul> */
+ *  <p><b>The migration is finished.</b> Every process in this package overrides
+ *  {@code tick(Avatar,...)} and none overrides {@code tick(Minecraft,...)}; the only
+ *  override of the legacy signature left anywhere is a stub inside a scene. The bridge
+ *  and the throwing default below are therefore not a staging area any more — the bridge
+ *  is the live client entry point (the scheduler and every chain still call it), and the
+ *  default throw is now only reachable by a NEW process that forgets to implement the
+ *  canonical one. Adding a process means overriding {@code tick(Avatar,...)}; there is no
+ *  longer a "not yet migrated" state to be in. */
 
 public interface BotProcess {
     String kind();
@@ -48,16 +48,24 @@ public interface BotProcess {
     }
 
     /** Called when this process regains the movement channel after being
-     *  suspended by a higher-priority chain (panic/retreat/combat). Default
-     *  no-op; pathing processes override to force a repath from the current
-     *  position rather than reuse a path that went stale during suspension. */
+     *  suspended by a higher-priority chain (panic/retreat/combat), so it can force a repath
+     *  from the current position rather than reuse a path that went stale during suspension.
+     *
+     *  <p><b>Exactly one process actually does that</b> ({@code IntentProcess}). The other
+     *  nine that own a {@code Walker} — Mine, Follow, Explore, Build, Backfill, BboxFill,
+     *  Farm, Bridge, Tower — inherit this no-op and resume on a path computed from a position
+     *  the body may have been dragged out of. {@code UserTaskChain} calls the hook faithfully;
+     *  there is simply nothing on the other end. Written down rather than fixed because
+     *  「pathing processes override」 read as a description and was a wish. */
     default void onResume() {}
 
     /** Called when this process is cancelled/superseded before finishing
-     *  naturally (e.g. {@code mc.bot.cancel}, or a new goto replacing this one).
-     *  Default no-op; movement processes override to finalize per-session
-     *  observers (e.g. fire the pathfinder's terminal so a path archive is
-     *  flushed for the partial run) before the channel is released. */
+     *  naturally (e.g. {@code mc.bot.cancel}, or a new goto replacing this one), so it can
+     *  finalize per-session observers — fire the pathfinder's terminal so a path archive is
+     *  flushed for the partial run — before the channel is released.
+     *
+     *  <p>Same story as {@link #onResume}: {@code IntentProcess} is the only override, so
+     *  every cancelled mine/build/farm/follow drops its path archive on the floor. */
     default void onCancelled(String reason) {}
 
     /** Optional sub-state string for {@code mc.bot.status} (key
