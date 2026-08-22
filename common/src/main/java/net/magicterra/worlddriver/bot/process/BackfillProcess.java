@@ -96,7 +96,7 @@ public final class BackfillProcess implements BotProcess {
                     failed.add(pick);
                     return false;
                 }
-                Placement pl = findPlacement(lvl, pick, playerFoot);
+                Placement pl = findPlacement(lvl, pick);
                 if (pl == null) {
                     failed.add(pick);
                     return false;
@@ -213,20 +213,24 @@ public final class BackfillProcess implements BotProcess {
         return false;
     }
 
-    private Placement findPlacement(Level lvl, BlockPos block, BlockPos playerFoot) {
+    private Placement findPlacement(Level lvl, BlockPos block) {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {
             BlockPos support = block.offset(d.getStepX(), d.getStepY(), d.getStepZ());
             BlockState ss = lvl.getBlockState(support);
             if (!ss.isSolid()) continue;
-            BlockPos stand = findStandableNear(lvl, block, playerFoot);
+            BlockPos stand = findStandableNear(lvl, block);
             if (stand == null) continue;
             return new Placement(stand, d.getOpposite());
         }
         return null;
     }
 
-    private BlockPos findStandableNear(Level lvl, BlockPos block, BlockPos playerFoot) {
+    /** No "last resort: stand on top of the target" arm, unlike {@code BuildProcess}'s twin. That is
+     *  not an omission: backfill only ever targets a cell that is AIR (see {@link #pickCandidate}),
+     *  and {@link #canStand} on the cell above requires the cell below it — the target — to block
+     *  motion. The arm would be dead code here. */
+    private BlockPos findStandableNear(Level lvl, BlockPos block) {
         for (int dy : new int[]{0, -1, 1}) {
             for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
