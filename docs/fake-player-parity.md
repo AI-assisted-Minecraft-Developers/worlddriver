@@ -1331,6 +1331,11 @@ net/minecraft/network/protocol/game/GameProtocols.class                  ← 协
 `AbstractContainerMenu`、`ServerPlayer`、`Inventory`、`InventoryMenu` **一个都不在里面**。
 零命中是**结构性**的：承载「手在第几个槽」的包一共只有一种，而菜单同步那一整条链子从不构造它。
 
+**同一条 grep 在 neoforge 那份 jar 上重跑过**（`neoforge/21.1.230/minecraft-merged-mojang-patched.jar`，
+8277 个 class）——**逐字相同的七个**。本文档头部的规矩是两份 jar 必须分开引用，
+而这一条上它们**没有分歧**：NeoForge 既没有多出一个发送方，也没有给菜单同步加上槽号。
+（写下来是因为 §4.1 那次版本对不上的教训——「我核对过」如果只核了一份，下一个人会重新怀疑整条结论。）
+
 **而且有一条比零命中更硬的正向证据（§6.9 没有）**——vanilla 自己在同一个方法里把两件事分两步发：
 
 ```java
@@ -1466,18 +1471,39 @@ public void handleSetCarriedItem(ClientboundSetCarriedItemPacket packet) {   // 
 > }
 > ```
 >
-> 服务端若在客户端的**一个 tick 之内**发了两次（`selectTool` 挖完紧接着 `holdPlaceable` 要放，
-> 就是这个形状），客户端只会看见最后一个值、只回声一次——**但先到的那个回声携带的是旧值**，
-> 落回服务端会把手**倒卷**回旧槽；而且**如果此刻主手正在使用（拉弓、吃东西），还会顺手
-> `stopUsingItem()`**——注意那正是 N8/T4 要求我们补的那一句，**从对面回来的时候它是一次误伤**。
+> **⚠️⚠️ 触发条件写反过一次，2026-08-22 当场更正——留着这段更正，因为反着的那个版本读起来同样通顺。**
+>
+> 我最初写的是「服务端在客户端的**一个 tick 之内**发了两次就会倒卷」。**那个方向是安全的**：
+> 两个包落在同一个客户端 tick 里，`handleSetCarriedItem` 按序应用，`selected` 停在 v2，
+> `ensureHasSentCarriedItem` **只回声一次、携带 v2**——**v1 的回声根本不存在**。
+>
+> **危险的是相反的交错：两次写跨过了一个客户端 tick。**
+>
+> ```
+> 服务端 tick T   : 写 v1，发 C(v1)
+> 客户端 tick N   : ensureHasSentCarriedItem() 先跑（还没收到）→ connection.tick() 应用 C(v1)，selected=v1
+> 客户端 tick N+1 : ensure 看到 v1 != carriedIndex → 发 S(v1)          ← 回声上路了
+> 服务端 tick T+1 : 写 v2，发 C(v2)
+> 服务端         : 收到 S(v1) → selected v2 → v1  ← 倒卷，并且如果主手在用就 stopUsingItem()
+> 客户端 tick N+2 : 应用 C(v2) → tick N+3 发 S(v2) → 服务端回到 v2
+> ```
+>
+> **前提是「回声必须已经在路上」，而这要求客户端在两次写之间 tick 过。**
+> 顺序细节支撑这个方向：`MultiPlayerGameMode.tick()` 里
+> `ensureHasSentCarriedItem()` 跑在 `connection.tick()` **之前**（逐字抄在上面），
+> 所以在 tick N 应用的值要到 tick N+1 才回声——回声的飞行窗口就是这么开出来的。
+>
+> 那句 `stopUsingItem()`**正是 N8/T4 要求我们补的同一句**，**从对面回来的时候它是一次误伤**。
 >
 > - **上界是一个来回**；集成服是内存连接，实际就是一个 tick。
 > - **今天没有这个风险，因为今天根本不发包——今天的代价是永久分叉。**
 >   用一个 ≤1 tick 的倒卷窗口换掉一个永久分叉是划算的，**但它不是「零成本」，§6.9 把这一条写漏了。**
 > - **缓解，两条，都不需要判拓扑**：(1) 只在**值真的变了**的时候写、才发
->   （`if (inv.selected == slot) return;`），把同 tick 的重复发包降到最少；
+>   （`if (inv.selected == slot) return;`）。理由按更正后的机制讲：**一次「值没变」的发布照样会
+>   制造一个回声，而那个回声的飞行窗口正好可以罩住后面一次真正的写**——少发一个包就少开一个窗口。
 >   (2) 不要把「服务端的手会跨 tick 保持」当前提——`placeOn`（`ServerPlayerAvatar.java:375`）
 >   和 `holdItem` 每次调用都自己重新确认一次，**这个习惯本来就在，落地时别顺手优化掉它**。
+>   它恰好也是倒卷窗口的正确解药：倒卷只活一个来回，而每次动作前都重新取手的调用点**穿得过**它。
 
 ### 戊：本轮才补上的因果——为什么同一段 `TowerProcess` 无头上能垒、集成服上一块都垒不上
 
