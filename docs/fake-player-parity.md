@@ -923,6 +923,47 @@ else if (inWater) { … dm.y + 0.04 … }                                       
    否则 T17 一修它就红——**而那条红会是断言错了，不是修法错了**。改完之后它才真的在测
    vanilla 的浅水地面跳，而不是在测这具身体的特权。
 
+### 6.8.1 第 2 步跑完：结论证实，但仪器差点把它推翻（2026-08-22）
+
+**闸的结果落在「缺陷证实」那一支**，四个数全中：`bottomedDeep.restY=221.0`（`== standY`）、
+`fluidAtRest=1.9990`、`first=0.41999998688697815`、`rises=4`，判词点名 `ServerPlayerAvatar.java:1054`。
+
+**但同一趟里有一对读数是矛盾的**，而且它指向的结论和上面相反：
+
+```
+bottomed.fluidAtRest = 0.8878854980468702     ← 命中 8/9 的预测
+bottomed.inWater     = false                  ← 若为真，vanilla 在这一格走 jumpFromGround
+```
+
+若 `isInWater()` 真的为 false，那么 `bl = isInWater() && d > 0.0` 为 false，vanilla 走的就是
+`jumpFromGround()`（0.42），**`bottomed` 那条臂本来就是对的**，上面第 2 点得作废。
+
+**判定：这对读数不是身体的性质，是仪器的缺陷，而缺陷是我写的。**
+
+- **决定性事实**：vanilla 在**同一次调用**里写这两个量——
+  `updateInWaterStateAndDoWaterCurrentPushing` 用 `updateFluidHeightAndDoFluidPushing(WATER, 0.014)`
+  的**返回值**设 `wasTouchingWater`，而该方法内部 `e` 只在**同一次命中的迭代**里变成非零
+  （`e = Math.max(f - aABB.minY, e)` 与 `bl2 = true` 相邻，最后 `fluidHeight.put(tagKey, e)`）。
+  ⇒ **同一瞬间，`getFluidHeight > 0` 与 `isInWater() == false` 不可能并存。** 它们既然并存了，
+  就只能是**取自不同时刻**。
+- **确实如此**：`fluidAtRest`/`restY` 采在 60 tick 循环**之前**，而 `inWater` 采在循环**之后**
+  （旧代码 `WorldDriverCoreScenes.java` 的 `new HeldJump(...)` 那一行）。
+  `bottomed.rises=15` —— 那具身体从一格浅水里蹦了 15 次，**收尾时人在半空**，
+  所以末尾那次 `isInWater()` 老老实实地报了 false。**两个读数都是真的，说谎的是它们的相邻。**
+- ⇒ **`bottomed` 在起跳那一刻确实在水里**（`fluidAtRest=0.888 > 0` 即可推出），
+  `d=0.888 > h=0.4`，走 `jumpInLiquid`。**§6.8 原判不变：`bottomed` 断言的是一条特权。**
+  同理 `bottomedDeep` 的红也不受影响（`fluidAtRest=1.999 > 0`）。
+
+**修法（已随本条落地）**：`inWater` 拆成 `inWaterAtRest` / `inWaterAtEnd`，**每个字段名里都带上它的时刻**；
+并加一条**仪器自检**断言 `inWaterAtRest == (fluidAtRest > 0)`，判词是
+「The instrument, not the gate, is wrong」。下次采样再漂，臂会自己喊，而不是产出一对
+让人推出相反结论的数。
+
+> **这条是本文档最该被后来人读到的一条。** 它不是「读数坏了」那么简单：
+> **两个读数各自都是真的，日志里也都印着，没有任何一个字是假的——错的是把它们并排放。**
+> 一份只记录「查出了什么」的文档会漏掉这种事，因为它没有失败；
+> 它只是差一点让一个正确的结论被一个正确的读数推翻。
+
 ---
 
 ## 7. 场景归属：谁该迁走，谁迁不了

@@ -912,6 +912,19 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.record("jumpThreshold", threshold);
         ctx.passNote("afloat=" + afloat + " bottomed=" + bottomed + " bottomedDeep=" + deep);
 
+        // The instrument checking itself. Vanilla fills the fluid-height cache and sets
+        // wasTouchingWater from one call, so at any single instant a non-zero height and a false flag
+        // cannot coexist. If they do in a row here, the two readings were taken at different times and
+        // every conclusion drawn from the pair is unsafe — which is exactly what happened once, and
+        // cost a round of the investigation rather than being caught by the arm that produced it.
+        for (HeldJump h : List.of(afloatArm, bottomedArm, deepArm))
+            if (h.inWaterAtRest() != (h.fluidAtRest() > 0.0))
+                ctx.fail("buoyantJumpStaysABob: an arm reported inWaterAtRest=" + h.inWaterAtRest()
+                        + " with fluidAtRest=" + h.fluidAtRest() + ". Vanilla writes both from one"
+                        + " updateFluidHeightAndDoFluidPushing call, so that pair is unreachable at a"
+                        + " single instant — the readings were sampled at different moments and must"
+                        + " not be compared. The instrument, not the gate, is wrong.");
+
         if (afloat > 0)
             ctx.fail("buoyantJumpStaysABob: a body floating in deep water launched " + afloat
                     + " ground jump(s) (single-tick rise >0.3). Afloat is not standing: the support test"
@@ -932,7 +945,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (Math.abs(deepArm.restY() - standY) > 1.0E-6)
             ctx.fail("buoyantJumpStaysABob/bottomedDeep: the body did not come to rest on the pool"
                     + " floor before the jump was held — restY=" + deepArm.restY() + ", expected "
-                    + standY + " (inWater=" + deepArm.inWater() + "). A body that floated here is a"
+                    + standY + " (inWaterAtRest=" + deepArm.inWaterAtRest() + "). A body that floated here is a"
                     + " duplicate of the afloat arm and would pass this arm without testing anything."
                     + " The arena, not the gate, is wrong.");
         if (deepArm.fluidAtRest() <= threshold)
@@ -963,7 +976,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.record(arm + ".first", h.first());
         ctx.record(arm + ".fluidAtRest", h.fluidAtRest());
         ctx.record(arm + ".restY", h.restY());
-        ctx.record(arm + ".inWater", h.inWater());
+        ctx.record(arm + ".inWaterAtRest", h.inWaterAtRest());
+        ctx.record(arm + ".inWaterAtEnd", h.inWaterAtEnd());
     }
 
     /** A ladder hung on a wall to its EAST (so it faces west). */
@@ -983,6 +997,22 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * <p>{@code minY} is the reading that keeps a silent arm honest: "never jumped again" and "never
      * came back down to jump from" produce the same count and mean opposite things, so the floor of
      * the trajectory has to be recorded, not inferred from the count.
+     *
+     * <p><b>Every field carries the instant it was taken at, in its name.</b> The first version of
+     * this record did not, and it cost a round of the investigation: {@code inWater} was read after
+     * the 60-tick loop while {@code fluidAtRest} was read before it, and the pair
+     * {@code fluidAtRest=0.888, inWater=false} was reasonably read as "this body is not in water, so
+     * vanilla takes the ground jump here" — a conclusion that would have reversed the finding. Both
+     * readings were true; only their adjacency lied. An arm that bounces clear of a shallow pool ends
+     * the loop airborne, so the end-of-loop flag says so. Hence {@code inWaterAtRest} (the stance the
+     * decision was made from) and {@code inWaterAtEnd} (where 60 ticks of holding jump left it) are
+     * separate fields and neither is called just "inWater".
+     *
+     * <p>{@code fluidAtRest} and {@code inWaterAtRest} are ONE fact, not two: vanilla sets
+     * {@code wasTouchingWater} from the return of the same {@code updateFluidHeightAndDoFluidPushing}
+     * call that fills the height cache, and the height only goes non-zero on an iteration that also
+     * returns true. A non-zero height with the flag false, at one instant, is unreachable — so if
+     * these two ever disagree in a results row, the bug is in the sampling, not in the body.
      *
      * <p>{@code fluidAtRest} and {@code restY} describe the STANCE the first jump was taken from,
      * sampled after the settle steps and before the loop. They are here because the count alone
@@ -1006,7 +1036,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * means anything.
      */
     private record HeldJump(double first, int later, double minY, int minTick, boolean climbable,
-                            boolean inWater, double fluidAtRest, double restY, double jumpThreshold) {
+                            boolean inWaterAtRest, boolean inWaterAtEnd, double fluidAtRest,
+                            double restY, double jumpThreshold) {
         int rises() {
             return (first > 0.3 ? 1 : 0) + later;
         }
@@ -1029,6 +1060,15 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // on none of vanilla's tick chains; without those three settle steps it would read 0.
         double fluidAtRest = fp.getFluidHeight(FluidTags.WATER);
         double restY = fp.getY();
+        // Sampled in the SAME breath as fluidAtRest, and that is not tidiness. Vanilla writes
+        // wasTouchingWater and the fluid-height cache from one call — updateInWaterStateAndDoWater-
+        // CurrentPushing sets the flag from the return of updateFluidHeightAndDoFluidPushing, and
+        // inside that method the height only becomes non-zero on an iteration that also returns true.
+        // So the two readings are one fact and can only disagree by being taken at different times.
+        // They previously were: this flag used to be read after the 60-tick loop, next to two fields
+        // named ...AtRest, and an arm that had bounced clear of a one-deep pool reported
+        // "fluidAtRest=0.888, inWater=false" — a pair vanilla cannot produce in a single tick.
+        boolean inWaterAtRest = fp.isInWater();
         StringBuilder head = new StringBuilder();
         double prev = fp.getY(), first = 0.0, minY = Double.POSITIVE_INFINITY;
         int later = 0, minTick = -1;
@@ -1049,13 +1089,14 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         // from eye height (Entity.getFluidJumpThreshold — eyeHeight < 0.4 ? 0.0 : 0.4), so a body in
         // a non-standing pose answers differently, and an arm that hardcoded the standing value would
         // compare against a number its own body was not using.
-        HeldJump out = new HeldJump(first, later, minY, minTick, fp.onClimbable(), fp.isInWater(),
-                fluidAtRest, restY, fp.getFluidJumpThreshold());
+        HeldJump out = new HeldJump(first, later, minY, minTick, fp.onClimbable(), inWaterAtRest,
+                fp.isInWater(), fluidAtRest, restY, fp.getFluidJumpThreshold());
         // 底tick sits next to 底y because "came back to the floor on the LAST tick" and "came back
         // with forty ticks left and stayed silent" are the same y and opposite verdicts.
-        WorldDriverCommon.LOG.info("[held-jump] {} 首跳={} 之后>0.3={} 之后底y={} 底tick={} climbable={} inWater={} 起跳前液高={} 起跳前y={}{}",
+        WorldDriverCommon.LOG.info("[held-jump] {} 首跳={} 之后>0.3={} 之后底y={} 底tick={} climbable={} 起跳前水中={} 收尾水中={} 起跳前液高={} 起跳前y={}{}",
                 arm, String.format(java.util.Locale.ROOT, "%.4f", first), later,
-                String.format(java.util.Locale.ROOT, "%.4f", minY), minTick, out.climbable(), out.inWater(),
+                String.format(java.util.Locale.ROOT, "%.4f", minY), minTick, out.climbable(),
+                out.inWaterAtRest(), out.inWaterAtEnd(),
                 String.format(java.util.Locale.ROOT, "%.4f", fluidAtRest),
                 String.format(java.util.Locale.ROOT, "%.4f", restY), head);
         return out;
