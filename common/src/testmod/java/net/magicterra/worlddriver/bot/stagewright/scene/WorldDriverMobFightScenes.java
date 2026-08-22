@@ -460,6 +460,16 @@ public final class WorldDriverMobFightScenes {
             do {
                 if (done()) break;
                 long iter = System.nanoTime();
+                // NO per-iteration breadcrumb here, deliberately. One was written and removed: at
+                // 50-120 iterations per server tick its logging inflated open.worstServerTickMs /
+                // workMs / msPerIter — the three numbers this scene exists to report, and the only
+                // quantitative link between a healthy run and a fatal one (the worstIterMs series
+                // 5.6 → 6.8 → 8.2 → 21.4 → 80.6 against a 60 000 ms death). An instrument that
+                // breaks that series costs more than the iteration index it buys, and PathFinder's
+                // own heartbeat already names the state a killed tick was in, with the driver count
+                // in the same line. Same trap as the wp8 probe whose evidence row has to warn that
+                // its scan generates chunks: a run carrying the probe is not comparable with one
+                // that does not.
                 ServerAvatarManager.tickAll();
                 if (blaze.isAlive()) {
                     blaze.tick();
