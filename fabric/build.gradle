@@ -348,6 +348,10 @@ loom {
             // local player has been placed — so rung 1 would race the very thing this topology
             // exists to provide, and「有没有真玩家」would depend on boot timing.
             property 'stagewright.awaitPlayer', 'true'
+            // Empty unless asked for; the default lives in JourneyRig. -PwalkerDebug=true turns on
+            // the per-tick walker/AutoSwim account, which is the only record of what the client
+            // helm does to a submerged body.
+            property 'worlddriver.journey.walkerDebug', (project.findProperty('walkerDebug') ?: '')
             property 'stagewright.client.world', 'JourneyClient'
             property 'stagewright.client.exitWhenDone', 'true'
             property 'worlddriver.journey', 'true'

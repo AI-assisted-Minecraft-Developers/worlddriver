@@ -1251,7 +1251,15 @@ public final class JourneyRig {
     public void generousPathfinding() {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        BotConfig.walkerDebug = false;
+        // Off by default because a journey leg is thousands of ticks and this logs per-tick, but
+        // openable, because the things it prints are the only account of what the CLIENT helm is
+        // doing to the body. `AutoSwim`'s shore search — the code that owns a submerged real player
+        // — logs nothing at all without it, and the integrated topology's ladder dies in water at
+        // spawn without a single line explaining why. Turn on with:
+        //     ./gradlew :fabric:runJourneyIntegratedServer -PwalkerDebug=true
+        // Empty when not asked for, default here in Java: the build file holding a lever
+        // permanently open is a mistake this block has made once already (see the rehearse budget).
+        BotConfig.walkerDebug = "true".equals(System.getProperty("worlddriver.journey.walkerDebug", ""));
         BotConfig.pathfinderSliceMs = 30;
         // Bound by NODES, not by the wall clock — the shape 58 scene sites across nine files
         // already use, and for the reason PathFinder's own comment gives: a millisecond cap makes
