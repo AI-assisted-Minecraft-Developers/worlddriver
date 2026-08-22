@@ -826,6 +826,51 @@ vanilla 的判据是流体高度：LivingEntity.aiStep 的 jump 分支，getFlui
 **通道不是坏的、也不是没起来，是被同一趟里另一处正常代码按设计关掉的。**
 附带教训：**把未经验证的零写进任务书，会把它变成别人的公理。**
 
+## 🟥 第 2 步成了：新臂红在「缺陷证实」那一支，四个预登记的数全中
+
+`stagewrightDedicatedServerFabric`，**VERDICT: RED，276 executed / 22 skipped**。
+唯一的非 optional 红就是这条新臂（其余三条：`canaryMustFail` 金丝雀、
+`wd.vineOverWaterClimb` optional、`wd.serverEscapeSealedShelter` 长期红 optional）。
+
+```
+bottomedDeep.restY       = 221.0  == standY
+bottomedDeep.fluidAtRest = 1.9989999999999952        ≈ 2.0
+bottomedDeep.first       = 0.41999998688697815       ← vanilla 在这里只给 +0.04
+bottomedDeep.rises       = 4
+bottomedDeep.inWater     = true
+jumpThreshold            = 0.4（从身体读，不是写死）
+```
+
+判词点名 `ServerPlayerAvatar.java:1054`，并写明这是**身体比真玩家更宽松**。
+**这个红是整条链路的价值所在**：没有它，将来那个绿证明不了任何事。
+
+### ⛔ 但同一趟的读数否掉了第 3 步计划的一半
+
+`bottomed.inWater = **false**`（而 `fluidAtRest = 0.8878`，正是 parity 从源码算出的 8/9）。
+
+parity 的推理是「`fluidAtRest 0.889 > 阈值 0.4` ⇒ vanilla 也走 `jumpInLiquid` ⇒
+`bottomed` 这条臂在要求特权，必须改判据」。**但 vanilla 那条分支的条件不止流体高度：**
+
+```java
+boolean bl = this.isInWater() && d > 0.0;
+if (bl && (!onGround() || d > e))                    → jumpInLiquid
+else if ((onGround() || bl && d <= e) && noJumpDelay == 0) → jumpFromGround  ← 0.42
+```
+
+`bl` 要求 `isInWater()`。实测 `inWater=false` ⇒ `bl=false` ⇒ **vanilla 在这一格走的正是 0.42**，
+于是 `bottomed` 那条臂**可能本来就是对的**，改它反而会把一条正确断言改坏。
+
+而且两条臂的流体高度几乎相同（0.888 / 0.893）却 `inWater` 相反，**这本身需要解释**：
+- 若 `inWater` 采得对 ⇒ `bottomed` 不用改，文档里「它是特权契约」那句要**撤回并写明为什么错**。
+- 若采得不对（比如采在 `updateInWaterStateAndDoFluidPushing()` 之前）⇒
+  **`bottomedDeep.inWater=true` 同样可疑，刚拿到的红要重新解释。**
+
+⇒ 已要求 parity **先解释这个矛盾再动代码**。理由与它自己定的「臂先红再修」同源：
+**一个未解释的矛盾读数，比没有读数更危险。**
+
+这是今天第三次「测量打死了提出者自己的计划」（前两次：第八趟打死我的横走修法、
+janitor 的预注册 grep 打死它自己的 commit B）。**这条纪律在连续起作用。**
+
 ### 读第四趟的三条纪律
 
 1. **先看 `rehearsal.doorway` 的「垂直差」**（必须 ≤24）。布景几何变了，
