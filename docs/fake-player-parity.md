@@ -1508,7 +1508,7 @@ InteractionResult interactionResult =
 | 证据行 | 为什么长这样 |
 |---|---|
 | `with = minecraft:cobblestone ×137` | 读的是**背包**。背包里确实有——**背包不是手**，而这次差的还不只是槽，是**哪具身体的手** |
-| `stalled = null`（`builder.lastError` 无错误） | 镐对着方块面右键：非 `BlockItem` 的 `useOn` 合法返回 `PASS`。**vanilla 在这条路上没有任何一句会说话的拒绝**（`handleUseItemOn` 只有「太远」和「太高」两条会出声，两条都不成立） |
+| `stalled = null`（`builder.lastError` 无错误） | **两层，第二层才是真正的原因，别只写第一层**。第一层：镐对着方块面右键，非 `BlockItem` 的 `useOn` 合法返回 `PASS`，vanilla 在这条路上没有任何一句会说话的拒绝（`handleUseItemOn` 只有「太远」和「太高」两条会出声，两条都不成立）。第二层，也是 `lastError` 为 `null` 的**直接**原因：`builder` 是**客户端**的，而客户端 `MultiPlayerGameMode.useItemOn` 的 `startPrediction` **自己先把方块摆上了**——所以客户端的 builder 看到的是一次成功。**服务端的拒绝和客户端的成功是两份读数，这一行读的是后者。**（这条第二层不是我推的，`JourneyShaft.java:813-815` 的注释逐字写着，本轮只是把它接到 vanilla 那一端） |
 | `stock` 一个没少 | 服务端从没消耗过任何东西，因为它从没拿着 cobblestone |
 | `above=air onGround=true water=false` | 地形完全正常——**这一行的作用是排除掉所有地形解释**，它做到了 |
 
