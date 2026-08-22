@@ -113,6 +113,48 @@ return.at               = 105, 93, 7   站的格子是 Block{minecraft:nether_po
 只能判它「错了」。按原来那行写法，我会把红当成绿。
 （`a-threshold-computed-from-what-it-measures` 的邻居：**判据的数不能跟被判的量共用一条推导**。）
 
+### 第四趟实测：布景修好了，`crossThrough` 真的跑了，死在最后一步
+
+| # | 行 | 实测 | |
+|---|---|---|---|
+| — | `rehearsal.doorway` 垂直差 | **-8**（原 +52） | ✅ 布景修法生效 |
+| — | `return.portalAfterWalk` | `104, 35, 7` | ✅ 平面行军直接扫到门 |
+| 2 | `portal.expectedTicks` | `80 tick（invulnerable=false，默认分支）` | ✅ 是真梯那条分支 |
+| 1 | `portal.ticked` | **无** | 没进到站桩段，未测 |
+| 3 | `return.dimension` | **无** | 未测 |
+| 4 | `stronghold.away` | **无** | 未测 |
+
+⚠️ `return.climb.*` **不存在** —— 门跟身体同层之后，24 格扫描直接命中，
+第 5 段重试 + `TowerProcess` 那条硬化**一段都没执行**，仍是「已编译、未执行」，不算已验证。
+
+**死因是布景在自己的 fixture 里犯了要测的那个错**（`the-test-reproduced-the-bug-in-its-own-staging`）。
+清场循环从 `dy=-1` 起，把整个口袋**脚下那层一并挖掉**，再只补回门前 4×1 一条。
+于是门框立在**虚空上的一道台**上 —— 真实的下界门没有这种形状。
+身体从周围岩石走过来，落在**门框顶**（那高度上唯一实心的东西），然后下不来：
+
+```
+[walker] stride floor-guard: bottomless stride 105,37,8 → sneak-pin
+[walker] footing guard: sole 0.1787 < 0.18 at 105,37,8 beside a lethal drop → sneak-pin
+portal.walk.3  104,37,7 → 104,37,7（挪了 0 格，409 tick）
+portal.walk.4  104,37,7 → 104,37,7（挪了 0 格，409 tick）
+```
+
+守卫是**对的**，A* 却一直在给出穿过那些格的路线：**从同一格到同一目标搜了 816 次**。
+
+## 🔎 徒劳搜索闸看不见「规划器和执行器不一致」这一族（2026-08-22，实测 816 次）
+
+`WalkerTickSearch:117` 那条 `walkerFutileSearchCap` 闸，两个独立原因都让它在这一幕里失明：
+
+1. **`!res.goalReached()`** —— 它只数**没到达目标**的搜索。这里 A* **到达了**：
+   地形是连通的，只是驱动层拒绝走。**一条搜得到、走不了的路，计数器根本看不见。**
+2. **`moved = futileFoot.distSqr(foot) > 4`** —— 身体在 `104,37,7` 和 `105,37,9` 之间来回，
+   distSqr=5 > 4 ⇒ 每次都判「挪过了」，计数器**归零**。
+
+⇒ **这条闸量的是「A* 成不成功」，不是「身体到没到」。**
+规划器/执行器不一致会产出一个它结构上看不见的死循环。
+（跟 `holdplaceable-blindness-priced`、`the-executor-asked-for-more-than-the-judge` 同族。）
+本次没造成失控只是因为外层 settle 只给了 409 tick，1200-tick 那条闸也没轮到。**未修，记在这里。**
+
 ### 读第四趟的三条纪律
 
 1. **先看 `rehearsal.doorway` 的「垂直差」**（必须 ≤24）。布景几何变了，
