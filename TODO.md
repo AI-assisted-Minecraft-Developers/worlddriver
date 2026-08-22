@@ -1,4 +1,72 @@
-## 🔬 一扇门：七个挖掘入口的认领协议（2026-08-22，run 6 判据**先于**读数登记）
+## 🔴🔴 真梯一直在测一个没人发布的配置：38 个开关被竞技场基线按住（2026-08-22）
+
+**`JourneyRig.generousPathfinding()` 的第一行是 `BotConfig.pinnedBaseline()`**，它调
+`applyGameTestBaseline()` —— 一份**为竞技场断言冻结的旧默认值表**（它自己的注释说得很清楚：
+「the arena suite's assertions were authored against the historical default-OFF flag set」）。
+然后 rig 只把 `allowBreak` / `allowPlace` 两个开回来。
+
+于是真梯问的不是「这个驱动器能不能通关」，而是「**两年前那个驱动器**能不能通关」。
+逐项比对，与线上默认值不同的有 **38 个**：
+
+| 与水/岸边挖掘直接相关（真梯 3 级正卡在这里） | 默认 | 真梯实际 |
+|---|---|---|
+| `walkerFutileBankDigRelease` | true | **false** |
+| `walkerFloatingBankBobFreeze` | true | **false** |
+| `walkerBankDigSkipWhenCwpSwims` | true | **false** |
+| `walkerBankDigSkipOverhang` | true | **false** |
+| `walkerBankDigGroundBlip` | true | **false** |
+| `walkerBankDigForwardExit` | true | **false** |
+| `walkerSwimAshorePillarDespiteDeepDig` | true | **false** |
+| `walkerBuoyantSearchFromSurface` | true | **false** |
+| `walkerDeepWaterFloatBeeline` | true | **false** |
+| `walkerWaterWalkReach` / `walkerWaterStepDownFloat` | true | **false** |
+| `walkerDrowningEscape` | true | **false** |
+| `walkerClimbGaveUpSticky` | true | **false** |
+| `pathfinderFloatingBreakTax` | true | **false** |
+| `pathfinderForbidParkourFromFloatingWater` | true | **false** |
+
+其余 24 个：`allowWaterBucketFall`、`walkerStepUpBackoffRetry`、`walkerCarrotBodyLos`、
+`walkerExpectAlarm`、`walkerStuckStepMonotonic`、`walkerPillarSurfacePlace`、
+`walkerAboveNodeStallRecover`、`walkerDigAimPriority`、`walkerWallDigFallback`、
+`walkerDryReanchor`、`walkerVineDescentDrop`、`walkerAscentRamBobBreak`、
+`walkerPillarReachGoalNoSnap`、`walkerWallCornerFastChurn`、`walkerRouteHysteresis`、
+`walkerDigCommitHoldRepath`、`walkerRamNodeAimRelease`、`walkerPhysicalStallClock`、
+`walkerBridgeHoldRepath`（全部 true→false），
+`pathfinderBreakCostMultiplier` 2.5→1.0，`pathfinderLogBreakTax` 3.0→1.0。
+
+### 这条是怎么被发现的：一个零
+
+`dig-aim RELEASE` 在 8022 tick 里**一次都没出现**。我读成了「挖掘保持从未到期」，
+据此写了两个修法（按进度释放、认领协议），**两个都改在这个拓扑已经关掉的分支里**，
+两趟实测都没有任何变化 —— 因为 `walkerDigAimPriority=false` 时整块代码根本进不去。
+零的正确读法是「**这条守卫从未被进入**」，不是「它没有到期」。
+（同一课已经在记忆里：「没被问到的守卫」「以零为证据，先证明非零可能」。）
+
+### 已做（`08ece738`）
+
+`generousPathfinding()` 显式装备 `walkerDigAimPriority = true` —— 只这一个，一趟一个变量。
+基线注释自己给了出路：「scenes that WANT a flag still set it explicitly」。
+
+### run 7 判据（读结果之前登记）
+
+| # | 判据 | 读哪里 |
+|---|---|---|
+| 1 | `dig-aim RELEASE` **出现 ≥1 次**（证明守卫这次进去了 —— 这是本趟的首要判据，比过级更重要） | `logs/latest.log` |
+| 2 | `[dig]` 单格 progress 单调爬升，不再 ~35 tick 换格 | 同上 |
+| 3 | 至少一块被挖开（`RELEASE … solid=false`） | 同上 |
+| 4 | `wd.journey03Wood` 不再是 `TIMEOUT 8021` | `stagewright-results.jsonl` |
+
+**若 1 号成立但 3 级仍不过**：说明仲裁只是这条水域链上的第一个开关，
+下一步是把上表水域那 14 个一起装备（作为**一个**变量：「按线上默认值跑水域子系统」）。
+**若 1 号不成立**：`08ece738` 没有生效，先查装备点是否在 `pinnedBaseline()` 之后执行。
+
+---
+
+## 🔬 一扇门：七个挖掘入口的认领协议（2026-08-22，run 6 判据**先于**读数登记 —— **已证伪**）
+
+> **结论先写在前面：这一节的两个修法都没有改变任何行为**，因为
+> `walkerDigAimPriority` 在这个拓扑里是 false（见上一节）。代码改动本身是对的、也留着
+> （七个入口的形状确实各说各的），但**它们不是 3 级的病因，也没有资格被当作修法引用**。
 
 run 5 把病因钉死了，也**证伪了 run 5 自己的修法**。`[dig]` 探针（每 20 tick 一行，392 行）：
 
