@@ -853,6 +853,55 @@ BotApiImpl.java:73          private final BotState state   = new BotState();
 而 `JourneyFlight` 有 11 处直接读它们。那一档要扩 `status()` 才能修，
 **属于 19–20 级，先记不修**——现在改它会把这一趟的归因弄脏。
 
+## 🌊 淹死那一格：**逃生反射开火了，而它带的预算比它自己的补救所需要的还少**
+
+```
+[06:55:33] [drownEscape] PREEMPT — floating straight up (air=100 underwater=true enter<=100 release>=280)
+[06:55:33] [scheduler] chain user -> drownEscape (bids: {drownEscape=500.0, user=50.0, …})
+[06:55:34] 心跳 身体=94,40,89        ← 抢占后 20 tick
+[06:55:44] 心跳 身体=94,40,89        ← 再 200 tick，同一格
+[06:55:48] Player118 drowned
+```
+
+**身体在抢占之后 400 tick 一格没动。** 三条硬事实：air=100 时抢占、坐标不变、淹死。
+（`[drownEscape] CAPPED lid` 那条被 `BotConfig.walkerDebug` 关着，本级第一件事
+`generousPathfinding()` 就把它置 false，所以它的**缺席不算证据**——
+[[zero-as-evidence-needs-a-live-channel]] 已经在这个仓库里栽过一次。）
+
+### 两处结构问题与读数无关，是确定的
+
+**一、门槛比补救所需还小，而这一条它自己的注释就写着。** `DrownEscapeChain.java:136-137`：
+
+> breaking straight through the lid can't chew a stone block underwater within one breath
+> (~180 t bare-hand vs the ~100 t of air we enter at)
+
+`drownEscapeAirThreshold = 100`（vanilla 满气 300）。所以**封顶那一支被设计成注定失败**，
+指望的是同类里的另一条出路——横向游到能换气的柱。
+[[a-remedy-gated-on-what-it-replaces]] 的同族：一条补救的预算由它要替代的那条花掉。
+vanilla 还要再乘两次罚则：`Player.getDigSpeed` 里眼在水中 ÷5、**不在地面再 ÷5**——
+而这条链同一 tick 里 `BotInput.jump(mc,true)` 保证了「不在地面」。**浮起来这件事本身让破盖慢五倍。**
+
+**二、那条唯一的出路只看四格上、五格外。** `SURFACE_SCAN_UP = 4`、`LATERAL_SCAN_R = 5`。
+y=40 的含水层洞里，四格上全是水 ⇒ `cappedColumn` 判「不封顶」⇒ 走纯垂直上浮；
+或者判封顶而五格内没有可换气柱 ⇒ `dir == null` ⇒ 同样落到纯垂直 + 破盖。
+**两条判断走向同一个注定失败的分支。**
+
+### 已有三条场景是绿的，覆盖的是好走的那一支
+
+`wd.drownEscapeSurface` / `wd.drownEscapePreempt` / `wd.drownEscapeGateMatrix` 都在闸里且绿。
+**它们测的是开阔水面上浮。** 杀死身体的那一支——深水、封顶、五格内无出口——**一条臂都没有**。
+[[skip-is-not-coverage]]、[[staging-for-rungs-nobody-has-climbed]] 同族。
+
+### 本轮不修，理由和顺序
+
+淹死是**塔零收益的下游**：塔不失败，身体根本不会掉进那片水。所以先修塔。
+若塔修好之后第 9 级仍死于水，再按仓里已有的纪律做——
+**先落一条会红的臂（`bottomedDeep` 的先例：「第 2 步那个红是全部价值所在」），再改闸**。
+臂的形状已经确定：身体站在 y=40 的水里，头顶四格全水、二十格上才是石头、五格内无可换气柱。
+
+⚠️ **不要顺手把 `drownEscapeAirThreshold` 调大。** 它是全局的，任何一次下潜都会更早抢占用户进程，
+可能让已经绿的水域场景回归。要动它得先有那条红臂当判据。
+
 ---
 
 ## 📏 清理了 733 行预算，而顶着上限的那个文件一行都没省下（J5 的否定结果，2026-08-22）
