@@ -32,6 +32,7 @@ import net.magicterra.worlddriver.bot.util.BlockMatch;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.util.AttackSnap;
 import net.magicterra.worlddriver.bot.util.ItemSnap;
+import net.magicterra.worlddriver.bot.util.TimeSnap;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.LivingEntity;
 
@@ -112,19 +113,7 @@ public final class ClientObserve {
             // World time so the caller can plan around day/night (mobs spawn
             // at night, sleep needs night, sky-light ticks matter for farms).
             if (p.level() != null) {
-                long dt = p.level().getDayTime();
-                Map<String, Object> time = new LinkedHashMap<>();
-                time.put("dayTime", dt);
-                time.put("dayOfWorld", dt / 24000L);
-                long tod = dt % 24000L;
-                time.put("timeOfDay", tod);
-                String phase;
-                if (tod < 12000) phase = "day";
-                else if (tod < 13000) phase = "sunset";
-                else if (tod < 23000) phase = "night";
-                else phase = "sunrise";
-                time.put("phase", phase);
-                out.put("time", time);
+                out.put("time", TimeSnap.snapshot(p.level().getDayTime()));
             }
             out.put("gameMode", mc.gameMode != null ? mc.gameMode.getPlayerMode().getName() : "unknown");
             out.put("selectedSlot", p.getInventory().selected);

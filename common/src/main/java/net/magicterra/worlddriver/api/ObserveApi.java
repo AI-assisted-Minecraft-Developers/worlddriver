@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.util.AttackSnap;
 import net.magicterra.worlddriver.bot.util.ItemSnap;
+import net.magicterra.worlddriver.bot.util.TimeSnap;
 import net.magicterra.worlddriver.bot.world.AsciiMapRenderer;
 import net.magicterra.worlddriver.bot.world.HazardCell;
 import net.magicterra.worlddriver.bot.world.HazardField;
@@ -184,19 +185,7 @@ public final class ObserveApi {
             // mc.wait.condition{invoke:'mc.observe.player', field:'time.phase',
             // value:'day'} to wait out a night after digging in.
             if (pl.level() != null) {
-                long dt = pl.level().getDayTime();
-                long tod = ((dt % 24000L) + 24000L) % 24000L;
-                Map<String, Object> time = new LinkedHashMap<>();
-                time.put("dayTime", dt);
-                time.put("dayOfWorld", dt / 24000L);
-                time.put("timeOfDay", tod);
-                String phase;
-                if (tod < 12000) phase = "day";
-                else if (tod < 13000) phase = "sunset";
-                else if (tod < 23000) phase = "night";
-                else phase = "sunrise";
-                time.put("phase", phase);
-                out.put("time", time);
+                out.put("time", TimeSnap.snapshot(pl.level().getDayTime()));
             }
             out.put("gameMode", pl.gameMode.getGameModeForPlayer().getName());
             ItemStack main = pl.getMainHandItem();

@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
+import net.magicterra.worlddriver.bot.util.TimeSnap;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 import net.minecraft.advancements.AdvancementHolder;
@@ -199,9 +200,11 @@ final class ClientEventDetector {
         // sunrise edge is the cue to break out and resume. Buckets match
         // observe.player.time.phase so the Agent reads the same vocabulary.
         if (mc.level != null) {
-            long tod = mc.level.getDayTime() % 24000L;
-            if (tod < 0) tod += 24000L;
-            String phase = tod < 12000 ? "day" : tod < 13000 ? "sunset" : tod < 23000 ? "night" : "sunrise";
+            // NOTE the key: this event's "dayTime" carries the FOLDED time-of-day (0..24000),
+            // while observe.player.time.dayTime is the raw absolute one. Preserved as-is —
+            // renaming it is an event-payload change for every consumer, not a de-duplication.
+            long tod = TimeSnap.timeOfDay(mc.level.getDayTime());
+            String phase = TimeSnap.phase(mc.level.getDayTime());
             if (!phase.equals(evtLastPhase)) {
                 if (evtLastPhase != null) {
                     api.emitExternal("time.phase", at, Map.of(

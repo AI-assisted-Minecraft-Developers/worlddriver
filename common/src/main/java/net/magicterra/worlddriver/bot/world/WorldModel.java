@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.world;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.util.TimeSnap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 
@@ -36,7 +37,7 @@ public final class WorldModel {
         }
         boolean cornered = SurvivalFacts.cornered(hazard);
         int lethal = SurvivalFacts.lethalCount(hazard);
-        long timeOfDay = mc.level.getDayTime() % 24000L;
+        long timeOfDay = TimeSnap.timeOfDay(mc.level.getDayTime());
         String phase = dayPhase(timeOfDay);
         boolean skyExposed = mc.level.canSeeSky(foot.above());
         boolean exposedAtNight = ("NIGHT".equals(phase) || "DUSK".equals(phase)) && skyExposed;
@@ -44,6 +45,24 @@ public final class WorldModel {
                 phase, skyExposed, exposedAtNight, cornered, lethal, AsciiMapRenderer.rows(hazard));
     }
 
+    /**
+     * The BOT's day phase — <b>not</b> {@link TimeSnap#phase}, and deliberately left that way
+     * until someone decides which is right.
+     *
+     * <pre>
+     *   this               TimeSnap.phase (what the agent is told)
+     *   &lt;12000  DAY        &lt;12000  day
+     *   &lt;13800  DUSK       &lt;13000  sunset
+     *   &lt;22200  NIGHT      &lt;23000  night
+     *   else    DAWN       else    sunrise
+     * </pre>
+     *
+     * Different thresholds AND different vocabulary, so the bot's own dusk reflex
+     * ({@code DuskSecureChain} reads this) starts 800 ticks after the agent has been told it is
+     * night, and ends 800 ticks before. Nobody wrote down which boundary is the intended one, and
+     * unifying them moves when the bunker reflex fires — a survival-path behaviour change, not a
+     * de-duplication. Only the {@code % 24000} folding is shared (via {@link TimeSnap#timeOfDay}).
+     */
     static String dayPhase(long t) {
         if (t < 12000) return "DAY";
         if (t < 13800) return "DUSK";
