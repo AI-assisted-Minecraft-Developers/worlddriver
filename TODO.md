@@ -29,6 +29,31 @@
 
 ⚠️ `gained()` / `dropStacks` 目前是**已编译、未执行**：这一趟闸跑的是 `wd.*`，碰不到 rig。
 
+## ⏳ 17 级第一次有排练：`-Prehearse=STRONGHOLD`（2026-08-22，`18ebb5e6`，读数判据先写在这里）
+
+在此之前 17 级**没有布景配方**，`-Prehearse=STRONGHOLD` 会让身体从出生点空手起跑——
+而出生点在**主世界**，于是 `backToTheOverworld` 在**第一个分支**就返回，整条回程一行都不执行，
+场景还报 PASS。这正是 `staging-for-rungs-nobody-has-climbed` 那个坑：
+**给到刚好达标的布景，把断言写成了恒真。**
+
+新配方把身体扔进下界、给 12 只眼，并在 **96 格外**立一道门、记进账本。
+96 是刻意的：17 级先扫 24 格，扫得到就走快路径——那条路径本来就是通的，
+测不出这套布景要测的东西。
+
+**六条判据，按顺序读（前三条只要有一条不成立，这一趟就什么也没证明）**：
+
+| # | 行 | 必须是 | 不满足说明 |
+|---|---|---|---|
+| 1 | `rehearsal.doorway` | 6 格 nether_portal，离身体 > 24 | **布景**坏了，不是 17 级坏了 |
+| 2 | `return.needed` | `true` | 身体没被送进下界，场景恒真 |
+| 3 | `return.portal` | 无（24 格扫不到） | 走的是快路径，账本那条路仍未测 |
+| 4 | `return.banked` | 门的坐标 | `noteNetherPortal` 没写进去 |
+| 5 | `return.portalAfterWalk` | 有 | 走回去了但门没了 ≠ 走不回去，两回事 |
+| 6 | `stronghold.away` | 主世界量的合理值（~1700） | 又在跨维度量直线距离 |
+
+**这一趟不管红绿都有价值**：它是 `noteNetherPortal`、`march(home)`、`stepBackThrough`
+三段代码的**首次执行**。红了就知道哪一段断；绿了才第一次有资格说 17 级的回程能走。
+
 ## 🟢 规划器改动跑过整闸，276 场无回归（2026-08-22，三趟 `stagewrightDedicatedServerFabric`）
 
 ```
