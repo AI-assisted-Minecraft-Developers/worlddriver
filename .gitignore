@@ -10,7 +10,7 @@ run-contract/
 # sharing a directory would each measure the other), and a glob is what keeps a fourth from being
 # committable the day it is added.
 run-journey*/
-run-rehearsal/
+run-rehearsal*/
 .idea/
 *.log
 # log4j2 rolls latest.log into dated .gz archives, which *.log does not cover;
