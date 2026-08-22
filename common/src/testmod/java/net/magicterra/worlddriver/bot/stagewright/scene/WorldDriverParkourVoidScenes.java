@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -299,7 +300,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + spawnDx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + spawnDx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);           // cannot move survivableFall — see class javadoc
@@ -449,7 +450,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         buildPadGapDeck(level, cx, cz + shortDz, padY, 1, 0);
         buildPadGapDeck(level, cx, cz + longDz, padY, 6, 0);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + shortDz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + shortDz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();          // CRITICAL: no placeable block -> no bridge bypass

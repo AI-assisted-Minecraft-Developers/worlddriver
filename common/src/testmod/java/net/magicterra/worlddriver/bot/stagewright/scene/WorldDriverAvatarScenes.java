@@ -331,7 +331,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> av.fakePlayer().discard());
         ServerPlayer fp = av.fakePlayer();
         fp.getInventory().clearContent();

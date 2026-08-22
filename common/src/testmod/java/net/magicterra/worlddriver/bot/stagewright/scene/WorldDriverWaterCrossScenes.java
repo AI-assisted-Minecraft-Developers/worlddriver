@@ -15,6 +15,7 @@ import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.pathfinder.moves.Fall;
 import net.magicterra.worlddriver.bot.pathfinder.moves.FallIntoWater;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -136,7 +137,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -200,7 +201,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 1_000_000;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, plY + 1, cz + 2);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, plY + 1, cz + 2);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -280,7 +281,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 1_000_000;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, wsurf, cz);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, wsurf, cz);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -356,7 +357,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
             BotConfig.walkerDebug = true;
             // SEED the bot in the EAST-adjacent 1-deep water cell (cx+1), pressed WEST toward the head-walled
             // node, with a small west velocity. It grounds (foot=waterY) but its head is blocked → pins short.
-            ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 1.5, waterY, cz + 0.5);
+            ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, waterY, cz + 0.5);
             ServerPlayer fp = av.fakePlayer();
             final ServerPlayer fpc = fp;
             ctx.cleanup(() -> fpc.discard());
@@ -482,7 +483,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
     private static boolean runPadLeg(SceneContext ctx, ServerLevel level, int cx, int cz, int waterY,
                                      BlockPos node, BlockPos cont, BlockPos goalN, Goal goal,
                                      SearchProfile profile, BlockPos padCell) {
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 1.5, waterY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, waterY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.setDeltaMovement(-0.10, 0, 0);        // residual west approach momentum → press into the head-wall
@@ -566,7 +567,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
             BotConfig.pathfinderFloatingSurfaceCross = (leg == 1);
-            ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 1.5, surface - 1, cz + 0.5);
+            ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
             ServerPlayer fp = av.fakePlayer();
             final ServerPlayer fpc = fp;
             ctx.cleanup(() -> fpc.discard());
@@ -599,7 +600,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         // ---- Leg B: integration — the floating Walker crosses cleanly with the flag ON ----
         BotConfig.pathfinderFloatingSurfaceCross = true;
         BotConfig.walkerDebug = true;
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 1.5, surface - 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -693,7 +694,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 1_000_000;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 2.5, surface, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -800,7 +801,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 1_000_000;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 2.5, surface, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -912,7 +913,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 1_000_000;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 2.5, surface, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 2.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1051,7 +1052,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         BotConfig.walkerDebug = false;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, waterFootY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, waterFootY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);

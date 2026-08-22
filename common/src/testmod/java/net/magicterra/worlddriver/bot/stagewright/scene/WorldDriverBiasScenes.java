@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.bot.pathfinder.constraints.YFloor;
 import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
 import net.magicterra.worlddriver.bot.pathfinder.modifiers.ShorelineHug;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -130,7 +131,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         BlockPos start = new BlockPos(cx, y + 1, cz);
         BlockPos goal = new BlockPos(cx + 20, y + 1, cz);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -174,7 +175,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, base + 2, cz), Blocks.AIR.defaultBlockState());
 
         BlockPos start = new BlockPos(cx, base + 1, cz);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, base + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, base + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -217,7 +218,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
 
         BlockPos start = new BlockPos(cx, top + 1, cz);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, top + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, top + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -271,7 +272,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(cx + k, base + k, cz), Blocks.STONE.defaultBlockState());
 
         BlockPos start = new BlockPos(cx, base + 1, cz);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, base + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, base + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -340,7 +341,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         BlockPos start = new BlockPos(cx, y + 1, cz);
         BlockPos goal = new BlockPos(cx + 7, y + 1, cz);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();   // CRITICAL: no placeable block in the hotbar
@@ -385,7 +386,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         int dipY = pitFloorY + 1;                 // standing cell on the pit floor
         BlockPos goal = new BlockPos(cx + 1, dipY, cz);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx - 0.5, y + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -429,7 +430,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         BlockPos insideGoal = new BlockPos(cx + 8, y + 1, cz);    // dist 8  < R
         BlockPos outsideGoal = new BlockPos(cx + 16, y + 1, cz);  // dist 16 > R
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, sx, sy, sz);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, sx, sy, sz);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -479,7 +480,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         BlockPos start = new BlockPos(cx, y + 1, cz);
         BlockPos goal = new BlockPos(cx + 10, y + 1, cz);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();   // no placeable block — no PillarUp/BridgePlace bypass
@@ -522,7 +523,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
 
         BlockPos start = new BlockPos(cx, top + 1, cz);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, top + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, top + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -587,7 +588,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         BlockPos start = new BlockPos(cx, y + 1, cz);
         BlockPos goal = new BlockPos(cx + 36, y + 1, cz);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();   // no placeable block — no bridge/pillar bypass
@@ -655,7 +656,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         BlockPos start = new BlockPos(cx + 10, y + 2, cz + 8);   // south bank of the horizontal strip
         BlockPos goal = new BlockPos(cx + 27, y + 2, cz + 25);   // west bank of the vertical strip
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 10.5, y + 2, cz + 8.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 10.5, y + 2, cz + 8.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -715,7 +716,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
         level.setBlockAndUpdate(new BlockPos(cx, footY + 1, cz), Blocks.AIR.defaultBlockState());
 
         BlockPos start = new BlockPos(cx, footY, cz);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, footY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -765,7 +766,7 @@ public final class WorldDriverBiasScenes implements SceneProvider {
 
         BlockPos start = new BlockPos(cx, footY, cz);
         BlockPos goalPos = new BlockPos(cx, top + 2, cz);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, footY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();

@@ -31,6 +31,7 @@ import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
@@ -597,7 +598,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         buildFloor(level, cx, cz, floorY);
 
         // 1) Flat sprint travel (+z) for 20 ticks → meaningful forward distance, stays grounded.
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) { av.commandMove(0, 0); av.step(); }
@@ -612,7 +613,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("physicsParity: walker left the floor: dy=" + (fp.getY() - startY));
 
         // 2) Standing jump apex ~1.25.
-        ServerPlayerAvatar av2 = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av2 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp2 = av2.fakePlayer();
         ctx.cleanup(() -> fp2.discard());
         for (int i = 0; i < 3; i++) { av2.step(); }
@@ -628,7 +629,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("physicsParity: jump apex off: " + apex + " (expected ~1.25)");
 
         // 3) Jumped +1 step-up: a full block ahead is cleared by forward+jump.
-        ServerPlayerAvatar av3 = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av3 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp3 = av3.fakePlayer();
         ctx.cleanup(() -> fp3.discard());
         for (int dx = -1; dx <= 1; dx++)
@@ -666,7 +667,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
         buildFloor(level, cx, cz, floorY);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
@@ -1079,7 +1080,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  red is diagnosable from the run that produced it rather than from a second one with logging
      *  on. */
     private static HeldJump heldJump(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
@@ -1152,7 +1153,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
         buildFloor(level, cx, cz, floorY);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
@@ -1194,7 +1195,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("buildBlockWhitelist: sand must NOT be usable (FallingBlock drops over gaps)");
 
         // LevelWorldView count delegates to the predicate: dirt+bamboo inventory → only dirt counts.
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -1250,7 +1251,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         BotLevelHolder.current = level;
@@ -1314,7 +1315,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         BotLevelHolder.current = level;
 
         // ---- Phase 1: RECORD a real goto from A to B. ----
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -1372,7 +1373,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             // Avatar FIRST, then arm: the armed session is identity-pinned to the replay
             // avatar so concurrent walkers (the T1 client bot — see PathArchiveRecorder
             // replayEntityId) can't leak foreign samples into the deviation gate.
-            ServerPlayerAvatar rav = ServerPlayerAvatar.createUnique(
+            ServerPlayerAvatar rav = SceneBody.avatar(ctx,
                     level, startFoot.getX() + 0.5, startFoot.getY(), startFoot.getZ() + 0.5);
             ServerPlayer rfp = rav.fakePlayer();
             ctx.cleanup(() -> rfp.discard());

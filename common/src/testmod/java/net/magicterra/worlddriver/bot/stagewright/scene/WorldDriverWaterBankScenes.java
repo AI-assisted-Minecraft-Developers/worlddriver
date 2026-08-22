@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.moves.Fall;
 import net.magicterra.worlddriver.bot.pathfinder.moves.FallIntoWater;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -152,7 +153,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
 
         // (1) Submerged, no input → slow sink (NOT free-fall to the floor).
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + depth - 4, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 4, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -167,7 +168,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + " (expected slow water drift, free-fall would be much more negative)");
 
         // (2) Submerged, hold jump → buoyant rise.
-        ServerPlayerAvatar av2 = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + depth - 6, cz + 0.5);
+        ServerPlayerAvatar av2 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 6, cz + 0.5);
         ServerPlayer fp2 = av2.fakePlayer();
         ctx.cleanup(() -> fp2.discard());
         SimProbes.grantWaterEffects(fp2);
@@ -179,7 +180,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             ctx.fail("waterPhysicsParity: buoyant jump did not lift the avatar: dy=" + riseDy);
 
         // (3) Submerged, forward → swims forward (slow), stays in water.
-        ServerPlayerAvatar av3 = ServerPlayerAvatar.createUnique(level, cx + 0.5, floorY + depth - 5, cz + 0.5);
+        ServerPlayerAvatar av3 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 5, cz + 0.5);
         ServerPlayer fp3 = av3.fakePlayer();
         ctx.cleanup(() -> fp3.discard());
         SimProbes.grantWaterEffects(fp3);
@@ -250,7 +251,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -342,7 +343,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BlockPos vineMid = new BlockPos(cx, base + 3, cz);
         boolean stuckFoot = level.getBlockState(vineFoot).is(Blocks.VINE);
         boolean stuckMid = level.getBlockState(vineMid).is(Blocks.VINE);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, base, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, base, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -484,7 +485,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.walkerRepathEveryTicks = 1_000_000;
 
         // #1 SILENT-NO-OP GUARD: the vine base MUST be present + climbable, else the repro is vacuous.
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, footY, cz - 1 + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz - 1 + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -605,7 +606,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(() -> ServerPlayerAvatar.faithfulBreak = ofb);
         ServerPlayerAvatar.faithfulBreak = true;   // model the live ~750-tick/block slow stone-mine
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -692,7 +693,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (!BotConfig.isUsableBuildBlock(Blocks.MUD))
             ctx.fail("waterLowBank: isUsableBuildBlock: MUD must be a usable foothold (standable, non-falling)");
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -815,7 +816,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface - 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -901,7 +902,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface - 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -994,7 +995,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface - 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1082,7 +1083,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface - 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1154,7 +1155,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, surface, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);

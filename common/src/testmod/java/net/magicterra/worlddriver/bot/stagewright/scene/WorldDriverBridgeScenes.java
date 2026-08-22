@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -126,7 +127,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     private static ServerPlayerAvatar spawn(SceneContext ctx, int x, int standY, int z) {
         ServerLevel level = ctx.level();
         BlockPos p = ctx.rel(x, standY, z);
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> { if (!fp.isRemoved()) fp.discard(); });   // breakThrough discards per-leg
         fp.getInventory().clearContent();

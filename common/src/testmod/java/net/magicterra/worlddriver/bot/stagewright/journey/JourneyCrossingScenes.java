@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -360,7 +361,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         stageTrench(ctx);
         ServerLevel level = ctx.level();
         int standY = ctx.rel(0, TRENCH_DECK + 1, 0).getY();
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level,
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level,
                 ctx.originX() + TRENCH_EDGE + 0.5, standY, ctx.originZ() + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
@@ -529,7 +530,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
         // A: a body cornered on a neighbour. x = +0.05 puts its 0.6-wide box across the cell
         // boundary, so 0.15 of the sole is on the lone block and its own centre column is air.
-        ServerPlayerAvatar perch = ServerPlayerAvatar.createUnique(ctx.level(),
+        ServerPlayerAvatar perch = SceneBody.avatar(ctx, ctx.level(),
                 ctx.originX() + 0.05, ctx.rel(0, DECK + 1, 0).getY(), ctx.originZ() + 0.5);
         ServerPlayer pf = perch.fakePlayer();
         ctx.cleanup(pf::discard);
@@ -765,7 +766,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      *  measurement rather than during it. An arm that starts in the air must NOT have it: those
      *  ticks are its own fall. */
     private static ServerPlayerAvatar spawn(SceneContext ctx, double z, int dy, boolean settle) {
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(ctx.level(),
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, ctx.level(),
                 ctx.originX() + 0.5, ctx.rel(0, dy, 0).getY(), z);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);

@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.movement.BlastFooting;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -335,7 +336,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     private static void swingAndWatch(SceneContext ctx, String name, ServerLevel level,
                                       EndCrystal crystal, int cx, int cz, int topY, int standY,
                                       int standAt) {
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 1.5, standAt, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, standAt, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         SimProbes.grantWaterEffects(fp);   // inert here — the body is already invulnerable

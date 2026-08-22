@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -165,7 +166,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         // Nudge outward until the sole reads under the guard's own threshold rather than computing
         // an offset: the guard's predicate is the authority on what "barely on" means, and a rig
         // that assumes a number can stage a body the guard never looks at.
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -343,7 +344,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         BotConfig.allowBreak = false;   // there is nothing to dig through; bridging is the only answer
         BotConfig.walkerDebug = true;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -479,7 +480,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.walkerDebug = true;
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 1.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -567,7 +568,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
 
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, deckY + 1, cz + 0.5);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, deckY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         fp.getInventory().clearContent();
@@ -880,7 +881,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         double startZ = ctx.origin().getZ() + 1.5;
         int standY = ctx.rel(0, SHELF + 1, 0).getY();
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level,
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level,
                 ctx.origin().getX() + 0.5, standY, startZ);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
@@ -1212,7 +1213,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
 
         double startX = ctx.origin().getX() + 1.5, startZ = ctx.origin().getZ() + 0.5;
         int standY = ctx.rel(0, RIM_DECK + 1, 0).getY();
-        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, startX, standY, startZ);
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, startX, standY, startZ);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
