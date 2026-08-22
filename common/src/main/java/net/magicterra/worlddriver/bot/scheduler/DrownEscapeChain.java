@@ -11,11 +11,10 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.InteractionHand;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
-import static net.magicterra.worlddriver.bot.util.BotInteract.pickFaceTowardsPlayer;
+import static net.magicterra.worlddriver.bot.util.BotInteract.continueDestroy;
 import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 
 /**
@@ -209,8 +208,10 @@ public final class DrownEscapeChain implements Chain {
             // break and the two simply agree; the pipeline is driven directly for the case this
             // reflex actually runs in. A drowning body under a lid has one breath, and a break
             // that never starts spends all of it.
-            if (mc.gameMode.continueDestroyBlock(lid, pickFaceTowardsPlayer(lid, p)))
-                p.swing(InteractionHand.MAIN_HAND);   // armless digging is an anticheat signature
+            // Through BotInteract, not inline: naming MultiPlayerGameMode here puts a client class
+            // in this chain's own bytecode, and this chain is constructed on a dedicated server by
+            // the gate's matrix scenes. See BotInteract#continueDestroy.
+            continueDestroy(mc, p, lid);
             breaking = true;
         }
         if (!breaking) mc.options.keyAttack.setDown(false);

@@ -85,6 +85,38 @@ public final class BotInteract {
         return delta.z >= 0 ? Direction.SOUTH : Direction.NORTH;
     }
 
+    /**
+     * Advance the break on {@code cell} for one client tick, and swing for it.
+     *
+     * <p><b>Why this is a static here instead of two lines at the call site.</b> A chain class lives
+     * in the scheduler and is CONSTRUCTED on a dedicated server — the pure-logic gate scenes build
+     * {@code BunkerChain}, {@code RetreatChain} and {@code DuskSecureChain} directly to drive their
+     * matrices. Those classes may hold {@code LocalPlayer} locals and call methods ON them; that has
+     * always been fine. What is NOT fine is naming a client class the chain never named before:
+     * writing {@code mc.gameMode.continueDestroyBlock(…)} inline puts an {@code invokevirtual} on
+     * {@code MultiPlayerGameMode} into the chain's own bytecode, linking that class pulls
+     * {@code LocalPlayer} in with it, and the server's class loader refuses — "Cannot load class
+     * net.minecraft.client.player.LocalPlayer in environment type SERVER" on Fabric, "invalid dist
+     * DEDICATED_SERVER" on NeoForge. Five gate scenes died at zero ticks, both loaders, the moment
+     * that line landed.
+     *
+     * <p>Routing it through here is the shape that provably survives: this class already names
+     * {@code MultiPlayerGameMode} eight times over, and the same chains have always called
+     * {@code aimAtBlockSnap} / {@code selectBestToolFor} here without the loader minding — an
+     * {@code invokestatic} resolves its owner, not its owner's dependencies. The rule to carry
+     * forward: <b>a scheduler class may pass a client type around, but must not call into one.</b>
+     *
+     * <p>The swing is not decoration — see {@code Avatar#breakHold}. Vanilla swings on every
+     * successful {@code continueDestroyBlock} tick, and a dig without one is both visibly armless
+     * and, to a third-party server, a mining-without-swinging anticheat signature.
+     */
+    public static boolean continueDestroy(Minecraft mc, LocalPlayer p, BlockPos cell) {
+        if (mc == null || mc.gameMode == null || p == null || cell == null) return false;
+        boolean ok = mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p));
+        if (ok) p.swing(InteractionHand.MAIN_HAND);
+        return ok;
+    }
+
     /** Internal — used by BuildProcess to drive the real placement pipeline
      *  instead of the legacy server.setBlock bypass. Must be called from the
      *  client thread. */

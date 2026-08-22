@@ -9,12 +9,11 @@ import net.magicterra.worlddriver.bot.process.BunkerProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
+import static net.magicterra.worlddriver.bot.util.BotInteract.continueDestroy;
 import static net.magicterra.worlddriver.bot.util.BotInteract.ensureHoldingPlaceableAny;
-import static net.magicterra.worlddriver.bot.util.BotInteract.pickFaceTowardsPlayer;
 import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
 import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 import static net.magicterra.worlddriver.bot.util.BotInteract.walkerPlace;
@@ -158,8 +157,10 @@ public final class BunkerChain implements Chain {
             // deepens, digTicks runs to breakTimeoutTicks, and the chain resets and re-anchors
             // — a bunker that reads as "digging" in every log line and never gets a block down.
             // The key still goes down so a grabbed-mouse client and this drive the same break.
-            if (mc.gameMode.continueDestroyBlock(below, pickFaceTowardsPlayer(below, p)))
-                p.swing(InteractionHand.MAIN_HAND);   // armless digging is an anticheat signature
+            // Through BotInteract, not inline: naming MultiPlayerGameMode here puts a client class
+            // in this chain's own bytecode, and this chain is constructed on a dedicated server by
+            // the gate's matrix scenes. See BotInteract#continueDestroy.
+            continueDestroy(mc, p, below);
             if (++a.digTicks > BotConfig.breakTimeoutTicks) {   // unbreakable (bedrock) — give up
                 mc.options.keyAttack.setDown(false);
                 a.reset();
