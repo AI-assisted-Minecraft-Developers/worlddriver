@@ -1284,6 +1284,50 @@ public final class JourneyRig {
     }
 
     /**
+     * Every dropped {@code itemId} stack within {@code radius} of the body, as entity id → count.
+     *
+     * <p>{@link #dropsNearby} totals the same stacks, and a total is the wrong instrument for
+     * "did this kill produce a drop?". The radius is inflated around the BODY, so the window travels
+     * with it: a rod dropped at one fight leaves the window once the body walks to the next, and a
+     * before/after difference of two such totals goes NEGATIVE — {@code rods.perKill} printed
+     * {@code 0,0,1,0,0,×没打死,0,1,0,-1,…} on 2026-08-22, after an earlier double-count in the same
+     * row had already been fixed. A count of things coming into existence cannot be negative; the
+     * row was measuring a moving window and calling it creation.
+     *
+     * <p>With ids, the question becomes answerable exactly: sum the POSITIVE per-id differences.
+     * A new stack contributes its whole count, a stack that grew (vanilla merges nearby identical
+     * item entities into one, keeping one id) contributes the growth, and a stack that drifted out
+     * of the window contributes nothing rather than a negative. See {@link #gained} for the sum.
+     */
+    public java.util.Map<Integer, Integer> dropStacks(String itemId, double radius) {
+        var item = item(itemId);
+        ServerPlayer fp = player();
+        var out = new java.util.HashMap<Integer, Integer>();
+        for (var drop : fp.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                fp.getBoundingBox().inflate(radius))) {
+            if (drop.getItem().is(item))
+                out.merge(drop.getId(), drop.getItem().getCount(), Integer::sum);
+        }
+        return out;
+    }
+
+    /**
+     * How many {@code itemId} came into existence since {@code beforeStacks} / {@code beforeBag}
+     * were read — non-negative by construction.
+     *
+     * <p>Both halves matter: a drop the body walked over mid-fight has left the ground and is in the
+     * bag, so counting only stacks would lose it, and counting only the bag reads zero for every
+     * kill once collection moved to after the fight. See {@link #dropStacks} for why the ground half
+     * cannot be a plain total.
+     */
+    public int gained(String itemId, java.util.Map<Integer, Integer> beforeStacks, int beforeBag, double radius) {
+        int n = Math.max(0, carrying(itemId) - beforeBag);
+        for (var e : dropStacks(itemId, radius).entrySet())
+            n += Math.max(0, e.getValue() - beforeStacks.getOrDefault(e.getKey(), 0));
+        return n;
+    }
+
+    /**
      * Where the nearest dropped {@code itemId} is, or null if there is none within {@code radius}.
      *
      * <p>The other half of {@link #dropsNearby}: that one measures the gap between "mined" and

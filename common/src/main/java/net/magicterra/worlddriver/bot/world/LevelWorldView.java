@@ -105,12 +105,37 @@ public final class LevelWorldView implements WorldView {
 
     @Override public boolean canPlace() { return placeableBlockCount() > 0; }
 
+    /**
+     * The whole inventory, not the hotbar — because the executor this view plans for reaches the
+     * whole inventory.
+     *
+     * <p>This is the view the SERVER body plans with: it is only ever built over
+     * {@code avatar.fakePlayer()}, and that avatar's {@code holdPlaceable()} swaps a stack up from
+     * slots 9..35 when the hotbar has none. Counting only 0..8 therefore made the planner stricter
+     * than the executor it drives, and two consumers turn that into a dead leg:
+     * {@code BridgePlace.eval} refuses to emit a bridge edge at all, and — worse, because it throws
+     * away a path A* already found — {@code WalkerTickSearch}'s block budget re-searches with
+     * placing OFF whenever the edges outnumber this count.
+     *
+     * <p>The price was one rung-14 death in four ladder runs, from the same seat every time:
+     * {@code fortress.wp7} ends at 88,41,107 in all three archived runs and wp8's 11-block hop
+     * succeeded twice and came back {@code failed:no path (expanded=100000)} once, with the body
+     * holding 205 placeable blocks. A place-off re-search over a nether gap has nothing left but
+     * walking, which is what spends 100000 nodes on a hop a single bridge edge would have crossed.
+     *
+     * <p><b>Deliberately not mirrored in ClientWorldView.</b> Its executor
+     * ({@code BotInteract.ensureHoldingPlaceableAny}) really does stop at slot 8 in survival — a
+     * real client cannot move a bag stack to the hotbar without working the inventory menu — so
+     * widening the client's count would invert the asymmetry and promise placements the client
+     * body cannot make. The rule is that each planner counts its OWN executor's reach.
+     */
     @Override public int placeableBlockCount() {
         if (controller == null) return 0;
         if (controller.isCreative()) return Integer.MAX_VALUE;
         int n = 0;
-        for (int slot = 0; slot < 9; slot++) {
-            ItemStack stk = controller.getInventory().items.get(slot);
+        var items = controller.getInventory().items;
+        for (int slot = 0; slot < items.size(); slot++) {
+            ItemStack stk = items.get(slot);
             if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) continue;
             if (!BotConfig.isUsableBuildBlock(bi.getBlock())) continue;   // falling/thin/non-cube → no footing
             n += stk.getCount();

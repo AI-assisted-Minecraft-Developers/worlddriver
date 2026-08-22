@@ -85,6 +85,13 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
                 // remedy could not see the blocks".
                 Scene.of("wd.serverWidensFromTheBackpack", 600,
                         ctx -> widensAThinFooting(ctx, 20)),
+                // The PLANNER's half of the backpack question above. wd.serverWidensFromTheBackpack
+                // proved the executor can reach slots 9..35; these two ask whether A* knows that.
+                // Same gap, same stack, one variable: which slot holds it.
+                Scene.of("wd.serverPlansABridgeFromTheHotbar", 600,
+                        ctx -> plansABridge(ctx, 0)),
+                Scene.of("wd.serverPlansABridgeFromTheBackpack", 600,
+                        ctx -> plansABridge(ctx, 20)),
                 Scene.of("wd.serverStopsAtTheBridgeHead", 600,
                         ctx -> stopsAtTheBridgeHead(ctx, 0)),
                 // Same bridge, one variable different: the goal is off the bridge's axis, so the
@@ -258,6 +265,143 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
         ctx.expect(arrived).as("it must actually reach the cell one up and one across — with only"
                 + " the first clause, standing perfectly still scores full marks, and that is"
                 + " exactly today's behaviour").isTrue();
+    }
+
+    /**
+     * <b>Does A* know about the blocks the executor can reach?</b>
+     *
+     * <h2>The cell this is a copy of</h2>
+     *
+     * Journey rung 14's fortress corridor, waypoint 8. Three archived ladder runs seat the body at
+     * the identical cell — {@code fortress.wp7.at = 88,41,107} in every one — and give the identical
+     * next hop, {@code 88,41,107 → 95,41,115}, eleven blocks. Two crossed it. The third:
+     *
+     * <pre>{@code
+     * fortress.wp8.at  停在 88, 41, 107，差 11 格   end=failed:no path (expanded=100000)
+     * 身上还剩 205 个可放置方块（netherrack×2, cobblestone×104, dirt×79, diorite×7, granite×13）
+     * }</pre>
+     *
+     * <p>Same seed, same terrain, same seat, same goal, blocks in hand — and 100000 nodes spent on a
+     * hop one bridge edge crosses. The variable is which SLOTS those 205 blocks were sitting in.
+     *
+     * <h2>The asymmetry</h2>
+     *
+     * {@link ServerPlayerAvatar#holdPlaceable()} swaps a stack up from slots 9..35 when the hotbar
+     * has none — the executor is not limited to the hotbar. The planner was: {@code
+     * LevelWorldView.placeableBlockCount()} counted 0..8 only. Two consumers turn that gap into a
+     * dead leg — {@code BridgePlace.eval} emits no bridge edge, and {@code WalkerTickSearch}'s block
+     * budget throws away a path A* has ALREADY FOUND and re-searches with placing OFF whenever the
+     * edges outnumber the count. Over a nether gap, place-off leaves only walking, and walking is
+     * what spends the node budget.
+     *
+     * <h2>Why two arms</h2>
+     *
+     * A single arm cannot separate "the remedy is wrong" from "the remedy could not see the blocks"
+     * — the same reason {@code wd.serverWidens*} is a pair. These two differ by the slot index and
+     * nothing else.
+     *
+     * <h2>The three clauses, and why the first is not decoration</h2>
+     *
+     * <ol>
+     *   <li><b>The staging must have created the condition.</b> The backpack arm asserts the hotbar
+     *       really is empty of placeables. Without it, a staging that quietly left a stack in slot 0
+     *       would make the other two clauses true for the wrong reason, and the scene would be
+     *       {@code 0 == 0} — a shape this suite has been burned by before.</li>
+     *   <li><b>The planner must count them.</b> The number A* reads, asserted directly, because it
+     *       is the quantity the defect was in.</li>
+     *   <li><b>And it must actually cross.</b> Counting right while still failing to bridge would
+     *       mean the fix went to the wrong consumer.</li>
+     * </ol>
+     */
+    private static void plansABridge(SceneContext ctx, int slot) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int deckY = ctx.origin().getY() + 40;
+        final int standY = deckY + 1;
+        final int nearCells = 4;      // deck the body starts on
+        final int gapCells = 4;       // open void it must bridge
+        final int farCells = 4;       // deck on the other side
+
+        // Void everywhere in the working box, and genuinely bottomless: a catch floor below the gap
+        // would let the walker fall and recover, which measures the arena instead of the planner.
+        for (int dx = -4; dx <= 4; dx++)
+            for (int dz = -4; dz <= nearCells + gapCells + farCells + 4; dz++)
+                for (int y = level.getMinBuildHeight(); y <= deckY + 6; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz),
+                            Blocks.AIR.defaultBlockState());
+        for (int i = 0; i < nearCells; i++)
+            level.setBlockAndUpdate(new BlockPos(cx, deckY, cz + i),
+                    Blocks.OBSIDIAN.defaultBlockState());
+        final int farStart = nearCells + gapCells;
+        for (int i = farStart; i < farStart + farCells; i++)
+            level.setBlockAndUpdate(new BlockPos(cx, deckY, cz + i),
+                    Blocks.OBSIDIAN.defaultBlockState());
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = true;
+        BotConfig.allowBreak = false;   // there is nothing to dig through; bridging is the only answer
+        BotConfig.walkerDebug = true;
+
+        ServerPlayerAvatar av = ServerPlayerAvatar.createUnique(level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(fp::discard);
+        LevelWorldView w = new LevelWorldView(level, fp);
+        fp.getInventory().clearContent();
+        fp.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+
+        for (int i = 0; i < SETTLE_TICKS; i++) av.step();
+        if (fp.getY() < standY - 0.5) {
+            ctx.fail("THE RIG, not the subject: vanilla dropped the staged stand in " + SETTLE_TICKS
+                    + " idle ticks (y=" + fp.getY() + ")");
+            return;
+        }
+
+        int hotbar = 0;
+        for (int s = 0; s < 9; s++) hotbar += fp.getInventory().items.get(s).getCount();
+        final int planner = w.placeableBlockCount();
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(new BlockPos(cx, standY, cz + farStart + farCells - 1)));
+        double minY = fp.getY();
+        double farZ = fp.getZ();
+        int t = 0;
+        Walker.Step s = Walker.Step.WALKING;
+        for (; t < 500 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+            minY = Math.min(minY, fp.getY());
+            farZ = Math.max(farZ, fp.getZ());
+            if (fp.getY() < deckY - 3) break;
+        }
+        int spent = 64 - fp.getInventory().countItem(Items.COBBLESTONE.asItem());
+        boolean crossed = farZ >= cz + farStart;
+
+        ctx.record("rig", "近岸 " + nearCells + " 格 + 虚空 " + gapCells + " 格 + 对岸 "
+                + farCells + " 格，1 格宽黑曜石，x=" + cx + " y=" + deckY
+                + "，箱下挖空到 y=" + level.getMinBuildHeight() + "（接住的地板等于在量场地）");
+        ctx.record("slot", "64 圆石放在槽位 " + slot
+                + (slot < 9 ? "（快捷栏 —— 对照臂）" : "（背包 —— 执行器够得着，问的是规划器）"));
+        ctx.record("hotbar", "快捷栏里 " + hotbar + " 件东西"
+                + (slot < 9 ? "" : "，判据 = 0：不为零说明布景没造出条件，后两条判据就成了恒真"));
+        ctx.record("planner", "A* 读到的可放置数 = " + planner + "，判据 = 64"
+                + "（修法前这一臂读到的是 0，因为它只数 0..8）");
+        ctx.record("drive", String.format(Locale.ROOT, "%d tick，身体=(%.2f,%.2f,%.2f) step=%s",
+                t, fp.getX(), fp.getY(), fp.getZ(), s));
+        ctx.record("crossed", String.format(Locale.ROOT,
+                "最远 z=%.2f（对岸起点 z=%d，判据 ≥ 该值）；%d 块圆石离开背包", farZ, cz + farStart, spent));
+        ctx.record("minY", String.format(Locale.ROOT, "%.3f（桥面 %d，判据 > %d）",
+                minY, standY, standY - 1));
+
+        if (slot >= 9)
+            ctx.expect(hotbar).as("布景必须真的把石头放到快捷栏之外，否则这个场景什么也没测")
+                    .isEqualTo(0);
+        ctx.expect(planner).as("规划器数到的方块必须是执行器够得着的那些 —— 这就是缺陷所在的那个量")
+                .isEqualTo(64);
+        ctx.expect(minY > standY - 1).as("身体不许掉进虚空").isTrue();
+        ctx.expect(crossed).as("而且必须真的架桥过去 —— 只数对不过去，说明修法接错了消费者")
+                .isTrue();
     }
 
     /**

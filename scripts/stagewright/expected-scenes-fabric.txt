@@ -313,6 +313,10 @@ wd.serverTowersWithAFullBackpack
 # RED BY DESIGN until the body widens its own footing — see the class note.
 wd.serverWidensAThinFooting
 wd.serverWidensFromTheBackpack
+# The planner's half of the same question: A* was counting the hotbar while the executor
+# it drives reaches the whole inventory.
+wd.serverPlansABridgeFromTheHotbar
+wd.serverPlansABridgeFromTheBackpack
 wd.serverStopsAtTheBridgeHead
 wd.serverTurnsAtTheBridgeHead
 wd.serverDrawsABow

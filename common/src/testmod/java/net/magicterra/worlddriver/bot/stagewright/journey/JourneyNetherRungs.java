@@ -879,7 +879,12 @@ public final class JourneyNetherRungs {
         // 「0,0,1,-1,-1,-1,0,-2,…」 on 2026-08-22. A count of things that came into existence cannot
         // be negative, so the row said plainly that it was broken; the arithmetic was
         // before = carrying + 2×ground while now = carrying + ground, i.e. now-before = -ground.
-        final int before = rods;
+        // That fix left one −1 behind (「…,0,1,0,-1,…」, same day's rehearsal), because a difference
+        // of two ground TOTALS is still the wrong instrument: the radius follows the body, so a rod
+        // dropped at an earlier fight simply leaves the window. Per-stack ids answer it exactly —
+        // see JourneyRig.dropStacks.
+        final var beforeStacks = rig.dropStacks(BLAZE_ROD, BLAZE_DROP_LOOK);
+        final int beforeBag = rig.carrying(BLAZE_ROD);
         final int round = BLAZE_FIGHTS - roundsLeft + 1;
         // Re-held every round, not once. Anything that walks or digs calls `selectTool`, which
         // swaps the best TOOL for the block into the selected slot — so the hand a fight starts
@@ -896,8 +901,8 @@ public final class JourneyNetherRungs {
             rig.legReleased();
             boolean dead = !target.isAlive();
             if (dead) killed[0]++;
-            int now = rig.carrying(BLAZE_ROD) + rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK);
-            tally.append(tally.length() == 0 ? "" : ",").append(dead ? String.valueOf(now - before) : "×没打死");
+            int now = rig.gained(BLAZE_ROD, beforeStacks, beforeBag, BLAZE_DROP_LOOK);
+            tally.append(tally.length() == 0 ? "" : ",").append(dead ? String.valueOf(now) : "×没打死");
             rig.evidence("fight." + round, (dead ? "打死" : "没打死") + "，用了 " + waited[0]
                     + " tick，手里 " + weapon + "，最高离地 " + String.format(Locale.ROOT, "%.1f",
                             highest[0] - rig.player().getY()) + " 格");
@@ -1448,7 +1453,11 @@ public final class JourneyNetherRungs {
         // Bag PLUS ground, for the reason the blaze rung's identical row had to be re-based: once
         // collection happens after the hunt rather than during it, a bag delta is structurally zero
         // and prints the signature of a loot-table failure on a run whose loot is fine.
-        final int before = rig.carrying(ENDER_PEARL) + rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK);
+        // Per-stack, not a ground total, for the reason spelled out on the blaze row above: the
+        // window follows the body and a hunt roams much further than a fight in a sealed room does,
+        // so this row was the more exposed of the two.
+        final var beforeStacks = rig.dropStacks(ENDER_PEARL, PEARL_DROP_LOOK);
+        final int beforeBag = rig.carrying(ENDER_PEARL);
         final EnderMan man = target;
         // Walk to it FIRST, then engage. CombatProcess scans 32 blocks and gives up in two ticks
         // when nothing matches, so handing it a target that is further away than that reads exactly
@@ -1470,9 +1479,9 @@ public final class JourneyNetherRungs {
                 rig.legReleased();
                 boolean dead = !man.isAlive();
                 if (dead) foundAndKilled[1]++;
-                int now = rig.carrying(ENDER_PEARL) + rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK);
+                int now = rig.gained(ENDER_PEARL, beforeStacks, beforeBag, PEARL_DROP_LOOK);
                 tally.append(tally.length() == 0 ? "" : ",")
-                        .append(dead ? String.valueOf(now - before) : "×没打死");
+                        .append(dead ? String.valueOf(now) : "×没打死");
                 rig.evidence("hunt." + round,
                         (dead ? "打死" : "没打死") + "，用了 " + waited[0] + " tick，手里 " + weapon);
                 huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
