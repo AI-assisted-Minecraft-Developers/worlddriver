@@ -945,9 +945,13 @@ public final class JourneyRehearsal {
         BlockPos surface = overworld.getHeightmapPos(
                 net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, want);
         int cells = raiseAPortal(overworld, surface);
+        // scale is 8.0 — it is already the ratio, so the row prints it directly. Writing
+        // `1 / scale` here made the row say 「按 0:1 折算」 next to a pair of coordinates that
+        // plainly differ by a factor of eight, which is the shape of an evidence row that
+        // discredits itself: a reader who trusts the number distrusts the whole staging.
         ctx.record("rehearsal.overworldHalf", surface.toShortString() + " 成了 " + cells
                 + " 格 nether_portal（下界那道门在 " + foot.toShortString() + "，按 "
-                + Math.round(1 / scale) + ":1 折算过来是 " + want.getX() + "," + want.getZ()
+                + Math.round(scale) + ":1 折算过来是 " + want.getX() + "," + want.getZ()
                 + "，抬到地表 y=" + surface.getY() + "）—— 12 级本来会留下的就是这一道");
         if (cells < DOOR_WIDTH * DOOR_HEIGHT) {
             ctx.fail("排练立不起回程门的主世界那一半：只成了 " + cells + " 格 nether_portal —— "
