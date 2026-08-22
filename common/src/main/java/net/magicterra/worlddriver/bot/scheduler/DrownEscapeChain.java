@@ -11,9 +11,11 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
+import static net.magicterra.worlddriver.bot.util.BotInteract.pickFaceTowardsPlayer;
 import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 
 /**
@@ -197,6 +199,18 @@ public final class DrownEscapeChain implements Chain {
             selectBestToolFor(mc, lid);
             aimAtBlockSnap(p, lid);
             mc.options.keyAttack.setDown(true);
+            // keyAttack ALONE breaks nothing on a driven client. Vanilla's
+            // continueAttack → continueDestroyBlock is gated on mouseHandler.isMouseGrabbed(),
+            // true only after a human clicks into the window — and MouseYield deliberately
+            // refuses to grab it, so vanilla takes the other branch and calls stopDestroyBlock()
+            // every tick instead. Measured 2026-08-04 (see Avatar#breakHold): 140 ticks aimed
+            // dead-on at the block, destroyProgress pinned at exactly 0.0, grabbed=false.
+            // The key still goes down because under a GRABBED mouse vanilla drives the identical
+            // break and the two simply agree; the pipeline is driven directly for the case this
+            // reflex actually runs in. A drowning body under a lid has one breath, and a break
+            // that never starts spends all of it.
+            if (mc.gameMode.continueDestroyBlock(lid, pickFaceTowardsPlayer(lid, p)))
+                p.swing(InteractionHand.MAIN_HAND);   // armless digging is an anticheat signature
             breaking = true;
         }
         if (!breaking) mc.options.keyAttack.setDown(false);

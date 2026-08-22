@@ -9,10 +9,12 @@ import net.magicterra.worlddriver.bot.process.BunkerProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
 import static net.magicterra.worlddriver.bot.util.BotInteract.ensureHoldingPlaceableAny;
+import static net.magicterra.worlddriver.bot.util.BotInteract.pickFaceTowardsPlayer;
 import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
 import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 import static net.magicterra.worlddriver.bot.util.BotInteract.walkerPlace;
@@ -148,6 +150,16 @@ public final class BunkerChain implements Chain {
             selectBestToolFor(mc, below);
             aimAtBlockSnap(p, below);
             mc.options.keyAttack.setDown(true);
+            // keyAttack ALONE breaks nothing on a driven client. Vanilla's
+            // continueAttack → continueDestroyBlock is gated on mouseHandler.isMouseGrabbed(),
+            // true only after a human clicks into the window — and MouseYield deliberately
+            // refuses to grab it. Measured 2026-08-04 (see Avatar#breakHold): 140 ticks aimed
+            // dead-on, destroyProgress pinned at exactly 0.0. Without this the shaft never
+            // deepens, digTicks runs to breakTimeoutTicks, and the chain resets and re-anchors
+            // — a bunker that reads as "digging" in every log line and never gets a block down.
+            // The key still goes down so a grabbed-mouse client and this drive the same break.
+            if (mc.gameMode.continueDestroyBlock(below, pickFaceTowardsPlayer(below, p)))
+                p.swing(InteractionHand.MAIN_HAND);   // armless digging is an anticheat signature
             if (++a.digTicks > BotConfig.breakTimeoutTicks) {   // unbreakable (bedrock) — give up
                 mc.options.keyAttack.setDown(false);
                 a.reset();
