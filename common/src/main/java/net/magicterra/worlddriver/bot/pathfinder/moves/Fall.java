@@ -41,14 +41,7 @@ public final class Fall extends Move {
         // checks at dyOff, head one block above (dyOff+1) — an overhang above
         // the launch lip or any intermediate level would wedge the player even
         // when the foot column is clear.
-        for (int dyOff = 0; dyOff > -drop; dyOff--) {
-            BlockPos foot = from.offset(dx, dyOff, dz);
-            if (!w.isPassable(foot) || w.isHazard(foot)) return false;
-            BlockPos head = from.offset(dx, dyOff + 1, dz);
-            if (!w.isPassable(head) || w.isHazard(head)) return false;
-        }
-        // Head clearance at the launch position.
-        return w.isPassable(from.offset(0, 1, 0));
+        return clearFallColumn(w, from, dx, dz, drop);
     }
     public String name() { return "fall" + drop; }
 }

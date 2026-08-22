@@ -268,6 +268,29 @@ public abstract class Move {
     }
 
     /**
+     * The whole falling path of a step-off-a-ledge move: every level from the launch lip down to
+     * {@code drop} below is clear at foot AND head in the destination column, and the launch cell
+     * itself has head clearance to step off with. An overhang at any one level wedges the body
+     * even when the foot column is clear all the way down.
+     *
+     * <p>{@code Fall}, {@code FallIntoWater} and {@code WaterBucketFall} each ended their
+     * {@code valid} with a byte-identical copy of this; they differ only in what they demand of
+     * the LANDING (solid floor / water surface with an air head / an empty cell over an
+     * MLG-placeable floor), which stays in each of them. {@code ParkourDescend} deliberately does
+     * NOT use this — its column is single-cell and bounded at {@code -drop + 1}, because
+     * {@code canStandAt} has already cleared the landing's foot and head.
+     */
+    public static boolean clearFallColumn(WorldView w, BlockPos from, int dx, int dz, int drop) {
+        for (int dyOff = 0; dyOff > -drop; dyOff--) {
+            BlockPos foot = from.offset(dx, dyOff, dz);
+            if (!w.isPassable(foot) || w.isHazard(foot)) return false;
+            BlockPos head = from.offset(dx, dyOff + 1, dz);
+            if (!w.isPassable(head) || w.isHazard(head)) return false;
+        }
+        return w.isPassable(from.offset(0, 1, 0));
+    }
+
+    /**
      * True when {@code from} sits in a "water-edge" context — the only place the
      * water-escape break moves ({@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimAshoreBreak} /
      * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimTraverseBreak}) are

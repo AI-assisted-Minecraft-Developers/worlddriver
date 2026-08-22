@@ -39,14 +39,7 @@ public final class FallIntoWater extends Move {
         if (!w.isPassable(head) || w.isWater(head) || w.isHazard(head)) return false;
         // Clear falling column (foot AND head) from the launch lip down to the
         // cell just above the water — an overhang anywhere catches the body.
-        for (int dyOff = 0; dyOff > -drop; dyOff--) {
-            BlockPos f = from.offset(dx, dyOff, dz);
-            if (!w.isPassable(f) || w.isHazard(f)) return false;
-            BlockPos h = from.offset(dx, dyOff + 1, dz);
-            if (!w.isPassable(h) || w.isHazard(h)) return false;
-        }
-        // Head clearance at the launch position (step off the ledge).
-        return w.isPassable(from.offset(0, 1, 0));
+        return clearFallColumn(w, from, dx, dz, drop);
     }
     public String name() { return "fallWater" + drop; }
 }
