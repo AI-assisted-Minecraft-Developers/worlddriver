@@ -1378,7 +1378,10 @@ public final class JourneyNetherRungs {
         }
 
         foundAndKilled[0]++;
-        final int before = rig.carrying(ENDER_PEARL);
+        // Bag PLUS ground, for the reason the blaze rung's identical row had to be re-based: once
+        // collection happens after the hunt rather than during it, a bag delta is structurally zero
+        // and prints the signature of a loot-table failure on a run whose loot is fine.
+        final int before = rig.carrying(ENDER_PEARL) + rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK);
         final EnderMan man = target;
         // Walk to it FIRST, then engage. CombatProcess scans 32 blocks and gives up in two ticks
         // when nothing matches, so handing it a target that is further away than that reads exactly
@@ -1400,7 +1403,7 @@ public final class JourneyNetherRungs {
                 rig.legReleased();
                 boolean dead = !man.isAlive();
                 if (dead) foundAndKilled[1]++;
-                int now = rig.carrying(ENDER_PEARL);
+                int now = rig.carrying(ENDER_PEARL) + rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK);
                 tally.append(tally.length() == 0 ? "" : ",")
                         .append(dead ? String.valueOf(now - before) : "×没打死");
                 rig.evidence("hunt." + round,
@@ -1410,8 +1413,26 @@ public final class JourneyNetherRungs {
         });
     }
 
+    /**
+     * Walk to the pearls before judging whether there are any.
+     *
+     * <p>The assertion below already said 「打死了不等于捡到了」 and there was nothing behind it: the
+     * 2026-08-22 ladder run killed six endermen, banked one pearl, and printed
+     * {@code dropsNearby 1 颗掉在地上没捡} — half the yield left on the floor of the Nether. An
+     * enderman teleports when hurt and dies wherever it lands, so the drop is routinely somewhere
+     * the body is not.
+     *
+     * <p>Same routine the blaze rung uses. It was moved onto {@link JourneyRig} precisely so a
+     * second caller could reach it, and then this caller was left unwired for a day.
+     */
     private static void pearlVerdict(SceneContext ctx, JourneyRig rig, int[] foundAndKilled,
                                      StringBuilder tally) {
+        rig.collectByHand(ENDER_PEARL, JourneyRig.MAX_PICKUP_LEGS, "pearl",
+                () -> pearlBank(ctx, rig, foundAndKilled, tally));
+    }
+
+    private static void pearlBank(SceneContext ctx, JourneyRig rig, int[] foundAndKilled,
+                                  StringBuilder tally) {
         ServerLevel nether = rig.player().serverLevel();
         int found = foundAndKilled[0], killed = foundAndKilled[1];
         int pearls = rig.carrying(ENDER_PEARL);
@@ -1419,7 +1440,8 @@ public final class JourneyNetherRungs {
         rig.evidence("enderman.killed", killed + "/" + ENDERMAN_HUNTS);
         rig.evidence("pearls.perFight", tally.length() == 0 ? "一场没打" : tally.toString());
         rig.evidence("ender_pearl", pearls);
-        rig.evidence("dropsNearby", rig.dropsNearby(ENDER_PEARL, 8) + " 颗掉在地上没捡");
+        rig.evidence("dropsNearby", rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK)
+                + " 颗掉在地上没捡（这一行是在收集之后读的，所以非零表示收集也没够着）");
         rig.evidence("arena", "真的下界，不是盒子 —— 瞬移可以真的把它带走");
         BlockPos ended = rig.player().blockPosition();
         rig.evidence("hunt.endedIn", biomeAt(rig, ended) + "（" + ended.toShortString() + "）");
@@ -2376,6 +2398,13 @@ public final class JourneyNetherRungs {
     /** One radius for the per-kill tally AND the leftover row, so both speak about the same drops. */
     private static final double BLAZE_DROP_LOOK = 8;
     private static final String ENDER_PEARL = "minecraft:ender_pearl";
+
+    /** The same idea for pearls, and wider on purpose: a blaze dies roughly where it was fought,
+     *  while an enderman TELEPORTS when hurt and dies wherever it lands. Both of these tallies are
+     *  DIAGNOSTIC ONLY, never a criterion — the window is centred on the body, and the body is in a
+     *  different place at the start and the end of a fight, so a drop can drift in or out of it and
+     *  put a ±1 on the wrong kill. The criterion is what is in the bag at the end. */
+    private static final double PEARL_DROP_LOOK = 16;
 
     /** How far the travelling chunk pin must see. Two chunks keeps a WALKING body's own chunk
      *  entity-ticking and is the wrong number for a rung that SEARCHES: entities exist only in

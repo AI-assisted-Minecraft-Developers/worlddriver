@@ -183,6 +183,11 @@ public final class JourneyEndRungs {
      *  is what actually finds the room — arriving nearer than this buys nothing. */
     private static final int STRONGHOLD_ARRIVED_WITHIN = 24;
 
+    /** How close the walk home has to land. Tighter than the stronghold's, because what follows is
+     *  not a hundred-block scan but a 24-block look for the portal itself — arriving further out
+     *  than that would put the doorway outside the very search this walk exists to feed. */
+    private static final int RETURN_ARRIVED_WITHIN = 12;
+
     /** How far a leg must move for the next one to be a different question. Four blocks: a body that
      *  shuffled inside its own cell has found no new vantage point, and asking the same pathfinder
      *  the same question from it spends a whole leg to learn nothing. */
@@ -492,10 +497,20 @@ public final class JourneyEndRungs {
         rig.evidence("start.dimension", rig.dimension());
         rig.evidence("start.at", xyz(rig.player().blockPosition()));
         rig.evidence("ender_eye.carried", rig.carrying("minecraft:ender_eye"));
-        rig.evidence("stronghold.away", Math.round(flatDistance(rig.player().blockPosition(),
-                JourneyRoute.stronghold)) + " 格");
+        // Only meaningful once the body is HOME. Measured from the Nether it compares a nether
+        // coordinate with an overworld one across a 1:8 scale change — on 2026-08-22 it printed
+        // 「1774 格」 for a body that was ~470 nether blocks from its door and 1731 overworld blocks
+        // from the stronghold, i.e. a number that is neither. So it is recorded after the return.
+        rig.evidence("start.dimension.awayNote",
+                OVERWORLD.equals(rig.dimension()) ? "在主世界，下面的距离可比"
+                        : "还在" + rig.dimension() + "，跨维度的直线距离没有意义，等回去再量");
 
-        backToTheOverworld(ctx, rig, () -> march(ctx, rig, 0));
+        backToTheOverworld(ctx, rig, () -> {
+            rig.evidence("stronghold.away", Math.round(flatDistance(rig.player().blockPosition(),
+                    JourneyRoute.stronghold)) + " 格（回到主世界之后量的）");
+            march(ctx, rig, new Trek(JourneyRoute.stronghold, STRONGHOLD_ARRIVED_WITHIN,
+                    "march", "要塞", () -> surveyThePortalRoom(ctx, rig)), 0);
+        });
     }
 
     /**
@@ -516,11 +531,52 @@ public final class JourneyEndRungs {
         BlockPos portal = rig.nearestBlock("minecraft:nether_portal", 24);
         rig.evidence("return.portal", xyz(portal));
         if (portal == null) {
-            ctx.fail("回不去主世界：身边 24 格内没有 nether_portal 方块（身体在 " + rig.dimension()
-                    + " " + rig.player().blockPosition() + "）——要塞在主世界，这一级必须先走回去，"
-                    + "而这个运行没有留下能走回去的门");
+            // Not beside it — which is the NORMAL case, not a broken one. The rungs between the
+            // doorway and here hunt blazes at a fortress and endermen in a warped forest, and on
+            // 2026-08-22 that left the body 470 blocks from its own portal. The local scan is only
+            // the fast path; the way home is the coordinate the entry rung banked.
+            BlockPos home = JourneyLedger.netherPortal();
+            rig.evidence("return.banked", xyz(home));
+            if (home == null) {
+                ctx.fail("回不去主世界：身边 24 格内没有 nether_portal 方块，而这一趟也没有记下"
+                        + "自己是从哪儿进来的（身体在 " + rig.dimension() + " "
+                        + rig.player().blockPosition() + "）——要塞在主世界，这一级必须先走回去。"
+                        + "落点本该由 13 级 JourneyLedger.noteNetherPortal 记下");
+                return;
+            }
+            long away = Math.round(flatDistance(rig.player().blockPosition(), home));
+            rig.attempting("走回 " + xyz(home) + " 那道自己点亮的门（还有 " + away + " 格）");
+            march(ctx, rig, new Trek(home, RETURN_ARRIVED_WITHIN, "home", "自己点亮的门",
+                    () -> stepBackThrough(ctx, rig, then)), 0);
             return;
         }
+        stepThroughPortal(ctx, rig, portal, then);
+    }
+
+    /**
+     * Arrived at the banked doorway — now the portal itself has to actually still be there.
+     *
+     * <p>A second local scan rather than trusting the coordinate, because the banked position is
+     * where the body CAME OUT, which is beside the portal rather than inside it, and because a
+     * doorway can be gone by the time a run walks back to it (a ghast fireball, or the run's own
+     * pathfinding breaking a frame block on the way past). Failing here says something different
+     * from failing above, so it gets its own sentence.
+     */
+    private static void stepBackThrough(SceneContext ctx, JourneyRig rig, Runnable then) {
+        BlockPos again = rig.nearestBlock("minecraft:nether_portal", 24);
+        rig.evidence("return.portalAfterWalk", xyz(again));
+        if (again == null) {
+            ctx.fail("走回了记下的落点 " + xyz(JourneyLedger.netherPortal()) + "，但那里已经没有"
+                    + " nether_portal 方块了（身体在 " + rig.player().blockPosition()
+                    + "）——门被毁了，或者落点记的位置离门太远。这跟「走不回来」是两回事");
+            return;
+        }
+        stepThroughPortal(ctx, rig, again, then);
+    }
+
+    /** Stand in the doorway and wait for the dimension to change. */
+    private static void stepThroughPortal(SceneContext ctx, JourneyRig rig, BlockPos portal,
+                                          Runnable then) {
         rig.attempting("走回自己点亮的那道门，回主世界");
         rig.settle(new IntentProcess(new Intent(new Goal.Block(portal))), 3_000,
                 () -> waitFor(rig, () -> OVERWORLD.equals(rig.dimension()), 1_600, () -> {
@@ -544,31 +600,44 @@ public final class JourneyEndRungs {
      * The body has to actually walk between legs, and a loop inside one scene tick would plan
      * twenty-eight routes in a world that never advanced.
      */
-    private static void march(SceneContext ctx, JourneyRig rig, int leg) {
-        BlockPos goal = JourneyRoute.stronghold;
+    /**
+     * One long walk to a fixed column: where to, how close counts, what to call the rows, what next.
+     *
+     * <p>Parameterised because there are two of these and they were one hardcoded route. The march
+     * to the stronghold and the walk back to the run's own portal are the same problem — cross
+     * hundreds of blocks in bounded legs, notice when a leg goes nowhere, step sideways rather than
+     * ask the same refused question again — and the second one arrived when rung 17 turned out to
+     * need the doorway it came in through.
+     */
+    private record Trek(BlockPos goal, int arriveWithin, String key, String what, Runnable onArrive) {}
+
+    private static void march(SceneContext ctx, JourneyRig rig, Trek trek, int leg) {
+        BlockPos goal = trek.goal();
         BlockPos at = rig.player().blockPosition();
         double away = flatDistance(at, goal);
-        rig.evidence("march." + leg, xyz(at) + " 距要塞 " + Math.round(away) + " 格");
-        if (away <= STRONGHOLD_ARRIVED_WITHIN) {
-            rig.evidence("march.legs", leg);
-            surveyThePortalRoom(ctx, rig);
+        rig.evidence(trek.key() + "." + leg, xyz(at) + " 距" + trek.what() + " "
+                + Math.round(away) + " 格");
+        if (away <= trek.arriveWithin()) {
+            rig.evidence(trek.key() + ".legs", leg);
+            trek.onArrive().run();
             return;
         }
         if (leg >= MAX_MARCH_LEGS) {
-            ctx.fail("走不到要塞：" + MAX_MARCH_LEGS + " 段行军之后仍在 " + at + "，距 " + xyz(goal)
-                    + " 还有 " + Math.round(away) + " 格（每段 " + MARCH_LEG_BLOCKS + " 格 / "
-                    + MARCH_LEG_TICKS + " tick，逐段落点见 march.*）");
+            ctx.fail("走不到" + trek.what() + "：" + MAX_MARCH_LEGS + " 段行军之后仍在 " + at
+                    + "，距 " + xyz(goal) + " 还有 " + Math.round(away) + " 格（每段 "
+                    + MARCH_LEG_BLOCKS + " 格 / " + MARCH_LEG_TICKS + " tick，逐段落点见 "
+                    + trek.key() + ".*）");
             return;
         }
         double f = Math.min(1.0, MARCH_LEG_BLOCKS / away);
         int wx = (int) Math.round(at.getX() + (goal.getX() - at.getX()) * f);
         int wz = (int) Math.round(at.getZ() + (goal.getZ() - at.getZ()) * f);
-        rig.attempting("向要塞行军：第 " + leg + " 段，走向 " + wx + "," + wz);
+        rig.attempting("向" + trek.what() + "行军：第 " + leg + " 段，走向 " + wx + "," + wz);
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(wx, wz, MARCH_LEG_TOLERANCE))),
                 MARCH_LEG_TICKS, () -> {
             BlockPos now = rig.player().blockPosition();
-            if (flatDistance(at, now) >= WEDGED_UNDER) { march(ctx, rig, leg + 1); return; }
-            sidestep(ctx, rig, leg, goal, now);
+            if (flatDistance(at, now) >= WEDGED_UNDER) { march(ctx, rig, trek, leg + 1); return; }
+            sidestep(ctx, rig, trek, leg, now);
         });
     }
 
@@ -581,16 +650,17 @@ public final class JourneyEndRungs {
      * asks the pathfinder a question it has not already answered. That is what a player does when a
      * route will not come, and it needs nothing from the engine.
      */
-    private static void sidestep(SceneContext ctx, JourneyRig rig, int leg, BlockPos goal, BlockPos at) {
+    private static void sidestep(SceneContext ctx, JourneyRig rig, Trek trek, int leg, BlockPos at) {
+        BlockPos goal = trek.goal();
         double dx = goal.getX() - at.getX();
         double dz = goal.getZ() - at.getZ();
         double len = Math.max(1.0, Math.hypot(dx, dz));
         int sx = (int) Math.round(at.getX() - dz / len * SIDESTEP_BLOCKS);
         int sz = (int) Math.round(at.getZ() + dx / len * SIDESTEP_BLOCKS);
-        rig.evidence("march." + leg + ".wedged", xyz(at) + " 一段没挪动，先横走到 " + sx + "," + sz
-                + "（goto " + JourneyLeg.walkerEnd(rig) + "）");
+        rig.evidence(trek.key() + "." + leg + ".wedged", xyz(at) + " 一段没挪动，先横走到 "
+                + sx + "," + sz + "（goto " + JourneyLeg.walkerEnd(rig) + "）");
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(sx, sz, 3))), MARCH_LEG_TICKS / 2,
-                () -> march(ctx, rig, leg + 1));
+                () -> march(ctx, rig, trek, leg + 1));
     }
 
     /**

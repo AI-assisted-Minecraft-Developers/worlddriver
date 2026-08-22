@@ -802,6 +802,10 @@ public final class JourneyPortalEntry {
         ctx.expect(drift).as("it arrived at the 8:1-scaled coordinate, not the raw one")
                 .isAtMost(128);
         rig.noteAdvancement("minecraft:story/enter_the_nether");
+        // Bank the doorway as DATA, not only as the sentence below. Rung 17 has to come back through
+        // it, and the rungs in between wander hundreds of blocks away hunting blazes and endermen —
+        // so "where the run came in" has to survive as a coordinate something can walk to.
+        JourneyLedger.noteNetherPortal(now);
         rig.reach("从自己点亮的门走进下界，落在 " + now.toShortString()
                 + "（地表门在 " + from.toShortString() + "，按 8:1 应在 "
                 + wantX + "," + wantZ + "）");

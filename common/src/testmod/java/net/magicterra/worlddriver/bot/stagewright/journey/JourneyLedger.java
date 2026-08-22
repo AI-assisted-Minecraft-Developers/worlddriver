@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import net.minecraft.core.BlockPos;
+
 /**
  * What this run of the journey achieved, carried across the scenes that make it up.
  *
@@ -114,6 +116,21 @@ public final class JourneyLedger {
 
     private static long startedAtTick = -1;
 
+    /**
+     * Where the run's own portal came out on the nether side, or null before it stepped through.
+     *
+     * <p>Run-scoped rather than baked into {@code JourneyRoute}, because unlike the surveyed
+     * landmarks this one is <b>made by the run</b> — it is wherever this playthrough happened to
+     * cast and light it, and a fresh world puts it somewhere else.
+     *
+     * <p>It exists because the 2026-08-22 run needed it and only had it as prose: rung 13 printed
+     * 「落在 6, 41, 3」 into an evidence string, and rung 17 — which must walk back through that
+     * doorway — could not read a sentence. It searched 24 blocks around a body that rungs 14 and 15
+     * had carried 470 blocks away, found nothing, and failed. A landmark that is only printed is a
+     * landmark nobody can use.
+     */
+    private static BlockPos netherPortal;
+
     private JourneyLedger() {}
 
     /** Wipe the ledger. Called by the first scene of a run so a second run in the same JVM (both
@@ -122,7 +139,16 @@ public final class JourneyLedger {
         ENTRIES.clear();
         STAGING.clear();
         startedAtTick = serverTick;
+        netherPortal = null;
     }
+
+    /** Remember where the run came out in the Nether, so the way home is data and not prose. */
+    public static synchronized void noteNetherPortal(BlockPos where) {
+        netherPortal = where == null ? null : where.immutable();
+    }
+
+    /** Where the run came out in the Nether, or null if it has not been through yet. */
+    public static synchronized BlockPos netherPortal() { return netherPortal; }
 
     /** The server tick the run began on, or -1 before {@link #reset}. */
     public static synchronized long startedAtTick() { return startedAtTick; }
