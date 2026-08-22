@@ -807,9 +807,20 @@ public final class JourneyShaft {
         // the script rather than widening holdPlaceable is deliberate; a caller who knows what it
         // wants to pillar with can say so, and the asymmetry is logged as an engine finding instead.
         var pillarItem = BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(pillar));
+        // BOTH BODIES. `TowerProcess` places through `gameMode.useItemOn`, and what lands is decided
+        // by the hand the SERVER has — which the mine that preceded this course moved to a pickaxe
+        // without telling anyone (see WorldDriverJourneyScenes.holdBoth). A pickaxe's `useOn` against
+        // a block face does nothing at all, silently, and the three rows this course writes report it
+        // as an ordinary stall: `climb.2.stalled=null` (the client's builder saw no error because its
+        // own prediction placed the block), `climb.2.state=onGround=true inWater=false y=56.00`, and
+        // `climb.2.stock=minecraft:cobblestone ×137` — the server count NEVER MOVING, which is the
+        // same signature the pour had as `spent 1→1`. One course with no Y gain ends the whole tower
+        // (line 850), so a wrong hand costs the entire raise: rung 12's ninth cell got
+        // `pinnedShort` on dry ground with 137 cobblestone in the bag.
+        //
         // Recorded only when it fails: a course that got what it asked for is already described by
         // `.with`, and thirty-six successful hand-swaps would bury the one that did not.
-        if (!rig.avatar().holdItem(pillarItem)) {
+        if (!WorldDriverJourneyScenes.holdBoth(rig, pillarItem)) {
             rig.evidence(climbKey(step, ".hand"), "拿不到 " + pillar + "，手上是 "
                     + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
         }

@@ -1704,7 +1704,8 @@ public final class JourneyPortalRung {
                     () -> walkToStand(rig, tag, cell, lower, then));
             return;
         }
-        boolean held = rig.avatar().holdItem(Items.COBBLESTONE);
+        // Both bodies — `placeInto` places through the server. See WorldDriverJourneyScenes.holdBoth.
+        boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, step);
         // THE WORLD, not the call. A placement can be refused for reasons the caller cannot see, and
         // a step that was never there leaves exactly the "the dig just did not work" row this rung
@@ -2131,7 +2132,8 @@ public final class JourneyPortalRung {
             then.run();
             return;
         }
-        boolean held = rig.avatar().holdItem(Items.COBBLESTONE);
+        // Both bodies — `placeInto` places through the server. See WorldDriverJourneyScenes.holdBoth.
+        boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, backing);
         // THE WORLD, not the call. Same reason the step and the stair mend read it back: a placement
         // can be refused for reasons the caller cannot see, and a backing that was never rebuilt
@@ -2657,7 +2659,8 @@ public final class JourneyPortalRung {
             for (int iy = 1; iy <= 3; iy++) interior.add(frameCell(base, away, ix, iy));
 
         // DAM FIRST. Clearing a cell that something is still pouring into buys one tick of air.
-        boolean held = rig.avatar().holdItem(Items.COBBLESTONE);
+        // Both bodies — see WorldDriverJourneyScenes.holdBoth.
+        boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE);
         StringBuilder dammed = new StringBuilder();
         for (BlockPos c : interior) {
             BlockPos behind = c.relative(away.getOpposite());
@@ -2694,7 +2697,7 @@ public final class JourneyPortalRung {
                     boolean source = level.getFluidState(c).isSource();
                     String fluid = BuiltInRegistries.FLUID.getKey(level.getFluidState(c).getType())
                             .toString();
-                    boolean plugged = rig.avatar().holdItem(Items.COBBLESTONE)
+                    boolean plugged = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE)
                             && JourneyStairs.placeInto(level, rig, c);
                     rig.evidence("portal.plug." + c.toShortString(),
                             (source ? "源块 " : "流动 ") + fluid

@@ -160,7 +160,11 @@ final class JourneyShelter {
             if (nether.getBlockState(cell).blocksMotion()) continue;
             if (cell.equals(body) || cell.equals(body.above())) { occupied++; continue; }
             String id = placeableBlock(rig);
-            if (id == null || !rig.avatar().holdItem(JourneyRig.item(id))) { ranOut++; continue; }
+            // Both bodies: `placeInto` places through the server. See
+            // WorldDriverJourneyScenes.holdBoth.
+            if (id == null || !WorldDriverJourneyScenes.holdBoth(rig, JourneyRig.item(id))) {
+                ranOut++; continue;
+            }
             if (JourneyStairs.placeInto(nether, rig, cell)) {
                 placed++;
                 if (cell.getY() - spawner.getY() >= ROOM_HEIGHT) roof++; else walls++;

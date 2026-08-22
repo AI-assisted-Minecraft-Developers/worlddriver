@@ -1488,7 +1488,9 @@ public final class JourneyRig {
         for (String id : WEAPONS) {
             if (carrying(id) < 1) continue;
             if (bestOwned == null) bestOwned = id;
-            if (avatar().holdItem(item(id))) return id;
+            // Both bodies: the swing that follows runs server-side, so a weapon held only on the
+            // client is not the weapon that hits. See WorldDriverJourneyScenes.holdBoth.
+            if (WorldDriverJourneyScenes.holdBoth(this, item(id))) return id;
         }
         if (bestOwned == null) return "空手（包里一件武器都没有）";
         return "空手（包里最好的是 " + bestOwned + "，但拿不到手上；手里是 " + heldItemId() + "）";

@@ -993,7 +993,9 @@ public final class JourneyEndRungs {
         // note on why this file will not let it.
         rig.settle(new IntentProcess(new Intent(new Goal.Near(frame, EYE_REACH))), 600, () -> {
             ServerLevel level = levelOf(rig);
-            boolean held = rig.avatar().holdItem(Items.ENDER_EYE);
+            // Both bodies: `useBlock` reaches the frame through `handleUseItemOn`, which reads the
+            // SERVER's hand. See WorldDriverJourneyScenes.holdBoth.
+            boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.ENDER_EYE);
             if (!held) {
                 rig.evidence("eye." + i + ".hand", "拿不到 ender_eye，手上是 " + heldItem(rig));
             }
@@ -1509,7 +1511,9 @@ public final class JourneyEndRungs {
             String pillar = pillarBlock(rig);
             // Put the block in the HAND first: TowerProcess can only look in the hotbar, so a body
             // whose hotbar is tools reports "no placeable block" while carrying a stack of stone.
-            rig.avatar().holdItem(itemOf(pillar));
+            // Both bodies — the tower places through the server. See
+            // WorldDriverJourneyScenes.holdBoth.
+            WorldDriverJourneyScenes.holdBoth(rig, itemOf(pillar));
             stockHotbar(rig, pillar);
             int climbStock = rig.carrying(pillar);
             // Read BEFORE the tower runs. Taken afterwards it is the tower's own answer, and the one

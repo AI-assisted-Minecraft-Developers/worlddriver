@@ -2718,9 +2718,31 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         if (client != server) {
             rig.evidence("holdBoth." + BuiltInRegistries.ITEM.getKey(item).getPath(),
                     "两具身体对同一件物品给了不同答案：客户端 " + client + "，服务端 " + server
-                            + " —— 两份背包已经分叉，" + bucketStock(rig));
+                            + " —— 两份背包已经分叉，" + stockOnBoth(rig, item));
         }
         return client;
+    }
+
+    /**
+     * How many of one item each body thinks it has — the number that decides which way a
+     * {@code holdBoth} disagreement should be read.
+     *
+     * <p>Deliberately not the bucket triple: this is called for cobblestone and ender eyes as often
+     * as for buckets now, and three bucket counts beside a failed cobblestone hold are noise that
+     * looks like data. {@code rig.carrying} reads the SERVER, so the client half has to be counted
+     * here — and the pair is the whole point, because "the client has it and the server does not" and
+     * "neither has it" want completely different next steps.
+     */
+    private static String stockOnBoth(JourneyRig rig, net.minecraft.world.item.Item item) {
+        var acting = rig.avatar().player();
+        int onClient = 0;
+        if (acting != null) {
+            for (var stack : acting.getInventory().items) {
+                if (stack.getItem() == item) onClient += stack.getCount();
+            }
+        }
+        return BuiltInRegistries.ITEM.getKey(item) + " 客户端 ×" + onClient
+                + "，服务端 ×" + rig.carrying(BuiltInRegistries.ITEM.getKey(item).toString());
     }
 
     /**
