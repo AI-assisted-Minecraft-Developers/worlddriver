@@ -13,6 +13,8 @@ import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
+import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
@@ -865,7 +867,39 @@ public final class JourneyRig {
             // than a {@link #mineBlock}: without it a walk that never arrives spends the outer
             // bound and dies on the framework's generic「await step exceeded」, which is the exact
             // failure this method was extracted to stop.
-            startLeg(d, new IntentProcess(new Intent(new Goal.Near(target, 2))));
+            // NoBreak, because THIS WALK IS NOT ALLOWED TO MINE ITS OWN WAY. A* is asked for a
+            // route while `BotConfig.allowBreak` is globally true (JourneyRig:1409), so the cheapest
+            // route to a cell the body cannot swing at is regularly a tunnel — and the rock it
+            // tunnels through belongs to whatever the rung has already built.
+            //
+            // Measured, rung 12's client rehearsal 2026-08-22: `stairs.asCut=11 级都完好` before the
+            // carve, `forge.stairsBroken=4/11 级坏了` after it, and the four broken cells are
+            // (-4,61,20) (-3,60,20) (-2,59,20) (-1,58,20) — x+1/y−1 each step, which is the flight's
+            // own shape translated one row down. Nothing wandered into the staircase; something
+            // walked the length of it, one row under the treads, opening a cell per step. The rung
+            // then could not climb out, `stairsMend` reported 「垫不上（贴不到实心面）」 three times
+            // because the ground beside the gap was gone too, and the lava trip died on
+            // `lava0.upStopped … 起跳格 -1,59,18=dirt（挡着，跳不起来）`.
+            //
+            // The cost of forbidding it is measured, not assumed: that same run recorded
+            // `forge.swung=64/67` beside `forge.carved=64/67`. THE WALKING LEG OPENED ZERO CELLS.
+            // Every cell that was carved was carved where the body already stood; the leg's entire
+            // contribution was the four broken treads and a `canBreak=false` from 6.0 m away. The
+            // give-up contract below is what makes that safe — a cell this walk can no longer reach
+            // becomes a `carve.stuck` row, which the carve has always been allowed to carry.
+            //
+            // This is the SECOND time this one line has torn out something the rung built; the
+            // first was the portal frame, and the fix then was `JourneyFill.isFrameCell`, a
+            // by-coordinate exemption for that one set of cells. A whitelist protects the group
+            // somebody remembered — the staircase was never on it. Fixing the walk instead covers
+            // every caller at once, and leaves the whitelist as defence in depth rather than as the
+            // only defence.
+            //
+            // Only this helm. The server helm below goes through `d.mine(target)` into the engine's
+            // own MineProcess, which owns its walking; the asymmetry is real and is left alone
+            // because the client body is the one the ladder is judged on.
+            startLeg(d, new IntentProcess(new Intent(new Goal.Near(target, 2), List.of(),
+                    CapabilityProfile.ALL, List.of(new NoBreak()))));
             int[] spent = {0};
             await(() -> {
                 if (legEnded(d)) return true;
