@@ -692,6 +692,15 @@ march.32  连续第1次 ← 又回到 1
 ⚠️ **排练侧目前没有客户端对照任务**：`rehearsalServer` 只有 `server()` 一种拓扑。
 要让排练也能对照，得照 `journeyIntegratedServer` 补一个 `rehearsalIntegratedServer`。**待办。**
 
+**这条已经试过一次并主动回退了（工作树干净），因为它比看上去大。** 落法要求：
+`rehearsalServer` 的 `-P` 开关有 **115 行**（budget / breakAStair / wetShaft / landOnFloor /
+forgeAway / shaftColumn / buckets / eyes / roomScanChunks，每条都带一段说明为什么存在的注释）。
+**这些开关必须抽成一个共享闭包给两个拓扑调用，不能复制一份**——
+理由不是洁癖：**一个开关只存在于其中一个拓扑，就会让两者在同一批 `wd.rehearse*` 场景名下
+回答不同的问题**，而对照实验最不能有的就是这个。
+`fabric/build.gradle` 是所有跑法的地基，改它要单独做、做完起一次 `:fabric:tasks` 验证配置期不报错，
+不要夹在别的工作中间手抄。⇒ 交给下一轮 janitor（正是它「代码复用」的本职）。
+
 ## 🔴🔴 第一次客户端对照就推翻了一个前提：**14/20 是身体给的，不是能力给的**
 
 2026-08-22 17:47–17:54，`runJourneyIntegratedServer`（LocalPlayer、`免伤=false`）。
