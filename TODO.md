@@ -350,6 +350,76 @@ int after = rig.carrying("minecraft:lava_bucket");   // 同 tick 读服务端
 
 ---
 
+## 📏 只有第一次 use 在服务端生效（Q19，2026-08-22）——挖掘偷偷换掉了服务端那只手
+
+上面 Q18 预登记的两支，**实测走的是第 1 支，而它给的下一步是错的**。
+「反编译 `BucketItem.use` 逐条对照」做了，服务端一条能拒绝的判据都没有；
+真正的读数不在那两支里，在**存量表**里：
+
+| 用途 | 服务端结果 |
+|---|---|
+| `waterFill` 装水（**第一次 use**） | **成功**，`water_bucket=1`，且 `waterFill.hand#2 = minecraft:bucket`（服务端追上了换手） |
+| `water0` 浇水（第二次） | `water_bucket 1→1` |
+| `lava0` 装岩浆（第三次起） | `lava_bucket 0→0`，`桶存量 空=0 水=1 岩浆=0` |
+
+**只有第一次生效。** 而射线这条线同一趟里被自己的证据打死了——服务端那条预测闸
+（`placeFluid:2320`，`Fluid.NONE`）**放行了**：
+
+```
+water0.picks.3 = 5,57,19 Block{minecraft:stone} face=west → 落进 4,57,19（想浇 4,57,19）
+lava0.aimsAt#3 = -9,63,18 Block{minecraft:lava} 源块=true 液位=8    ← 正中源块，3.5 格
+```
+
+瞄准、距离、落点全对，仍然装不上。**服务端手上是镐。**
+
+### 机制：一个字段，两个作者，互相看不见
+
+两处都是读源码，不是推断：
+
+- `ServerPlayerAvatar.selectTool:289-296`（引擎 `MineProcess` 走的那条）直接写
+  `ServerPlayer` 的 `inv.selected`，注释写着 *"Server-authoritative, so no packet:
+  this body's connection swallows them anyway."* —— **这句话在集成服拓扑上是假的**，
+  这里的 `fp` 是一个连着真客户端的 ServerPlayer。
+- `BotInteract.ensureHolding:465` 开头 `if (inv.getSelected().getItem() == item) return true;`
+  —— 对**真玩家**成立（选中槽只有客户端能改），对**被第二个舵操纵的身体**不成立。
+
+于是：装水发了包 → 两边一致 → 成功；中间 `d.mine(...)` 把服务端的手挪到镐上、不发包；
+浇水时客户端那只手已经是水桶 → fast path 直接 `return true`、不发包 → 服务端跑
+`stone_pickaxe.use()` → `PASS`，**零异常零日志零音效**，和其它任何一种「什么都没发生」逐字节相同。
+
+这是 [[an-aim-is-an-angle-not-a-target]] / `aimBoth` 的同族，只是换了一个字段。
+
+### 修法：`holdBoth`（`WorldDriverJourneyScenes`），与 `aimBoth` 同形
+
+两具身体各自**按物品**（不是按槽号）拿一次；槽号在各自背包里解析，
+所以两份背包已经分叉时仍然各自正确。返回**客户端**那个答案（客户端才是跑 `useItem` 的那具），
+服务端的答案只记录不否决。
+
+加一行 `handsAtUse`：**在 use 的同一条语句序列里**同时印两具身体的槽／物品／眼睛／朝向／
+两种流体模式的射线落点。这是全仓第一行「一个时刻、两具身体」的读数。
+
+### 预登记判据（写在读结果之前）
+
+1. **`water0.atUse` 两半的物品都是 `minecraft:water_bucket`，且 `water0.spent = 1→0`**
+   ⇒ 根因确认，修法成立。
+2. **两半物品都对，但 `spent` 仍 `1→1`** ⇒ 换手不是死因，**回到「use 包有没有到」**，
+   而不是再修换手。
+3. **服务端那半仍是 `stone_pickaxe`** ⇒ `ServerPlayerAvatar.holdItem` 没写进去或被覆盖，
+   下一步查 hold 与 use 之间还有谁动了 `inv.selected`。
+4. **出现 `holdBoth.*` 行** ⇒ 两份背包在这一刻已经分叉，那是比换手更早的一个缺陷，
+   单独立项。
+
+**本级总判据不变：够到点火那一步或更远。**
+
+### 引擎侧待办（交给 wd-parity，不在本轮）
+
+`ServerPlayerAvatar.selectTool` / `holdItem` / `setSelectedSlot` 三处都写
+`inv.selected` 而不发 `ClientboundSetCarriedItemPacket`。对 headless 身体是对的，
+**对被 adopt 的真玩家是一个静默的双向分叉源**。梯子这一侧用 `holdBoth` 兜住了，
+但任何走引擎 helm 的调用方都还踩得到。
+
+---
+
 ## 📏 清理了 733 行预算，而顶着上限的那个文件一行都没省下（J5 的否定结果，2026-08-22）
 
 J5 把 724 个死 import 清成 0，五笔纯删除，**733 行净减**。比例最好看的是
