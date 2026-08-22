@@ -2488,10 +2488,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                    + " 次爬回机会" : ""));
             return;
         }
-        rig.avatar().aimAtBlock(src);
-        // The aim has to land before anything reads it — the same tick wd.serverCastsObsidian needed
-        // between aiming and using, and for the same reason.
-        rig.settle(new HoldStill(2), 10, () -> {
+        // Aim INSIDE the settle, adjacent to the ray — see aimThenAct for why the old order
+        // (aim, settle two ticks, then read) could not survive on a client-authoritative body.
+        aimThenAct(rig, src, () -> {
             var fp = rig.player();
             // partialTicks = 1.0F, and it is the difference between a working tunnel and a rung that
             // could not see the pool it was standing next to. Entity.pick INTERPOLATES: 0.0F traces
@@ -2565,6 +2564,39 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                           : net.minecraft.world.level.ClipContext.Fluid.NONE, fp));
     }
     /**
+     * Hold still, THEN aim, then act — with nothing between the aim and the act.
+     *
+     * <p><b>On this topology an aim only lives until the next packet.</b> The ladder's body is an
+     * adopted REAL player, and {@code ServerPlayerAvatar.aimAtBlock} writes {@code yRot}/{@code xRot}
+     * on the {@code ServerPlayer}. A real player's rotation is client-authoritative: every tick
+     * {@code ServerboundMovePlayerPacket} arrives and {@code handleMovePlayer} overwrites it with
+     * whatever the client thinks it is looking at. So a server-side aim followed by "settle a couple
+     * of ticks, then read" is a write that is guaranteed to be erased before the read.
+     *
+     * <p>And the client is not neutral about where it looks: {@code WalkerTickAim} pulls pitch back
+     * toward the horizon every tick it is not bridging or diving. Measured on run 9's rung 11 — a
+     * lava source 2.6–3.3 m away and about two blocks BELOW the eye, which wants roughly 30° of
+     * down-pitch, was aimed at with a recorded pitch of {@code 0, 0, 20, 4, 2}: two ticks at exactly
+     * the levelled value and three decaying back to it. Seventeen tunnel steps hit twelve
+     * non-adjacent cells; a scatter like that is not thick rock, it is an aim that does not hold.
+     *
+     * <p>The remedy is ordering, not a new verb: two Java statements have no tick between them, so
+     * an aim written immediately before the read cannot be overwritten before it is used, whatever
+     * the packet order is. The {@code HoldStill} still runs — a still body was always wanted — it
+     * just runs BEFORE the aim instead of after it.
+     *
+     * <p>The dedicated-server topology never needed this and still does not: nothing else writes a
+     * fake player's rotation, which is exactly why rungs 11 and 12 pass there and rung 11 fails here
+     * on the same code and the same seed.
+     */
+    static void aimThenAct(JourneyRig rig, BlockPos at, Runnable act) {
+        rig.settle(new HoldStill(2), 10, () -> {
+            rig.avatar().aimAtBlock(at);
+            act.run();
+        });
+    }
+
+    /**
      * Put a specific item in the main hand, and record what actually ended up there.
      *
      * <p>{@code useItemInHand} uses the SELECTED hotbar slot, not "the bucket in the bag". By the
@@ -2585,8 +2617,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     private static void fillFrom(SceneContext ctx, JourneyRig rig, BlockPos src, Runnable then) {
         rig.attempting("从 " + src.toShortString() + " 装一桶岩浆");
         holdForUse(rig, Items.BUCKET, "fill");
-        rig.avatar().aimAtBlock(src);
-        rig.settle(new HoldStill(2), 10, () -> {
+        aimThenAct(rig, src, () -> {
+            rig.evidence("fill.aim", String.format(java.util.Locale.ROOT, "%.0f/%.0f",
+                    rig.player().getYRot(), rig.player().getXRot()));
             rig.evidence("fill.result", String.valueOf(rig.avatar().useItemInHand()));
             int filled = rig.carrying("minecraft:lava_bucket");
             rig.evidence("lava_bucket", filled);
@@ -2707,8 +2740,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // fluids ignored, so the block it lands on is the bed, and the fluid goes into the cell in
         // front of the face it hit — which is the water cell above.
         holdForUse(rig, Items.LAVA_BUCKET, "cast");
-        rig.avatar().aimAtBlock(target.below());
-        rig.settle(new HoldStill(2), 10, () -> {
+        aimThenAct(rig, target.below(), () -> {
             // hitFluids=false, matching what a FILLED bucket's own clip does. A pick that ignores
             // fluids is the only pick that predicts this pour.
             var hit = aimedAt(fp, TUNNEL_REACH, false);

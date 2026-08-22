@@ -2659,8 +2659,13 @@ public final class JourneyPortalRung {
         ServerLevel level = ctx.level();
         rig.settle(new IntentProcess(new Intent(new Goal.Near(hearth, 3))), 1_500, () -> {
             WorldDriverJourneyScenes.holdForUse(rig, Items.FLINT_AND_STEEL, "light");
-            rig.avatar().aimAtBlock(hearth);
-            rig.settle(new HoldStill(2), 10, () -> {
+            // Aim adjacent to the strike, not two ticks before it — see
+            // WorldDriverJourneyScenes#aimThenAct. This was the last aim-then-settle-then-use pair
+            // left on the ladder, and it sits on the tick that lights the portal: on the dedicated
+            // topology nothing rewrites a fake player's rotation between the two, so it has always
+            // worked there and would have failed here for a reason belonging to the body, not the
+            // strike.
+            WorldDriverJourneyScenes.aimThenAct(rig, hearth, () -> {
                 rig.avatar().useBlock(hearth, Direction.UP);
                 rig.settle(new HoldStill(5), 20, () -> {
                     int lit = 0;
