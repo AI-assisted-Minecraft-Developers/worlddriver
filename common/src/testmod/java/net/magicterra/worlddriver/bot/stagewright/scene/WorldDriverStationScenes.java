@@ -922,7 +922,30 @@ public final class WorldDriverStationScenes implements SceneProvider {
         CraftLogCatcher catcher = new CraftLogCatcher();
         catcher.start();
         coreLogger.addAppender(catcher);
-        ctx.cleanup(() -> { coreLogger.removeAppender(catcher); catcher.stop(); });
+
+        // ⚠️ THIS SCENE USED TO SILENCE THE WHOLE MOD FOR THE REST OF THE RUN, and nothing said so.
+        //
+        // `addAppender` on a logger that has no LoggerConfig of its own makes log4j create one:
+        // `new LoggerConfig(name, root.getLevel(), root.isAdditive())`. Loom's generated log4j.xml
+        // declares <Root> without an `additivity` attribute, and the root builder's field is a
+        // primitive boolean with no default — so `root.isAdditive()` is FALSE. Harmless on the root,
+        // which has nowhere to forward to. Copied onto a CHILD it means「do not forward to parent」.
+        // Then the cleanup below removes the appender but NOT the LoggerConfig, and a LoggerConfig
+        // with zero appenders that does not forward discards every event at every level, forever.
+        //
+        // Measured: three gate runs, each ending at a different time and for a different reason,
+        // every one of them stopping at the same place — the last `(WorldDriver)` line was this
+        // scene's predecessor, and the run then went on for minutes with `(Minecraft)` and
+        // `(StageWrightCommon)` still writing. The cost is nameable: `PathFinder`'s RUNAWAY WATCH
+        // says「WARN so no filter drops it」, and the run that died of exactly that failure logged
+        // none of it. The author defended against a level filter; what killed the line was a logger
+        // with no appenders, which does not filter by level at all.
+        //
+        // The row below records the value BEFORE the repair, so this scene proves the defect and its
+        // fix in the same run — and keeps saying so if log4j's default ever changes underneath it.
+        boolean additiveAfterAttach = coreLogger.isAdditive();
+        coreLogger.setAdditive(true);
+        ctx.cleanup(() -> { coreLogger.removeAppender(catcher); catcher.stop(); coreLogger.setAdditive(true); });
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
@@ -949,6 +972,18 @@ public final class WorldDriverStationScenes implements SceneProvider {
                     + "(CraftProcess.LOG import was dead code): captured=" + catcher.lines);
         if (!sawPlanLog)
             ctx.fail("wd.serverCraftFailTelemetry: gap#67-⑥: no '[craft] plan' dump log line: captured=" + catcher.lines);
+
+        // The two halves of the silencing defect, as a row rather than as a story. `attach` is what
+        // log4j handed back BEFORE the repair — false is the defect, present today; true would mean
+        // log4j (or loom's config) stopped copying a false additivity down and the repair is now
+        // redundant rather than wrong. `now` is what the rest of the suite inherits, and it is the
+        // one the assertion guards: every scene after this one logs through it.
+        ctx.record("log.additiveAfterAttach", String.valueOf(additiveAfterAttach));
+        ctx.record("log.additiveNow", String.valueOf(coreLogger.isAdditive()));
+        if (!coreLogger.isAdditive())
+            ctx.fail("wd.serverCraftFailTelemetry: 这条场景把 WorldDriver logger 留成了 additivity=false —— "
+                    + "零 appender 且不向父转发，等于此后整趟静默丢弃模组的每一行日志（含 WARN/ERROR）。"
+                    + "捕获用的 appender 摘掉了，LoggerConfig 没有。");
     }
 
     /** Minimal non-inventory menu stand-in (inlined from {@code AgentGameTestServer.DummyMenu}) — makes
