@@ -642,6 +642,56 @@ march.32  连续第1次 ← 又回到 1
 17 级这条链路该验的都验了，且唯一能杀真梯的断言（`return.scaledXZ`）在第七趟就过了。
 真梯读法按上面那张**死因族表**，不按 pass/fail。
 
+## 🟡 真梯第一趟（`runJourneyServer`，零布景）：**14/20**，破了历史最好成绩
+
+2026-08-22 15:5x–17:4x。逐级（`staging.calls=0`）：
+
+```
+16:00  wd.journey11Obsidian   PASS   4317 tick   在 -6,62,54 浇出黑曜石，桶已回到手上 ×1
+16:11  wd.journey12PortalLit  PASS  13551 tick   y=57 就地浇十块黑曜石点亮 6 格门（最贵的一级）
+16:11  wd.journey13Nether     PASS    167 tick   落 6,41,3（地表门 2,58,20，按 8:1 应在 0,2）
+17:1x  wd.journey14BlazeRod   PASS  12056 tick   打死 14 只烈焰人，收 6 根烈焰棒
+       wd.journey15EnderPearl 卡死（人工中止）
+```
+
+记忆里 [`the-portal-was-lit`] 记的真梯首过是 12 级，**这趟到 14 级**。
+
+**14 级是今天修法的直接兑现**：[`a-private-fix-is-an-unfixed-caller`] 记的就是这一级
+「8 杀 0 棒」——`collectByHand` 那个例程 `private` 在矿石场景类里，14 级够不着，
+于是「走过去捡」这一步整个不存在。抽到共享处之后，真梯上一次就收到 6 根。
+
+### 15 级：等一个不会来的刷怪，死因代码自己写着
+
+身体在 `281,42,368` **钉了 48 分钟 / 288 拍心跳**，进程在 `combat` 和 `goto` 之间来回，
+而整个日志里 **`enderman` 出现 0 次**。
+
+`JourneyNetherRungs:943` 的 javadoc 早就写死了这个场景：
+
+> sixty blazes holding that cap, **no enderman spawned within the hunt's 48-block radius for
+> thirty consecutive rounds** — `enderman.found 2/30, killed 0/30`
+
+即 **14 级留下的烈焰人占满了下界刷怪上限，15 级的末影人刷不出来**
+（[`a-fix-that-spends-another-budget`] 的第二例）。这一级预算 300_000 tick ≈ **4 小时**，
+死因已知、证据充分（0 次不是采样偏差），所以人工中止，没有等它烧完。
+
+⚠️ 代价要说清：中止 = **没有 FAIL 证据 map**，`enderman.found/killed` 那三行没拿到。
+下次若要那三行，得让它跑满，或者把这一级的预算调小再跑。
+
+## 📌 定式：每一轮之后紧跟一趟客户端拓扑做对照
+
+| 拓扑 | 任务 | 身体 | runDir |
+|---|---|---|---|
+| 专用服 | `:fabric:runJourneyServer` | JoinedBody（服务端 tick 驾驶） | `run-journey` |
+| **集成服＋客户端** | `:fabric:runJourneyIntegratedServer` | **LocalPlayer**（`realPlayerBodies=true`） | `run-journey-integrated` |
+| 生产拓扑（两进程） | `:fabric:runJourneyDedicatedServerWithClient` | 真玩家在另一端 | `run-journey-with-client` |
+
+两者跑同一批 `wd.journey*`、同一种子、各自独立 runDir（世界会被玩过，不能共用）。
+**对照读法：逐级比 PASS/FAIL 和 tick 数**，差异即身体类型带来的差异 ——
+这正是「FakePlayer 废弃、专用服用 JoinedBody、集成服用 LocalPlayer」那条方针要的证据。
+
+⚠️ **排练侧目前没有客户端对照任务**：`rehearsalServer` 只有 `server()` 一种拓扑。
+要让排练也能对照，得照 `journeyIntegratedServer` 补一个 `rehearsalIntegratedServer`。**待办。**
+
 ### 读第四趟的三条纪律
 
 1. **先看 `rehearsal.doorway` 的「垂直差」**（必须 ≤24）。布景几何变了，
