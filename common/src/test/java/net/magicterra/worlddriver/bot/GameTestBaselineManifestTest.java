@@ -171,10 +171,12 @@ class GameTestBaselineManifestTest {
             e("duskUrgent", "urgent dusk securing")));
 
     /**
-     * Booleans that exist on the settings surface but have no compiled default recorded, because
+     * Fields that exist on the settings surface but have no compiled default recorded, because
      * {@code BotConfig.NON_PERSISTED} excludes them: per-frame runtime context, not configuration.
      * Named here so that "missing from the universe" is a decision too — a new flag that lands in
      * NON_PERSISTED would otherwise slip past this test entirely.
+     *
+     * <p>All three happen to be booleans; the assertion below does not assume that.
      */
     private static final Set<String> RUNTIME_ONLY = Set.of(
             "fleeActive", "walkerDigActive", "pathfinderBoxedEscalate");
@@ -239,20 +241,47 @@ class GameTestBaselineManifestTest {
         assertFalse(universe.contains("walkerStickyDig"), "sanity: walkerStickyDig ships OFF");
     }
 
+    /**
+     * The two enumerators must agree about which fields exist.
+     *
+     * <p>They reach BotConfig by different reflection: {@code reflectivePrimitiveFields()} uses
+     * {@code getFields()}, which walks the superclass chain, while {@code COMPILED_DEFAULTS} is
+     * built from {@code persistableFields()} → {@code getDeclaredFields()}, which does not. Both
+     * javadocs call themselves "the ONE enumeration"; each is, within itself. Today the difference
+     * is invisible because every field is declared in BotConfig itself.
+     *
+     * <p>It stops being invisible the day BotConfig is split. The file sits at 2993 of the 3000-line
+     * budget, so a split is coming, and the natural shape — {@code BotConfig extends …} — is the one
+     * that breaks silently: a moved field stays visible to the settings schema and snapshot (agents
+     * see it, so nothing looks wrong) but drops out of save/load and out of
+     * {@code snapshotAll}/{@code restoreAll}, which is precisely the leak snapshotAll's javadoc
+     * exists to prevent — {@code applyGameTestBaseline()}'s OFF values would escape into the live
+     * bot for exactly the moved flags.
+     *
+     * <p>This assertion covered only {@code boolean} until now, which left the 86 int/double/float/
+     * long fields — and the String/Set ones, which are persistable but not primitive — with no
+     * guard at all. It is green today for a reason that can be read off the source rather than
+     * measured: {@code persistable} accepts boolean/int/long/double/float/String/Set, every
+     * {@code public static volatile} primitive is static and non-final (volatile implies non-final)
+     * and of one of those five primitive types, and {@code serialize} returns null only for a null
+     * value, which a boxed primitive never is.
+     */
     @Test
-    void everySurfaceBooleanHasACompiledDefaultOrIsDeclaredRuntimeOnly() {
+    void everySurfaceFieldHasACompiledDefaultOrIsDeclaredRuntimeOnly() {
         Map<String, String> defaults = compiledDefaults();
         Set<String> unrecorded = new TreeSet<>();
         for (Field f : SettingsRegistry.reflectivePrimitiveFields()) {
-            if (f.getType() == boolean.class && !defaults.containsKey(f.getName())) {
-                unrecorded.add(f.getName());
-            }
+            if (!defaults.containsKey(f.getName())) unrecorded.add(f.getName());
         }
         assertEquals(new TreeSet<>(RUNTIME_ONLY), unrecorded,
-                "a boolean on the settings surface has no compiled default, so it is invisible to "
+                "a field on the settings surface has no compiled default, so it is invisible to "
                 + "the universe above and could ship ON without ever being classified. Either it "
                 + "is genuine per-frame runtime state (add it to RUNTIME_ONLY here and to "
-                + "BotConfig.NON_PERSISTED) or it is configuration and should be persistable.");
+                + "BotConfig.NON_PERSISTED), or it is configuration and should be persistable, or "
+                + "it was moved out of BotConfig's own declaration — see this test's javadoc: "
+                + "getFields() follows a superclass, getDeclaredFields() does not, so a split that "
+                + "moves fields to a parent keeps them in the settings schema while dropping them "
+                + "from persistence and from snapshotAll/restoreAll.");
     }
 
     @Test
