@@ -380,11 +380,14 @@ public final class JourneyEndRungs {
      * where the ladder's table has been through several rungs of best-effort reclaim.
      *
      * <p><b>This rung skips rather than fails when the bag is empty, and that is the deliberate
-     * part.</b> {@code BLAZE_ROD} and {@code ENDER_PEARL} are still {@code unscripted}, so on today's
-     * ladder this rung is normally never reached at all — {@link JourneyRig#enter} records BLOCKED
-     * below it. When it IS reached with nothing in hand, the honest report is "the rungs below owe
-     * this one its materials", not "the driver cannot craft". A red row for somebody else's unwritten
-     * work buries the row that would have said something.
+     * part.</b> The wording here used to be "{@code BLAZE_ROD} and {@code ENDER_PEARL} are still
+     * {@code unscripted}", which stopped being true — both are written, and {@code BLAZE_ROD} was
+     * measured green on 2026-08-22 ({@code 烈焰棒 ×2 到手}). The reason survives the correction: a
+     * rung below that FAILS makes this one BLOCKED via {@link JourneyRig#enter}, so the only way to
+     * arrive here empty-handed is a rung below that PASSED and still banked nothing. When that
+     * happens the honest report is "the rungs below owe this one its materials", not "the driver
+     * cannot craft" — a red row for somebody else's shortfall buries the row that would have said
+     * something.
      *
      * <p>The assertion is {@code >= 1}, not {@code >= 12}, and the shortfall is recorded beside it.
      * The claim this rung makes is that the CRAFT works; the claim that there are enough eyes for a
@@ -408,7 +411,7 @@ public final class JourneyEndRungs {
         int powderCeiling = powder + rods * BLAZE_POWDER_PER_ROD;
         int couldMake = Math.min(pearls, powderCeiling);
         if (couldMake < 1 && already < 1) {
-            rig.attempting("原料没送到：BLAZE_ROD / ENDER_PEARL 还没脚本化，这一级手上是空的");
+            rig.attempting("原料没送到：下面两级判为通过却没有攒下东西，这一级手上是空的");
             ctx.skip("MISSING_INPUTS: 末影之眼 = 烈焰粉 + 末影珍珠。当前 blaze_rod=" + rods
                     + " blaze_powder=" + powder + " ender_pearl=" + pearls
                     + " —— 缺的是上面两级的产出，不是合成这条路走不通");

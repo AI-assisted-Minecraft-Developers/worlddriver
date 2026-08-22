@@ -203,8 +203,12 @@ public enum JourneyStage {
      * death does not undo the run), and <b>nothing on the road to the dragon needs one</b>. On this
      * track it is doubly irrelevant, because the headless body cannot die.
      *
-     * <p>It came to matter because of the terrain: seed 5471 spawns in a swamp whose only animals
-     * are cows and frogs, so wool means a long walk to find sheep. Left in the line, "could not find
+     * <p>It came to matter because of the terrain. This paragraph used to say "a swamp whose only
+     * animals are cows and frogs", which the rung disproved the first time it actually ran: there is
+     * a flock of four to six white sheep around {@code -25,64,70}, and the food rung's own scan
+     * reports {@code [chicken, cow, frog, pig]}. The true statement is narrower and still decisive —
+     * <b>the sheep are ~83 blocks from where the food rung ends and ~90 from spawn</b>, far enough
+     * that reaching them is its own leg with its own ways to fail. Left in the line, "could not find
      * a sheep" would have blocked iron, the portal and the whole nether — a side quest holding the
      * critical path hostage, and every rung above it reporting BLOCKED for a reason that has nothing
      * to do with them.

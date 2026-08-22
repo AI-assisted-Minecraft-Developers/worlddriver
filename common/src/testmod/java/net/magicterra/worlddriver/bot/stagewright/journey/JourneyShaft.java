@@ -485,6 +485,33 @@ public final class JourneyShaft {
         rig.evidence(climbName + ".endedIn", end.getX() + "," + end.getZ()
                 + (end.getX() == climbColX && end.getZ() == climbColZ ? "（就是那一柱）"
                         : "（起塔柱是 " + climbColX + "," + climbColZ + " —— 不是同一柱）"));
+        // AND WHAT IT ENDED *IN*, because height is not the same as being out.
+        //
+        // The exit's completion test is `y >= surfaceY`, which has no opinion about the medium — the
+        // same shape as `Goal.YLevel` being column-blind, one axis further. Measured 2026-08-22: a
+        // climb reported `toY=64`, `gained=20/20`, and left the body FLOATING at the water's surface.
+        // Nothing was standing under it, so over the next 65 ticks-times-twenty of the smelt wait it
+        // sank at exactly −0.025 blocks/tick (vanilla's water terminal velocity, −0.005/(1−0.8)) from
+        // y=64 to y=39 with no plan driving it at all. The rung above then failed to walk to its
+        // gravel column, 25 blocks underwater, and was investigated as a pathfinding bug for a while.
+        //
+        // The proof it was afloat rather than merely wet is in the same second of that log: the
+        // furnace was placed at `93,63,95` while the body stood at `93,64,95` — the station went into
+        // the cell directly beneath the feet, so that cell was replaceable and there was no floor.
+        //
+        // Recording only. The obvious "fix" — refuse to finish while in water — falls straight
+        // through to a `Goal.YLevel(surfaceY)` fallback that is ALREADY SATISFIED at that moment, so
+        // it would report arrival and call this method anyway: the same question asked twice. Getting
+        // out of water is a horizontal problem and it belongs to the caller, which is why the iron
+        // rung now ends with a walk home. This row is what makes that decision checkable.
+        var atFeet = rig.ctx().level().getBlockState(end);
+        var below = rig.ctx().level().getBlockState(end.below());
+        // Wet is not the same as afloat: a body standing on rock in a knee-deep puddle is fine. What
+        // sinks is a body with fluid at its feet AND fluid under them.
+        boolean afloat = !rig.ctx().level().getFluidState(end).isEmpty()
+                && !rig.ctx().level().getFluidState(end.below()).isEmpty();
+        rig.evidence(climbName + ".endedOn", "脚格=" + atFeet.getBlock() + "，脚下=" + below.getBlock()
+                + (afloat ? " —— 浮在水里，脚下没有地板；上面每一级都会从一个正在下沉的身体开始" : ""));
         // How much of the climb actually happened, as a fraction rather than as a landing height.
         // `exit.toY=28` beside `exit.fromY=27` is only a shortfall if you remember the rise was 36,
         // and a rung that later finds what it needs underground will otherwise go green carrying a

@@ -1211,11 +1211,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     // 07 — the bed. Three wool of ONE colour, and the colour is the whole difficulty.
     // =====================================================================================
 
-    /** How many sheep this rung will chase before it stops and says so. A bed wants three wool of
-     *  one colour and a sheep drops one of whatever colour it is; at vanilla's 82% white the third
-     *  kill usually closes it, and five covers the tail without letting a rung that is not on the
-     *  critical path spend the whole ladder's afternoon on it. */
-    private static final int WOOL_HUNT_ROUNDS = 5;
+    /**
+     * How many rounds this rung will spend before it stops and says so.
+     *
+     * <p>Five was the first guess and it was sized against the wrong bill. A bed wants three wool of
+     * one colour, and at vanilla's 82% white the COLOUR is not what costs rounds — measured, the
+     * colour logic picked white five times out of five. What costs rounds is that a round does not
+     * reliably end in a dead sheep: the first live run banked <b>2 wool from 5 rounds</b> while the
+     * flock stayed at four to six head, and 5 was then exactly the number that turns a working rung
+     * into a failing one. Ten, because the whole hunt cost 791 ticks against a 26 000-tick budget —
+     * the constraint here was never time.
+     */
+    private static final int WOOL_HUNT_ROUNDS = 10;
 
     private static final int WOOL_PER_BED = 3;
 
@@ -1277,6 +1284,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         String colour = bestWoolColour(rig);
         int have = colour == null ? 0 : rig.carrying("minecraft:" + colour + "_wool");
         rig.evidence("bed.wool", colour == null ? "0" : have + " × " + colour);
+        rig.evidence("bed.woolAtRound" + (WOOL_HUNT_ROUNDS - roundsLeft + 1),
+                colour == null ? "0" : have + " × " + colour);
         if (have >= WOOL_PER_BED) { craftTheBed(ctx, rig, colour); return; }
 
         List<JourneyRig.Woolly> flock = rig.woolNearby(radius);
@@ -1298,11 +1307,17 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             return;
         }
         if (roundsLeft <= 0) {
-            ctx.fail("猎了 " + WOOL_HUNT_ROUNDS + " 只羊仍没凑齐 " + WOOL_PER_BED + " 块同色羊毛 —— "
+            ctx.fail("猎了 " + WOOL_HUNT_ROUNDS + " 轮仍没凑齐 " + WOOL_PER_BED + " 块同色羊毛 —— "
                     + "手上最多的是 " + have + " × " + colour + "，" + radius + " 格内还剩 "
                     + flock.size() + " 只可剪");
             return;
         }
+        // Every row from here down is keyed by round. The first version of this rung shared
+        // `bed.wool` and `bed.flock` across all five rounds, and StageWright's clash guard keeps a
+        // second value only when it DIFFERS — so a round whose wool count had not moved wrote the
+        // same string and vanished. Five rounds left four flock rows and three wool rows, and the
+        // question the run existed to answer ("which rounds killed nothing?") was the one erased.
+        String r = "bed.r" + (WOOL_HUNT_ROUNDS - roundsLeft + 1);
 
         // Colour first, distance second. `flock` arrives distance-sorted and the comparison is
         // strict, so among colours the bag holds equally much of, the nearest sheep wins — but two
@@ -1316,19 +1331,36 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             if (score > pickScore) { pickScore = score; pick = w; }
         }
         final JourneyRig.Woolly target = pick;
-        rig.evidence("bed.flock", flock.size() + " 只可剪，选 " + target.colour() + " @ "
+        final int woolBefore = rig.carrying(target.woolId());
+        rig.evidence(r + ".flock", flock.size() + " 只可剪，选 " + target.colour() + " @ "
                 + target.where().toShortString() + "（" + Math.round(target.distance()) + " 格，"
-                + "已有同色 " + rig.carrying(target.woolId()) + "）");
+                + "已有同色 " + woolBefore + "）");
 
         // Walk first, engage second — CombatProcess scans 32 blocks and gives up at once, so handing
         // it a sheep 90 blocks away fails in two ticks and reads like a broken verb.
         rig.attempting("走向 " + Math.round(target.distance()) + " 格外的 " + target.colour() + " 羊");
         rig.drive(new IntentProcess(new Intent(new Goal.Near(target.where(), 6))), 6_000, () -> {
+            rig.evidence(r + ".arrived", rig.player().blockPosition().toShortString() + "，离目标 "
+                    + Math.round(Math.sqrt(rig.player().blockPosition().distSqr(target.where()))) + " 格");
             rig.attempting("猎杀 " + target.colour() + " 羊（id=" + target.entityId()
                     + "）：CombatProcess 没能拿到羊毛");
             rig.drive(new CombatProcess(CombatProcess.Mode.KILL, target.entityId(), "minecraft:sheep"),
-                    4_000, () -> rig.collectByHand(target.woolId(), 2, "bed.pickup",
-                            () -> woolRound(ctx, rig, roundsLeft - 1, radius, mayWiden)));
+                    4_000, () -> {
+                // Did the chosen sheep actually die? CombatProcess.pick returns null when the id
+                // cannot be resolved, and tick() reads a null target as "target dead/gone → mission
+                // complete" — so a round that never found its sheep and a round that killed it both
+                // come back as success, in the same handful of ticks. Asking the level directly is
+                // the only way to tell those two apart, and telling them apart is the difference
+                // between "the flock is thin" and "the verb reports a kill it did not make".
+                var still = ctx.level().getEntity(target.entityId());
+                rig.evidence(r + ".target", still == null ? "已从世界消失"
+                        : (still.isAlive() ? "仍活着 —— 这一轮没有杀成" : "已死"));
+                rig.collectByHand(target.woolId(), 2, r, () -> {
+                    rig.evidence(r + ".gained", (rig.carrying(target.woolId()) - woolBefore)
+                            + " 块 " + target.colour() + "（此前 " + woolBefore + "）");
+                    woolRound(ctx, rig, roundsLeft - 1, radius, mayWiden);
+                });
+            });
         });
     }
 
@@ -1755,7 +1787,21 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("smelt.lastError", String.valueOf(rig.body().botState().smelt.lastError));
             rig.noteAdvancement("minecraft:story/smelt_iron");
             ctx.expect(ingots).as("iron ingots smelted").isAtLeast(1);
-            rig.reach("铁锭 ×" + ingots + " 出炉");
+            // Hand the body back somewhere the rungs above can navigate from — the rule the food
+            // rung learned, and the one this rung never adopted even though the food rung's own
+            // note cites THIS rung as the victim: "the iron rung came to report 'cannot reach the
+            // descent point' from 4,65,114 — 88 blocks away … That is not the iron rung's failure
+            // and it should not be reported as one." This rung sinks up to two shafts and ends
+            // wherever the second vein was, which on one measured run was y=40 with the portal
+            // rung then failing to walk 72 blocks to its gravel column.
+            //
+            // Best-effort, exactly like the food rung: a body that smelted its iron has climbed
+            // this rung whether or not it found its way home, so a failed return records
+            // `iron.strandedAt` rather than failing IRON. **That row is the point.** It is what
+            // lets the next rung's failure be traced here instead of investigated on its own terms
+            // — and it is worth having even on the runs where the walk succeeds, because then the
+            // next rung's failure is provably NOT about where it started.
+            walkHome(rig, "iron", () -> rig.reach("铁锭 ×" + ingots + " 出炉"));
         });
         }));
     }
