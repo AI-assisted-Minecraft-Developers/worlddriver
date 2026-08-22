@@ -875,11 +875,23 @@ mc.bot.*在本JVM=false}`。
 进程必然自报，所以持续 null 指向**被抢占**（去读 `journey.helm.endings` / 当前 activeChain），
 不是「它没话说」。
 
-⚠️ **最险的一条：`ProcessSlot.reset()` 故意保留 `lastError`**（原注释：「so the agent can read it
-after wait.condition fires」）。通道一修通，这个字段就**带着历史**——放弃点读到
-`done (placed=14…)` 完全可能是**第 5 级那座塔**的残留，而第 5 级恰好是本趟唯一成功的塔。
-信它之前先拿消息里的 `placed=` 对这一课自己的存量差（`climb.N.with` − `climb.N.stock`）；
-对不上就是残留。这是 [[a-stale-results-file-answers-anyway]] 的槽位版。
+⚠️ **`ProcessSlot.reset()` 故意保留 `lastError`**（原注释：「so the agent can read it after
+wait.condition fires」），所以这个字段**能带着历史**——第 9 级放弃点读到 `done (placed=14…)`
+在原理上可能是**第 5 级那座塔**的残留（第 5 级恰好是上一趟唯一成功的塔）。
+
+**但对塔这条路径，残留读数本身就是诊断，不是噪声**：`TowerProcess.attach()` 无条件
+`st.builder.lastError = null`（`TowerProcess.java:89`，`attach` 而非 `tick`，所以每次挂载
+必清）。因此路由之后：
+
+| `.stalled` | 读作 |
+|---|---|
+| `stuck (no Y gain in 60t: placed=…, phase=…, overhead=…)` | 塔跑了、自己报了因——**直接读那三个量** |
+| `null` | `attach` 跑过、`tick` 没写过错——`STUCK_TICKS=60` < settle 的 200 tick，进程必然自报，所以这是**被抢占**：去读 `journey.helm.endings`（`JourneyRig.java:704`）看谁接管了 |
+| 一句**对不上这一课的存量差**的旧消息 | **`attach` 从没在这份 state 上跑过** ⇒ 塔根本没被交给这只 helm。拿 `placed=` 对 `climb.N.with` − `climb.N.stock` 就能判 |
+
+三支互斥且穷尽，所以第三趟的塔一定会给出一个答案——这正是上一趟缺的东西。
+（同族 [[a-stale-results-file-answers-anyway]]，但方向相反：那里残留会冒充答案，这里残留
+自己就点名了通道。）
 
 ⚠️ **判据 4 的语义被 `carryTo` 反转了。** 之前服务端够不着客户端的手，「手不同」= 背包分叉；
 现在够得着了，**「手不同 + 存量相同」要读作回声窗口**（包在路上），不是分叉。
