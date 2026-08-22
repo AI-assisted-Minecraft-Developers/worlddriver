@@ -27,7 +27,8 @@
 | 🧊 冻结中 | J4 | `keyAttack` 五取用者协议 —— 只做诊断表，**不要发明全局仲裁器** | janitor |
 | ✅ 已落 | J5 | 724 → 0 死 import，五笔纯删除，733 行净减。**但见下：省下的额度没人在用** | janitor |
 | 🔴 排队 | J7 | **`BotConfig.java` 2993/3000，零死 import**——顶着上限而 J5 对它无效。要拆不要刮 | 我（梯子稳后） |
-| 🔄 在跑 | Q14 | 12 级装水：三笔（`fcbbd66b`/`c83e7d76`/`371cb137`）。**判据预登记在下面那节** | 我 |
+| ✅ 已测 | Q14 | 12 级装水修好（`fcbbd66b`/`c83e7d76`/`371cb137`）。`.hand#2=bucket` 三条判据全中，83→**5312 tick** | 我 |
+| 🔴 在查 | Q15 | 12 级新死因：**挖掘的走位拆了自己的楼梯**（`mineCellOrGiveUp:868` 裸 Intent）。同族第二次 | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
@@ -93,6 +94,69 @@ waterFill.hand      = minecraft:stone_pickaxe
    而那时手上已经有能区分的仪器了。
 4. 预算按 `-PrehearseBudget=250000` 跑满。上一趟的 120000 是**夹具帽**，
    证据行自己就在警告；别让下一条 FAIL 是预算伪影。
+
+### 结果：装水这一族修好了，判据 2 三条全中（2026-08-22 复跑）
+
+```
+waterFill.hand      = minecraft:stone_pickaxe   ← 早一包的那一行，如注释所料
+evidence.clash      = waterFill.hand（旧值在 waterFill.hand，新值在 waterFill.hand#2）
+waterFill.hand#2    = minecraft:bucket          ← 二次写不同 ⇒ 第一行确属陈旧，诊断独立确认
+waterFill.result    = SUCCESS
+water_bucket        = 1                          ← 装上了
+waterFill.cellAfter = Block{minecraft:air}       ← 水真被舀走了
+```
+
+`ticks` **83 → 5312**。这一级第一次真正跑起来：下井 → 挖模腔 67 格 → 第一次浇水成功
+（`water0.result=SUCCESS`，`water.fell.0` 落进目标格）→ 上楼取岩浆。**判据 1 未达成**，
+死在更深的一层，见下。
+
+---
+
+## 📏 挖掘的走位拆掉了这一级自己的楼梯（Q15，2026-08-22）
+
+```
+stairs.asCut       = 11 级都完好                       ← 楼梯刚挖好
+forge.stairsBroken = 4/11 级坏了：
+                     -4,62,20 脚下 -4,61,20 = air
+                     -3,61,20 脚下 -3,60,20 = air
+                     -2,60,20 脚下 -2,59,20 = air
+                     -1,59,20 脚下 -1,58,20 = air
+forge.stairsMend.* = 垫不上（贴不到实心面）
+forge.returnStopped= 想到 -8,66,20，停在 1,58,20，差 12.04 格；身体脚下 air
+lava0.upStopped    = 停在 -1,57,18，起跳格 -1,59,18=dirt（挡着，跳不起来）
+```
+
+**坏掉的四格连成一条斜线** (−4,61)→(−1,58)，每格 x+1、y−1 ——
+**正是楼梯自己的形状，整条往下平移一格**。不是随机破坏，是有人沿着楼梯走了一遍。
+
+**根因是一行**，`JourneyRig.mineCellOrGiveUp:868`：
+
+```java
+startLeg(d, new IntentProcess(new Intent(new Goal.Near(target, 2))));
+```
+
+裸 `Intent`，没有任何约束，而 `JourneyRig:1407` 全程 `BotConfig.allowBreak = true`。
+所以「够不着就走过去」这一步里，**A\* 是带着挖掘权在找路的**——它不绕楼梯，它挖穿楼梯。
+`JourneyPortalRung:1199` 的注释早就写明了这个走法（「the cheapest way for `MineProcess`
+to reach a cell it cannot swing at is to walk up the staircase and dig down from outside」），
+只是当时把它当成「身体跑到外面去了」，修法是 `returnToTheForge`——**让它走得回来，
+没有阻止它拆东西**。
+
+**这是同族第二次。** [[a-mine-is-a-walk-first]] 记的是同一个方法拆掉刚浇好的门框，
+那次的修法是 `JourneyFill.isFrameCell` 白名单——**按坐标豁免一组格**，
+也就是说上一次修的是症状，而且豁免只覆盖了门框那一组。楼梯不在名单里。
+第三组产物出现时，白名单还会再漏一次。
+
+**可用的约束只有六种**（`ColumnRadius / LeashHardRadius / NoBreak / NoWater / YCeil / YFloor`），
+**没有「保护指定格集合」这一种**。所以在不补引擎能力的前提下，候选修法是：
+
+1. `Goal.Near` 那个 Intent 加 `NoBreak` —— 一行，但影响**所有**调用者，
+   某些原本挖得到的格会变成 `carve.stuck`。
+2. 挖模腔只就地挥，够不着直接记 stuck —— `forge.swung` 本轮是 64/67，
+   注释说剩下那几格「the remaining four were enough」，但**没量过少了它们行不行**。
+
+**两条都要测量，不能推理**：本轮 `carve.stuck` 是 3 格且壁龛已被判「不完整」仍继续，
+所以「stuck 变多」本身不等于失败——要看的是浇筑那一步。
 
 ---
 
