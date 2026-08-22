@@ -16,7 +16,6 @@ import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
-import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 
 import java.util.ArrayList;
@@ -92,7 +91,7 @@ public final class RecipeApi {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", h.id().toString());
         m.put("type", serializerId(r));
-        m.put("station", station(r));
+        m.put("station", RecipeResolver.station(r));
         Map<String, Object> rm = new LinkedHashMap<>();
         rm.put("id", itemId(res));
         rm.put("count", res.getCount());
@@ -289,25 +288,6 @@ public final class RecipeApi {
             rows.add(sb.toString());
         }
         return rows;
-    }
-
-    private String station(Recipe<?> r) {
-        RecipeType<?> t = r.getType();
-        if (t == RecipeType.SMELTING)         return "furnace";
-        if (t == RecipeType.BLASTING)         return "blast_furnace";
-        if (t == RecipeType.SMOKING)          return "smoker";
-        if (t == RecipeType.CAMPFIRE_COOKING) return "campfire";
-        if (t == RecipeType.STONECUTTING)     return "stonecutter";
-        if (t == RecipeType.SMITHING)         return "smithing_table";
-        if (t == RecipeType.CRAFTING)         return fitsInventory2x2(r) ? "inventory2x2" : "crafting_table";
-        return "unknown";
-    }
-
-    private boolean fitsInventory2x2(Recipe<?> r) {
-        if (r instanceof ShapedRecipe sr) return sr.getWidth() <= 2 && sr.getHeight() <= 2;
-        int n = 0;
-        for (Ingredient ing : r.getIngredients()) if (!ing.isEmpty()) n++;
-        return n <= 4;
     }
 
     private String serializerId(Recipe<?> r) {

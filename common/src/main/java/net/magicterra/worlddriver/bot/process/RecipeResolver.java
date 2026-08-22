@@ -311,7 +311,15 @@ public final class RecipeResolver {
         return ids;
     }
 
-    /** The crafting station for a recipe (mirrors {@code RecipeApi.station}). */
+    /**
+     * The crafting station for a recipe — the only implementation, and {@code RecipeApi} calls
+     * this one for {@code mc.recipe.*}'s {@code station} field.
+     *
+     * <p>It used to say "mirrors {@code RecipeApi.station}", above a byte-identical copy of it.
+     * The two agreed by luck; what they were describing is the verb's own choice of station, so
+     * a drift would have made {@code mc.recipe.find} advertise one station while {@code CraftProcess}
+     * walked to another.
+     */
     public static String station(Recipe<?> r) {
         RecipeType<?> t = r.getType();
         if (t == RecipeType.SMELTING)         return "furnace";
