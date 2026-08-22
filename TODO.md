@@ -38,11 +38,20 @@ agent 交回「交出的身体不满足下一级前置，该不该 FAIL（会变
 它确实炼出了铁，判据应当关于它自己的成就；交接问题的正确归宿是**记录**，
 这正是 6 级 `strandedAt` 的既有设计。但记录必须真的响 —— 上面两条就是让它响。
 
-### 尚未落地（production 代码，先记着）
+### 尚未落地（production 代码），**但 agent 的定性我降级了**
 
-`WalkerTickSearch.java:118` 用 `!world.isWater(foot)` 豁免掉了 `goal unreachable from here`，
-所以**水里永远只会报那句代码自己注释为「暂时性卡顿」的判词**。
-判词与病因错配本身是缺陷，且正是它把这次调查引向了寻路器。
+`WalkerTickSearch.java:116-118` 用 `!world.isWater(foot)` 豁免掉了 `goal unreachable from here`。
+agent 把它判成「判词与病因错配 = 缺陷」。**这个定性过强**，因为同处注释写明了理由：
+
+> Water is exempt: an afloat bot legitimately repaths many times while stationary (bank climb-outs,
+> bobbing), and that churn is **owned by the existing in-water anti-spin (`repathsNoProgress`)** —
+> two governors on one loop would race. This guard owns the DRY unreachable churn.
+
+**水里有它自己的管制器，这是分工不是遗漏。** 删掉豁免恰好会造出注释警告的那场竞争。
+
+⇒ 真正要问的是另一个问题，**尚未测量**：
+**在这次持续 60 秒的水中卡死里，`repathsNoProgress` 为什么没有给出可归因的判词？**
+它没触发，还是触发了但判词同样是通用的？答这个之前不要动 `WalkerTickSearch`。
 
 ---
 
