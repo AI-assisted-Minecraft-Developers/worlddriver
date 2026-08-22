@@ -294,10 +294,27 @@ public final class BotInteract {
         return net.magicterra.worlddriver.bot.BotConfig.isUsablePillarBlock(bi.getBlock());
     }
 
-    /** Hold (or swap to) a SOLID-support BlockItem in the hotbar (see {@link #isSupportBlock}).
-     *  Creative can pull from main inventory. Returns false when none is available. */
+    /**
+     * Hold (or swap to) a SOLID-support BlockItem in the hotbar (see {@link #isSupportBlock}).
+     * Creative can pull from main inventory. Returns false when none is available.
+     *
+     * <p><b>Cheap filler first, gathered resources only as a last resort.</b> {@code gap#81} put the
+     * intent in a predicate — {@link net.magicterra.worlddriver.bot.BotConfig#isValuablePlacementBlock}
+     * says gathered wood "must not be spent as disposable pillar/scaffold filler" — and then only
+     * ONE of the fourteen callers in this repo ever asked for it, via
+     * {@code holdThrowawayPlaceable()}. An invariant that lives in a predicate almost nobody
+     * consults is not an invariant. Measured 2026-08-22 on the real-client ladder, rung 3: 121
+     * {@code pillarUp} events, and the run's carried log count fell from 7 to 6 while the rung's own
+     * bill was 8 — the walker was building its scaffolding out of the very thing the rung existed to
+     * collect, and the rung then failed for being two short.
+     *
+     * <p>Two passes rather than a ban, because a body holding nothing but logs must still be able to
+     * place: a fix for waste that can strand a bot on a ledge has bought one bug with another. The
+     * hard refusal is still available and still correct where the caller wants it — that is what
+     * {@code ensureHoldingPlaceableAny(mc, true)} is for.
+     */
     public static boolean ensureHoldingPlaceableAny(Minecraft mc) {
-        return ensureHoldingPlaceableAny(mc, false);
+        return ensureHoldingPlaceableAny(mc, true) || ensureHoldingPlaceableAny(mc, false);
     }
 
     /** Like {@link #ensureHoldingPlaceableAny(Minecraft)} but with an extra {@code avoidValuable}
@@ -331,16 +348,47 @@ public final class BotInteract {
         return false;
     }
 
-    /** Hold (or swap to) a pillar-safe BlockItem (support block OR supported sand/gravel; see
-     *  {@link #isPillarBlock}). Mirror of {@link #ensureHoldingPlaceableAny}; use ONLY for an
-     *  in-place vertical pillar-up where the placement is supported below. */
+    /**
+     * Hold (or swap to) a pillar-safe BlockItem (support block OR supported sand/gravel; see
+     * {@link #isPillarBlock}). Mirror of {@link #ensureHoldingPlaceableAny}; use ONLY for an
+     * in-place vertical pillar-up where the placement is supported below.
+     *
+     * <p>Cheap filler first, gathered resources only as a last resort — see
+     * {@link #ensureHoldingPlaceableAny(Minecraft)} for the measurement that made this two passes.
+     * A pillar is the single biggest consumer of blocks the walker has, so this is the site where
+     * the gap#81 intent mattered most and was honoured least.
+     *
+     * <p><b>Both passes reach the main inventory here, and that is the half that matters.</b> The
+     * survival {@code swapFromMainInv} tail sits inside the parameterised method, so pass 1 sees
+     * cobble sitting in slot 9 exactly as pass 2 would. Its sibling
+     * {@link #ensureHoldingPlaceableAny(Minecraft, boolean)} has no such tail at all — in survival
+     * it only ever looks at the nine hotbar slots — so a body whose hotbar holds nothing but logs
+     * will fail pass 1 there and spend a log on pass 2 even with cobble in the bag. That asymmetry
+     * predates the two passes and is left alone deliberately: giving that method main-inventory
+     * reach widens where a survival bot may place, which is a behaviour change wanting its own
+     * measurement, not a rider on a waste fix.
+     */
     public static boolean ensureHoldingPillarBlock(Minecraft mc) {
+        return ensureHoldingPillarBlock(mc, true) || ensureHoldingPillarBlock(mc, false);
+    }
+
+    /** A pillar block the run did not go and get: usable for a strictly vertical pillar, and not one
+     *  of the resources {@code isValuablePlacementBlock} names. */
+    public static boolean isThrowawayPillarBlock(ItemStack stk) {
+        if (stk.isEmpty() || !(stk.getItem() instanceof BlockItem bi)) return false;
+        return net.magicterra.worlddriver.bot.BotConfig.isUsablePillarBlock(bi.getBlock())
+                && !net.magicterra.worlddriver.bot.BotConfig.isValuablePlacementBlock(bi.getBlock());
+    }
+
+    private static boolean ensureHoldingPillarBlock(Minecraft mc, boolean avoidValuable) {
+        java.util.function.Predicate<ItemStack> ok =
+                avoidValuable ? BotInteract::isThrowawayPillarBlock : BotInteract::isPillarBlock;
         LocalPlayer p = mc.player;
         if (p == null) return false;
         Inventory inv = p.getInventory();
-        if (isPillarBlock(inv.getSelected())) return true;
+        if (ok.test(inv.getSelected())) return true;
         for (int s = 0; s < 9; s++) {
-            if (isPillarBlock(inv.items.get(s))) {
+            if (ok.test(inv.items.get(s))) {
                 inv.selected = s;
                 if (p.connection != null) p.connection.send(
                         new ServerboundSetCarriedItemPacket(s));
@@ -349,9 +397,9 @@ public final class BotInteract {
         }
         if (p.isCreative()) {
             for (int s = 9; s < inv.items.size(); s++) {
-                if (isPillarBlock(inv.items.get(s))) {
+                if (ok.test(inv.items.get(s))) {
                     inv.pickSlot(s);
-                    return isPillarBlock(inv.getSelected());
+                    return ok.test(inv.getSelected());
                 }
             }
         }
@@ -363,7 +411,7 @@ public final class BotInteract {
         // climb (live replay 2026-06-24: ~28 drift-stalls/climb with the cobble stranded in slot 9 → 2
         // once it was reachable). Pull it to the hotbar via a SWAP click (mirrors AutoEquip's inv→hotbar
         // swap). InventoryMenu slots: 9-35 = main inventory, 36-44 = hotbar.
-        return swapFromMainInv(mc, p, BotInteract::isPillarBlock);
+        return swapFromMainInv(mc, p, ok);
     }
 
     /** First hotbar slot (0-8) holding {@code item}, or -1. */
