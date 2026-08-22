@@ -111,6 +111,18 @@ public final class PathFinder {
      *  search FAILS instead of taking the JVM with it. */
     private static final long CEILING_MS = 8_000;
 
+    /** How often one {@code advance()} call reports that it is still running — see the HEARTBEAT
+     *  note in {@code advance}. One second sits two orders of magnitude above the worst iteration
+     *  ever measured (21.4 ms) and far below the 60 s watchdog, so it is silent in every run that
+     *  works and talkative for the whole minute of one that does not.
+     *
+     *  <p>Note what this number cannot do: {@link #CEILING_MS} says one search may not exceed
+     *  8 000 ms, so a heartbeat series longer than eight beats is itself evidence that the ceiling
+     *  did not fire — either the call is not expanding nodes (the caps sit below the
+     *  already-closed {@code continue}) or more than one search is running in the tick. That
+     *  arithmetic gap is why this exists; it is not yet closed. */
+    private static final long HEARTBEAT_NANOS = 1_000L * 1_000_000L;
+
     private final WorldView world;
     private final int maxNodes;
     private final long maxMs;
@@ -319,6 +331,14 @@ public final class PathFinder {
         private double[] expandTax;
         private int[] expandHits;
         private int expanded;
+        /** Every {@code open.poll()}, including the ones discarded as already-closed. Counted
+         *  separately from {@link #expanded} because the two budgets that bound this loop sit on
+         *  OPPOSITE SIDES of the {@code if (cur.closed) continue} — the slice deadline above it,
+         *  the node/time/ceiling caps below it — so a poll that never becomes an expansion is
+         *  charged to neither. {@code polled} far exceeding {@code expanded} is the signature of a
+         *  search draining stale duplicates (nodes are re-opened and re-queued when improved), and
+         *  it is the reading that tells a runaway apart from a merely large search. */
+        private long polled;
         private long elapsedNanos;     // cumulative compute time across slices
         private Result result;         // null until done
         private String segmentReason = "none";   // A5 diagnostics: which chooseSegment branch fired
@@ -860,6 +880,38 @@ public final class PathFinder {
             long runawayLimit = Math.max(100L * 1_000_000L,
                     sliceLimit == Long.MAX_VALUE ? 1_000L * 1_000_000L : sliceLimit * 10L);
             int sinceCheck = 0;
+            // ENTRY BREADCRUMB — written BEFORE the work, which is the whole point.
+            //
+            // Every instrument this class had was computed AFTER the thing it measures: RUNAWAY
+            // takes nodeCost once the node returns, and the scene pump's overrun WARN fires once
+            // the iteration returns. The call that kills the server never returns, so by
+            // construction neither of them can ever describe it — they can report a near miss and
+            // nothing else. A line written on the way IN survives the death, and after a watchdog
+            // kill the last one in the log names the state that never came back.
+            //
+            // Gated on the yield being DISABLED, because that is exactly the population the crash
+            // lives in and it is a pre-hoc test, not a guess about how long this call will take:
+            // scenes set BotConfig.pathfinderSliceMs to Long.MAX_VALUE/2 so a search is never
+            // truncated mid-measurement, sliceLimit collapses to Long.MAX_VALUE, and the pause at
+            // the top of the loop below can then never fire. Production (6 ms) keeps its yield and
+            // logs nothing here. With the yield off a search runs to completion inside ONE call,
+            // so this is one line per search rather than one per slice.
+            if (sliceLimit == Long.MAX_VALUE) {
+                LOG.info("[pathfinder] ENTER unbounded-slice owner={} start={} goal={} expanded={}"
+                        + " polled={} open={} nodes={} elapsedMs={} drivers={}",
+                        owner, start.toShortString(), goal, expanded, polled, open.size(),
+                        nodes.size(), elapsedNanos / 1_000_000L,
+                        net.magicterra.worlddriver.bot.sim.ServerAvatarManager.activeCount());
+            }
+            // HEARTBEAT — the only instrument here that can describe a call which never returns.
+            // Rides the clock the loop already reads, so a healthy search pays one long compare.
+            // First beat at HEARTBEAT_NANOS and one per interval after, so a runaway prints a
+            // GROWING series: the counts in the last line say how far it got before the kill, and
+            // the number of lines says how long the call had been running — which is what tells a
+            // 55-second call apart from a 3-second call the watchdog blamed for a tick backlog.
+            long nextBeat = HEARTBEAT_NANOS;
+            int beatExpanded = expanded;    // counter values at the previous beat, for its deltas
+            long beatPolled = polled;
             // Cache is LIVE only while this slice expands nodes (static-world memoise);
             // cleared off in finally so the Walker's between-slice reads stay fresh.
             world.cacheActive(true);
@@ -874,9 +926,43 @@ public final class PathFinder {
                     // tighter, keeping each slice near sliceMs.
                     if (++sinceCheck >= TIME_CHECK_INTERVAL) {
                         sinceCheck = 0;
-                        if (System.nanoTime() - sliceStart >= sliceLimit) return false;  // pause, resume next call
+                        long sliceNanos = System.nanoTime() - sliceStart;
+                        if (sliceNanos >= sliceLimit) return false;  // pause, resume next call
+                        // See the HEARTBEAT note above the loop. This branch is unreachable in a
+                        // healthy search — the worst iteration ever recorded for the scene that
+                        // keeps crashing is 21.4 ms (neoforge stagewright-results.jsonl,
+                        // wd.serverFightsAFlyingBlaze open.worstIterMs), against a first beat at
+                        // one second.
+                        if (sliceNanos >= nextBeat) {
+                            nextBeat += HEARTBEAT_NANOS;
+                            // The DELTAS are the verdict, not the totals. A beat whose polled
+                            // delta is large while its expanded delta is ~0 is a loop spinning on
+                            // already-closed duplicates: it never reaches the maxNodes / maxMs /
+                            // CEILING_MS checks, because those all sit BELOW the `if (cur.closed)
+                            // continue` while the only test above it is the slice deadline these
+                            // scenes have switched off. That single line then explains both the
+                            // hang and why an 8 000 ms ceiling did not stop it. A beat where both
+                            // deltas move together is the opposite finding — the caps are being
+                            // reached and something else is wrong — so the reading falsifies as
+                            // well as confirms, which a totals-only line could not do.
+                            LOG.warn("[pathfinder] STILL RUNNING {} ms in ONE advance() —"
+                                    + " owner={} start={} goal={} expanded={}(+{}) polled={}(+{})"
+                                    + " open={} nodes={} sliceMs={} drivers={}. A polled delta with"
+                                    + " a flat expanded delta = draining re-queued duplicates,"
+                                    + " which neither the slice deadline nor the node/time/ceiling"
+                                    + " caps can charge. More than 8 beats in one series means the"
+                                    + " {} ms ceiling never fired.",
+                                    sliceNanos / 1_000_000L, owner, start.toShortString(), goal,
+                                    expanded, expanded - beatExpanded, polled, polled - beatPolled,
+                                    open.size(), nodes.size(), sliceMs,
+                                    net.magicterra.worlddriver.bot.sim.ServerAvatarManager.activeCount(),
+                                    CEILING_MS);
+                            beatExpanded = expanded;
+                            beatPolled = polled;
+                        }
                     }
                     Node cur = open.poll();
+                    polled++;
                     if (cur.closed) continue;
                     cur.closed = true;
                     expanded++;
