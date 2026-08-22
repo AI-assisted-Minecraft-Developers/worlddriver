@@ -871,11 +871,31 @@ public final class JourneyRehearsal {
             return;
         }
         // Clear the pocket the frame stands in, so worldgen rock does not decide whether the
-        // doorway is enterable. One cell of margin all round the 4x5 frame.
+        // doorway is enterable. One cell of margin all round the 4x5 frame — starting at dy=0,
+        // because dy=-1 is the FLOOR and clearing it is what dug the pit below.
         for (int dx = -2; dx <= DOOR_WIDTH + 1; dx++)
-            for (int dy = -1; dy <= DOOR_HEIGHT + 2; dy++)
+            for (int dy = 0; dy <= DOOR_HEIGHT + 2; dy++)
                 for (int dz = -1; dz <= 1; dz++)
                     nether.setBlockAndUpdate(foot.offset(dx, dy, dz), Blocks.AIR.defaultBlockState());
+        // FLOOR THE WHOLE POCKET, not a strip in front of the door.
+        //
+        // This clear used to run from dy=-1, taking the ground out from under the entire pocket,
+        // and only one 4×1 strip of it was put back. Everything else the clear touched became a
+        // hole — so the frame stood on a ledge over a void, which is a shape no nether portal has
+        // and which rung 17 therefore had no business being asked about. The body walked in on the
+        // surrounding rock, arrived on top of the FRAME (the only solid thing at that height), and
+        // then could not get off it: the walker's own guards refused every step, correctly —
+        //
+        //   [walker] stride floor-guard: bottomless stride 105,37,8 → sneak-pin
+        //   [walker] footing guard: sole 0.1787 < 0.18 at 105,37,8 beside a lethal drop → sneak-pin
+        //
+        // — while A* went on returning routes through those cells, 816 identical searches from one
+        // cell to one goal. The staging had reproduced, in its own fixture, exactly the class of
+        // defect the scene exists to look for. Obsidian rather than netherrack so a pathfinder
+        // running with allowBreak cannot decide the floor is the cheap way through.
+        for (int dx = -2; dx <= DOOR_WIDTH + 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                nether.setBlockAndUpdate(foot.offset(dx, -1, dz), Blocks.OBSIDIAN.defaultBlockState());
         // The frame: obsidian everywhere on the ring, corners included (vanilla ignores the corners,
         // and filling them keeps this from depending on that).
         for (int dx = -1; dx <= DOOR_WIDTH; dx++)
@@ -884,9 +904,6 @@ public final class JourneyRehearsal {
                 if (ring) nether.setBlockAndUpdate(foot.offset(dx, dy, 0),
                         Blocks.OBSIDIAN.defaultBlockState());
             }
-        // Standing room in front of it, or the body arrives at a doorway it cannot reach.
-        for (int dx = -1; dx <= DOOR_WIDTH; dx++)
-            nether.setBlockAndUpdate(foot.offset(dx, -1, -1), Blocks.OBSIDIAN.defaultBlockState());
         BlockState door = Blocks.NETHER_PORTAL.defaultBlockState()
                 .setValue(net.minecraft.world.level.block.NetherPortalBlock.AXIS, Direction.Axis.X);
         for (int dx = 0; dx < DOOR_WIDTH; dx++)
