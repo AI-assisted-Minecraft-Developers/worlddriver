@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.model.Params;
-import net.magicterra.worlddriver.rpc.JsonCodec;
 import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;

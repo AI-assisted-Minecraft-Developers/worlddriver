@@ -5,7 +5,6 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.minecraft.core.BlockPos;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**

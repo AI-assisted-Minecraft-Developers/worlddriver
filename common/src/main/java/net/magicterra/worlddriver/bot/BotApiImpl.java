@@ -1,36 +1,26 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.bot.elytra.ElytraPhysics;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.tags.BlockTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 
 import net.magicterra.worlddriver.bot.movement.Walker;
@@ -51,7 +41,6 @@ import static net.magicterra.worlddriver.bot.GoalResolver.*;
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
-import net.minecraft.world.entity.Entity;
 import java.util.Locale;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.entity.EquipmentSlot;

@@ -16,7 +16,6 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.Block;
@@ -33,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Set;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;

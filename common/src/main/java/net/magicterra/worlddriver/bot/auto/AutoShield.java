@@ -3,7 +3,6 @@ package net.magicterra.worlddriver.bot.auto;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 

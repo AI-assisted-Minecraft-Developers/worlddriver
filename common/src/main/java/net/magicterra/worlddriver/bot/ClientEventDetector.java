@@ -4,7 +4,6 @@ import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
-import net.magicterra.worlddriver.rpc.JsonCodec;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementProgress;
 import net.minecraft.client.Minecraft;

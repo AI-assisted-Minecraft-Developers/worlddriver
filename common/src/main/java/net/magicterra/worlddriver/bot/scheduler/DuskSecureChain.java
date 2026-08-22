@@ -9,7 +9,6 @@ import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BunkerProcess;
 import net.magicterra.worlddriver.bot.world.WorldModel;
-import net.magicterra.worlddriver.rpc.JsonCodec;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 

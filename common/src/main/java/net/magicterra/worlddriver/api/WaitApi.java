@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
-import net.magicterra.worlddriver.rpc.JsonCodec;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import java.util.concurrent.atomic.AtomicBoolean;
