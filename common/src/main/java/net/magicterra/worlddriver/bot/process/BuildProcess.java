@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.worlddriver.bot.movement.BotInput;
-
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
