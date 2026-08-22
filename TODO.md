@@ -783,6 +783,18 @@ swim pose and it sinks」。
 两个都落地后我自己重跑：`git status` 干净 → `compileJava` 与 `compileTestmodJava` 都
 **executed**（不是 UP-TO-DATE）→ `check_source_budget.py` exit 0 → 才起 JVM。
 
+### 跑测序列（整梯只要 18 分钟，06:38→06:55，跑得起三趟）
+
+| 序 | 命令 | 它单独回答什么 |
+|---|---|---|
+| 1 | `./gradlew stagewrightDedicatedServerFabric` | `carryTo` 在**无头**三具身体上零行为变化 + 222 场景回归；顺带把 parity 那条「专用服能否加载 `ClientboundSetCarriedItemPacket`」从读码级升到运行时级 |
+| 2 | `./gradlew stagewrightIntegratedServerFabric` | **`carryTo` 到底生没生效**——`wd.actuatorSplitOnAnAdoptedBody` 的 `slot.最终一致` 今天逐字是「⚠️ 不一致：服务端 4，客户端 0」，应当翻成「一致」 |
+| 3 | `./gradlew :fabric:runJourneyIntegratedServer` | 前沿本身 |
+
+第 2 步那条场景**自带回声窗口的仪器**：`slot.服务端被回滚`。parity 提醒的「≤1 个来回的倒卷」
+不需要另加读数，那一行就是它。同 tick 与稳定后分两行（`slot.同tick一致` / `slot.最终一致`），
+所以「补包生效但晚一 tick」和「根本没生效」也是分开的。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 1. **塔耗石头（`climb.N.stock` < `climb.N.with`）且 `handsAtUse` 零分叉** ⇒ 因果链闭合：
