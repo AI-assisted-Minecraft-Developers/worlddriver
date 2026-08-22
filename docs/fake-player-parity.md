@@ -909,7 +909,16 @@ else if (inWater) { … dm.y + 0.04 … }                                       
    > 于是第 2 步的读法是三分的，不是二分的：**带上表签名的红 = 缺陷证实，进第 3 步**；
    > **判词里出现 "The arena, not the gate, is wrong" 的红 = 臂自己错了，退回第 1 步**；
    > **绿 = 臂没咬住**。这四条读数都无条件写进 results 的 `data`（`ctx.record`，不是 `passNote`
-   > ——`passNote` 只在 PASS 时出现，而这条臂预期是 FAIL，用它等于把证据写进一个不会被打印的字段）。
+   > ——`passNote` 只在 PASS 时出现（`SceneContext.java:636-643`），而这条臂预期是 FAIL，
+   > 用它等于把证据写进一个这趟根本不会出现的字段）。
+   >
+   > **「FAIL 行也带 `data`」这件事是查证过的，不是假定的**：`StageWrightHarness.record()`
+   > 无条件把 `ctx.records()` 交给 `out.writeScene(...)`（`StageWrightHarness.java:373-374`），
+   > 其上方注释原话是「Recorded values travel with EVERY outcome, not just failures」。
+   > 之所以特地查：`SceneContext.record` 自己的 javadoc（`:591-593`）只说了「追加到失败消息」和
+   > 「随**通过**的场景进入 results」，字面上没保证 FAIL 行的 `data`——**而我正让人去 FAIL 行的
+   > `data` 里找证据。若那里是空的，「没有读数」就恰好躺在我指的位置上**（`zero-as-evidence`）。
+   > 冗余的是：`record` 的值同时会被追加到 `reason` 末尾，所以两个字段都能读到。
 2. `bottomed` 那条臂必须同时改成「**流动水/低液面**（`getFluidHeight ≤ 0.4`）里踩在实心上仍要 0.42」，
    否则 T17 一修它就红——**而那条红会是断言错了，不是修法错了**。改完之后它才真的在测
    vanilla 的浅水地面跳，而不是在测这具身体的特权。
