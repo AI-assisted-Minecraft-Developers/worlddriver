@@ -12,6 +12,12 @@
   - **neoforge 21.1.230 merged**：`neoforge-21.1.230-minecraft-merged-mojang`
 
   两份都用 vineflower 1.10.1 反编译（`-dgs=1 -hdc=0`）。下文写「vanilla `X.java:n`」和「neoforge `X.java:n`」时，指的就是这两份。
+
+  **例外：§6.8 的 vanilla 引用不带行号。** 那一节是在另一份同版本 jar
+  （`…layered+hash.40359-v2`）上用 CFR 反编译读的，字节码同版本、名字同为 named 映射，
+  但行号与上面那份不可比。所以 §6.8 **一律按方法名引用**（`LivingEntity.aiStep` 的 jump 分支、
+  `FlowingFluid.getHeight` / `getOwnHeight`、`Entity.getFluidJumpThreshold`），
+  并把关键代码整块抄进文档，让读者不必信任任何一个行号就能复核。
 - 写「已核对否定」的条目，是我怀疑过、查了、发现**没有**差异的。留着它们，因为一个诚实的「行」和一个诚实的「不行」一样贵。
 
 ## 边界表的四类
@@ -705,12 +711,18 @@ Dimension `stagewright:generated` at 1124512,100000」。
 
 出处：`fabric/run-journey/stagewright-results.jsonl` 与
 `fabric/run-journey-integrated/stagewright-results.jsonl` 的 `wd.journey03Wood`（`.type=="scene"` 那一行）；
-`fabric/run-journey/logs/latest.log`（服务端 15:41–15:44 本地时）；客户端控制台日志（17:47–17:54 本地时）。
+`fabric/run-journey/logs/latest.log`（服务端 15:41–15:44 本地时）；
+`fabric/run-journey-integrated/logs/debug.log`（客户端 17:47–17:54 本地时）。
+
+> 客户端那份**一定要引 `debug.log` 这个路径**，不要引「控制台输出」。本节的读数最早是从一份
+> 转存到 scratchpad 的控制台副本上数出来的，而 scratchpad 随会话消失；`debug.log` 是同一趟的
+> 持久副本（`起跳来源 序=1/6 t=168 …` 那一行两份逐字相同，`心跳 WOOD mine` 都是 40 条）。
+> **本节所有客户端计数都可以在 `debug.log` 上原地复算**，这是它们能被下一轮反驳的前提。
 
 ### 三个候选的判词（**被否定的两条也留在这里**）
 
 **候选三「MineProcess 在客户端根本没被注册／没被 tick」——排除。**
-`[pathfinder] search-begin owner=mine` 在客户端日志里出现 **218 次**，而这条 telemetry 是
+`[pathfinder] search-begin owner=mine` 在客户端日志里出现 **217 次**，而这条 telemetry 是
 **无条件**的（`bot/pathfinder/PathFinder.java:412`，它自己的注释写着 "always-on telemetry"）；
 另有 40 条 `[journey] 心跳 WOOD mine 本段第N/8000 tick`。进程跑满了整条腿。
 
@@ -731,7 +743,7 @@ Dimension `stagewright:generated` at 1124512,100000」。
 
 **候选一「够不着」——不是近因，而且提问的那个闸在这具身体上根本不存在。**
 近因不成立：身体**从来没有走到任何一个 stand**，所以 `MineProcess` 的 `BREAKING` 一次都没进过，
-「够不够得着」还轮不到被问。证据是 218 条 `search-begin` 里 **171 条的 `start` 是同一格
+「够不够得着」还轮不到被问。证据是 217 条 `search-begin` 里 **171 条的 `start` 是同一格
 `65, 62, 62`**（另加 9 条 `65,61,62`、3 条 `65,62,63`），40 条心跳无一例外是 `65,61..63,62`。
 对照臂——**同一级、同一段、同一个 `arrived.y=62`** 的服务端心跳是
 `64,62,66 → 69,62,61 → 69,62,57 → 67,62,59 → 57,63,55 → 47,62,60 → … → 53,63,62`。
@@ -843,9 +855,16 @@ else if (inWater) { … dm.y + 0.04 … }                                       
 - `afloat`：**五格**深水、身体从水面附近释放 ⇒ `soleOnSolid = 0` ⇒ 只准 bob。今天绿，**vanilla 同意**。
 - `bottomed`：**一格**水、身体踩在岩石上 ⇒ 断言**必须**出现一次单 tick 抬升 > 0.3，也就是 0.42。
 
-**第二条臂断言的是 vanilla 没有的行为。** 一格满水源块里，
+**第二条臂断言的是 vanilla 没有的行为。** 一格满水源块、上方是空气时，
 `getFluidHeight(WATER)`（`Entity.updateFluidHeightAndDoFluidPushing`：`e = max(fluidTopY − aabb.minY)`）
-等于 **1.0**，而 `getFluidJumpThreshold()` 是 **0.4**；`1.0 > 0.4` ⇒ vanilla 走 `jumpInLiquid`，也是 0.04。
+等于 **8/9 ≈ 0.889**，而 `getFluidJumpThreshold()` 是 **0.4**；`0.889 > 0.4` ⇒ vanilla 走 `jumpInLiquid`，也是 0.04。
+
+> **不是 1.0。** `FlowingFluid.getHeight` 只在**正上方是同种流体**时返回 `1.0f`，否则返回
+> `getOwnHeight()` = `amount / 9.0f`，源块 `amount = 8` ⇒ 0.8889
+> （两个方法都在 `net.minecraft.world.level.material.FlowingFluid`，反编译自
+> `minecraftMaven/net/minecraft/minecraft-merged/1.21.1-…hash.40359-v2/…jar`，按方法名引用）。
+> 本节实测的两格水那一侧因此是 `max(1.0, 1.889) = 1.889`，不是 2.0——上下两格里只有下面那格
+> 「上方是同种流体」。**两个数都远在 0.4 之上，结论不变**；写下正确的常数是为了这张表还能被抽查。
 **真玩家踩在一格水里按住跳，是浮起来，不是跳。**
 所以这条场景今天绿，绿的原因是它要求这具身体**保留**一条特权。
 （这一条是从源码推的算术，不是实测；实测只覆盖了两格深水那一侧。所以下面第二点是必须做的。）
