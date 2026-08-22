@@ -331,7 +331,10 @@ public final class TowerProcess implements BotProcess {
      * <ul>
      *   <li><b>A NAMED block</b> ({@code preferred != null}) — the caller asked for that id and
      *       nothing else will do, so it delegates to {@link HeldItem#holdById}, the one scan the
-     *       process family shares.</li>
+     *       process family shares. That scan stops at hotbar slot 8 outside creative, and for THIS
+     *       caller that is pinned: {@code wd.serverTowersWithAFullBackpack} stages the cobblestone
+     *       in slot 20 and asserts the tower places nothing and reports
+     *       {@code "no placeable block in hotbar"}.</li>
      *   <li><b>ANY placeable block</b> ({@code preferred == null}) — a different question with a
      *       different answer, and the hotbar-only limit below is NOT an oversight. Reaching into
      *       slots 9..35 for an unnamed block is the {@code holdPlaceable} family, where the client

@@ -24,13 +24,24 @@ import net.minecraft.world.item.ItemStack;
  * sitting past slot 8 is invisible here and the caller reports "no block".
  *
  * <p>That is NOT what {@link Avatar#holdItem} does. Both avatars reach the bag there:
- * {@code ClientPlayerAvatar} through {@code BotInteract.swapFromMainInv} (a real SWAP click, which
- * is exactly the survival move these copies were written before anyone knew how to make), and
- * {@code ServerPlayerAvatar} by swapping the stacks directly. The gap is deliberate only in the
- * sense that nobody has measured the flip yet — 「a body holding 110 cobblestone in slots 9..35 is
- * not out of blocks」 is already recorded as a defect against the ANY-block scan, and this is the
- * specific-id twin of it. Routing this method through {@code a.holdItem} is the fix; it needs a
- * gate run, because it turns silent skips into placements.
+ * {@code ClientPlayerAvatar} through {@code BotInteract.swapFromMainInv} (a real SWAP click), and
+ * {@code ServerPlayerAvatar} by swapping the stacks directly.
+ *
+ * <p><b>Do not "fix" that by pointing this method at {@code a.holdItem}.</b> That looks like the
+ * obvious repair — 「a body holding 110 cobblestone in slots 9..35 is not out of blocks」 is a
+ * recorded defect against the ANY-block scan, and this is the specific-id twin of it — and for one
+ * of the five callers it is measurably the WRONG repair. {@code TowerProcess} passes its caller's
+ * block id here, and {@code wd.serverTowersWithAFullBackpack} stages exactly this shape (nine
+ * non-blocks in the hotbar, 64 cobblestone in slot 20) to assert that the tower places NOTHING and
+ * says {@code "no placeable block in hotbar"}. Its reason is not staleness: spending blocks the
+ * caller never put in hand is a side effect the verb is not allowed to have, and the arm exists
+ * precisely because widening this scan is the cheapest way to turn its siblings green.
+ *
+ * <p>So a widening has to be per-caller, with a per-caller argument, and it needs a second method
+ * beside this one rather than an edit to it — Tower and Bridge keep this reach. The other four
+ * (Build, Backfill, BboxFill, Farm) have no scene defending the limit and a decent case for the
+ * other answer, since for them the id is a REQUIREMENT from a schematic/fill/replant rather than a
+ * preference; that case still has to be made and gated, not assumed.
  */
 final class HeldItem {
 
