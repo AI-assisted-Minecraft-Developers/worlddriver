@@ -468,6 +468,40 @@ water0.spent = minecraft:water_bucket 1→0（倒出去了）
 八格浇成，第九格站位选出来的落点差了一格（x−1、z−1），且浇线上报的全是**壁龛外**的格。
 这是 `standToPour` 的几何问题，与 use 缝无关——**下一条线从这里开始**。
 
+#### 这个文件早就预言了它
+
+`JourneyPour.java:40-43` 的类注释：
+
+> interior cell two rows low, so `standToPour` rejects every candidate and the rung stops on its
+> own gate. Rows up to `y=54` are reachable from the floor and the top pair is not, which is why
+> the ladder has never yet been stopped by this: **no run had ever cast eight cells.**
+
+**这一趟第一次浇到了第八格**，于是走到了那句话说的地方。所以这不是回归，是**第一次到达**。
+
+#### 三个可分开的缺陷，按上游到下游
+
+1. **升高没把身体送上那一柱，而且没人检查。**
+   `water8.raise` 钉住 `3,19`，`raisedY=60/60（停在 -1,19，指定柱 3,19，不是同一柱 —— 射线是照那一柱算的）`
+   —— x 差了 **4 格**，然后照样往下走。「钉住」是一个**标签**，不是一条被执行的约束。
+2. **同一个量上有两条相反的策略。** `JourneyShaft:240`
+   `climbPinned ? "（钉住：换柱等于换射线，不许改）" : "（起塔柱，走不回就改）"`。
+   `water8.lift#5.column=3,18（起塔柱，走不回就改）`——而它的射线是按 `3,19` 算的。
+   两处的措辞自己就说明了哪一条对。
+3. **`standToPour:601-602` 的退路一次射线都不验：**
+
+   ```java
+   return standable == null || verifiedOnly ? null
+           : new PourSpot(standable, target.relative(away));
+   ```
+
+   `water8.stand.1 = 3,60,18` 的否决计数是 141 个候选**全否**，返回的仍是它。
+   手算格心射线：从 (3.5, 61.62, 18.5) 射向 (5.5, 61.5, 19.5)，x=4 处 z=18.75 → 落在
+   `4,61,18`，**与实测 `water8.picks.1` 同一格**。所以这一格按它自己的判据也该被否。
+   同族第 N 次，这回藏在一个三元表达式的尾巴里：[[every-invariant-has-a-fallback-that-ignores-it]]。
+
+**没有浪费桶：** `placeFluid:2339` 的 `lands != target` 闸接住了三次，一滴没倒，
+本级以「浇不到指定格」明红收场。**这是一条诚实的红**——缺的是能力，不是判据。
+
 ### 排队的硬化（不阻塞前沿）
 
 把顺序不变量收进一个入口：`aimThenAct` 扩成 `aimThenUse(rig, at, item, act)`
