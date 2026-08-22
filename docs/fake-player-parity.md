@@ -62,8 +62,14 @@
 
 - **废弃即消失：3 条**（N1、N2，加 N15 的一半）
 - **`JoinedBody` 一行可达：4 条**（N4、N13，加 X2-3、X2-5）——它们全都卡在**我们自己写的**那一行 `tick()` 空覆盖上
-- **换身体也不会好：16 条**——它们卡在驱动器自己的代码里，或卡在通道(二)上
-  （2026-08-22 从 11 改到 16：原来的 11 本来就与下表行数对不上，另加 §6.8 查出的 N20–N23）
+- **换身体也不会好：17 条**——它们卡在驱动器自己的代码里，或卡在通道(二)上
+  （2026-08-22 从 11 改到 16：原来的 11 本来就与下表行数对不上，另加 §6.8 查出的 N20–N23；
+  同日再加 §6.9 的 N24 → 17）
+
+**⚠️ 这条区分还有第四个方向，2026-08-22 傍晚才被逼出来**：一条差异还要问**它在哪一具身体上有后果**。
+§1 只列了三具身体，而集成服上今天还有**第四具**——被 adopt 的真 `ServerPlayer`，
+它是唯一一具**连接不吞包**的。N24 对 A/B/C 完全没有后果，只在 D 上是活缺陷。
+**「对三具身体成立的前提」被写进四具身体共用的代码里**，这是本文档第一次记录这种形状的差异，见 §6.9。
 
 **⚠️ 这条区分还有第三个方向，第一版漏了，2026-08-22 的受控对照把它逼了出来**：
 一条差异除了「哪具身体」，还要问**它是「客户端身体缺能力」还是「服务端身体有特权」**——
@@ -76,6 +82,12 @@
 ## 1. 三具身体和一个开关
 
 这套代码里有 **三** 具身体，不是两具。
+
+> **⚠️ 2026-08-22 更正：今天是四具。** 下表按「怎么造出来」列举，因此**漏掉了不是被造出来、
+> 而是被收养的那一具**——集成服拓扑上 `JourneyRig.java:358` 把客户端那位真玩家的
+> `ServerPlayer` 直接包进 `new ServerPlayerAvatar(real)`。**它是唯一一具连接不吞包的身体**，
+> 而本节下面那句「三具身体上面套着同一个壳」对它同样成立——于是壳里每一句
+> 「反正这具身体的连接会吞掉」的注释，在它身上都是假的。整条差异见 §6.9（N24 / T20）。
 
 | | 类 | 怎么造出来 | 进过 `PlayerList` 吗 |
 |---|---|---|---|
@@ -243,7 +255,7 @@ fabric/build.gradle:481   runRehearsalServer
 
 ## 4. 边界表
 
-### 4.1 真等价（19 条）
+### 4.1 真等价（20 条）
 
 「真等价」= 补得到逐位一致，且我能写出一个**缺陷存在时会红**的验证。
 
@@ -268,6 +280,8 @@ fabric/build.gradle:481   runRehearsalServer
 | **T17** | **水底起跳：闸问错了量（新发现 N21，行号锚 `b71981e3`）** | 跳跃闸是 `soleOnSolid(...) > 0`（`ServerPlayerAvatar.java:1054-1055`）→ `fp.jumpFromGround()`（`:1087`），**只问脚底贴没贴住实心，从不问水有多深**。vanilla 的判据是流体高度：`LivingEntity.aiStep` 的 jump 分支里 `bl && (!onGround() \|\| g > h)` → `jumpInLiquid`（+0.04），只有 `onGround() \|\| (bl && g <= h)` 才 `jumpFromGround()`，其中 `h = getFluidJumpThreshold()`（`Entity`：`eyeHeight < 0.4 ? 0.0 : 0.4`，玩家 = 0.4）。补法：把 `footed` 改成 vanilla 那个复合谓词，`getFluidHeight(WATER)` 在 `step()` 里是活的（`fp.baseTick()` 每 tick 跑） | **实测已在手**（§6.8）：同一格 `64,61,60`、同一 tick、同一 `支=stepUp`，服务端首 tick **+0.420**、客户端 **+0.035**。验收臂见 §6.8 末尾的 `bottomedDeep` 预登记：踩池底、按住跳，断言**没有**单 tick 抬升 > 0.3。今天红，修好转绿。**注意 `wd.buoyantJumpStaysABob` 现有的 `bottomed` 臂断言的是 vanilla 没有的行为，必须一起改，否则 T17 一修它就红** |
 | **T18** | **起跳没有冷却（新发现 N22）** | vanilla 每次 `jumpFromGround()` 后置 `noJumpDelay = 10`，并以 `noJumpDelay == 0` 为闸；`ServerPlayerAvatar` 写了 `lastJumpTick`（`:884` 声明、`:1058` 写入）却**只被一个调试读数读**（`:881` `dbgLastJumpTick`），**从来不是闸**。补法：加 10 tick 冷却 | 按住跳 30 tick，断言 `jumpFromGround` 触发次数 ≤ 3。缺陷存在时每 tick 一次 → 红。**必须和 T17 分开验收**：T17 的臂在水里，这条的臂在干地上，否则两个自变量混在一起 |
 | **T19** | **客户端身体没有 `canBreak`（新发现 N20）——这一条是「客户端缺能力」** | `Avatar.canBreak` 的默认实现是 `default boolean canBreak(BlockPos pos) { return true; }`（`bot/movement/Avatar.java:120`），`ClientPlayerAvatar` 不覆盖它；只有 `ServerPlayerAvatar.canBreak`（`:471` 起 → `canBreakFromHere`：exposed + `blockInteractionRange() + 0.5`）是真的。后果：`MineProcess.java:424` 那条「exposed 却仍然 break 不了 ⇒ 退掉树冠、去砍齐眼高的树干」的退路在客户端是**死代码**，而它的注释写着不走这条退路「cost the journey's wood rung all six logs」。补法：在 `ClientPlayerAvatar` 覆盖 `canBreak`，用客户端自己的 `blockInteractionRange`。**⚠️ 这个文件在 `bot/movement/`，不是 parity 的产权** | 站在 8 格外对一根暴露的原木问 `canBreak`，断言 `false`；站在 3 格内问，断言 `true`。缺陷存在时前者也是 `true` → 红。**两条臂缺一不可**，只测近的那条就是 `0==0` |
+
+| **T20** | **`Inventory.selected` 有两个作者，而它们互相看不见（新发现 N24）——只在被 adopt 的真玩家（身体 D）上有后果** | `ServerPlayerAvatar` 三处直接写 `inv.selected`（`selectTool` `:289`/`:294-296`、`setSelectedSlot` `:299`、`holdItem` `:641`/`:646-648`，行号锚 `ead5923f`），注释写着「this body's connection swallows them anyway」——**那句话对身体 A/B/C 为真，对 D 是假的**（§6.9 更正了 §1 的「三具身体」）。对面客户端的 `BotInteract.ensureHolding`（`:465`、`:484`）和 **vanilla 自己的 `MultiPlayerGameMode.ensureHasSentCarriedItem`** 都键在**自己那份拷贝**上，所以分歧**不可能自愈**。补法：镜像 `ServerGamePacketListenerImpl.handlePickItem` 的包三连——写完 `selected` 补发 `ClientboundSetCarriedItemPacket`，背包→手那两处再补两个 `ClientboundContainerSetSlotPacket`。**不需要判别拓扑**：A/B 的 `AvatarNetHandler.send`（`:69`/`:71`）和 C 的 `SilentConnection.send`（`JoinedPlayerBodies.java:307-308`）都是空方法 | 四步臂：①客户端 `ensureHolding(X)`（会发包，两边一致）②`ServerPlayerAvatar` 把服务端的手挪到 Y ③再叫客户端 `ensureHolding(X)` ④**断言服务端手上是 X**。缺陷存在时第 3 步 fast path 返回 true 且不发包，第 4 步读到 Y → 红。**第 1 步不能省**，省了这条臂永远绿。零成本的替代读数：`wd.actuatorSplitOnAnAdoptedBody` 的 `slot.最终一致` 今天逐字是 `⚠️ 不一致：服务端 4，客户端 0` |
 
 ### 4.2 只能近似（10 条）
 
@@ -352,11 +366,11 @@ fabric/build.gradle:481   runRehearsalServer
 | 9. `changeDimension` 目的地丢失 87501 格 | **真等价 T14**，A/B 已修 | `AvatarNetHandler.java:81-88`。**C 未验证**——它穿 vanilla 真 listener，走的是另一条路 |
 | 10. 传送不重算流体标志 | **真等价 T15** | 见 T15 |
 
-**分类计数（§0 的身体选型指令生效之后，2026-08-22 加进 T17/T18/T19）**：真等价 **19**、只能近似 **10**、不可能且不需要 **9**、不可能但仍需要 **4**。合计 42 条。
+**分类计数（§0 的身体选型指令生效之后，2026-08-22 加进 T17/T18/T19，同日再加 T20）**：真等价 **20**、只能近似 **10**、不可能且不需要 **9**、不可能但仍需要 **4**。合计 43 条。
 
-折回原本要求的三类：**真等价 19 / 只能近似 10 / 不可能 13**（13 = 不需要 9 + 仍需要 4）。**第四类从 6 缩到 4**，缩掉的两条（原 X2-1/X2-2）是被「废弃 `FakePlayer` + `JoinedBody` 上专用服」这条指令直接消掉的。
+折回原本要求的三类：**真等价 20 / 只能近似 10 / 不可能 13**（13 = 不需要 9 + 仍需要 4）。**第四类从 6 缩到 4**，缩掉的两条（原 X2-1/X2-2）是被「废弃 `FakePlayer` + `JoinedBody` 上专用服」这条指令直接消掉的。
 
-**另一个更有用的切法在 §6.5**：按「废弃即消失 / `JoinedBody` 一行可达 / 换身体也不会好」分，是 **3 / 4 / 16**。这个切法才直接对应第二阶段的工作量。
+**另一个更有用的切法在 §6.5**：按「废弃即消失 / `JoinedBody` 一行可达 / 换身体也不会好」分，是 **3 / 4 / 17**。这个切法才直接对应第二阶段的工作量。
 
 **第三个切法，2026-08-22 才被逼出来，而它才是决定修法方向的那个**：按「客户端缺能力 / 服务端有特权」分。
 今天可归的条目里**只有 N20 一条是前者**，其余全是后者。见 §6.8。
@@ -388,6 +402,7 @@ fabric/build.gradle:481   runRehearsalServer
 | **N21** | **水底起跳给了 0.42**：跳跃闸用 `soleOnSolid > 0` 代替 vanilla 的流体高度判据 | `ServerPlayerAvatar.java:1054-1055`、`:1087` vs `LivingEntity.aiStep` 的 jump 分支 + `Entity.getFluidJumpThreshold`（vanilla merged 1.21.1 jar，见 §6.8） | **实测因果**：它就是 2026-08-22 那次受控对照里两具身体分岔的第一步（+0.420 vs +0.035）。归 T17 |
 | **N22** | **起跳没有 `noJumpDelay` 冷却** | vanilla `LivingEntity.aiStep` 置 `noJumpDelay = 10` 并以它为闸；`ServerPlayerAvatar.lastJumpTick`（`:884`/`:1058`）只被 `dbgLastJumpTick`（`:881`）读，不是闸 | 同一个闸的第二个齿。今天没有单独的实测，与 N21 一起修、分开验收。归 T18 |
 | **N23** | **`faithfulBreak` 默认关着 ⇒ 服务端身体一 tick 拆一格** | `ServerPlayerAvatar.java:115`（默认 `false`）、`:399`（关着就直接 `destroyAimed()`）。全仓库只有两条场景开它，梯子和六条闸一处都不开 | **潜伏但昂贵**：它让每一条 `allowBreak` 的寻路计划对服务端身体定价全错。客户端那具走真的分段挖掘（`continueDestroy` = 一 tick 的 `continueDestroyBlock`）外加 vanilla 的 ÷5 悬空惩罚，同一条计划它跑不完。更正了 §3 #22d 的「没有分段挖掘」 |
+| **N24** | **`Inventory.selected` 有两个作者且互相不可见** | `ServerPlayerAvatar.java:289`/`:294-296`/`:299`/`:641`/`:646-648` 写完不发包（注释 `:292-293` 声称连接会吞掉，对身体 D 是假的）；`BotInteract.java:465`/`:484` 与 vanilla `MultiPlayerGameMode.ensureHasSentCarriedItem` 都键在自己那份拷贝上 | **只在被 adopt 的真玩家上有后果，而那正是用户指令点名的集成服拓扑。** 实测：`slot.服务端/客户端` 同 tick 与 10 tick 后都是 `4 / 0`，而反方向（客户端写）10 tick 后收敛 —— **单向、永久、零日志**。它就是第 12 级「只有第一次 use 生效」的机制。归 T20，详见 §6.9 |
 
 ---
 
@@ -444,10 +459,11 @@ fabric/build.gradle:481   runRehearsalServer
 
 ⚠️ **删那一行 `tick()` 覆盖不是免费的**，见附录雷 3：`ServerPlayer.tick()` 的最后一行是 `this.advancements.flushDirty(this)`（vanilla `:503`），并行跑多具身体时是每身体每 tick 一次落盘检查。**并行执行能力是硬约束，这个代价必须先量再改**，而量它正是普查场景的事。
 
-### 丙：换身体也不会好（16 条）——第二阶段的真工作量
+### 丙：换身体也不会好（17 条）——第二阶段的真工作量
 
-> **这个数原来写的是 11，而下表当时就有 12 行（13 条，N9/N10 合占一行）。** 现在补进
-> N20–N23 之后是 16 行。同族的旧错还在 §0 的摘要和本节末尾的结账里，一并改了。
+> **这个数原来写的是 11，而下表当时就有 12 行（13 条，N9/N10 合占一行）。** 补进
+> N20–N23 之后是 16 行，**2026-08-22 再补进 N24 之后是 17 行**。同族的旧错还在 §0 的摘要
+> 和本节末尾的结账里，一并改了。
 > 记下这条更正，是因为一个对不上的计数会让下一个人先怀疑整张表，而不是先怀疑那个数。
 
 这些差异的机制都不在身体的类型上，而在**驱动器绕过了真 handler**，或在**通道(二)整条不跑**上。`JoinedBody` 一样绕、一样不跑。
@@ -470,6 +486,7 @@ fabric/build.gradle:481   runRehearsalServer
 | **N21** | 水底起跳给了 0.42 | `ServerPlayerAvatar.java:1054-1055` 的闸是**驱动器自己写的**。`JoinedBody` 走同一个 `step()`，同一个闸 |
 | **N22** | 起跳没有 10 tick 冷却 | 同上，同一个闸 |
 | **N23** | `faithfulBreak` 默认关 ⇒ 一 tick 拆一格 | `ServerPlayerAvatar.breakHold` 是驱动器自己写的；`JoinedBody` 也从这里拆方块 |
+| **N24** | `Inventory.selected` 有两个作者且互相不可见 | **归丙档，但它的理由和上面每一条都不同，值得读一遍**：驱动器绕过的真 handler 是 `handleSetCarriedItem`（写 `selected` + `stopUsingItem` + 发包），这一点是标准的丙。**但换身体确实不管用的原因更强**——A/B/C 三具身体的连接**本来就吞包**，所以对它们这条差异**没有后果**；有后果的是第四具身体 D（被 adopt 的真玩家），而 D 不在 §1 那张表里。**A0（把 36 处单发动作改走 `ClientPlayerAvatar`）去掉的是「场合」，不是缺陷**：`ServerPlayerAvatar` 仍然是任何有活连接的身体的执行器，那句假前提仍然留在四具身体共用的代码里。详见 §6.9 |
 
 ### 乙档落地前**必须先解决**的前置：跳跃现在会扣饥饿，而这具身体不会吃饭
 
@@ -491,7 +508,11 @@ fabric/build.gradle:481   runRehearsalServer
 
 ---
 
-**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价 + **先还上面那笔饥饿账**」；**丙档 16 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14/N19/N21/N22/N23 十条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。**唯一的例外是 N20，它在 `bot/movement/ClientPlayerAvatar.java`，不是 parity 的产权。**
+**所以第二阶段的账是**：甲档 3 条不用做；乙档 4 条是「删一行覆盖 + 量一次代价 + **先还上面那笔饥饿账**」；**丙档 17 条才是真工作量**，而其中 N7/N8/N9/N10/N11/N14/N19/N21/N22/N23/**N24** 十一条**完全落在我自己的产权路径 `bot/sim/**` 里**，不需要动别人的文件。**唯一的例外是 N20，它在 `bot/movement/ClientPlayerAvatar.java`，不是 parity 的产权。**
+
+> **N24 和 N8 是同三行上的两个洞**（`selectTool` / `setSelectedSlot` / `holdItem` 各写一次
+> `inv.selected`）：N8 缺的是 `stopUsingItem()`，N24 缺的是那个包。**一笔改动可以同时还这两笔账**，
+> 而分开做会把同三行改两遍——排期时按一条算。
 
 ### N19 单列：一个缺陷被另一个缺陷完整遮住
 
@@ -1046,6 +1067,236 @@ else if (footed || (buoyant && fluid <= jumpThreshold)) → 0.42   // jumpFromGr
 
 > **不预登记具体名次。** 我没有数据支撑「会掉到几分」，硬写一个数字就是事后可挑解释的空头支票。
 > 能诚实预登记的只有方向和位置：**掉，且先掉在水域段。**
+
+---
+
+## 6.9 第四具身体：`Inventory.selected` 有两个作者，而它们互相看不见（2026-08-22）
+
+### 先更正 §1：今天是**四**具身体，不是三具
+
+§1 那张表按「怎么造出来 / 进没进 `PlayerList`」列了 A/B/C 三具。**它漏了第四具**——
+因为第四具不是被造出来的，是被**收养**的：
+
+- `common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/journey/JourneyRig.java:358`
+  `driver = new ServerWorldDriver(new ServerPlayerAvatar(real))`，`real` 是**客户端那位真玩家的
+  `ServerPlayer`**（`:359` 紧跟着 `adoptedRealPlayer = true`）
+- `common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/scene/WorldDriverActuatorSplitScenes.java:177`
+  同一个构造
+
+| | 类 | 连接 | `connection.send(...)` 会到达谁 |
+|---|---|---|---|
+| A | `AvatarFakePlayer` | `AvatarNetHandler`，`send` 是空方法（`AvatarNetHandler.java:69`、`:71`） | **无人** |
+| B | neoforge `FakePlayer` | 同上 | **无人** |
+| C | `JoinedBody` | vanilla 真 listener 装在 `SilentConnection` 上，`send` 是空方法（`JoinedPlayerBodies.java:307-308`） | **无人** |
+| **D** | **被 adopt 的真 `ServerPlayer`** | **vanilla 真 listener + 真连接** | **真客户端的 `LocalPlayer`** |
+
+`ServerPlayerAvatar` 对这四具身体用**同一套代码**。而它有三处直接写 `Inventory.selected`，
+每一处都带着同一句前提：
+
+> `// Out of the bag and into the hand. Server-authoritative, so no packet: this body's`
+> `// connection swallows them anyway.`（`ServerPlayerAvatar.java:292-293`）
+
+**那句话对 A/B/C 逐字为真，对 D 是假的。** 这是本文档第一条这种形状的差异：机制不在
+「这具身体缺了什么」，而在**「一句只对三具身体成立的前提，被写进了四具身体共用的代码里」**。
+
+### 三处写入点（行号锚 HEAD `ead5923f`，`common/src/main/java/net/magicterra/worlddriver/bot/sim/ServerPlayerAvatar.java`）
+
+| 方法 | 写 `selected` 的行 | 还顺带写了什么 |
+|---|---|---|
+| `selectTool` | `:289`（热键栏内换槽） | — |
+| `selectTool` | `:294-296`（背包→手） | 交换两个槽的 `inv.items` |
+| `setSelectedSlot` | `:299` | 行内注释 `// server-authoritative; no packet` |
+| `holdItem` | `:641`（热键栏内换槽） | — |
+| `holdItem` | `:646-648`（背包→手） | 交换两个槽的 `inv.items` |
+
+**这三处正是 N8 点名的同三处。** 也就是说它们各缺了 vanilla `handleSetCarriedItem` 的**两样**
+东西：`stopUsingItem()`（N8）和**把新槽号发下去**（本节，N24）。修法落在同样的三行上。
+
+### 对面那一半：三条 fast path，全都键在自己那份拷贝上
+
+这条差异之所以是**永久**的而不是一次抖动，是因为**任何一方想自查都会查到自己的拷贝**：
+
+| # | 谁 | 位置 | 判据 | 服务端偷偷改过之后它会怎么答 |
+|---|---|---|---|---|
+| 1 | 驱动器的客户端半边 | `bot/util/BotInteract.java:465` `ensureHolding(Minecraft, Item)` | `if (inv.getSelected().getItem() == item) return true;` | 「已经拿着了」→ **一个包都不发** |
+| 2 | 同上，谓词版 | `BotInteract.java:484` | `if (want.test(inv.getSelected())) return true;` | 同上 |
+| 3 | **vanilla 自己** | `MultiPlayerGameMode.ensureHasSentCarriedItem()`（1.21.1 merged jar，`javap -p -c`） | `int i = mc.player.getInventory().selected; if (i != this.carriedIndex) { this.carriedIndex = i; send(Serverbound(i)); }` | **`carriedIndex` 是「我上次发出去的值」，不是「服务端现在的值」**。客户端自己的 `selected` 没变 → **一个包都不发** |
+
+第 3 条是本节最重要的一行事实。vanilla **确实**有一条每次动作前的重同步——
+`ensureHasSentCarriedItem` 被 `useItem` / `useItemOn` / `attack` / `interact` / `interactAt` /
+`continueDestroyBlock` / `releaseUsingItem` / `tick` **八个**调用点调用（`javap` 逐个数出来的）。
+**但它是一个「我发过什么」的写透缓存，不是一次询问。** 服务端背着它改掉的值，它永远不知道，
+因此也永远不会重发。
+
+> **所以这条分歧不可能自愈。** 它不是「客户端还没赶上」，是**客户端连「需要赶上」都不知道**。
+
+### 实测：两份互相独立的读数
+
+**（一）`wd.actuatorSplitOnAnAdoptedBody`（集成服闸，`fabric/run-stagewright-integrated/stagewright-results.jsonl`）**
+
+| 证据行 | 值 |
+|---|---|
+| `body` | `Player35（ServerPlayer，在玩家表=true，驱动器自造=false）` ← **身体 D** |
+| `slot.前` | `0` |
+| `slot.holdItem返回` | `True` |
+| `slot.服务端.同tick` | `4` |
+| `slot.客户端.同tick` | `0` |
+| `slot.服务端.过10tick` | `4` |
+| `slot.客户端.过10tick` | `0` |
+| `slot.服务端被回滚` | `否（服务端仍是 4）` |
+
+**同 tick 和 10 tick 之后逐位相同。** 没有传播、没有覆盖、没有收敛——两边各持一份互不相干的值，
+而 `holdItem` 返回了 `True`。
+
+**（二）同一趟的孪生场景 `wd.actuatorSplitThroughTheClientAvatar`，方向反过来**
+
+| 证据行 | 值 |
+|---|---|
+| `slot.动作` | `setSelectedSlot(4)`，走 `ClientPlayerAvatar` |
+| `slot.服务端.同tick` / `slot.客户端.同tick` | `0` / `4` |
+| `slot.服务端.过10tick` / `slot.客户端.过10tick` | **`4` / `4`** |
+| `slot.最终一致` | **`一致（都是 4）`** |
+
+**这一对是本节的对照臂，而且它比任何一条单独的读数都值钱**：同一个字段、同一具身体、
+同一个 10 tick 窗口，**客户端写 → 一个来回之后两边一致；服务端写 → 一个来回之后仍然分叉。**
+所以分叉的原因不是「10 tick 不够」，是**那个方向根本没有通道**。
+
+**（三）真梯第 12 级排练的现场（`fabric/run-rehearsal-integrated/logs/debug-1.log.gz`，2026-08-22 集成服）**
+
+```
+water0.hand=minecraft:stone_pickaxe（真正要动手的那只手上是 minecraft:water_bucket）
+water0.result=SUCCESS
+water0.spent=minecraft:water_bucket 1→1，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生
+```
+
+**三行读数、两具身体、三个时刻**（这句判词不是我写的，是
+`WorldDriverJourneyScenes.java:2736-2740` 的 javadoc 自己写的）。整条链子：
+
+1. **装水**：客户端那只手不是桶 → `ensureHolding` 走发包分支 → 两边一致 → 服务端 `use` 拿到桶 →
+   `waterFill.result=SUCCESS`，`water_bucket=1`。**第一次 use 是真的成了。**
+2. **中间一次 `d.mine(...)`**：`selectTool` 把**服务端**的手挪到镐上，`:289`/`:294-296`，**不发包**。
+3. **浇水**：客户端那只手**已经**是水桶 → `ensureHolding` fast path `return true`，**不发包**；
+   vanilla 的 `ensureHasSentCarriedItem` 看自己的 `carriedIndex` 也没变，**也不发包** →
+   服务端拿 `stone_pickaxe` 跑 `use()` → `PASS` → 桶 `1→1`。
+4. 而 `result=SUCCESS` 是**客户端的预测值**。之后两份背包永久分叉。
+
+> **「只有第一次 `useItem` 在服务端生效」的完整解释就是这条链。** 零异常、零日志、零音效，
+> 因为 vanilla 在这条路上没有任何一句拒绝的话：`handleUseItem` 没有会说话的拒绝分支，
+> 镐的 `use` 合法地返回 `PASS`。
+
+### 「`broadcastChanges` 会不会已经把它同步过去了」——不会，两条独立证据
+
+这是本轮被要求**不许采信推断**的那个问题。两条证据，一条实测一条字节码：
+
+1. **实测**：上面（一）里，那 10 个 tick 是**真的服务端 tick**，而
+   `ServerPlayer.tick()` 里就调着 `containerMenu.broadcastChanges()`（`javap` 数调用点：
+   `ServerPlayer` 内共三处，`tick()` / `take(...)` / `openItemGui(...)`）。
+   **broadcast 跑了 10 次，客户端的 `selected` 一次都没动。**
+2. **字节码**：`javap -p -c net.minecraft.world.inventory.AbstractContainerMenu` **整个类**
+   grep `Inventory.selected` 和 `ClientboundSetCarriedItemPacket`，**两个都是零命中**。
+   菜单同步的是**槽里的东西**，不是**手在哪个槽**。
+
+**推论要分开写，因为它们的答案不一样**：
+
+- **槽的内容**（`selectTool`/`holdItem` 背包→手那两处交换的 `inv.items`）：`inventoryMenu` 覆盖整个
+  背包，`broadcastChanges` 每 tick 比对 `lastSlots` 并下发 `ClientboundContainerSetSlotPacket`
+  → **这一半有通道**（读代码得出，**本轮未实测**，写下来是为了别人别把它当已验证的）。
+- **选中的槽号**：**没有任何通道**。这就是为什么 vanilla 自己也必须显式发那个包。
+
+### vanilla 有没有现成的服务端改选中槽的路径可以复用？
+
+**有一条精确的先例，但它是「包三连」而不是一个方法。** `javap` 在 1.21.1 merged jar 里数出
+`ClientboundSetCarriedItemPacket` 的服务端构造点**只有三处**：
+
+| 位置 | 场合 |
+|---|---|
+| `ServerGamePacketListenerImpl.handlePickItem` | **中键取方块**——服务端改选中槽的唯一常规场合 |
+| `PlayerList.placeNewPlayer` | 登入 |
+| `PlayerList.sendAllPlayerInfo` | 重生 / 换维 |
+
+`handlePickItem` 的形状和我们要的一模一样（字节码逐条读出）：
+
+```
+inventory.pickSlot(packet.getSlot());                                  // 写 selected + 交换两个槽
+connection.send(new ClientboundContainerSetSlotPacket(-2, 0, inventory.selected, inventory.getItem(inventory.selected)));
+connection.send(new ClientboundContainerSetSlotPacket(-2, 0, packet.getSlot(), inventory.getItem(packet.getSlot())));
+connection.send(new ClientboundSetCarriedItemPacket(inventory.selected));
+```
+
+两条要点：
+
+- **`Inventory.pickSlot(int)` 就是「背包→手」的 vanilla 版**，字节码是
+  `selected = getSuitableHotbarSlot(); swap(items[selected], items[slot])`。
+  我们那两处（`:294-296`、`:646-648`）是手写的同一件事，**唯一的区别是目的槽**：
+  vanilla 挑一个「合适的」热键栏槽，我们复用当前选中槽。
+- **没有 `setSelectedSlot(player, slot)` 这样的 vanilla helper。** `Inventory.selected` 是公开字段，
+  vanilla 自己也是直接写，然后**手动发包**。所以可复用的是**包**，不是方法。
+
+客户端那一端会收：`ClientPacketListener.handleSetCarriedItem` 的字节码是
+`if (Inventory.isHotbarSlot(slot)) mc.player.getInventory().selected = slot;` —— **写 `selected`，
+别的什么都不做**（见下面「残留」）。
+
+### 判定
+
+**两个候选不是同一层的两个选项，别当二选一。**
+
+| 候选 | 落在哪 | 判定 |
+|---|---|---|
+| **A：写完 `selected` 补发 `ClientboundSetCarriedItemPacket`** | `bot/sim/**`，parity 的产权，三个方法五行 | **这是 parity 这一层的正确修法。** 理由见下 |
+| **B：`ServerPlayerAvatar` 在真玩家身上根本不该改 `selected`** | 需要改的是**调用点**（36 处单发动作改走 `ClientPlayerAvatar`），不是 `bot/sim`。这就是 A0，归 topology | **它去掉的是「场合」，不是「缺陷」。** 而且单独做 B 有个坑：`ServerPlayerAvatar.selectTool` 若在身体 D 上变成 no-op，`MineProcess` 会静默改成赤手挖——一个假的「可以」换成另一个 |
+
+**A 的四条判据**：
+
+1. **它无需判别拓扑。** A/B 的 `AvatarNetHandler.send` 和 C 的 `SilentConnection.send` 都是空方法，
+   所以对三具无头身体的代价是**一次对象分配 + 一次虚调用的 no-op**，行为零改变；
+   只有 D 会真的收到。**不需要 `if (是真玩家)`，因此也没有那个 `if` 写反的风险。**
+2. **它有逐条对应的 vanilla 先例**（`handlePickItem`），包括「服务端主动发起」这一点
+   （`sendAllPlayerInfo` 就是服务端主动发的）。
+3. **B 落地之后 A 依然要做。** `ServerPlayerAvatar` 仍然是任何**有活连接的身体**的执行器；
+   把一句「connection swallows them anyway」的假前提留在四具身体共用的代码里，
+   是下一个人重新踩这个坑的完整配方。
+4. **只有 A 能在不动任何调用点的情况下被一条会红的断言验收**（见下）。
+
+**A 单独就能救回第 12 级那次浇水吗——预测「能」，这是读代码推演，未实测**：
+补包之后第 2 步会把客户端的 `selected` 一起挪到镐上，于是第 3 步 `ensureHolding(water_bucket)`
+的 fast path **不再成立**，它会走发包分支，两边重新对齐，服务端拿着桶跑 `use`。
+**这条预测本身就是 A 的验收判据之一，而且它在缺陷存在时是红的。**
+
+### 残留：补了包也没有逐位等价的部分（写下来，免得被当成已经修完）
+
+| 残留 | 机制 | 后果 |
+|---|---|---|
+| **`stopUsingItem` 不对称** | 服务端收包的 `handleSetCarriedItem` 会 `if (getUsedItemHand() == MAIN_HAND) stopUsingItem()`（字节码读出）；**客户端收包的 `handleSetCarriedItem` 只写 `selected`** | 服务端换槽不会打断**客户端**正在进行的使用。这是 N8 的客户端孪生半边，**A 修不到** |
+| **一个来回的窗口** | 包要等客户端下一次 tick 才应用 | 分歧从**永久**降到**一个来回**。窗口内 `ensureHolding` 的 fast path 仍可能判错，但下一次调用会自愈——因为客户端的 `selected` 这时**已经**被改过了 |
+| **槽内容 vs 槽号两条不同的通道** | 内容走 `broadcastChanges`（每 tick），槽号走新补的包（立即） | 两者到达时刻不同。vanilla 在 `handlePickItem` 里三个包一起发，**A 若只补第三个，背包→手那两处的内容同步仍晚一 tick**。要逐位一致就得把 `ClientboundContainerSetSlotPacket` 也补上 |
+
+### 验证（在缺陷存在时会红，不是 `0==0`）
+
+**判词写在这里，代码归 testmod 的产权人**（同 §10.6 的处理）：
+
+- **首选，零新场景**：`wd.actuatorSplitOnAnAdoptedBody` 已经**逐字记着**
+  `slot.最终一致 = ⚠️ 不一致：服务端 4，客户端 0`。它今天刻意没有判词
+  （`WorldDriverActuatorSplitScenes.java:98-99` `withRequired(false)`，理由写在 `:95-97`）。
+  **A 落地之后这一行必须变成「一致」**；把它升成断言的时机是 A 落地那一笔，不是现在——
+  「在它评判的那次改动里改掉它的判据」正是这条场景的注释自己拒绝做的事（`:100-105`）。
+- **真正测到那条链的臂**（今天红，A 之后绿）：
+  1. 让客户端拿着 X（走 `ensureHolding`，会发包，两边一致）；
+  2. 用 `ServerPlayerAvatar.selectTool/holdItem` 把**服务端**的手挪到 Y；
+  3. 再叫**客户端** `ensureHolding(X)`；
+  4. **断言服务端此刻手上是 X。**
+  缺陷存在时第 3 步 fast path 返回 true 且不发包，第 4 步读到 Y → 红。
+  **第 1 步不能省**：省掉它就变成「客户端本来就不拿 X」，第 3 步必然发包，这条臂永远绿。
+
+### 被否定的怀疑（留在表里，免得下一轮重新怀疑一遍）
+
+| 怀疑 | 判定 | 依据 |
+|---|---|---|
+| `broadcastChanges` 已经把 `selected` 同步过去了 | **否** | 10 tick 实测 + `AbstractContainerMenu` 全类零命中 |
+| 这是一次竞态，是采样太早 | **否** | 同 tick 与 10 tick 后**逐位相同**；而反方向（客户端写）10 tick 后**收敛** |
+| vanilla 客户端每次动作前都重发选中槽，所以会自愈 | **否** | `ensureHasSentCarriedItem` 比的是自己的 `carriedIndex`（上次发出去的值），不是服务端的值 |
+| 这是 `FakePlayer` 特有的，废弃即消失 | **否** | 四具身体共用 `ServerPlayerAvatar` 这一套代码。它**只在身体 D 上有后果**，而 D 恰恰是用户指令要求「集成服用 `LocalPlayer`」的那个拓扑上的身体 |
+| 服务端的写被客户端的包盖回去了 | **否**（§6.5 A0 那一轮就否定过） | `slot.服务端被回滚 = 否`。没有覆盖，是**两份互不相干的值** |
+| 驱动器的客户端半边是不是也不发包 | **否，客户端那一侧是守规矩的** | `BotInteract.java:469-470`、`:488-489`（`ensureHolding` 两个重载）、`:286-287`、`:291-293`（`selectBestToolFor` 的两条分支）——**每一处改 `selected` 都跟着 `ServerboundSetCarriedItemPacket`**。分叉是单向的 |
 
 ---
 
