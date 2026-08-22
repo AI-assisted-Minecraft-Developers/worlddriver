@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-22
 
+- **A corpse is no longer offered as a sheep worth killing.** `JourneyRig.woolNearby` filtered lambs
+  and sheared sheep — both of which drop no wool — and never asked whether the sheep was alive, even
+  though its own first line promises "every sheep near the body that **would really drop wool**". A
+  sheep at zero health stays in the level while its death animation runs, stays unsheared and stays
+  an adult, so it kept counting as a candidate. The bed rung then reported `flock = 6 只可剪`
+  unchanged across five consecutive rounds that each claimed a kill, banked nothing in any of them,
+  and failed the rung with `2 × white` after ten. Corpses are now excluded from the candidate list
+  and counted separately by `deadSheepNearby`, because how many are lying around is itself the
+  reading that separates "the flock is thin" from "the same body is being killed again".
+- **The killing blow is sampled every tick instead of asked for after the death.** The IRON rung
+  ended with `death.cause = Player118 died`, naming no killer, while the same log said
+  `Player118 drowned` on the line **above** it. The row was not asking the wrong question — it calls
+  `getCombatTracker().getDeathMessage()`, which is what vanilla itself prints from. It came back
+  generic because `CombatTracker.recheckStatus()` clears every entry the moment `!mob.isAlive()`,
+  and that runs inside the same server tick as the death: by the time a per-tick poll sees health at
+  zero, the record it wants has been emptied by the event it is reacting to. `getLastDamageSource()`
+  expires on its own 40-tick timer for the same reason. `JourneyRig.rememberTheBlow` now compares
+  health every tick and names the source at the tick it drops, keeping the last eight, so `fall
+  −3.0→17.0@2711` and eight rows of `starve −1.0` stop reading as the same corpse at the bottom of
+  the same shaft.
 - **A hand is held on both bodies now, because only one of them was ever told.** On
   `runJourneyIntegratedServer` the ladder's body is an adopted real `ServerPlayer` with a live
   client, and its selected hotbar slot has **two authors that cannot see each other**.

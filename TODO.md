@@ -770,6 +770,47 @@ swim pose and it sinks」。
 ⇒ 这一条**先按写死步骤绕开**（种子已知，第 9 级两条矿脉的坐标是烘入的），
 **不要一上来就补引擎能力**。真正该先修的是上面那座塔——塔不失败，身体根本不会遇到那片水。
 
+## 🎯 真梯下一趟（`ladder-integrated-2`）预登记 —— **起跑前、任何读数出现之前写的**
+
+基线：**8/20**，死在第 9 级 IRON（drowned）。本趟带三处改动：
+`carryTo` 补包（引擎，parity）、出井塔放弃点的 `handsAtUse`（仪器）、尸体不再算可剪羊（场景）。
+
+### 起跑前必须亲手过的三道闸（两个 agent 的绿都不算数）
+
+`:common:compileTestmodJava` **依赖** `:common:compileJava`，所以 janitor 的编译会把 parity
+当时改到一半的 `ServerPlayerAvatar` 一起编进去，反之亦然——**两份完成报告里的 BUILD SUCCESSFUL
+各自都不证明合并态是好的**（[[the-shared-tree-is-the-real-boundary]] 的双 agent 版）。
+两个都落地后我自己重跑：`git status` 干净 → `compileJava` 与 `compileTestmodJava` 都
+**executed**（不是 UP-TO-DATE）→ `check_source_budget.py` exit 0 → 才起 JVM。
+
+### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
+
+1. **塔耗石头（`climb.N.stock` < `climb.N.with`）且 `handsAtUse` 零分叉** ⇒ 因果链闭合：
+   手是因，parity 的预登记兑现。
+2. **手一致而存量仍冻结** ⇒ **手的假设对塔死了。** 下一个嫌疑是跳跃/READY 相
+   （[[the-jump-that-never-fired]]：`onGround` 说的是上一次 `move()`，不是「现在站在哪」），
+   **不要把第二次零收益硬塞回手的故事里**——那正是 [[the-wrong-version-is-always-prettier]]。
+3. **只有第 5 级式的自挖竖井塔好、落洞塔坏** ⇒ 是头顶几何不是手。
+   查 `overheadRow` 到底问没问 +2 格（身体要占两格高才站得上去）。
+4. **第 3 级（WOOD）**：本趟是它的**第二个样本**。上一趟它转绿但砍了第二棵树，
+   我按「未确证」记的。两趟都绿 ⇒ 可以采信；这趟红 ⇒ 按**死法**找回归，不按分数找。
+5. **第 7 级（BED）**：`flock` 里的 `另有尸体 N 具` 与 `id=` 两列决定方向——
+   同一个 id 连着几轮 ⇒ 就是尸体被反复重杀（已由过滤修掉，本趟应当消失）；
+   id 每轮都不同而仍不涨 ⇒ 是 `combat` 根本没打中，与尸体无关。
+   `.ground` 那一列出现 `mutton` 而无 `wool` ⇒ 羊是剪过的（过滤漏了一种情况）。
+
+### 两条仪器的适用边界（先写下来，免得读数时踩上）
+
+- **`handsAtUse` 在放弃点取，那已经是课后 200+ tick。** 它对**持续性**分叉
+  （fast path 永不发包）有效，对**瞬态**分叉沉默。读到「一致」只排除前者，不排除后者。
+- **`blows` 跨段不清零，而 `@legTicks` 按段清零**（[[a-clock-that-resets-every-segment]]）。
+  死亡行里可能混着上一段的旧 tick 号，**不要当成本段的时间线**。
+
+### 不阻塞但已升级观察
+
+`YLevel` 后备本轮不修是对的——塔修好它就没机会开火。但它**已经连续两次出现在致命链上**
+（第 12 级第九格、第 9 级两条矿脉）。若本趟塔仍零收益，它升为前沿。
+
 ---
 
 ## 📏 清理了 733 行预算，而顶着上限的那个文件一行都没省下（J5 的否定结果，2026-08-22）
