@@ -9,7 +9,8 @@
 | ✅ 已落 | Q3 | 源码预算复绿（BED 拆出 `JourneyBedRung`、prelude 抽 `expireDigClaim`、climb 去重） | 我 |
 | ✅ 已落 | Q4 | **死亡断言**：`JourneyRig.await` 每 tick 判活，死了当场以死因结案 | 我 |
 | ✅ 已测 | Q5 | run 8：钉发布配置 → **3 级回归**（6 根 / 13899 tick，对比 13 根 / 2914 tick）。**已回退**，原因见下 | 我 |
-| 🔄 在跑 | Q5b | run 9：run 7 配置 + 石剑 + 死亡断言 | 我 |
+| 🔄 在跑 | Q5b | run 9：run 7 配置 + 石剑 + 死亡断言 → **客户端真身首次爬到 8/20**（6/7/8 三级首过），现在 9 级 IRON | 我 |
+| 🔴 下一个槽 | Q15 | **闸债**：`2ced20f5` 以来七笔产品改动没有一笔过过 306 场的闸。run 9 一收尾就双 loader 补跑，绿了再爬梯 | 我 |
 | ⏭ 排队 | Q13 | 🔴 **walker 拿这一级刚砍的原木去垒柱子**（121 次 `pillarUp`，手上原木 7→6） | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
 | 🔧 已编辑待编译 | Q6 | 石剑：5 级顺手合石剑；6/7 级开打前 `holdBestWeapon`；两份重复的 helper 并进 `JourneyRig` | 我 |
@@ -18,7 +19,8 @@
 | ⏭ 排队 | Q9 | V6 生产代码 11 处 `p.setPos` 瞬移：**先加计数与证据行**，再逐处判能否换成走过去 | 我 |
 | ⏭ 排队 | Q10 | V5 工作台/掉落物：回收给足腿数，并把「收回来了吗」写成证据行 | 我 |
 | ⏭ 排队 | Q11 | V3 不挥手：加每 tick 探针（`swinging`/`swingTime`/是否驱动）才能定因，**不猜** | 我 |
-| ⏭ 排队 | Q12 | 世界钉法（永夜/无怪/无天气）：把限定写进 99 级判词 + 新增一条「真世界」拓扑 | **待用户拍板** |
+| 🔧 已编辑待编译 | Q12a | 世界钉法写进 99 级判词（`WORLD_CAVEAT` + `journey.worldPin` 记录行），每份绿报告自带这句限定 | 我 |
+| ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
 | 🧊 冻结中 | J1 | `BunkerChain:150` / `DrownEscapeChain:199` 补 `continueDestroy`（真客户端上破不掉方块） | janitor |
 | 🧊 冻结中 | J2 | 到达半径统一成眼→格心，抽进 `BotUtil`，五处指过去 | janitor |
 | 🧊 冻结中 | J3 | `ContactDamageEscape` / `LavaProximityEscape` 升级成 `commandMove` | janitor |
@@ -27,6 +29,134 @@
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
+
+---
+
+## 🔴🔴🔴 scheduler 里的一行把双端类装上了单端依赖（闸，2026-08-22）
+
+**双 loader、专用服，5 条纯逻辑矩阵场景在 0 tick 死**：
+
+```
+Fabric   : Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER
+NeoForge : Attempted to load class net/minecraft/client/player/LocalPlayer for invalid dist DEDICATED_SERVER
+```
+
+`wd.cancelRouting` / `wd.retreatGateMatrix` / `wd.chainEpisodeCancelMatrix` /
+`wd.drownEscapeGateMatrix` / `wd.drownEscapePreempt`——它们直接 `new BunkerChain()`
+驱动矩阵，**链是在专用服上被构造的**。
+
+### 归因：两侧都是实证
+
+先否掉的假设：不是新加的 `p.swing(...)`。字节码显示这两个类**本来就有**一堆以
+`LocalPlayer` 为接收者的 invokevirtual（`blockPosition`/`getHealth`/`getAirSupply`/`setXRot`），
+全部早于那一笔。「链里出现 LocalPlayer 调用」不是新事。
+
+`git log -S'gameMode.continueDestroyBlock' -- bot/scheduler/` 只回一条：`a1de83a4`。
+那行把 `invokevirtual MultiPlayerGameMode` 放进链自己的字节码，链接它会把 `LocalPlayer`
+一起拽进来。另一侧：`BotInteract` **本来就引用 `MultiPlayerGameMode` 八次**，
+而这两个链一直在调它的静态方法（参数类型就是 `LocalPlayer`）从不出事——
+**invokestatic 解析 owner，不解析 owner 的依赖。**
+
+### 修法与复核
+
+`BotInteract.continueDestroy(mc, p, cell)`，链里只剩 invokestatic。
+规则写进 javadoc：**scheduler 里的类可以传递客户端类型，但不可以调用它。**
+字节码复核：两个链的 `MultiPlayerGameMode` 引用双双归零。
+
+### 这类错误编译期完全看不见
+
+`common` 是双端源码集，javac 眼里 `MultiPlayerGameMode` 只是个普通类；它只在
+**专用服构造那个类的那一刻**才炸。所以：
+
+- 只有闸能抓到 → **闸债不能欠**。这一批七笔产品改动欠了闸，一趟就还出一条真回归。
+- 未来的守卫形状（等闸绿再做）：扫 `bot/scheduler/**` 的**字节码**，
+  禁止 owner 在 `net.minecraft.client.**` 的 invokevirtual/getfield。
+  和 J6/J1 那两条同族——读产物，不跑游戏，一次钉死整类。
+
+### 同一趟里两条不是这一批弄坏的
+
+- `wd.serverEscapeSealedShelter`：fabric 本地 22:23 那份结果里**已经是红的**，早于今晚全部提交。
+- fabric 闸第 171 场被服务端看门狗打断（栈顶 `CombatProcess.approach → Walker.tick →
+  PathFinder.advance → Parkour2.valid`），今天早些时候就有 `results-watchdogcrash.jsonl`，
+  复发的老毛病。**一份样本点不了名**，先不归因。
+
+---
+
+## 🔴🔴🔴 瞄准写在服务端，而这具身体的角度归客户端所有（run 9，11 级，2026-08-22）
+
+**run 9 终判：客户端真身爬到 PORTAL_KIT(10/20)，布景调用 0 次，死亡断言全程未触发。**
+此前这条拓扑最好是 5 级。3–10 级里 6/7/8/9/10 五级是首次通过。
+
+死在 11 级 OBSIDIAN，而且**不是死在挖井**——37 格深井挖得干净利落（74 步一路到 y=27，
+中途遇水换了一次柱，爬回地面用了 112 个圆石，全部自理）。死在最后 2.2 格的横向掏洞：
+`挖了 16 格仍看不到岩浆源 -6,26,54`。
+
+### 病征：瞄准落上去过，又被抹掉
+
+`tunnel.*` 证据行记了每一步的 yaw/pitch 和射线落点：
+
+```
+tunnel.12  aim -6,26,54 (133/0, 2.6m) → -8,27,51 stone
+tunnel.13  aim -6,26,54 (118/0, 3.3m) → -9,27,52 stone
+tunnel.14  aim -6,26,54 (-45/20, 3.3m) → -7,27,53 stone
+tunnel.15  aim -6,26,54 (-45/4,  3.3m) → -6,27,54 stone
+tunnel.16  aim -6,26,54 (-45/2,  3.3m) → -7,27,54 stone
+```
+
+目标 2.6–3.3 格外、比眼低约 2 格，**俯角应当在 30° 上下**。实测 `0 / 0 / 20 / 4 / 2`：
+两步是恰好水平，三步在同一 yaw 上**衰减回水平**。17 步打在 12 个互不相邻的格上——
+散布不是「岩层厚」，散布是「每一步瞄的方向都不同」。
+
+### 机制：`aimAtBlock` 写的是服务端玩家，客户端每 tick 把它覆盖回去
+
+`ServerPlayerAvatar.aimAtBlock` 写 `fp.setYRot/setXRot`（`sim/ServerPlayerAvatar.java:302`）。
+这具身体是**被收养的真玩家**，客户端每 tick 发 `ServerboundMovePlayerPacket`，
+`handleMovePlayer` 用客户端的角度覆盖服务端的。所以这是一次**会被下一个包擦掉的写**。
+
+谁把客户端的角度按在水平？`WalkerTickAim.java:785`：
+
+```java
+if (!bridging && !placingEdge)
+    p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
+```
+
+除非在下潜或搭桥，walker 每 tick 把俯角平滑拉回 0。`20 → 4 → 2` 就是这条平滑的衰减曲线。
+**它没有「正在挖掘」这一档豁免**——`bridging`/`placingEdge` 有，挖掘没有。
+
+### 对照组是现成的，而且是同一天跑的
+
+| 拓扑 | 身体 | 角度归谁 | 11 级 | 12 级 |
+|---|---|---|---|---|
+| `run-journey`（专用服，08-22 15:37） | 假人 | 没人跟它抢 | **PASS** | **PASS** |
+| `run-journey-integrated`（run 9） | 收养的真玩家 | **客户端** | **FAIL** | 被阻断 |
+
+同一份代码、同一颗种子。这条差异同时解释用户报的 V2（「向下掘泥土时视线不向下」）：
+挖掘本身不看视线（`continueDestroyBlock(cell, face)` 拿的是格子），所以**挖得动但看着不对**；
+而射线读数看视线，所以 11 级读到的是被拉平的那个角。
+
+→ 修法（**按「先脚本后引擎」**）：
+- **(a) 已做**：`WorldDriverJourneyScenes#aimThenAct` —— 先 `HoldStill`，**再**瞄准，紧接着动作，
+  两条 Java 语句之间没有 tick，所以无论包序如何都不可能被覆盖。全梯扫了一遍
+  `aimAtBlock`，被 tick 边界隔开的**只有四处**，全部改过来：`reachLava` 的射线、
+  `fillFrom` 的装桶、`pourInto` 的浇筑（11 级最后一步）、`strike` 的点火（12 级最后一步）。
+  其余站点早就带着「`aimAtBlock` 存的是角度，不可与使用分开」的注释，本来就是紧贴的。
+  **(a) 单独覆盖 11 和 12 两级**——12 级今天在专用服 PASS，走的正是服务端 aim→use，
+  不一起改的话 run 10 会过 11 级然后死在点火那一格。
+- (b) 引擎级：给 `WalkerTickAim:785` 加「挖掘认领存活时不拉平」的豁免，与 `bridging` 同档。
+  **(b) 单独修不了 11 级**——就算客户端不拉平，rig 的服务端瞄准照样被客户端自己的角度覆盖。
+  它修的是 V2 那个**看得见的镜头**。别把日后某趟绿记到它头上。
+
+**run 10 的判据，现在登记（读结果之前）：**
+
+1. `tunnel.*` 的俯角 ≈ 眼到目标的几何角（这一处约 30°），**不再是 0 或衰减序列**；
+2. 落点朝目标**单调推进**，不再散布在互不相邻的格上；
+3. 步数**远低于 16**（一堵 2–3 格厚的墙应当是个位数）；
+4. **12 级被够到**——这一条才能证明 (a) 覆盖的是一类而不是一处；
+5. 顺带读新增的 `spawn.teleport` 行，给 V6「一开始传送了一下」一个数：
+   它是一格的落位微调，还是一段本该走的路。
+- (c) 架构级：看向权只有一个所有者。现在有三个写者（`LookController:85`、
+  `aimAtBlock`、`WalkerTickAim:785`）且没有仲裁者——和 janitor J4 那个 `keyAttack`
+  五取用者是同一个形状。这条不要现在做，先做诊断表。
 
 ---
 
