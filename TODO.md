@@ -401,6 +401,31 @@ private static boolean isSupport(ItemStack stk) {
 「放了 N 块」，看不出那 N 块里有没有一个是熔炉——
 这正是[[a-stock-reading-is-not-a-spend]]今天已经吃过一次的亏。
 
+### ⚠️ 木头修复**一次都没开火**，9 级这个绿不是它的功劳（2026-08-22 09:0x）
+
+重跑后 9 级 PASS，`iron_ingot 5`。**但新分支的三行证据一行都没有**——
+`wood.topUpTarget` / `wood.topUpFallback` / `wood.backAtTheGrove` 全部缺席，
+说明这一趟**根本没缺过木头**，`topUpWood` 压根没被调用。
+
+一行就能看出两趟的差别：
+
+| | 上一趟（红） | 这一趟（绿） |
+|---|---|---|
+| `vein1.held` | **`minecraft:oak_log`** | `minecraft:stone_pickaxe` |
+| `furnace.carried` | 无（丢了，重做失败） | **`True`**（一直在包里） |
+
+上一趟选择器挑了**原木**当垫脚、熔炉也被花掉；这一趟两条矿脉都握着镐、熔炉没丢。
+**这是方差，不是修复。**
+
+⇒ **禁止把这个绿当成木头修复已验证**（[[three-greens-cannot-see-a-one-in-four]]、
+[[zero-as-evidence-needs-a-live-channel]]）。它现在的状态是「编译过、路径核对过、
+从未执行过」。
+
+**要验它，得让条件成立**（[[verify-by-making-the-criterion-impossible]]）：
+写一个专用场景，把身体放到地下 y≈45、清空背包里所有原木、手动调 `topUpWood`，
+断言 `wood.backAtTheGrove` 出现且 `wood.toppedUp ≥ 1`。
+健康的一趟永远不会走到那条分支，所以只能人为造。
+
 ### 还开着（不在这一轮）
 
 - **棘轮地板落后六级**：`JourneyLedger.FLOOR = PORTAL_KIT`(10)，而这趟零布景到了 16。
