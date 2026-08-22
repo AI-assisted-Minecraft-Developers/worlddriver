@@ -292,7 +292,7 @@ public final class JourneyFill {
                 rig.evidence(tag + ".fromHere", rig.player().blockPosition().toShortString()
                         + " 已经看得见源块 " + inReach.toShortString() + "（够得着），不走过去了"
                         + "；" + eyeNow(rig));
-                WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
+                JourneyHands.holdForUse(rig, Items.BUCKET, tag);
                 scoop(ctx, rig, src, inReach, tag, wanted, id, lava, tries, AIM_TRIES, then);
                 return;
             }
@@ -345,7 +345,7 @@ public final class JourneyFill {
             BlockPos aim = seen != null ? seen : (spot == null ? src : spot.source());
             if (!aim.equals(src)) rig.evidence(tag + ".aim", src.toShortString() + " → "
                     + aim.toShortString() + "（计划的那格被挡住，改瞄看得见的一格）");
-            WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
+            JourneyHands.holdForUse(rig, Items.BUCKET, tag);
             scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, AIM_TRIES, then);
         });
     }
@@ -358,7 +358,7 @@ public final class JourneyFill {
      * The eye this ray actually starts from, to the centimetre, and the rotation it points along.
      *
      * <p>Printed on BOTH sides of a question two different rays answer. {@link #visibleSourceNear}
-     * clips the segment eye→block-centre; {@code WorldDriverJourneyScenes.aimedAt} traces
+     * clips the segment eye→block-centre; {@code JourneyHands.aimedAt} traces
      * {@code directionFromRotation(xRot, yRot)} for {@code BUCKET_REACH} from the same eye. Those
      * are nominally the SAME line, and a single-bucket rehearsal had them disagree one cell apart:
      * {@code recover9.fromHere = -10,58,35 已经看得见源块 -10,61,38（够得着）} and, an instant
@@ -435,7 +435,7 @@ public final class JourneyFill {
         //
         // `aimAtBlock` stores an ANGLE, not a target: it computes yaw/pitch from where the eye is
         // when it is called and writes them to the body. Everything downstream —
-        // `WorldDriverJourneyScenes.aimedAt` here, and `Item.getPlayerPOVHitResult` inside
+        // `JourneyHands.aimedAt` here, and `Item.getPlayerPOVHitResult` inside
         // `BucketItem.use` — re-derives a direction from those angles and starts it at the LIVE eye.
         // So a body that moves between the aim and the use fires a ray computed for a position it
         // has left, and neither reading can see that: both print a CELL, and a cell is a metre wide.
@@ -467,9 +467,9 @@ public final class JourneyFill {
             // `mineCellOrGiveUp` on a "blocker" that was never on the line, or into
             // `stepOutOfTheFrame`. All three change the world on a reading that was never about the
             // ray the use would fire. (The use itself needs no server aim — see `aimBoth`.)
-            WorldDriverJourneyScenes.aimBoth(rig, aim);
+            JourneyHands.aimBoth(rig, aim);
             ServerLevel level = ctx.level();
-            var pre = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
+            var pre = JourneyHands.aimedAt(rig.player(), BUCKET_REACH, true);
             // A SOURCE, not merely the right cell with the right fluid in it. `BucketItem.use` clips
             // with `Fluid.SOURCE_ONLY` and returns PASS — doing nothing whatsoever — when that clip
             // finds none, and PASS is exactly what run 26 got: `recover1.result=PASS` beside
@@ -600,7 +600,7 @@ public final class JourneyFill {
         // cobblestone, `recover1.aimsAt=-10,57,38 water 源块=true 液位=8` said the ray was dead
         // on the source, and `recover1.result=PASS` — a pickaxe's use, indistinguishable from a
         // bucket that missed, which is the same trap `holdForUse` was written for.
-        WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag);
+        JourneyHands.holdForUse(rig, Items.BUCKET, tag);
         // WHAT THIS USE CHANGED, not what the bag happens to hold. `carrying(id) >= 1` is the
         // same claim as "this fill worked" only while the body can carry exactly one — and it
         // could, so the two were indistinguishable and the weaker one shipped. Carry two and the
@@ -626,7 +626,7 @@ public final class JourneyFill {
             // Only trustworthy since `scoop` started aiming BOTH bodies. This rays rig.player(),
             // the server body, and before that fix nothing had ever pointed it — so every
             // 「射线停在 …」 this row printed described a direction the use never took.
-            var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), BUCKET_REACH, true);
+            var hit = JourneyHands.aimedAt(rig.player(), BUCKET_REACH, true);
             double range = rig.player().getEyePosition()
                     .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
             rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
@@ -733,7 +733,7 @@ public final class JourneyFill {
                 return;
             }
             rig.avatar().aimAtBlock(more);
-            WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, tag + ".more" + carried);
+            JourneyHands.holdForUse(rig, Items.BUCKET, tag + ".more" + carried);
             int before = rig.carrying("minecraft:lava_bucket");
             var result = rig.avatar().useItemInHand();
             int after = rig.carrying("minecraft:lava_bucket");

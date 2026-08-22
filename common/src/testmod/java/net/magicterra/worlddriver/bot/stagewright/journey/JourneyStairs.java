@@ -361,8 +361,8 @@ final class JourneyStairs {
             }
             if (f.missingSupport()) {
                 // Both bodies: `placeInto` goes through `placeOn` → `gameMode.useItemOn`, so the
-                // SERVER's hand decides what lands. See WorldDriverJourneyScenes.holdBoth.
-                boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE);
+                // SERVER's hand decides what lands. See JourneyHands.holdBoth.
+                boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
                 boolean put = held && placeInto(level, rig, f.cell());
                 mended += put ? 1 : 0;
                 rig.evidence(tag + ".stairsMend." + i, f.describe() + " → "

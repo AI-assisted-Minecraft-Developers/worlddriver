@@ -700,7 +700,7 @@ final class JourneyPour {
     static net.minecraft.world.phys.BlockHitResult fire(net.magicterra.worlddriver.bot.movement.Avatar av,
                                                         ServerPlayer body, BlockPos at) {
         av.aimAtBlock(at);
-        return WorldDriverJourneyScenes.aimedAt(body, JourneyFill.BUCKET_REACH, false);
+        return JourneyHands.aimedAt(body, JourneyFill.BUCKET_REACH, false);
     }
 
     /** Which cell a filled bucket would empty into, given that shot — the cell in front of the face

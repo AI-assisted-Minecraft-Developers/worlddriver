@@ -133,7 +133,7 @@ public final class JourneyPortalRung {
             JourneyLeg.record(rig, "waterFill", water);
             BlockPos aim = JourneyTerrain.shallowWaterNear(rig, 8);
             if (aim == null) aim = water;
-            WorldDriverJourneyScenes.holdForUse(rig, Items.BUCKET, "waterFill");
+            JourneyHands.holdForUse(rig, Items.BUCKET, "waterFill");
             final BlockPos at = aim;
             // JUDGE AFTER THE ROUND TRIP. The use runs on the CLIENT (rig.avatar() is the client
             // avatar on this topology) and everything that judges it reads the SERVER —
@@ -163,7 +163,7 @@ public final class JourneyPortalRung {
             // `ensureHasSentCarriedItem()` at bytecode offset 15 — before `startPrediction`, which
             // is what sends `ServerboundUseItemPacket` — so the slot change is always already in
             // flight ahead of the use. The row is one packet early, and nothing more.
-            WorldDriverJourneyScenes.aimThenAct(rig, at, () -> {
+            JourneyHands.aimThenAct(rig, at, () -> {
                 // Increment, for the same reason `scoop` measures one — see its own note. The
                 // short-circuit above means `before` is 0 today, so this changes nothing now and
                 // stops being a lie the moment the body arrives here already holding water.
@@ -1704,8 +1704,8 @@ public final class JourneyPortalRung {
                     () -> walkToStand(rig, tag, cell, lower, then));
             return;
         }
-        // Both bodies — `placeInto` places through the server. See WorldDriverJourneyScenes.holdBoth.
-        boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE);
+        // Both bodies — `placeInto` places through the server. See JourneyHands.holdBoth.
+        boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, step);
         // THE WORLD, not the call. A placement can be refused for reasons the caller cannot see, and
         // a step that was never there leaves exactly the "the dig just did not work" row this rung
@@ -2132,8 +2132,8 @@ public final class JourneyPortalRung {
             then.run();
             return;
         }
-        // Both bodies — `placeInto` places through the server. See WorldDriverJourneyScenes.holdBoth.
-        boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE);
+        // Both bodies — `placeInto` places through the server. See JourneyHands.holdBoth.
+        boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, backing);
         // THE WORLD, not the call. Same reason the step and the stair mend read it back: a placement
         // can be refused for reasons the caller cannot see, and a backing that was never rebuilt
@@ -2267,7 +2267,7 @@ public final class JourneyPortalRung {
                 + (backing.equals(target.below()) ? "（地板顶面）" : "（背板近面）")
                 + " 否决计数 " + why);
         rig.settle(new IntentProcess(new Intent(new Goal.Block(goal))), 1_200, () -> {
-            WorldDriverJourneyScenes.holdForUse(rig, held, tag);
+            JourneyHands.holdForUse(rig, held, tag);
             // RE-ASK FROM WHERE THE BODY ACTUALLY ENDED UP. The fill has done this for a while and
             // the pour never did, and it is the same bug on the other side of the trip: the stand
             // and the aim are chosen together, so a walk that ends one cell off leaves the aim
@@ -2310,16 +2310,16 @@ public final class JourneyPortalRung {
                         tag + "." + tries + ".settled");
                 BlockPos at = settled != null ? settled : planned;
                 // BOTH bodies: the next statement is a prediction gate on the SERVER one. Same
-                // reason as JourneyFill.scoop — see WorldDriverJourneyScenes.aimBoth — and the same
+                // reason as JourneyFill.scoop — see JourneyHands.aimBoth — and the same
                 // stakes, because this gate's failure branch runs clearPourLine, which mines.
-                WorldDriverJourneyScenes.aimBoth(rig, at);
+                JourneyHands.aimBoth(rig, at);
                 // Where the fluid is actually going to land, recorded BEFORE it is spent. A filled
                 // bucket clips with `Fluid.NONE` and empties into the cell in front of the face it
                 // hits, so this pick IS the destination — and without it a pour that succeeded into
                 // the wrong cell is indistinguishable from a pour that did not work, which is the
                 // shape of the last three rounds of this rung's investigation. `pourInto` has had
                 // this instrument for a while; the ten casts that matter never did.
-                var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
+                var hit = JourneyHands.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
                 BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
                 rig.evidence(tag + ".picks." + tries, (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
@@ -2393,7 +2393,7 @@ public final class JourneyPortalRung {
                 // the CLIENT's own return value, `.spent` is the SERVER after a round trip. The
                 // question they could not answer between them is what the SERVER was holding when
                 // the packet landed, which is what `holdBoth` now sets and this row now checks.
-                WorldDriverJourneyScenes.handsAtUse(rig, tag);
+                JourneyHands.handsAtUse(rig, tag);
                 rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
                 rig.settle(new HoldStill(3), 12, () -> {
                     int after = stock.get();
@@ -2561,7 +2561,7 @@ public final class JourneyPortalRung {
     static void clearPlantOnLine(SceneContext ctx, JourneyRig rig, BlockPos want,
                                          String tag, Runnable then) {
         ServerLevel level = ctx.level();
-        var hit = WorldDriverJourneyScenes.aimedAt(rig.player(), WorldDriverJourneyScenes.TUNNEL_REACH, false);
+        var hit = JourneyHands.aimedAt(rig.player(), WorldDriverJourneyScenes.TUNNEL_REACH, false);
         if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK
                 || hit.getBlockPos().equals(want)
                 || !level.getBlockState(hit.getBlockPos()).getCollisionShape(level, hit.getBlockPos()).isEmpty()) {
@@ -2659,8 +2659,8 @@ public final class JourneyPortalRung {
             for (int iy = 1; iy <= 3; iy++) interior.add(frameCell(base, away, ix, iy));
 
         // DAM FIRST. Clearing a cell that something is still pouring into buys one tick of air.
-        // Both bodies — see WorldDriverJourneyScenes.holdBoth.
-        boolean held = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE);
+        // Both bodies — see JourneyHands.holdBoth.
+        boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
         StringBuilder dammed = new StringBuilder();
         for (BlockPos c : interior) {
             BlockPos behind = c.relative(away.getOpposite());
@@ -2697,7 +2697,7 @@ public final class JourneyPortalRung {
                     boolean source = level.getFluidState(c).isSource();
                     String fluid = BuiltInRegistries.FLUID.getKey(level.getFluidState(c).getType())
                             .toString();
-                    boolean plugged = WorldDriverJourneyScenes.holdBoth(rig, Items.COBBLESTONE)
+                    boolean plugged = JourneyHands.holdBoth(rig, Items.COBBLESTONE)
                             && JourneyStairs.placeInto(level, rig, c);
                     rig.evidence("portal.plug." + c.toShortString(),
                             (source ? "源块 " : "流动 ") + fluid
@@ -2740,14 +2740,14 @@ public final class JourneyPortalRung {
                                BlockPos hearth, BlockPos doorway) {
         ServerLevel level = ctx.level();
         rig.settle(new IntentProcess(new Intent(new Goal.Near(hearth, 3))), 1_500, () -> {
-            WorldDriverJourneyScenes.holdForUse(rig, Items.FLINT_AND_STEEL, "light");
+            JourneyHands.holdForUse(rig, Items.FLINT_AND_STEEL, "light");
             // Aim adjacent to the strike, not two ticks before it — see
-            // WorldDriverJourneyScenes#aimThenAct. This was the last aim-then-settle-then-use pair
+            // JourneyHands#aimThenAct. This was the last aim-then-settle-then-use pair
             // left on the ladder, and it sits on the tick that lights the portal: on the dedicated
             // topology nothing rewrites a fake player's rotation between the two, so it has always
             // worked there and would have failed here for a reason belonging to the body, not the
             // strike.
-            WorldDriverJourneyScenes.aimThenAct(rig, hearth, () -> {
+            JourneyHands.aimThenAct(rig, hearth, () -> {
                 rig.avatar().useBlock(hearth, Direction.UP);
                 rig.settle(new HoldStill(5), 20, () -> {
                     int lit = 0;

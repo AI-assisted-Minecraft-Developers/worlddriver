@@ -809,7 +809,7 @@ public final class JourneyShaft {
         var pillarItem = BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(pillar));
         // BOTH BODIES. `TowerProcess` places through `gameMode.useItemOn`, and what lands is decided
         // by the hand the SERVER has — which the mine that preceded this course moved to a pickaxe
-        // without telling anyone (see WorldDriverJourneyScenes.holdBoth). A pickaxe's `useOn` against
+        // without telling anyone (see JourneyHands.holdBoth). A pickaxe's `useOn` against
         // a block face does nothing at all, silently, and the three rows this course writes report it
         // as an ordinary stall: `climb.2.stalled=null` (the client's builder saw no error because its
         // own prediction placed the block), `climb.2.state=onGround=true inWater=false y=56.00`, and
@@ -820,7 +820,7 @@ public final class JourneyShaft {
         //
         // Recorded only when it fails: a course that got what it asked for is already described by
         // `.with`, and thirty-six successful hand-swaps would bury the one that did not.
-        if (!WorldDriverJourneyScenes.holdBoth(rig, pillarItem)) {
+        if (!JourneyHands.holdBoth(rig, pillarItem)) {
             rig.evidence(climbKey(step, ".hand"), "拿不到 " + pillar + "，手上是 "
                     + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
         }
@@ -855,7 +855,7 @@ public final class JourneyShaft {
             // hand that mattered, and the only reading that can say so is one taken HERE. Rung 9 of
             // 2026-08-22 gave up on course 0 at both veins — `stalled=null`, stock untouched, dry
             // ground, 74 cobblestone — which is the pickaxe signature with no way to confirm it.
-            WorldDriverJourneyScenes.handsAtUse(rig, climbKey(step, ""));
+            JourneyHands.handsAtUse(rig, climbKey(step, ""));
             // Washed off, not stuck. In moving water the state at the end of a course is not the
             // state the next one starts from, so this is the one case where asking again is a real
             // retry — see WASHED_OFF_RETRIES for the measurement. Recorded every time, so a climb

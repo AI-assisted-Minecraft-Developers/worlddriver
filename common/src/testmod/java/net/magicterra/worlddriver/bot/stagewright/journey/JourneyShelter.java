@@ -161,8 +161,8 @@ final class JourneyShelter {
             if (cell.equals(body) || cell.equals(body.above())) { occupied++; continue; }
             String id = placeableBlock(rig);
             // Both bodies: `placeInto` places through the server. See
-            // WorldDriverJourneyScenes.holdBoth.
-            if (id == null || !WorldDriverJourneyScenes.holdBoth(rig, JourneyRig.item(id))) {
+            // JourneyHands.holdBoth.
+            if (id == null || !JourneyHands.holdBoth(rig, JourneyRig.item(id))) {
                 ranOut++; continue;
             }
             if (JourneyStairs.placeInto(nether, rig, cell)) {
