@@ -118,12 +118,20 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
 | `2f0d2f10` `234be7ce` `908eedb7` `fe3c50e8` `83bbe22b` | 死 import 724 → 0，纯删除 | J5 | 末笔编译过 |
 | `4005f860` | 跨枚举器断言从 boolean 扩到全部字段 | J8 | 6/6 |
 | `e95f4e72` | 说清 `pathLen`/`pathStep` 到底装什么（十写入者五单位） | J9 | 仅注释 |
-| `7a723ddb` | `dayTime` 折叠收敛到一处 + `DayTimeFoldingTest` | J10/F12 | **待编译** |
-| `0c046d3d` | 三份 `yawFor` 合一，并写明为什么不是 `toYRot()` | J10 | **待编译** |
+| `7a723ddb` | `dayTime` 折叠收敛到一处 + `DayTimeFoldingTest` | J10/F12 | **过编译器** |
+| `0c046d3d` | 三份 `yawFor` 合一，并写明为什么不是 `toYRot()` | J10 | **过编译器** |
 | `f03fbe92` | 改正黄昏相位那段注释：四条边界只有一条承重 | F13 | 仅注释 |
-| `d0e4dde3` | recipe 的 station 只留 resolver 那一份 | J10 | **待编译** |
-| `4a259ffa` | `clearColumn` 提到 `Move`，三个对角线继承 | J10 | **待编译** |
-| `09b1cfad` | 下坠柱净空只问 `Move` 一次 | J10 | **待编译**（唯一碰 A* 热路径的一笔） |
+| `d0e4dde3` | recipe 的 station 只留 resolver 那一份 | J10 | **过编译器** |
+| `4a259ffa` | `clearColumn` 提到 `Move`，三个对角线继承 | J10 | **过编译器** |
+| `09b1cfad` | 下坠柱净空只问 `Move` 一次 | J10 | **过编译器**（唯一碰 A* 热路径的一笔） |
+
+**「过编译器」的证据**（coordinator 08-22）：一次 `:common:compileTestmodJava`，
+`:common:compileJava` 与 `:common:compileTestmodJava` **两个 task 都是 executed（不是 UP-TO-DATE）**，
+`BUILD SUCCESSFUL`。六笔全在 main 源集里，所以 `compileJava` executed 就是它们的答案。
+同一次还带了 coordinator 三笔 journey 修复（`fcbbd66b` / `c83e7d76` / `371cb137`），
+**是两边改动的合并验证，不是只验了一边。**
+我把这批的风险自定级在编译期（见 §J10 与下面的等价性论证），**该风险已清零**；
+剩下的运行期风险只有 `7a723ddb` 在 `dayTime < 0` 时的行为变化，其余逐位相同。
 
 ### 提出但没做的（交 coordinator 排期，按值排序）
 
@@ -136,9 +144,11 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
 4. **F8** 拆 `BotConfig`（2993/3000），第一步是让 `persistableFields()` 走父类链（今天是 no-op）。
 5. **J9 后续** 给进度键加单位（`progress.nodesRemaining` 等），旧 `pathLen` 保留一轮。
 6. **线段采样器** `losWalkable` / `straightLineBias` / `isOpenWaterLine` 三处共用同一段
-   「`steps = max(|dx|,|dz|)` + 四舍五入插值」。**建议只抽 `lineCell(a,b,s,steps)` 这一层算术，
-   不要抽成返回 `List<BlockPos>` 的迭代器** —— `losWalkable` 在 walker 每 tick 的热路径上，
-   每次调用多分配一个 list 是拿清洁换帧时间。
+   「`steps = max(|dx|,|dz|)` + 四舍五入插值」。**只抽 `lineCell(a,b,s,steps)` 这一层算术，
+   不要抽成返回 `List<BlockPos>` 的迭代器**（coordinator 已采纳这个写法）。
+   **依据不是理论上的「热路径」，是量过的**：冻屏那次实测 **2022 次切片寻路，
+   其中 1986 次（98%）恰好占 1 个 tick，上限 10 tick** ——
+   绝大多数调用都压在单 tick 预算里，**每次多分配一个 list 贵在次数而不是单次开销**。
 7. **F10** 那 14 个从没翻开过的 default-OFF：给场景或删掉，二选一。
 
 ### A-0 `bot/movement/BotInput.java` —— 扩成够用的门面（不新增第三个输入类）
@@ -1207,9 +1217,35 @@ public void beginRun(String goalText) {
 （`UserTaskChain` + `CombatChain` / `DuskSecureChain` / `RetreatChain` 三条反射链 + `ServerWorldDriver`），
 只修 `setProcess` 会漏掉所有反射启动的进程 —— **又一次「豁免比它要覆盖的家族窄」。**
 
-**风险与方向**：改后中途 status 不再携带上一趟的判词三件套，**方向是更诚实**；
-唯一的风险是某条场景或消费者依赖「`active` 为 true 时读得到上一趟的 `goalReached`」，
-**这个只有闸能告诉我们**。19 个文件、生存/API 双路径，排给 coordinator。
+**风险与方向**：改后中途 status 不再携带上一趟的判词三件套，**方向是更诚实**。
+
+#### 那条「只有闸能回答」的风险，先用只读扫描把候选集扫成了空（coordinator 指派）
+
+问题：有没有消费者依赖「`active` 为 true 时还读得到上一趟的 `goalReached`」。
+全仓扫 `goalReached`（testmod / validation js / gpt-player），逐条分类：
+
+| 读的是什么 | 出处 | 判定 |
+|---|---|---|
+| **`ProcessSlot.goalReached`（就是这条要改的）** | `JourneyFlight.java:299` **仅此一处** | **安全** —— 它在 `if (finishedAt == null && rig.body().finished())` 里面，**已经等过运行结束** |
+| `PathFinder.Result.goalReached()` —— 一次 A* 搜索的结果 | `WorldDriverBiasScenes` 十余处、`HorizonArena` | **无关**，不是同一个东西 |
+| `status.lastPath.goalReached` —— 最近一次 A* 的判词 | `22_phase_c.js:41`、`gpt-player/tools.py:1165` | **无关**，而且 gpt-player 那处在 await 返回之后读 |
+
+**候选集为空。** 所以这次改动的闸只需要**确认**，不需要**发现** ——
+这正是 coordinator 说的那种「先读出来再交给闸」的形状。
+
+#### 顺带一条 J9 家族的：`goalReached` 在这个仓库里是**三个**不同的东西
+
+上面那张表本身就是发现：同一个名字指
+
+1. `ProcessSlot.goalReached` —— 一个动词的终局判词（`Boolean`，可空，跨 `reset()` 保留）
+2. `PathFinder.Result.goalReached()` —— **一次搜索**有没有到达目标（`boolean`）
+3. `status.lastPath.goalReached` —— 最近一次 A* 的判词，导出给 agent
+
+**而 1 和 3 同时出现在 `mc.bot.status` 里**：每个槽下面一个，`lastPath` 下面一个，
+**同名、不同含义、不同生命周期**。跟 `pathLen` 是同一族——
+**名字没有携带它的作用域**，而唯一分不清的消费者又是 LLM。
+
+19 个文件、生存/API 双路径，排给 coordinator。
 
 ### F13 两个 MCP 工具对「现在是白天还是晚上」给出**不同词表 + 不同边界**的答案
 
@@ -1286,6 +1322,27 @@ coordinator 08-22 同族的两次：冻屏诊断错了两次（第二次是从�
 以及给瞄准写下一个**推出来的机制**（「服务端的写被客户端擦掉」），
 后被身体格子那一行证据否掉 —— 真相是**瞄的和读的根本不是同一具身体**。
 **形状一样：错的版本更完整、更像一个故事。**
+
+#### 第六、七次（coordinator，同一晚），以及由它们得出的**可操作**版自检
+
+| # | 错的那一版 | 一分钟验死它的东西 |
+|---|---|---|
+| 6 | 拿到 `waterFill.hand=minecraft:stone_pickaxe`，推出「换槽包输给了 use 包，服务端跑的是镐的 use」——机制完整、能解释全部三行证据 | `MultiPlayerGameMode.useItem` 的**第 15 条字节码**就是 `ensureHasSentCarriedItem()`，在发 use 包的 `startPrediction` **之前**：那场竞态**结构上不可能发生** |
+| 7 | 以为服务端会用自己过期的角度重新射线 | `ServerboundUseItemPacket` **携带** yRot/xRot，`handleUseItem` 在 `useItem` 前 `absRotateTo` |
+
+**两次都是「一分钟能验死的推论，差点直接写进注释」。**
+
+所以给这一族补一条**可操作**的自检，比「放宽一档」更省：
+
+> **当结论是关于一个可反编译的机制时，「放宽一档」的最省形式就是 `javap -c`。**
+> 不用跑、不用复现、不用闸 —— 一分钟给的是**二进制事实**，不是又一层推理。
+
+而且这两条排除**必须写进注释**，因为它们是**排除性证据**：
+不写下来，下一个人看到那两行还会把同一条推论再走一遍。
+（已钉进 `aimBoth` 和 `holdForUse` 的 javadoc。）
+
+**这跟守卫那条是同一个道理**：一条被验死的假设，如果只活在某次对话里，
+它就会被下一个人重新提出来 —— **排除本身也是产出，也需要一个落脚点。**
 
 这条和 F7 是一对：F7 说「动作成功了但对象不在那儿」，
 F11 说「结论成立了但它太合乎你已有的模式」。
