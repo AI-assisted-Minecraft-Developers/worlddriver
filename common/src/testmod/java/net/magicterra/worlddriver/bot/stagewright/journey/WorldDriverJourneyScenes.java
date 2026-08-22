@@ -2864,11 +2864,33 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * path, because the journey deliberately leaves state alive between its stages and something has
      * to be the end of it.
      */
+    /**
+     * What a green ladder does NOT claim.
+     *
+     * <p>StageWright pins the world for every suite it runs — {@code WorldPin} freezes the clock at
+     * midnight and turns off {@code doDaylightCycle}, {@code doWeatherCycle} and
+     * {@code doMobSpawning}. Those pins were chosen so that ARENA scenes stop being decided by tick
+     * alignment, and for a scene that resolves in one server tick they cost nothing. This ladder is
+     * the one family they are wrong for: it runs for hours, and the third pin means <b>nothing
+     * hostile ever spawns around it</b>. So every rung below is climbed in what amounts to peaceful
+     * mode, and「全程零布景」describes the fixtures, not the difficulty.
+     *
+     * <p>Saying so on the row is the whole fix for now, deliberately. Un-pinning here would change
+     * what every other rung measures mid-climb, and the honest version — a topology that runs the
+     * same ladder in a live world — is a separate run, not a flag. Until that exists, a reader who
+     * takes DRAGON off this row and calls it "beat the game" has been misled by omission, and the
+     * omission is ours.
+     */
+    private static final String WORLD_CAVEAT =
+            "世界被 StageWright 钉住（时钟冻在午夜、doMobSpawning=false），所以这一趟全程没有敌对生物"
+                    + " —— 零布景说的是道具，不是难度";
+
     private static void verdict(SceneContext ctx) {
         try {
             JourneyStage height = JourneyLedger.height();
             List<String> staging = JourneyLedger.stagingCalls();
 
+            ctx.record("journey.worldPin", WORLD_CAVEAT);
             ctx.record("journey.height", height == null ? "NONE" : height.name());
             ctx.record("journey.floor", JourneyLedger.FLOOR.name());
             ctx.record("journey.summit", JourneyStage.summit().name());
@@ -2891,7 +2913,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             ctx.passNote("journey 爬到 " + height.name() + "(" + height.label() + ")"
                     + "，地板 " + JourneyLedger.FLOOR.name()
                     + "，峰顶 " + JourneyStage.summit().name()
-                    + "，布景调用 " + staging.size() + " 次");
+                    + "，布景调用 " + staging.size() + " 次"
+                    + "；" + WORLD_CAVEAT);
         } finally {
             JourneyRig.teardown();
         }
