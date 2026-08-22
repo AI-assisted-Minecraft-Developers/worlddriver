@@ -300,6 +300,30 @@ further from the doorway than they can navigate back.」
 然后第二个调用方我没接——[[a-private-fix-is-an-unfixed-caller]] 自己记的教训自己又犯一次。）
 `pearls.perFight` 同时从「背包增量」改成「背包+地上」，理由和 `rods.perKill` 一样。
 
+### 预登记：配额版真梯（2026-08-22 08:2x 发车前写）
+
+三条路**从来没执行过**，所以这一趟先看它们有没有动，再谈爬到几级：
+
+| 新路径 | 该出现的行 | 没出现说明 |
+|---|---|---|
+| 14 级刷够棒 | `blaze_rod.quota 6/6` | 24 场打完还不够 → 掉率或刷怪笼节奏 |
+| 15 级刷够珠 | `ender_pearl.quota 12/12` | 30 场打完还不够 → 看 `hunt.*.dry` 有几条 |
+| 17 级走回家 | `return.banked`、`home.0..N`、`return.portalAfterWalk` | 一条都没有 → 局部扫描居然找到了门（也就是身体没走远） |
+
+**预期结果：前沿从 16 级移动，但多半不是移到 20 级。** 17 级的后半段是
+**~1731 格主世界行军**，那段一次都没跑过；`MAX_MARCH_LEGS=48`、每段 `MARCH_LEG_BLOCKS`，
+够不够是这一趟第一次有数据。**「前沿移动到 17 或 18」就是这一趟的成功**，
+不要因为没打到龙就说它失败——这是 advisor 提醒后写死的，防止我事后改口。
+
+**必须一起读的三对数**（任何一边单独看都会骗人）：
+1. `blaze.killed` 与 `blaze_rod.quota`：打得够多但棒不够 = 运气；打不够 = 刷怪笼／房间问题。
+2. `enderman.killed` 与 `ender_pearl.quota`：同上。
+3. `ender_eye.want` 与 `ender_eye.before`：16 级只会造「材料允许的数量」，
+   所以造得少**永远是上游的账**，不是合成的账。
+
+**若 15 级超时**：预算刚从 120k 抬到 300k，抬的理由是 30 场的最坏情况。
+超时说明最坏情况估低了，读 `hunt.*` 每场的 tick 分布再决定，别直接再翻倍。
+
 ### 还开着（不在这一轮）
 
 - **棘轮地板落后六级**：`JourneyLedger.FLOOR = PORTAL_KIT`(10)，而这趟零布景到了 16。
