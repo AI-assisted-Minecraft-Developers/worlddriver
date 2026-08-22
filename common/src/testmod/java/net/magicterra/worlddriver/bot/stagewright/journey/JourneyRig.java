@@ -1202,8 +1202,66 @@ public final class JourneyRig {
             pinAroundBody();
             legTicks++;
             heartbeat(withinTicks);
-            return done.getAsBoolean();
-        }).within(withinTicks).then(then);
+            // THE BODY MUST BE ALIVE — checked here and only here, because this is the one place
+            // this rig ever waits. A per-rung check would be a check each rung has to remember;
+            // this one is total by construction. See bodyDied() for what it cost to learn that.
+            return bodyDied() || done.getAsBoolean();
+        }).within(withinTicks).then(() -> {
+            if (diedOf != null) { ctx.fail(diedOf); return; }
+            then.run();
+        });
+    }
+
+    /** Set the first time the body is found dead, and never cleared: a rung does not recover from it. */
+    private String diedOf;
+
+    /** The death that ended this run, or {@code null} while the body is alive. */
+    public String diedOf() { return diedOf; }
+
+    /**
+     * Is the body dead? Asked every tick of every wait, and the answer ends the rung on the spot.
+     *
+     * <h2>Why this exists</h2>
+     *
+     * Measured 2026-08-22, real-client ladder, seed 5471. At 01:17:47 the FOOD rung's walk began; the
+     * body was killed by a witch two ticks in. <b>The ladder drove the corpse for the next fifteen
+     * minutes</b> — 10 000+ ticks of pressing forward and jump against a {@code DeathScreen}, with the
+     * heartbeat cheerfully reporting {@code 身体=37,62,83 @minecraft:overworld} every 200 ticks, because
+     * position is exactly the reading a corpse still answers. Everything downstream was a lie told
+     * fluently: {@code hSpd=0.009} (a dead body does not move), {@code attack=false} (a dead body does
+     * not mine), the whole inventory {@code empty} (it dropped on death), and — the one that would have
+     * sent the next reader somewhere else entirely — {@code world.isSolid(36,63,83)=false} for a cell
+     * the live game reports as {@code grass_block}. The rung would have ended in
+     * {@code TIMEOUT: await step exceeded}, i.e. "the walker could not get there", which is true and
+     * useless. <b>The verdict has to name the death, not what the death made impossible.</b>
+     *
+     * <p>Sibling of {@link #bodyLeftTheWorld}, and the same lesson twice: a body that stops being a
+     * live participant keeps answering every question you were already asking.
+     *
+     * <h2>What it does not fire on</h2>
+     *
+     * A {@code FakePlayer} is invulnerable on both loaders, so its health never leaves 20 and this
+     * costs the two headless topologies one comparison per tick and nothing else. It is the integrated
+     * topology — the one climbing on the client's real player — that can die, and that is precisely
+     * the topology whose readings are worth having.
+     */
+    private boolean bodyDied() {
+        if (diedOf != null) return true;
+        if (driver == null) return false;
+        ServerPlayer fp = driver.fakePlayer();
+        if (fp.getHealth() > 0f && !fp.isDeadOrDying()) return false;
+        String how = fp.getCombatTracker().getDeathMessage().getString();
+        evidence("death.cause", how);
+        evidence("death.at", fp.blockPosition().toShortString());
+        evidence("death.stage", stage.name());
+        evidence("death.legTicks", legTicks);
+        evidence("death.driving", driving == null ? "无驱动器" : driving);
+        diedOf = "身体死了：" + how + "（" + stage.name() + " 级，位置 "
+                + fp.blockPosition().toShortString() + "，本段第 " + legTicks + " tick，驱动器 "
+                + (driving == null ? "无" : driving) + "）—— 死后的每一条读数都在描述一具尸体："
+                + "背包已掉落、按键不再产生位移、挖掘不再推进，而行走的判词会把这一切报成「走不到」。";
+        WorldDriverCommon.LOG.error("[journey] {}", diedOf);
+        return true;
     }
 
     /** Move the region ticket to the body's current chunk, if it has left the pinned one. */
@@ -1251,6 +1309,30 @@ public final class JourneyRig {
     public void generousPathfinding() {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
+        // ⚠️ AND THEN UNDO ITS TABLE. `pinnedBaseline()` does two things — it snapshots the
+        // pre-scene config (keep that: it is what isolates one rung from the next) and it applies
+        // `applyGameTestBaseline()`, a flag set frozen for the ARENA suite, whose assertions were
+        // authored against the historical default-OFF values. This ladder is not the arena suite.
+        // It asks whether the driver can finish the GAME, so it must run the configuration the
+        // driver SHIPS — and `applyCompiledDefaults()`'s own javadoc names exactly this case:
+        // "scenes whose contract is live behaviour (not the §78 legacy arena baseline) call this
+        // right after pinnedBaseline()". The pin still restores on close.
+        //
+        // 38 flags differed. Measured 2026-08-22 on the real client, seed 5471: with the arena table
+        // in force there was NO dig arbitration at all (`walkerDigAimPriority=false`), so the travel
+        // drive and the water climb-out each ran startDestroyBlock on their own cell every ~35 ticks
+        // while vanilla tracks exactly ONE destroy target — every switch threw the other's progress
+        // away, neither cell ever passed 0.16 of the 1.0 it needed, and rung 3 timed out at 8000
+        // ticks having broken nothing, three runs running. Fourteen more of the 38 are the water and
+        // bank-dig recoveries — futile-bank-dig release, floating-bank bob freeze, swim-ashore
+        // pillar, drowning escape — i.e. the ladder was asking a body to climb out of the spawn
+        // swamp with that whole subsystem's fixes switched off.
+        //
+        // The tell was a ZERO: `dig-aim RELEASE` never appeared, not once in 8022 ticks. Read as
+        // "the hold never expired" it bought two wrong fixes; it actually meant the guard was never
+        // ENTERED. Ordering matters below — this resets every persistable field, so everything this
+        // method wants must be assigned AFTER it.
+        BotConfig.applyCompiledDefaults();
         // Off by default because a journey leg is thousands of ticks and this logs per-tick, but
         // openable, because the things it prints are the only account of what the CLIENT helm is
         // doing to the body. `AutoSwim`'s shore search — the code that owns a submerged real player
@@ -1283,31 +1365,11 @@ public final class JourneyRig {
         // can never explain a change in its behaviour.
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxNodes = 100_000;
+        // Both are compiled-default ON, so these two are re-assertions rather than overrides. They
+        // stay written out because a playthrough without them is not a playthrough, and a reader
+        // asking "is this ladder allowed to mine?" should find the answer here, not two files away.
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
-        // ⚠️ THE BASELINE ABOVE IS NOT WHAT A PLAYER RUNS. `pinnedBaseline()` applies
-        // `applyGameTestBaseline()`, which exists so the ARENA suite's assertions keep the
-        // historical default-OFF flag set they were authored against — and it turns off ~30 flags
-        // whose live default is ON. This ladder is not the arena suite: it asks whether the driver
-        // can finish the GAME, so every flag it leaves off is a capability the answer is silently
-        // being measured without. That baseline's own comment says the way out: "scenes that WANT a
-        // flag still set it explicitly."
-        //
-        // This one is armed because it was measured to be the rung-3 blocker (2026-08-22, real
-        // client, seed 5471). With it OFF there is NO dig arbitration at all: two walker phases
-        // — the travel drive on its traverseBreak node 65,62,63 and the water climb-out on its bank
-        // riser 65,64,63 — each ran startDestroyBlock on its own cell every ~35 ticks, and vanilla's
-        // MultiPlayerGameMode tracks exactly ONE destroy target, so every switch threw the other's
-        // destroyProgress away. A bare-handed afloat block needs 300 ticks (the ×5 in-water and ×5
-        // airborne penalties multiply); neither cell ever passed 0.16. The rung timed out at 8000
-        // ticks having broken nothing, three runs running.
-        //
-        // The tell was a zero: `dig-aim RELEASE` never appeared, not once in 8022 ticks. That read
-        // as "the hold never expired" and cost two wrong fixes — a progress-aware release and a
-        // claim protocol, both written into a branch this topology had switched off. The zero meant
-        // the guard was never ENTERED. The other ~29 flags are listed in TODO.md; arming them is a
-        // separate experiment, one variable at a time.
-        BotConfig.walkerDigAimPriority = true;
     }
 
     // ---- reading the body ----

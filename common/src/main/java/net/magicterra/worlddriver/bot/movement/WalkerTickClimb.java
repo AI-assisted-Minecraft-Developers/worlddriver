@@ -115,6 +115,24 @@ final class WalkerTickClimb {
     private static final int HOPELESS_DIG_TICKS = 600;
     private WalkerTickClimb() {}
 
+    /**
+     * The breath gate on a break cell, and what to do when it fails: drop the hold, poison the cell
+     * so the next search routes around it instead of re-proposing it, and drop the path so the tick
+     * ends in a repath. Two dig sites had these eight lines written out verbatim.
+     *
+     * @return true when the caller must return {@link Walker.Step#WALKING} at once.
+     */
+    private static boolean bailOnBreathInfeasibleDig(Walker wk, Avatar a, Player p, BlockPos b) {
+        if (!breathInfeasibleDig(p, b)) return false;
+        a.breakHold(false);
+        BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
+        wk.lastError = "breath-infeasible dig at " + b;
+        wk.path = null;
+        return true;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -853,15 +871,7 @@ final class WalkerTickClimb {
                 if (world.isSolid(b)) {
                     wk.avatarJump(a, false);
                     a.selectTool(b);
-                    if (breathInfeasibleDig(p, b)) {
-                        a.breakHold(false);
-                        BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
-                        if (BotConfig.walkerDebug)
-                            LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
-                        wk.lastError = "breath-infeasible dig at " + b;
-                        wk.path = null;
-                        return Walker.Step.WALKING;
-                    }
+                    if (bailOnBreathInfeasibleDig(wk, a, p, b)) return Walker.Step.WALKING;
                     BotConfig.walkerDigActive = true;
                     // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
                     // first and claim it afterwards, so it drove a cell another phase already held.
@@ -1057,15 +1067,7 @@ final class WalkerTickClimb {
             for (BlockPos b : edge.toBreak) {
                 if (world.isSolid(b)) {
                     a.selectTool(b);
-                    if (breathInfeasibleDig(p, b)) {
-                        a.breakHold(false);
-                        BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
-                        if (BotConfig.walkerDebug)
-                            LOG.info("[walker] breath-infeasible dig {} — poisoned {}s, repathing", b, BREATH_POISON_TTL_MS / 1000);
-                        wk.lastError = "breath-infeasible dig at " + b;
-                        wk.path = null;
-                        return Walker.Step.WALKING;
-                    }
+                    if (bailOnBreathInfeasibleDig(wk, a, p, b)) return Walker.Step.WALKING;
                     BotConfig.walkerDigActive = true;
                     // Claim, aim and drive all live inside avatarDig now: this site used to dig `b`
                     // first and claim it afterwards, so it drove a cell another phase already held.
