@@ -21,11 +21,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The End-portal wait keeps its undriven shape, with the reason written down.** It is safe only
   because `EndPortalBlock`'s transition time is zero, so the flag is armed and consumed inside the
   walk's own last tick. That is a constant this code does not control, not a pattern to copy.
-- **The walk home finishes in 3D.** `march()` judges arrival with `flatDistance` and steers with
-  `Goal.XZ` — right for a surface trek to an XZ target, wrong for the one target in rung 17 that is a
-  specific CELL, since the portal confirmation is a 3D radius. The body stopped 6 blocks away flat and
-  52 below, and the old message blamed a destroyed portal that was standing. A `Goal.Near` settle now
-  closes the gap, and if that fails the message quotes the vertical distance.
+- **The walk home finishes in 3D, over five tries.** `march()` judges arrival with `flatDistance` and
+  steers with `Goal.XZ` — right for a surface trek to an XZ target, wrong for the one target in rung 17
+  that is a specific CELL, since the portal confirmation is a 3D radius. The body stopped 6 blocks away
+  flat and 52 below, and the old message blamed a destroyed portal that was standing. The first repair
+  was one `Goal.Near` settle, and one settle turned out not to be enough: two rehearsals from a
+  byte-identical body position went opposite ways (`121,75,10`, up 34, found the door; `100,23,20`,
+  down 18, did not), because the walker's per-tick search budget is spent against a wall-clock slice
+  and so the route it holds when a settle ends is not a function of the world alone. It is now five
+  legs that scan for the door after each one — the radius is 24 and the successful run found it from
+  24.3 away, so a body passing through range mid-climb used to throw that away — and a leg that ends no
+  closer with the door overhead pillars up with `TowerProcess` instead of asking the pathfinder the
+  same refused question again.
+- **The staged return doorway sits at the body's own level.** `netherStandNear` took a `want` position
+  and silently discarded its y, scanning each column down from 100 and returning the highest standable
+  cell; `buildTheDoorwayAndBankIt` passes the body's own y precisely so the doorway matches what rung
+  13 would have left behind, and got a shelf 52 blocks up. That is not a harder test, it is a different
+  one — the real ladder's banked cell is where the body walked out, at the body's level by
+  construction. The y is now searched outward from the requested one, every other property of the
+  answer unchanged, and the staging fails loudly if the doorway still lands more than 24 blocks off.
+- **The staged doorway's pocket has a floor.** The clear that opens room around the frame ran from
+  `dy=-1`, taking the ground out from under the whole pocket, and only a 4×1 strip was put back — so
+  the frame stood on a ledge over a void, a shape no nether portal has. The body walked in on the
+  surrounding rock, landed on top of the frame, and could not get off it; the walker's `stride
+  floor-guard` and `footing guard` refused every step, correctly, while A* kept returning routes
+  through those cells — 816 identical searches from one cell to one goal. The fixture had reproduced
+  the class of defect the scene exists to look for.
+- **Known and unfixed: the futile-search guard cannot see an unexecutable plan.** Two independent
+  reasons it stayed silent through those 816 searches. It counts only searches where
+  `!res.goalReached()`, and A* *did* reach the goal — the terrain was connected, the drive layer just
+  refused it. And its `moved` test is `distSqr > 4`, which the body's two-block oscillation cleared
+  every time, resetting the counter. The guard measures whether A* is succeeding, not whether the body
+  is getting anywhere. Recorded rather than repaired; nothing ran away this time only because the
+  enclosing settle was 409 ticks.
 - **`wd.serverEarnsAnEnderPearl` asks for 2 kills, not 4.** Nine runs of the same code scored
   `6,6,6,4,4,4,3,1,3`: the old threshold sat inside the natural spread of the quantity it measured and
   went red about one run in three. The comment beside it already said the systematic break it wanted to
