@@ -207,34 +207,79 @@ public final class BotUtil {
      * <p>The three literals were written out twice ({@code MineProcess.findReachStand},
      * {@code BboxFillProcess.withinReach}) — the same hypothetical eye, so one place.
      *
-     * <p><b>The radius is deliberately NOT part of this.</b> "Within reach" is computed in five
-     * places in this repo and no two agree, which is the kind of divergence that reads as
-     * flakiness later, so the numbers are written down here rather than averaged away:
+     * <p><b>The radius is deliberately NOT part of this.</b> "Within reach" is asked in five
+     * places and they do not all want the same margin — so every one now measures the same way
+     * (eye to block centre, via {@link #eyeWithin}) and differs only in a number you can read:
      *
      * <table><caption>reach predicates, 2026-08-22</caption>
-     * <tr><th>site</th><th>measured from</th><th>radius</th></tr>
-     * <tr><td>{@code ServerPlayerAvatar.canBreakFromHere} — <b>the authority</b>, and the only one
-     *     that asks the game ({@code blockInteractionRange()})</td><td>the real eye</td>
-     *     <td>{@code range + 0.5} = 5.0 survival</td></tr>
+     * <tr><th>site</th><th>eye</th><th>radius</th></tr>
+     * <tr><td>{@code ServerPlayerAvatar.canBreakFromHere} — <b>the authority</b>, and where
+     *     {@link #blockReachToCentre} came from</td><td>the real eye</td>
+     *     <td>{@code blockInteractionRange() + 0.5}</td></tr>
+     * <tr><td>{@code WalkerTickPrelude} dig-claim release</td><td>the real eye</td>
+     *     <td>{@link #blockReachToCentre} — a release gate must match the actuator exactly,
+     *     or it either abandons reachable blocks or holds unreachable ones</td></tr>
      * <tr><td>{@code MineProcess.findReachStand}</td><td>this hypothetical eye</td>
      *     <td>{@code MAX_REACH} = 4.4, plus a collider ray</td></tr>
      * <tr><td>{@code BboxFillProcess.withinReach}</td><td>this hypothetical eye</td>
-     *     <td>4.0, no ray</td></tr>
-     * <tr><td>{@code WalkerTickClimb} parkour-place</td><td>the real eye</td><td>4.0</td></tr>
-     * <tr><td>{@code WalkerTickPrelude} dig-latch release</td><td><b>the FEET</b>
-     *     ({@code p.position()})</td><td>√20 ≈ 4.47</td></tr>
+     *     <td>{@code FILL_STAND_REACH} = 4.0, no ray</td></tr>
+     * <tr><td>{@code WalkerTickClimb} parkour-place</td><td>the real eye</td>
+     *     <td>{@code PARKOUR_PLACE_REACH} = 4.0</td></tr>
      * </table>
      *
-     * <p>The first four differ only in how much margin each buys, and buying margin on the way IN
-     * is the safe direction. The last one measures a different quantity: from the feet, a block 5
-     * BELOW is 5.0 away while the eye is 6.6 from it, and a block 5 ABOVE is 5.0 away while the
-     * eye is only 3.4 from it. So that gate is loose downward and tight upward — and tight upward
-     * contradicts {@code MineProcess.findReachStand}, which scans {@code dy} to −5 precisely so a
-     * body can stand under an overhead block and mine straight up, a case its own comment calls
-     * "within the 4.5 reach" because it measures from the eye.
+     * <p>The three short radii are margin bought on purpose, and buying margin on the way IN is
+     * the safe direction: two of them pick a cell to WALK TO (the body will not be standing on
+     * that centre when it arrives) and the third fires mid-leap off an already-stale eye. The two
+     * that gate a LIVE interaction take the authority's number, because for those margin is not
+     * safety — it is a false refusal.
+     *
+     * <p><b>What this table replaced</b> was a sixth answer that measured a different quantity:
+     * the dig-claim release used {@code distToCenterSqr(p.position())}, i.e. from the FEET. See
+     * {@link #eyeWithin} for why that is loose downward and tight upward rather than merely
+     * imprecise.
      */
     public static Vec3 standingEye(BlockPos foot) {
         return new Vec3(foot.getX() + 0.5, foot.getY() + 1.62, foot.getZ() + 0.5);
+    }
+
+    /**
+     * Is the centre of {@code block} within {@code reach} of {@code eye}? The one place that
+     * decides "can this body operate on that cell", so the five call sites differ only in the
+     * radius each passes — which is a visible number rather than a second opinion.
+     *
+     * <p><b>From the eye, never the feet.</b> The two are not the same measurement and swapping
+     * them is not a rounding difference: a cell 5 BELOW the body is 5.0 from the feet but 6.6
+     * from the eye, and a cell 5 ABOVE is 5.0 from the feet but only 3.4 from the eye. A
+     * feet-based gate is therefore LOOSE downward and TIGHT upward — and tight-upward is exactly
+     * the case {@code MineProcess.findReachStand} scans {@code dy} down to −5 to support (stand
+     * under an overhead block and mine straight up, which its own comment calls "within the 4.5
+     * reach" precisely because it measures from the eye).
+     *
+     * @param eye the eye position — {@code p.getEyePosition()} for a body that is already there,
+     *            {@link #standingEye} for a candidate cell it has not walked to yet
+     */
+    public static boolean eyeWithin(Vec3 eye, BlockPos block, double reach) {
+        return eye.distanceToSqr(block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5)
+                <= reach * reach;
+    }
+
+    /** {@link #eyeWithin(Vec3, BlockPos, double)} for a body that is already standing somewhere. */
+    public static boolean eyeWithin(Player p, BlockPos block, double reach) {
+        return eyeWithin(p.getEyePosition(), block, reach);
+    }
+
+    /**
+     * The reach the GAME grants this body, measured to a block CENTRE — the number every
+     * "can I still operate on that cell" gate should be comparing against.
+     *
+     * <p>{@code blockInteractionRange()} is the player's own attribute and is measured to the
+     * nearest FACE; the half block converts it to the centre, erring outward so a gate never
+     * rejects an interaction vanilla would allow. Lifted from
+     * {@code ServerPlayerAvatar.canBreakFromHere}, which is where this repo first asked the game
+     * instead of hardcoding a number.
+     */
+    public static double blockReachToCentre(Player p) {
+        return p.blockInteractionRange() + 0.5;
     }
 
     // === Aiming (the process family) =========================================

@@ -25,7 +25,6 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -999,10 +998,10 @@ final class WalkerTickClimb {
             Walker.avatarSneak(a, placed);               // sneak-brake / ledge-guard on landing
             p.setShiftKeyDown(placed);
             if (!placed && !grounded && a.holdPlaceable()) {
-                Vec3 eye = p.getEyePosition();
-                double fdx = (floor.getX() + 0.5) - eye.x, fdy = (floor.getY() + 0.5) - eye.y, fdz = (floor.getZ() + 0.5) - eye.z;
-                boolean inReach = fdx * fdx + fdy * fdy + fdz * fdz < 16;   // ~4 blocks of the eye
-                if (inReach) {
+                // 4.0, not the full blockReachToCentre(p): this fires MID-LEAP, so the eye read
+                // here is already a tick stale by the time the place lands. The margin is bought
+                // on purpose — see BotUtil#standingEye for the table of what each reach site pays.
+                if (eyeWithin(p, floor, PARKOUR_PLACE_REACH)) {
                     a.place(world,floor);
                     if (BotConfig.walkerDebug)
                         LOG.info(

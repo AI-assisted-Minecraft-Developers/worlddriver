@@ -329,9 +329,7 @@ public final class BboxFillProcess implements BotProcess {
     private static final double FILL_STAND_REACH = 4.0;
 
     private static boolean withinReach(BlockPos stand, BlockPos block) {
-        return standingEye(stand).distanceToSqr(
-                block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5)
-                <= FILL_STAND_REACH * FILL_STAND_REACH;
+        return eyeWithin(standingEye(stand), block, FILL_STAND_REACH);
     }
 
     private String currentBlockId(Level lvl) {

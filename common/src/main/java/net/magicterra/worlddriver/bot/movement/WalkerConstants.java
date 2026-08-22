@@ -394,6 +394,14 @@ final class WalkerConstants {
      *  yet stays well under {@link #OVERSHOOT_RESYNC_SQ}=4 so it can never skip a node the bot is still
      *  genuinely swimming toward from afar / cut a live corner. */
     public static final double WATER_WALK_REACH_SQ = 1.3;
+    /** Eye-to-centre reach for the mid-leap parkour floor place ({@code WalkerTickClimb}). Was an
+     *  inline {@code < 16} with the comment "~4 blocks of the eye"; named here so it sits beside
+     *  the other reach numbers instead of hiding as a magic square. Deliberately short of the
+     *  {@code blockInteractionRange + 0.5} the game actually grants: this fires while AIRBORNE, so
+     *  the eye it measures from has already moved by the time the place resolves, and a place that
+     *  is refused mid-leap costs one tick while a place that misses costs the landing. See
+     *  {@code BotUtil#standingEye} for the full table of what each reach site in this repo pays. */
+    public static final double PARKOUR_PLACE_REACH = 4.0;
     /** stuckTicks before a FLAT-node carrot-orbit falls back to aiming at the IMMEDIATE node
      *  instead of the look-ahead carrot. On a flat walk aimAtWaypoint is false (wp.y==foot.y), so
      *  the body follows the carrot; at a turn/corner node the carrot points ~60° off the close node

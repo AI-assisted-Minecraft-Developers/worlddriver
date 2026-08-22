@@ -115,8 +115,17 @@ final class WalkerTickPrelude {
             spent = wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
                     || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
         }
+        // Out of mining reach — measured EYE to block centre against the range the game grants
+        // this body, which is the same question ServerPlayerAvatar.canBreakFromHere asks before
+        // it lets a dig happen at all. This used to be `distToCenterSqr(p.position()) > 20`,
+        // i.e. from the FEET at a hardcoded ~4.47, and the two are different measurements: a
+        // cell 5 below is 5.0 from the feet but 6.6 from the eye (so the latch outlived reach
+        // going down — the C31-J1 badlands stall this line was tightened for), and a cell 5
+        // above is 5.0 from the feet but only 3.4 from the eye (so it revoked the claim on a
+        // block still well in reach, which is exactly the stand-under-and-mine-up case
+        // MineProcess.findReachStand scans dy to −5 to create).
         if (!world.isSolid(wk.stickyDig.pos) || spent
-                || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20) {
+                || !eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))) {
             if (BotConfig.walkerDebug)
                 LOG.info("[walker] dig-aim RELEASE {} solid={} ticks={} stall={} prog={}",
                         wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
@@ -301,10 +310,13 @@ final class WalkerTickPrelude {
                     wk.stickyDig.lastProgress = prog;   // vanilla reset — re-baseline
                 wk.stickyDig.stallTicks++;
             }
+            // Same eye-to-centre reach test as expireDigClaim above — see the note there for why
+            // the old feet-based `distToCenterSqr(p.position()) > 20` measured a different
+            // quantity in both directions.
             if (!world.isSolid(wk.stickyDig.pos)
                     || wk.stickyDig.stallTicks > STICKY_DIG_STALL_TICKS
                     || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS
-                    || wk.stickyDig.pos.distToCenterSqr(p.position()) > 20) {
+                    || !eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))) {
                 if (BotConfig.walkerDebug)
                     LOG.info("[walker] sticky-dig RELEASE {} solid={} ticks={} stall={} prog={}",
                             wk.stickyDig.pos, world.isSolid(wk.stickyDig.pos), wk.stickyDig.ticks,
