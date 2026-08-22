@@ -553,6 +553,35 @@ if (!rig.avatar().holdItem(pillarItem)) {      // 只拿客户端那一只手
 
 **本级总判据不变：够到点火那一步或更远。**
 
+### 实测（run 12g，2026-08-22）：**PASS，`ticks 14525 → 20487`**
+
+```
+【REHEARSAL — not a climb, staging.calls=12】PORTAL_LIT(传送门点火) 达成 —
+在 y=57 就地浇出十块黑曜石并点亮 6 格传送门（自带一桶水下井，浇完水还在桶里）
+
+water9.raisedY = 60/60          cast9.raisedY = 59/59
+water9.spent   = minecraft:water_bucket 1→0     cast9.spent = minecraft:lava_bucket 1→0
+frame.cast     = 10/10（浇成过 10 格，浇成之后又丢了 0 格）
+frame.obsidian = 10/10
+holdBoth.*     零行
+```
+
+**判据 1、2、4 全部命中。** 而且**是修好了不是绕过去了**：上一趟死在第九格的升高
+（`pinnedShort` → `YLevel` 后备 → `endedIn=-1,19`），这一趟第九、十格的两次升高都到位
+（`60/60` 与 `59/59`），随后各自 `.spent 1→0`。第十格还顺手验了一处转换过的调用点——
+`cast9.stairsBroken=1/11 级坏了` 之后 `cast9.stairsMend.0` 补上了（`JourneyStairs:363`）。
+
+**PASS 的证据 map 在 `data` 字段里，不在 `reason` 里**（`reason` 只有标题句）——
+和 FAIL 相反，`FAIL` 才把 map 拼进 `reason`。上一版的提取脚本按 `reason` 找，
+在 PASS 上会打出「零行」，读起来像跑了个空场。
+
+### 还欠一个样本数
+
+一次 PASS。按 [[three-greens-cannot-see-a-one-in-four]]，
+下一步不是再跑一遍这一级，而是**跑整条真梯**：`holdBoth` 铺到的九个点里有四个
+（`JourneyEndRungs:996/1512`、`JourneyShelter:163`、`JourneyStairs:363`）
+在 12 级之外，本级排练根本没覆盖到它们，回归风险只有整条梯子能看见。
+
 ### 排队的硬化（不阻塞前沿）
 
 把顺序不变量收进一个入口：`aimThenAct` 扩成 `aimThenUse(rig, at, item, act)`
