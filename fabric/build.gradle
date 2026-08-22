@@ -307,13 +307,17 @@ loom {
         //                                      between「works in singleplayer」and「works on a
         //                                      server」.
         //
-        // ⚠️ WHAT THESE DO **NOT** CHANGE: which body climbs. All three drive the ladder's own
-        // avatar (`JourneyRig.spawnBody` → `ServerWorldDriver.createIsolated`), never the human
-        // client's player — see JourneyRig's class note for why that seam does not exist. So the
-        // fake-player capability gaps (fallDistance always 0, isInvulnerableTo → true, no
-        // advancements) are properties of the BODY and are present in all three. Every rung records
-        // `journey.topology` and `journey.body`, so no results row can be compared across
-        // topologies without saying which of the two it varied.
+        // ⚠️ WHICH BODY CLIMBS IS NOT THE SAME ON ALL THREE, and this comment said the opposite
+        // until 2026-08-22. `journeyIntegratedServer` ADOPTS the client's real player
+        // (`JourneyRig.spawnBody` takes the adoption branch, `realPlayerHelm` flips the helm to
+        // `BotApi.runProcess`); the other two mint the headless body via
+        // `ServerWorldDriver.createIsolated`. That is not a code reading — a run of it recorded
+        // `journey.body=real:ServerPlayer Player452` and `journey.steer=clientUserTask/
+        // ClientPlayerAvatar` against the headless arm's `joined` / `serverTick`, which is how the
+        // deep-water jump gate got found. So the fake-player capability gaps (fallDistance always
+        // 0, isInvulnerableTo → true, no advancements) belong to the OTHER TWO, not to all three.
+        // Every rung records `journey.topology`, `journey.body` AND `journey.steer`, because this
+        // topology varies two things at once and a row missing either cannot be compared.
         //
         // ⚠️ AND `worlddriver.realPlayerBodies` STAYS ON for both of these, which looks redundant and
         // is not. `ServerLevel.players()` is PER LEVEL, and the human client never leaves the
