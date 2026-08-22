@@ -1,0 +1,178 @@
+package net.magicterra.worlddriver.bot.stagewright;
+
+import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+
+/**
+ * The one place a scene gets a body, and the one place that asks whether minting one is legal here.
+ *
+ * <h2>Why this exists</h2>
+ *
+ * Ninety call sites across two packages opened with the same four lines — mint an isolated driver,
+ * take its player, register a cleanup that unregisters and discards it, empty its inventory — and
+ * six files had each grown a private {@code body(ctx, foot)} helper holding a copy of them. That is
+ * ordinary duplication right up until the moment a rule has to apply to <b>every</b> mint, and then
+ * it is ninety places to edit and no way to prove you found them all.
+ *
+ * <h2>The rule it enforces</h2>
+ *
+ * The 2026-08-20 body-selection instruction: NeoForge's {@code FakePlayer} is retired,
+ * {@code JoinedBody} is for the <b>dedicated test server only</b>, and a topology that has a real
+ * client drives that client's {@code LocalPlayer}. The word doing the work is <i>only</i> — it
+ * divides by TOPOLOGY, not by what a scene happens to be testing. So on an integrated server with a
+ * human in it there are exactly two legal states for a scene: drive the real player, or
+ * {@linkplain SceneContext#skip skip and say where its coverage lives}. Minting a headless body
+ * there is neither.
+ *
+ * <p>This class implements the second of those. Driving the real player is the larger job — the
+ * gate scenes actuate through {@code ServerPlayerAvatar.step()}, which integrates locomotion by
+ * hand, and writing those positions onto a player whose client is also sending movement packets
+ * makes the two fight. {@code JourneyRig} already carries the shape of the answer (flip the helm to
+ * {@code BotApi.runProcess} and let the client's own task chain drive), and converting a scene
+ * family to it is per-family work, not a rename. Until a family is converted, a recorded skip is
+ * the honest state: it is accounted for in the results, it names where the coverage actually is, and
+ * it cannot be mistaken for a scene that quietly did its job.
+ *
+ * <h2>What a skip here costs, stated rather than hidden</h2>
+ *
+ * The integrated gate existed to run the SAME scenes under a different topology — 「a topology must
+ * vary the RUN, never the subject」. Skipping the minting scenes there gives that up: the
+ * cross-topology comparison is exactly what stops happening. The trade is deliberate and it is
+ * temporary. Coverage for a skipped scene is on {@code stagewrightDedicatedServerFabric} /
+ * {@code …Neoforge}, and the reconciliation that has to hold after every change here is:
+ * <b>every scene skipped for this reason on the integrated gate is executed on the dedicated one.</b>
+ * A skip is not coverage; a skip plus that reconciliation is.
+ *
+ * <h2>Which topologies this refuses on</h2>
+ *
+ * Only the integrated one — a game client hosting its own world, with the client half of the driver
+ * in the JVM and a human in the player list. That is the topology the instruction names.
+ * {@code dedicatedServerWithClient} keeps minting on purpose: its client lives in the OTHER process
+ * and a {@code BotProcess} object cannot cross a socket, which is the same reason the ladder keeps
+ * a headless body there. If that should change, it is a decision to take deliberately rather than a
+ * side effect of this predicate.
+ */
+public final class SceneBody {
+
+    private SceneBody() {}
+
+    // Three factories, because the call sites really are three shapes. A survey of the eighty-five
+    // sites in `scene/` before this class existed: fifty follow `mint` exactly, a dozen (the six
+    // copied private helpers) follow `managed`, and the rest own their cleanup because they mint two
+    // bodies at once and tear both down together. Collapsing them onto one factory would have
+    // changed what the DEDICATED server does — adding an `unregister` where there was none, or
+    // clearing an inventory a scene had just filled — and that server's behaviour has to stay
+    // byte-identical through this change, because it is the arm every skipped scene's coverage is
+    // being handed to. So the shapes are preserved and only the gate is shared.
+
+    /**
+     * A body at {@code (x, y, z)}, discarded when the scene resolves. <b>The common case.</b>
+     *
+     * <p>Exactly {@code createIsolated} + {@code ctx.cleanup(() -> driver.fakePlayer().discard())},
+     * which is what fifty sites wrote by hand.
+     *
+     * @throws net.magicterra.stagewright.contract.SceneSkipped when this topology may not mint one
+     */
+    public static ServerWorldDriver mint(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+        ServerWorldDriver driver = bare(ctx, level, x, y, z);
+        ctx.cleanup(() -> driver.fakePlayer().discard());
+        return driver;
+    }
+
+    /** {@link #mint} in this scene's own level. */
+    public static ServerWorldDriver mint(SceneContext ctx, double x, double y, double z) {
+        return mint(ctx, ctx.level(), x, y, z);
+    }
+
+    /** {@link #mint} standing in the centre of {@code foot}, in this scene's own level. */
+    public static ServerWorldDriver mint(SceneContext ctx, BlockPos foot) {
+        return mint(ctx, foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
+    }
+
+    /**
+     * A body that is also UNREGISTERED from {@link ServerAvatarManager}, with an empty inventory.
+     *
+     * <p>The shape the six copied {@code body(ctx, foot)} helpers had grown. The extra
+     * {@code unregister} matters for a body that was handed a {@code BotProcess}: discarding the
+     * entity does not take it off the manager's tick list, and a process still ticking against a
+     * discarded body is a leak that poisons the next scene rather than failing this one.
+     */
+    public static ServerWorldDriver managed(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+        ServerWorldDriver driver = bare(ctx, level, x, y, z);
+        ServerPlayer fp = driver.fakePlayer();
+        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
+        fp.getInventory().clearContent();
+        return driver;
+    }
+
+    /** {@link #managed} in this scene's own level. */
+    public static ServerWorldDriver managed(SceneContext ctx, double x, double y, double z) {
+        return managed(ctx, ctx.level(), x, y, z);
+    }
+
+    /** {@link #managed} standing in the centre of {@code foot}, in this scene's own level. */
+    public static ServerWorldDriver managed(SceneContext ctx, BlockPos foot) {
+        return managed(ctx, foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
+    }
+
+    /**
+     * The gate and the mint, and nothing else — <b>the caller owes a cleanup.</b>
+     *
+     * <p>For the sites that mint two bodies and discard both in one lambda. They cannot use
+     * {@link #mint} without changing how many cleanups run in what order, which is a behaviour
+     * change on the dedicated server for no gain. What they must NOT do is call
+     * {@code ServerWorldDriver.createIsolated} directly — that is the one path that bypasses the
+     * rule, and the reason this method exists is to leave no excuse for taking it.
+     */
+    public static ServerWorldDriver bare(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+        refuseWhereAClientShouldDrive(ctx);
+        return ServerWorldDriver.createIsolated(level, x, y, z);
+    }
+
+    /** {@link #bare} in this scene's own level. */
+    public static ServerWorldDriver bare(SceneContext ctx, double x, double y, double z) {
+        return bare(ctx, ctx.level(), x, y, z);
+    }
+
+    /**
+     * Whether a headless body may be minted in this run at all.
+     *
+     * <p>For the scene that must BRANCH rather than skip. There is one: {@code wd.bodyParityCensus}
+     * holds two bodies side by side and measures the difference, and it is the negative control for
+     * the whole body-selection change — a version of it that skipped would remove the only reading
+     * that can falsify the parity table. Everything else should call {@link #at} and let it decide.
+     */
+    public static boolean mintingIsLegal(SceneContext ctx) {
+        return !aClientShouldDrive(ctx);
+    }
+
+    /** The predicate, kept identical in shape to {@code JourneyRig.realPlayerHelm} so the two
+     *  cannot drift into disagreeing about what「集成服 + 真玩家」means. */
+    private static boolean aClientShouldDrive(SceneContext ctx) {
+        MinecraftServer server = ctx.server();
+        if (server == null || server.isDedicatedServer()) return false;
+        if (!BotHooks.isAvailable()) return false;
+        return hasHumanPlayer(ctx);
+    }
+
+    private static void refuseWhereAClientShouldDrive(SceneContext ctx) {
+        if (!aClientShouldDrive(ctx)) return;
+        ctx.skip("集成服上有真实客户端，按 2026-08-20 的身体选型指令，这里不许再造无头身体（JoinedBody "
+                + "仅限专用测试服）。这条场景的执行层还没转到客户端舵（BotApi.runProcess），"
+                + "覆盖率记在 stagewrightDedicatedServer* 闸上。");
+    }
+
+    private static boolean hasHumanPlayer(SceneContext ctx) {
+        for (ServerPlayer p : ctx.players()) {
+            if (!(p instanceof JoinedPlayerBodies.JoinedBody)) return true;
+        }
+        return false;
+    }
+}

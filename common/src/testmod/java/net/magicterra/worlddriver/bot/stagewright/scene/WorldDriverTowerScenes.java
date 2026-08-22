@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
@@ -402,11 +403,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
     /** A body, its driver, and the cleanup that removes both. */
     private static ServerWorldDriver body(SceneContext ctx, double x, double y, double z) {
-        ServerWorldDriver driver = ServerWorldDriver.createIsolated(ctx.level(), x, y, z);
-        ServerPlayer fp = driver.fakePlayer();
-        ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); });
-        fp.getInventory().clearContent();
-        return driver;
+        return SceneBody.managed(ctx, x, y, z);
     }
 
     // ---------------------------------------------------------------- arms ----
