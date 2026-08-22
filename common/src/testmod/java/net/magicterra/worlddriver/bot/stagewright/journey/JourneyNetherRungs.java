@@ -128,13 +128,14 @@ public final class JourneyNetherRungs {
         // headroom now buys is the fight, which is what this rung actually claims.
         out.add(rung("wd.journey14BlazeRod", JourneyStage.BLAZE_ROD, 360_000,
                 JourneyNetherRungs::blazeRod));
-        // 120 000 still, and now it is the arithmetic rather than the absence of one. The old note
-        // said "no build, and the walk is to whatever enderman is already loaded rather than to a
-        // landmark", which is exactly what was wrong with the rung: the walk is now to a landmark,
-        // up to MAX_HOPS legs of HOP_TICKS (≈36k — MAX_HOPS went 24→40 for the fortress leg, and
-        // this rung's own crossing is 272 blocks, ~20 hops at the rate that raise was measured on),
-        // then six rounds of approach-and-fight (≈48k), then up to six dry waits (≈7k), which is 91k.
-        out.add(rung("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL, 120_000,
+        // 300 000, and it is still arithmetic rather than a round number. The crossing to the warped
+        // forest is up to MAX_HOPS legs of HOP_TICKS (≈36k). The hunting was six rounds and is now up
+        // to ENDERMAN_HUNTS=30, because the rung now fills the portal's twelve-pearl quota instead of
+        // proving one pearl: at the measured 338–2247 ticks of fighting plus a 4000-tick approach
+        // cap, thirty rounds is ≈190k worst case, plus up to thirty dry waits (≈36k). That is 262k,
+        // so 300k leaves the margin. The quota also ENDS the rung early, so a lucky run costs the
+        // old price — this ceiling is what an unlucky one is allowed to spend, not what it will.
+        out.add(rung("wd.journey15EnderPearl", JourneyStage.ENDER_PEARL, 300_000,
                 JourneyNetherRungs::enderPearl));
         return List.copyOf(out);
     }
@@ -841,7 +842,12 @@ public final class JourneyNetherRungs {
     private static void fightOneBlaze(SceneContext ctx, JourneyRig rig, BlockPos spawner,
                                       int roundsLeft, StringBuilder tally, int[] killed) {
         ServerLevel nether = rig.player().serverLevel();
-        int rods = rig.carrying(BLAZE_ROD);
+        // Bag PLUS ground, and for a reason that made this test dead code: collection happens once,
+        // at the END (see blazeVerdict), so during the loop the bag holds only the rods that
+        // happened to drop onto the body. Read that way "enough rods" almost never became true and
+        // the round cap was doing all the work. What the target means is "enough rods EXIST" — the
+        // walk that gathers them comes after.
+        int rods = rig.carrying(BLAZE_ROD) + rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK);
         if (roundsLeft <= 0 || rods >= BLAZE_RODS_WANTED) {
             blazeVerdict(ctx, rig, tally, killed[0]);
             return;
@@ -920,6 +926,10 @@ public final class JourneyNetherRungs {
         rig.evidence("blaze.killed", killed + " 只");
         rig.evidence("rods.perKill", tally.length() == 0 ? "一场没打" : tally.toString());
         rig.evidence("blaze_rod", rods);
+        rig.evidence("blaze_rod.quota", rods + "/" + BLAZE_RODS_WANTED
+                + "（一套末地门要 " + (BLAZE_RODS_WANTED * 2) + " 份烈焰粉，一根棒磨两份）"
+                + (rods >= BLAZE_RODS_WANTED ? " —— 够了" : " —— 还差 " + (BLAZE_RODS_WANTED - rods)
+                        + "，18 级会因此停下，而那时身体已经不在下界了"));
         rig.evidence("dropsNearby", rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK) + " 根掉在地上没捡");
         rig.noteAdvancement("minecraft:nether/obtain_blaze_rod");
         ctx.expect(rods).as("烈焰棒真的进了包（不是打死了就算）").isAtLeast(1);
@@ -1351,7 +1361,15 @@ public final class JourneyNetherRungs {
     private static void huntOne(SceneContext ctx, JourneyRig rig, int roundsLeft,
                                 int[] foundAndKilled, StringBuilder tally) {
         ServerLevel nether = rig.player().serverLevel();
-        if (roundsLeft <= 0) { pearlVerdict(ctx, rig, foundAndKilled, tally); return; }
+        // Stop on the QUOTA as well as on the rounds, counting bag plus ground for the same reason
+        // the blaze loop does: the pearls are gathered once, after the hunting. A full end portal
+        // costs twelve eyes and therefore twelve pearls, and this is the only dimension that sells
+        // them — a run that walks home one pearl short has to come all the way back.
+        int pearls = rig.carrying(ENDER_PEARL) + rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK);
+        if (roundsLeft <= 0 || pearls >= PEARLS_WANTED) {
+            pearlVerdict(ctx, rig, foundAndKilled, tally);
+            return;
+        }
 
         final int round = ENDERMAN_HUNTS - roundsLeft + 1;
         EnderMan target = nearestEnderman(nether, rig.player().blockPosition());
@@ -1440,6 +1458,10 @@ public final class JourneyNetherRungs {
         rig.evidence("enderman.killed", killed + "/" + ENDERMAN_HUNTS);
         rig.evidence("pearls.perFight", tally.length() == 0 ? "一场没打" : tally.toString());
         rig.evidence("ender_pearl", pearls);
+        rig.evidence("ender_pearl.quota", pearls + "/" + PEARLS_WANTED
+                + "（一套末地门要 " + PEARLS_WANTED + " 只眼，每只一颗珍珠）"
+                + (pearls >= PEARLS_WANTED ? " —— 够了" : " —— 还差 " + (PEARLS_WANTED - pearls)
+                        + "，18 级会因此停下，而那时身体已经不在下界了"));
         rig.evidence("dropsNearby", rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK)
                 + " 颗掉在地上没捡（这一行是在收集之后读的，所以非零表示收集也没够着）");
         rig.evidence("arena", "真的下界，不是盒子 —— 瞬移可以真的把它带走");
@@ -2732,14 +2754,30 @@ public final class JourneyNetherRungs {
     private static final int RESPAWN_WAIT_TICKS = 1_200;
 
     /** How many blazes to fight, and how long one fight gets. The arena's closed-room fight took 40
-     *  ticks; 1200 leaves room for the approach and for a room that turned out to be leaky. */
-    private static final int BLAZE_FIGHTS = 8;
+     *  ticks; 1200 leaves room for the approach and for a room that turned out to be leaky.
+     *
+     *  <p>24 rather than 8 because the rod drop is 0–1 at roughly even odds, so six rods needs about
+     *  twelve kills and wants headroom above that. The real cost is not the fighting — the measured
+     *  fights took 52–59 ticks each — it is waiting for the spawner to turn between them. */
+    private static final int BLAZE_FIGHTS = 24;
     private static final int BLAZE_FIGHT_TICKS = 1_200;
     private static final double BLAZE_SEARCH = 16.0;
 
-    /** How many rods to stop at. One is what this rung claims; the eyes of ender above it will want
-     *  more, and asking for them here would make this rung fail for the rung above's bill. */
-    private static final int BLAZE_RODS_WANTED = 1;
+    /**
+     * How many rods to keep fighting for — a <b>target</b>, never a criterion.
+     *
+     * <p>Six, because a full end portal costs twelve eyes, an eye costs one blaze powder, and a rod
+     * grinds into two. The 2026-08-22 ladder run stopped at one rod and one pearl, crafted its one
+     * eye, and rung 18 then found itself eleven short — with the body already back in the Overworld
+     * and the only source of both eleven hundred blocks away through a portal. Filling the quota
+     * while standing at the spawner is what a player does, and it costs this run nothing extra.
+     *
+     * <p>The distinction the old comment drew still holds and is why this is only a target: the
+     * rung's PASS still asks for ONE rod. Asking for six would make this rung go red for the rung
+     * above's bill, and on a 50% drop that is a coin-flip failure rather than a driver failure. A
+     * run that comes up short records the shortfall and lets rung 18 be the one that says so.
+     */
+    private static final int BLAZE_RODS_WANTED = 6;
 
     /**
      * The radius of the window {@code DistanceManager.hasPlayersNearby} answers from, in chunks.
@@ -2752,9 +2790,24 @@ public final class JourneyNetherRungs {
      */
     private static final int SPAWN_WINDOW_CHUNKS = 8;
 
-    /** Six hunts and a bar of four — a MAJORITY. See {@link #enderPearl} for why not six of six. */
-    private static final int ENDERMAN_HUNTS = 6;
+    /**
+     * The hunt cap, the kill bar, and the pearl quota — three different numbers on purpose.
+     *
+     * <p>{@code ENDERMAN_HUNTS} is a CAP: hunting stops earlier the moment the quota is met. It went
+     * from 6 to 30 because the pearl drop is 0–1 at roughly even odds, so twelve pearls needs about
+     * twenty-four kills. The measured cost per hunt was 338–2247 ticks of fighting plus the approach.
+     *
+     * <p>{@code ENDERMEN_TO_KILL} stays a bar of four and stays a MAJORITY of the old six, because
+     * it measures a different claim — that a teleporting mob is killable at all — and raising it in
+     * step with the cap would turn this rung red whenever the world was simply quiet.
+     *
+     * <p>{@code PEARLS_WANTED} is the quota, twelve, one per eye in a full portal frame. Like the
+     * blaze rung's rod target it is NOT a criterion: coming up short is recorded and left for rung 18
+     * to judge, because a coin-flip shortfall is not a driver defect.
+     */
+    private static final int ENDERMAN_HUNTS = 30;
     private static final int ENDERMEN_TO_KILL = 4;
+    private static final int PEARLS_WANTED = 12;
     private static final double ENDERMAN_SEARCH = 48.0;
     private static final int ENDERMAN_WAIT_TICKS = 1_200;
     private static final int ENDERMAN_APPROACH_TICKS = 4_000;
