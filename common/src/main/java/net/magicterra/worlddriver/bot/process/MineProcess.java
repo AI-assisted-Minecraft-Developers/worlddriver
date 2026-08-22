@@ -1058,7 +1058,8 @@ public final class MineProcess implements BotProcess {
                     if (lvl.getBlockState(cand.below()).getFluidState().is(Fluids.WATER)) continue;
                     if (lvl.getBlockState(cand).getFluidState().is(Fluids.WATER)) continue;
                     if (!canStandHere(lvl, cand)) continue;
-                    double ex = cand.getX() + 0.5, ey = cand.getY() + 1.62, ez = cand.getZ() + 0.5;
+                    Vec3 eye = standingEye(cand);
+                    double ex = eye.x, ey = eye.y, ez = eye.z;
                     double d2 = (ex - tx) * (ex - tx) + (ey - ty) * (ey - ty) + (ez - tz) * (ez - tz);
                     if (d2 > MAX_REACH * MAX_REACH || d2 >= bestD2) continue;
                     if (!reachLineOfSight(lvl, ex, ey, ez, tx, ty, tz, block)) continue;

@@ -199,6 +199,44 @@ public final class BotUtil {
         return true;
     }
 
+    /**
+     * Where the eye WOULD be if a body stood with its feet in {@code foot} — the cell centre,
+     * 1.62 up. For deciding, before the body is there, whether a candidate stand can reach a
+     * block; a body that is already somewhere has {@code p.getEyePosition()} and must use it.
+     *
+     * <p>The three literals were written out twice ({@code MineProcess.findReachStand},
+     * {@code BboxFillProcess.withinReach}) — the same hypothetical eye, so one place.
+     *
+     * <p><b>The radius is deliberately NOT part of this.</b> "Within reach" is computed in five
+     * places in this repo and no two agree, which is the kind of divergence that reads as
+     * flakiness later, so the numbers are written down here rather than averaged away:
+     *
+     * <table><caption>reach predicates, 2026-08-22</caption>
+     * <tr><th>site</th><th>measured from</th><th>radius</th></tr>
+     * <tr><td>{@code ServerPlayerAvatar.canBreakFromHere} — <b>the authority</b>, and the only one
+     *     that asks the game ({@code blockInteractionRange()})</td><td>the real eye</td>
+     *     <td>{@code range + 0.5} = 5.0 survival</td></tr>
+     * <tr><td>{@code MineProcess.findReachStand}</td><td>this hypothetical eye</td>
+     *     <td>{@code MAX_REACH} = 4.4, plus a collider ray</td></tr>
+     * <tr><td>{@code BboxFillProcess.withinReach}</td><td>this hypothetical eye</td>
+     *     <td>4.0, no ray</td></tr>
+     * <tr><td>{@code WalkerTickClimb} parkour-place</td><td>the real eye</td><td>4.0</td></tr>
+     * <tr><td>{@code WalkerTickPrelude} dig-latch release</td><td><b>the FEET</b>
+     *     ({@code p.position()})</td><td>√20 ≈ 4.47</td></tr>
+     * </table>
+     *
+     * <p>The first four differ only in how much margin each buys, and buying margin on the way IN
+     * is the safe direction. The last one measures a different quantity: from the feet, a block 5
+     * BELOW is 5.0 away while the eye is 6.6 from it, and a block 5 ABOVE is 5.0 away while the
+     * eye is only 3.4 from it. So that gate is loose downward and tight upward — and tight upward
+     * contradicts {@code MineProcess.findReachStand}, which scans {@code dy} to −5 precisely so a
+     * body can stand under an overhead block and mine straight up, a case its own comment calls
+     * "within the 4.5 reach" because it measures from the eye.
+     */
+    public static Vec3 standingEye(BlockPos foot) {
+        return new Vec3(foot.getX() + 0.5, foot.getY() + 1.62, foot.getZ() + 0.5);
+    }
+
     // === Aiming (the process family) =========================================
 
     /**
