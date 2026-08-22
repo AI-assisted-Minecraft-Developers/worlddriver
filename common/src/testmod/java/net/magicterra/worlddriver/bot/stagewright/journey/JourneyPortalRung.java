@@ -2387,10 +2387,16 @@ public final class JourneyPortalRung {
 
     /** The cells the ray goes through on its way to the backing, and what is standing in them.
      *
-     *  <p>Two rows: the target's own, and the one above it. A body pours from a foot cell one below
-     *  the target, so its eyes are in the upper row and the ray crosses into the lower one on the
-     *  way in — both have to be clear, and naming which is not is the difference between "the pour
-     *  does not work" and "there is a cobblestone at -9,52,22". */
+     *  <p><b>Four rows</b> ({@code dy} −1..+2), the same window {@link #clearPourLine} clears and
+     *  for the same reason — this row has to name every cell that method could be asked about, or a
+     *  blocker at {@code dy=+2} shows up as a clear line here and an unexplained refusal there. One
+     *  below the target is where the body's feet go, the target's own is where the ray travels, and
+     *  TWO above because the cast's own water floats the body a block higher by the third cell.
+     *  (This said 「two rows」 for a while after the window was widened; the neighbouring javadoc
+     *  had 「Four rows, not two」 in bold twenty lines further down the same file.)
+     *
+     *  <p>Naming which cell is not clear is the difference between "the pour does not work" and
+     *  "there is a cobblestone at -9,52,22". */
     private static String pourLine(ServerLevel level, BlockPos target, Direction away) {
         StringBuilder out = new StringBuilder();
         for (int k = 1; k <= POUR_LINE; k++)

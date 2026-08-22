@@ -624,7 +624,6 @@ public final class JourneyRoute {
         return true;
     }
 
-    /** No fluid anywhere between {@code depth} and this column's surface. */
     /**
      * No fluid anywhere in one column between its own surface and {@code depth}.
      *
