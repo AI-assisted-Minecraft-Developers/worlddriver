@@ -337,6 +337,43 @@ tick 账：顺利时 5×4000 + 过门 ~5k + 18×4000 ≈ **97k**；
 对齐检查：`RETURN_ARRIVED_WITHIN=12` < 回家后扫门的 24 格，
 `MARCH_LEG_TOLERANCE=6` 也在里面 —— 走到就一定扫得到，不会差一格。
 
+### 配额趟死在 9 级：补给的搜索窗把「需要补给的处境」排除在外（2026-08-22 09:1x）
+
+配额那些改动**一次都没跑到**——9 级就红了，10~20 级全部 BLOCKED 跳过。
+判词这次**正确判负**（`reached < FLOOR`），棘轮起了作用。
+
+```
+raw_iron.afterPickup      6          ← 六块粗铁在包里
+iron_ingot                0
+smelt.lastError           需要熔炉（背包里没有熔炉）
+furnace.before 1 → after 0           ← 熔炉丢了
+furnace.remadeError       缺 1 个 oak_log
+craftingTable.remadeError 缺 1 个 oak_log
+wood.topUpTarget          无          ← 补给例程说「没树」
+```
+
+**这个故障文件里早就写着**，一字不差：「a run holding six raw iron failed to smelt any
+because the furnace it had to re-craft needed a table, the table needed four planks, and there
+was not one log left — `furnace.remadeError=缺 1 个 oak_log`」。同一段注释还写明
+**「Raising the wood bill treats the symptom and it has been raised twice already, 3 → 5 → 8」**。
+所以这一轮**没有再抬木头账单**——那条路文件自己说过没用。
+
+**真正的缺陷在补给例程本身**：`topUpWood` 调 `nearestTrunkBeyond`，而那个扫描
+**以身体为心、dy 只取 ±8**。而木头耗尽这件事**只在深挖之后发生**：这一趟身体在
+y=42~54，自己挖了两条竖井，头顶的树冠在 20 多格之上。
+
+⇒ **扫描带按构造排除了世界上每一棵树。** 那一行诚实地印了「无」，然后这一级
+顶着一片森林饿死了。**一个恰好在被需要时够不着的补救，等于没有补救。**
+
+**已修（`29944a8d`）**：扫不到就**走回烘入的林地那一柱**（`JourneyRoute.firstTree`
+的 XZ，地表），到了再扫一次。用 `Goal.XZ` 不用 `Goal.Block`，因为烘入那格多半已经是
+3 级自己砍剩的空气——**存活的是那个「地方」，不是那一格**（`a-survey-can-invent-a-landmark`）。
+
+**另一件事没修，单独记着**：`furnace.before 1 → after 0`，熔炉在这一级中途被花掉了。
+文件里的旧注释判断是「被那个只想要*一块可放置方块*的选择器拿去垫脚了」，
+本趟 `vein1.held minecraft:oak_log`（挖铁矿时手里攥着一根原木）与之吻合。
+真玩家不会拿熔炉垫脚。这是引擎侧 `holdPlaceable` 的选择问题，按定序先不动。
+
 ### 还开着（不在这一轮）
 
 - **棘轮地板落后六级**：`JourneyLedger.FLOOR = PORTAL_KIT`(10)，而这趟零布景到了 16。
