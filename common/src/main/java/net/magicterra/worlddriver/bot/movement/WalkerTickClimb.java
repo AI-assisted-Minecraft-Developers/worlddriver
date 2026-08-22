@@ -2,33 +2,11 @@ package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.BreakFeasibility;
-import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.debug.BotLevelHolder;
-import net.magicterra.worlddriver.bot.movement.PathSmoothing.SmoothResult;
-import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
-import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
-import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
-import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
-import net.magicterra.worlddriver.bot.pathfinder.Constraint;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
-import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.Direction;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.material.Fluids;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.movement.PathSmoothing.*;
