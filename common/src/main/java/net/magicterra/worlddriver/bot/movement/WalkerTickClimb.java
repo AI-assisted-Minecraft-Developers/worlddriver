@@ -736,10 +736,18 @@ final class WalkerTickClimb {
                     // accumulates to completion. Paired with the bob-tame jump below (holds
                     // the eye near the riser → near-horizontal ray), the residual camera
                     // motion stays small. Reliable digging is the priority at a climb-out.
-                    a.aimAtBlock(riser);
-                    wk.waterClimb.lastDigRiser = riser;
+                    // CLAIM FIRST, THEN DIG WHAT WAS CLAIMED. This block used to dig `riser`
+                    // unconditionally and claim it afterwards, so a claim the travel drive already
+                    // held was ignored here — the two phases alternated targets every 20–40 ticks
+                    // and each switch threw away the other's destroyProgress. See
+                    // Walker.StickyDig.engage for the measurement that named it.
+                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(riser);
+                    BlockPos digCell = BotConfig.walkerDigAimPriority && wk.stickyDig.pos != null
+                            ? wk.stickyDig.pos : riser;
+                    a.aimAtBlock(digCell);
+                    wk.waterClimb.lastDigRiser = digCell;
                     wk.waterClimb.lastDigAimEyeY = p.getEyeY();
-                    Walker.avatarDig(a, riser);
+                    Walker.avatarDig(a, digCell);
                     // Sticky-dig coverage gap (2026-07-21 live lake basin): the per-tick
                     // re-aim above holds the CAMERA on the riser, but a bob that dips the
                     // eye below the surface still makes the mining raycast MISS for those
@@ -749,7 +757,7 @@ final class WalkerTickClimb {
                     // dig site predates that machinery and never engaged it, so bank digs
                     // kept resetting through the bob while actuator digs held fine. Engage
                     // the same holder; it self-releases on break/stall/drift as everywhere.
-                    if (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority) wk.stickyDig.engage(riser);
+                    // (The engage moved ABOVE the dig — see the claim note there.)
                     BotConfig.walkerDigActive = true;   // AutoSwim's backstop yields while air is healthy
                     // Mark the dig active: next tick's breakingEdge holds the leash and
                     // exempts the burst so the dig can finish (see the breakingEdge note).

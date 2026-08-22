@@ -208,7 +208,29 @@ public final class Walker {
         int rayMiss;          // raycast-off-target ticks for this dig (cumulative)
         boolean direct;       // latched once the raycast has wandered: drop keyAttack,
                               // so vanilla cannot drive a second cell alongside ours
+        /**
+         * Claim the dig slot for {@code b}. <b>A claim, not a setter.</b>
+         *
+         * <p>Two walker phases call this every tick — the travel drive with the cell in its way,
+         * the water climb-out with its bank riser — and until 2026-08-22 whoever called LAST won.
+         * That is not a preference, it is a data loss: vanilla's {@code MultiPlayerGameMode} can
+         * track exactly ONE destroy target, so a switch runs {@code startDestroyBlock} and throws
+         * the accumulated {@code destroyProgress} away.
+         *
+         * <p>Measured on the real-client ladder, rung 3: the target alternated between y=62 and
+         * y=64 every 20–40 ticks while ONE bare-handed afloat block needs 300 (the ×5 in-water and
+         * ×5 airborne penalties multiply). Progress peaked at <b>0.81</b> and the rung timed out
+         * after 8000 ticks having broken nothing — with the dig hold never once expiring, because
+         * the hold was never the thing that was wrong.
+         *
+         * <p>So an incumbent that has real progress keeps the slot. Releasing is the prelude's job
+         * and only the prelude's: it frees the claim when the cell stops being solid, drifts out of
+         * reach, or truly stalls. A claim that could also be revoked here would put the release
+         * policy in two places, which is how the fixed-clock release outlived the lesson that
+         * killed it.
+         */
         void engage(net.minecraft.core.BlockPos b) {
+            if (b != null && pos != null && !pos.equals(b) && lastProgress > 0f) return;
             pos = b;
             ticks = 0;
             lastProgress = 0f;
