@@ -2666,8 +2666,31 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     static boolean holdForUse(JourneyRig rig, net.minecraft.world.item.Item item, String what) {
         boolean ok = rig.avatar().holdItem(item);
         rig.evidence(what + ".hand", (ok ? "" : "拿不到 " + BuiltInRegistries.ITEM.getKey(item) + "，手上是 ")
-                + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
+                + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
+                + (ok ? "" : "；" + bucketStock(rig)));
         return ok;
+    }
+
+    /**
+     * Where the three bucket states stand — printed only when a hold FAILED.
+     *
+     * <p>A bucket is not an item this ladder owns one of; it is <b>one object in three states</b>
+     * ({@code bucket} / {@code water_bucket} / {@code lava_bucket}), and rung 12 carries exactly one
+     * of it. So {@code holdItem(Items.BUCKET)} returning false has two completely different
+     * meanings — the bucket was lost, or the bucket is FULL — and the row it used to write
+     * ({@code 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe}) could not tell them apart.
+     * Rung 12's client rehearsal died on exactly that row with an aim that was beyond reproach:
+     * {@code 射线停在 -10,63,12 Block{minecraft:lava}} at 3.5 m. Nothing about the fill was wrong;
+     * the question was upstream and unasked.
+     *
+     * <p>Only on failure, deliberately. On the success path these three numbers are noise in every
+     * evidence map the ladder writes, and this rung already spends its budget of rows.
+     */
+    private static String bucketStock(JourneyRig rig) {
+        return String.format(java.util.Locale.ROOT, "桶存量 空=%d 水=%d 岩浆=%d",
+                rig.carrying("minecraft:bucket"),
+                rig.carrying("minecraft:water_bucket"),
+                rig.carrying("minecraft:lava_bucket"));
     }
 
     /** Fill the bucket from a source the body can already see. */
