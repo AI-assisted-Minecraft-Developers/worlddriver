@@ -811,8 +811,11 @@ public final class JourneyShaft {
         // by the hand the SERVER has — which the mine that preceded this course moved to a pickaxe
         // without telling anyone (see JourneyHands.holdBoth). A pickaxe's `useOn` against
         // a block face does nothing at all, silently, and the three rows this course writes report it
-        // as an ordinary stall: `climb.2.stalled=null` (the client's builder saw no error because its
-        // own prediction placed the block), `climb.2.state=onGround=true inWater=false y=56.00`, and
+        // as an ordinary stall: `climb.2.stalled=null` (NOT「builder 说没错」— that row read the
+        // SERVER's BotState, which nothing writes once the process went to the client helm, so its
+        // null meant「读的那份没人写过」; now that it is routed, a real stall must start printing
+        // TowerProcess's own `stuck (no Y gain in 60t: …)`), `climb.2.state=onGround=true
+        // inWater=false y=56.00`, and
         // `climb.2.stock=minecraft:cobblestone ×137` — the server count NEVER MOVING, which is the
         // same signature the pour had as `spent 1→1`. One course with no Y gain ends the whole tower
         // (line 850), so a wrong hand costs the entire raise: rung 12's ninth cell got
@@ -840,8 +843,13 @@ public final class JourneyShaft {
             // in the groundwater that seeped into its own shaft never is), or it jumped and the
             // place was rejected. The state at the moment it gave up is what separates them —
             // measured once already as `climb.0.stalled` with a clear ceiling and zero blocks spent.
+            // ⚠️ THAT MEASUREMENT ONLY COUNTS ON THE HEADLESS HELM. Until this line was routed it
+            // read the server's BotState unconditionally, and on the integrated helm the builder
+            // writes the client's — so every reading taken there was null by construction rather
+            // than by the tower having nothing to say, and the ladder of 2026-08-22 produced no
+            // counterexample. Read the routed value from here on; do not carry the old null forward.
             rig.evidence(climbKey(step, ".stalled"),
-                    String.valueOf(rig.body().botState().builder.lastError));
+                    String.valueOf(rig.slotError("builder")));
             rig.evidence(climbKey(step, ".state"), String.format("onGround=%s inWater=%s y=%.2f",
                     rig.player().onGround(), rig.player().isInWater(), rig.player().getY()));
             // What it was holding when it gave up. "Out of blocks?" is the builder's guess and it is

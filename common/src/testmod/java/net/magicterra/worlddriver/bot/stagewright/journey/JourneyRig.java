@@ -433,6 +433,97 @@ public final class JourneyRig {
     }
 
     /**
+     * One process slot's reading, taken from whichever half of the driver actually wrote it —
+     * <b>the read-side twin of {@link #avatar()}</b>.
+     *
+     * <p><b>There are two {@code BotState} objects and nothing connects them.</b>
+     *
+     * <pre>
+     * common/src/main/.../bot/sim/ServerWorldDriver.java:46   private final BotState botState = new BotState();
+     * common/src/main/.../bot/BotApiImpl.java:73              private final BotState state   = new BotState();
+     * </pre>
+     *
+     * {@link #startLeg} hands the process to {@code BotHooks.impl().runProcess} whenever
+     * {@code realPlayerHelm} holds, so on the integrated topology every process that runs writes the
+     * CLIENT's one. Every slot reading in this suite went to {@code body().botState()} — the
+     * server's. Those are not two views of one number; they are two unrelated objects, and on that
+     * topology the one being read has <b>no author at all</b>.
+     *
+     * <p><b>So the readings were null by construction, and the ladder proves it.</b> Across the full
+     * run of 2026-08-22 every row derived from them was null with <b>zero counterexamples</b>:
+     * {@code vein1.mine.lastError}, {@code vein1.mine.endReason}, three {@code craftError} rows,
+     * every rung's {@code gotoEnd}, and {@code climb.N.stalled}. The last one is the expensive one.
+     * {@code TowerProcess} writes, at the moment it gives up,
+     * {@code stuck (no Y gain in 60t: placed=…, holding=…, phase=…, apexFeetY=…, shortJumps=…, overhead=…)}
+     * — a line that names on its own why a tower gained nothing — and this suite has never once seen
+     * it. A null that means「进程没报错」and a null that means「读的那份没人写过」render identically,
+     * and they want opposite next steps.
+     *
+     * <p>This is the same split {@link #avatar()} documents one field over. The WRITE side was fixed
+     * there — thirty-six call sites moved onto the helm-routed actuator. The READ side was missed.
+     *
+     * <p><b>Threading: this read is safe, and that is not an untidiness to be corrected later.</b>
+     * {@code BotApi.status()} does not marshal onto the client thread; it reads volatiles plus
+     * {@code BotState.snapshot()}, which is {@code synchronized}. That is exactly the off-thread read
+     * {@code mc.bot.status} already performs from the RPC thread on every poll. It is NOT the
+     * {@link net.magicterra.worlddriver.bot.BotApi#clientAvatar()} hazard, and it must not be
+     * "fixed" into an {@code onClient} marshal: the caller here is the server thread, which on an
+     * integrated server is the thread the client ticks against, so waiting on it deadlocks.
+     *
+     * <p><b>Ask by the SNAPSHOT's key, not the field's name.</b> {@code BotState.snapshot()}
+     * publishes the goto slot as {@code "goto"} while the field is {@code mc_goto} (the field could
+     * not be named for a Java keyword), so every caller here asks for {@code "goto"} even though the
+     * call sites this replaced all spelled it {@code mc_goto}. The client's map also carries
+     * top-level entries that are not slots ({@code paused}, {@code chains}, {@code clutch}, …); this
+     * indexes by slot name only, so those are simply not reachable through here.
+     *
+     * <p><b>Only the fields {@code ProcessSlot.snapshot()} publishes come through</b> —
+     * {@code active} / {@code goal} / {@code target} / {@code pathLen} / {@code pathStep} /
+     * {@code startedAtMs} / {@code lastError} / {@code goalReached} / {@code endReason} /
+     * {@code finalDist}, and the last four only when set. {@code pathNode}, {@code pathMove},
+     * {@code driveTag} and {@code jumpTag} are deliberately excluded from that snapshot (see their
+     * javadoc: they are in-process debugging fields, not something an agent steers on), so a caller
+     * that needs one of those has no routed reading available and must say so rather than quietly
+     * reading the server's copy. {@code JourneyFlight} is that caller.
+     *
+     * <p>An unknown slot yields an empty map rather than throwing, so a {@code get} on it returns
+     * null. A slot that does not exist and a slot nobody wrote read alike, which is honest: neither
+     * has anything to say.
+     */
+    public Map<?, ?> slot(String name) {
+        Object s = botStatus().get(name);
+        return s instanceof Map<?, ?> m ? m : Map.of();
+    }
+
+    /** {@code lastError} out of {@link #slot}, or null when that slot has none. */
+    public String slotError(String name) { return slotString(name, "lastError"); }
+
+    /** {@code endReason} out of {@link #slot}, or null when that slot has none. */
+    public String slotEnd(String name) { return slotString(name, "endReason"); }
+
+    private String slotString(String name, String key) {
+        Object v = slot(name).get(key);
+        return v == null ? null : String.valueOf(v);
+    }
+
+    /**
+     * The whole slot map from the half that is driving — {@link #startLeg}'s branch, one field over.
+     *
+     * <p>The fallback is RECORDED for the same reason {@link #avatar()}'s is: dropping silently back
+     * to {@code body().botState()} would restore the exact defect this method exists to remove, and
+     * a diagnostic that fails by returning the broken answer is worse than one that throws.
+     */
+    private Map<String, Object> botStatus() {
+        if (!realPlayerHelm(ctx)) return body().botState().snapshot();
+        BotApi bot = BotHooks.impl();
+        if (bot != null) return bot.status();
+        evidence("slotRead.fellBackToServerState",
+                "本轮判定为真玩家驾驶，但 BotHooks 里没有实现 —— 这一次槽位读数退回了服务端 BotState，"
+                        + "而进程跑在客户端那一份上，所以下面每一个 lastError/endReason 都是「没人写过」而不是「没出错」");
+        return body().botState().snapshot();
+    }
+
+    /**
      * Whether the body under this rig cannot be hurt — <b>asked, not asserted</b>.
      *
      * <p>This was a literal {@code return true} with a comment saying it is always true on the

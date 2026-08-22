@@ -968,7 +968,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         rig.evidence("planks", rig.carryingAnyOf(List.of("minecraft:oak_planks",
                                 "minecraft:spruce_planks", "minecraft:birch_planks")));
                         rig.evidence("craftingTable", rig.carrying("minecraft:crafting_table"));
-                        rig.evidence("craft.lastError", String.valueOf(rig.body().botState().craft.lastError));
+                        rig.evidence("craft.lastError", String.valueOf(rig.slotError("craft")));
                         rig.noteAdvancement("minecraft:story/upgrade_tools");
                         ctx.expect(picks).as("stone pickaxes crafted").isAtLeast(1);
                         // AND A SWORD, WHILE THE TABLE AND THE COBBLE ARE BOTH STILL HERE.
@@ -1259,7 +1259,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // rung holding 24 cobblestone and crafting nothing is not a materials problem, and
             // "furnace=0" alone cannot say which of the station, the grid or the process it was.
             rig.evidence("craftingTable", rig.carrying("minecraft:crafting_table"));
-            rig.evidence("craft.lastError", String.valueOf(rig.body().botState().craft.lastError));
+            rig.evidence("craft.lastError", String.valueOf(rig.slotError("craft")));
             ctx.expect(furnaces).as("furnaces crafted").isAtLeast(1);
             reclaimTableIfLeftStanding(rig, () -> rig.reach("熔炉 ×" + furnaces + " 到手"));
         });
@@ -1336,7 +1336,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // Out of wood, which is the only way this craft fails. Go and get some — that is
                 // what a player does, and it is the answer the wood BILL has twice failed to be.
                 rig.evidence("craftingTable.remadeError",
-                        String.valueOf(rig.body().botState().craft.lastError));
+                        String.valueOf(rig.slotError("craft")));
                 topUpWood(rig, () -> rig.drive(new CraftProcess("minecraft:crafting_table", 1), 6_000,
                         () -> {
                             rig.evidence("craftingTable.afterTopUp",
@@ -1601,10 +1601,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence(tag + ".raw_iron", rig.carrying("minecraft:raw_iron"));
             rig.evidence(tag + ".ore.after", ctx.level().getBlockState(ore).getBlock().toString());
             rig.evidence(tag + ".held", rig.player().getMainHandItem().getItem().toString());
-            rig.evidence(tag + ".mine.lastError", String.valueOf(rig.body().botState().mine.lastError));
+            rig.evidence(tag + ".mine.lastError", String.valueOf(rig.slotError("mine")));
             // lastError is null on the honest paths too — a mine that swept everything it could
             // reach and a mine that banked the lot both report no error. endReason tells them apart.
-            rig.evidence(tag + ".mine.endReason", String.valueOf(rig.body().botState().mine.endReason));
+            rig.evidence(tag + ".mine.endReason", String.valueOf(rig.slotEnd("mine")));
             // Drops on the ground vs items in the bag. "Nothing was mined", "it was mined and never
             // dropped" and "it dropped and was never collected" all read as raw_iron=0, and they
             // live in three different files.
@@ -1640,7 +1640,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             int ingots = rig.carrying("minecraft:iron_ingot");
             rig.evidence("iron_ingot", ingots);
             rig.evidence("furnace.after", rig.carrying("minecraft:furnace"));
-            rig.evidence("smelt.lastError", String.valueOf(rig.body().botState().smelt.lastError));
+            rig.evidence("smelt.lastError", String.valueOf(rig.slotError("smelt")));
             rig.noteAdvancement("minecraft:story/smelt_iron");
             ctx.expect(ingots).as("iron ingots smelted").isAtLeast(1);
             // Hand the body back somewhere the rungs above can navigate from — the rule the food
@@ -1702,7 +1702,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                              boolean mayFetchWood, Runnable then) {
         ensureCraftingTable(rig, () -> rig.drive(new CraftProcess(itemId, 1), budget, () -> {
             String key = itemId.substring(itemId.indexOf(':') + 1);
-            String error = String.valueOf(rig.body().botState().craft.lastError);
+            String error = String.valueOf(rig.slotError("craft"));
             rig.evidence(key + ".crafted", rig.carrying(itemId));
             rig.evidence(key + ".craftError", error);
             // One retry, and only for the one cause a retry can fix. "缺 … _log" is the recipe
@@ -1991,7 +1991,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             int buckets = rig.carrying("minecraft:bucket");
             rig.evidence("bucket", buckets);
             rig.evidence("iron_ingot.afterBuckets", rig.carrying("minecraft:iron_ingot"));
-            rig.evidence("craft.lastError", String.valueOf(rig.body().botState().craft.lastError));
+            rig.evidence("craft.lastError", String.valueOf(rig.slotError("craft")));
             // ONE bucket, not the two the stage's first draft asked for, and the change is a
             // correction rather than a concession. A portal cast at a lava pool spends water: you
             // pour it over the sources and they turn to obsidian where they stand. The second bucket
@@ -2035,7 +2035,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     int flint = rig.carrying("minecraft:flint");
                     rig.evidence("flint", flint);
                     rig.evidence("gravel.collected", rig.carrying("minecraft:gravel"));
-                    rig.evidence("mine.endReason", String.valueOf(rig.body().botState().mine.endReason));
+                    rig.evidence("mine.endReason", String.valueOf(rig.slotEnd("mine")));
                     // gravel.collected is the divisor for the die roll: zero flint with sixty gravel
                     // in the bag is bad luck, zero flint with zero gravel is a mining failure, and
                     // the two read identically without this line.
@@ -2046,7 +2046,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         int fas = rig.carrying("minecraft:flint_and_steel");
                         rig.evidence("flint_and_steel", fas);
                         rig.evidence("iron_ingot.after", rig.carrying("minecraft:iron_ingot"));
-                        rig.evidence("craft.lastError", String.valueOf(rig.body().botState().craft.lastError));
+                        rig.evidence("craft.lastError", String.valueOf(rig.slotError("craft")));
                         ctx.expect(fas).as("flint and steel crafted").isAtLeast(1);
                         JourneyShaft.climbOut(rig, surfaceY, "kit.exit", () ->
                                 rig.reach("桶 ×" + rig.carrying("minecraft:bucket")

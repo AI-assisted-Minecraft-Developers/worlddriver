@@ -268,6 +268,10 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         int t = 0;
         for (; t < DRIVE_BUDGET && !driver.finished(); t++) driver.tick();
         BlockPos end = fp.blockPosition();
+        // Server BotState, and CORRECT here — do not "fix" this to JourneyRig.slot. This arm drives
+        // its own isolated driver with driver.runProcess + driver.tick(), so the server's BotState is
+        // the one the process writes, whatever topology the suite is on. There is no rig and no helm
+        // to route to. Same for JourneyLeg.walkerEnd, which the A/B scenes share.
         Run r = new Run(start.getY(), end.getY(), end.getX() - start.getX(),
                 end.getZ() - start.getZ(), before - carrying(fp), t,
                 driver.botState().builder.lastError);

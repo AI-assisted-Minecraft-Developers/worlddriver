@@ -431,7 +431,7 @@ public final class JourneyEndRungs {
         rig.attempting("把烈焰棒磨成烈焰粉（2×2 配方，不需要工作台）");
         rig.drive(new CraftProcess("minecraft:blaze_powder", wantPowder), 8_000, () -> {
             rig.evidence("blaze_powder.after", rig.carrying("minecraft:blaze_powder"));
-            rig.evidence("blaze_powder.craftError", String.valueOf(rig.body().botState().craft.lastError));
+            rig.evidence("blaze_powder.craftError", String.valueOf(rig.slotError("craft")));
             then.run();
         });
     }
@@ -440,7 +440,7 @@ public final class JourneyEndRungs {
         if (want <= 0) { judgeTheEyes(ctx, rig); return; }
         rig.attempting("合成末影之眼：烈焰粉 + 末影珍珠");
         rig.drive(new CraftProcess("minecraft:ender_eye", want), 12_000, () -> {
-            rig.evidence("ender_eye.craftError", String.valueOf(rig.body().botState().craft.lastError));
+            rig.evidence("ender_eye.craftError", String.valueOf(rig.slotError("craft")));
             judgeTheEyes(ctx, rig);
         });
     }
@@ -1367,13 +1367,22 @@ public final class JourneyEndRungs {
      * pair the two are one row.
      */
     private static String planOf(JourneyRig rig, String pillar, int stockBefore) {
+        // ⚠️ THIS ROW HAS TWO CHANNELS, and on the integrated helm only one of them has an author.
+        // `rig.slot` reads whichever half is driving; `slot` below is the SERVER's BotState, which
+        // nothing writes when the process was handed to the client (JourneyRig.slot says why). The
+        // three fields taken from it — pathMove, parkourTakeoff, firstPlan — are excluded from
+        // ProcessSlot.snapshot() by design, so there is no routed reading to take instead. Read
+        // `move=` / `首次起跳` / `首个计划` as「这一半读不到」there, never as「没有」. They come back
+        // the day status() carries them; the other four are correct now.
+        var routed = rig.slot("goto");
+        boolean active = Boolean.TRUE.equals(routed.get("active"));
         var slot = rig.body().botState().mc_goto;
         var view = rig.body().world();
         return "放了 " + blocksSpent(rig, pillar, stockBefore) + " 块 " + pillar
-                + "；active=" + slot.active
-                + " pathLen=" + slot.pathLen + " move=" + slot.pathMove
-                + " end=" + slot.endReason + " err=" + slot.lastError
-                + (slot.active ? "" : "（进程已终止，pathLen/move 是 reset 之后的空值，"
+                + "；active=" + active
+                + " pathLen=" + routed.get("pathLen") + " move=" + slot.pathMove
+                + " end=" + routed.get("endReason") + " err=" + routed.get("lastError")
+                + (active ? "" : "（进程已终止，pathLen/move 是 reset 之后的空值，"
                         + "不要读成「压根没有计划」）")
                 // ⚠️ pathLen/move above are the state at the END of the leg, and a leg that fell out
                 // of the world spends most of itself in the void — where BridgePlace.eval's every
@@ -1483,7 +1492,7 @@ public final class JourneyEndRungs {
                 rig.settle(new TowerProcess(back, pillarBlock(rig)), 2_000, () -> {
                     rig.evidence("crystals.sweep" + sweep + ".unwedge", "重扫前先垒回 y=" + back
                             + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
-                            + rig.body().botState().builder.lastError);
+                            + rig.slotError("builder"));
                     smashCrystal(ctx, rig, crystals, 0);
                 });
                 return;
@@ -1684,13 +1693,16 @@ public final class JourneyEndRungs {
     private static String legRow(JourneyRig rig, BlockPos from, String fromUnder,
                                  String item, int stockBefore, LegWatch watch) {
         BlockPos to = rig.player().blockPosition();
-        var slot = rig.body().botState().mc_goto;
+        // ONE routed read, not two: "how did it end" and "what went wrong" are a pair, and asking
+        // twice asks two moments (JourneyRig.slot; the same reason BotApi.userTaskLeg publishes its
+        // whole reading as one snapshot).
+        var slot = rig.slot("goto");
         return "起点=" + xyz(from) + " 脚下=" + fromUnder
                 + " → 终点=" + xyz(to) + " 脚下=" + blockAt(rig, to.below())
                 + "  放了 " + blocksSpent(rig, item, stockBefore) + " 块 " + item
                 + "  最低y=" + watch.lowestY() + "（不含起点 y=" + from.getY() + "）"
                 + "  用了 " + watch.ticks() + " tick"
-                + "  end=" + slot.endReason + " err=" + slot.lastError;
+                + "  end=" + slot.get("endReason") + " err=" + slot.get("lastError");
     }
 
     /**
@@ -1728,7 +1740,7 @@ public final class JourneyEndRungs {
                 // apexFeetY, which separate「没东西可放」from「跳没能离开自己那一格」from「身体被带离
                 // 了自己那一列」— and none of that is derivable from the heights on this row. It was
                 // being written and thrown away: the process reported it, the rung never read it.
-                + " 自述=" + rig.body().botState().builder.lastError
+                + " 自述=" + rig.slotError("builder")
                 + " 结论=" + verdict;
     }
 
@@ -1857,7 +1869,7 @@ public final class JourneyEndRungs {
                         () -> {
                     rig.evidence("duel.march." + left + ".tower", "先垒到台面高度 y=" + podium.getY()
                             + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
-                            + rig.body().botState().builder.lastError);
+                            + rig.slotError("builder"));
                     marchToPodium(rig, podium, left - 1, then);
                 });
                 return;

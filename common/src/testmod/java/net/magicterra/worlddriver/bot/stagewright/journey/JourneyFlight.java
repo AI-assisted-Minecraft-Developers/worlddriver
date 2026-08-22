@@ -296,6 +296,11 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // which reads as "the walker believed it had arrived, in lava" and is simply false. The
         // process's own honest verdict is the goto slot's, so that is what this asks.
         if (finishedAt == null && rig.body().finished()) {
+            // Server BotState on purpose, and NOT for the usual reason: goalReached/endReason ARE in
+            // ProcessSlot.snapshot(), so `rig.slot("goto")` could serve this. The gate above cannot.
+            // `finished()` asks the SERVER driver whether its process ended, and on the client helm
+            // startLeg never gave it one — so routing the read under a dead gate would change
+            // nothing observable. Gate and reading have to move together; see JourneyRig.slot.
             var slot = rig.body().botState().mc_goto;
             finishedAt = "goalReached=" + slot.goalReached + " end=" + slot.endReason
                     + " 在 " + at.toShortString() + " onGround=" + onGround
@@ -421,6 +426,8 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * same two coordinates in a log.
      */
     private void openLeap(ServerPlayer fp) {
+        // Server BotState on purpose: pathMove/pathNode are excluded from ProcessSlot.snapshot(), so
+        // JourneyRig.slot has no routed reading to give. Dead on the client helm until status() carries them.
         String move = rig.body().botState().mc_goto.pathMove;
         if (move == null || !move.startsWith("parkour")) { pendingLeap = null; return; }
         BlockPos node = rig.body().botState().mc_goto.pathNode;
@@ -494,6 +501,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * blocks off is not executing it, and the plan's quality is beside the point.
      */
     private void watchThePlan(ServerLevel level, ServerPlayer fp, BlockPos at, boolean onGround) {
+        // Server BotState on purpose: pathNode is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
         BlockPos node = rig.body().botState().mc_goto.pathNode;
         if (node == null) { ticksWithNoPlan++; return; }
         // WHICH EDGES THIS LEG ACTUALLY WALKED, counted once per node rather than per tick.
@@ -502,6 +510,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         // set on a static and read on another tick can silently do nothing, and a leg that still
         // walks the move it was told to avoid says so here instead of being argued about.
         if (!node.equals(lastPlanNode)) {
+            // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
             String move = rig.body().botState().mc_goto.pathMove;
             String kind = move == null ? "?" : move;
             moveTally.merge(kind, 1, Integer::sum);
@@ -533,6 +542,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         double bodyAway = Math.hypot(fp.getX() - goalX, fp.getZ() - goalZ);
         if (nodeAway - bodyAway > backwards) {
             backwards = nodeAway - bodyAway;
+            // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
             backwardsAt = "t=" + t + " 身体 " + at.toShortString() + "（离目标 "
                     + Math.round(bodyAway) + "）计划下一格 " + node.toShortString() + "["
                     + rig.body().botState().mc_goto.pathMove + "]（离目标 " + Math.round(nodeAway) + "）";
@@ -540,6 +550,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         double gap = Math.hypot(node.getX() + 0.5 - fp.getX(), node.getZ() + 0.5 - fp.getZ());
         if (gap <= worstOffPlan) return;
         worstOffPlan = gap;
+        // Server BotState on purpose: pathMove is excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
         worstOffPlanAt = "t=" + t + " 身体 " + at.toShortString() + " 计划下一格 "
                 + node.toShortString() + "[" + rig.body().botState().mc_goto.pathMove + "]"
                 + "，其脚下 " + blockName(level, node.below());
@@ -559,6 +570,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         prevContact = contact;
         prevSwept = !fp.serverLevel().noCollision(fp, groundSlab(box));
         prevSneak = rig.body().avatar().dbgSneak();
+        // Server BotState on purpose: driveTag/jumpTag are excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
         prevDrive = rig.body().botState().mc_goto.driveTag;
         prevJumpTag = rig.body().botState().mc_goto.jumpTag;
     }
@@ -979,6 +991,11 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
     /** Where in the plan the walker was, at the moment asked. A body that left the ground on step
      *  3 of 40 was following a route; one that left it with the plan exhausted was not. */
     private String planAt() {
+        // Server BotState on purpose, and NOT for the usual reason: pathStep/pathLen ARE in
+        // ProcessSlot.snapshot(). But this string is only ever spliced into planCell's rows, which
+        // also print pathMove/pathNode — and those have no routed reading. Converting this half
+        // alone would build one row out of two channels, one live and one dead, which is a worse
+        // reading than a uniformly dead one. Both halves move when status() carries the plan fields.
         var slot = rig.body().botState().mc_goto;
         return "计划第 " + slot.pathStep + "/" + slot.pathLen + " 步";
     }
@@ -1010,6 +1027,7 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
      * view can belong to another dimension, and a view is not a witness against itself.
      */
     private String planCell(ServerLevel level, ServerPlayer fp, BlockPos at) {
+        // Server BotState on purpose: pathNode/pathMove are excluded from ProcessSlot.snapshot() — see JourneyRig.slot.
         var slot = rig.body().botState().mc_goto;
         BlockPos node = slot.pathNode;
         if (node == null) {

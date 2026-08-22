@@ -137,7 +137,7 @@ final class JourneyLeg {
      * mis-read that allows a doomed one costs ticks this file already knows how to see.
      */
     static boolean searchGaveUp(JourneyRig rig) {
-        String end = rig.body().botState().mc_goto.endReason;
+        String end = rig.slotEnd("goto");
         if (end == null) return false;
         String e = end.toLowerCase(Locale.ROOT);
         return e.contains("no path") || e.contains("unreachable") || e.contains("no route progress");
