@@ -2598,7 +2598,26 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     static void aimThenAct(JourneyRig rig, BlockPos at, Runnable act) {
         rig.settle(new HoldStill(2), 10, () -> {
+            // BOTH bodies, and that is the whole correction. On the client topology
+            // `rig.avatar()` is the CLIENT avatar (JourneyRig:422 hands back
+            // BotHooks.impl().clientAvatar()) while `rig.player()` is the ServerPlayer — so the
+            // first version of this helper aimed one body and rayed the other, with a
+            // ServerboundMovePlayerPacket in between. Putting the two calls on adjacent lines
+            // bought nothing, because adjacency is about ticks and this gap is about objects.
+            //
+            // Measured, client rehearsal of rung 11: the body sat in cell -4,27,56 for seven
+            // consecutive steps and the target never moved, yet the recorded angle changed every
+            // step (yaw 142→116→102→98→96→95, pitch 35→7→4→2→2→1). One body and one target can
+            // only produce one angle, so the printed angle was never the one just written.
+            //
+            // Aiming both is exact rather than approximate: aimAtBlock is a pure function of (body
+            // position, target cell), and the two bodies are the same body one packet apart, so
+            // both get the same angle to within that lag. The ACT still runs on the client — that
+            // is where the use happens, and Item.getPlayerPOVHitResult reads getXRot()/getYRot()
+            // live, so the client's own aim is what the pour will actually see. The server-side
+            // aim exists only so the PREDICTION rays down the same line the use will.
             rig.avatar().aimAtBlock(at);
+            rig.body().avatar().aimAtBlock(at);
             act.run();
         });
     }
