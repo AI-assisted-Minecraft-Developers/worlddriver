@@ -906,8 +906,9 @@ public final class JourneyRehearsal {
                 + " and banked it, instead of walking back through one rung 12 lit");
         JourneyLedger.noteNetherPortal(foot);
         long away = Math.round(Math.sqrt(foot.distSqr(from)));
+        int rise = foot.getY() - from.getY();
         ctx.record("rehearsal.doorway", foot.toShortString() + " 起 " + DOOR_WIDTH + "×" + DOOR_HEIGHT
-                + "，成了 " + cells + " 格 nether_portal；离身体 " + away + " 格"
+                + "，成了 " + cells + " 格 nether_portal；离身体 " + away + " 格、垂直差 " + rise + " 格"
                 + "（17 级先扫 24 格，扫不到才走账本记下的那条路 —— 这里要的就是后者）");
         if (cells < DOOR_WIDTH * DOOR_HEIGHT) {
             ctx.fail("排练立不起门：" + DOOR_WIDTH + "×" + DOOR_HEIGHT + " 只成了 " + cells
@@ -918,8 +919,27 @@ public final class JourneyRehearsal {
         if (away <= 24) {
             ctx.fail("排练把门放得太近了（" + away + " 格）：17 级的 24 格局部扫描会直接扫到它，"
                     + "走的是快路径，而这套布景存在的意义正是逼它走账本那条路");
+            return;
+        }
+        // A doorway the body has to climb to is not the doorway rung 17 will meet. On the real
+        // ladder the banked cell is where the body CAME OUT, so it is at the body's own level by
+        // construction. Two rehearsals were spent on a 52-block vertical that no run will ever
+        // face, and both died on the climb without reaching the crossing this staging exists to
+        // exercise. Named as a STAGING failure, because that is what it is — see
+        // staging-for-rungs-nobody-has-climbed for the opposite error, staging so gentle the
+        // assertion is trivially true.
+        if (Math.abs(rise) > STAGED_DOOR_RISE) {
+            ctx.fail("排练把门放到了另一个高度上（垂直差 " + rise + " 格，上限 " + STAGED_DOOR_RISE
+                    + "）：真梯记下的那一格是身体自己走出来的地方，跟身体同层。这样摆出来的是一段"
+                    + "「爬 " + Math.abs(rise) + " 格」的考题，不是 17 级的回程 —— 布景的问题，"
+                    + "不是 STRONGHOLD 这一级的问题");
         }
     }
+
+    /** How far above or below the body the staged doorway may sit. The real ladder's banked cell is
+     *  the one the body walked out of, so the honest number is 0; this is the slack that lets
+     *  {@link #netherStandNear} step off a wall of netherrack without changing what is measured. */
+    private static final int STAGED_DOOR_RISE = 24;
 
     /** How many blaze rods a fortress trip is worth. Seven — see {@link #stageEnderPearl}. */
     private static final int RODS_A_FORTRESS_PAYS = 7;
@@ -1566,26 +1586,53 @@ public final class JourneyRehearsal {
                 what, gave, stand);
     }
 
-    /** A cell in the Nether with something solid under it, two clear above, and no lava touching.
-     *  Searched downward from the roof-clearance line, because a spot chosen at a fixed y is as
-     *  likely to be inside the netherrack as on it. */
+    /** Y range this will consider at all: below the lava seas, under the roof. */
+    private static final int NETHER_FLOOR_Y = 32, NETHER_ROOF_Y = 100;
+
+    /**
+     * A cell in the Nether with something solid under it, two clear above, and no lava touching —
+     * as near as possible to the cell that was asked for, <b>in all three axes</b>.
+     *
+     * <p><b>It used to ignore {@code want.getY()} outright</b>, scanning each column from
+     * {@link #NETHER_ROOF_Y} down and taking the first hit — that is, the HIGHEST standable cell.
+     * The original reason is still sound and is still honoured below: a fixed y is as likely to be
+     * inside the netherrack as on it, so the y has to be searched, not assumed. But searching it
+     * downward from the roof answers a different question from the one the parameter asks, and
+     * silently: {@link #buildTheDoorwayAndBankIt} passes the BODY's own y precisely so the staged
+     * doorway sits at the body's level, and got a shelf at y=93 for a body at y=41.
+     *
+     * <p>That is not a harder test, it is a different one. Rung 17's real return walks back to a
+     * doorway the body itself came out of, which is at the body's level by construction — so a
+     * 52-block vertical was a staging artifact standing in for the thing being measured, and the two
+     * rehearsals it produced both died on the climb without ever reaching the crossing.
+     *
+     * <p>So the y is now searched OUTWARD from the requested one, nearest first. Every other
+     * property of the answer is unchanged: real floor underfoot, two cells of air, no fluid in the
+     * surrounding 3×3×3.
+     */
     private static BlockPos netherStandNear(ServerLevel nether, BlockPos want) {
         for (int r = 0; r <= 16; r++)
             for (int dx = -r; dx <= r; dx++)
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
-                    for (int y = 100; y >= 32; y--) {
-                        BlockPos foot = new BlockPos(want.getX() + dx, y, want.getZ() + dz);
-                        if (!nether.getBlockState(foot.below()).blocksMotion()) continue;
-                        if (!nether.getBlockState(foot).isAir()
-                                || !nether.getBlockState(foot.above()).isAir()) continue;
-                        boolean wet = false;
-                        for (int ax = -1; ax <= 1 && !wet; ax++)
-                            for (int ay = -1; ay <= 1 && !wet; ay++)
-                                for (int az = -1; az <= 1 && !wet; az++)
-                                    if (!nether.getFluidState(foot.offset(ax, ay, az)).isEmpty()) wet = true;
-                        if (!wet) return foot;
-                    }
+                    for (int dy = 0; dy <= NETHER_ROOF_Y - NETHER_FLOOR_Y; dy++)
+                        // dy == 0 is one cell, not two — otherwise the requested y is tested twice
+                        // and every reading about "which try found it" is off by one.
+                        for (int sign = 1; sign >= (dy == 0 ? 1 : -1); sign -= 2) {
+                            int y = want.getY() + sign * dy;
+                            if (y < NETHER_FLOOR_Y || y > NETHER_ROOF_Y) continue;
+                            BlockPos foot = new BlockPos(want.getX() + dx, y, want.getZ() + dz);
+                            if (!nether.getBlockState(foot.below()).blocksMotion()) continue;
+                            if (!nether.getBlockState(foot).isAir()
+                                    || !nether.getBlockState(foot.above()).isAir()) continue;
+                            boolean wet = false;
+                            for (int ax = -1; ax <= 1 && !wet; ax++)
+                                for (int ay = -1; ay <= 1 && !wet; ay++)
+                                    for (int az = -1; az <= 1 && !wet; az++)
+                                        if (!nether.getFluidState(foot.offset(ax, ay, az)).isEmpty())
+                                            wet = true;
+                            if (!wet) return foot;
+                        }
                 }
         return null;
     }
