@@ -2503,9 +2503,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             int step = MAX_TUNNEL_STEPS - left;
             BlockPos blocking = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                     ? hit.getBlockPos() : null;
+            // The body's own cell is on the row, and it is not decoration. Without it the only way
+            // to know where the ray started is to invert the pitch — and doing that by hand on the
+            // rehearsal above produced three mutually inconsistent answers, because the body had
+            // been falling. A step whose aim looks wrong and a step whose aim is right about a body
+            // somewhere unexpected read identically, and they want opposite fixes.
             rig.evidence("tunnel." + step, String.format(java.util.Locale.ROOT,
-                    "aim %s (%.0f/%.0f, %.1fm) → %s", src.toShortString(), fp.getYRot(), fp.getXRot(),
+                    "aim %s (%.0f/%.0f, %.1fm) 自 %s → %s", src.toShortString(),
+                    fp.getYRot(), fp.getXRot(),
                     fp.getEyePosition().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(src)),
+                    fp.blockPosition().toShortString(),
                     blocking == null ? String.valueOf(hit.getType())
                         : blocking.toShortString() + " " + level.getBlockState(blocking).getBlock()));
             if (blocking != null && level.getFluidState(blocking).isSource()
