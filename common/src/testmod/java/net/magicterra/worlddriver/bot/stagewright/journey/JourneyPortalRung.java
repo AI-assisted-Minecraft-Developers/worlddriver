@@ -2047,12 +2047,26 @@ public final class JourneyPortalRung {
                 // clock. Run 17 spent 39 240 ticks (32 minutes) walking all ten cells to report
                 // `0/10`, which is the same finding cell one had already made in about a minute, and
                 // that cost is paid on every future attempt at this geometry.
-                if (i == 0 && got != Blocks.OBSIDIAN) {
-                    ctx.fail("第一格就没浇成黑曜石：" + cell.toShortString() + " = " + got
+                // ANY cell, not just the first. The paragraph above argues for「stop on the FIRST cell
+                // that will not cast」and the code said `i == 0`, which is a different sentence: it
+                // stops on cell one and lets cells two through ten walk on. Ladder-11 is what that
+                // costs. Cell six did not cast, `cast.missed.6` said so, and the rung carried on into
+                // the water recovery — which cannot work, because the lava the cast did not spend is
+                // still in the only bucket. The run died on `recover6` with 「装不到 water_bucket」
+                // beside a ray that was correct to the centimetre, and the reason string sent the next
+                // reader to the fill.
+                //
+                // Nothing is forfeited by stopping here either: `lightIt` needs ten of ten, so a frame
+                // that has already missed one is a failing run whichever cell it was.
+                if (got != Blocks.OBSIDIAN) {
+                    ctx.fail("第 " + (i + 1) + " 格没浇成黑曜石：" + cell.toShortString() + " = " + got
                             + "（水在 " + wet.toShortString() + " = "
-                            + ctx.level().getBlockState(wet).getBlock() + "）—— 十格都会一样，"
-                            + "不再走完。挖出来的模腔浇不出黑曜石，砌出来的竞技场模腔可以："
-                            + "差别在每一格有没有底和背，不在某一格");
+                            + ctx.level().getBlockState(wet).getBlock() + "）—— 十格缺一格就点不着，"
+                            + "不再走完。"
+                            + (i == 0 ? "挖出来的模腔浇不出黑曜石，砌出来的竞技场模腔可以："
+                                        + "差别在每一格有没有底和背，不在某一格"
+                                      : "前 " + i + " 格是浇成了的，所以这不是模腔的通病，"
+                                        + "是这一格自己的落脚/射线/手上拿的那件东西"));
                     return;
                 }
                 // The bucket is empty again, which is exactly what taking the water back needs —
