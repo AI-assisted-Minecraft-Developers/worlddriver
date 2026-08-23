@@ -73,6 +73,39 @@
 **下一轮可做**：把 `SchedulerClientCallSurfaceTest` 的扫描从 owner 扩到**描述符形参**，
 它就能真正守住硬规则 12。要解析 NameAndType，改动量不是肉眼可验的规模，且要一趟闸。
 
+### ② 「还有没有别的双端类在犯加宽」——全仓普查，**零活缺陷**（只报不改）
+
+自己写了个只读的常量池扫描（scratchpad，未入库），判据两条：
+
+- **A 组**：常量池里有 `net/minecraft/client/*` 的 **Class 条目**，而该类型**从不作为**
+  Methodref/Fieldref 的 owner。这一类只能来自 `checkcast` / StackMapTable / 局部变量类型
+  ——**正是验证器为了证明子类型关系必须去加载的那一集**，也就是加宽的字节码指纹。
+- **B 组**：既命名了客户端类型，又调用了声明 `Player`/`Entity`/`LivingEntity` 形参的方法。
+
+| 输出目录 | class 数 | A 组 | B 组 |
+|---|---|---|---|
+| `common/.../java/main` | 408 | 10 | 16 |
+| `fabric/.../java/main` | — | **0** | **0** |
+| `neoforge/.../java/main` | — | **0** | **0** |
+| `common/.../java/testmod` | — | **0** | **0** |
+
+**common 的 26 条命中逐条看完，全部落在客户端专属层**（`client/internal/**`、`bot/auto/**`、
+`ClientPlayerAvatar`、`ClientWorldView`、`InteractionCommands`、`BotApiImpl`、`MouseYield`、
+`ClientEventDetector`、`BotInteract` 本身）——**专用服根本不加载这些类，规则 12 对它们不适用**。
+两条例外都已有主：`ProcessScheduler`/`UserTaskChain` 的 `Minecraft` 是精确形参（见 ①）；
+`WalkerExpectAlarms$ClientGearCheck` 在 `docs/coverage-exemptions.md:15` 有显式豁免记录。
+
+**唯一还想追一句的**：`BotUtil` 是**双端**工具类（`faceTowardEye` 的 javadoc 就是为了让专用服
+够得着才把它从 `BotInteract` 搬过来的），而同一个类的 `onClient()`（`BotUtil.java:87`）
+`invokestatic Minecraft.getInstance` —— 客户端 owner 就在同一个 class 文件里。它今天安全，
+但**安全的理由和那条 javadoc 给的理由不是同一个**：javadoc 说的是「方法体不命名客户端类型」，
+而真正让它活下来的是**类级**的性质（类里所有客户端引用都是延迟解析的 invoke，一次加宽都没有；
+A 组对 `BotUtil` 零命中）。方法级的承诺守不住类级的性质。**没改**——`common/src/main` 要报备
+且只值一条注释。
+
+**排除掉的**（下轮别重查）：`WorldDriverSurvivalScenes.java:888` 那条 `LocalPlayer` 提及是
+分栏诊断脚手架的说明，不是规则表述；`fabric`/`neoforge`/`testmod` 三个输出零命中。
+
 ---
 
 ## ✅ 三闸全绿：闸债结清（Q15a，2026-08-23）
