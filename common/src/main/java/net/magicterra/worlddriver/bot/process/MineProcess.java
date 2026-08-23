@@ -129,6 +129,9 @@ public final class MineProcess implements BotProcess {
     private static final int COLLECT_MAX_REPATHS = 3;
     private int retiredUnpathable;
     private int retiredArrivedShort;
+    /** Mining targets blacklisted this sweep — see {@link #retireTarget}. A different ledger from
+     *  the two above, which count DROPS the collect walker gave up on. */
+    private int retiredTargets;
     private int pickupWaitTicks;
     /** Ticks spent standing on an ARRIVED collect goal whose item is still there. */
     private int collectStuckTicks;
@@ -312,9 +315,7 @@ public final class MineProcess implements BotProcess {
                             return false;
                         }
                     }
-                    blacklist.add(currentTarget);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
+                    retireTarget(a, "走行器报 FAILED，且没有可清的遮挡叶子");
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
@@ -341,12 +342,9 @@ public final class MineProcess implements BotProcess {
                         goingBestDist = dist;
                         goingStallTicks = 0;
                     } else if (++goingStallTicks >= GOING_STALL_TICKS) {
-                        if (BotConfig.walkerDebug)
-                            LOG.info("[mine] no approach to stand {} for {}t (best {}m) -> unreachable-in-practice, blacklist {}",
-                                    currentStand, GOING_STALL_TICKS, String.format("%.1f", goingBestDist), currentTarget);
-                        blacklist.add(currentTarget);
-                        currentTarget = null;
-                        phase = Phase.SEARCH;
+                        retireTarget(a, String.format(java.util.Locale.ROOT,
+                                "%dt 内对落脚点 %s 一点没靠近（最近 %.1f 格）—— 实际到不了",
+                                GOING_STALL_TICKS, currentStand, goingBestDist));
                         return false;
                     }
                 }
@@ -418,10 +416,7 @@ public final class MineProcess implements BotProcess {
                     // This is the honest shape of the limitation, not a workaround for it: what
                     // the bot cannot do is CLIMB to a log, and until it can, "mine the ones you can
                     // reach" is what a player without a ladder does too.
-                    blacklist.add(currentTarget);
-                    a.breakHold(false);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
+                    retireTarget(a, "露在外面却还是破不掉 ⇒ 够不着，而站着不动改善不了距离");
                     return false;
                 }
                 a.aimAtBlock(currentTarget);
@@ -459,10 +454,8 @@ public final class MineProcess implements BotProcess {
                         phase = Phase.SEARCH;
                     }
                 } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
-                    blacklist.add(currentTarget);
-                    a.breakHold(false);
-                    currentTarget = null;
-                    phase = Phase.SEARCH;
+                    retireTarget(a, "砸了 " + breakingTicks + "t 还没碎（上限 "
+                            + BotConfig.breakTimeoutTicks + "t）");
                 }
             }
             case COLLECT -> {
@@ -640,8 +633,50 @@ public final class MineProcess implements BotProcess {
                           + retiredUnpathable + " unpathable + " + retiredArrivedShort
                           + " arrived-but-short"
                         : "")
+                // The TARGET ledger, which the drop ledger above is not. `retired N drop(s)` counts
+                // items COLLECT gave up on; a target retired in GOING or BREAKING never becomes a
+                // drop at all, and until this line the summary could not tell "there was nothing to
+                // mine" from "everything I picked, I then blacklisted".
+                + (retiredTargets > 0 ? ", blacklisted " + retiredTargets + " target(s)" : "")
                 + ")";
         st.mine.reset();
+    }
+
+    /**
+     * Retire {@code currentTarget} and go back to SEARCH — the ONE door out of a target this
+     * sweep cannot finish, and the only place that says which door it was.
+     *
+     * <p>Four call sites used to inline these lines. THREE OF THEM SAID NOTHING AT ALL and the
+     * fourth spoke only behind {@code walkerDebug}, which no journey run sets — so a blacklist,
+     * which is a PERMANENT retirement that immediately re-enters SEARCH, was invisible. That is
+     * the loop Q7 measured from the other end: 174 searches with an identical start and goal,
+     * {@code owner=mine}, and nothing in the log naming the cell that had just been retired or
+     * why. Unconditional is right on volume too — each line costs one target forever, so the
+     * count is bounded by the candidates, not by the ticks.
+     *
+     * <p>{@code breakHold(false)} runs on every door, including the two that could not have been
+     * holding one. Releasing a hold nobody took is a no-op; forgetting it on the door that DID
+     * take one leaves the avatar swinging at a cell it has stopped tracking.
+     */
+    private void retireTarget(Avatar a, String why) {
+        retiredTargets++;
+        LOG.info("[mine] blacklist {}（{}）—— 第 {} 个退休目标，回到 SEARCH",
+                currentTarget, why, retiredTargets);
+        blacklist.add(currentTarget);
+        a.breakHold(false);
+        currentTarget = null;
+        phase = Phase.SEARCH;
+    }
+
+    /** True when at least one of the six faces is open — i.e. some ray could reach this block.
+     *  The same test {@code ServerPlayerAvatar} gates breaking on, asked here so the miner can
+     *  tell "too far" (permanent from this stand) from "walled in" (the peel will fix it). */
+    private static boolean isExposed(Level lvl, BlockPos pos) {
+        for (Direction d : Direction.values()) {
+            BlockPos n = pos.relative(d);
+            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) return true;
+        }
+        return false;
     }
 
     /**
@@ -658,17 +693,6 @@ public final class MineProcess implements BotProcess {
      * cube, and the segment here is bounded by the player's own interaction range, so this is a
      * couple of dozen samples and not a raycast worth optimising.
      */
-    /** True when at least one of the six faces is open — i.e. some ray could reach this block.
-     *  The same test {@code ServerPlayerAvatar} gates breaking on, asked here so the miner can
-     *  tell "too far" (permanent from this stand) from "walled in" (the peel will fix it). */
-    private static boolean isExposed(Level lvl, BlockPos pos) {
-        for (Direction d : Direction.values()) {
-            BlockPos n = pos.relative(d);
-            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) return true;
-        }
-        return false;
-    }
-
     private static BlockPos firstBreakableToward(Avatar a, Level lvl, Player p, BlockPos target) {
         if (a.canBreak(target)) return null;
         Vec3 eye = p.getEyePosition();
