@@ -1219,14 +1219,33 @@ stone.exit#1.gained = 13/13 block(s)
 | PREEMPT → 死 | `10:58:40` → `10:58:55` = **整整 300 tick**，`enterAir(100) + 20×ceil(HP/2)` 的预算公式再次精确命中 |
 | 窗口内 `[walker] 步进:` | **零行**（全程 398 行，说明 `walkerDebug` 开着）⇒ Walker 没在开，通道独占给了反射 |
 | `CAPPED lid` | **零行** ⇒ `dir == null` ⇒ 走的是**纯竖直支** |
-| 死后那行 walker | `路点=-28,62,79 … 水=true 没顶=true` ⇒ **头顶不是固体** |
+| 死后那行 walker | `精确=(-27.716,61.159,79.435) 路点=-28,62,79 水=true 没顶=true` |
 
-⇒ 事实收敛成一句：**按住跳、水里、头顶无盖、300 tick，一格没浮。**
+⛔ **上一版把 `没顶=true` 读成「头顶不是固体」，读反了。** `没顶` 是
+`Walker.java:1287` 的第 10 个实参 `p.isUnderWater()`——**「没入水中」**，讲的是眼睛在不在
+水里，跟头顶有没有盖子**毫无关系**。它恒为 true 才是这一族的前提，不是结论。
+
+**结论本身仍然成立，但证据换了一条，而且换出了一个数：**
+
+- 精确 y = **61.159**，身体高 1.8 ⇒ 头顶 **62.959**；眼高 1.62 ⇒ 眼在 **62.779**。
+- `cappedColumn` 从 `by+1` 往上扫（`DrownEscapeChain:262`），y=62 是水→继续，y=63
+  读到的若是空气就 `return false`（**不算封顶**）⇒ `dir == null` ⇒ 纯竖直支。这与
+  `CAPPED lid` 零行自洽，**且与 `walkerDebug` 开没开无关**——不必再拿那条零行说事。
+- 旁证：下一级的 `crafting_table.pickup.target = -28, 63, 79` 是
+  `drop.toShortString()`（`JourneyRig:1912`），**掉落物实体**的位置。工作台掉落物浮在
+  y=63 那格 ⇒ 水面就是 **63.0**。
+- ⇒ 身体要换气只需把脚抬到 **61.38**（眼 63.0）。**它差 0.221 格，浮了 261 tick 没上去。**
 
 而 `BotInput.jump` 走的是**命令通道**（`commandJump` → `AvatarInput.tick` 里
-`this.jumping = cmdJump`），所以「按键被 vanilla 键盘扫描覆盖」这个假设**已排除**——
-意图确实写进了 `Input.jumping`。日志再往下分不开原因：**这条臂除了 `dir != null` 那一行，
-每 tick 什么都不打。**
+`this.jumping = cmdJump`），所以「按键被 vanilla 键盘扫描覆盖」这个假设**已排除**。
+调度器那一头也排除了：`ProcessScheduler:104` 是无前置返回的
+`if (best != null) best.tick(mc, w, st)`，**每 tick 都调**，所以那 261 次
+`commandJump(true)` 确实发生过。`AvatarInput` 是**后写者赢**的单字段，但全模组 9 个
+`commandJump` 写者里，这一 tick 会跑的几支（`AutoSwim:138/170/196/218`）写的都是
+**同向的 true**。
+
+⇒ 静态推理到此为止：通道存在、意图写进去了、没人覆盖、水是满格、物理该浮。
+**日志再往下分不开原因：这条臂除了 `dir != null` 那一行，每 tick 什么都不打。**
 
 #### 277 条场景里，没有一条断言过身体真的浮起来
 
@@ -1235,11 +1254,21 @@ stone.exit#1.gained = 13/13 block(s)
 | `wd.drowningFloatShouldFloatMatrix` | **PURE**：`DrowningFloatGate.shouldFloat(...)` 四行布尔。名字里的 should 是字面意思 |
 | `wd.drownEscapeGateMatrix` | **PURE**：闸的进入/保持/释放 18 行 + episode 生命周期 8 行 |
 | `wd.drownEscapePreempt` | `SceneBody.mint` 造**假玩家**、`sensorForTest` 喂传感器、断言**抢占记账** |
+| `wd.drownEscapeSurface` | ✅ **确实断言了上浮**：`maxAir < 200` 就 FAIL，空气要回补就必须出水 |
+
+⛔ **上一版写「浮没浮起来零行断言」，把第四个成员漏掉了。** 更正后的说法要窄一格，
+但更准：`wd.drownEscapeSurface` 断的是 **Walker 自己那条逃生路径**——它
+`new Walker()` 手动 tick、身体是 `ServerPlayerAvatar` 假人、空气靠
+`fp.setAirSupply(airSim)` **一 tick 一 tick 手工模拟**、开关是
+`BotConfig.walkerDrowningEscape`。全程**不构造 `DrownEscapeChain`、不过
+`ProcessScheduler`、不碰 `AvatarInput`/`LocalPlayer`**。
 
 而 `DrownEscapeChain.tick` 第一行是 `if (mc == null) return;`——**专用服拓扑永远够不到执行层**
 （`docs/drown-escape-design.md` §1.1 早写下了这一条）。
 
-⇒ **整族是决策层绿的**：「该不该浮」有 26 行断言，「浮没浮起来」**零行**。
+⇒ 准确的说法是：**握了 261 tick 通道、把身体淹死的那段代码，一条断言都没有。**
+决策层（该不该抢占、该不该浮）26 行；Walker 那条替代路径 1 行；
+`DrownEscapeChain.tick` 的执行层 **0 行**。
 [[a-guard-that-was-never-asked]] 的同族，而这一次零行断言的代价是一条命。
 
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
