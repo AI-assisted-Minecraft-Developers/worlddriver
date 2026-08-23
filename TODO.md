@@ -149,14 +149,24 @@ cast.picks#3 = -4, 61, 54 dirt          ← 床面，可以浇了
 给的只有 `stone_sword×1`（照 ladder-10 实测的 `weapon=` 对齐），**路不给**——`prey.distance=54`
 那段走路是本级要测的另一半。跑 `-Prehearse=FOOD`。三问仪器（`c1fd576b`）这一趟第一次带电。
 
-1. **`kill.preyLeft`** —— 猎物还剩几只。
-   - `> 0` 且 `kill.onGround = 0 件` ⇒ **确认「打不中」**：追到了、没打死、地上也没肉。
-   - `= 0` 且 `kill.onGround = 0 件` ⇒ 打死了但**肉没落地或没捡到** ⇒ 翻案，回「捡不到」族。
-   - `= 0` 且 `kill.onGround > 0` ⇒ 打死了、肉在地上、**没进包** ⇒ 拾取族。
+1. **「有没有东西死掉」的权威是日志里的死亡行，不是 `kill.preyLeft`。**
+   一只跑掉／晃出 24 格窗口的牛，和一只死掉的牛，`preyLeft` 读起来一模一样
+   （[[a-gamerule-switches-off-a-mechanism]] 同族：读数说的不是它看起来的那个量）。
+   所以先 grep 本级窗口的死亡行，再看下面的组合：
+   - **窗口无死亡行** + `kill.onGround = 0 件` ⇒ **确认「打不中」**。
+   - **窗口有死亡行** + `kill.onGround = 0 件` ⇒ 死了但肉不在身边。**先问尸体在哪**：
+     扫描是以身体**结束**的位置为心的 24 格，而这一追打了 40 秒，尸体完全可能在窗口外。
+     没有击杀坐标就不许判「拾取族」。
+   - **窗口有死亡行** + `kill.onGround > 0` ⇒ 肉在地上没进包 ⇒ 拾取族。
 2. **`kill.combatError`** —— `combat` 槽的 `lastError`。非空就直接读它，不许再猜机制。
-3. **判据只有第 1、2 条。** `wd.rehearse06Food` 自己 PASS 也要读这三行：一次侥幸的击杀
-   不能把「打不中」结案（[[three-greens-cannot-see-a-one-in-four]]）。
-4. **若 `animalsNearby` 为空** ⇒ 布景/世界钉法的问题，不是打击的问题，这趟作废重新设计。
+3. **这一趟的判别力上限，先说清楚。** 即使读到最干净的那组（无死亡行 + 地上无肉 + 无错误），
+   它只证明**没打死**，**分不开**这三种：
+   (i) 贴身那条分支根本没进；(ii) `attackEntity` 调了但被拒；(iii) 打中了但不致命。
+   ⇒ 判词只许写「没打死」，不许写「一次都没碰到」。要分开这三种，得补 `kill.swings`
+   （`BotState.combatSwings` 已经在算）和 `kill.preyHealth`（收工时猎物的血），下一趟再加。
+4. **`wd.rehearse06Food` 自己 PASS 也要读这几行**：一次侥幸的击杀不能把「打不中」结案
+   （[[three-greens-cannot-see-a-one-in-four]]）。
+5. **若 `animalsNearby` 为空** ⇒ 布景/世界钉法的问题，不是打击的问题，这趟作废重新设计。
 
 ---
 
