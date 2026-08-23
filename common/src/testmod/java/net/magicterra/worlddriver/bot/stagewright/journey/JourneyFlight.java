@@ -232,10 +232,21 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         this.repathsAtStart = Walker.guardForcedRepaths;
         this.keptAtStart = Walker.guardKeptPlans;
         this.advancesAtStart = Walker.stepAdvancesLogged;
+        this.strideFiresAtStart = Walker.strideGuardFires;
+        this.strideSkipsAtStart = Walker.strideGuardSkips.clone();
         // THE leg boundary, for everything that is budgeted per leg. Walker#newLeg's note says why
         // it is taken from here and not given a definition of its own.
         Walker.newLeg();
     }
+
+    /** {@link Walker#strideGuardFires} and {@link Walker#strideGuardSkips} when this leg began.
+     *
+     *  <p>Reported only on a leg that actually entered lava — see {@link #report()}. Elsewhere the
+     *  distribution is just terrain, and a row printed on every leg is a row nobody reads. On the
+     *  leg that burned, it is the only thing that separates「the guard let the body through」from
+     *  「the guard was never in a position to speak」, and those want opposite fixes. */
+    private final int strideFiresAtStart;
+    private final long[] strideSkipsAtStart;
 
     /** {@link Walker#guardForcedRepaths} when this leg began, so the leg can report its own DELTA.
      *
@@ -665,7 +676,26 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                   : "，最后一次丢弃 " + Walker.lastGuardRepath);
         sb.append("；收工那一刻：").append(finishedAt == null
                 ? "没有 —— 这一段是跑满 tick 被叫停的，不是进程自己结束的" : finishedAt);
-        if (lava != null) sb.append("；首次入岩浆 ").append(lava);
+        if (lava != null) sb.append("；首次入岩浆 ").append(lava).append("；").append(strideGuardDelta());
+        return sb.toString();
+    }
+
+    /**
+     * This leg's share of the stride guard's fires and skips.
+     *
+     * <p>Deltas, not totals, for the reason {@link #repathsAtStart} spells out: a total answers
+     *「did this ever happen on this run」when the question is「did it happen HERE」. The buckets are
+     * named by {@link Walker#STRIDE_SKIP_REASONS} rather than by index, so a reader does not have to
+     * hold the order in their head and a bucket added later cannot silently shift the meaning of
+     * this row.
+     */
+    private String strideGuardDelta() {
+        StringBuilder sb = new StringBuilder("这一段里 stride 守卫点火 ")
+                .append(Walker.strideGuardFires - strideFiresAtStart)
+                .append(" 次，没点火的原因分布：");
+        for (int i = 0; i < Walker.strideGuardSkips.length; i++)
+            sb.append(i == 0 ? "" : "，").append(Walker.STRIDE_SKIP_REASONS[i]).append('=')
+              .append(Walker.strideGuardSkips[i] - strideSkipsAtStart[i]);
         return sb.toString();
     }
 

@@ -2048,6 +2048,41 @@ public final class Walker {
      *  discard — and counted apart so it stops inflating {@link #guardForcedRepaths}. */
     public static volatile int guardPinnedWithNoPlan;
 
+    /**
+     * Why {@link #strideFloorGuard} said nothing this tick — one bucket per early return, plus the
+     * fires, so a silent guard can be told apart from an absent one.
+     *
+     * <p><b>The reading a burn post-mortem could not get.</b> That guard's fire line is
+     * unconditional and it is the right guard for「about to stride into lava」, so「0 lines」looks
+     * like a verdict. It is not: it collapses six unrelated states into one number. The 2026-08-23
+     * rehearsal walked into a source pool at −10,63,19 with the guard logging zero times, and
+     * nothing on disk could say whether the flag was off, the sole was airborne, the stride cell
+     * was solid ground, the plan had claimed that column, or the column really did floor out
+     * safely. Same disease as {@code guardForcedRepaths} before it was split four ways
+     * (see its javadoc above), and the same remedy: count the branches, not the outcome.
+     *
+     * <p>Exactly one bucket moves per tick — the method is a chain of early returns — so the sum is
+     * the tick count the guard ran over, and any single bucket's share is directly readable.
+     * Write-only breadcrumbs on the same terms as the counters above; nothing branches on them.
+     */
+    public static final long[] strideGuardSkips = new long[6];
+    /** Names for {@link #strideGuardSkips}, in bucket order, so the instrument printing them and
+     *  the code filling them cannot drift apart. */
+    public static final String[] STRIDE_SKIP_REASONS = {
+            "关着/跑酷 tick", "脚不在实心上（或在水里）", "没在平移 h<0.03",
+            "前方那格不可穿过（就是地）", "计划本来就要下到那一柱", "那一柱在危险之前就见底了"};
+    /** Ticks {@link #strideFloorGuard} actually pinned. Read beside the skips, never alone. */
+    public static volatile int strideGuardFires;
+
+    /** Tally one skip bucket and report「the guard did not act」in a single expression, so every
+     *  early return in {@link #strideFloorGuard} stays a one-liner and none can be added without
+     *  naming which bucket it belongs to. */
+    private static boolean skipStride(int reason) {
+        strideGuardSkips[reason]++;
+        return false;
+    }
+
+
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     int guardHoldTicks;
 
@@ -2159,7 +2194,7 @@ public final class Walker {
      * plug on the strength of this paragraph; it is a measurement, not a verdict.
      */
     boolean strideFloorGuard(Avatar a, WorldView world) {
-        if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return false;
+        if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return skipStride(0);
         Player p = a.player();
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
         // last move() and is wrong in BOTH directions, which is why ServerPlayerAvatar's jump gate
@@ -2169,15 +2204,15 @@ public final class Walker {
         // guard whose job is to stop the body striding into a bottomless drop. Measured on journey
         // rung 20 (2026-08-18): a whole run over the End island — void on every side — logged the
         // guard ZERO times, and the body walked off the edge.
-        if (p == null || p.isInWater() || WalkerGeometry.soleOnSolid(world, p) <= 0.0) return false;
+        if (p == null || p.isInWater() || WalkerGeometry.soleOnSolid(world, p) <= 0.0) return skipStride(1);
         Vec3 dm = p.getDeltaMovement();
         double h = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-        if (h < 0.03) return false;                             // not translating
+        if (h < 0.03) return skipStride(2);                     // not translating
         double lead = Math.max(0.9, h * 4);                     // ~4 ticks of travel, min one cell
         BlockPos strideCell = BlockPos.containing(
                 p.getX() + dm.x / h * lead, p.getY() + 0.05, p.getZ() + dm.z / h * lead);
         BlockPos footCell = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
-        if (strideCell.equals(footCell) || !world.isPassable(strideCell)) return false;
+        if (strideCell.equals(footCell) || !world.isPassable(strideCell)) return skipStride(3);
         // Planned descent into that exact column (current or next few nodes — chained falls
         // put the landing node a step or two ahead of the pointer). Column must match
         // EXACTLY: a Chebyshev-1 slack would exempt the pit mouth beside a staircase and
@@ -2187,7 +2222,7 @@ public final class Walker {
             for (int i = Math.max(step, 0); i < end; i++) {
                 BlockPos n = path.get(i);
                 if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ())
-                    return false;
+                    return skipStride(4);
             }
         }
         // Hazard threshold is LETHALITY at current HP, not mere unplannability: fall damage is
@@ -2213,8 +2248,9 @@ public final class Walker {
             // exactly the stride this guard exists to refuse.
             if (world.isHazard(below)) break;
             if (!world.isPassable(below) || world.isWater(below))
-                return false;                                   // a floor or a water landing → safe
+                return skipStride(5);                           // a floor or a water landing → safe
         }
+        strideGuardFires++;
         avatarSneak(a, true);
         a.commandJump(false);
         p.setSprinting(false);
