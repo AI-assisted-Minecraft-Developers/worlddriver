@@ -949,6 +949,40 @@ public final class JourneyFill {
     static final double BUCKET_REACH = 4.5;
 
     /**
+     * Whether a bucket used from where the body stands RIGHT NOW would land on {@code cell}.
+     *
+     * <p>The engine's own clip, from the current eye, so it cannot disagree with what fires. It does
+     * NOT need the body aimed — {@code ClipContext} takes an explicit segment, which is what makes
+     * this askable at a planning site rather than only inside an {@code aimThenAct}.
+     *
+     * <p>THE SEGMENT IS TRUNCATED AT {@code BUCKET_REACH}, NOT REJECTED BY DISTANCE TO THE CENTRE.
+     * A ray stops at a cube's near FACE while the metre figure on an evidence row is to its CENTRE,
+     * so a cell 4.7 away by centre can be squarely inside a 4.5 ray — rejecting on the centre figure
+     * would refuse a pour the engine would have made. Same trap Q25 avoided by re-clipping instead
+     * of comparing distances; this is the version that has no rotation to borrow.
+     *
+     * @param hitFluids true for an EMPTY bucket (it fills from a source, so its clip sees fluids),
+     *                  false for a FULL one (it pours onto a block, so its clip ignores them). The
+     *                  two are different rays: ladder-14's {@code fill.atUse} printed them landing
+     *                  on different cells 1.4 blocks apart from one eye in one tick.
+     */
+    static boolean bucketLineLandsOn(JourneyRig rig, BlockPos cell, boolean hitFluids) {
+        var p = rig.player();
+        var eye = p.getEyePosition();
+        var centre = net.minecraft.world.phys.Vec3.atCenterOf(cell);
+        var dir = centre.subtract(eye);
+        double len = dir.length();
+        if (len < 1.0e-4) return true;
+        var to = len <= BUCKET_REACH ? centre : eye.add(dir.scale(BUCKET_REACH / len));
+        var hit = p.level().clip(new net.minecraft.world.level.ClipContext(eye, to,
+                net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                hitFluids ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
+                          : net.minecraft.world.level.ClipContext.Fluid.NONE, p));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                && hit.getBlockPos().equals(cell);
+    }
+
+    /**
      * The nearest source of the right fluid whose line from the body's eyes is CLEAR.
      *
      * <p>The question a bucket actually asks, and the one nothing was asking. {@code useItemInHand}
