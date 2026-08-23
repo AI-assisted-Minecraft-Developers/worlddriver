@@ -21,8 +21,12 @@
 | 📌 已判待验 | Q10 | V5 工作台：两种互斥解释的判别行已落（`craftingTable.broke`，每次破坏都写，第二次自动变 `#2`），ladder-9 收数 | 我 |
 | 📌 部分已判 | Q11 | V3 不挥手：`[dig]` 摘闸后 ladder-9 前 1750 行 **143/143 `ok=true`** ⇒ **挖掘这一族是挥手的**。要重新归类，见下 | 我 |
 | 🔴 已修待闸 | J8 | `BackfillProcess:52` / `BuildProcess:59` 身体消失不写 `lastError`，而 `toMap` 丢 null ⇒ 报成「结束了，没错误」（`fb4fb45a`/`b4335efa`，janitor 找的） | 我 |
-| 🔧 已编辑待编译 | J10 | 硬规则 12 终于有了秒级闸：`SchedulerClientCallSurfaceTest` 加扫**形参描述符**（`329d7964`）。要 `./gradlew :common:test` 验 | 我 |
+| ✅ 已测 | J10 | 硬规则 12 有秒级闸了：`SchedulerClientCallSurfaceTest` 加扫**形参描述符**（`329d7964`）。`:common:test` 绿，含反向控制 | 我 |
 | ✅ 已落 | J11 | 预算闸自己解析错：先剥块注释再剥字符串，字符串里的 `bot/scheduler/**` 开了个假注释（`a7b5e3fc`）。已校准：全仓只影响 1 个文件 | 我 |
+| ✅ 已测 | J12 | **同一天第二把不剥注释的尺子**：`DayTimeFoldingTest` 被一行 javadoc 判红，而它的「控制」一直靠另一行 javadoc 通过（`5d4d80ff`） | 我 |
+| ✅ 已落 | J13 | `WorldDriverJourneyScenes` 到顶（3017），把工作台/落脚那一族拆进 `JourneyStation`（`28a38cc8`），2851 行。**机械搬运，证据键一个没改** | 我 |
+| 🔴 已修待闸 | Q16c | 9 级回家的路把身体带下 24 格 ⇒ 10 级走不到。补救：低于天光 8 格就先 `climbOut` 再走一趟（`28a38cc8`） | 我 |
+| ⏭ 排队 | J14 | `JourneyEndRungs:2707` 自己复制了一份 `walkToColumn`——和共享那份是否同语义没人核过 | janitor |
 | ⏸ 待发槽 | J9 | `aimAtBlock`+`breakHold`+`continueDestroy` 两处**六行逐字相同**，收成 `JourneyHands.swingOffPlant`。**等 ladder-9 判完再动**——那六行是被验对象 | janitor |
 | ✅ 已测 | Q12a | 世界钉法进了 99 级判词：ladder-8 的判词自带 `doMobSpawning=false…零布景说的是道具，不是难度` | 我 |
 | ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
@@ -462,6 +466,29 @@ iron.strandedAt  = 76, 44, 84，离出生点 27 格 —— 上面的每一级都
 ```
 
 ⇒ 别处**没有**被旧解析器吞掉的违规。修法的爆炸半径是量出来的，不是猜的。
+
+### 同一天第二把（J12）：而这一把连它的「控制」都是靠散文通过的
+
+修完预算闸之后跑 `./gradlew :common:test`，`DayTimeFoldingTest` 红：
+
+```
+dayTime is being folded outside TimeSnap:
+  WorldModel.java:74  * {@code % 24000} folding is shared (via {@link TimeSnap#timeOfDay}).
+```
+
+命中的是**一行 javadoc**——一句**说明这条规则的散文**，被判成了违反这条规则。
+它的 `stripComment` 只剥 `//`，不剥块注释。这条红从今天早些时候那笔注释起就一直在，
+**没人看见，因为没有任何闸跑 `:common:test`**——梯子和六条拓扑都不碰它。
+
+剥干净之后，**它的反向控制立刻塌了**：`theScannerCanSeeTheOwnerItExempts` 断言
+「TimeSnap 自己还在按 24000 折叠」，而 TimeSnap 的代码里写的是 `% DAY_TICKS`，
+**`% 24000` 只出现在它的 javadoc 里**。也就是说这条「控制」一直是**靠一行散文通过的**——
+[[the-audit-that-did-not-ask]] 的同族：不会失败的控制不是控制。
+
+修法一并补上了它原本漏掉的那类真违规：判别式改成 `% (24000|DAY_TICKS)`。
+**常量那一支才是真正危险的写法**——`DAY_TICKS` 是 public，第五份拷贝最自然的写法就是
+`dt % TimeSnap.DAY_TICKS`，而只认字面量的旧判别式对它完全失明。
+并给剥离器写了四条自检（真代码要留、`//` 要剥、javadoc 要剥、字符串要剥）。
 
 ---
 
