@@ -880,6 +880,15 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.walkerPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
         BotConfig.allowPlace = true;                 // ditto, and the subject here IS a placement
         BotConfig.allowBreak = false;
+        // Also baseline-disabled (BotConfig:2326 production ON, :2968 arena OFF) — and this one
+        // decides whether the scene has a subject at all. The destination is UNSTANDABLE by
+        // construction: it is a surface water cell whose support has yet to be placed, which is
+        // the entire geometry. So Walker.snapGoalToStandable rewrites the goal to the nearest
+        // standable cell — and that is the cell the body is already standing in, one below. The
+        // walker then reports ARRIVED on tick ONE and the pillarUp edge never runs. The first
+        // gate run of this scene died exactly there (走.收尾=ARRIVED 用了 1/200 tick,
+        // 走.跑过pillarUp=false), caught by the fourth guard below rather than passing vacuously.
+        BotConfig.walkerPillarReachGoalNoSnap = true;
 
         ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -941,15 +950,29 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ctx.record("升.峰值y", maxY + "（要到 " + dest.getY() + "）");
         ctx.record("走.收尾", s + "（用了 " + t + "/200 tick）");
         ctx.record("走.跑过pillarUp", ranPillarUp);
+        // An outcome without its reason is not an instrument: the first run printed 「ARRIVED，
+        // 1/200 tick」 and that named neither the snap nor the repath. lastEndReason is written at
+        // every terminal() call site and carries the arrival CLASS, goalSnapped included.
+        ctx.record("走.收尾理由", String.valueOf(walker.lastEndReason));
+        ctx.record("走.目标被吸附", walker.goalSnapped());
 
         // THE FOURTH VACUITY GATE, and the one the first design was missing. The three above check
         // the WORLD; none of them checks that the SUBJECT ran. Handing the walker a goal makes it
         // free to repath, and a repath swaps the synthetic pillarUp edge for whatever A* prefers —
         // after which every reading below is about a different move, and the arena goes green while
         // the two phase classes were never asked the question.
+        // The FIFTH, and the one that names a cause instead of guessing at one. !ranPillarUp has at
+        // least two very different explanations — a repath swapped the edge, or the goal was snapped
+        // off the cell before tick one — and the guard below cannot tell them apart. This one reads
+        // the snap bit directly, so it must come first.
+        if (walker.goalSnapped())
+            ctx.fail("surfacePillar: 目标被 snapGoalToStandable 从 " + dest.toShortString()
+                    + " 吸附到了别的格 —— 走行器驱的不是被测的那一格，下面每一行说的都是另一个动作。"
+                    + "本级的目的格按构造就是不可站立的（支撑要靠这次 pillarUp 垫出来），"
+                    + "所以豁免它的 walkerPillarReachGoalNoSnap 必须开着；竞技场基线把它关了。");
         if (!ranPillarUp)
-            ctx.fail("surfacePillar: 这一趟从没有一 tick 在执行 pillarUp 边（多半是重新寻路把合成"
-                    + "计划换掉了），所以下面的判据说的不是被测对象。要修的是布景，不是产品。");
+            ctx.fail("surfacePillar: 这一趟从没有一 tick 在执行 pillarUp 边（目标没被吸附，那多半是"
+                    + "重新寻路把合成计划换掉了），所以下面的判据说的不是被测对象。要修的是布景，不是产品。");
 
         if (s != Walker.Step.WALKING && !placed && !reachedRow)
             ctx.fail("指针越过了一块没垫上的支撑：走行器以 " + s + " 收尾，而 "
