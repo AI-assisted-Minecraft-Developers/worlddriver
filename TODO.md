@@ -77,6 +77,7 @@
 | 📌 记着 | J24 | `JourneyShaft.supportUnder` 用 `rig.ctx().level()`，**latent**：所有调用点现在都在主世界，安全；哪天有人在下界/末地调它就读错世界。⚠️ 它和 `JourneyEndRungs.supportUnder` **方法体逐字相同而读的 level 不同**（后者用 `levelOf(rig)`＝身体所在世界，19 级之后不是 `ctx.level()`）——**合并会弄坏末地的级，别顺手合** | janitor |
 | 🔴 待做 | J24b | **同一个三项式，喂进去的输入不一样，一个推指针一个决定跳。** `WalkerTickProgress:552` 和 `WalkerTickClimb:889` 都是 `shaftFlooded \|\| p.isInWater() \|\| isWater(step.below())`（一字不差），但 Climb 那边的 `shaftFlooded` 在 886-888 多一条 `&& !isWater(step.above())` 会把它清回 false ⇒ **同一 tick 两个答案**。排在 J21/J22 之前：「同一判据两个答案」是这两天所有事故的母形状。⚠️ **要一条能分辨两个答案的场景，不是一次重构** | janitor 报，我判 |
 | ❌ 撤回 | J25 | ~~`isSubmergedFoot` 名字撒谎，rename~~ **是假缺陷，别改。** 我已核：调用点**六处**不是一处（`WalkerTickDrive`／`SurfaceDive`／`SwimAshoreBreak`／`SwimBankClimbBreak`／`SwimDown`／`PathFinder`），且声明处 `WorldView:337` 起有整段 javadoc，第一句就把量写死——「water still fills the cell TWO above the foot」。**名字短 ≠ 名字撒谎**。⚠️ 这条的成因：报的人只 grep 了一个文件就写下「唯一调用点」，而 `-A 8` 的窗口没盖到那段 javadoc。**假缺陷比漏报贵**——它会让人去改本来正确的代码（[[a-verification-tool-needs-verifying-too]]） | janitor 报并自行撤回 |
+| 🔴 待做 | J26 | `WorldDriverActuatorSplitScenes:201-216` 的两行还原自检写在 `ctx.cleanup` 里 ⇒ **哪儿都不出现**：`record` 排在 `teardown` 之前（结果文件已序列化），而 `SceneContext.record` 是纯 map put 不打日志，`note()` 也早拼完了。**每趟专用服闸都跑这个场景**，所以「还原成没成」从写下那天起零次生效，`⚠️ 否` 那半边无人看见。它的注释自陈「A restore nobody verified is a claim」（[[a-confluence-point-is-not-a-deadline]]） | janitor 扫出，janitor 修 |
 | 🟠 待做 | Q30 | **追猎全程零行日志。** ladder-14 的 FOOD 关卡 `猎到 minecraft:cow，得生肉 ×5`，而整段窗口里没有任何一行说牛什么时候死、被谁打死、打了几下——`[dig]` 那些行是因为攻击也按着 `keyAttack`。于是「goto 走到了」和「牛自己撞上来」**分不出**，一条 2392 tick 的腿的结局无法归因。这不是「忘了打日志」，是**一整族动作没有仪器**（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第七个现场，这次连开关都没有） | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
@@ -1154,7 +1155,35 @@ if/else 改法推到 280 ⇒ 红。把计数收进 helper 才回绿——**和 J
 且各行的桶和等于该级的搜索数。三态：
 - ✅ 已验 —— 每级一行、和自洽、且至少一级的 `脚格是水` 非零（复现 318 那簇的成因）；
 - 🟡 未触发 —— 有行但全零（走行器没搜过路，**不是**判词）；
-- ❌ 证伪 —— 有级没有行（说明 `cleanup` 不是我以为的必经路径）。
+- ❌ 证伪 —— 有级没有行。
+
+### 🔴 而这条预登记当场救了它自己 —— 发射点是错的
+
+写「每级一行」的时候才去问「这行凭什么会出现」，于是发现：
+`ctx.cleanup` 确实是 `teardown()` 的必经点（javadoc 自称
+「Single confluence point for every outcome」，属实），
+**但 `record(...)` 在每一条终局路径上都排在 `teardown(...)` 之前**
+（342/343、345/346、356/357、359/360、362/364…八条无例外），
+而 `record` 里的 `out.writeScene(…, ctx.records(), …)` 才是序列化进结果文件的那一步。
+
+> ⇒ 写在 cleanup 里的行，**是在唯一的读者已经读完之后才写的**。
+> 「必经」和「及时」是两个条件，一个成立不蕴含另一个（[[a-confluence-point-is-not-a-deadline]]）。
+
+改法（`0d85606b`）：`recordFutileGate()` 从 `enter`（占位行）／`heartbeat`（`await` 是所有
+等待的咽喉点）／`reach`（让 PASS 精确）三处写，`evidence.put` + `ctx.record` 两个**平覆盖**、
+绕开 clash 检测（这个键故意反复重写，否则每次心跳记成 `futileGate#2/#3/…`）。
+TIMEOUT 仍停在最后一次心跳的值上——**滞后而说明了滞后，好过精确而缺席**。
+
+**这条规则立刻抓到第二个现场（janitor 扫的，比我这个更彻底）**：
+`WorldDriverActuatorSplitScenes:201-216` 的 `ctx.cleanup` 里写了
+`cleanup.槽位还原` / `cleanup.物品还原` 两行自检，而 `SceneContext.record` 是
+**纯 map put、一行日志都不打** ⇒ 那两行**哪儿都不出现**（我的至少还进日志和 ledger）。
+更重的是它是 `wd.*` manifest 场景，**每趟专用服闸都在跑**——
+所以今晚数了三遍的 305 里，`⚠️ 否` 那半边从写下那天起一次也没被人看见过，
+而它守的正是这个场景自己的主题。它的注释写着「A restore nobody verified is a claim」，
+那句话原样落回它自己头上。→ **J26**，解冻后 janitor 修。
+扫描器 `cleanupscan.py`（scratchpad），只报 `cleanup(` 块内的 `record(`/`evidence(`/`passNote(`，
+全 testmod 仅此两条命中。
 
 ---
 
