@@ -50,9 +50,10 @@
 | 🟡 已改未触发 | Q21 | 三次进近逐字相同：`liftInPlace` 的闸是 `y >= wantY`，而失败的是**柱**。闸已拆三支（`be58b518`），但第三趟死得更早，三种行一条没写 ⇒ **未触发**，等下一趟走到那个场合 | 我 |
 | 🔴 **挡路** | Q22 | 12 级下楼那一段在地表打转（同一目标 `-4,62,20`，起点在 y=65~67 换了十几格）→ 落进岩浆湖 `-10,63,19` → 在岩浆里重搜 42 次烧死。入场机制**判不出走进还是滑进**（`fallDistance` 早被重置，`search-begin` 只有 1 秒分辨率），但 `Move.java:286` 证明 A\* 硬拒岩浆 ⇒ **不是规划进去的** | 我 |
 | ✅ 已拍板 | Q23 | advisor：做**逃生反射**。`autoHeal` 算术上跑不过岩浆 DPS，「寻路不踏进源块」已经是现状且只防规划不防滑落；13 级是下界，这条能力无论如何都要有。武装设置≠布景（Q12a：零布景说的是道具不是难度）。**读码后收窄**：反射早就存在且默认开着，前五次发作全部成功 ⇒ 要加强的不是脱离（进了源块 40 tick 挪不满 1 格，物理上没救），是**入场闸** | advisor＋我 |
-| 🟡 已改未接线 | Q23a | ~~新加入场闸~~ **撤销**：`Walker.strideFloorGuard` 早就在做同一件事且处处更对（`soleOnSolid` 而非 `onGround`、按血量算致死深度、四 tick 前瞻）。真正缺的是「它为什么整趟没响」—— 那个 0 压着六个状态。已加 `strideGuardSkips[6]` 分桶。**但挂在了 `JourneyFlight` 上，而那个类只有 13 级以后在用**，12 级读不到 ⇒ 跑完改挂 `JourneyRig` 的 `death.*`（rig 级，每一级的死都过） | 我 |
-| 🟠 待做 | Q23d | `strideGuardSkips` 是 `long[]`，元素非 volatile，而邻居全是 `volatile int`（跨线程读）。换 `AtomicLongArray`，否则「桶全为 0」分不清「没调用」和「没可见」 | 我 |
-| 🟠 待做 | Q23e | `(int) p.getX()` 这类**向零截断印格号**：全仓扫完只有 3 处（见下），全是兄弟，全在负坐标下说谎。跑完真梯一次改掉 | 我 |
+| 🟡 已接线待验 | Q23a | ~~新加入场闸~~ **撤销**：`Walker.strideFloorGuard` 早就在做同一件事且处处更对。真正缺的是「它为什么整趟没响」。`strideGuardSkips` 六桶已改挂 `JourneyRig` 的 `death.strideGuard`（rig 级，每一级的死都过），`JourneyFlight` 的每段差值保留给 13 级以后。**要一趟死掉的真梯才验得到** | 我 |
+| ✅ 已改 | Q23d | `strideGuardSkips` 换成 `AtomicLongArray`，和邻居那一排 `volatile` 同一套约定 —— 否则「桶全为 0」分不清「没调用」和「没可见」 | 我 |
+| ✅ 已改 | Q23e | 三处向零截断印格号全改掉（`AutoSwim:128`、`ContactDamageEscape:76`、`WorldDriverProcessScenes:1169`，最后一处上一行就已经算好了 `cell`） | 我 |
+| 🔴 **挡路** | Q24 | 11 级：`cast.result = SUCCESS` 而 `lava_bucket.after = 1`。两个数来自两端（客户端预测 vs 服务端库存），而分辨用的 `cast.atUse` 上一轮只加进了 12 级。已补，下一趟读服务端那半边 | 我 |
 | 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
 | 🟠 待做 | Q23b | `WalkerTickDrive:844` 的 `path-hazard brake` 日志在 `walkerDebug` 后面，真梯从不开 ⇒ 烧死那一趟查不出闸响没响。改无条件（它只在世界变化时响）；`hazard-ahead brake` 加节流。跟 Q7 后半（`MineProcess:341`）合并 | 我 |
 
@@ -865,6 +866,69 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 
 **不预登记「哪个桶最大」**。那是这次要测的量，先猜等于把结论写进判据
 （[[a-criterion-success-cannot-satisfy]] 的镜像：判据要能证伪，不能只会印我想要的那句）。
+
+## 📊 ladder-12 判词（2026-08-23，`results-ladder12-castStillFull.jsonl`）
+
+爬到 **10 级 PORTAL_KIT**，11 级 OBSIDIAN 失败，12–20 级 BLOCKED。**这一趟没有岩浆死亡。**
+布景调用 0 次。三条预登记逐条兑现：
+
+| 判据 | 判词 | 依据 |
+|---|---|---|
+| Q19 桶落包重拿 | ✅ **已验（三半全中）** | `cast.handSlipped` ＋ `cast.again.hand = lava_bucket` ＋ `cast.result = SUCCESS` |
+| Q21 进近三支 | 🟡 **未触发** | 三种行 0 条，这一趟只走到一次进近，没有第二次的场合 |
+| Q23a stride 分桶 | 🟡 **未触发**（如改判所料） | `.flight.` 0 条 —— 属于 13 级以后，且这一趟没死 |
+
+### Q19 已验，而且机制在证据里坐实了
+
+```
+cast.handSlipped = 动手前手上不是 minecraft:lava_bucket 了：
+                   客户端 槽 0 = minecraft:cobblestone，服务端 槽 0 = minecraft:cobblestone
+cast.again.hand  = minecraft:lava_bucket（槽 0）
+```
+
+**谁挤走了桶，这一趟指名道姓**：`lava.exit#5.climb.0 … .35`，出井垒了 36 级，
+`lava.exit#5.climb.0.with = cobblestone ×113` 一路数到 `×78`，
+`lava.exit#5.climb.35.atUse = 客户端 槽 0 = minecraft:cobblestone`。
+**塔的材料就是占住手上那一格的东西**，跟上一轮从排练里推出来的机制一字不差
+（当时推的是槽 4，实际是槽 0 —— 槽号不是机制的一部分）。
+⇒ 那句「这个站点从没被咬过，因为两行之间没有别的东西握过手」的注释**被证伪**了：
+咬人的不是下一行，是**上一段**。已改。
+
+### 🔴 而 11 级仍然失败，死因是新的：SUCCESS 与满桶同时为真
+
+```
+cast.result       = SUCCESS
+cast.cellAfter    = Block{minecraft:water}
+lava_bucket.after = 1        ← 桶还是满的
+bucket.after      = 0
+obsidian.anywhere = 无
+```
+
+瞄准是对的：`cast.picks#2 = -3, 61, 54 dirt face=up` → 流体落点正是 `cast.cell = -3,62,54`。
+手也是对的（客户端）。**但两个数来自两端**：
+
+- `cast.result` ← `ClientPlayerAvatar.useItemInHand()` = `mc.gameMode.useItem(p, MAIN_HAND)`
+  （`ClientPlayerAvatar.java:159`）—— **客户端预测**，用的是**客户端**手里那一叠。
+- `lava_bucket.after` ← `rig.carrying(...)`，读的是**服务端**的 `ServerPlayer`。
+
+所以「SUCCESS 且桶还是满的」**不是矛盾，是两端不一致**。而
+`cast.again.hand` 那一行自己就写着「服务端槽 0，换手包还没往返，这个数按定义是旧的」——
+**它当场就声明了自己只说了一半**，而 `regripBeforeUse` 判的 `actingHolds` 也是客户端。
+「重新拿到了」和「服务端也认」是两句话，**只有一句被记下来过**。
+
+**而能分辨的那一行不存在**：`JourneyHands.handsAtUse`（同时印两端 ＋ 两条流体射线）
+上一轮只加进了 `JourneyPortalRung.placeFluid`，11 级的 `pourInto` **只加了 regrip**。
+[[a-fix-that-cannot-reach-its-own-occasion]] —— 今天第四次。已补（`7d147855`），
+并加了 `cast.stillFull`：满桶时把两端的读数来源写在同一行里，
+省得下一次又拿客户端的 SUCCESS 去解释服务端的库存。
+
+**下一趟要判的**：`cast.atUse` 的服务端半边是 `lava_bucket` 还是 `cobblestone`。
+- 是 `cobblestone` ⇒ 换手/交换点击没在 use 之前到服务端 ⇒ regrip 之后要等一次往返。
+- 两端都是 `lava_bucket` ⇒ 手没问题，这一浇是被**拒绝**的，要去查
+  `BucketItem.emptyContents` 在这一格上的条件（水源、`canBeReplaced`、落点是不是被
+  `Fluid.NONE` 的射线穿过去了）。
+
+**不预先挑一支**。这一趟已经因为「先挑了一支」错了三次。
 
 ### 🎯 ladder-12 预登记（`runJourneyIntegratedServer`，写在跑之前，2026-08-23）
 
