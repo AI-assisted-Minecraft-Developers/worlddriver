@@ -1498,6 +1498,37 @@ obsidian.anywhere = 无
 ⚠️ **先做仪器再谈修法。** 今晚已经有一次「证据一路涨、方向全错」
 （[[a-guard-that-did-not-fire-may-be-right]]），这一条的证据链看起来同样扎实。
 
+### Q32 的假说收敛了两次，第二次不用钩 vanilla
+
+**第一次收敛（janitor 用字节码否掉我的）**：我猜「服务端角度活不过下一个包」。
+**按构造不成立**——`ServerboundUseItemPacket` 在 1.21.1 自带 `yRot`/`xRot`，
+`handleUseItem` 先 `absRotateTo(包里那对角度)` 再 `useItem`（1.20.5 加这两个字段正是为了堵这一类）。
+⇒ 「`BucketItem.use` 执行那一刻的服务端角度」这个读数**注定复读**已知值，造它学不到东西。
+
+**第二次收敛（把「角度」换成「位置」）**：`BucketItem.use` 第一件事是
+`getPlayerPOVHitResult(...)`，**从眼睛位置起线**。角度由包保证一致，
+**位置没有任何东西保证一致**——它取决于服务端处理到第几个移动包。
+同样的角度、差零点几格的起点，**2.98 格那条线就可能 MISS 或换一个命中面**。
+而 MISS 走 `pass`：**不消耗桶、不改世界、客户端仍预测 SUCCESS** —— 与全部四条证据吻合。
+
+顺带排掉（janitor 反编译核过，别重复走）：**不是「岩浆浇不进水源」**
+（`LiquidBlock` 没覆写 `canBeReplaced`，水是 replaceable，且它 `implements BucketPickup` 而非
+`LiquidBlockContainer`）；**不是那两道权限闸**（`mayInteract` 的出生点保护只在
+`DedicatedServer` 覆写里为真，集成服恒 false）。
+
+### 而怀疑「位置会动」有一条现成的理由，之前被我读漏了
+
+那一级的 `cast.walk` 写着 **`end=unavailable/预算用完时进程还在走`** ——
+走行进程在预算耗尽那一刻**仍在驱动身体**。[[releasing-the-controls-is-not-braking]]。
+
+⇒ **已落一行仪器（testmod，不用钩 vanilla）**：`cast.motionAtUse`，
+在 `useItemInHand()` 之前记下**速度、|水平速度|、onGround、goto 槽的 end**。
+判据：`|水平| > 0.05` ⇒ 采样时的眼睛和服务端处理包时的眼睛**不是同一个**，机制坐实；
+`≈ 0` ⇒ 证伪，回去做 janitor 那版（服务端自跑一次 `getPlayerPOVHitResult`，读 `type`/`blockPos`）。
+
+⚠️ **两条都不成立时才轮到「浇进静水该不该变黑曜石」** —— 那个问题现在还轮不到问，
+因为 `bucket.after = 0` 已经证明**一滴都没浇出去**。
+
 ---
 
 ## 🔬 Q7c 判词：普查第一次说话，**它把 Q7 整个重写了**
