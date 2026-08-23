@@ -1636,6 +1636,47 @@ walker 的桥／跑酷放块若没走那个汇聚点，就在那里。
 都同形。本轮只修铁级（有实证的那一处），但下次再遇到「进程日志说成功、判词说 0」，
 **先查这条**，别去查进程。同族：[[aiming-one-body-and-raying-another]]、
 [[the-write-side-was-split-the-read-side-was-not]]。
+
+### 2026-08-23 janitor 轮：三笔去重，三个闸
+
+| hash | 合了什么 | 为什么不是「顺手统一」 |
+|---|---|---|
+| `e1cdc1b0` K1 | 背包枚举（`ObserveApi` / `ClientObserve` 各抄 12 行）→ `ItemSnap.inventoryRows` | `ObserveApi` 自己的注释写着「shape is **deliberately** byte-identical to the client's」——**一条靠手抄维持的传输层契约**。抽完两侧各剩一行 |
+| `838e3e80` K2 | `faceToward` 三份 → `BotUtil.faceTowardEye` | 两个 process 抄它的理由（避开 client-only 的 `BotInteract` 以便在专用服加载）**为真**，所以不是指回 `BotInteract`，是搬进 `BotUtil`（`bot/process/` 下已有 19 个文件依赖它） |
+| `4a7ff6c2` K4 | `findTable`/`findFurnace` → `BotUtil.nearestBlockWithinReach` | 同一对文件的**同一对动词**，「放」那半边已经因分叉付过两次账（gap#61 只修工作台、gap#62 才发现熔炉停在进化前） |
+
+✅ **K4 里刻意没做的那件事，是这轮质量最高的判断**：两份原始代码是**严格 `<`** 对初值 `reach²`
+（恰在 reach 上的格**被拒**），而 `eyeWithin` 是 `<=`（**会收下它**）。差别只有一个浮点相等那么宽——
+**而这正是不该换的理由：无偿放松一道闸，且事后没人归因得了。** 保留原比较。
+实测确认：新方法保持 `d < bestD`、盒仍是 dx/dz ±4 / dy ±2、两个 `REACH = 4.3` 仍在各自文件。
+
+🔎 顺带抓到一条**撒谎的注释**：`BotUtil.standingEye` 的触及半径表写着「asked in **five** places」
+并列五行，而 `CraftProcess`/`SmeltProcess` 那两个 `4.3` 是第六第七个，
+**在那张表被写下时就已经在那儿了**。已按代码改成七行。[[evidence-that-lies]] 的又一形状。
+
+#### 三个闸，以及为什么是三个不是两个
+
+| 闸 | 盖住什么 |
+|---|---|
+| `stagewrightIntegratedServerNeoforge` | K1（`ClientObserve` 只在有客户端的拓扑跑）＋ 新编译的冒烟 |
+| `stagewrightDedicatedServerFabric` | Fabric 那套 classload 失效机制 |
+| `stagewrightDedicatedServerNeoforge` | **NeoForge 那套**——两个 loader 的失效是**两套机制**（`environment type SERVER` vs `invalid dist DEDICATED_SERVER`），`BotInteract` 自己的 javadoc 写着 |
+
+⛔ **本来只排了前两个，janitor 指出缺口，它提议用实证省掉第三个，我没采纳。**
+它的实证是「`MineProcess` 调 `BotUtil.standingEye`，而 mine 场景在两个 loader 的专用服闸都绿」。
+两个前提我都只能确认一半：`MineProcess` 那处查到的是 `import static …BotUtil.*`（**通配导入不证明有调用点**），
+而我手上的 neoforge mine 读数是**集成服**的（7 条执行 0 skip），不是专用服。
+**验证这条实证和直接跑那个闸成本相当——同价之下把推理换成测量。**
+半个前提配上「已经验过了」的结论，正是 [[skip-is-not-coverage]]。
+
+归因表（闸跑**之前**写定）：
+
+| 现象 | 记谁 |
+|---|---|
+| craft / smelt 场景新红 | K4（若同时点名 classload → 先看 K2） |
+| `inventory` 字段形状、三传输 parity | K1 |
+| 任一 loader 专用服上 classload 点名 `BotUtil`/`BotInteract` | K2 |
+| 以上都不是 | **计划外，不摊给这三笔** |
 2. **到达判据丢 y** 是独立缺陷，但**不要单独落地**：判据先学会 y 而上游还在，
    第 7 级会立刻翻红、读起来像回归。过渡期只把 y 差**写进证据行**（诚实的行，不判失败）。
 3. 熔炉差 4 块圆石按用户长期指令办：**先写死一步去补料**，不依赖上面两条的结论——
