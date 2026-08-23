@@ -13,7 +13,7 @@
 | ✅ 已测 | Q5c | **ladder-11：11/20 新纪录** —— 11 级首过（修法真梯验成），死在 12 级「只有一只桶而它装着岩浆」 | 我 |
 | ✅ 已绿 | Q15a | **闸债已还**：三闸全 GREEN（集成 NeoForge／专用 Fabric／专用 NeoForge），溺水类加载缺陷结案，见下 | 我 |
 | ✅ 已绿 | Q15b | **第二轮闸**（ladder-9 之后积的九笔）：专用 Fabric GREEN 305/28、专用 NeoForge GREEN 305/27，非 PASS 与上一轮**逐条相同**，classload 0 | 我 |
-| 🔴 排队 | Q15c | **集成 NeoForge 一直是 RED**，唯一死因 `pack.placesAndReadsBack` ENV_FAIL：`0 of 9 arena chunks ever loaded after 201 ticks`。改动前后同因，非回归。见下 | 我 |
+| 🟡 绿了但没解释 | Q15c | 集成 NeoForge 这一趟 **GREEN 307/0 SKIP**，`pack.placesAndReadsBack` ENV_FAIL(10001ms) → **PASS(3336ms)**。但 `19b18c2`/`a384733` 两笔**都解释不了这个翻转**（那场反射风暴在集成日志里新旧都是 0 条）⇒ 是**又慢又飘**，不是修好了。要结案得让 PREP 无条件写 `readyTicks/readyMs` 看分布 | 我 |
 | ❌ 已证伪 | Q16b | 11 级 `short_grass`：换服务端 avatar（`337a35e2`）**被排练证伪**，同一格同一棵草原样读回。真因见下 | 我 |
 | ✅ **已验** | Q16d | 真因：**瞄的和破的不是同一具身体**。修法 `5e8c0713` 经确定性 A/B 排练验证：`cast.cleared.-4, 63, 55` 由 `short_grass` → **`air`**，11 级 PASS | 我 |
 | 📌 已判待验 | Q16e | 6 级**间歇**失败（3 趟里 1 趟）。「窗口无死亡行」那条族判**已撤回**——日志没有死亡仪器。已补 `kill.kills`/`kill.swings`/`kill.preyVitals`（`1a4efeac`），等它下次发作点名 | 我 |
@@ -1156,6 +1156,65 @@ ENTITY_TICKING**（`ChunkMap.prepareEntityTickingChunk` 那个异步步骤，两
 2. `pack.measuresItsOwnTickCost` 仍 PASS、仍出 `tps.baseline/tps.loaded`；
 3. 集成 NeoForge 那条 ENV_FAIL 的文案**说出是哪一半**（这一条不要求变绿，只要求说清楚）。
 发布时注意 loom 三层缓存（[[loom-remap-cache-serves-stale-stagewright]]）。
+
+### 兑现（2026-08-23，`publishToMavenLocal` + 两趟闸）
+
+先 `./gradlew --stop`（Windows 上 daemon 攥着 jar，驱逐会静默失败），再发，再跑。
+
+| 签名 | 结果 |
+|---|---|
+| 1. `invalid dist` 120 → 0 | 🟡 **部分**：专用 NeoForge **120 → 1** |
+| 2. `pack.measuresItsOwnTickCost` | ✅ **已验**：PASS，`tps.baseline=20.0 tps.loaded=20.0` |
+| 3. 集成的 ENV_FAIL 文案说出是哪一半 | ⛔ **结构上不可能兑现** —— 见下 |
+
+**签名 1** 剩的那一条原文，紧跟在 `pack.usesACapabilityItDeclared` 后面：
+
+```
+[Server thread/ERROR] [ne.ne.fm.co.as.RuntimeDistCleaner/DISTXFORM]:
+  Attempted to load class net/minecraft/client/Minecraft for invalid dist DEDICATED_SERVER
+```
+
+120 → 1 正是 [[repeats-mean-reflection]] 说的那个形状的**反面**：重复来自反射，
+`19b18c2` 把「每采样一次就重载一次」拿掉之后，重复没了，**剩下的 1 是那一次真尝试**。
+预登记写的是 0，所以这条**只算部分兑现**，不许记成已验。
+附带作用：这个 120→1 同时证明**新 StageWright 确实进了游戏**——
+loom 那三层缓存这一趟被打穿了，别的读数才有资格被信。
+
+**签名 3 兑现不了，而原因是判据本身**：集成 NeoForge 这一趟
+`pack.placesAndReadsBack` **PASS 了**，而那条新文案**只写在失败路径上**。
+一个成功的运行**没有任何办法**满足「文案说出是哪一半」。
+这是 [[a-criterion-success-cannot-satisfy]] 的又一例，登记判据时就该看出来。
+正确写法是：「要么 PASS，要么 ENV_FAIL 且文案含 `(of those, R reached entity-ticking)`」。
+
+### 🟡 Q15c 从 ENV_FAIL 翻成 PASS，但**这两笔提交都解释不了它**
+
+```
+旧（gate-nf-integrated3.log）：pack.placesAndReadsBack -> ENV_FAIL (0 ticks, 10001 ms)
+新（gate-nf-integrated4.log）：pack.placesAndReadsBack -> PASS     (1 ticks,  3336 ms)
+```
+
+集成 NeoForge 整趟 **307 PASS / 0 SKIP**，非 PASS 只有两只 canary ⇒ 整闸 **GREEN**。
+
+**但因果讲不通，别记成「修好了」**：
+
+- `a384733` 只改了**失败路径的文案**，这一趟没走失败路径。
+- `19b18c2` 拿掉的是那个反射重载 —— 可 `for invalid dist` 的计数在
+  **新旧两趟集成日志里都是 0**。也就是说那场反射风暴**从来没有在集成 NeoForge 上发生过**，
+  它不可能是这里的死因。（差点拿专用那边的 120→1 去解释集成这边的翻转，
+  [[one-sample-cannot-name-a-cause]]。）
+- 真正的读数是**耗时**：3336 ms，预算 10000 ms。竞技场提升在这个交叉格上
+  **又慢又飘**，这一趟飘进了预算内。
+
+⇒ Q15c 记 🟡：**一趟绿证明不了它没了**（[[three-greens-cannot-see-a-one-in-four]]）。
+要结案得改成正向读数：让 PREP 把 `readyTicks` / `readyMs` **无条件**写进 `data`，
+然后看它的**分布**，而不是看它有没有撞线。
+
+### 专用 NeoForge：与绿基线**逐条相同**
+
+305 PASS，非 PASS 四条与 `results-green-2026-08-23.jsonl` 完全一致
+（`canaryMustFail` / `canaryMustTimeout` 两只 canary，
+`wd.vineOverWaterClimb` 那个已知可选传感器，`wd.serverEscapeSealedShelter`）。
+⇒ **无回归**，Q15a/Q15b 的闸债保持已还。
 
 ---
 
