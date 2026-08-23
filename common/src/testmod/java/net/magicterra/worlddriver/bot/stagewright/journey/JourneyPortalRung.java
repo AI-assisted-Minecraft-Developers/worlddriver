@@ -407,7 +407,22 @@ public final class JourneyPortalRung {
      */
     private static void landOnFloor(JourneyRig rig, String tag, Runnable then) {
         if (!Boolean.getBoolean("worlddriver.journey.landOnFloor")) { then.run(); return; }
-        if (JourneyRehearsal.target() == null || stairBottom == null) { then.run(); return; }
+        if (JourneyRehearsal.target() == null || stairBottom == null) {
+            // ARMED AND UNABLE, which is not the same as OFF. The exit above is the flag-off
+            // baseline and stays silent on purpose — it is what the javadoc says the measurement is
+            // read against. This one is the lever switched ON and doing nothing, and it used to
+            // leave the same trace as the baseline: none. A run comparing the two would then have
+            // scored an unarmed lever as a working one that changed nothing.
+            //
+            // WHICH of the two is missing, not just「没补」: a rehearsal that never set a target and
+            // a return that never recorded its bottom step are different bugs with different fixes.
+            String missing = JourneyRehearsal.target() == null
+                    ? (stairBottom == null ? "排练没有目标级，也没记下楼梯底" : "排练没有目标级")
+                    : "没记下楼梯底";
+            rig.evidence(tag + ".floorLegUnarmed", "landOnFloor 开着但补不了腿：" + missing);
+            then.run();
+            return;
+        }
         BlockPos here = rig.player().blockPosition();
         if (here.equals(stairBottom)) {
             JourneyLedger.staged("rehearsal: the return already ended on the bottom step "
