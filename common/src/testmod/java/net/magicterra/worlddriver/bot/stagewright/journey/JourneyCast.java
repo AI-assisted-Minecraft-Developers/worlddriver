@@ -310,7 +310,13 @@ final class JourneyCast {
                             "服务端读到岩浆桶还有 " + rig.carrying("minecraft:lava_bucket")
                             + " 个，而 cast.result 是客户端 MultiPlayerGameMode.useItem 的预测 —— "
                             + "两个数来自两端。要判是「服务端那只手不对」还是「两端都拿着桶但这一浇被拒」，"
-                            + "读 cast.atUse 那一行的服务端半边：" + JourneyHands.heldOnBoth(rig));
+                            + "去读 cast.atUse 那一行本身（它采在 use 的前一行）。"
+                            // ⚠️ 这一段是 settle 之后 重新读的一次活状态，不是 cast.atUse 那一行。
+                            // 原文写的是「读 cast.atUse 那一行的服务端半边：」后面直接接这个值,
+                            // 于是一行自称在引用另一行、实际又量了一次，而且隔了 10 tick 的 settle
+                            // ——两者不同的那一趟，正是这行字最会骗人的那一趟。
+                            + "（下面这个是 settle 之后重新读的，隔了 10 tick，不是 use 那一刻）"
+                            + JourneyHands.heldOnBoth(rig));
                 ctx.expect(got == Blocks.OBSIDIAN)
                         .as("lava poured into standing water casts obsidian in the chosen cell").isTrue();
                 // The claim, and what the claim is NOT. A rung that fetched its lava, climbed one
