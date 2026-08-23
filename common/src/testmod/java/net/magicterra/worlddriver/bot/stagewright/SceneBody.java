@@ -172,17 +172,14 @@ public final class SceneBody {
         return avatar(ctx, ctx.level(), x, y, z);
     }
 
-    /**
-     * Whether a headless body may be minted in this run at all.
-     *
-     * <p>For the scene that must BRANCH rather than skip. There is one: {@code wd.bodyParityCensus}
-     * holds two bodies side by side and measures the difference, and it is the negative control for
-     * the whole body-selection change — a version of it that skipped would remove the only reading
-     * that can falsify the parity table. Everything else should call {@link #at} and let it decide.
-     */
-    public static boolean mintingIsLegal(SceneContext ctx) {
-        return !aClientShouldDrive(ctx);
-    }
+    // A `mintingIsLegal(ctx)` used to sit here, for「the scene that must BRANCH rather than skip」.
+    // Its javadoc named its one caller, `wd.bodyParityCensus`, and that scene stopped calling it:
+    // both of its columns now mint DIRECTLY (`loaderFactory.unique` / `new JoinedPlayerBodies()`)
+    // precisely so the census is taken on every run rather than branching on the run's shape. A
+    // predicate whose only documented caller no longer asks it reads, on the next pass, like a
+    // guard that is being honoured somewhere. Deleted rather than left: the live gate is
+    // `refuseWhereAClientShouldDrive`, and `bare` / `avatar` — the two that touch the world, and
+    // therefore every path `mint` reaches — already call it.
 
     /**
      * The predicate — <b>deliberately time-invariant, and deliberately NOT the same as
