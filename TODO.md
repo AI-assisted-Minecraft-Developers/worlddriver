@@ -131,6 +131,68 @@ Q32（浇桶那一刻服务端到底跑没跑 `useItem`）现在只剩两个候�
 所以新记录器必须**先在一次必然发生的 use 上校准**（装水、任意一次成功的 use），
 证明它会响，它的沉默才有意义。
 
+### ✅ (A) 和 (B) 当天就被读码结掉了，剩下的是第三个候选（2026-08-24 早，没跑任何东西）
+
+**(A)「包没发/没到」——死。** `ClientPlayerAvatar:159-163` 走的是
+`mc.gameMode.useItem(p, MAIN_HAND)`＝真 `MultiPlayerGameMode.useItem`，它在
+`startPrediction` 的回调里**无条件 `return packet`**：客户端预测成不成功都发
+`ServerboundUseItemPacket`。而这是集成服，内存连接。
+
+**(B)「服务端跑了 `BucketItem.use` 而原版拒绝了」——也死。** 反编译
+`minecraft-merged-mojang.jar`（1.21.1/neoforge/21.1.230）逐条走：
+
+- `BucketItem.use`：满桶 clip `Fluid.NONE` ⇒ 打中 `-4,61,54` 泥土 `面=up`
+  ⇒ `blockpos2 = blockpos1 = -4,62,54`，**正是 `cast.target`**；
+- `emptyContents`：`$$8 = state.canBeReplaced(LAVA)`。**`LiquidBlock` 根本没有重写
+  `canBeReplaced`**（整份反编译里没有这个方法），落到 `BlockBehaviour` 的
+  `replaceable || !solid`，而水是 `replaceable()` ⇒ **true**；
+- 于是 `$$10=true`，不进 `!$$10` 的转投分支；主世界 `ultraWarm=false`；
+  `LiquidBlock` 不是 `LiquidBlockContainer`；水 `.liquid()=true` 所以不 `destroyBlock`；
+  最后 `setBlock(pos, LAVA, 11)` ⇒ **true ⇒ 倒成功、桶变空**。
+  再由 `LiquidBlock.shouldSpreadLiquid` 的「岩浆源＋邻水 ⇒ OBSIDIAN」收尾。
+
+⇒ **每一个输入都是对的，原版也不会拒，而它就是没倒。**
+
+### 🔴 Q32-C（新，首要）：服务端读的手是**处理包那一刻**的手，不是发包那一刻的手
+
+`ServerboundUseItemPacket` 只带 hand／sequence／yaw／pitch —— **不带物品**。
+服务端 `handleUseItem` 用的是 `this.player.getItemInHand(hand)`，即**它自己此刻的
+`inventory.selected`**。所以只要在「发包」和「处理包」之间，服务端的 `selected`
+被另一个作者改回去，服务端 use 的就是**另一件东西**；而 cobblestone 是 `BlockItem`，
+`Item.use` 直接 PASS ⇒ **不消耗、不放块、不报错**，与全部读数逐条吻合。
+
+证据链已经在 ladder-17 那一行里，只是分散在三处：
+
+| 时刻 | 行 | 客户端槽 6 | 服务端槽 6 |
+|---|---|---|---|
+| use 之前 | `cast.handSlipped` | **cobblestone** | **cobblestone** |
+| 重拿之后 | `cast.again.hand` | lava_bucket | lava_bucket |
+| use 前一行 | `cast.atUse` | lava_bucket | lava_bucket |
+| use 后 10 tick | `cast.stillFull` | **cobblestone** | **cobblestone** |
+
+⇒ 抢这只手的作者，在这一浇的**前后都活着**。`JourneyCast:255-257` 自己已经写下过
+它的名字：竖井爬出要垒到 36 块圆石，**是垒柱的 hold 把桶挤出去的**。
+
+⚠️ 还有一条同族的次要嫌疑：`handsAtUse` 是**在客户端线程上读 ServerPlayer 的背包**。
+即使数字当时是对的，它也不是「服务端处理那个包的那一刻」的数
+（[[a-lagging-reading-became-the-crime-scene]] 第三例）。
+
+**📌 判别式（预登记，写在造仪器之前）**：`useItemInHand()` 之后连采 **5 个服务端 tick**
+的 `selected` + `getMainHandItem()`（两端都采），一行一 tick。
+
+- 服务端在 1–2 tick 内翻回 cobblestone ⇒ **Q32-C 已验**。修法的形状是「这一浇要独占这只手」
+  （浇的窗口内压住垒柱的 hold，或让桶待在垒柱从不碰的格），**不是**再加一次重拿——
+  重拿已经做了，它拿到了，然后又被拿走（[[a-retry-that-changes-nothing]]）。
+- 五个 tick 服务端一直是 lava_bucket ⇒ **Q32-C 证伪**，那才轮到「服务端真的跑了却拒了」，
+  那时再造 use 记录器不迟（甲案不成立，见下）。
+- 一行都没写 ⇒ 这一趟没走到那一浇，**未触发**，不许当成任何一边的证据。
+
+⚠️ 仪器必须落在 **testmod**，不要碰 `common/src/main`：
+架构上的甲案（architectury `InteractionEvent`）**根本不成立** ——
+`gradle.properties:23` 声明了 `architectury_api_version` 却**全工作区零个读者**，
+三个源码树零个 `dev.architectury.*` import。这个仓库只用 architectury 的构建工具，
+没引运行时 API。（`../stagewright/gradle.properties:30` 有同一条死配置。）
+
 ---
 
 ## ❌ 排练把 11 级那条修法证伪了，而它证伪的方式正好指出了真因（2026-08-23）
