@@ -89,7 +89,7 @@ final class JourneyPour {
      */
     static void raiseTo(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                 int wantY, boolean pouring, String tag, Runnable then) {
-        BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY, pouring);
+        BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY, pouring, tag);
         BlockPos col = verified != null ? verified : target.relative(away.getOpposite(), 1);
         BlockPos here = rig.player().blockPosition();
         // 「去这一柱」rather than「在这一柱上垒台阶」: a raise asked for by riseToTakeItBack may be a
@@ -402,12 +402,32 @@ final class JourneyPour {
      * <p>Corridor cells only, feet and head both, so the column is inside the volume this rung
      * hollowed out and the head has somewhere to go. Null when none of them verify, and the caller
      * says so rather than pretending.
+     *
+     * <p><b>The flight's own column comes last, not first.</b> Distance decides ties and the body is
+     * standing at the foot of the stairs when it asks — {@code returnToTheForge} just put it there —
+     * so the stair column wins at distance zero every time, and that column is the one place in the
+     * alcove where a raise cannot happen: {@code JourneyRamp} refuses it outright
+     * ({@code cast6.ramp.noFlight = … 2, 57, 20 是下井楼梯 2, 56, 20 那一级的头顶格，不能堵}) and the
+     * tower drowns in the water the mould drains down those very stairs
+     * ({@code cast6#1.climb.0..8.washedOff = 水把身体冲下柱子了}, nine legs, {@code placed=0}).
+     *
+     * <p>Demoted rather than vetoed, deliberately: a stair column that verifies is still better than
+     * nothing, and vetoing it would turn a bad raise into no raise at all. The order is the whole fix.
+     *
+     * <p><b>Measured, PORTAL_LIT rehearsal 2026-08-23</b> — the run this was written for cast eight of
+     * ten cells and then could not walk back into its own shaft. The chain is one line long once the
+     * column is named: the fallback towers of cells six and seven ended off their pinned column, the
+     * next one put cobblestone in tread {@code 1, 57, 20} ({@code cast8.stairsBroken#2 = 1/11 级坏了}),
+     * the foot flooded two cells deep, and {@code cast8.returnStopped#2} stopped 2.24 blocks short of
+     * a stair foot whose feet AND head cells were both water. {@code towerColumnAfterDrift} honours a
+     * pinned column on the flight「because the pour's own ray gate will judge where it lands」— true of
+     * the pour, and the eighth cell is where that premise met a WALK instead.
      */
     private static BlockPos raiseColumn(ServerLevel level, JourneyRig rig, BlockPos target,
-                                        Direction away, int wantY, boolean pouring) {
+                                        Direction away, int wantY, boolean pouring, String tag) {
         BlockPos here = rig.player().blockPosition();
-        BlockPos best = null;
-        long bestD = Long.MAX_VALUE;
+        BlockPos best = null, onFlight = null;
+        long bestD = Long.MAX_VALUE, flightD = Long.MAX_VALUE;
         for (int back = 1; back <= JourneyPortalRung.POUR_LINE; back++)
             for (int side = -2; side <= 2; side++) {
                 BlockPos foot = target.relative(away.getOpposite(), back)
@@ -425,9 +445,22 @@ final class JourneyPour {
                               : scoopSeesFrom(level, rig.player(), foot, target))) continue;
                 long dx = foot.getX() - here.getX(), dz = foot.getZ() - here.getZ();
                 long d = dx * dx + dz * dz;
-                if (d < bestD) { bestD = d; best = foot; }
+                if (JourneyStairs.stepInColumn(level, foot.getX(), foot.getZ()) != null) {
+                    if (d < flightD) { flightD = d; onFlight = foot.immutable(); }
+                    continue;
+                }
+                if (d < bestD) { bestD = d; best = foot.immutable(); }
             }
-        return best;
+        // Say which way the order went, and say it whichever way it went — a row that only appears
+        // when the flight was avoided cannot tell「there was nowhere else」from「this never ran」.
+        if (onFlight != null)
+            rig.evidence(tag + ".raiseOffTheFlight", best != null
+                    ? "楼梯那一柱 " + onFlight.getX() + "," + onFlight.getZ() + " 也验得过射线，"
+                      + "但它是下井楼梯（垒不了台阶、塔在水里会被冲下来），改用 "
+                      + best.getX() + "," + best.getZ() + "（落脚 " + best.toShortString() + "）"
+                    : "只有楼梯那一柱 " + onFlight.getX() + "," + onFlight.getZ()
+                      + " 验得过射线，别无选择 —— 仍然用它，抬升多半会被冲下来");
+        return best != null ? best : onFlight;
     }
 
     /** Would a body standing at {@code foot} be able to FILL from the fluid in {@code target}? The
@@ -514,7 +547,7 @@ final class JourneyPour {
                 && !ctx.level().getBlockState(behindLow).blocksMotion()
                 && !ctx.level().getBlockState(behindLow.above()).blocksMotion()
                 && pourLandsFrom(ctx.level(), rig.player(), behindLow, target, away)
-                ? behindLow : raiseColumn(ctx.level(), rig, target, away, wantY, true);
+                ? behindLow : raiseColumn(ctx.level(), rig, target, away, wantY, true, tag + ".lift");
         BlockPos here = rig.player().blockPosition();
         BlockPos landing = verified != null ? verified : new BlockPos(here.getX(), wantY, here.getZ());
         rig.evidence(tag + ".lift", here.toShortString() + " → " + landing.toShortString()
