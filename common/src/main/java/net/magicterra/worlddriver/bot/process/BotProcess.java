@@ -52,11 +52,21 @@ public interface BotProcess {
      *  from the current position rather than reuse a path that went stale during suspension.
      *
      *  <p><b>Exactly one process actually does that</b> ({@code IntentProcess}). The other
-     *  nine that own a {@code Walker} — Mine, Follow, Explore, Build, Backfill, BboxFill,
-     *  Farm, Bridge, Tower — inherit this no-op and resume on a path computed from a position
-     *  the body may have been dragged out of. {@code UserTaskChain} calls the hook faithfully;
-     *  there is simply nothing on the other end. Written down rather than fixed because
-     *  「pathing processes override」 read as a description and was a wish. */
+     *  nine that own a {@code Walker} and run under {@code UserTaskChain} — Mine, Follow,
+     *  Explore, Build, Backfill, BboxFill, Farm, RunAway, Sleep — inherit this no-op and resume
+     *  on a path computed from a position the body may have been dragged out of.
+     *  {@code UserTaskChain} calls the hook faithfully; there is simply nothing on the other end.
+     *  Written down rather than fixed because 「pathing processes override」 read as a
+     *  description and was a wish.
+     *
+     *  <p>The membership of that list is measured off {@code new Walker(} and off who hands the
+     *  process to {@code UserTaskChain.setProcess}, not off which verbs feel path-shaped — it read
+     *  「…Farm, Bridge, Tower」 for a while and both of those own no {@code Walker} at all (they use
+     *  {@code WalkerGeometry} only), which quietly excused the two that do. Two more Walker owners
+     *  are outside the list on purpose: {@code ReplayProcess} overrides this explicitly to a no-op
+     *  (its plan is fixed, so repathing would discard the thing it exists to replay), and
+     *  {@code CombatProcess} is minted by {@code CombatChain} rather than {@code UserTaskChain}, so
+     *  this hook never reaches it — {@code CombatChain.onResume} is its own empty override. */
     default void onResume() {}
 
     /** Called when this process is cancelled/superseded before finishing
