@@ -53,6 +53,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and refusing {@code MultiPlayerGameMode} — verification order, transitive linkage, Fabric's own
  * dist stripping — this test does not guess at it. It records what is known to work and makes the
  * next addition state its case.
+ *
+ * <p><b>Its blind spot, named — because the repo's rule moved after this file was written.</b> The
+ * discriminator for "will a dedicated server load this class" is not the call; it is the
+ * <b>widening</b>. Handing a client type to a parameter declared {@code Player}/{@code Entity}
+ * makes the verifier load {@code LocalPlayer} to prove the subtype relation, and that is what
+ * actually took the gate down in {@code 78c97615} (AGENTS.md hard rule 12,
+ * {@code docs/drown-escape-design.md} §5, and {@code BotInteract#riseBlockedCell}, which exists
+ * solely to host one). This scan reads Methodref/Fieldref OWNERS, so a widening is invisible to it
+ * and always was — do not read a green here as "rule 12 is satisfied".
+ *
+ * <p>Measured 2026-08-23 with {@code javap -c} over the compiled package, so the gap is recorded
+ * rather than merely suspected: every client type in an invoked descriptor's PARAMETER position is
+ * the exact type ({@code LocalPlayer} into a {@code LocalPlayer} parameter, {@code Minecraft} into
+ * a {@code Minecraft} one), the only three {@code Entity} descriptors are return types, and the
+ * owner union is exactly {@link #ALLOWED}. So the package is clean under both rules today. That
+ * reading covers invoke sites only — a {@code putfield} into a wider field or an {@code areturn}
+ * from a wider return type can widen just as well — and the authority remains a green
+ * {@code stagewrightDedicatedServer*} run on both loaders, not this file and not a javap listing.
  */
 class SchedulerClientCallSurfaceTest {
 
@@ -168,8 +186,15 @@ class SchedulerClientCallSurfaceTest {
      * <p>Those three tags are exactly what {@code invoke*} and {@code get/putfield} resolve
      * against, which is the "calls it" half of the rule. A type that only appears in a signature,
      * a local variable, or a {@code checkcast} contributes a {@code Utf8}/{@code Class} entry
-     * instead and is deliberately not reported — passing a {@code LocalPlayer} through is allowed,
-     * and half this package does it.
+     * instead and is deliberately not reported — this package passes {@code LocalPlayer} through
+     * constantly and does so safely, because every one of those parameters is itself declared
+     * {@code LocalPlayer}.
+     *
+     * <p><b>Passing through is not unconditionally safe, and nothing here checks which kind it
+     * is.</b> Hand the same value to a parameter declared {@code Player}/{@code Entity} and the
+     * verifier loads {@code LocalPlayer} anyway — the widening of AGENTS.md hard rule 12, the
+     * shape that actually killed the gate. It leaves no Methodref owner behind, so this method
+     * cannot see it by construction.
      */
     private static Set<String> clientOwners(byte[] classFile) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(classFile))) {

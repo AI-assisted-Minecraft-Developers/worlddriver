@@ -45,11 +45,20 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER}),
  * because those scenes construct the chains on a dedicated server and the new
  * {@code invokevirtual MultiPlayerGameMode} drags {@code LocalPlayer} in with it. The chains had
- * always PASSED {@code LocalPlayer} around and always called {@code BotInteract}'s statics on it;
- * what was new was calling a client class's method. Hence the layering rule now in
- * {@code BotInteract#continueDestroy}: a scheduler class may name client types, but must not
- * invoke them. Catching that needs a bytecode scan of {@code bot/scheduler/**}, not a source
- * scan — a separate guard, not this one.
+ * always PASSED {@code LocalPlayer} around and always called {@code BotInteract}'s statics on it.
+ *
+ * <p><b>The rule this paragraph used to quote has been corrected since, and the correction is the
+ * whole point.</b> It said "a scheduler class may name client types, but must not invoke them",
+ * citing {@code BotInteract#continueDestroy} — and that javadoc now says the opposite in as many
+ * words: <i>"Calling is not the discriminator"</i>. The last green build of
+ * {@code DrownEscapeChain} called {@code KeyMapping.setDown}, {@code ClientLevel.getBlockState}
+ * and {@code Minecraft.getInstance} and loaded fine. The discriminator is the <b>widening</b>:
+ * handing a client type to a parameter declared {@code Player}/{@code Entity} forces the verifier
+ * to load {@code LocalPlayer} in order to prove the subtype relation. AGENTS.md hard rule 12 and
+ * {@code docs/drown-escape-design.md} §5 carry the full account. Catching either shape needs a
+ * bytecode scan of {@code bot/scheduler/**} rather than a source scan; that separate guard exists
+ * now — {@code SchedulerClientCallSurfaceTest} — but it scans OWNERS, so the widening is outside
+ * its range too.
  *
  * <p><b>What it does not check.</b> Pairing is asserted per FILE, not per block: a file that
  * holds the key in one method and drives the pipeline in another passes. Proving the two name the

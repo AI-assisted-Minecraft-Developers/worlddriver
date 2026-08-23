@@ -36,6 +36,45 @@
 
 ---
 
+## 🧹 janitor 第 2 轮：复用与架构（2026-08-23）
+
+**一条查完就写、写完就提交**（前四次都死在「正要汇报」）。ladder-9 在跑，全程零 gradle
+零编译；读数只用 `javap`（只读）和 `git show`。
+
+### ① 旧的「客户端类」规则还剩两处，都是**注释点名了另一处，而另一处已经反过来了**
+
+`87712560` 把判别子从「调用了客户端类型」改成「**加宽**」（把 `LocalPlayer` 递给声明
+`Player`/`Entity` 的形参），写进 `AGENTS.md` 硬规则 12 和 `BotInteract` 的两条 javadoc。
+残留两处，**跟 `pourInto` 那例同族**——它们不是形状可疑，是**点名了一处可核对的断言**：
+
+| 处 | 它声称 | 被点名处现在逐字写着 |
+|---|---|---|
+| `ClientBreakSitePairingTest:49` | 「Hence the layering rule now in `BotInteract#continueDestroy`: a scheduler class may name client types, **but must not invoke them**」 | `BotInteract.java:116` 「**Calling is not the discriminator**」 |
+| `SchedulerClientCallSurfaceTest:172` | 「passing a `LocalPlayer` through **is allowed**, and half this package does it」 | 加宽正是那条致命的传递；`riseBlockedCell` 整个方法就是为了收容一次加宽而存在 |
+
+第二条**不是假话**（读数见下），但它把一条有条件的安全写成了无条件，而这把尺子恰恰
+**量不到**真判别子——`clientOwners` 只读 Methodref/Fieldref 的 **owner**，加宽不留 owner。
+一条绿在这里**不等于**硬规则 12 被满足，而 javadoc 原文会让下一个人以为等于。
+
+**已落**：两个文件的 javadoc 按被点名处改正，并把盲区显式写成盲区。纯注释，零行为改动。
+
+**顺手量的（`javap -c`，2026-08-23，`common/build/classes/.../bot/scheduler/` 15 个 class）**：
+
+- **形参位上的客户端类型全部是精确类型**：`LocalPlayer` → `LocalPlayer` 形参，
+  `Minecraft` → `Minecraft` 形参。零加宽。
+- 三条带 `Entity` 的描述符（`BunkerChain` / `PanicChain` / `RetreatChain`）**全是返回类型**，
+  不是形参。
+- owner 并集 = `{Minecraft, LocalPlayer, KeyMapping, Options, ClientLevel}`，**恰好等于**
+  `ALLOWED`——尺子就它量的那个量而言是准的。
+- ⚠️ 这份读数**只覆盖 invoke 点**。`putfield` 进更宽的字段、`areturn` 出更宽的返回类型
+  同样能构成加宽，没扫。**权威证据仍是双 loader 的 `stagewrightDedicatedServer*` 绿**，
+  不是这份 javap 清单。
+
+**下一轮可做**：把 `SchedulerClientCallSurfaceTest` 的扫描从 owner 扩到**描述符形参**，
+它就能真正守住硬规则 12。要解析 NameAndType，改动量不是肉眼可验的规模，且要一趟闸。
+
+---
+
 ## ✅ 三闸全绿：闸债结清（Q15a，2026-08-23）
 
 `80a8ce28` 之后的三趟，都是**读结果文件判的，不是读退出码**：
