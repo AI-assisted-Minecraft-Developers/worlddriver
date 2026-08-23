@@ -867,6 +867,39 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 **不预登记「哪个桶最大」**。那是这次要测的量，先猜等于把结论写进判据
 （[[a-criterion-success-cannot-satisfy]] 的镜像：判据要能证伪，不能只会印我想要的那句）。
 
+## 🎯 ladder-13 预登记（写在跑之前，2026-08-23）
+
+**先排除一个陷阱**：新加的 `handsAtUse` 会不会顺手把 bug 修掉？
+读了实现（`JourneyHands.java:402-408`）—— **纯同步，只读状态写证据，不 settle、不花 tick**。
+所以它不改变 regrip 与 use 之间的时序，**归因是干净的**。
+（要是它花 tick，这一趟无论什么结果都判不了，只能算「改了时序之后好了」。）
+
+**决定性读数：`cast.atUse` 的服务端半边。** 四态：
+
+- **已验-A（换手没到服务端）**：客户端半边 `lava_bucket`，**服务端半边不是** ⇒
+  交换点击/换手包没在 `ServerboundUseItemPacket` 之前落到服务端。
+  修法方向：regrip 之后等一次往返再动手（`actingHolds` 只问客户端，得加一条问服务端的）。
+- **已验-B（这一浇被拒）**：**两端都是 `lava_bucket`**，而 `lava_bucket.after` 仍是 1 ⇒
+  手没问题，是 `BucketItem.emptyContents` 在这一格上不肯放。
+  修法方向去查落点条件（水源、`canBeReplaced`、`Fluid.NONE` 的射线穿过去了没）。
+- **未触发**：11 级根本没走到那一浇（更早死/别的死因）⇒ 没有 `cast.atUse` 行。
+  **不许**读成「问题好了」。
+- **证伪（仪器还是不够）**：写出了 `cast.atUse` 但**分不出两端**
+  （比如打印成「两半是同一个对象」）⇒ 这一级的拓扑跟我以为的不一样，
+  仪器仍然回答不了，要另找读数。
+
+**⚠️ 11 级 PASS 也不等于 Q24 结案。** 这一趟在浇筑路径上**没有任何行为改动**
+（加的两处都是证据行），所以一次绿只能说明**它本来就不是每趟必现**，
+不能说明机制被修好了 —— [[three-greens-cannot-see-a-one-in-four]]。
+要结案得读到 A 或 B 之一**并且**做出对应的修法。
+
+**附带**：`oneBodyAtUse` 两端都印眼睛位置与 yaw/pitch。若两端**朝向不同**，
+那是另一条独立发现（[[a-server-side-aim-dies-at-the-next-packet]]），单独记，别混进 A/B。
+
+**Q19 已验，不再重复登记**；Q21/Q23a 的三态沿用上一节，判据不变。
+
+---
+
 ## 📊 ladder-12 判词（2026-08-23，`results-ladder12-castStillFull.jsonl`）
 
 爬到 **10 级 PORTAL_KIT**，11 级 OBSIDIAN 失败，12–20 级 BLOCKED。**这一趟没有岩浆死亡。**
