@@ -18,6 +18,9 @@ import java.util.Locale;
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.movement.WalkerConstants.*;
 import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
+// Not in WalkerGeometry: that class is pure functions of their arguments and reads no BotConfig.
+// This one consults walkerPillarSurfacePlace, so it stays with the phase that owns the carve-out.
+import static net.magicterra.worlddriver.bot.movement.WalkerTickClimb.floodedShaft;
 
 
 /**
@@ -547,17 +550,17 @@ final class WalkerTickProgress {
             // straight up; a buoyant pillar more broadly is any pillarUp begun from
             // water (cell below is water / bot in water) — including the dry-air
             // chimney where the bot must place a support to climb out.
-            boolean shaftFlooded = se != null && "pillarUp".equals(se.move) && world.isWater(wk.path.get(wk.step));
+            boolean shaftFlooded = se != null && "pillarUp".equals(se.move) && floodedShaft(world, wk.path.get(wk.step));
             boolean waterPillar = se != null && "pillarUp".equals(se.move)
                     && (shaftFlooded || p.isInWater() || world.isWater(wk.path.get(wk.step).offset(0, -1, 0)));
             // Don't advance past a cell whose break/place actions are still
             // pending — otherwise a DownBreak (foot vertically aligned, < 1.2
             // away) would be skipped before we ever mine the floor.
             if (waterPillar) {
-                // The buoyant climb never places the support via the dry path, so the
-                // unfilled place cell is not genuinely pending; only a still-solid
-                // ceiling is. (In the dry-air case the in-water actuator does place a
-                // support, which makes the bot ground and falls through to the gate.)
+                // A pillarUp begun from water does not treat its unfilled place cell as pending;
+                // only a still-solid ceiling is. This branch is NOT what protects the water-SURFACE
+                // case (waterPillar is true there too — the body is in water); the arrival gate
+                // below is, via floodedShaft(). Neither alone explains why the step waits.
                 boolean ceilingPending = false;
                 for (BlockPos b : se.toBreak) if (world.isSolid(b)) { ceilingPending = true; break; }
                 if (ceilingPending) break;

@@ -60,6 +60,38 @@ final class WalkerTickClimb {
      * to a single call site inside a method named for the transition is the structural half of the
      * fix — a future "just refresh it each tick" has to go through this name first.
      */
+    /**
+     * Is this pillarUp destination a FLOODED shaft — one the body floats straight up through —
+     * rather than a water SURFACE it must place a support to leave?
+     *
+     * <p><b>The single answer both phase classes ask.</b> It used to be computed twice. This class
+     * carved the surface case out of "flooded" (the {@code walkerPillarSurfacePlace} branch below,
+     * which is the flag's only reader in the whole product); {@link WalkerTickProgress} computed
+     * plain {@code isWater(dest)} and never carved. On the one geometry where the two disagree —
+     * destination water, air directly above — Climb decided「place a support」while Progress still
+     * called it a buoyant float, took the branch whose comment says an unfilled place cell is not
+     * genuinely pending, and let bare height promote the step. {@code Walker.tickInner} runs
+     * Progress before Climb, so the pointer left the edge before the support existed.
+     *
+     * <p><b>Why the carve-out belongs to the shared answer and the pillarUp test does not.</b> The
+     * carve-out is about GEOMETRY — what this cell is — so both callers need it. Whether the edge
+     * under the pointer is a pillarUp at all is about WHICH EDGE, which only Progress has to ask
+     * because Climb is already inside that branch. Folding the edge test in here would have made
+     * Climb ask a question it has no {@code se} to answer.
+     *
+     * <p><b>Direction of the change, per call site.</b> Climb: byte-identical — this is its old
+     * expression, moved. Progress: STRICTER and never looser — the result can only go true→false,
+     * and each of the two places it feeds tightens when it does (the pending-edge check reverts to
+     * {@code hasPendingEdge}, and the arrival gate reverts to requiring {@code onGround()}). A
+     * pointer that used to advance mid-float now waits for the support, which is the fix.
+     */
+    static boolean floodedShaft(WorldView world, BlockPos dest) {
+        if (!world.isWater(dest)) return false;
+        // Surface, not shaft: water underfoot with AIR directly above is the water-bank climb-out.
+        // Floating higher is physically impossible there, so the body must crest and place.
+        return !(BotConfig.walkerPillarSurfacePlace && !world.isWater(dest.above()));
+    }
+
     private static void engagePillar(Walker wk, Player p, BlockPos foot, BlockPos cwp) {
         Walker.waterPillarEngages++;
         wk.waterClimb.colX = foot.getX();
@@ -869,7 +901,6 @@ final class WalkerTickClimb {
             //       lift it is grounded and the normal dry pillar climbs the rest.
             // Detect water from the world (cell below is water), not p.isInWater(),
             // which flickers false at the bob peak and would drop the jump.
-            boolean shaftFlooded = world.isWater(wk.path.get(wk.step));
             // Water-SURFACE shaft (walkerPillarSurfacePlace): the destination cell is
             // water but the cell ABOVE it is air — this is the water-bank climb-out,
             // not a flooded chimney. Floating higher is physically impossible (rig
@@ -882,10 +913,11 @@ final class WalkerTickClimb {
             // AABB. The two place paths miss each other's windows = the deterministic
             // water-bank pillarUp deadlock. Treat the surface cell as case (b): jump
             // and crest-place the support.
-            if (shaftFlooded && BotConfig.walkerPillarSurfacePlace
-                    && !world.isWater(wk.path.get(wk.step).above())) {
-                shaftFlooded = false;
-            }
+            //
+            // That carve-out now lives in floodedShaft() because WalkerTickProgress has
+            // to reach the same answer; when it was written here only, Progress kept
+            // calling this cell a float and advanced the pointer off an unplaced support.
+            boolean shaftFlooded = floodedShaft(world, wk.path.get(wk.step));
             if (shaftFlooded || p.isInWater() || world.isWater(wk.path.get(wk.step).offset(0, -1, 0))) {
                 wk.avatarJump(a, true);
                 // gap#81: routine pillar/scaffold filler must not spend gathered wood.
