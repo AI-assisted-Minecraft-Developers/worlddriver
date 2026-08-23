@@ -1038,6 +1038,70 @@ journey.steer   = …；反射链实测：一条都没武装（autoRetreat/autoF
 钉之前那一批只有清扫才拿得掉——所以 SPAWN 这一次清扫是**必要**的，不是保险。
 同族 [[zero-as-evidence-needs-a-live-channel]]：如果只按小屋画盒子，这三只连出现的机会都没有。
 
+#### 第 4 趟判定：**8/20，追平基线，第 7 级是基线从没拿到的**
+
+| 级 | 本趟 | 上趟（女巫） | 基线（8/20） |
+|---|---|---|---|
+| 03 WOOD | PASS 2985，**13 根** | PASS 2345，8 根 | PASS 3852，12 根 |
+| 06 FOOD | PASS 2888 | PASS 6491 | PASS 2682 |
+| 07 BED | **PASS —— 合成 white_bed** | FAIL（死于女巫） | FAIL（10 轮凑不齐） |
+| 08 FURNACE | PASS 260 | FAIL（尸体） | PASS |
+| 09 IRON | FAIL 24215（淹死 100,49,96） | BLOCKED | FAIL 10226（淹死） |
+
+第 7 级三轮三杀三毛，`另有尸体 0 具`，第 3 轮那只羊在 `-51, 63, 80`——**正是上一趟女巫杀死身体的位置**。
+清扫直接打通了这一级。第 9 级仍死于淹水，`death.blow = drown −2.0×4 + −0.2`，
+`death.standingIn` 三格全是水，`death.food = 2/20`。
+
+#### 那条路由通的通道，第一次开口就把因说了
+
+```
+vein1.exit#2.climb.0.stalled = no placeable block in hotbar     stock = minecraft:cobblestone ×47
+vein2.exit#3.climb.1.stalled = no placeable block in hotbar     stock = minecraft:cobblestone ×105
+vein1.exit#2.climb.0.atUse   = 客户端 槽 6 = stone_pickaxe / 服务端 槽 6 = stone_pickaxe
+vein1.exit#2.gained = 7/7（walkerFallback=True，endedIn 86,76 ≠ 起塔柱 81,77）
+vein2.exit#3.gained = 2/19（同上，endedIn 96,91 ≠ 92,87）
+```
+
+⇒ **预登记的三支判据里落在第二支**：手两侧一致（都握镐），存量却冻结。按预登记这本该
+「杀死手的假设、去查跳跃闸」——**但通道本身直接给了另一个答案**，这正是把它路由通的价值。
+两座塔一块石头没放，全靠后备把身体带走，然后淹死。
+
+#### 真凶不是「扫不到背包」——是两个换手 helper 抢同一格
+
+差一点就修错。追调用链：`TowerProcess` 建塔时传了 `pillar`，所以
+`ensureHoldingPlaceable(a, preferred)` 走 `preferred != null` 那支 → **`HeldItem.holdById`**，
+不是 `BotInteract.ensureHoldingPlaceableAny`（那是 walker 的柱子路径，症状是
+`WalkerTickClimb:903 "pillar: no placeable block in hotbar"`）。**同一句错误消息有四份来源**：
+
+| # | 位置 | 背包可达？ |
+|---|---|---|
+| 1 | `BotInteract.ensureHoldingPlaceableAny` | 仅创造 |
+| 2 | `BotInteract.ensureHoldingPillarBlock` | **是**（`swapFromMainInv` 尾巴） |
+| 3 | `HeldItem.holdById` ← **塔走这条** | 仅创造 |
+| 4 | `TowerProcess.ensureHoldingPlaceable` 的 `preferred==null` 支 | 否 |
+
+⚠️ **而 `HeldItem` 的类 javadoc 明确禁止把 3 改宽**，并且点名了一条守着这个限制的场景：
+`wd.serverTowersWithAFullBackpack` 布景就是「hotbar 九格非方块 + 20 号槽 64 圆石」，
+断言塔**什么都不放**并说 `no placeable block in hotbar`。理由是
+「spending blocks the caller never put in hand is a side effect the verb is not allowed to have」。
+我改了、然后读到这段、撤回了。**一条注释救下了一次会把绿场景改红的修法。**
+
+**真正的机制**（读码级，两处逐字相同）：
+
+```java
+// BotInteract.swapFromMainInv（拿方块）与 selectBestToolFor 的背包支（拿工具）
+int hb = inv.selected;                                          // 默认落在手上那一格
+for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }   // 优先空格
+```
+
+**hotbar 满时两者都落在 `inv.selected`，于是轮流把对方挤回背包**：
+`holdBoth` 把圆石换进 6 号 → 塔挖头顶那格 → 工具选择把镐换进 6 号、**圆石回背包** →
+`holdById("cobblestone")` 只扫 hotbar → 报「没有」。`atUse` 两侧「槽 6 = stone_pickaxe」正是它。
+
+⇒ 所以塔这一级的正确修法**不在扫描宽度上，在落点规则上**。加宽只是把病征盖住，
+还会把那条守限制的场景判红。同族 [[a-field-with-two-authors]]（一个字段两个作者）的
+下一层：**一格 hotbar 两个消费者，而两者的落点规则字节级相同。**
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 ⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
