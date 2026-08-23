@@ -1932,6 +1932,65 @@ obsidian.anywhere = 无
 **我在自己的判词工具里又犯了一次**。第三条是 [[evidence-that-lies]] 那一族：
 **一个能被缺失项满足的校验，等于没校验。**
 
+### 📊 ladder-17 判词（`results-ladder17.jsonl` / `ladder17-preserved.log`，36m55s，`GRADLE_EXIT=0`）
+
+10/20，第 11 级 OBSIDIAN 唯一红，**死因同族**（`lava poured into standing water casts obsidian
+in the chosen cell (false)`），`journey99Verdict` PASS，布景调用 0 次，零死亡。
+三条预登记全部有答案：
+
+| # | 判词 | 读数 |
+|---|---|---|
+| **Q32** | ❌ **证伪** | `cast.motionAtUse = 速度=(0.0000,-0.0050,0.0000) \|水平\|=0.0000 onGround=true；goto 槽 end=arrived` |
+| Q7c | ✅ **已验** | 跑过的 9 级各一行、桶和自洽；`计入/搜索` 全部 ≤ 5.7%，`到达目标` 60–100% —— Q7 的重写站得住 |
+| Q29 | 🟡 **未触发** | 整趟没有任何 climb 进过水（连续第四趟） |
+
+### ❌ Q32 被自己的仪器否掉了，而**否掉它的方式比结论更重要**
+
+浇筑那一刻身体**完全静止**（`|水平|=0.0000`、`onGround=true`），
+而且 goto 槽 `end=arrived` —— **走完了**。
+所以「采样时的眼睛 ≠ 服务端处理包时的眼睛」这个机制**不成立**。
+
+> ⚠️ 而我当初立这个假说的唯一理由，是同一趟里的另一行：
+> `cast.walk = end=unavailable/预算用完时进程还在走`。
+> **这两行说的是同一个槽，而它们互相矛盾。**
+>
+> 不是矛盾，是**时差**：`cast.walk` 采在清障碍和重新拿桶**之前**，
+> `cast.motionAtUse` 采在 `useItemInHand()` **前一行**。
+> 走行在前者那一刻确实还没停，到后者那一刻已经 `arrived`。
+>
+> ⇒ **我拿一个滞后的读数当成了案发现场的状态**（[[a-lagging-reading-became-the-crime-scene]]）。
+> 这正是这行仪器该加的原因：它把一条**贴着动作**的读数放到了那个位置。
+> **判「动作发生时怎么样」，只能用紧挨着那个动作采的读数。**
+
+### 🔬 剩下的候选只有两个，而且现有证据一个都判不了
+
+`cast.stillFull`：服务端岩浆桶**还是 1 个**；`cast.cellAfter = water`；
+`cast.result = SUCCESS` 只是**客户端** `MultiPlayerGameMode.useItem` 的预测。⇒ 服务端什么都没发生。
+
+- **(A) 服务端根本没跑 `useItem`**（包没发出去 / 被丢了，客户端自己预测了成功）；
+- **(B) 跑了，而 `BucketItem.use` 返回时没倒出去。**
+
+⚠️ **别拿 `cast.atUse` 的「两端一致」去排除 (A)/(B) 里的任何一个**，那一行有三处坑：
+
+1. `cast.hand` 自己的文案写着「**服务端槽 N，换手包还没往返，这个数按定义是旧的**」
+   —— 服务端那半边**按构造就是滞后值**，「两端一致」可能只是它在复读换手前的旧值；
+2. `cast.stillFull` 声称「读 `cast.atUse` 那一行的服务端半边」，印出来却是
+   **两端都是 `cobblestone`**，而 `cast.atUse` 那一行印的是 `lava_bucket`
+   —— **一行自称在引用另一行，实际是又读了一次活状态**（[[evidence-that-lies]]）；
+3. **`cast.atUse` 被写了两次**（判词脚本从拍平串里能扫到两条，而 `data` 字典只留最后一条）
+   —— **同键两写，先写的那条在结果文件里根本不存在**。
+
+**下一件仪器（唯一能分开 (A)(B) 的）**：在**服务端**、在 `useItem` 真正执行的那一刻，
+记下**实际被使用的 `ItemStack`** 和**它自己算出来的那条射线**（`type`/`blockPos`/`direction`）。
+
+- 那一刻**没有任何记录** ⇒ **(A)**，问题在包没到，跟桶和射线都无关；
+- 有记录且 `ItemStack` 不是岩浆桶 ⇒ 手滑，而且**滑在服务端**（[[a-hold-must-be-adjacent-to-the-use]]）；
+- 有记录、是岩浆桶、射线也对 ⇒ **(B)**，这时才轮到问「浇进静水该不该变黑曜石」。
+
+⚠️ 顺带修两处仪器缺陷（比结论更急，因为它们会继续制造假证据）：
+`cast.atUse` 第二次写要换成 `cast.atUse#2`；`cast.stillFull` 要么真的引用那一行，
+要么把文案改成「重新读了一次」——**现在这句话是假的**。
+
 ⚠️ 开跑前的固定检查：`git status` 干净、`jps` 里没有我们的 game JVM
 （`BootstrapLauncher` 要**逐个核命令行**，用户 IDE 里那个 temurin-17 的不许碰，
 见 [[jps-cannot-tell-whose-game-it-is]]）、日志与结果文件都先删掉并确认不存在、
