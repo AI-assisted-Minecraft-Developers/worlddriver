@@ -1716,6 +1716,50 @@ wd.drownEscapeClientStaysDownDisarmed       PASS  0.000（反确认支，本就�
 基线本身也弱：手上那份同拓扑 results 只有 253 条场景（本趟 309），是更早的配置，
 所以「上一趟 PASS」这句证据不硬。按闸跑前写定的表，归**计划外**，不摊给 K1/K2/K4。
 （`wd.clientResetReleasesKeys` 上一趟就是 TIMEOUT，本来就红。）
+
+#### ⛔ 撤回：「溺水修法只在 Fabric 上成立」是错的
+
+重跑同一个闸（`gate-nf-integrated3.log`，306 PASS）：
+
+```
+wd.drownEscapeClientRisesInOpenWater        PASS 39 tick
+wd.drownEscapeClientPinnedByNeighbourColumn PASS 46 tick
+wd.drownEscapeClientStaysDownDisarmed       PASS 219 tick
+```
+
+**跟 Fabric 那趟的 39 / 46 / 219 一模一样。** 中间只改了仪器（无条件打印），**没有改行为**。
+所以闸 1 的红不是 loader 差异，我那条结论作废。**一条红立不起「在 X 上不成立」这种断言**，
+正如三条绿立不起「修好了」——[[three-greens-cannot-see-a-one-in-four]] 的镜像。
+
+而且**失败集整体漂移了**，这才是真正的签名：
+
+| 场景 | 闸 1 | 闸 3 |
+|---|---|---|
+| `wd.clientResetClearsEntry` | FAIL | PASS |
+| `wd.hurtCarriesItsSource` | FAIL | PASS |
+| `wd.clientResetReleasesKeys` | TIMEOUT | PASS |
+| 两条溺水臂 | FAIL | **PASS** |
+| `pack.placesAndReadsBack` | PASS | **ENV_FAIL**（9 个竞技场区块一个都没加载） |
+
+**没有一条红留在原地。** 代码缺陷不会这样漂；环境会。
+
+#### 很可能的原因：闸跑的时候桌面上还有另一个游戏
+
+这台机器上**同时有别的会话在跑自己的 Minecraft**：pid 57924 / 32868，
+`--fml.mcVersion 1.20.1`、`-Dforge.enabledGameTestNamespaces=touhou_little_maid_spell`、JDK 17。
+它 13:31 起来，**闸 1 跑在 13:44–13:46**——两个游戏客户端在同一个桌面上抢 GPU、窗口与 CPU。
+闸 3 跑在 13:54 之后，那个进程期间退出了。
+
+时间相关性成立，但**没有做过对照**，所以这是当前最强解释、不是结论。可操作的部分不依赖归因：
+
+> **别在另一个游戏 JVM 活着的时候判闸的红。** 先 `jps -l` 看有没有别人的游戏进程
+> （认 loader：worlddriver 是 GraalVM 21 + `dev.architectury.transformer.TransformerRuntime`；
+> 别的仓可能是 JDK 17 + `cpw.mods.bootstraplauncher.BootstrapLauncher`），有就等或换时段。
+
+同族：[[one-sample-cannot-name-a-cause]]、[[the-ladder-is-not-reproducible]]。
+
+⇒ **归因表的结论**：闸 1 那两条「计划外」的红，闸 3 全绿，K1/K2/K4 **零命中**。
+janitor 那三笔在 NeoForge 集成拓扑上是干净的。
 2. **到达判据丢 y** 是独立缺陷，但**不要单独落地**：判据先学会 y 而上游还在，
    第 7 级会立刻翻红、读起来像回归。过渡期只把 y 差**写进证据行**（诚实的行，不判失败）。
 3. 熔炉差 4 块圆石按用户长期指令办：**先写死一步去补料**，不依赖上面两条的结论——
