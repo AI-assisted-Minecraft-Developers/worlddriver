@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -21,6 +20,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
 
 /**
  * Phase E — smelt {@code count}× {@code input} in a furnace, the slot-simulation
@@ -173,7 +173,7 @@ public final class SmeltProcess implements BotProcess {
                 LOG.info("[smelt] INIT adopt: bag empty, resuming furnace {} target={}× {}",
                         fz.toShortString(), targetOut, shortId(input));
                 a.aimAtBlock(fz);
-                a.useBlock(fz, faceToward(fz, p));
+                a.useBlock(fz, faceTowardEye(fz, p));
                 waited = 0;
                 st = St.OPEN_WAIT;
                 return;
@@ -201,7 +201,7 @@ public final class SmeltProcess implements BotProcess {
                 fz.toShortString(), targetOut, shortId(input), have);
         // NOTE: a server FakePlayer can't open menus, so OPEN_WAIT times out there.
         a.aimAtBlock(fz);
-        a.useBlock(fz, faceToward(fz, p));
+        a.useBlock(fz, faceTowardEye(fz, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
@@ -512,18 +512,6 @@ public final class SmeltProcess implements BotProcess {
 
     private BlockPos placeFurnace(Avatar a, Player p, Level lvl) {
         return PlaceNearby.place(a, p, lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
-    }
-
-    /** The face of {@code block} toward the player's eye. Inlined (was
-     *  BotInteract.pickFaceTowardsPlayer) to keep this process off the client-only
-     *  BotInteract so it loads on a dedicated server. */
-    private static Direction faceToward(BlockPos block, Player p) {
-        var eye = p.getEyePosition();
-        double dx = eye.x - (block.getX() + 0.5), dy = eye.y - (block.getY() + 0.5), dz = eye.z - (block.getZ() + 0.5);
-        double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
-        if (ay >= ax && ay >= az) return dy >= 0 ? Direction.UP : Direction.DOWN;
-        if (ax >= az) return dx >= 0 ? Direction.EAST : Direction.WEST;
-        return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
     }
 
     private static String idOf(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }

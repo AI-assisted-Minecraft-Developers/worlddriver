@@ -5,7 +5,6 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.player.Player;
@@ -25,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
 
 /**
  * Phase E — execute a {@link RecipeResolver} plan as real client-side crafting.
@@ -265,7 +265,7 @@ public final class CraftProcess implements BotProcess {
         // placing even while holding a crafting_table). NOTE: a server FakePlayer
         // can't open menus, so OPEN_WAIT will time out there (capability cliff).
         a.aimAtBlock(table);
-        a.useBlock(table, faceToward(table, p));
+        a.useBlock(table, faceTowardEye(table, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
@@ -381,18 +381,6 @@ public final class CraftProcess implements BotProcess {
         ItemStack off = p.getInventory().offhand.isEmpty() ? ItemStack.EMPTY : p.getInventory().offhand.get(0);
         if (!off.isEmpty()) have.merge(id(off.getItem()), off.getCount(), Integer::sum);
         return have;
-    }
-
-    /** The face of {@code block} pointing back toward the player's eye. Inlined (was
-     *  BotInteract.pickFaceTowardsPlayer) so this process stays free of the client-only
-     *  BotInteract and loads on a dedicated server. */
-    private static Direction faceToward(BlockPos block, Player p) {
-        var eye = p.getEyePosition();
-        double dx = eye.x - (block.getX() + 0.5), dy = eye.y - (block.getY() + 0.5), dz = eye.z - (block.getZ() + 0.5);
-        double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
-        if (ay >= ax && ay >= az) return dy >= 0 ? Direction.UP : Direction.DOWN;
-        if (ax >= az) return dx >= 0 ? Direction.EAST : Direction.WEST;
-        return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
     }
 
     private static String id(Item item) { return BuiltInRegistries.ITEM.getKey(item).toString(); }

@@ -77,15 +77,15 @@ public final class BotInteract {
 
     /** Pick the face of {@code block} closest to the player's eye — the face the
      *  player would naturally hit if they ray-cast at the block. Used when the
-     *  caller didn't specify a face. */
+     *  caller didn't specify a face.
+     *
+     *  <p>The body moved to {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
+     *  same answer can have it without naming this client-only class — see that method for why
+     *  their private copies existed and why deleting them did not put a client type on a
+     *  dedicated server's class path. This name stays because its six callers are all
+     *  client-side and all use it. */
     public static Direction pickFaceTowardsPlayer(BlockPos block, net.minecraft.world.entity.player.Player p) {
-        Vec3 eye = p.getEyePosition();
-        Vec3 center = new Vec3(block.getX() + 0.5, block.getY() + 0.5, block.getZ() + 0.5);
-        Vec3 delta = eye.subtract(center);
-        double ax = Math.abs(delta.x), ay = Math.abs(delta.y), az = Math.abs(delta.z);
-        if (ay >= ax && ay >= az) return delta.y >= 0 ? Direction.UP : Direction.DOWN;
-        if (ax >= az) return delta.x >= 0 ? Direction.EAST : Direction.WEST;
-        return delta.z >= 0 ? Direction.SOUTH : Direction.NORTH;
+        return BotUtil.faceTowardEye(block, p);
     }
 
     /**

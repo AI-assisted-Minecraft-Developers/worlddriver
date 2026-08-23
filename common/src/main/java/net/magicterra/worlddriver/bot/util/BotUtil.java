@@ -311,6 +311,41 @@ public final class BotUtil {
     }
 
     /**
+     * The face of {@code block} pointing back at this body's eye — the side a ray from the eye
+     * would land on, for callers that were not told which face to click.
+     *
+     * <p>The dominant axis of eye−centre wins, ties going to the earlier test ({@code y}, then
+     * {@code x}); every {@code >=} below is load-bearing for a body standing exactly on an axis,
+     * which is the common case for a bot that walks to a cell centre before interacting.
+     *
+     * <p><b>Here rather than in {@code BotInteract}, where it used to live alone.</b> Two
+     * processes — {@code CraftProcess} and {@code SmeltProcess} — each carried a byte-identical
+     * private copy under a javadoc explaining they had inlined it "to keep this process off the
+     * client-only BotInteract so it loads on a dedicated server". <b>That reason was correct and
+     * still is</b>: {@code BotInteract} names {@code Minecraft}, {@code LocalPlayer},
+     * {@code KeyMapping} and {@code MultiPlayerGameMode}, and a dedicated server has none of them.
+     * What was wrong was the conclusion that the only way out is a private copy each. This class
+     * is where the process family's aiming already lives, and every one of those callers runs
+     * under the dedicated-server gate today.
+     *
+     * <p>So: the parameter is {@link Player} and the body names no {@code net.minecraft.client}
+     * type, not even as a local — that is the property that lets a server-side caller reach it,
+     * and it is the property to preserve if this method ever grows.
+     * {@code BotInteract.pickFaceTowardsPlayer} is now a one-line delegate, so its six
+     * client-side callers are unchanged and there is still exactly one answer.
+     */
+    public static Direction faceTowardEye(BlockPos block, Player p) {
+        Vec3 eye = p.getEyePosition();
+        double dx = eye.x - (block.getX() + 0.5);
+        double dy = eye.y - (block.getY() + 0.5);
+        double dz = eye.z - (block.getZ() + 0.5);
+        double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+        if (ay >= ax && ay >= az) return dy >= 0 ? Direction.UP : Direction.DOWN;
+        if (ax >= az) return dx >= 0 ? Direction.EAST : Direction.WEST;
+        return dz >= 0 ? Direction.SOUTH : Direction.NORTH;
+    }
+
+    /**
      * Look at the centre of the face a placement clicks: {@code block} is where the new block is
      * to appear and {@code face} is the side of the supporting neighbour it grows off, so the
      * support sits opposite {@code face} and the point to aim at is half a block out from that
