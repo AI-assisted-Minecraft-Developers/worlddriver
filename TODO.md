@@ -14,7 +14,7 @@
 | ✅ 已绿 | Q15b | **第二轮闸**（ladder-9 之后积的九笔）：专用 Fabric GREEN 305/28、专用 NeoForge GREEN 305/27，非 PASS 与上一轮**逐条相同**，classload 0 | 我 |
 | 🔴 排队 | Q15c | **集成 NeoForge 一直是 RED**，唯一死因 `pack.placesAndReadsBack` ENV_FAIL：`0 of 9 arena chunks ever loaded after 201 ticks`。改动前后同因，非回归。见下 | 我 |
 | ❌ 已证伪 | Q16b | 11 级 `short_grass`：换服务端 avatar（`337a35e2`）**被排练证伪**，同一格同一棵草原样读回。真因见下 | 我 |
-| 🔄 在跑 | Q16d | 真因：**瞄的和破的不是同一具身体**。服务端 `breakHold` 破的是它自己的 `aimTarget` 字段，而瞄的是客户端 ⇒ 早返回，什么也没做。修法 `5e8c0713` | 我 |
+| ✅ **已验** | Q16d | 真因：**瞄的和破的不是同一具身体**。修法 `5e8c0713` 经确定性 A/B 排练验证：`cast.cleared.-4, 63, 55` 由 `short_grass` → **`air`**，11 级 PASS | 我 |
 | ⏭ 排队 | Q13 | 🔴 **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗 | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
 | ✅ 已测 | Q6 | 石剑：ladder-8 全程 `weapon=minecraft:stone_sword`，6/7 级都带着打 | 我 |
@@ -106,6 +106,31 @@ breaker.continueDestroy(inTheWay);   // 服务端上是继承来的 no-op
 3. `cast.blockedBy` 在而 `cast.cleared.…` **不在** ⇒ 代码路径形状变了，先查形状再谈结论。
 4. **`wd.rehearse11Obsidian` 自己的 PASS/FAIL 是次要的。** 这一级还可能死在浇筑之后的任何一步
    （出井、判黑曜石）。**一级 FAIL 不等于这条修法失败** —— 判据只有第 2 条。
+
+### ✅ 判（排练二，逐条对上面四条）
+
+| # | 预登记 | 实读 |
+|---|---|---|
+| 1 | `cast.blockedBy` 仍是 `-4, 63, 55 short_grass` | ✅ 逐字相同 ⇒ **A/B 有效** |
+| 2 | `cast.cleared.-4, 63, 55` = `air` | ✅ **`Block{minecraft:air}`** |
+| 3 | 形状没变 | ✅ 两个键都在 |
+| 4 | 次要 | 附带 PASS：`cast.result=SUCCESS`、`cast.cellAfter=obsidian` |
+
+**同布景、同坐标、只动一个变量（瞄准的路由），红 → 绿。** 这是这条线上第一次拿到干净的 A/B，
+而不是「这趟运气好」——排练打法本身也在这里兑现了。
+
+**多出来的一条**：草清掉之后**露出第二个挡路的**，`-4, 62, 55 grass_block`（实心，走 `mineBlock`），
+第三次射线才落到床面 `-4, 61, 54 dirt`：
+
+```
+cast.picks   = -4, 63, 55 short_grass   ← 清掉
+cast.picks#2 = -4, 62, 55 grass_block   ← 挖掉
+cast.picks#3 = -4, 61, 54 dirt          ← 床面，可以浇了
+```
+
+⇒ **这条线本来就需要清两次。** 旧代码有两次清理额度，却把两次全花在同一棵没被清掉的草上，
+从来没走到第二个挡路的。所以「清不掉」不只是少清了一格，它**吃光了预算**——
+一个静默失败的动作在一个有重试预算的循环里，代价是预算，不是那一步。
 
 ---
 
