@@ -159,6 +159,88 @@ canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader
 覆盖数两边差一条：Fabric `277 executed / 25 skipped`，NeoForge `278 / 24`（总数都是 302）。
 **没有归因，只是记着** —— 这是既有的按 loader 跳过差异，不是这一轮引入的。
 
+## 🔴 J31 重写（2026-08-24，读码定死）：**闸不是阈值问题，是那个「有没有进展」的计数器在数点击**
+
+原来登记的是「`+0.9` 和注释里的 `≥ +1.0` 互相矛盾」。读完之后**矛盾是真的，但它不是病灶**。
+
+### 一、`[+0.9, +1.0)` 是一条**原版保证拒绝**的带
+
+玩家 AABB 底面就在 `p.getY()`，要填的格 `cell` 占 `[cell.y, cell.y+1]`。
+`Level#isUnobstructed` 只要有实体 AABB 与之相交就拒。
+⇒ `p.getY() ∈ [cell.y+0.9, cell.y+1.0)` **必然相交 ⇒ 必然被拒**。
+`WalkerTickClimb:905-916` 自己的注释就是这么写的
+（「clicks only in the 62.9-63.0 band where vanilla silently rejects the still-overlapping AABB」）。
+
+同一个物理谓词，这个文件里有**两种常数**：
+
+| 位置 | 闸 | 对不对 |
+|---|---|---|
+| `WalkerTickClimb:553` | `p.getY() >= fillCell.getY() + 0.9` | ❌ |
+| `WalkerTickClimb:927` | `p.getY() >= wp.getY() + 0.9` | ❌ |
+| `WalkerTickClimb:956` | `p.getY() >= place.getY() + 1.0` | ✅ |
+| `WalkerTickDrive:246` | `p.getY() >= …cell.getY() + 1.0` | ✅ |
+
+### 二、真病灶：**必被拒的那一次点击，把「没进展」的计数器清了零**
+
+`:560-563`：
+
+```java
+if (!fcSolid && fcSupport && fcCleared) {
+    a.place(world, fillCell);
+    wk.waterClimb.pillarNoPlaceTicks = 0;   // 「made a place → progressing」
+} else {
+    wk.waterClimb.pillarNoPlaceTicks++;
+}
+```
+
+`Avatar:81` 是 **`void place(WorldView, BlockPos)`** —— **没有成功与否的返回值**。
+所以这一行写下的不是「垫上了」，是「**我按了一下**」。
+而在 0.9 那条带里按下去的每一次都被原版拒掉 ⇒
+**`pillarNoPlaceTicks` 永远回零，`:499` 的 `placeFutile = pillarNoPlaceTicks > PILLAR_FUTILE_TICKS`
+就永远不会为真，挖掘那条后备永远接不了管。**
+
+⇒ 这正是同一份文件注释里写的「确定性的水岸 pillarUp 死锁」，
+但成因不是「两条放置路径错过窗口」，是**判进展的那本账记的是动作，不是结果**
+（[[a-jump-is-not-a-gain]] 第二现场：那次是把四十次被拒的放置读成四十次成功）。
+
+### 三、所以修法有两半，而**第二半才是治本的**
+
+- (a) 两处 `0.9` 改成 `1.0`，并抽成一个具名谓词（四处同一个物理问题不该有两个常数）；
+- (b) **`pillarNoPlaceTicks = 0` 只能由「`fillCell` 真的变实心」触发**，不能由「点了一下」触发。
+  ⚠️ 判据本来就在同一段里算好了：`fcSolid = world.isSolid(fillCell)`（`:551`）——
+  这本账要的数**已经在手边，只是没被用来记这一笔**。
+
+⚠️ **只做 (a) 不够**：点击还会因为别的原因失败（没支撑、被挡、够不着），
+那时账本照样说谎。**只做 (b) 也能自愈 (a)**：阈值错了，计数器就会涨，后备就会接管。
+所以 (b) 必做，(a) 是顺带把两个常数收成一个。
+
+⚠️ **落之前要一条能分辨的场景**，跟 J24b 同一条纪律：
+要能造出「在 `[0.9,1.0)` 带里 bob 且支撑齐全」的几何，断言 `placeFutile` 会在
+`PILLAR_FUTILE_TICKS` 之后为真。**不许拿「梯子变好了」当证据**——见下面那条。
+
+### 四、⚠️ 而这条路在真梯上到底走不走得到，先别假设
+
+janitor 核出：`JourneyRig.generousPathfinding()`（`:1688-1733`）调 `pinnedBaseline()`
+应用 38 旗竞技场基线，**只单独武装 `walkerDigAimPriority` 一面**（`:1733`）。
+⇒ **`walkerPillarSurfacePlace` 在真梯上是关的。**
+
+两个后果，方向相反，都要记住：
+
+1. **J24b 的修法对真梯零影响**——旗关着时 `floodedShaft ≡ isWater(dest)`，Progress 一个字节没变。
+   （所以那趟闸若出现第四条非 PASS，**结构上不可能**是这次修法引起的：那条场景没开这面旗就到不了被改的那一支。）
+2. **一面为解决真实死锁而加的旗，在唯一会遇到那个死锁的地方是关的。**
+   产品里唯一读者 `WalkerTickClimb:885`，唯一打开它的地方是为它写的那条场景。
+   `JourneyRig:1728-1732` 自陈「the ladder cannot yet be measured on the configuration it ships」
+   —— 这是那笔待办的一个具体受害者。**单独排号，见 J32。**
+
+## 🟠 J32（新）：真梯的 37 面旗留在竞技场表上，是为 rung 3 的砍树税做的决定
+
+`:1714-1718` 记着 `applyCompiledDefaults()` 只跑过一次就被撤：rung 3 出厂配置 13899 tick FAIL
+vs 竞技场基线 2914 tick PASS，点名 `pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5
+把砍树路径定价出局。**那个决定是对的，但它是一刀切的**，顺带关掉了 rung 11 需要的那一面。
+要的不是「全开」或「全关」，是**逐面旗给出理由**——J27 的普查表已经把 38 面列全了，
+这里缺的是把「真梯该开哪几面」单独定下来。⚠️ 别在正跑着的闸中途改旗表，会毁掉可比性。
+
 ### 🔴 J24b 根因（读码定死，2026-08-24）：这面旗**全产品只有一个读者**
 
 ```
