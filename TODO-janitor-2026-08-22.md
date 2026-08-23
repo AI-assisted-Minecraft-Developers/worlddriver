@@ -36,19 +36,43 @@ private static AvatarInput in(Minecraft mc, LocalPlayer p) {
 
 ---
 
-## 0b. 冻结中 —— 放行后的队列（coordinator 08-22 拍板，按此顺序做）
+## 0b. ~~冻结中~~ —— 队列全部作废（2026-08-23 核实）
 
-> **`common/src/main` 冻结中**（coordinator 正在编译 + 跑真客户端验证）。
-> 我的树对 `common/src/main` 是干净的：`34fe1ee8` / `03c46e3c` / `52c7657f` 都已落，
-> 冻结时刻工作树里那三个 `Walker*.java` 的改动**是 coordinator 的，不是我的**。
+> **~~`common/src/main` 冻结中（coordinator 正在编译 + 跑真客户端验证）。~~**
+>
+> **冻结解除。取而代之的规则（coordinator 08-23 拍板）：**
+>
+> > **源码随便改，但游戏 JVM 在跑时一律不编译。**
+>
+> 理由是机制不是礼貌：dev run 把 `build/classes` 挂在 classpath 上而 **JVM 懒加载 class**，
+> 所以改 `.java` 对在跑的那一趟**完全无害**（它不动 `build/classes`），而**重编译**会在一个
+> 跑着的进程脚下换掉它还没加载的那些类 —— 一趟跑成两个版本的混合体。
+> 旧那句「`common/src/main` 冻结」把两件事捆成一条，且只考虑了 CPU 争用那一半。
 
-| # | 做什么 | 依据 |
+**整张表在写下的时候就已经过期，三条全部作废。** 这是同一个形状的**第三次**：
+
+| # | 做什么 | 实际状态 |
 |---|---|---|
-| ~~Q1~~ | ✅ **已作废（2026-08-23 核实）——不要再做**。见下 | 拍板 1；F2b(b) |
-| Q2 | `ContactDamageEscape` / `LavaProximityEscape` 的 `forward` 升级成 `commandMove`，javadoc 写明「commandForward 会被同 tick 的 walker 静默丢弃」 | 拍板 5；F1 |
-| Q3 | `WalkerTickPrelude:255,302` 的脚基判据改成眼→格心，并把判据抽成 `BotUtil` 里挨着 `standingEye` 的一个方法，五处全指过去 | 拍板 3；B-1 |
+| ~~Q1~~ | 给两条只按 `keyAttack` 的反射补 `continueDestroy` | ✅ **早已落，且形状更好**（抽成 `BotInteract.continueDestroy` 而不是两处各抄两行）。照队列做只会把它抄回去 |
+| ~~Q2~~ | 两条逃生反射的 `forward` 升级成 `commandMove` | ✅ **已落，`1e717c47`**。`ContactDamageEscape:111` / `LavaProximityEscape:105` 都是 `BotInput.driveForward(mc)` |
+| ~~Q3~~ | prelude 脚基判据改眼→格心，抽进 `BotUtil` | ✅ **已落，`49ee48f0`**。`WalkerTickPrelude:105,296` 是 `eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))`，`BotUtil` 里五站点表也在 |
 | Q4（待判） | `BotInteract.releaseKeys()` 收敛（见 §1b 注 3） | 我提的，未拍板 |
-| Q5（待判） | 死 import 清理，见 F5 | 我提的，未拍板 |
+| ~~Q5~~ | 死 import 清理，见 F5 | ✅ **已落，J5 五笔，全仓 724 → 0** |
+
+### 这条要写在显眼处：**队列会过期，代码不会**
+
+三条排队项里有三条在被执行之前就已经被别人以更好的形状做掉了。
+**下一轮 janitor 拿到任何一条「补上 X」之前，先 grep X 在不在**——
+一条 `grep` 比一条推理便宜，而照着过期队列做的代价是**把已经收敛的东西重新拆开**。
+
+同族的还有一条**方向相反**的（08-23 撞到）：我向 coordinator 报告
+「`BotInput.driveToward` 在仓里不存在」，**是错的**——
+`bot/movement/BotInput.java:117` 就有，`9d9f344b` 今天刚加的。
+我只 grep 了两个调用方文件，没 grep 定义方。
+选 `driveForward` 这个决定本身是对的（逃生链要的是「全速沿本身朝向 + 压过 walker」，
+不是 `driveToward` 的「小幅修正不甩视角」），**但理由记错了**：
+记成「那个函数不存在」会让下一个人去重新造它。
+**「我没搜到」和「它不存在」是两回事**，跟「空输出有两种解释」同族。
 
 **Q1 的一条注意**：`pickFaceTowardsPlayer` **已经是**唯一取法（`AntiSuffocate:155` 就在用），
 不存在「第六种算法」需要收敛 —— 那一条拍板意见的前提不成立，两处直接照抄即可。
@@ -95,7 +119,11 @@ if (mc.gameMode.continueDestroyBlock(pos, pickFaceTowardsPlayer(pos, p)))
 - `DrownEscapeChain` 还需要 `import net.minecraft.world.InteractionHand;`（现在没有）；
   `BunkerChain` 也没有。
 
-### Q3 的确切改法（冻结期已设计，放行后照抄）
+### ~~Q3 的确切改法~~ —— 已落（`49ee48f0`），以下留档不执行
+
+> 落地形状与这里设计的一致（`eyeWithin` + `blockReachToCentre` 进 `BotUtil`，
+> prelude 两处指过去，另外三处半径原样保留）。留着是因为那张「半径取谁」的推理
+> 现在活在 `BotUtil.standingEye` 的 javadoc 里，这里是它的出处。
 
 在 `BotUtil` 里挨着 `standingEye` 加**一个**方法，五处指过去：
 
@@ -120,6 +148,79 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
 它们是「往哪走」的选点谓词，买余量是安全方向（已在 `standingEye` 的 javadoc 表里写明）。
 `ServerPlayerAvatar` 保持不变（它是权威本身）。
 **所以 Q3 真正改行为的只有 prelude 那两行**，其余四处是让它们指向同一个定义。
+
+## 0c. 2026-08-23 轮（第二轮 review）
+
+约束：`dev.architectury.transformer.TransformerRuntime` pid 52204 在跑（ladder-7），
+**全程未编译、未起 gradle**；Bash 只读；改文件只用 Edit/Write。
+`python scripts/check_source_budget.py` **exit 0**（F0 那三条已由别人清掉，见 §F0 更新）。
+
+### 改了什么
+
+| hash | 一句话 | 节 | 状态 |
+|---|---|---|---|
+| `e1cdc1b0` | 背包枚举只写一遍，传输层两侧不可能再分叉 | K1 | **待编译** |
+| `838e3e80` | 「朝向眼睛的那个面」搬进 processes 够得着的那个家 | K2 | **待编译** |
+
+### K1 `ItemSnap.inventoryRows` —— 一个为「两侧分叉」而生的类，只收敛了一半
+
+`ObserveApi.playerSnapshot` 和 `ClientObserve.observePlayer` **各写了一遍同一个 12 行循环**，
+`git show HEAD:` 逐行对拉**只差两处**：局部变量声明的类型（`List<Map<String,Object>>` vs
+`List<Object>`）和参数名（`pl` vs `p`）。**循环体逐字相同。**
+
+值钱的不是 12 行，是**它违反的那条已经写下来的契约**：
+
+- `ObserveApi` 自己的注释逐字写着「Shape is **deliberately byte-identical** to the client's —
+  same verb, same field, same rows — so an agent never has to know which side answered」。
+  **一条「这两处必须逐字相同」的契约，靠手抄维持。**
+- 更尖锐的是 `ItemSnap` 这个类**存在的理由就是这件事**。它的 header 逐字写着：
+  「Duplicating the wear fields into each is exactly how a field ends up meaning two things —
+  **see gap #41, where server and client `inventory` drifted apart**。」
+  **wear 字段收敛了，装它们的那个枚举没有。** 同一个文件既记着教训又留着复发的形状。
+
+改法：`ItemSnap.inventoryRows(Player)`（两个文件本来就 import 了 `ItemSnap`），
+两侧各只剩一行 `out.put("inventory", ItemSnap.inventoryRows(x))`。
+**两侧各只剩一行是 coordinator 的放行条件**——不留「再补两个字段」的空间，
+这个契约的价值全在「只有一个地方能改它」。
+顺带删掉两个文件因此变死的 `import ...player.Inventory`（各 1 行，删前查过 `Inventory` 在两
+个文件里只剩 import 那一处；`getInventory()` 不需要这个 import）。
+
+**风险**：低。行为逐字不变，可从 diff 直接证明。**唯一的编译期风险**是客户端那侧的局部类型
+从 `List<Object>` 变成 `List<Map<String,Object>>`——而它只是被 `out.put(String, Object)` 吃掉，
+不参与任何其它推导。
+
+### K2 `faceTowardEye` —— 同一个函数三份，而**两份的理由是对的**
+
+| 处 | 形状 |
+|---|---|
+| `BotInteract.pickFaceTowardsPlayer:81` | 走 `Vec3.subtract` |
+| `CraftProcess.faceToward:389` | 三个标量减法 |
+| `SmeltProcess.faceToward:520` | **与 CraftProcess 逐字相同** |
+
+`Vec3.subtract(v)` 就是 `new Vec3(x-v.x, y-v.y, z-v.z)`，同序同运算，
+三处的 tie-break（`ay>=ax && ay>=az`，然后 `ax>=az`）也逐字相同 → **无条件可合并**。
+
+**但这一条的要点是「不要按第一直觉合」。** 两个 process 的 javadoc 写着它们为什么抄：
+「Inlined (was BotInteract.pickFaceTowardsPlayer) so this process stays free of the
+**client-only** BotInteract and loads on a **dedicated server**」——
+**这个理由为真且现在仍然为真**（`BotInteract` 点名 `Minecraft` / `LocalPlayer` /
+`KeyMapping` / `MultiPlayerGameMode`，专用服一个都没有；`a1de83a4` 那次弄红双 loader 闸
+就是这条）。所以**「让两个 process 指回 `BotInteract`」是错的方向**，
+它会把 J7 那次事故原样重演。
+
+正解是搬进 `BotUtil`（**量出来的**，不是推的）：`bot/process/` 下 **19 个文件已经 import
+`BotUtil`**，其中 `MineProcess.findReachStand` 用它的 `standingEye`，而 mine 场景就在
+`stagewrightDedicatedServer*` 上跑 —— **`BotUtil` 在专用服上可加载是实证的**。
+`BotInteract.pickFaceTowardsPlayer` 改成一行委托，**六个客户端调用点零改动**。
+
+coordinator 的放行条件（已满足，会在闸上验）：
+**新方法参数保持 `Player`，函数体内不得出现任何 `net.minecraft.client.*` 类型，
+包括只作为参数类型或局部变量类型出现。** 现在体内只有 `Vec3` / `BlockPos` / `Direction` / `Player`。
+
+顺带：两个 process 删掉私有方法后 `import net.minecraft.core.Direction` 变死，一并删。
+
+**风险**：低–中。行为逐字不变；真正的风险是**类加载**，而那正是
+`stagewrightDedicatedServerFabric` 这个闸的探测对象。
 
 ## 1. 实际改了什么
 
@@ -653,6 +754,72 @@ Fabric 自己的 dist 剥离？**我不知道，而且我没有在测试里假�
 **这条建议现在就看**：判据应当是眼到格心，不是脚到格心。
 
 ## 2. 发现但没改
+
+### K3（**本轮最像 brief 第 1 条的一条，要闸，F9 家族**）起跳净空格的 hazard 闸，七个成员只有两个带
+
+**同一条规则写在同一个文件里，然后被它自己的家族违反。**
+
+`ParkourAscend` / `ParkourDescend`：
+```java
+if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
+```
+`Parkour2` / `Parkour2Diagonal` / `Parkour3` / `Parkour3Diagonal` / `Parkour4`：
+```java
+if (!w.isPassable(from.offset(0, 2, 0))) return false;
+```
+
+`from.offset(0,2,0)` 是**身体自己头顶上那一格**，起跳弧无论往哪个方向都会刮到它。
+七个成员**都**检查它 passable，**只有两个**检查它不是 hazard。
+
+**为什么这条不是「顺手统一」而是真账**：
+`isHazard` 与 `isPassable` **不是互斥的**。`BotUtil.HAZARD_BLOCKS` 里
+`SWEET_BERRY_BUSH` / `POWDER_SNOW` / `WITHER_ROSE` 都是 passable，
+`FIRE`（按 `BlockTags#FIRE`）和岩浆也是。
+所以「从一格着火／淌岩浆的天花板底下起跳」对 parkour2/3/4 **合法**，对 ascend/descend **非法**。
+不是余量差别，是**同一格上两个相反的答案**。
+
+**而这个文件自己就写着这条规则**（`ParkourAscend:41-44`，就在那句 hazard 闸上面四行）：
+
+> The void rule covers the WHOLE leap family, not the three members it was first written
+> against. **An exemption narrower than the family it must cover is how this class of bug
+> leaks back**: rung 20 kept leaving the world from cells the first three gates never saw.
+
+**void 规则被扩到全家族了，紧挨着它的 hazard 闸没有。**
+（注意 Parkour3 **确实**检查途经格的 hazard —— `mid` 和 `midHead` 两处都查。
+漏的只有起跳格头顶那一格，所以这不是「parkour3 不管 hazard」，是**恰好漏了这一格**。）
+
+#### 为什么本轮不改
+
+改它**收紧 A\* 的可行边集合** —— 会让某些今天能规划出来的跳变成规划不出来，
+属于 F9 那一族，coordinator 要求单独一趟闸、单独归因。
+
+#### 下一轮要的不是描述，是一条能复现的场景（coordinator 点名）
+
+写进 `WorldDriverParkourVoidScenes.java`（它已经在演 parkour 的边界情形），形状：
+
+- 布景：`from` 站得住，`from+2` 放 **`fire`**（passable 且 `isHazard`；比岩浆干净，
+  不会流走，也不会把布景烧掉相邻方块 —— 用 `fire` 而不是 `lava` 是为了让布景可复现）。
+- `from` 与 `to` 之间隔 1 格空（够 `Parkour2`），`to` 站得住。
+- 判据：**`Parkour2.valid(w, from)` 与 `ParkourAscend.valid(w, from)` 在同一格上给出不同答案。**
+- **这条断言在缺陷存在时会红吗？** 会 —— 它直接断言两者相等；今天必红（`true` vs `false`），
+  修完必绿。**不要**写成「parkour2 拒绝了」，那在修之前是 `0==0` 的反面（永远红得没信息量）。
+- 修完之后这条断言自动变成**回归守卫**：以后任何一个新 leap 成员漏掉这一格，它会点名。
+
+**修法二选一**（下一轮定，别现在拍）：把那半句抄进另外五个成员，或者
+——更符合这个仓库的形状——把整段起跳净空提成 `Move` 上的一个方法（`clearFallColumn` /
+`clearColumn` 已经是这个先例），七个成员一起指过去。**后者顺带让第八个成员没法漏。**
+
+### ~~F0~~ ✅ **已绿（2026-08-23 复核）** —— `check_source_budget.py` exit 0
+
+> 「source-budget gate OK: no Java source over 3000 lines, no method over budget」。
+> 三个对象（`WorldDriverJourneyScenes.java` 3011 行、`WalkerTickClimb.run()` 1015、
+> `WalkerTickPrelude.run()` 279）**都不是 janitor 的产权，都由产权人自己清掉了**。
+> 下面留档的是它红的时候长什么样。
+
+**注意 `BotConfig.java` 那条警告仍然成立**（当时 2993/3000），下一个往里加设置的人还是会撞线；
+该做的是按主题拆，不是刮注释。
+
+↓ 以下为 08-22 的原文，留档。
 
 ### F0（**闸红了，且我改不了**）`check_source_budget.py` 在 HEAD 上 exit 1
 
@@ -1498,6 +1665,35 @@ javadoc 把规则写死：**scheduler 里的类可以「传递」客户端类型
   **一份样本点不了名**（栈顶散布才说明是循环），暂不归因。
 
 ## 3. 确认过不是问题的
+
+### 2026-08-23 轮新增（**别再查这几处**）
+
+- **`BackfillProcess` / `BuildProcess` 的 `findStandableNear` 看着像重复，其实已裁决过。**
+  重复块扫描器把它们报成 7–10 行相同，`git show HEAD:` 整方法对拉之后**不是**：
+  `BuildProcess` 有一条「最后手段：站到目标格顶上」的分支，`BackfillProcess` **没有**，
+  而 `BackfillProcess` 的 javadoc 逐字写着为什么没有 ——
+  「backfill only ever targets a cell that is AIR，所以 `canStand(above)` 要求下面那格
+  （＝目标格）blocksMotion，**这条分支在这里是死代码**」。
+  **合并会二选一地弄坏一边**：给 backfill 加一条死分支，或者拿掉 build 活着的分支。
+  同一对里的 `canStand` 也已裁决（见 `BotUtil.canStandHereStatic` 的 javadoc：
+  这两份**比家族其余成员严**，少两条水例外，采纳 `BotUtil` 那份会**放松**两条放置路径，
+  「that is the direction that needs a measurement, not a tidy-up」）。
+  **扫描器报的是形状，裁决写在代码里** —— 先读 javadoc 再动手。
+- **`common/src/main` 里没有死的私有成员。** 逐文件扫「private 声明的标识符在本文件里
+  只出现一次」，**命中 0**。（脚本在 scratchpad 的 `deadscan.py`，只读。）
+- **`BotUtil.findStandAdjacent` 那句关于别人的 javadoc 没有腐化。**
+  它声称「`MineProcess` / `BboxFillProcess` 的更彻底的搜索**都用 `canStandHereStatic`
+  判候选格**」—— 核过，`MineProcess:1069` / `BboxFillProcess:279,286,290` /
+  `FarmProcess:233,239` 全部属实。**一条对别的文件下断言的注释，这次是真的。**
+- **`DescendProcess` / `EscapeProcess` 的 `pick()` 只共享 8 行看门狗，其余立刻分叉。**
+  不值得单独抽 —— 它就是 F14（18 个 `attach()` 的开场白）的一个实例，
+  价值全在**一次性做完 18 个**，两个文件抽出来只会多一个半成品抽象。
+- **`BreakFeasibility` 不是重复。** 它是「已证明挖不动」的毒化名单（带 TTL），
+  和 `getDestroySpeed() < 0`（不可破坏）、`Double.isInfinite(breakCost)`（定价无穷）
+  是三个不同的概念，不是一个概念的三份实现。
+- **`testmod` 里只有一处 12 行重复**（`WorldDriverScenes` / `WorldDriverTerrainScenes`
+  的楼梯竞技场搭建），**故意不动**：布景共用是 `a-scene-that-owns-a-global` 那条教训的
+  形状 —— 为一条场景调布景会静默改掉另一条，而两条场景各自可读正是它们的价值。
 
 - **`keyUse` 没有失控。** 它有真的仲裁协议（`BotApiImpl.builderSuppressesAmbients`
   + `UseKeyOwnershipTest` 钉住取用者集合），且 javadoc 明确写了
