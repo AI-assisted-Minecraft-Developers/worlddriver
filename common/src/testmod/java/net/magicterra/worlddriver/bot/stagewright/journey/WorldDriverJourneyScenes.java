@@ -1198,7 +1198,14 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // because a death is a channel event (`entity.death`) and never a log row. A count
                 // that is always zero because nothing writes it looks exactly like a count that is
                 // zero because nothing happened.
-                rig.evidence("kill.kills", String.valueOf(rig.slotString("combat", "kills")));
+                // PER-ENGAGEMENT, not per-rung: `CombatChain.resetCounters` runs from `engage()` and
+                // from a fresh auto-fight, i.e. on ENTER — verified, and that is the safe side (a
+                // reset on release would zero the very numbers this line reads, the shape of
+                // 「被自己描述的事件清掉的读数」). The cost of it being on enter is that a rung which
+                // engages twice reports only the last engagement, so read this as "did the LAST
+                // fight kill something", and pair a zero with `kill.swings` before concluding.
+                rig.evidence("kill.kills", String.valueOf(rig.slotString("combat", "kills"))
+                        + "（按交战清零，说的是最后一次交战）");
                 // Swings vs kills splits the "no kill" case three ways in one pair of numbers:
                 // 0 swings = the in-range branch never fired (a walk/approach problem, not a
                 // combat one); swings > 0 with kills 0 = hits went out and did not finish it;

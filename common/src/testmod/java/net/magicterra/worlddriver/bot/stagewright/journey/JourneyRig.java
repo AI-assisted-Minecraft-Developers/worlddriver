@@ -2073,9 +2073,13 @@ public final class JourneyRig {
         }
         if (best == null) return null;
         var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(best.getType());
+        // Says what it measured, NOT what it means. "Full health" only implies "never connected" on
+        // a hunt that banked nothing — on a successful hunt the nearest animal is a different,
+        // untouched one, and a row asserting 「一下都没挨着」 there would be false and greppable.
+        // The caller knows the outcome; this does not.
         return String.format(java.util.Locale.ROOT, "%s %.1f/%.1f HP 距 %.1f 格%s",
                 key, best.getHealth(), best.getMaxHealth(), Math.sqrt(bestSq),
-                best.getHealth() < best.getMaxHealth() ? "（掉过血：打中过）" : "（满血：一下都没挨着）");
+                best.getHealth() < best.getMaxHealth() ? "（这一只掉过血）" : "（这一只是满血的）");
     }
 
     /** Every animal species loaded near the body, sorted — what a failed hunt should report instead
