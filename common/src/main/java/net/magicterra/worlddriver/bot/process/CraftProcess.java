@@ -25,6 +25,7 @@ import java.util.Set;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReach;
 
 /**
  * Phase E — execute a {@link RecipeResolver} plan as real client-side crafting.
@@ -335,22 +336,12 @@ public final class CraftProcess implements BotProcess {
                 ? Set.of("crafting_table") : Set.of();
     }
 
-    /** Nearest crafting table within interaction reach of the eye. */
+    /** Nearest crafting table within interaction reach of the eye. Twin of
+     *  {@code SmeltProcess.findFurnace} — the scan lives in
+     *  {@link net.magicterra.worlddriver.bot.util.BotUtil#nearestBlockWithinReach} so the two
+     *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
     private static BlockPos findTable(Player p, Level lvl) {
-        BlockPos base = p.blockPosition();
-        BlockPos best = null;
-        double bestD = REACH * REACH;
-        var eye = p.getEyePosition();
-        int r = 4;
-        for (int dx = -r; dx <= r; dx++)
-            for (int dy = -2; dy <= 2; dy++)
-                for (int dz = -r; dz <= r; dz++) {
-                    BlockPos pos = base.offset(dx, dy, dz);
-                    if (!lvl.getBlockState(pos).is(Blocks.CRAFTING_TABLE)) continue;
-                    double d = eye.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-                    if (d < bestD) { bestD = d; best = pos; }
-                }
-        return best;
+        return nearestBlockWithinReach(p, lvl, Blocks.CRAFTING_TABLE, REACH, 4, 2);
     }
 
     /** Place a crafting table from inventory nearby, return its position (or null). */

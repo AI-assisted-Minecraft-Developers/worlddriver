@@ -200,6 +200,48 @@ public final class BotUtil {
     }
 
     /**
+     * The nearest {@code block} this body could use from where it stands: the closest one in a
+     * {@code radiusH}×{@code radiusV} box around the feet whose CENTRE is inside {@code reach}
+     * of the eye, or null.
+     *
+     * <p><b>The other half of a pair that has already been merged once.</b>
+     * {@code CraftProcess.findTable} and {@code SmeltProcess.findFurnace} carried this loop
+     * twice over, identical but for the block tested and both priced at {@code REACH = 4.3}.
+     * The PLACE half of the same two verbs was merged into {@code PlaceNearby} only after the
+     * copies had already diverged twice — its javadoc records gap#61 fixing the table's scan
+     * and gap#62 then finding the furnace still on the pre-evolution version. The FIND half was
+     * left in two copies in those same two files. Merged before it gets its own gap number.
+     *
+     * <p><b>Deliberately not routed through {@link #eyeWithin}.</b> Both originals ranked with a
+     * STRICT {@code <} against a running best seeded at {@code reach²}, so a cell at exactly
+     * {@code reach} was refused; {@code eyeWithin} is {@code <=} and would admit it. The
+     * difference is one floating-point equality wide and would almost never show, which is
+     * precisely why swapping it in as a tidy-up would be the wrong trade: it LOOSENS a gate for
+     * no gain, and a loosening nobody can observe is a loosening nobody can attribute later.
+     * Same measurement as the rest of the family (eye → block centre); only the comparison is
+     * kept as it was.
+     *
+     * @param radiusH horizontal half-width of the scan box, in cells
+     * @param radiusV vertical half-height of the scan box, in cells
+     */
+    public static BlockPos nearestBlockWithinReach(Player p, Level lvl, Block block,
+                                                   double reach, int radiusH, int radiusV) {
+        BlockPos base = p.blockPosition();
+        BlockPos best = null;
+        double bestD = reach * reach;
+        Vec3 eye = p.getEyePosition();
+        for (int dx = -radiusH; dx <= radiusH; dx++)
+            for (int dy = -radiusV; dy <= radiusV; dy++)
+                for (int dz = -radiusH; dz <= radiusH; dz++) {
+                    BlockPos pos = base.offset(dx, dy, dz);
+                    if (!lvl.getBlockState(pos).is(block)) continue;
+                    double d = eye.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+                    if (d < bestD) { bestD = d; best = pos; }
+                }
+        return best;
+    }
+
+    /**
      * Where the eye WOULD be if a body stood with its feet in {@code foot} — the cell centre,
      * 1.62 up. For deciding, before the body is there, whether a candidate stand can reach a
      * block; a body that is already somewhere has {@code p.getEyePosition()} and must use it.
@@ -207,11 +249,18 @@ public final class BotUtil {
      * <p>The three literals were written out twice ({@code MineProcess.findReachStand},
      * {@code BboxFillProcess.withinReach}) — the same hypothetical eye, so one place.
      *
-     * <p><b>The radius is deliberately NOT part of this.</b> "Within reach" is asked in five
-     * places and they do not all want the same margin — so every one now measures the same way
-     * (eye to block centre, via {@link #eyeWithin}) and differs only in a number you can read:
+     * <p><b>The radius is deliberately NOT part of this.</b> "Within reach" is asked in SEVEN
+     * places and they do not all want the same margin — so every one measures the same way
+     * (eye to block centre) and differs only in a number you can read:
      *
-     * <table><caption>reach predicates, 2026-08-22</caption>
+     * <p><b>This table said "five" and listed five for a day, and it was wrong when it was
+     * written</b> — the two station scans below were already there, already measuring eye to
+     * block centre, already carrying a radius of their own. A table of divergences is worth
+     * having only if it is the WHOLE list; a partial one is worse than none, because the next
+     * reader takes "five places" as the search being finished. Count from a grep, not from
+     * this paragraph, before adding a row.
+     *
+     * <table><caption>reach predicates, 2026-08-23</caption>
      * <tr><th>site</th><th>eye</th><th>radius</th></tr>
      * <tr><td>{@code ServerPlayerAvatar.canBreakFromHere} — <b>the authority</b>, and where
      *     {@link #blockReachToCentre} came from</td><td>the real eye</td>
@@ -225,7 +274,16 @@ public final class BotUtil {
      *     <td>{@code FILL_STAND_REACH} = 4.0, no ray</td></tr>
      * <tr><td>{@code WalkerTickClimb} parkour-place</td><td>the real eye</td>
      *     <td>{@code PARKOUR_PLACE_REACH} = 4.0</td></tr>
+     * <tr><td>{@code CraftProcess.findTable}</td><td>the real eye</td>
+     *     <td>{@code CraftProcess.REACH} = 4.3, via {@link #nearestBlockWithinReach}</td></tr>
+     * <tr><td>{@code SmeltProcess.findFurnace}</td><td>the real eye</td>
+     *     <td>{@code SmeltProcess.REACH} = 4.3, same helper, same number</td></tr>
      * </table>
+     *
+     * <p>The two 4.3s are a RANKING cutoff, not a release gate: they pick which already-placed
+     * station to walk up to, and the body then re-approaches it. Being a hair tighter than the
+     * authority costs at most one extra {@code PlaceNearby} call, which is why they were never
+     * a defect — only never written down.
      *
      * <p>The three short radii are margin bought on purpose, and buying margin on the way IN is
      * the safe direction: two of them pick a cell to WALK TO (the body will not be standing on

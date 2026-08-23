@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotUtil.faceTowardEye;
+import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReach;
 
 /**
  * Phase E — smelt {@code count}× {@code input} in a furnace, the slot-simulation
@@ -493,21 +494,12 @@ public final class SmeltProcess implements BotProcess {
         return s.isEmpty() ? 0 : AbstractFurnaceBlockEntity.getFuel().getOrDefault(s.getItem(), 0);
     }
 
+    /** Nearest furnace within interaction reach of the eye. Twin of
+     *  {@code CraftProcess.findTable} — the scan lives in
+     *  {@link net.magicterra.worlddriver.bot.util.BotUtil#nearestBlockWithinReach} so the two
+     *  cannot drift the way the PLACE half of this same pair did (see {@code PlaceNearby}). */
     private static BlockPos findFurnace(Player p, Level lvl) {
-        BlockPos base = p.blockPosition();
-        BlockPos best = null;
-        double bestD = REACH * REACH;
-        var eye = p.getEyePosition();
-        int r = 4;
-        for (int dx = -r; dx <= r; dx++)
-            for (int dy = -2; dy <= 2; dy++)
-                for (int dz = -r; dz <= r; dz++) {
-                    BlockPos pos = base.offset(dx, dy, dz);
-                    if (!lvl.getBlockState(pos).is(Blocks.FURNACE)) continue;
-                    double d = eye.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
-                    if (d < bestD) { bestD = d; best = pos; }
-                }
-        return best;
+        return nearestBlockWithinReach(p, lvl, Blocks.FURNACE, REACH, 4, 2);
     }
 
     private BlockPos placeFurnace(Avatar a, Player p, Level lvl) {
