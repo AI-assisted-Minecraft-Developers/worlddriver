@@ -1367,12 +1367,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // one — which is also simply what a player does with their table.
             rig.attempting("取回还立着的工作台");
             rig.settle(new IntentProcess(new Intent(new Goal.Near(standing, 2))), 600,
-                    () -> rig.mineBlock(standing, 600,
-                            () -> rig.collectByHand("minecraft:crafting_table", 1, () -> {
-                                rig.evidence("craftingTable.reclaimed",
-                                        rig.carrying("minecraft:crafting_table"));
-                                then.run();
-                            })));
+                    () -> takeTableWhereItStands(rig, standing, () -> {
+                        rig.evidence("craftingTable.reclaimed",
+                                rig.carrying("minecraft:crafting_table"));
+                        then.run();
+                    }));
             return;
         }
 
@@ -1794,8 +1793,32 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         BlockPos standing = rig.nearestBlock("minecraft:crafting_table", 4, 3);
         if (standing == null) { then.run(); return; }
         rig.evidence("craftingTable.tookItAlong", standing.toShortString());
-        rig.mineBlock(standing, 600,
-                () -> rig.collectByHand("minecraft:crafting_table", 1, then));
+        takeTableWhereItStands(rig, standing, then);
+    }
+
+    /**
+     * Break a standing table and pick it back up — the ONE place in this file that does it.
+     *
+     * <p>The row it writes is the discriminator for a measured question the run cannot otherwise
+     * answer. Run 9 recorded {@code crafting_table.pickup.left = 1} on exactly one of four crafting
+     * rungs, and {@code nearestDrop} and {@code dropsNearby} filter identically (same
+     * {@code ItemEntity} scan, same radius, same item), so "the walk found nothing and the tally
+     * afterwards found one" has only two possible causes: the rung broke the table <b>more than
+     * once</b> and only one break was followed by a collect, or the single walk ended more than the
+     * pickup radius away. The two call for opposite fixes — "collect after every break" versus "walk
+     * again while {@code left > 0}" — and picking the wrong one buys a green that proves nothing.
+     *
+     * <p>Recording position, drop count and body position at the moment of the break separates them
+     * with no extra walking: a second break inside one rung shows up as {@code craftingTable.broke#2}
+     * on its own, and a single row with {@code 地上 1 个} next to a distant body is the other case.
+     */
+    private static void takeTableWhereItStands(JourneyRig rig, BlockPos standing, Runnable then) {
+        rig.mineBlock(standing, 600, () -> {
+            rig.evidence("craftingTable.broke", standing.toShortString() + "，破坏后地上 "
+                    + rig.dropsNearby("minecraft:crafting_table", 32) + " 个，身体在 "
+                    + rig.player().blockPosition().toShortString());
+            rig.collectByHand("minecraft:crafting_table", 1, then);
+        });
     }
 
     /**
