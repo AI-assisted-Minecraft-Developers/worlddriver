@@ -9,7 +9,6 @@ import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.structure.BuiltinStructures;
-import net.minecraft.world.phys.AABB;
 
 /**
  * What this ladder's difficulty actually is — measured, not asserted.
@@ -63,17 +62,6 @@ final class JourneyPeace {
      */
     private static final int HUT_SEARCH_RINGS = 2;
 
-    /**
-     * How wide a box around the hut's reported centre gets swept.
-     *
-     * <p>{@code findNearestMapStructure} answers with the structure's placement position, which for
-     * a scattered feature is the piece's own origin rather than the witch's cell —
-     * {@code SwampHutPiece} puts her at {@code getWorldPos(2, 2, 5)}, and the piece itself is 7×9.
-     * Sixteen covers the hut and its stilts with margin, and is small enough that nothing else in a
-     * swamp is inside it.
-     */
-    private static final int SWEEP_RADIUS = 16;
-
     /** Chunk-ticket radius around the hut. 3 clears the level an entity section needs to load. */
     private static final int HUT_PIN_RADIUS = 3;
 
@@ -122,22 +110,36 @@ final class JourneyPeace {
         // sections inside them — arrive on later ticks, and a witch that has not arrived cannot be
         // found by a scan that runs now.
         rig.settle(new HoldStill(40), 100, () -> {
-            AABB box = new AABB(at).inflate(SWEEP_RADIUS);
-            var found = level.getEntitiesOfClass(Monster.class, box);
+            // EVERY loaded overworld monster, not a box around the hut, and the reason is that a
+            // witch WALKS. `setPersistenceRequired` stops her despawning; it does not pin her to the
+            // hut, and the body that died on 2026-08-22 died at -51,62,67 — wherever she had got to
+            // by rung 7, which no radius chosen at SPAWN can predict. With `doMobSpawning=false` the
+            // only monsters an overworld can hold are the ones generation placed, so a sweep this
+            // wide cannot take anything the ladder needs: the rungs that DO need mobs turn spawning
+            // back on themselves (`rig.liveWorld(true)`), later, in the nether.
+            //
+            // `ServerLevel.getEntities(EntityTypeTest, Predicate)` materialises a List, so the
+            // discards below cannot mutate a storage that is still being iterated. The no-argument
+            // `getEntities()` on Level does NOT work here — ServerLevel overloads the name.
+            var doomed = level.getEntities(
+                    net.minecraft.world.level.entity.EntityTypeTest.forClass(Monster.class), m -> true);
             int n = 0;
-            for (Monster m : found) {
+            for (Monster m : doomed) {
                 rig.evidence("peace.removed#" + (++n), BuiltInRegistries.ENTITY_TYPE.getKey(m.getType())
                         + " @ " + m.blockPosition().toShortString()
-                        + "（持久化=" + m.isPersistenceRequired() + "，血 "
+                        + "（离小屋 " + Math.round(Math.sqrt(m.blockPosition().distSqr(at))) + " 格，"
+                        + "持久化=" + m.isPersistenceRequired() + "，血 "
                         + String.format(java.util.Locale.ROOT, "%.1f", m.getHealth()) + "）");
                 WorldDriverCommon.LOG.info("[journey/peace] discarding {} at {}",
                         BuiltInRegistries.ENTITY_TYPE.getKey(m.getType()), m.blockPosition());
                 m.discard();
             }
-            // Recorded even when it is zero, and WITH its radius: a bare「0」is the one answer that
-            // reads the same whether the world is clean or the scan could not see.
-            rig.evidence("peace.swept", n + " 只敌对生物已移除（" + at.toShortString() + " 周围 "
-                    + SWEEP_RADIUS + " 格内，chunk 已钉 " + HUT_PIN_RADIUS + " 环并等过 40 tick）");
+            // Recorded even when it is zero, and WITH the scope it was taken over: a bare「0」reads
+            // identically whether the world is clean or the scan could not see that far, and this
+            // ladder has already paid once for a hostile-count sentence that carried no scope.
+            rig.evidence("peace.swept", n + " 只敌对生物已移除（扫的是主世界当时已加载的 "
+                    + level.getChunkSource().getLoadedChunksCount() + " 个 chunk 内的全部 Monster；"
+                    + "小屋 " + at.toShortString() + " 已钉 " + HUT_PIN_RADIUS + " 环并等过 40 tick）");
             then.run();
         });
     }
