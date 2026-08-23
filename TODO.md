@@ -56,13 +56,16 @@
 | 🔴 **挡路** | Q24 | 11 级：`cast.result = SUCCESS` 而 `lava_bucket.after = 1`。两个数来自两端（客户端预测 vs 服务端库存），而分辨用的 `cast.atUse` 上一轮只加进了 12 级。已补，**ladder-13 未触发**（没走到那一浇），仍待读 | 我 |
 | ✅ 已改待验 | Q25 | 隧道停在「看得见」而桶要「够得着」：瞄准用 `TUNNEL_REACH=5.0`（挖掘的数，`destroyBlock` 无距离闸），桶用 `blockInteractionRange()=4.5`。`JourneyFill.BUCKET_REACH` 早就记着这件事，这个调用方没用它。改成以桶自己的距离**重射一次**（不比距离——`5.4m` 是格心，射线停近面）；装桶站点补 `handsAtUse` | 我 |
 | 🟠 待做 | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom:2611`（10 级隧道用，一次瞄准一次 use，没有重瞄、没有换源、没有装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。Q25 是前者缺了后者早就写下的那半格。要么合并、要么把前者的 javadoc 从「看得见的源」改成「够得着的源（调用方以 `BUCKET_REACH` 重射）」—— **前置条件写在一个调用方里就是今天那一族**。合并会改证据键，等真梯落地 | 我 |
+| ✅ 已修待闸 | Q23c′ | 查 Q23c 时查出的**真缺陷**：`ContactDamageEscape.pickClearCardinal` 不问下一格的**地板**，而它唯一的调用分支的注释写着「它就在正下方（磁浆地板）」—— 于是它可以从磁浆板的这一格躲到**同一块板的隔壁格**，下一 tick 再触发一次，读起来像「反射在工作而世界一直赢」。岩浆那个兄弟从写出来就问 `f.below()`，只有这份拷贝没问（`c20e7751`）。[[a-precedent-nobody-ever-verified]] | 我 |
+| 🟠 待做 | J16 | 两份 `pickClearCardinal` 结构逐字相同，只差「危险谓词」和「可穿过怎么问」（`blocksMotion()` vs `getCollisionShape().isEmpty()`，实测在原版方块上等价）。抽进 `BotUtil.stepAwayCardinal(lvl, foot, hazard)`，形参从 `LocalPlayer` 降成 `BlockPos` —— **这才是覆盖不了它的原因**：现在只有 `ContactEscapeGate` 的真值表有场景，方向选择器两边都零覆盖，而降了形参就能在专用服上直接测，不用客户端、不会 SKIP（[[skip-is-not-coverage]]） | 我 |
 | 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
-| 🟠 待做 | Q23b | `WalkerTickDrive:844` 的 `path-hazard brake` 日志在 `walkerDebug` 后面，真梯从不开 ⇒ 烧死那一趟查不出闸响没响。改无条件（它只在世界变化时响）；`hazard-ahead brake` 加节流。跟 Q7 后半（`MineProcess:341`）合并 | 我 |
+| ✅ 已落 | Q23b | ~~待做~~ **核实已在 HEAD**：`WalkerTickDrive:844` 无条件，`:911` 的 `hazard-ahead` 走 `announceLavaBrake` 每次交战一行。这张表**第三行过期**（前两条见下面那条纪律） | 我 |
+| ✅ 已落 | Q7b | Q7 后半，比登记的更糟：拉黑目标有**四扇门**，`:315`／`:421`／`:462` **一行日志都没有**，只有 `:344` 那扇被 `walkerDebug` 关着。四处逐字相同的三四行收成 `MineProcess.retireTarget`，无条件打一行并带上理由（量级：每行永久花掉一个目标，由候选数封顶，不由 tick 数）。顺带 `finish()` 补 `blacklisted N target(s)` —— 原来那本账数的是 COLLECT 放弃的**掉落物**，不是目标（`4501efe6`）。**待编译** | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
 
-**⚠️ 这张表今天被抓到两行是过期的**（Q15 写着「在查」而修法 `e5b7c7f8` 早在 HEAD；
+**⚠️ 这张表今天被抓到三行是过期的**（Q15 写着「在查」而修法 `e5b7c7f8` 早在 HEAD；
 J1 写着「冻结中」而两处 `continueDestroy` 都已落）。两次都是**临时翻代码**才发现的。
 ⇒ 纪律：**开一趟真梯之前，把所有「在查／冻结中／待验」的行拿去 `git show HEAD:` 核一遍。**
 一行过期的状态会让人以为某条修法没上梯，于是这一趟的读数被判给了错的账本
