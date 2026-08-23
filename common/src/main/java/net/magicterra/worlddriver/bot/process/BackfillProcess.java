@@ -105,21 +105,8 @@ public final class BackfillProcess implements BotProcess {
                 a.commandSneak(true);
                 p.setShiftKeyDown(true);
                 aimAtSupportFace(p, currentBlock, currentFace);
-                // Approach-center gate (mirror of BuildProcess fix):
-                // walker may stop ~0.4 short of stand-center which leaves
-                // <0.2 clearance from the placement target.
-                double dxToCenter = (currentStand.getX() + 0.5) - p.getX();
-                double dzToCenter = (currentStand.getZ() + 0.5) - p.getZ();
-                double horizD = Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter);
-                if (horizD > 0.25) {
-                    float yaw = (float) Math.toDegrees(Math.atan2(-dxToCenter, dzToCenter));
-                    p.setYRot(yaw);
-                    p.yHeadRot = yaw;
-                    p.yBodyRot = yaw;
-                    a.commandForward(1f);
-                    return false;
-                }
-                a.commandForward(0f);
+                // The approach gate — see BotUtil.stepToStandCentre, which BuildProcess asks too.
+                if (stepToStandCentre(p, a, currentStand)) return false;
                 aimAtSupportFace(p, currentBlock, currentFace);
                 BlockPos support = new BlockPos(
                         currentBlock.getX() - currentFace.getStepX(),

@@ -128,27 +128,8 @@ public final class BuildProcess implements BotProcess {
                 a.commandSneak(true);
                 p.setShiftKeyDown(true);
                 aimAtSupportFace(p, currentBlock, currentFace);
-                // Walker.REACH_DIST_SQ=0.45 means the player can ARRIVE
-                // ~0.67 short of the stand-cell center. Even sneaking
-                // (AABB half-width 0.3) that's not enough clearance from
-                // the placement target when stand is adjacent to it —
-                // vanilla Level.isUnobstructed rejects. Hold keyUp until
-                // we're within 0.25 of stand center on the X/Z axes,
-                // THEN release and click.
-                double dxToCenter = (currentStand.getX() + 0.5) - p.getX();
-                double dzToCenter = (currentStand.getZ() + 0.5) - p.getZ();
-                double horizD = Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter);
-                if (horizD > 0.25) {
-                    // Re-aim forward toward stand center, hold keyUp,
-                    // re-face the support next tick.
-                    float yaw = (float) Math.toDegrees(Math.atan2(-dxToCenter, dzToCenter));
-                    p.setYRot(yaw);
-                    p.yHeadRot = yaw;
-                    p.yBodyRot = yaw;
-                    a.commandForward(1f);
-                    return false;
-                }
-                a.commandForward(0f);
+                // The approach gate — see BotUtil.stepToStandCentre, which BackfillProcess asks too.
+                if (stepToStandCentre(p, a, currentStand)) return false;
                 aimAtSupportFace(p, currentBlock, currentFace);
                 String wantId = schematic.entries.get(idx).blockId;
                 // Sanity-check the id before invoking the simulation so a typo

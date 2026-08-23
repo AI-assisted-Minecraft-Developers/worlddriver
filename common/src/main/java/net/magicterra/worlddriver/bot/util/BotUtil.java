@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.util;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -451,6 +452,41 @@ public final class BotUtil {
      * support sits opposite {@code face} and the point to aim at is half a block out from that
      * support's centre along {@code face}.
      */
+    /**
+     * Walk the last fraction of a cell to the stand's centre before placing, or report that the
+     * body is already centred enough to click.
+     *
+     * <p>{@code Walker.REACH_DIST_SQ = 0.45} lets a leg ARRIVE ~0.67 short of the stand cell's
+     * centre. Even sneaking — hull half-width 0.3 — that is not enough clearance from the placement
+     * target when the stand is adjacent to it, and vanilla's {@code Level.isUnobstructed} refuses.
+     * So the last quarter of a block is walked here, by the placer, rather than asked of the
+     * pathfinder: hold forward until within 0.25 of the centre on X/Z, then release and click.
+     *
+     * <p>Both placement verbs need this and both carried their own copy — identical down to the
+     * 0.25 threshold, the yaw formula and the three rotation writes, differing only in the comments
+     * around them ({@code BackfillProcess}'s said "mirror of BuildProcess fix", which is how a copy
+     * announces itself). An approach gate is exactly the kind that gets tuned once: move the
+     * threshold for one verb and the other goes on refusing placements nobody can explain.
+     *
+     * @return true while still closing in — the caller must yield the tick; false once centred, in
+     *         which case forward has already been released and the placement may proceed.
+     */
+    public static boolean stepToStandCentre(Player p, Avatar a, BlockPos stand) {
+        double dxToCenter = (stand.getX() + 0.5) - p.getX();
+        double dzToCenter = (stand.getZ() + 0.5) - p.getZ();
+        if (Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter) > 0.25) {
+            // Re-aim forward at the stand centre; the caller re-faces the support next tick.
+            float yaw = (float) Math.toDegrees(Math.atan2(-dxToCenter, dzToCenter));
+            p.setYRot(yaw);
+            p.yHeadRot = yaw;
+            p.yBodyRot = yaw;
+            a.commandForward(1f);
+            return true;
+        }
+        a.commandForward(0f);
+        return false;
+    }
+
     public static void aimAtSupportFace(Player p, BlockPos block, Direction face) {
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
         aimAt(p, support.getX() + 0.5 + face.getStepX() * 0.5,
