@@ -2792,10 +2792,23 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // THE HAND, RE-ASSERTED — `aimThenAct` settles ten ticks between the hold above and this
             // use, and ten ticks is enough for a hold that went down `ensureHolding`'s bag branch to
             // come undone on both bodies at once. See JourneyHands.regripBeforeUse; rung 12 lost a
-            // cast to it and reported the failure six legs later. This site has never been bitten
-            // because nothing between the two lines holds anything else — which is a fact about the
-            // neighbours, and the comment above already says this bucket has no second try.
-            if (!JourneyHands.regripBeforeUse(rig, Items.LAVA_BUCKET, "cast")) {
+            // cast to it and reported the failure six legs later.
+            // ⚠️ This site's earlier note said it「has never been bitten because nothing between the
+            // two lines holds anything else」. ladder-12 (2026-08-23) falsified that from here:
+            // `cast.handSlipped` fired with COBBLESTONE in slot 0 on both bodies — the shaft climb-out
+            // pillars up to 36 blocks of cobblestone, and the pillar's own hold is what displaces the
+            // bucket. The neighbour that bites is not the next line, it is the last leg.
+            boolean gripped = JourneyHands.regripBeforeUse(rig, Items.LAVA_BUCKET, "cast");
+            // BOTH BODIES AT THE INSTANT OF THE USE, unconditionally — the row ladder-12 needed and
+            // did not have. `useItemInHand` is `MultiPlayerGameMode.useItem`, i.e. a CLIENT-side
+            // prediction over the CLIENT's stack, so its SUCCESS says only「the client held a
+            // bucket」. That run returned SUCCESS and read `lava_bucket.after = 1` off the server —
+            // a full bucket after a successful pour — and nothing on disk could say whether the
+            // server had a bucket in that slot at all. regripBeforeUse checks `actingHolds`, which
+            // is also the client; so「re-gripped」and「the server agrees」are two claims and only one
+            // of them was ever recorded.
+            JourneyHands.handsAtUse(rig, "cast");
+            if (!gripped) {
                 ctx.fail("开浇的那只手不是 minecraft:lava_bucket，重新拿过一次也没拿到："
                         + JourneyHands.heldOnBoth(rig)
                         + " —— 没有倒。空手 use 只会返回 PASS，"
@@ -2813,6 +2826,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // opposite fixes.
                 BlockPos anywhere = rig.nearestBlock("minecraft:obsidian", 8, 4);
                 rig.evidence("obsidian.anywhere", anywhere == null ? "无" : anywhere.toShortString());
+                // A THIRD outcome the pair above cannot name: the client predicted the pour and the
+                // server never made it. `cast.result` comes from the client and this count comes
+                // from the server, so「SUCCESS ＋ 桶还是满的」is not a contradiction to explain away
+                // — it is the two ends disagreeing, and it reads exactly like a refusal until the
+                // two sources are named. Written whenever it happens, since the whole rung turns on
+                // this one bucket.
+                if (rig.carrying("minecraft:lava_bucket") > 0)
+                    rig.evidence("cast.stillFull",
+                            "服务端读到岩浆桶还有 " + rig.carrying("minecraft:lava_bucket")
+                            + " 个，而 cast.result 是客户端 MultiPlayerGameMode.useItem 的预测 —— "
+                            + "两个数来自两端。要判是「服务端那只手不对」还是「两端都拿着桶但这一浇被拒」，"
+                            + "读 cast.atUse 那一行的服务端半边：" + JourneyHands.heldOnBoth(rig));
                 ctx.expect(got == Blocks.OBSIDIAN)
                         .as("lava poured into standing water casts obsidian in the chosen cell").isTrue();
                 // The claim, and what the claim is NOT. A rung that fetched its lava, climbed one
