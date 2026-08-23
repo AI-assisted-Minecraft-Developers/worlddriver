@@ -67,8 +67,14 @@
 | 🟠 待做 | Q26c | **ladder-15 判读前先写下**：`cast.rePickBlocked` 的退路是**重跑同一个** `settle(IntentProcess(Near(water,2)), 2000)`。若走行卡死复现，三次 `cast.walk` 会**一字不差**，红落在第四态。那**不是** Q26b 的证伪（闸响了、方向对了），但它**是** [[a-retry-that-changes-nothing]] 的标准形状。修法是让退路**换问题**（`viaMidpoint`／改走 `walkToColumn`），不是加次数 | 我 |
 | 🟠 待做 | Q7c | Q7 的**形状定了**：加宽现有那道闸，**不造第二个调速器** —— `WalkerTickSearch:85` 自己写着「two governors on one loop would race」。规格＝已量出的两条盲区：`!res.goalReached()` 让「搜得到、走不了」永不计数，`distSqr(foot) > 4` 让 5 格 ping-pong 每次清零。**不加新 `BotConfig` 开关**（那个文件 2993/3000，任何新 knob 都把 J7 从「梯子稳后」提成前置），复用 `walkerFutileSearchCap`。**落 Java 之前先离线回放**：拿 ladder-14 已录的 174 案／816 案回放新计数规则，必须抓住那两案且不误伤正常绕行（`journey03Wood` 绕树那段是现成阴性样本）—— 同 Q27 数分母那条纪律，调好阈值再编译，一次过闸 | 我 |
 | ✅ 已判 | Q7d | `pathfinderSliceMs = 30` **不单开一趟 A/B**：抑制重问之后，30ms 每 tick 最多花在**一条**在飞的搜索上，正是产品 `idleSliceMs = 30` 的场合。冻屏的因是**乘数**（每秒 20 次），被 Q7c 除掉后先留 30，V1 若仍在再翻回 6。省一趟 40 分钟 | 我 |
-| 🟡 已报待闸 | J17 | `ExploreProcess:43`／`FollowProcess:61` 的 `p == null` 早退不戳 `lastError`，而 `ProcessSlot.snapshot()` 只在非 null 时才写这个键 ⇒ 这条退出路径向调用方报「跑完了，没出错」。十个兄弟进程都戳，只有这两个漏 —— 和 J8 是**同一族的第二现场**（janitor 找的，单一 owner 已核）。**产品谓词，编译通过不算证据** | janitor |
-| 🟡 已报 | J18 | `BotProcess.onResume` 的注释把「持有 Walker 的九个」点错两个名：`Bridge`／`Tower` 只用 `WalkerGeometry`，真正漏的是 `RunAway`／`Sleep`；`ReplayProcess:70` 显式 override 成空，不算「继承」。数字九对，名字换两个。**按代码改注释**（janitor） | janitor |
+| 🟡 已落待闸 | J17 | `ExploreProcess:43`／`FollowProcess:61` 的 `p == null` 早退不戳 `lastError`，而 `ProcessSlot.snapshot()` 只在非 null 时才写这个键 ⇒ 这条退出路径向调用方报「跑完了，没出错」。十个兄弟进程都戳，只有这两个漏 —— 和 J8 是**同一族的第二现场**（`1b56d88e`，单一 owner 已核） | janitor |
+| ✅ 已落 | J18 | `BotProcess.onResume` 的注释把「持有 Walker 的九个」点错两个名：`Bridge`／`Tower` 只用 `WalkerGeometry`，真正漏的是 `RunAway`／`Sleep`；`ReplayProcess:70` 显式 override 成空，不算「继承」。数字九对，名字换两个（`4cd949f8`） | janitor |
+| 🟡 已落待闸 | J19 | `LookProcess:64` 的 `if (aligned \|\| ++ticks > MAX_TICKS)` —— **收敛和「200 tick 没收敛」共用一个不说话的出口**。拆开，只在超时臂戳 `lastError` 并带残差（`yawErr`／`pitchErr`），因为「差 0.6°」和「差 90°」要的是两种活；原来唯一能区分它们的读数在 `walkerDebug` 后面。短路语义逐字保留（`aligned` 那一 tick 仍不自增）（`367f8037`） | janitor |
+| 🟡 已落待闸 | J20 | `ElytraProcess` 的 `++ticks > maxTicks` 飞行预算耗尽不戳，而**同一文件里** `takeoffTicks > TAKEOFF_TIMEOUT` 一直戳 —— 漂移的孪生（`fbeb69c7`）。⚠️ 加注释当场把 `tick()` 从 243 推到 250 行，撞上**预算闸的 per-method 上限**（grandfathered 只许缩不许涨），提成 `outOfBudget(a, st)` 才回绿（`d0db3391`）。**这条闸不只管文件，还管方法** | janitor |
+| 🟠 待做 | J21 | `BuildProcess:138-150` 与 `BackfillProcess:111-122` 的 approach-centre gate **12 行逐字相同**（算到 stand 中心的水平距离、>0.25 就转向前进）。抽进 `BotUtil`。**今天两份还没漂移，纯预防** —— 要编译，留给能编译的一轮 | janitor |
+| 🟠 待做 | J22 | `RecipeApi.resolve` 与 `planAcquire` **开头 14 行逐字相同**（`Params.of`→`getNonBlank`→`getIntClamped`→`onServerThread`→`ResourceLocation.parse`→`containsKey`→…）。真复用点。**校验逻辑一处修一处不修，是它以后会咬人的方式**。抽取要 lambda＋泛型，等能编译的一轮 | janitor |
+| 🟠 待做 | J23 | `ElytraProcess:170`（`!p.isFallFlying()` 中途退出）也不戳，**但这一个出口同时是「落地了」和「翅膀在半空断了正在下坠」**（注释自己写着后者）。判成哪个是行为决策不是卫生，唯一能区分的读数在 `elytraDebug` 后面。janitor 正确地没动 | 我 |
+| 📌 记着 | J24 | `JourneyShaft.supportUnder` 用 `rig.ctx().level()`，**latent**：所有调用点现在都在主世界，安全；哪天有人在下界/末地调它就读错世界。⚠️ 它和 `JourneyEndRungs.supportUnder` **方法体逐字相同而读的 level 不同**（后者用 `levelOf(rig)`＝身体所在世界，19 级之后不是 `ctx.level()`）——**合并会弄坏末地的级，别顺手合** | janitor |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
