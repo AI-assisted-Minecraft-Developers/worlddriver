@@ -62,6 +62,7 @@
 | 🟠 待做 | J16 | 两份 `pickClearCardinal` 结构逐字相同，只差「危险谓词」和「可穿过怎么问」（`blocksMotion()` vs `getCollisionShape().isEmpty()`，实测在原版方块上等价）。抽进 `BotUtil.stepAwayCardinal(lvl, foot, hazard)`，形参从 `LocalPlayer` 降成 `BlockPos` —— **这才是覆盖不了它的原因**：现在只有 `ContactEscapeGate` 的真值表有场景，方向选择器两边都零覆盖，而降了形参就能在专用服上直接测，不用客户端、不会 SKIP（[[skip-is-not-coverage]]） | 我 |
 | 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
 | ✅ 已落 | Q23b | ~~待做~~ **核实已在 HEAD**：`WalkerTickDrive:844` 无条件，`:911` 的 `hazard-ahead` 走 `announceLavaBrake` 每次交战一行。这张表**第三行过期**（前两条见下面那条纪律） | 我 |
+| ✅ **已闸** | Q26g | 两笔产品代码债（Q7b `retireTarget`／Q23c′ 磁浆地板）跑完双 loader 专用服闸：**Fabric GREEN 305/3F/1T、NeoForge GREEN 305/3F/1T，非 PASS 逐条相同**（`vineOverWaterClimb` 与 `serverEscapeSealedShelter` 都带 `fail(optional)`，判词连 `pocketTicks=81`／`y=221.0` 都一字不差）。日志 `gate-fabric-q26.log`／`gate-neoforge-q26.log`，结果 `results-q26-{fabric,neoforge}.jsonl` | 我 |
 | ✅ 已落 | Q7b | Q7 后半，比登记的更糟：拉黑目标有**四扇门**，`:315`／`:421`／`:462` **一行日志都没有**，只有 `:344` 那扇被 `walkerDebug` 关着。四处逐字相同的三四行收成 `MineProcess.retireTarget`，无条件打一行并带上理由（量级：每行永久花掉一个目标，由候选数封顶，不由 tick 数）。顺带 `finish()` 补 `blacklisted N target(s)` —— 原来那本账数的是 COLLECT 放弃的**掉落物**，不是目标（`4501efe6`）。**待编译** | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
