@@ -1182,6 +1182,66 @@ opt-in **只给 preferred-id 支**：id 是调用方的明示指令，`preferred
 按键，一直都是用直调代码和发包解决」直接冲突。真要武装它，得先把它改成直调 `useItemInHand`
 一族——**这条要先量再改**，不要顺手一起做。
 
+### 第 5 趟整梯判词（2026-08-22，`ladder-5.log`）
+
+**`journey.height=FOOD`（第 6 级），低于地板 PORTAL_KIT。** 上一趟 8 级，本趟 6 级。
+
+⛔ **先纠正我自己的一次误读。** 结果文件里 `wd.journey09Iron` 一直到 `wd.journey20Dragon`
+**全是 PASS**，我据此说了一句「梯子第一次跑到了龙」。**错的。** 那些 PASS 是**场景级**的，
+内容逐条是 `rung.IRON=BLOCKED — 上游阶段 FURNACE 未达成`……一路 BLOCKED 到 DRAGON。
+**一条正确地判定「我被上游挡住了」的场景，返回的也是 PASS。** 数 PASS 得到 19/22，
+数爬到的级只有 6——[[skip-is-not-coverage]] 的同一个形状，这次是我踩的。
+⇒ **整梯的唯一判词是 `journey.height`，不是 PASS 计数。**
+
+#### 塔的修法：预登记的第 1 支命中，但**不在它本来要测的那一级**
+
+第 5 级（STONE_TOOLS）出井塔，逐课存量：
+
+```
+stone.exit#1.climb.0.with = minecraft:cobblestone ×32
+                      .1  = ×30   .2 = ×29 … .12 = ×19
+stone.exit#1.gained = 13/13 block(s)
+```
+
+**存量单调下降、13 课 13 格、`.stalled` 一行没有、`walkerFallback` 不再出现** —— 正是预登记
+形状 1。对照上一趟：石头那级停了四十次、存量钉在 30 不动。**修法成立。**
+
+⚠️ 但第 9 级（IRON，本来要测它的那一级）是 `BLOCKED`，**opt-in 在它的目标调用点上这趟
+一次都没被执行**。所以「塔修好了」这句话现在的证据强度是：**第 5 级观测级成立，第 9 级未测**。
+
+#### 死因换了族：不是女巫，是淹死——而且是在**没有盖子**的水里
+
+| 读数 | 值 |
+|---|---|
+| `death.blow` | `drown −2.0→14.0@404`…`→0.0@544`（8 下，每 20 tick 一下） |
+| `death.standingIn` | 脚格/脚下/头格 **全是 `water[level=0]`**，坠落距离 0.0 |
+| `death.at` / 心跳 | 都是 `-28,61,79` —— **300 tick 一格没动** |
+| PREEMPT → 死 | `10:58:40` → `10:58:55` = **整整 300 tick**，`enterAir(100) + 20×ceil(HP/2)` 的预算公式再次精确命中 |
+| 窗口内 `[walker] 步进:` | **零行**（全程 398 行，说明 `walkerDebug` 开着）⇒ Walker 没在开，通道独占给了反射 |
+| `CAPPED lid` | **零行** ⇒ `dir == null` ⇒ 走的是**纯竖直支** |
+| 死后那行 walker | `路点=-28,62,79 … 水=true 没顶=true` ⇒ **头顶不是固体** |
+
+⇒ 事实收敛成一句：**按住跳、水里、头顶无盖、300 tick，一格没浮。**
+
+而 `BotInput.jump` 走的是**命令通道**（`commandJump` → `AvatarInput.tick` 里
+`this.jumping = cmdJump`），所以「按键被 vanilla 键盘扫描覆盖」这个假设**已排除**——
+意图确实写进了 `Input.jumping`。日志再往下分不开原因：**这条臂除了 `dir != null` 那一行，
+每 tick 什么都不打。**
+
+#### 277 条场景里，没有一条断言过身体真的浮起来
+
+| 场景 | 它实际测的 |
+|---|---|
+| `wd.drowningFloatShouldFloatMatrix` | **PURE**：`DrowningFloatGate.shouldFloat(...)` 四行布尔。名字里的 should 是字面意思 |
+| `wd.drownEscapeGateMatrix` | **PURE**：闸的进入/保持/释放 18 行 + episode 生命周期 8 行 |
+| `wd.drownEscapePreempt` | `SceneBody.mint` 造**假玩家**、`sensorForTest` 喂传感器、断言**抢占记账** |
+
+而 `DrownEscapeChain.tick` 第一行是 `if (mc == null) return;`——**专用服拓扑永远够不到执行层**
+（`docs/drown-escape-design.md` §1.1 早写下了这一条）。
+
+⇒ **整族是决策层绿的**：「该不该浮」有 26 行断言，「浮没浮起来」**零行**。
+[[a-guard-that-was-never-asked]] 的同族，而这一次零行断言的代价是一条命。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 ⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
