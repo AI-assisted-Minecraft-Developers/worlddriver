@@ -19,7 +19,9 @@
 | ⏭ 排队 | Q8 | V2 不低头：挖掘瞄准必须**经过** `LookController`，不是绕过它写 `setXRot` | 我 |
 | ✅ 已判 | Q9 | V6「瞬移」：**没有一处是瞬移**，10 处同格居中吸附 + 开场 7.9 格对齐。**结案，不修** | 我 |
 | 📌 已判待验 | Q10 | V5 工作台：两种互斥解释的判别行已落（`craftingTable.broke`，每次破坏都写，第二次自动变 `#2`），ladder-9 收数 | 我 |
-| 📌 已判待验 | Q11 | V3 不挥手：`[dig]` 行摘掉 `walkerDebug` 闸（`73c6c94e`）。挥手只在 `ok` 时发生，所以 `ok=` 就是那一列 | 我 |
+| 📌 部分已判 | Q11 | V3 不挥手：`[dig]` 摘闸后 ladder-9 前 1750 行 **143/143 `ok=true`** ⇒ **挖掘这一族是挥手的**。要重新归类，见下 | 我 |
+| 🔴 已修待闸 | J8 | `BackfillProcess:52` / `BuildProcess:59` 身体消失不写 `lastError`，而 `toMap` 丢 null ⇒ 报成「结束了，没错误」（`fb4fb45a`/`b4335efa`，janitor 找的） | 我 |
+| ⏸ 待发槽 | J9 | `aimAtBlock`+`breakHold`+`continueDestroy` 两处**六行逐字相同**，收成 `JourneyHands.swingOffPlant`。**等 ladder-9 判完再动**——那六行是被验对象 | janitor |
 | ✅ 已测 | Q12a | 世界钉法进了 99 级判词：ladder-8 的判词自带 `doMobSpawning=false…零布景说的是道具，不是难度` | 我 |
 | ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
 | 🧊 冻结中 | J1 | `BunkerChain:150` / `DrownEscapeChain:199` 补 `continueDestroy`（真客户端上破不掉方块） | janitor |
@@ -28,7 +30,7 @@
 | 🧊 冻结中 | J4 | `keyAttack` 五取用者协议 —— 只做诊断表，**不要发明全局仲裁器** | janitor |
 | ✅ 已落 | J5 | 724 → 0 死 import，五笔纯删除，733 行净减。**但见下：省下的额度没人在用** | janitor |
 | 🔴 排队 | J7 | **`BotConfig.java` 2993/3000，零死 import**——顶着上限而 J5 对它无效。要拆不要刮 | 我（梯子稳后） |
-| ✅ 已测 | Q14 | 12 级装水修好（`fcbbd66b`/`c83e7d76`/`371cb137`）。`.hand#2=bucket` 三条判据全中，83→**5312 tick** | 我 |
+| ✅ 已测 | Q14b | 12 级装水修好（`fcbbd66b`/`c83e7d76`/`371cb137`）。`.hand#2=bucket` 三条判据全中，83→**5312 tick**（原来也叫 Q14，与上面那条撞号，改这条） | 我 |
 | 🔴 在查 | Q15 | 12 级新死因：**挖掘的走位拆了自己的楼梯**（`mineCellOrGiveUp:868` 裸 Intent）。同族第二次 | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
@@ -189,11 +191,19 @@ pour/clearPlant 满桶用 `false`）；八个 parkour move 的三道闸同形。
 
 `80a8ce28` 之后的三趟，都是**读结果文件判的，不是读退出码**：
 
-| 闸 | 判词 | 执行/跳过 | 非 PASS |
-|---|---|---|---|
-| `stagewrightIntegratedServerNeoforge` | 306 PASS | — | 2 金丝雀 + `pack.placesAndReadsBack` ENV_FAIL |
-| `stagewrightDedicatedServerFabric` | **GREEN** | 305 / 28 | 2 金丝雀 + `wd.vineOverWaterClimb` + `wd.serverEscapeSealedShelter`（都 `required:false`） |
-| `stagewrightDedicatedServerNeoforge` | **GREEN** | 278 / 24 | 同上四条 |
+**三行的分母不是同一个**，别横着比：「PASS 数」来自结果文件（**跳过的场景也记 PASS**），
+「执行/跳过」来自闸自己的 COVERAGE 行（**跳过的不算执行**）。所以 305 与 278 不是
+「Fabric 多跑了 27 场」，是两种口径。
+
+| 闸 | 判词 | 结果文件 PASS（含跳过） | 结果文件里带 skipped 理由的行 | 非 PASS |
+|---|---|---|---|---|
+| `stagewrightIntegratedServerNeoforge` | 306 PASS | 306 | — | 2 金丝雀 + `pack.placesAndReadsBack` ENV_FAIL |
+| `stagewrightDedicatedServerFabric` | **GREEN** | 305 | 28 | 2 金丝雀 + `wd.vineOverWaterClimb` + `wd.serverEscapeSealedShelter`（都 `required:false`） |
+| `stagewrightDedicatedServerNeoforge` | **GREEN** | 305 | 27 | 同上四条 |
+
+⚠️ NeoForge 那趟的 COVERAGE 行自己说的是 **278 执行 / 24 跳过**，和结果文件的 27 差 3。
+两者数的不是同一批（COVERAGE 只列本拓扑无意义的场景，框架自带的跳过不在内）。
+**没核到底，所以两个数都照原样记下来，不合并成一个。**
 
 六条 `wd.drownEscape*` 在专用 NeoForge 上全 PASS（三条客户端专属的按设计 skip）。
 `Cannot load class … environment type SERVER` 命中 **0**。
@@ -254,9 +264,17 @@ NeoForge 的 RuntimeDistCleaner 自己 `LOG.error` 完再抛，Fabric 的 Knot �
 sample of the window it measures」。`clientFps()` 现在把解析结果记在三态静态字段里
 （未解析／可用／此 JVM 无客户端），失败只发生一次。状态是「已编辑待编译」——ladder-8 正在跑，
 不起第二个 gradle 抢 CPU；也还没 `publishToMavenLocal`，所以 worlddriver 这边吃的仍是旧产物。
-验证签名写死在这里：下一趟 `stagewrightDedicatedServerNeoforge` 的日志里这 120 行必须变 0，
-且 `pack.measuresItsOwnTickCost` 仍 PASS、仍出 `tps.baseline/tps.loaded`。
-发布时注意 loom 的三层缓存（[[loom-remap-cache-serves-stale-stagewright]]）。**
+验证签名写死在这里，**连它什么时候才适用一起写死**：
+
+> `publishToMavenLocal` **之后的第一趟** `stagewrightDedicatedServerNeoforge`，
+> 日志里这 120 行必须变 0，且 `pack.measuresItsOwnTickCost` 仍 PASS、
+> 仍出 `tps.baseline/tps.loaded`。
+
+**ladder-9 之后那一轮闸预期仍然是 120 行**——那一轮吃的还是旧产物，
+把它读成「memoize 没生效」就是又一次没验时间线的基线
+（[[reading-the-tree-is-not-reading-head]]、[[compiling-under-a-live-run]]）。
+republish 单开一个槽，不要混进那一轮闸：那会把 loom 三层缓存的变量
+（[[loom-remap-cache-serves-stale-stagewright]]）加进一趟本来只验日志改动的闸。**
 
 1. `clientFps()` 应该把「这个 JVM 没有客户端」**记住一次**（静态 memo），而不是每 tick 重问。
    现在这个探针违反了 `Perf` 自己的 javadoc：「there is no extra hook… nothing added to the
@@ -357,6 +375,33 @@ cast.range#2   = 2.40
 同趟带的四条**只加日志、不改行为**的仪器（都不是本趟的变量）：
 `[place]` 改成打邻格实际变成了什么、`<what>.arrivedY`、`[dig]` 摘掉 `walkerDebug` 闸、
 `craftingTable.broke`。
+
+---
+
+## 📏 V3「不挥手」：挖掘这一族被否掉了（ladder-9 前 1750 行，2026-08-23）
+
+`[dig]` 摘掉 `walkerDebug` 之后（`73c6c94e`）第一次有读数。前 1750 行：
+
+```
+ok=true        143 / 143
+grabbed=false  143 / 143
+```
+
+`ClientPlayerAvatar` 里挥手的那一行是 `if (ok) p.swing(MAIN_HAND);`，
+所以 **143 个采样 tick 每一个都挥了手**。采样是每 20 tick 一行 ⇒ 约 2860 tick 的挖掘，
+**零反例**。`grabbed=false` 全中，同时佐证 vanilla 自己那条 `continueAttack` 流水线
+一次都没开过火——在挖的自始至终是我们的直驱。
+
+**顺带否掉一条我差点写进笔记的解释**：「每 tick 调 `swing()` 会把动画钉在第 0 帧」。
+`javap -p -c` 于 1.21.1 的 merged jar，`LivingEntity.swing(InteractionHand, boolean)`
+偏移 0–24 就是那道闸：`swinging && swingTime < getCurrentSwingDuration()/2 && swingTime >= 0`
+命中就**直接跳到 106 返回**。重入只会在过半之后重新起手，不会重置到 0。
+**这条是量出来的，不是想出来的。**
+
+⇒ V3 剩下的候选只有两个，要各自的读数才能分：
+1. 用户看到的是 **V1 冻屏**那一段（画面不动，手当然也不动）——那是同一现象的两种描述；
+2. **别的动作族**不挥手：近战（`CombatProcess:263`）与放置（`BotInteract:239`）都写着
+   `p.swing(...)`，但**都没有仪器**。下一趟要给近战那一处同款的一行。
 
 ## 📏 12 级装水：三行证据不可能同时为真，而两条更漂亮的解释都被字节码否掉（Q14，2026-08-22）
 
