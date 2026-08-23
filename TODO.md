@@ -1677,6 +1677,45 @@ walker 的桥／跑酷放块若没走那个汇聚点，就在那里。
 | `inventory` 字段形状、三传输 parity | K1 |
 | 任一 loader 专用服上 classload 点名 `BotUtil`/`BotInteract` | K2 |
 | 以上都不是 | **计划外，不摊给这三笔** |
+
+#### 闸 1（`stagewrightIntegratedServerNeoforge`）：RED，而且第一趟就抓到东西
+
+302 PASS / 5 FAIL / 2 TIMEOUT / 206 skipped。exit 1 = RED（不是 DEAD/ENV，框架跑完并判了分）。
+results 存 `scratchpad/results-nf-integrated-red1.jsonl`。
+
+**⚠️ 溺水修法在 NeoForge 集成服上不成立，Fabric 上成立。整案没关。**
+
+```
+wd.drownEscapeClientRisesInOpenWater        FAIL  净升 0.000（Fabric 一小时前：2.291）
+wd.drownEscapeClientPinnedByNeighbourColumn FAIL  净升 0.000（Fabric：2.320）
+wd.drownEscapeClientStaysDownDisarmed       PASS  0.000（反确认支，本就该 0）
+```
+
+**敞水臂头顶完全敞开也升不起来**，所以不是几何问题。同一份代码、同一天、另一个 loader。
+
+而链是**开了火**的：`[drownEscape] PREEMPT` 打了两次（air=99 / air=100）。
+问题出在开火之后，而那一段**没有读数**：`竖直支` 零行。
+
+⛔ **因为我自己的仪器被开关挡着**：`if (BotConfig.walkerDebug && …)`，而闸从不开 walkerDebug。
+**同一天、同一个错，我上午刚给 `[place]` 修过。** 已改成无条件（`b57d0fd2`），保留 %10 节流——
+这条支只在身体真的溺水时才 tick，量级是「一次事件」不是「一条流」。带仪器重跑。
+
+#### 另外两条新红：查了顺序，不是我的，也不像那三笔的
+
+| 场景 | 位次 | 判 |
+|---|---|---|
+| `wd.clientResetClearsEntry` | 85 | 计划外 |
+| `wd.hurtCarriesItsSource` | 87 | 计划外 |
+| 我的溺水三条 | 293–295 | —— |
+
+失败词是 `screen:DeathScreen→still:DeathScreen` 和 `Target is invulnerable`，
+看着像「有人把身体淹死了留给下一条场景」——**而那正好是我的场景会干的事**
+（[[a-cleanup-that-tests-its-own-verb]]）。我差点就这么认了账。
+**顺序否掉了它**：那两条跑在第 85／87 位，我的在 293–295，在它们**之后**。
+
+基线本身也弱：手上那份同拓扑 results 只有 253 条场景（本趟 309），是更早的配置，
+所以「上一趟 PASS」这句证据不硬。按闸跑前写定的表，归**计划外**，不摊给 K1/K2/K4。
+（`wd.clientResetReleasesKeys` 上一趟就是 TIMEOUT，本来就红。）
 2. **到达判据丢 y** 是独立缺陷，但**不要单独落地**：判据先学会 y 而上游还在，
    第 7 级会立刻翻红、读起来像回归。过渡期只把 y 差**写进证据行**（诚实的行，不判失败）。
 3. 熔炉差 4 块圆石按用户长期指令办：**先写死一步去补料**，不依赖上面两条的结论——
