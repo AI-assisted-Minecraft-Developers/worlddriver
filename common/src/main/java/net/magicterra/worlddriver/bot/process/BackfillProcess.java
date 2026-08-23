@@ -49,7 +49,11 @@ public final class BackfillProcess implements BotProcess {
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Player p = a.player();
-        if (p == null) { st.builder.reset(); return true; }
+        // Say so. `BotState.toMap` writes lastError only `if (lastError != null)`, so an unstamped
+        // exit is not "no information" to the caller — it is the POSITIVE report "finished, no
+        // error", which is the one thing that did not happen. BboxFillProcess and FarmProcess, which
+        // share this very `st.builder` slot, have always stamped it.
+        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         Level lvl = p.level();
         BlockPos playerFoot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
 
