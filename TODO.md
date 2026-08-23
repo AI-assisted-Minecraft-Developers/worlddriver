@@ -144,6 +144,22 @@ cast.picks#3 = -4, 61, 54 dirt          ← 床面，可以浇了
 - **整个窗口没有任何一行死亡**：没有 `entity.death`，没有 vanilla 的击杀行，什么都没死。
 - 判词：`weapon=minecraft:stone_sword`（有剑）、`combat→跑完`（进程正常结束）、`rawFood=0`。
 
+### 📌 FOOD 排练预登记（写在跑之前，`228dff7e` 给 6 级补了布景配方）
+
+给的只有 `stone_sword×1`（照 ladder-10 实测的 `weapon=` 对齐），**路不给**——`prey.distance=54`
+那段走路是本级要测的另一半。跑 `-Prehearse=FOOD`。三问仪器（`c1fd576b`）这一趟第一次带电。
+
+1. **`kill.preyLeft`** —— 猎物还剩几只。
+   - `> 0` 且 `kill.onGround = 0 件` ⇒ **确认「打不中」**：追到了、没打死、地上也没肉。
+   - `= 0` 且 `kill.onGround = 0 件` ⇒ 打死了但**肉没落地或没捡到** ⇒ 翻案，回「捡不到」族。
+   - `= 0` 且 `kill.onGround > 0` ⇒ 打死了、肉在地上、**没进包** ⇒ 拾取族。
+2. **`kill.combatError`** —— `combat` 槽的 `lastError`。非空就直接读它，不许再猜机制。
+3. **判据只有第 1、2 条。** `wd.rehearse06Food` 自己 PASS 也要读这三行：一次侥幸的击杀
+   不能把「打不中」结案（[[three-greens-cannot-see-a-one-in-four]]）。
+4. **若 `animalsNearby` 为空** ⇒ 布景/世界钉法的问题，不是打击的问题，这趟作废重新设计。
+
+---
+
 ⇒ **归「打不中」族，不归「捡不到」族。** 这一刀砍掉了一整类假设（掉落物没捡、拾取半径、背包满）。
 剩下的嫌疑，全是我自己记过的：[[a-server-side-aim-dies-at-the-next-packet]]（真玩家的角度归客户端，
 服务端写的瞄准活不过下一个包）、以及攻击冷却。**注意这和 11 级是同一族的病**：
