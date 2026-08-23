@@ -1403,13 +1403,55 @@ janitor 注释里的原话（「多半是重新寻路把合成计划换掉了」
 其余四行必须**恰好**是已知基线（`canaryMustFail` / `canaryMustTimeout` /
 `wd.vineOverWaterClimb` `pocketTicks=81` / `wd.serverEscapeSealedShelter` `y=221.0`）。
 
-### 📏 留下来的两条通则
+### ✅ g5：换计划这条被证伪了，而它腾出的位置上坐着真正的根因
+
+修法生效了——计划没再被换：
+
+```
+走.收尾计划 = 节点=1（即 0 步） 末节点=194208, 222, 100000 各 move {pillarUp=1} 到得了目标=true
+走.探针     = step=1/1 wp=-      走.收尾理由 = path-consumed      走.跑过pillarUp = false
+```
+
+⚠️ 但 `跑过pillarUp` **仍然是 false，而且这一趟我在 tick 前也采了样**。
+落在预登记的第四行：**证伪**——计划没被换，那问题在别处。
+
+**别处就写在那一行里：`节点=1（即 0 步）`。**
+
+`adoptPath` 结尾一句 `step = 1`（`Walker:2707`），**无条件**。
+因为真实结果的 `path.get(0)` 是**起点格**、`edges.get(0)` 是 **null**
+——`PathFinder.build` 的 javadoc 原话：「the start has no incoming edge」。
+`step = 1` 的意思就是「身体已经站在 0 号节点上了，跳过它」。
+
+⇒ 一个**只有一个节点**的合成计划，`step=1` 而 `path.size()=1`，
+**adopt 完成的那一刻就已经是「走完了」**。
+三趟闸，这条场景**一 tick 的被测代码都没执行过**：
+不是重寻路换掉的，不是吸附掉的，是**计划的形状从第一天起就不对**。
+
+**修法**：`plan = [foot, dest]`，`edges = [null, pillarUp]`（要用 `Arrays.asList`，`List.of` 不收 null）。
+外加**最早的一道第二类闸**：adopt 之后、第一 tick 之前，直接问
+`"pillarUp".equals(walker.pathMove())` —— 指针到底指没指着被测的那条边。
+前三趟全死在所有其它闸的上游，就因为没人问这一句。
+
+### 🎯 g6 预登记（**写在读结果之前**）
+
+| 读数 | 判词 |
+|---|---|
+| adopt 后那道新闸沉默，且 `跑过pillarUp=true` | **已验**：被测对象终于跑了；PASS/FAIL 才第一次是关于产品的 |
+| 新闸开口（指针不指 pillarUp） | **证伪**：`step=1` 不是全部，回去读 `adoptPath` 的锚点段 |
+| 新闸沉默但 `跑过pillarUp=false` | **未触发**：指针对了却一 tick 没执行到——去读 Climb/Progress 的分支闸 |
+
+### 📏 留下来的三条通则
 
 1. **一个结果不带理由就不是仪器。** 「ARRIVED，1/200 tick」印了两趟，既没点名吸附也没点名换计划；
    `lastEndReason` 一行就把它定了。凡是记 outcome 的地方都要问一句：**它的 why 在哪一行。**
 2. **只有一个写者的字段，它的值就是一份证据链。** `pathBestEffort` 翻成 false 这件事，
    配上「`adoptPath` 是唯一写者」，等于**证明**了第二次 adopt 存在——不用日志，不用再跑一趟。
    排查时先 `grep` 出写者集合，比先猜机制便宜得多。
+3. **合成的输入要照着真实产物的形状造，而形状写在生产代码的 javadoc 里。**
+   这条场景手搓了一份 `PathFinder.Result`，却没照 `PathFinder.build` 的约定
+   （`path[0]` 是起点、`edges[0]` 是 null）——于是它交给走行器的是一份**零步计划**。
+   ⚠️ 而 `节点=1（即 0 步）` 这几个字**早就印在 g5 的证据行里**，是我先去追「谁换了计划」才没看见：
+   **先把每一行读完，再挑一行去追。**
 
 ---
 

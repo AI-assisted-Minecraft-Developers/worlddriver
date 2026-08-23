@@ -911,9 +911,15 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("surfacePillar: walkerPillarSurfacePlace 是关的，WalkerTickClimb 那段抠除是"
                     + "死代码，两个 phase 类按构造必然同答案。");
 
-        List<BlockPos> plan = List.of(dest);
-        List<Move.Edge> edges = List.of(
-                new Move.Edge(dest, 10, List.of(), List.of(support), "pillarUp"));
+        // path[0] is the START cell and edges[0] is NULL — that is the shape every real result has
+        // (PathFinder.build's javadoc says so outright), and adoptPath relies on it: it sets
+        // {@code step = 1} unconditionally, i.e. "the body is already standing on node 0, skip it".
+        // A one-node plan therefore starts CONSUMED — step 1 of a size-1 path — which is how this
+        // scene spent three gate runs never executing a single tick of its own subject.
+        List<BlockPos> plan = List.of(foot, dest);
+        List<Move.Edge> edges = java.util.Collections.unmodifiableList(java.util.Arrays.asList(
+                null,
+                new Move.Edge(dest, 10, List.of(), List.of(support), "pillarUp")));
 
         Walker walker = new Walker();
         // GOAL FIRST, then adopt. {@code setGoal} nulls path and edges (Walker:783-785), so adopting
@@ -931,6 +937,13 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         if (!walker.adoptForTest(w, plan, edges, foot, true))
             ctx.fail("surfacePillar: 走行器拒绝了这条一条边的 pillarUp 计划（锚点闸）——"
                     + "后面每一行都不再是关于被测对象的。");
+        // The earliest possible second-class gate: BEFORE the first tick, is the subject under the
+        // pointer at all? adoptPath starts at step 1, so this reads「指针正指着 pillarUp 那条边」
+        // rather than inferring it from the plan's shape. Three runs died upstream of every other
+        // guard because nothing asked this one question.
+        if (!"pillarUp".equals(walker.pathMove()))
+            ctx.fail("surfacePillar: adopt 之后指针指的是 " + walker.pathMove() + "，不是 pillarUp —— "
+                    + "一 tick 都还没跑，被测对象就已经不在指针底下了。探针=" + walker.progressProbe());
 
         final double startY = fp.getY();
         double maxY = startY;
