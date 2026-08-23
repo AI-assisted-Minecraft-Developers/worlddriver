@@ -278,6 +278,17 @@ Q32（浇桶那一刻服务端到底跑没跑 `useItem`）现在只剩两个候�
 判据补一档，免得中间地带无人认领：**第 3–5 tick 才翻**也算 **C 族已验**（只是抢手的作者慢一点）
 —— 因为「没浇成」这个结论已经被浇本身钉死了，翻手的时刻只影响谁是抢手者，不影响定性。
 
+**落点已经有了，不用造新机制**：`JourneyRig.TickWatcher`（`:1172`，`settle` 的第三参）。
+它的 javadoc 自己写着 *"The wait's predicate is the only code that runs on every tick of a leg,
+so it is the only place a trajectory can be recorded from"*，而且**排在完成判定之前**
+（所以进程报完成的那一 tick 也被看见），又因为 settle 跑在服务端线程 ⇒ **第 3 条预登记自动满足**。
+
+具体形状：`JourneyCast:292` 那个 `rig.settle(new HoldStill(10), 20, then)` 换成四参版，
+watcher 每 tick 写两行（客户端一行、服务端一行，各带线程名）。
+外加**一行 `-1`**：就写在 `useItemInHand()` 那一行**之前**，格式与 watcher 的行完全相同 ——
+它和 `cast.atUse` 读的是同一刻，**对不上就是仪器坏了**，这才是第 4 条要的那种校准
+（拿 watcher 的第 0 行去比 `cast.atUse` 是差一 tick 的比较，校不出东西）。
+
 ⚠️ 仪器必须落在 **testmod**，不要碰 `common/src/main`：
 架构上的甲案（architectury `InteractionEvent`）**根本不成立** ——
 `gradle.properties:23` 声明了 `architectury_api_version` 却**全工作区零个读者**，
