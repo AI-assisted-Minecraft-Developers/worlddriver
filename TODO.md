@@ -16,7 +16,7 @@
 | ❌ 已证伪 | Q16b | 11 级 `short_grass`：换服务端 avatar（`337a35e2`）**被排练证伪**，同一格同一棵草原样读回。真因见下 | 我 |
 | ✅ **已验** | Q16d | 真因：**瞄的和破的不是同一具身体**。修法 `5e8c0713` 经确定性 A/B 排练验证：`cast.cleared.-4, 63, 55` 由 `short_grass` → **`air`**，11 级 PASS | 我 |
 | 📌 已判待验 | Q16e | 6 级**间歇**失败（3 趟里 1 趟）。「窗口无死亡行」那条族判**已撤回**——日志没有死亡仪器。已补 `kill.kills`/`kill.swings`/`kill.preyVitals`（`1a4efeac`），等它下次发作点名 | 我 |
-| ⏭ 排队 | Q17 | 🔴 **杀完把肉留在地上**：FOOD 排练 `rawFood=3` 而 `kill.onGround=2 件 beef`。6 级要求 ≥1 所以 PASS 盖住了它；9/14 级每件都算数 | 我 |
+| 🔴 已写待编 | Q17 | **杀完根本没去捡**：6 级读 `rawFood` 就在战斗结束那一 tick，中间**没有收集这一步**。补 `collectAnyOf`（多品类版 `collectByHand`）。代码已写，**等真梯落地再编译** | 我 |
 | ⏭ 排队 | Q13 | 🔴 **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗 | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
 | ✅ 已测 | Q6 | 石剑：ladder-8 全程 `weapon=minecraft:stone_sword`，6/7 级都带着打 | 我 |
@@ -174,6 +174,25 @@ cast.picks#3 = -4, 61, 54 dirt          ← 床面，可以浇了
 
 - **杀 4 头只进 4 块**（另有 1 块在地上）。牛每头掉 1–3 块，4 头该有 4–12 块。
   Q17 那条泄漏比 6 级看到的更大。
+
+  **查下来不是「捡不到」，是「根本没去捡」。** 6 级的写法是
+  `drive(CombatProcess…, () -> { int raw = carryingAnyOf(RAW_FOODS); … })` ——
+  战斗一结束**当场读包**，中间没有任何一步走过去。进包的肉全靠打斗时脚下正好踩过
+  （原版拾取磁吸半径约 1 格）。
+
+  而 `JourneyRig.collectByHand` 早就存在、早就是 public，**它自己的注释就写着**
+  「两级需要同一段走路，正是共享 rig 的用处」——那两级是矿脉和 14 级（杀了七只烈焰人、
+  进账**零根**、两根躺在地上）。**6 级是第三级，而它压根没调。**
+  [[a-precedent-nobody-ever-verified]] 的镜像：不是抄了一份坏先例，是**有一份好先例没人抄**。
+
+  修法（已写，待编译）：`collectAnyOf(RAW_FOODS, …)` —— 单品类的 `collectByHand` 对矿脉
+  （一种矿一种物品）是对的，对一场狩猎是错的：顺路杀只猪，地上就同时有牛肉和猪排，
+  按单一 id 收集会从另一半旁边走过去。三条腿在**品类之间共享**，每条走向最近的那一件；
+  按品类各给三条腿会让一堆牛肉吃光预算，而两格外那一块猪排永远没人去。
+
+  **预登记**：编译后跑一趟 `-Prehearse=FOOD`，判据 = `kill.pickup.walks` 出现（≥1，
+  证明真的走了），且 `kill.pickup.left` < 上一趟的 `kill.onGround=1`。
+  **`rawFood` 变大不是判据** —— 它本来就够 1，变大只是副产品。
 - `home.arrivedY=62 … 脚下=Block{minecraft:water}[level=0]` —— 回家判「到了」时**站在水上**
   （[[water-is-not-a-floor]]），且 `home.gotoEnd.1=end=unavailable/预算用完时进程还在走`。
   这一级 PASS 盖住了它，记下不追。
