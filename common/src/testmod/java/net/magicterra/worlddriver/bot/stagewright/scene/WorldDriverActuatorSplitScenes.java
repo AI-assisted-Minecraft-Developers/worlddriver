@@ -657,14 +657,6 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
     private static final float AIM_TOLERANCE_DEG = 5.0f;
 
     /**
-     * The yaw/pitch that pointing at {@code cell}'s centre REQUIRES, computed from the body's eye
-     * position — the independent yardstick this scene's aim criterion is judged against.
-     *
-     * <p>Same arithmetic both actuators perform ({@code ServerPlayerAvatar.aimAtBlock} and
-     * {@code BotInteract.aimAtBlockSnap}), deliberately recomputed here instead of read back from
-     * either of them: a criterion whose expected value comes from the thing under test cannot fail.
-     */
-    /**
      * How much the aim REQUIREMENT moved while the scene waited, and whether that invalidates the
      * verdict.
      *
@@ -803,6 +795,19 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                 + "°（容差 " + deg(AIM_TOLERANCE_DEG) + "°）";
     }
 
+    /**
+     * The yaw/pitch that pointing at {@code cell}'s centre REQUIRES, computed from the body's eye
+     * position — the independent yardstick this scene's aim criterion is judged against.
+     *
+     * <p>Same arithmetic both actuators perform ({@code ServerPlayerAvatar.aimAtBlock} and
+     * {@code BotInteract.aimAtBlockSnap}), deliberately recomputed here instead of read back from
+     * either of them: a criterion whose expected value comes from the thing under test cannot fail.
+     *
+     * <p>(This block sat above {@code requirementDrift} until 2026-08-23, stacked on top of that
+     * method's own javadoc. Java keeps only the LAST block, so it documented nothing and the method
+     * it describes had no documentation at all — a comment that is silently discarded is worse than
+     * a missing one, because both the writer and the reader believe it is there.)
+     */
     private static float[] aimFromEyeTo(ServerPlayer body, BlockPos cell) {
         double dx = (cell.getX() + 0.5) - body.getX();
         double dy = (cell.getY() + 0.5) - body.getEyeY();
