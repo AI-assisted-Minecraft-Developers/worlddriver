@@ -898,6 +898,34 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 
 **Q19 已验，不再重复登记**；Q21/Q23a 的三态沿用上一节，判据不变。
 
+#### 两支各自的下一步（跑之前先读完，省得读到结果再翻代码）
+
+**A 支的代码路径**（`BotInteract.ensureHolding(mc, Item)` → `swapFromMainInv`，`:588-648`）：
+
+```java
+mc.gameMode.handleInventoryMouseClick(menu.containerId, ms, hb, ClickType.SWAP, p);
+inv.selected = hb;
+p.connection.send(new ServerboundSetCarriedItemPacket(hb));
+```
+
+三个包按 TCP 顺序是 `ContainerClick` → `SetCarriedItem` → `UseItem`，
+**所以「没来得及」这个说法本身站不住**，除非中间有别的东西打断。
+真要出问题只可能在两处：`handleInventoryMouseClick` 用的是 vanilla 里的
+`player.containerMenu`，而这里传的 id 来自 `p.inventoryMenu` —— 两者只在**没有界面打开**时相同；
+以及 `hb` 在快捷栏没有空位时会落回 `inv.selected`（ladder-12 正是 `槽 0`，
+说明当时**没有空位**，圆石被换进了背包）。
+⇒ 若读到 A，先查的是**有没有界面还开着**，不是「加个等待」。
+
+**B 支的 vanilla 路径**（`BucketItem.use` → `emptyContents`）：
+满桶用 `ClipContext.Fluid.NONE`，射线穿过水打到 `-3,61,54` 面=up；
+岩浆桶取 `blockpos.relative(UP)` = `-3,62,54`，正是 `cast.cell`。
+水是 `replaceable` 且 `liquid()`，所以 `flag1` 为真、不走 `destroyBlock`，直接
+`setBlock(pos, LAVA)` —— **按 vanilla 它应该放得下去**。
+⇒ 若读到 B，那就不是「条件不满足」，得去查是谁把这一格又改回了水
+（服务端的 full-state 回滚？相邻水流回填？），而这需要浇筑前后各读一次这一格。
+
+**先读完两支不等于挑了一支** —— 挑一支是把结论写进判据，读代码是让两支的下一步都已就位。
+
 ---
 
 ## 📊 ladder-12 判词（2026-08-23，`results-ladder12-castStillFull.jsonl`）
