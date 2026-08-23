@@ -411,6 +411,10 @@ public final class JourneyRehearsal {
     /** Put the rehearsed rung's preconditions into the world, loudly. */
     private static void stageFor(SceneContext ctx, JourneyStage target) {
         ctx.record("REHEARSAL", "这是排练，不是攀爬：下面各级并未真正爬过，本级的前置条件是布景摆出来的");
+        if (target == JourneyStage.FOOD) {
+            stageFood(ctx);
+            return;
+        }
         if (target == JourneyStage.PORTAL_LIT) {
             stagePortalLit(ctx);
             return;
@@ -457,6 +461,40 @@ public final class JourneyRehearsal {
         JourneyLedger.staged("rehearsal: no staging recipe for " + target.name());
         ctx.record("rehearsal.recipe", "无 —— " + target.name()
                 + " 还没有写布景配方，身体将以出生态起跑（多半会失败，而那不是引擎的错）");
+    }
+
+    /**
+     * Rung 6's starting conditions: <b>a stone sword, and nothing else</b>.
+     *
+     * <p>The lowest rung with a recipe, and it is here because rung 6 is where ladder-10 died and a
+     * ladder costs fifty minutes to reach it. What the rung has to do — find an animal, walk to it,
+     * kill it, pick the meat up — needs exactly one thing rungs 1–5 would have handed over.
+     *
+     * <p><b>Measured, ladder-10 (2026-08-23):</b> the rung's own FAIL row read
+     * {@code weapon=minecraft:stone_sword}, so that is what a climb arrives holding and that is what
+     * this hands over. Everything else a climb would also be carrying — a stone pickaxe, a stack of
+     * cobblestone, a crafting table — is <b>deliberately not given</b>: none of it is consumed by a
+     * hunt, and each extra item is a second variable in the one leg under investigation. If a future
+     * failure turns out to need one of them, hand it over then, with the row that showed it.
+     *
+     * <p><b>The walk is NOT staged.</b> Ladder-10 read {@code prey.distance=54}, and getting there is
+     * half of what the rung does — dropping the body next to a cow would skip the leg the user
+     * explicitly asked to keep under test. What the rehearsal buys here is only the forty minutes of
+     * rungs 1–5, not the rung itself.
+     */
+    private static void stageFood(SceneContext ctx) {
+        ServerWorldDriver body = JourneyRig.bodyOrNull();
+        if (body == null) {
+            ctx.fail("排练：没有身体 —— wd.rehearse02Spawn 没有创建 avatar");
+            return;
+        }
+        give(body.fakePlayer(), "minecraft:stone_sword", 1);
+        JourneyLedger.staged("rehearsal: gave stone_sword×1");
+        ctx.record("rehearsal.gave", "stone_sword×1（照 ladder-10 那趟 6 级实测的 "
+                + "weapon=minecraft:stone_sword 对齐；镐、圆石、工作台一概不给——打猎不消耗它们，"
+                + "多给一件就是被查那条腿上多一个变量）");
+        ctx.record("rehearsal.notStaged", "猎物的位置和去它那儿的路 —— ladder-10 实测 prey.distance=54，"
+                + "那段走路正是本级要测的一半");
     }
 
     /**
