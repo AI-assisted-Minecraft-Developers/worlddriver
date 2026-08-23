@@ -54,14 +54,16 @@ DEDICATED_SERVER` 不是这条缺陷的残余**，另立一条查：
 - 它们**全部**落在 `pack.measuresItsOwnTickCost` 那一段（119 tick / 6100 ms），一 tick 一条，
   数量 120 ≈ tick 数 119。别处一条没有——包括跑了几百 tick 的其他场景。
 - 点名的是 `Minecraft`，**不是** `LocalPlayer`；Fabric 那趟同样的场景**零命中**。
-- 所以它是 **NeoForge 专有**、且**只在那一个场景的 tick 路径上**被触发。RuntimeDistCleaner
-  打 ERROR 后抛，被谁吞了每 tick 还能继续——**吞掉它的那处才是要找的东西**。
+- ~~所以它是 **NeoForge 专有**~~ —— **这句是错的，下一节按代码推翻了它**：触发者两边都跑满
+  120 次，专有的只有**日志**（RuntimeDistCleaner 自己打 ERROR 再抛，Knot 只抛不打）。
+  **零命中不是「没跑到」的证据**，这是我这个 session 第二次拿「某边日志里没有」当「某边没发生」。
 - 判词不受影响（那一场 PASS），所以这是**噪声还是缺陷未定**，归 janitor 一条独立调查，
   产出要求：**点出调用者的栈**，不是再推一轮候选（[[a-signature-loads-what-a-local-does-not]] 的教训）。
+  结果：不需要栈，**静态就定死了**，见下节。
 
 ---
 
-## 🔍 每 tick 一次的 Minecraft 类加载（NeoForge 专有，2026-08-23）
+## 🔍 每 tick 一次的 Minecraft 类加载（两个 loader 都跑，只有 NeoForge 打日志，2026-08-23）
 
 **结案：不是缺陷，是 StageWright 的探针每 tick 重试一次注定失败的类加载。** 全部静态定死，
 没有起过任何 gradle。
@@ -97,6 +99,14 @@ NeoForge 的 RuntimeDistCleaner 自己 `LOG.error` 完再抛，Fabric 的 Knot �
 且不在任何 tick 路径上。
 
 **遗留的两点，都归 StageWright（本仓不改它）**：
+
+**第 1 点已在 StageWright 落地：`19b18c2`「stop reloading a class that cannot exist once per
+sample of the window it measures」。`clientFps()` 现在把解析结果记在三态静态字段里
+（未解析／可用／此 JVM 无客户端），失败只发生一次。状态是「已编辑待编译」——ladder-8 正在跑，
+不起第二个 gradle 抢 CPU；也还没 `publishToMavenLocal`，所以 worlddriver 这边吃的仍是旧产物。
+验证签名写死在这里：下一趟 `stagewrightDedicatedServerNeoforge` 的日志里这 120 行必须变 0，
+且 `pack.measuresItsOwnTickCost` 仍 PASS、仍出 `tps.baseline/tps.loaded`。
+发布时注意 loom 的三层缓存（[[loom-remap-cache-serves-stale-stagewright]]）。**
 
 1. `clientFps()` 应该把「这个 JVM 没有客户端」**记住一次**（静态 memo），而不是每 tick 重问。
    现在这个探针违反了 `Perf` 自己的 javadoc：「there is no extra hook… nothing added to the
