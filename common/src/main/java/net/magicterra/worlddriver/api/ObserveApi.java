@@ -24,7 +24,6 @@ import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -211,24 +210,11 @@ public final class ObserveApi {
             // the inventory screen open, but a server avatar cannot (a FakePlayer cannot
             // open a menu), so for it this verb is the ONLY view of its own bag.
             //
-            // Shape is deliberately byte-identical to the client's — same verb, same
-            // field, same rows — so an agent never has to know which side answered:
-            // non-empty rows only, vanilla Player.getInventory() indexing
-            // (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand).
-            List<Map<String, Object>> inv = new ArrayList<>();
-            Inventory pInv = pl.getInventory();
-            int totalSlots = pInv.items.size() + pInv.armor.size() + pInv.offhand.size();
-            for (int i = 0; i < totalSlots; i++) {
-                ItemStack st = pInv.getItem(i);
-                if (st == null || st.isEmpty()) continue;
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("slot", i);
-                entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
-                entry.put("count", st.getCount());
-                ItemSnap.putWear(entry, st);
-                inv.add(entry);
-            }
-            out.put("inventory", inv);
+            // Shape is byte-identical to the client's — same verb, same field, same rows — so an
+            // agent never has to know which side answered. That used to be a promise kept by
+            // hand, with the loop written out on both sides; it is now kept by construction,
+            // because both sides call ItemSnap.inventoryRows.
+            out.put("inventory", ItemSnap.inventoryRows(pl));
             out.put("items", CraftProcess.inventorySnapshot(pl));
             // Worn armor (head/chest/legs/feet) — lets the agent see its defensive
             // loadout + durability (Phase F equip + Boss prep read this).

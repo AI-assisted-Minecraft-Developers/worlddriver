@@ -1,7 +1,13 @@
 package net.magicterra.worlddriver.bot.util;
 
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -40,5 +46,41 @@ public final class ItemSnap {
         row.put("maxDamage", max);
         row.put("damage", dmg);
         row.put("durability", max - dmg);
+    }
+
+    /**
+     * The whole bag as API rows — non-empty slots only, in vanilla
+     * {@link Player#getInventory()} indexing (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand),
+     * each row {@code {slot, id, count}} plus whatever {@link #putWear} adds.
+     *
+     * <p><b>Why this is here and not written out twice.</b> This class's own header cites gap #41
+     * — server and client {@code inventory} drifting apart — as the reason the WEAR fields were
+     * centralised. The enumeration that produces the rows those fields go into was left copied:
+     * {@code ObserveApi.playerSnapshot} and {@code ClientObserve.observePlayer} each carried this
+     * loop, byte-identical but for the local's declared type. The server one's comment states the
+     * contract outright — "Shape is deliberately byte-identical to the client's — same verb, same
+     * field, same rows — so an agent never has to know which side answered" — and a contract of
+     * the form「这两处必须逐字相同」that is maintained by hand is a drift waiting for its first
+     * one-sided edit. It is the same field, and gap #41 is what that costs.
+     *
+     * <p>Slot INDEXING is vanilla's and is the load-bearing part: {@code getItem(i)} maps the flat
+     * index onto items/armor/offhand itself, so the total is the three list sizes summed rather
+     * than a hardcoded 41 — a modded inventory size follows automatically.
+     */
+    public static List<Map<String, Object>> inventoryRows(Player p) {
+        List<Map<String, Object>> inv = new ArrayList<>();
+        Inventory pInv = p.getInventory();
+        int totalSlots = pInv.items.size() + pInv.armor.size() + pInv.offhand.size();
+        for (int i = 0; i < totalSlots; i++) {
+            ItemStack st = pInv.getItem(i);
+            if (st == null || st.isEmpty()) continue;
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("slot", i);
+            entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
+            entry.put("count", st.getCount());
+            putWear(entry, st);
+            inv.add(entry);
+        }
+        return inv;
     }
 }

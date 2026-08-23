@@ -33,7 +33,6 @@ import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.util.AttackSnap;
 import net.magicterra.worlddriver.bot.util.ItemSnap;
 import net.magicterra.worlddriver.bot.util.TimeSnap;
-import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
@@ -131,22 +130,10 @@ public final class ClientObserve {
             out.put("mainHand", hand);
             // Full inventory snapshot — saves an openInventory + screen.tree
             // round-trip every time a caller wants to know "do I have a pickaxe".
-            // Same indexing as Player.getInventory(): 0–8 hotbar, 9–35 main,
-            // 36–39 armor, 40 offhand.
-            List<Object> inv = new ArrayList<>();
-            Inventory pInv = p.getInventory();
-            int totalSlots = pInv.items.size() + pInv.armor.size() + pInv.offhand.size();
-            for (int i = 0; i < totalSlots; i++) {
-                ItemStack st = pInv.getItem(i);
-                if (st == null || st.isEmpty()) continue;
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("slot", i);
-                entry.put("id", BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
-                entry.put("count", st.getCount());
-                ItemSnap.putWear(entry, st);
-                inv.add(entry);
-            }
-            out.put("inventory", inv);
+            // ItemSnap.inventoryRows is the single enumeration; the server snapshot
+            // (ObserveApi.playerSnapshot) emits this field through the same call, so the
+            // two sides cannot drift the way gap #41's rows did.
+            out.put("inventory", ItemSnap.inventoryRows(p));
             // Aggregated id -> count, the exact shape mc.recipe.resolve / mc.plan.acquire
             // take as `have`. Same helper the craft executor counts with, so the bag the
             // agent plans against is the bag the executor reaches into — and the server
