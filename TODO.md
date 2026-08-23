@@ -347,6 +347,21 @@ janitor 报的是「`JourneyEndRungs:2707` 自己复制了一份 `walkToColumn`�
 **场景级预算不用动**：`wd.journey06Food` 上限 30000 tick，排练 PASS 用了 1979，
 最坏再加 1950（3 腿 × 600 + settle）也远在里面。
 
+### ✅ 判（第 1 条，真梯，`wd.journey11Obsidian` PASS，4371 tick）
+
+预登记里我给这条留了「真梯上可能**未触发**」的出口。**它触发了，而且读到 `air`。**
+
+```
+cast.blockedBy   = -4, 63, 55 short_grass     ← ladder-8 的死点，逐字相同
+cast.cleared.-4, 63, 55 = Block{minecraft:air}   ← 判据
+cast.blockedBy#2 = -4, 62, 55 grass_block     ← 清掉草之后露出的第二个，走 mine
+cast.picks#3     = -4, 61, 54 dirt            ← 床面，可以浇了
+cast.result      = SUCCESS    cast.cellAfter = Block{minecraft:obsidian}
+```
+
+⇒ **这条修法在排练和真爬上各验过一次**，三格序列两趟完全一致。
+**新纪录：11/20**（原纪录 ladder-8 的 10/20）。
+
 ---
 
 ## 🔍 FOOD 那一趟的判别读数：**东西没死，不是肉没捡**（ladder-10 日志，2026-08-23）
