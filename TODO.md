@@ -324,11 +324,25 @@ pack.placesAndReadsBack -> ENV_FAIL (0 ticks, 10001 ms)
 - ⇒ 差别只可能在**这一个交叉格里的区块票**：NeoForge 的客户端自建服上，
   StageWright 用来钉住竞技场的那条路没生效。
 
-**下一步要的是读数，不是又一轮候选**（[[a-signature-loads-what-a-local-does-not]] 的教训）：
-给 StageWright 的竞技场 PREP 加一行——**申请了什么票、票落在哪个 level 对象上、
-`chunkSource` 当时怎么回答**。它要跟 `Perf.clientFps` 的 memoize（`19b18c2`）
-**同一次 `publishToMavenLocal` 一起发**，那一趟同时兑现两条验证签名：
-120 行变 0，且这一条从 ENV_FAIL 变 PASS。
+**而这条判词本身分不开两种情况——已修（StageWright `a384733`）。**
+`readyChunks` 同时要求 `hasChunkAt` **和** `isPositionEntityTicking`，
+所以 `ready=0` 有两个互斥的病因：**一块都没到**，或者**九块全到了、一块都没被提升到
+ENTITY_TICKING**（`ChunkMap.prepareEntityTickingChunk` 那个异步步骤，两个 loader 上机制不同）。
+而旧文案对两者都印「only 0 of 9 arena chunks ever loaded」——
+它那句关于 entity-ticking 的备选文案挂在 `ready == total` 分支上，
+**在 `ready < total` 时根本到不了**。也就是说第二种病因**从来没有被报告过的可能**
+（[[evidence-that-lies]] 同族）。
+
+现在两半分开数：`only P of 9 loaded (of those, R reached entity-ticking)`。
+
+**下一个槽（ladder-10 收尾之后）**：StageWright 一次 `publishToMavenLocal`，
+带 `19b18c2`（Perf memoize）+ `a384733`（这条读数），然后跑一趟
+`stagewrightIntegratedServerNeoforge` + 一趟 `stagewrightDedicatedServerNeoforge`。
+**三条验证签名一次兑现**：
+1. 专用 NeoForge 日志里 `client/Minecraft for invalid dist` 从 120 → **0**；
+2. `pack.measuresItsOwnTickCost` 仍 PASS、仍出 `tps.baseline/tps.loaded`；
+3. 集成 NeoForge 那条 ENV_FAIL 的文案**说出是哪一半**（这一条不要求变绿，只要求说清楚）。
+发布时注意 loom 三层缓存（[[loom-remap-cache-serves-stale-stagewright]]）。
 
 ---
 
