@@ -2569,20 +2569,17 @@ public final class JourneyPortalRung {
             return;
         }
         BlockPos plant = hit.getBlockPos();
-        rig.evidence(tag + ".clearedPlant", plant.toShortString() + " "
+        rig.evidence(tag + ".plantOnLine", plant.toShortString() + " "
                 + level.getBlockState(plant).getBlock());
-        // The BREAK stays server-side, the AIM does not — and they are split rather than sharing one
-        // avatar because they need opposite sides. `breakHold`+`continueDestroy` on the client only
-        // press a keybind and advance a multi-tick dig, so a client-routed break here would leave the
-        // plant standing (same reason breakItWhereItStands is pinned server-side). The aim, on the
-        // other hand, is a quantity the CLIENT owns: written server-side it never reaches the body
-        // being steered — measured as a 21.45° yaw gap that ten ticks did not close.
-        var breaker = rig.body().avatar();
-        rig.avatar().aimAtBlock(plant);
-        breaker.breakHold(true);
-        breaker.continueDestroy(plant);
-        breaker.breakHold(false);
+        // See JourneyHands.swingOffPlant. This site used to aim `rig.avatar()` and break
+        // `rig.body().avatar()`, which is the shape that destroys nothing — the server's break reads
+        // its own `aimTarget` field and the client aim never writes it.
+        JourneyHands.swingOffPlant(rig, plant);
         rig.settle(new HoldStill(3), 12, () -> {
+            // AFTER the settle, so this row can contradict the one above. It used to be written
+            // before the swing, named `clearedPlant`, and reported the plant that was about to be
+            // cleared — a row no failed clearing could ever falsify.
+            rig.evidence(tag + ".plantAfter", String.valueOf(level.getBlockState(plant).getBlock()));
             rig.avatar().aimAtBlock(want);
             then.run();
         });

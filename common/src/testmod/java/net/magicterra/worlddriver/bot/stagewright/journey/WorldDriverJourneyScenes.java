@@ -2719,26 +2719,13 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                             + (noCollider ? "（无碰撞箱的植物：直接挥手清掉，mine 清不动）"
                                           : "（挡在瞄准线上，先清掉）"));
                     if (noCollider) {
-                        // Break server-side, aim client-side — see the same split in
-                        // JourneyPortalRung.clearPlant. A client `breakHold` only presses a key, so
-                        // routing the break there leaves the blocker standing; a server-side aim
-                        // never reaches the body the client is steering.
-                        // `rig.body().avatar()`, NOT `rig.avatar()`. The comment above has said
-                        // "break server-side" since it was written; the code took the client avatar
-                        // anyway, and the two are opposite verbs. On a server avatar `breakHold(true)`
-                        // destroys the block outright; on a client one it presses keyAttack, which
-                        // vanilla ignores unless the mouse is grabbed (it never is here), leaving
-                        // `continueDestroy`'s single call as the whole attempt. Measured, ladder-8:
-                        // `cast.cleared.-4, 63, 55 = Block{minecraft:short_grass}` — the row is written
-                        // AFTER a 12-tick settle, so it records the plant still standing, and the rung
-                        // then spent its last clearing re-picking the same cell and failed the run at
-                        // rung 11. `JourneyPortalRung.clearPlantOnLine` has taken the server avatar for
-                        // exactly this reason the whole time.
-                        var breaker = rig.body().avatar();
-                        rig.avatar().aimAtBlock(inTheWay);
-                        breaker.breakHold(true);
-                        breaker.continueDestroy(inTheWay);
-                        breaker.breakHold(false);
+                        // Aim BOTH bodies, then swing — see JourneyHands.swingOffPlant, which owns
+                        // the whole shape and the two measurements that shaped it. Routing the break
+                        // to the server avatar without moving the aim there (the previous fix here)
+                        // left `aimTarget` null and destroyed nothing: this exact cell, `-4, 63, 55`,
+                        // read back as `short_grass` on ladder-8 AND on the rehearsal that was run to
+                        // verify that fix.
+                        JourneyHands.swingOffPlant(rig, inTheWay);
                         rig.settle(new HoldStill(3), 12, () -> {
                             rig.evidence("cast.cleared." + inTheWay.toShortString(),
                                     String.valueOf(level.getBlockState(inTheWay).getBlock()));

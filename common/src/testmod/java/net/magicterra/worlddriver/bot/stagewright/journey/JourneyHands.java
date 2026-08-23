@@ -126,6 +126,51 @@ final class JourneyHands {
     }
 
     /**
+     * Destroy a colliderless plant standing on an aiming line — <b>the break that needs both halves,
+     * each doing the half only it can.</b>
+     *
+     * <p>Two copies of these lines existed, six lines identical, and <b>both destroyed nothing</b>.
+     * They read:
+     * <pre>{@code rig.avatar().aimAtBlock(p); var b = rig.body().avatar(); b.breakHold(true); … }</pre>
+     * The comment above each said "break server-side, aim client-side", and that reasoning is right
+     * for a <i>use</i> and wrong for a <i>break</i>. {@code ServerPlayerAvatar.breakHold(true)} does
+     * not take the block as an argument: it destroys its own {@code aimTarget} <b>field</b>, and its
+     * very first branch is {@code if (!v || aimTarget == null || …isAir()) return;}. Aiming the
+     * CLIENT leaves that field exactly as the last walk left it, so the server took the early return
+     * and {@code continueDestroy} — an inherited no-op on a server avatar — was the whole attempt.
+     *
+     * <p><b>Measured, rehearsal of rung 11 (2026-08-23, integrated Fabric, seed 5471).</b> The cast
+     * at {@code -4,62,54} was blocked by {@code short_grass} at {@code -4,63,55}; after the swing and
+     * a 12-tick settle the evidence read
+     * {@code cast.cleared.-4, 63, 55 = Block{minecraft:short_grass}} — the same cell, the same block,
+     * the same coordinates ladder-8 died on. Routing the break to the server avatar (which was the
+     * previous fix) changed nothing, because the aim had never followed it there.
+     *
+     * <p>So: aim both, swing on the client, destroy on the server.
+     * <ul>
+     *   <li>The <b>client</b> half is the only one a human watching the window can see — a driven
+     *       client's {@code keyAttack} is ignored (vanilla gates it on {@code isMouseGrabbed}), but
+     *       {@code continueDestroy} drives {@code gameMode.continueDestroyBlock} directly and swings
+     *       the arm. It runs first because an instant-break block may simply die here, which is the
+     *       faithful path; on a headless body it is a no-op and costs nothing.</li>
+     *   <li>The <b>server</b> half is authoritative and is what actually clears the line. It still
+     *       answers to {@code canBreakFromHere}, so a plant out of reach is refused rather than
+     *       teleport-broken — judge it by re-reading the cell, never by these calls returning.</li>
+     * </ul>
+     *
+     * <p>Solid blockers do not come here: they go through {@code rig.mineBlock}, where the drop is
+     * part of the point. This exists because {@code MineProcess} will not remove a colliderless
+     * plant at all — measured twice, two clearings in a row left the same seagrass standing.
+     */
+    static void swingOffPlant(JourneyRig rig, BlockPos plant) {
+        aimBoth(rig, plant);
+        rig.avatar().continueDestroy(plant);
+        var breaker = rig.body().avatar();
+        breaker.breakHold(true);
+        breaker.breakHold(false);
+    }
+
+    /**
      * Put a specific item in the main hand, and record what actually ended up there.
      *
      * <p>{@code useItemInHand} uses the SELECTED hotbar slot, not "the bucket in the bag". By the
