@@ -350,8 +350,15 @@ public final class JourneyPortalRung {
         flightShortfall = null;
         JourneyStairs.aboutToWalk(rig, tag);
         List<JourneyStairs.StairFault> faults = JourneyStairs.faults(rig.ctx().level());
-        if (faults.isEmpty()) { walkTheStairs(rig, stairRoute(down), 0, down, then); return; }
+        // UNCONDITIONAL. This row used to be written only when `faults` was non-empty, which made it
+        // a row that success could not produce — and a pre-registered criterion of the form
+        // "`stairsBroken` must read 0/N" was therefore unsatisfiable: a healthy run wrote nothing,
+        // which is indistinguishable from an audit that never ran. Measured on ladder-11
+        // (2026-08-23), where the `NoBreak` fix DID hold the flight and the only way to say so was
+        // to triangulate from `forge.carved 67/67` and the body having walked back down. Twenty
+        // quiet rows across a rung are a small price for a row that can say "checked, and fine".
         rig.evidence(tag + ".stairsBroken", JourneyStairs.report(rig.ctx().level()));
+        if (faults.isEmpty()) { walkTheStairs(rig, stairRoute(down), 0, down, then); return; }
         JourneyStairs.mend(rig, tag, faults, 0,
                 () -> walkTheStairs(rig, stairRoute(down), 0, down, then));
     }
