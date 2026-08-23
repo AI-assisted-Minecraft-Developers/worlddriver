@@ -36,7 +36,7 @@
 | ✅ 已落 | J9 | 那两处**六行逐字相同**的收成了 `JourneyHands.swingOffPlant`（`5e8c0713`）。**两份拷贝错得一模一样**，所以这不是整洁项，它就是 Q16d 的修法本身 | 我 |
 | ✅ 已测 | Q12a | 世界钉法进了 99 级判词：ladder-8 的判词自带 `doMobSpawning=false…零布景说的是道具，不是难度` | 我 |
 | ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
-| 🧊 冻结中 | J1 | `BunkerChain:150` / `DrownEscapeChain:199` 补 `continueDestroy`（真客户端上破不掉方块） | janitor |
+| ✅ 已落 | J1 | `BunkerChain` / `DrownEscapeChain` 的 `continueDestroy` **两处都已在 HEAD**（各自还带着「keyAttack 单独破不掉」的实测注释）。队列行过期，2026-08-23 核实 | janitor |
 | 🧊 冻结中 | J2 | 到达半径统一成眼→格心，抽进 `BotUtil`，五处指过去 | janitor |
 | 🧊 冻结中 | J3 | `ContactDamageEscape` / `LavaProximityEscape` 升级成 `commandMove` | janitor |
 | 🧊 冻结中 | J4 | `keyAttack` 五取用者协议 —— 只做诊断表，**不要发明全局仲裁器** | janitor |
@@ -47,6 +47,12 @@
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
+
+**⚠️ 这张表今天被抓到两行是过期的**（Q15 写着「在查」而修法 `e5b7c7f8` 早在 HEAD；
+J1 写着「冻结中」而两处 `continueDestroy` 都已落）。两次都是**临时翻代码**才发现的。
+⇒ 纪律：**开一趟真梯之前，把所有「在查／冻结中／待验」的行拿去 `git show HEAD:` 核一遍。**
+一行过期的状态会让人以为某条修法没上梯，于是这一趟的读数被判给了错的账本
+（[[reading-the-tree-is-not-reading-head]] 的反向：那次是树比 HEAD 新，这次是**账本比 HEAD 旧**）。
 
 ---
 
