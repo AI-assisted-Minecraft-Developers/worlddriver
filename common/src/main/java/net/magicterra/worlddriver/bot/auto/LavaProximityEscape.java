@@ -2,8 +2,6 @@ package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.movement.BotInput;
-import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
-import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -45,45 +43,33 @@ public final class LavaProximityEscape {
     private static final int LINGER_TICKS = 12;
     private static final int MAX_EPISODE_TICKS = 80;
 
-    /** Approach gate (below): how far along the heading to sample, how deep to look, and the
-     *  speed under which the body counts as standing still. The speed gate is load-bearing —
-     *  the pour rungs park the body on the lip of a lava pool and aim from a {@code settle},
-     *  and a standing body must never trip this or filling a bucket becomes unreachable. A
-     *  walk is ~0.13/tick and a sprint ~0.28, so 0.08 admits every real approach. */
-    private static final double APPROACH_LOOKAHEAD = 0.9;
-    private static final int APPROACH_DEPTH = 4;
-    private static final double APPROACH_MIN_SPEED = 0.08;
-
     private static boolean active;
     private static int linger;
     private static int episodeTicks;
     private static BlockPos lastLava;
 
     /** @return true if it drove the escape this tick (keys are ours). */
-    public static boolean tick(Minecraft mc, LocalPlayer p, WorldView world) {
+    public static boolean tick(Minecraft mc, LocalPlayer p) {
         if (mc.level == null || p == null || !BotConfig.lavaProximityEscape) {
             reset("off");
             return false;
         }
         BlockPos threat = nearestThreat(mc.level, p);
-        String kind = threat != null ? "flow front adjacent " + threat.toShortString() : null;
-        if (threat == null && world != null && BotConfig.lavaApproachGate) {
-            threat = approachThreat(world, p);
-            if (threat != null) kind = "about to step over " + threat.toShortString();
-        }
         boolean hot = threat != null || p.isInLava();
         if (!active) {
             if (!hot) return false;
             active = true;
             episodeTicks = 0;
             lastLava = null;
-            // blockPosition(), NOT (int) casts: `(int)` truncates toward zero, so at x=-9.3 it
-            // printed -9 while every decision in this class used foot.getX() == -10. On the one
-            // firing that mattered (2026-08-23 rehearsal) that made a body standing ON TOP of a
-            // source pool read as "adjacent" to it — and adjacent-vs-own is precisely the branch
-            // that decides whether the source carve-out below skips the cell.
+            // blockPosition(), NOT (int) casts. `(int)` truncates toward zero, so at x=-9.3 it
+            // printed -9 while every decision below used foot.getX() == -10 — and on the rehearsal
+            // burn of 2026-08-23 that one digit was the whole question: a body standing ON TOP of
+            // a source pool read as merely "adjacent" to it. The two are not cosmetic variants of
+            // each other here. `own` (ox==0 && oz==0) is what exempts a cell from the source
+            // carve-out in nearestThreat, so own-vs-adjacent decides whether a calm pool can
+            // trigger this reflex at all — and the log was printing the wrong one of the two.
             LOG.info("[lavaEscape] {} at {} (hp={}) → walking away",
-                    p.isInLava() ? "IN lava" : kind,
+                    p.isInLava() ? "IN lava" : "flow front adjacent " + threat.toShortString(),
                     p.blockPosition().toShortString(),
                     String.format("%.1f", p.getHealth()));
         }
@@ -126,44 +112,6 @@ public final class LavaProximityEscape {
         BotInput.driveForward(mc);
         BotInput.jump(mc, p.horizontalCollision || p.isInLava());
         return true;
-    }
-
-    /**
-     * The lava the body is ABOUT TO WALK OVER: while grounded and actually moving, the cell
-     * ~1 step along the current heading, projected down its open column.
-     *
-     * <p>Why this is a separate question from {@link #nearestThreat}: that one scans the foot
-     * 8-neighbourhood ±1 y, so a pool three blocks below the lip is invisible until the body
-     * is directly over it — and directly over it, there is nothing left to steer with. The
-     * 2026-08-23 rehearsal died in exactly that one tick: five earlier episodes on the same
-     * run cleared in 16–25 ticks at full HP, and the sixth saw the pool for the first time
-     * from its own column. Trying instead to key on DOWNWARD velocity would be later still:
-     * downward velocity means airborne, and airborne means 0.02/tick of air control against
-     * momentum already spent.
-     *
-     * <p>So the trigger is grounded-side, and deliberately narrow in three ways, because the
-     * body's real job on rungs 11–12 is to work beside a lava lake:
-     * <ul>
-     *   <li>{@code onGround()} — an airborne body is past the decision, and braking it here
-     *       would only fight gravity.</li>
-     *   <li>speed &ge; {@link #APPROACH_MIN_SPEED} — a body parked on the lip aiming a bucket
-     *       is standing still, so it never trips this.</li>
-     *   <li>the sampled cell must be OPEN with no floor ({@link WalkerGeometry#hazardInDropColumn}
-     *       enforces it) — walking a solid rim beside the lake reads clean. Lateral adjacency
-     *       is what the source carve-out in {@link #nearestThreat} exists to permit; a landing
-     *       column is not adjacency, so source-ness is not consulted here.</li>
-     * </ul>
-     */
-    private static BlockPos approachThreat(WorldView world, LocalPlayer p) {
-        if (!p.onGround()) return null;
-        Vec3 v = p.getDeltaMovement();
-        double len = Math.hypot(v.x, v.z);
-        if (len < APPROACH_MIN_SPEED) return null;
-        BlockPos ahead = BlockPos.containing(p.getX() + v.x / len * APPROACH_LOOKAHEAD,
-                                             p.getY(),
-                                             p.getZ() + v.z / len * APPROACH_LOOKAHEAD);
-        if (ahead.equals(p.blockPosition())) return null;   // still inside our own cell
-        return WalkerGeometry.hazardInDropColumn(world, ahead, APPROACH_DEPTH);
     }
 
     /** Nearest FLOWING lava cell in the foot 8-neighbourhood or the ring one

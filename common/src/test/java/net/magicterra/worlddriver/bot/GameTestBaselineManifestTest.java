@@ -119,7 +119,6 @@ class GameTestBaselineManifestTest {
             e("autoFloatWhenDrowning", "idle drowning float"),
             e("contactDamageEscape", "step out of a damaging block"),
             e("lavaProximityEscape", "walk away from an advancing lava front"),
-            e("lavaApproachGate", "refuse the step whose landing column holds lava"),
             e("avoidDanger", "A* keeps a one-block buffer from lava/fire"),
             e("lethalEdgeBrake", "walker sneak-brake at a lethal edge"),
             e("allowFleeBreak", "a flee may break out of a corner"),
