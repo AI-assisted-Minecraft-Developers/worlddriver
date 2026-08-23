@@ -16,6 +16,7 @@ import net.magicterra.worlddriver.bot.pathfinder.moves.Fall;
 import net.magicterra.worlddriver.bot.pathfinder.moves.FallIntoWater;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -1042,11 +1043,18 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         BlockPos beyond  = new BlockPos(cx + 52, waterFootY, cz);
         BlockPos goalN   = new BlockPos(cx + spanX, waterFootY, cz);
 
-        List<BlockPos> cont = List.of(farNode, beyond, goalN);
-        List<Move.Edge> contEdges = List.of(
-                new Move.Edge(farNode, 50, List.of(), List.of(), "walk"),
-                new Move.Edge(beyond,  10, List.of(), List.of(), "walk"),
-                new Move.Edge(goalN,   30, List.of(), List.of(), "walk"));
+        // Deliberately NOT anchored at the foot — path[0] is ~48 b east. That is the input the
+        // segment anchor-gate exists to judge, not a malformed plan: three of the five arms below
+        // expect a REJECT, and the reason they expect one is precisely this gap. Built through the
+        // named factory so the next reader (or scanner) sees the intent in the source instead of
+        // inferring it from a shape that a genuinely broken plan shares.
+        ScenePlan seg = ScenePlan.misanchoredSegment(
+                List.of(farNode, beyond, goalN),
+                List.of(new Move.Edge(farNode, 50, List.of(), List.of(), "walk"),
+                        new Move.Edge(beyond,  10, List.of(), List.of(), "walk"),
+                        new Move.Edge(goalN,   30, List.of(), List.of(), "walk")));
+        List<BlockPos> cont = seg.nodes();
+        List<Move.Edge> contEdges = seg.edges();
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);

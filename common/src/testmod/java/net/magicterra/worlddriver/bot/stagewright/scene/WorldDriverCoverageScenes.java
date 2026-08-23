@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.bot.movement.WalkerExpectAlarms;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -842,8 +843,17 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      * above — Climb decides「case (b): PLACE a support to gain height」while Progress still calls it
      * a {@code waterPillar} and takes the branch that deliberately treats an unfilled place cell as
      * not-really-pending ("the buoyant climb never places the support via the dry path"), checking
-     * only for a still-solid ceiling before it may advance. That premise is precisely what the
-     * carve-out falsifies: on this geometry the support IS placed by that path.
+     * only for a still-solid ceiling before it may advance. The carve-out is what puts that premise
+     * in doubt: on this geometry Climb's dry path is the one trying to fill the cell.
+     *
+     * <p><b>Not "the support IS placed" — that was an assertion, and it was wrong.</b> This javadoc
+     * used to say the carve-out falsifies Progress's premise outright. Four gate runs later the
+     * support has never once been placed here, so whether Climb's attempt LANDS is the thing this
+     * arena measures, not a fact it may lean on. The reason is geometric and is spelled out beside
+     * the plan below: a pillarUp's destination is always support+1, so "high enough for vanilla to
+     * accept the placement" and "standing on the destination" are the same inequality — and with a
+     * plan that ended at that destination, Progress (Walker:2373) returned ARRIVED before Climb
+     * (Walker:2374) ever ran on the only tick that could have placed anything.
      *
      * <p><b>Why no gate has ever seen this.</b> {@code applyGameTestBaseline()} sets
      * {@code walkerPillarSurfacePlace = false}, and {@code pinnedBaseline()} — which every scene
@@ -914,15 +924,24 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("surfacePillar: walkerPillarSurfacePlace 是关的，WalkerTickClimb 那段抠除是"
                     + "死代码，两个 phase 类按构造必然同答案。");
 
-        // path[0] is the START cell and edges[0] is NULL — that is the shape every real result has
-        // (PathFinder.build's javadoc says so outright), and adoptPath relies on it: it sets
-        // {@code step = 1} unconditionally, i.e. "the body is already standing on node 0, skip it".
-        // A one-node plan therefore starts CONSUMED — step 1 of a size-1 path — which is how this
-        // scene spent three gate runs never executing a single tick of its own subject.
-        List<BlockPos> plan = List.of(foot, dest);
-        List<Move.Edge> edges = java.util.Collections.unmodifiableList(java.util.Arrays.asList(
-                null,
-                new Move.Edge(dest, 10, List.of(), List.of(support), "pillarUp")));
+        // TWO pillar steps, not one, and the second is what makes the first observable.
+        //
+        // A pillarUp fills the cell the body is standing in and rises one, so its destination is
+        // ALWAYS support+1. Vanilla will not place into a cell the body's AABB still overlaps
+        // (Level#isUnobstructed), so the placement needs p.getY() >= support.getY()+1.0 — and that
+        // is the same inequality as "the body's block position is the destination", i.e. ARRIVAL.
+        // Walker.tickInner runs WalkerTickProgress (2373) BEFORE WalkerTickClimb (2374) and returns
+        // on the first non-null, so on the first tick the body is high enough to place, Progress
+        // returns ARRIVED and the climb phase does not run at all. A plan ENDING at the pillar's
+        // destination therefore cannot ever witness its own placement — not because of buoyancy or
+        // water, but by construction. Continuing one cell past it is what buys the climb a tick.
+        final BlockPos crest = dest.above();                    // node 2 — the goal, one above dest
+        ScenePlan sp = ScenePlan.syntheticPlan(foot,
+                List.of(dest, crest),
+                List.of(new Move.Edge(dest,  10, List.of(), List.of(support), "pillarUp"),
+                        new Move.Edge(crest, 10, List.of(), List.of(dest),    "pillarUp")));
+        List<BlockPos> plan = sp.nodes();
+        List<Move.Edge> edges = sp.edges();
 
         Walker walker = new Walker();
         // GOAL FIRST, then adopt. {@code setGoal} nulls path and edges (Walker:783-785), so adopting
@@ -930,7 +949,10 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // is not an option either: the per-tick decisions dereference {@code wk.goal} unguarded, so
         // the first version of this scene died on tick one with an NPE and never reached a single
         // one of the vacuity gates above — a scene that compiles and asserts nothing.
-        walker.setGoal(new Goal.Block(dest));
+        // The goal is the CREST, not dest. Goal.Block.reached is exact cell equality, so a goal of
+        // dest would terminate the run on the very tick the body first rises clear of the support —
+        // the one tick the placement becomes legal — and WalkerTickClimb would never get to run it.
+        walker.setGoal(new Goal.Block(crest));
         // goalReached=TRUE, and it is not cosmetic: the 4-arg seam says best-effort, a best-effort
         // segment is one the walker may replace, and on the first run it did — inside tick ONE it ran
         // a continuation search, adopted a real path and threw the synthetic pillarUp edge away. The
@@ -938,7 +960,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // seg.pathBestEffort FALSE, which the scene's own adopt had set TRUE — so something re-adopted.
         // This plan's last node IS the goal cell, so declaring otherwise was simply wrong.
         if (!walker.adoptForTest(w, plan, edges, foot, true))
-            ctx.fail("surfacePillar: 走行器拒绝了这条一条边的 pillarUp 计划（锚点闸）——"
+            ctx.fail("surfacePillar: 走行器拒绝了这条两级 pillarUp 计划（锚点闸）——"
                     + "后面每一行都不再是关于被测对象的。");
         // The earliest possible second-class gate: BEFORE the first tick, is the subject under the
         // pointer at all? adoptPath starts at step 1, so this reads「指针正指着 pillarUp 那条边」
@@ -952,12 +974,20 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         double maxY = startY;
         boolean placed = false;
         boolean ranPillarUp = false;
+        // THE SUBJECT, sampled per tick. step>=2 means the pointer has left the first pillarUp edge
+        // — the one whose toPlace is `support`. Latching it while `placed` is still false is the
+        // divergence itself: Progress consumed a node whose place cell is still open water, which
+        // is exactly what Climb was in the middle of trying to fill. Once latched it stays latched,
+        // and that is deliberate: a placement that lands AFTER the pointer moved on does not undo
+        // the advance, it just hides it from a post-hoc read of the world.
+        boolean pointerPastUnplaced = false;
+        int maxStep = walker.pathStep();
         Walker.Step s = Walker.Step.WALKING;
         int t = 0;
         for (; t < 200 && s == Walker.Step.WALKING; t++) {
             // BEFORE the tick as well as after: pathMove() reads the edge at the CURRENT step pointer,
-            // and a tick that executes an edge and then consumes its node leaves the pointer past the
-            // end — so a post-tick-only sample can never see the last edge of a one-node plan. The
+            // and a tick that executes an edge and then consumes its node leaves the pointer past it —
+            // so a post-tick-only sample can miss an edge that was run and immediately consumed. The
             // question is "was pillarUp the edge this tick was about to run", and only this side answers it.
             if ("pillarUp".equals(walker.pathMove())) ranPillarUp = true;
             s = walker.tick(av, w);
@@ -967,16 +997,27 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             // blocksMotion, not !isAir: the support cell STARTS as water, so "not air" is true
             // from the first tick and would report a placement that never happened.
             if (level.getBlockState(support).blocksMotion()) placed = true;
+            maxStep = Math.max(maxStep, walker.pathStep());
+            // Order matters: `placed` is refreshed from the world one line above, so this asks
+            // "is the support still open water AT THE MOMENT the pointer sits past its edge".
+            if (walker.pathStep() >= 2 && !placed) pointerPastUnplaced = true;
         }
-        boolean reachedRow = maxY >= dest.getY();
 
         ctx.record("柱.目的格", dest.toShortString() + "=" + level.getBlockState(dest).getBlock());
         ctx.record("柱.支撑格", support.toShortString() + " 垫上了=" + placed
                 + "（现在是 " + level.getBlockState(support).getBlock() + "）");
         ctx.record("升.起点y", startY);
-        ctx.record("升.峰值y", maxY + "（要到 " + dest.getY() + "）");
+        // Two different lines, and conflating them is what made the first three runs unreadable:
+        // the body must clear support+1.0 for vanilla to ACCEPT the placement at all, and reach
+        // the crest row for the run to finish. WalkerTickClimb:895 gates the click at +0.9, which
+        // is looser than the physics — see the note beside the criterion below.
+        ctx.record("升.峰值y", maxY + "（放置合法线 " + (support.getY() + 1.0)
+                + "，目标排 " + crest.getY() + "）");
         ctx.record("走.收尾", s + "（用了 " + t + "/200 tick）");
         ctx.record("走.跑过pillarUp", ranPillarUp);
+        ctx.record("走.指针高水位", maxStep + "/" + plan.size()
+                + "（>=2 表示已离开第一条 pillarUp 边）");
+        ctx.record("柱.指针越过未垫", pointerPastUnplaced);
         // An outcome without its reason is not an instrument: the first run printed 「ARRIVED，
         // 1/200 tick」 and that named neither the snap nor the repath. lastEndReason is written at
         // every terminal() call site and carries the arrival CLASS, goalSnapped included.
@@ -1007,12 +1048,27 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     + "被测对象。要修的是布景，不是产品。目标没被吸附，所以看「走.收尾计划」"
                     + "——它若不是那条一步 pillarUp，就是又被重新寻路换掉了。");
 
-        if (s != Walker.Step.WALKING && !placed && !reachedRow)
-            ctx.fail("指针越过了一块没垫上的支撑：走行器以 " + s + " 收尾，而 "
-                    + support.toShortString() + " 仍是 " + level.getBlockState(support).getBlock()
-                    + "，身体峰值 " + maxY + " 也没到目的排 " + dest.getY() + "。"
+        // ── 预登记（写在跑之前，免得事后拿结果凑判词）────────────────────────────────
+        // 这一版是这条场景第一次真的在问「两个 phase 类分不分岔」，所以三种结局各自的含义
+        // 现在就定死：
+        //   垫上了（placed）                    ⇒ 两边同答案，不分岔。PASS，且是有内容的 PASS。
+        //   没垫上而指针已过（pointerPastUnplaced）⇒ 分岔坐实。FAIL，报的是产品缺陷。
+        //   两者都没有                          ⇒ 身体压根没升到放置合法线，这一趟什么都没问到。
+        //                                        那是另一个发现（物理/浮力），按第三档只记录不判罪。
+        // 上一版的判据是 `s != WALKING && !placed && !reachedRow`，第三项恒假：pillarUp 的目的格
+        // 天生是 support+1，而放置要求身体离开 support ⇒「能放置」和「已到达」是同一个不等式，
+        // 所以只要计划停在 dest，这条断言在任何几何下都不可满足（跟浮力、跟水都无关）。
+        if (pointerPastUnplaced)
+            ctx.fail("指针越过了一块没垫上的支撑：走行器以 " + s + " 收尾（指针最高 " + maxStep
+                    + "/" + plan.size() + "），而 " + support.toShortString() + " 仍是 "
+                    + level.getBlockState(support).getBlock() + "，身体峰值 " + maxY
+                    + "（放置合法线 " + (support.getY() + 1.0) + "）。"
                     + "WalkerTickClimb 判这是水面竖井、要垫一块支撑（walkerPillarSurfacePlace 开着），"
                     + "而 WalkerTickProgress 的 shaftFlooded 没有那道抠除，仍把它当浮力柱，"
                     + "于是「没填的 place 格不算真的 pending」—— 推进越过的是一块还没发生的垫块。");
+        if (!placed)
+            WorldDriverCommon.LOG.warn("[wd.surfacePillarPointerNeedsItsSupport] 第三档：指针没越过、"
+                    + "支撑也没垫上（峰值 {} / 合法线 {}）——这一趟没有问到分歧，只说明身体没升上去。"
+                    + "不判罪，但也不要当成绿。", maxY, support.getY() + 1.0);
     }
 }
