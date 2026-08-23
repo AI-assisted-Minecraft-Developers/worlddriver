@@ -868,6 +868,28 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 **不预登记「哪个桶最大」**。那是这次要测的量，先猜等于把结论写进判据
 （[[a-criterion-success-cannot-satisfy]] 的镜像：判据要能证伪，不能只会印我想要的那句）。
 
+## 🎯 ladder-14 预登记（写在跑之前，2026-08-23）
+
+**Q25（隧道够不着）**
+
+- **已验**：出现 `tunnel.<n>.seenNotReached`，**并且**其后 `fill.result` 不是 `PASS`、
+  `lava_bucket = 1`。三条要同时成立 —— 只有第一条说明闸响了，只有后两条说明装到了，
+  合起来才说明**是这道闸让它装到的**。
+- **未触发**：没有 `seenNotReached` 行 ⇒ 这一趟的隧道恰好停在够得着的地方，**修法没被验证**。
+  ⚠️ 单看 `fill.result = SUCCESS` **不能**算已验：ladder-12 没有这道闸也装到了。
+- **证伪**：`seenNotReached` 出现、身体走近了、`fill.result` 仍是 `PASS`
+  ⇒ 走近没用，miss 另有原因（那就去读新加的 `fill.atUse` 的两条射线）。
+
+**仪器自检**：`fill.atUse` 必须出现，且含得到「MISS（… 格内什么都没挡住）」或一个命中格。
+若这一行缺席或读不出射线 ⇒ 仪器仍答不了，先修仪器再谈机制
+（[[a-fix-that-cannot-reach-its-own-occasion]] 第五节，今天已踩五次）。
+
+**Q24（浇筑那只手的 A/B）**：四态沿用上一节，需要这一趟真的走到 `cast`。
+
+**共同**：11 级 PASS 不等于 Q24 结案 —— 浇筑路径上仍然只有证据行、没有行为改动。
+
+---
+
 ## 📊 ladder-13 判词（2026-08-23，`results-ladder13-scoopOutOfReach.jsonl`）
 
 又是 **10 级 PORTAL_KIT**，11 级失败，但**死得比上一趟更早**：桶根本没装到岩浆，
