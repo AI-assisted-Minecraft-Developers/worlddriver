@@ -356,18 +356,29 @@ public final class ElytraProcess implements BotProcess {
                 }
             }
         }
-        if (++ticks > maxTicks) {
-            // The file's OTHER timeout — `takeoffTicks > TAKEOFF_TIMEOUT` — stamps the slot; this
-            // one did not, and it is the exit for「flew the whole budget and never met an arrival
-            // condition」. Every arrival returns above, so reaching here IS the non-arrival, and an
-            // unstamped exit reports it as a clean finish (`snapshot()` emits lastError only when
-            // non-null, and `attach` cleared it). `logSummary()` is not the substitute: it is behind
-            // `elytraDebug`, which is off, so the failure left no trace at all in a normal run.
-            st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
-            if (BotConfig.elytraDebug) logSummary();
-            a.releaseInputs(); st.elytra.reset(); return true;
-        }
+        if (++ticks > maxTicks) return outOfBudget(a, st);
         return false;
+    }
+
+    /**
+     * Flew the whole tick budget and never met an arrival condition.
+     *
+     * <p>Every arrival returns from {@link #tick} above this, so reaching here IS the non-arrival —
+     * and it used to leave the slot unstamped, which {@code ProcessSlot.snapshot()} renders as a
+     * clean finish (it emits {@code lastError} only when non-null, and {@code attach} cleared it).
+     * The file's OTHER timeout, {@code takeoffTicks > TAKEOFF_TIMEOUT}, has always stamped; this one
+     * is its drifted twin. {@code logSummary()} was not the substitute: it sits behind
+     * {@code elytraDebug}, which is off in a normal run, so the failure left no trace at all.
+     *
+     * <p>A separate method because {@code tick} is at its per-method budget — see
+     * {@code scripts/check_source_budget.py}, which fails on growth rather than on size here.
+     */
+    private boolean outOfBudget(Avatar a, BotState st) {
+        st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
+        if (BotConfig.elytraDebug) logSummary();
+        a.releaseInputs();
+        st.elytra.reset();
+        return true;
     }
 
     /** Highest landing surface at/below {@code (x,yStart,z)} within 256 — the
