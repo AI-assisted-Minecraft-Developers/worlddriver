@@ -2550,7 +2550,41 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         : blocking.toShortString() + " " + level.getBlockState(blocking).getBlock()));
             if (blocking != null && level.getFluidState(blocking).isSource()
                     && level.getBlockState(blocking).getBlock() == Blocks.LAVA) {
-                fillFrom(ctx, rig, blocking, then);
+                // SEEING it is not REACHING it. This sighting ray runs to TUNNEL_REACH (5.0) because
+                // that is the DIGGING figure — `destroyBlock` has no reach gate at all, so a tunnel
+                // can carve as far as it can see. The bucket cannot: `Item.getPlayerPOVHitResult`
+                // traces `blockInteractionRange()`, which {@link JourneyFill#BUCKET_REACH} already
+                // records as 4.5, in a javadoc that says this exact thing about this exact constant.
+                // ladder-13 stopped the tunnel the instant the source came into view and scooped from
+                // where it stood: `fill.result=PASS`, `lava_bucket=0`, source untouched — vanilla's
+                // silent miss return, which is byte-identical to a bucket that was never aimed.
+                // RE-CLIP rather than compare distances: the metre figure on the tunnel row is to
+                // the cell CENTRE while a ray stops at its near FACE (5.4 to the centre of a cell
+                // whose face a 5.0 ray reached), so no threshold over that number asks the engine's
+                // question. Asking it with the engine's own range is the only version that cannot
+                // disagree with what fires.
+                var canScoop = JourneyHands.aimedAt(fp, JourneyFill.BUCKET_REACH, true);
+                boolean reaches = canScoop.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                        && canScoop.getBlockPos().equals(blocking);
+                if (reaches) {
+                    fillFrom(ctx, rig, blocking, then);
+                    return;
+                }
+                rig.evidence("tunnel." + step + ".seenNotReached", String.format(java.util.Locale.ROOT,
+                        "看见了 %s，但以桶自己的 %.1f 格再射一次%s —— 先走近，不舀。"
+                        + "挖掘用 %.1f 格是因为 destroyBlock 根本没有距离闸，桶有",
+                        blocking.toShortString(), JourneyFill.BUCKET_REACH,
+                        canScoop.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                                ? "打到的是 " + canScoop.getBlockPos().toShortString()
+                                : "什么都没打到", TUNNEL_REACH));
+                if (left > 0) {
+                    rig.settle(new IntentProcess(new Intent(new Goal.Near(blocking, 2))), 600,
+                            () -> reachLava(ctx, rig, left - 1, climbBacks, then));
+                    return;
+                }
+                ctx.fail("看得见岩浆源 " + blocking.toShortString() + " 却够不着它，"
+                        + "而且走近的步数也用完了：身体在 " + fp.blockPosition()
+                        + "。这不是「挖不到」，是隧道停在了看得见的那一步而不是够得着的那一步");
                 return;
             }
             if (left <= 0) {
@@ -2589,6 +2623,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     rig.player().getMainHandItem().getItem())));
             rig.evidence("fill.aim", String.format(java.util.Locale.ROOT, "%.0f/%.0f",
                     rig.player().getYRot(), rig.player().getXRot()));
+            // BOTH BODIES AND BOTH RAYS, at the instant of the use — the third and last bucket site
+            // to get this row. `fill.result=PASS` is vanilla's return for a ray that hit nothing,
+            // and it is byte-identical to「the hand was wrong」and to「the source refused」; ladder-13
+            // spent a whole run's evidence being inverted by hand to decide which. describeRay
+            // prints MISS in words, with the range it traced, so the next one says it outright.
+            JourneyHands.handsAtUse(rig, "fill");
             rig.evidence("fill.result", String.valueOf(rig.avatar().useItemInHand()));
             // WAIT before judging, and that is the mirror image of aimThenAct rather than a
             // contradiction of it. The aim must be written to the body that ACTS, with nothing
