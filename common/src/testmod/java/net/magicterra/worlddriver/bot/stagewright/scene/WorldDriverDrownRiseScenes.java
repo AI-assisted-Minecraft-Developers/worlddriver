@@ -202,7 +202,16 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
             body.setAirSupply(homeAir);
         });
         body.teleportTo(bodyX, y0, bodyZ);
-        body.setAirSupply(STAGED_AIR);
+        // FULL air for the sync wait, and the staged value only once measuring starts.
+        //
+        // Staging the low value here instead cost a criterion on 2026-08-23: the latch engaged
+        // immediately, the reflex spent the 20 sync ticks freeing the body, and 升.起点y — taken
+        // after the wait — was 209.017 instead of the staged 208.2. 升.净升 then read 1.302 for a
+        // body that had actually risen 2.12, i.e. the baseline had been moved by the very thing the
+        // number was measuring. 300 is above every float threshold in the driver
+        // (drownEscapeAirThreshold 100, drownFloatAirThreshold 240) with room for the ~20 ticks of
+        // drain the wait costs, so nothing acts before the window opens.
+        body.setAirSupply(body.getMaxAirSupply());
 
         // ---- measure -------------------------------------------------------------------
         final int[] waited = { 0 };
@@ -218,7 +227,10 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                         + level.getBlockState(body.blockPosition()) + "）。"
                         + "这一份读数与 DrownEscapeChain 无关，先修布景。");
             }
+            body.setAirSupply(STAGED_AIR);       // the window opens HERE — see the teleport's note
             final double startY = body.getY();
+            ctx.record("布景.测量起点相对布景高度", String.format(Locale.ROOT,
+                    "%.3f（布景 y0=%d，同步等待里漂了 %.3f）", startY, y0, startY - y0));
             final double[] maxY = { startY };
             final boolean[] surfaced = { false };
             final int[] t = { 0 };
