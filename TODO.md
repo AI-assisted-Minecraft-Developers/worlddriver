@@ -21,6 +21,8 @@
 | 📌 已判待验 | Q10 | V5 工作台：两种互斥解释的判别行已落（`craftingTable.broke`，每次破坏都写，第二次自动变 `#2`），ladder-9 收数 | 我 |
 | 📌 部分已判 | Q11 | V3 不挥手：`[dig]` 摘闸后 ladder-9 前 1750 行 **143/143 `ok=true`** ⇒ **挖掘这一族是挥手的**。要重新归类，见下 | 我 |
 | 🔴 已修待闸 | J8 | `BackfillProcess:52` / `BuildProcess:59` 身体消失不写 `lastError`，而 `toMap` 丢 null ⇒ 报成「结束了，没错误」（`fb4fb45a`/`b4335efa`，janitor 找的） | 我 |
+| 🔧 已编辑待编译 | J10 | 硬规则 12 终于有了秒级闸：`SchedulerClientCallSurfaceTest` 加扫**形参描述符**（`329d7964`）。要 `./gradlew :common:test` 验 | 我 |
+| ✅ 已落 | J11 | 预算闸自己解析错：先剥块注释再剥字符串，字符串里的 `bot/scheduler/**` 开了个假注释（`a7b5e3fc`）。已校准：全仓只影响 1 个文件 | 我 |
 | ⏸ 待发槽 | J9 | `aimAtBlock`+`breakHold`+`continueDestroy` 两处**六行逐字相同**，收成 `JourneyHands.swingOffPlant`。**等 ladder-9 判完再动**——那六行是被验对象 | janitor |
 | ✅ 已测 | Q12a | 世界钉法进了 99 级判词：ladder-8 的判词自带 `doMobSpawning=false…零布景说的是道具，不是难度` | 我 |
 | ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
@@ -375,6 +377,36 @@ cast.range#2   = 2.40
 同趟带的四条**只加日志、不改行为**的仪器（都不是本趟的变量）：
 `[place]` 改成打邻格实际变成了什么、`<what>.arrivedY`、`[dig]` 摘掉 `walkerDebug` 闸、
 `craftingTable.broke`。
+
+---
+
+## 🧰 预算闸自己读错了，而它读错的方式会**吞掉**违规（J11，2026-08-23）
+
+给 `SchedulerClientCallSurfaceTest` 加第二条断言时，预算闸报
+`noSchedulerClassCallsAnUnvettedClientClass() 243 行 — limit 200`。
+那个方法**只有 19 行**。
+
+`scripts/check_source_budget.py` 分两趟剥：**先剥块注释，再剥字符串字面量**。
+于是字符串里的 `bot/scheduler/**` 里那个 `/*` 开了一个**假注释**。
+原来只有一条消息带这个串，假注释在下一处真 javadoc 的 `*/` 那里闭合，奇偶正好抵消；
+我加了第二条，奇偶一翻——**中间所有大括号连同方法收尾一起消失**。
+
+**这个故障不只是虚报，它还会漏报**：被吞掉的方法根本不会被检查。
+所以这是「[[a-verification-tool-needs-verifying-too]]」的又一例：
+闸也是仪器，仪器要先校准。
+
+修法：`_strip(line, in_block)` **一趟从左到右**同时处理注释与字面量（`a7b5e3fc`）。
+自检三条写在函数注释里：`' */'` 在块内要返回 `False`、`a /* b */ c` 要剥成 `a   c`、
+`"x /* y" + z` **不许**开注释。
+
+**校准过才算修好**（新旧解析器全仓对跑）：
+
+```
+方法总数  旧: 3252   新: 3264
+受影响文件: 1  —— 就是我刚编辑的那个（1 -> 13）
+```
+
+⇒ 别处**没有**被旧解析器吞掉的违规。修法的爆炸半径是量出来的，不是猜的。
 
 ---
 
