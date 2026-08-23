@@ -13,7 +13,8 @@
 | ✅ 已绿 | Q15a | **闸债已还**：三闸全 GREEN（集成 NeoForge／专用 Fabric／专用 NeoForge），溺水类加载缺陷结案，见下 | 我 |
 | ✅ 已绿 | Q15b | **第二轮闸**（ladder-9 之后积的九笔）：专用 Fabric GREEN 305/28、专用 NeoForge GREEN 305/27，非 PASS 与上一轮**逐条相同**，classload 0 | 我 |
 | 🔴 排队 | Q15c | **集成 NeoForge 一直是 RED**，唯一死因 `pack.placesAndReadsBack` ENV_FAIL：`0 of 9 arena chunks ever loaded after 201 ticks`。改动前后同因，非回归。见下 | 我 |
-| 🔄 在跑 | Q16b | 11 级 `short_grass` 清不掉：清理取了**客户端** avatar，隔壁文件一直是服务端那具（`337a35e2`）。ladder-9 验 | 我 |
+| ❌ 已证伪 | Q16b | 11 级 `short_grass`：换服务端 avatar（`337a35e2`）**被排练证伪**，同一格同一棵草原样读回。真因见下 | 我 |
+| 🔄 在跑 | Q16d | 真因：**瞄的和破的不是同一具身体**。服务端 `breakHold` 破的是它自己的 `aimTarget` 字段，而瞄的是客户端 ⇒ 早返回，什么也没做。修法 `5e8c0713` | 我 |
 | ⏭ 排队 | Q13 | 🔴 **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗 | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
 | ✅ 已测 | Q6 | 石剑：ladder-8 全程 `weapon=minecraft:stone_sword`，6/7 级都带着打 | 我 |
@@ -29,7 +30,7 @@
 | ✅ 已落 | J13 | `WorldDriverJourneyScenes` 到顶（3017），把工作台/落脚那一族拆进 `JourneyStation`（`28a38cc8`），2851 行。**机械搬运，证据键一个没改** | 我 |
 | 🔴 已修待闸 | Q16c | 9 级回家的路把身体带下 24 格 ⇒ 10 级走不到。补救：低于天光 8 格就先 `climbOut` 再走一趟（`28a38cc8`） | 我 |
 | ⏭ 排队 | J14 | `JourneyEndRungs:2707` 自己复制了一份 `walkToColumn`——和共享那份是否同语义没人核过 | janitor |
-| ⏸ 待发槽 | J9 | `aimAtBlock`+`breakHold`+`continueDestroy` 两处**六行逐字相同**，收成 `JourneyHands.swingOffPlant`。**等 ladder-9 判完再动**——那六行是被验对象 | janitor |
+| ✅ 已落 | J9 | 那两处**六行逐字相同**的收成了 `JourneyHands.swingOffPlant`（`5e8c0713`）。**两份拷贝错得一模一样**，所以这不是整洁项，它就是 Q16d 的修法本身 | 我 |
 | ✅ 已测 | Q12a | 世界钉法进了 99 级判词：ladder-8 的判词自带 `doMobSpawning=false…零布景说的是道具，不是难度` | 我 |
 | ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
 | 🧊 冻结中 | J1 | `BunkerChain:150` / `DrownEscapeChain:199` 补 `continueDestroy`（真客户端上破不掉方块） | janitor |
@@ -43,6 +44,85 @@
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
+
+---
+
+## ❌ 排练把 11 级那条修法证伪了，而它证伪的方式正好指出了真因（2026-08-23）
+
+**打法换了，这是第一次兑现。** 不再花 50 分钟碰运气爬整梯去撞 11 级，
+改跑 `:fabric:runRehearsalIntegratedServer -Prehearse=OBSIDIAN`。
+它**确定性地落在同一格**：浇 `-4,62,54`，射线停在 `-4,63,55 short_grass` ——
+和 ladder-8 死的那一格、那棵草，逐字相同。**一次干净的 A/B，不是一次运气。**
+
+### 判（判据是跑之前写的）
+
+- 预登记：「若 11 级跑到且出现 `cast.cleared.…`，必须读到 `air`」。
+- 实读：`cast.cleared.-4, 63, 55 = Block{minecraft:short_grass}`。
+- ⇒ **红。** 而且先核过这条读数记的是**清理之后**的状态（写在 `settle(12)` 的回调里，
+  不是清之前），所以它有资格证伪，不是「一个读数不是它看起来的那个量」。
+
+### 真因：瞄的和破的不是同一具身体
+
+`ServerPlayerAvatar.breakHold(true)` **不接受方块参数**，它破的是自己的
+`aimTarget` **字段**，而且第一句就是
+`if (!v || aimTarget == null || …isAir()) return;`。
+那六行是：
+
+```java
+rig.avatar().aimAtBlock(inTheWay);   // 客户端那具
+var breaker = rig.body().avatar();   // 服务端那具
+breaker.breakHold(true);             // 破的是服务端的 aimTarget —— 从没被写过
+breaker.continueDestroy(inTheWay);   // 服务端上是继承来的 no-op
+```
+
+⇒ **整次破坏是一条早返回。** 上一版把破坏从客户端挪到服务端是对的一半，
+瞄准没跟过去，所以那一半也没兑现。这正是我自己记过的
+[[aiming-one-body-and-raying-another]]，只是这次错在写与写之间，不是写与读之间。
+
+### 两件比修法本身更该记住的事
+
+1. **被我当成「一直是对的」的先例，自己也是错的。** 代码注释里写着
+   「`JourneyPortalRung.clearPlantOnLine` has taken the server avatar for exactly this
+   reason the whole time」——去读它，2581 行同样是 `rig.avatar().aimAtBlock(plant)` 配
+   `breaker.breakHold(true)`。**两份拷贝错得一模一样**，而我照抄的时候把「隔壁一直这么写」
+   当成了证据。一份从未被验证过的先例，不因为它更老就更可信。
+2. **janitor 的 J9 不是整洁项。** 它报的「两处六行逐字相同」，逐字相同的正是**同一个缺陷**。
+   收进 `JourneyHands.swingOffPlant` 一次修好两处 —— 重复代码的代价这次是**两份等长的错**。
+   顺手还修掉一条不可能自证失败的证据行：`clearPlantOnLine` 的 `clearedPlant` 写在破坏**之前**，
+   改成 `plantOnLine`（前）+ `plantAfter`（后，settle 之后）。
+
+### 修法（`5e8c0713`）
+
+`swingOffPlant`：两具都瞄 → **客户端挥手**（唯一看得见的那一半，也是忠实路径）→
+**服务端破坏**（权威的那一半）。服务端那半仍受 `canBreakFromHere` 管，够不着就是拒绝，
+所以判它只能靠**回读那一格**，不能靠这几行调用返回。
+
+### 📌 排练二预登记（写在读结果之前）
+
+1. `cast.blockedBy` **必须仍然**是 `-4, 63, 55 … short_grass`。换了别的格 ⇒ 布景漂了，
+   这趟 A/B 作废，不许拿它下任何结论。
+2. `cast.cleared.-4, 63, 55` **必须读到 `Block{minecraft:air}`**。读到别的 ⇒ 修法再次失败，
+   而且要去查 `canBreakFromHere` 是不是拒了（够不着），不许再猜。
+3. `cast.blockedBy` 在而 `cast.cleared.…` **不在** ⇒ 代码路径形状变了，先查形状再谈结论。
+4. **`wd.rehearse11Obsidian` 自己的 PASS/FAIL 是次要的。** 这一级还可能死在浇筑之后的任何一步
+   （出井、判黑曜石）。**一级 FAIL 不等于这条修法失败** —— 判据只有第 2 条。
+
+---
+
+## 🔍 FOOD 那一趟的判别读数：**东西没死，不是肉没捡**（ladder-10 日志，2026-08-23）
+
+给下一趟写的三问仪器（`c1fd576b`）还没跑，但**上一趟的日志里已经有答案了** —— 那些仪器是无条件的。
+窗口 = `wd.journey05StoneTools' -> PASS` 到 `wd.journey06Food' -> FAIL`，137 行：
+
+- `[pathfinder] search-begin owner=combat` **30 余次**，起点一路从 `38,64,126` 追到 `44,64,129`，
+  最后两次 `radius=1`（贴身了）。**追是追上了**：判词里 `prey.arrived=minecraft:cow`。
+- **整个窗口没有任何一行死亡**：没有 `entity.death`，没有 vanilla 的击杀行，什么都没死。
+- 判词：`weapon=minecraft:stone_sword`（有剑）、`combat→跑完`（进程正常结束）、`rawFood=0`。
+
+⇒ **归「打不中」族，不归「捡不到」族。** 这一刀砍掉了一整类假设（掉落物没捡、拾取半径、背包满）。
+剩下的嫌疑，全是我自己记过的：[[a-server-side-aim-dies-at-the-next-packet]]（真玩家的角度归客户端，
+服务端写的瞄准活不过下一个包）、以及攻击冷却。**注意这和 11 级是同一族的病**：
+一个动作的「瞄」和「做」落在了两具身体上。先修完 11 级再回来，因为读数会共享。
 
 ---
 
