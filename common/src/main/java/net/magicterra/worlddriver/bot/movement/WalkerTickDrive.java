@@ -841,9 +841,9 @@ final class WalkerTickDrive {
                 }
             }
             if (wpHazard) {
-                if (BotConfig.walkerDebug)
-                    LOG.info("[walker] path-hazard brake: waypoint {} column now hazardous "
-                            + "(flowed in after plan) → forceRepath", wp.toShortString());
+                // UNCONDITIONAL — see announceLavaBrake below for why this one is not throttled.
+                LOG.info("[walker] path-hazard brake: waypoint {} column now hazardous "
+                        + "(flowed in after plan) → forceRepath", wp.toShortString());
                 a.releaseInputs();
                 wk.forceRepath();
                 return Walker.Step.WALKING;
@@ -908,6 +908,7 @@ final class WalkerTickDrive {
         // AND cliff-lip): the pin's job — don't drift off a lethal edge — is done by
         // the per-tick gapAhead/offCentre gate at full walking speed.
         boolean lavaBrake = hazardAhead && !p.isInWater();   // land-only: a surface swimmer sneaking beside lava would DIVE (active sink), not stop
+        announceLavaBrake(wk, lavaBrake, foot, wp);
         // sneak in water = vanilla active SINK (buoyancy never sinks a surface swimmer on its
         // own) — so the dry-land safety brakes (bridge / cliff-descend) must NOT sneak in water,
         // exactly like lavaBrake above: a brake's job is to STOP, but shift in water DIVES the bot
@@ -1439,4 +1440,28 @@ final class WalkerTickDrive {
                 wk.lastError, "failed:" + wk.lastError, p.blockPosition());
     }
 
+    /**
+     * One line per ENGAGEMENT of the hazard-ahead brake, not one per tick.
+     *
+     * <p>Both lava brakes in {@code run()} used to log behind {@link BotConfig#walkerDebug},
+     * which the journey never sets — so when the 2026-08-23 rehearsal burned to death, a full
+     * log could not say whether either brake had engaged. That is the whole cost of an
+     * instrument behind a flag nobody turns on. Both are unconditional now, and they differ
+     * only in cadence, which follows from how often each can fire:
+     *
+     * <ul>
+     *   <li>The path-hazard brake can only fire on a WORLD CHANGE (A* never plans through a
+     *       hazard cell), so it is a once-per-run event on a static scene → print every time.</li>
+     *   <li>This one prices a lava-hugging passage the planner legitimately committed to, and
+     *       can hold for every tick of it → print the first tick, then stay quiet until the
+     *       body has been clear again. A post-mortem still learns that the body crept past
+     *       lava and where, without 600 identical lines for one mandatory 30-block corridor.</li>
+     * </ul>
+     */
+    private static void announceLavaBrake(Walker wk, boolean lavaBrake, BlockPos foot, BlockPos wp) {
+        if (lavaBrake && !wk.driveLatch.lavaBrakeLogged)
+            LOG.info("[walker] hazard-ahead brake: creeping past lava at {} (wp {})",
+                    foot.toShortString(), wp.toShortString());
+        wk.driveLatch.lavaBrakeLogged = lavaBrake;
+    }
 }
