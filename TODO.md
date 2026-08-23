@@ -1559,6 +1559,83 @@ home.gotoEnd.1 = …（判为到达：停在 65, 70, 62，距 64,60 2 格，容�
 🔎 `[place]` 账对不上时去哪找第二条消耗通道：
 `grep -rn "gameMode.useItemOn" common/src/main` 排除 `BotInteract` 自己——
 walker 的桥／跑酷放块若没走那个汇聚点，就在那里。
+
+#### ladder-7 读数：逐条对判据
+
+2026-08-23 05:15 收。results 存 `scratchpad/results-ladder7.jsonl`，日志 `ladder-7.log`。
+
+| 预登记的判据 | 读数 | 判 |
+|---|---|---|
+| `furnace.topUp` 这一行必须存在 | `不需要 —— 开场 13 ≥ 8（这一趟仍是纯合成传感器）` | ✅ 分支进了，走的是 no-op 支 |
+| 若触发，`furnace.topUp.after` | 没触发 | 不适用 |
+| `journey.height` **严格高于 `FOOD`** | **`FURNACE`** | ✅ **达成** |
+| `[place]` 行数与圆石差额 | 见下，账对上了 | ✅ 仪器可用 |
+| 回家段还在不在高处 | 见下 | 已被更硬的读数取代 |
+
+⛔ **熔炉过关不是补料挣来的，别记在它头上。** 这一趟第 5 级收尾 13 块、第 8 级开场 13 块——
+**中间一块没漏**；ladder-6 漏了 10 块。补料是安全网，这趟没派上用场。
+又一次 [[the-ladder-is-not-reproducible]]。
+
+#### `[place]` 仪器第一次出数，把漏料的机制换了
+
+129 行。按级归属（**注意统计脚本的标签晚一格**，已修正）：
+
+| 级 | 成功放置 | 被拒 |
+|---|---|---|
+| 5（石工具） | **cobblestone ×14**（竖井爬出） | — |
+| 6（食物） | **dirt ×14** | dirt ×18、stone_sword ×2 |
+| 7（床） | 无 | dirt ×4 |
+| 8（熔炉） | 无 | — |
+| 9（铁） | cobblestone ×29、dirt ×5、oak_log ×2 | dirt ×29 |
+
+**第 6、7、8 级圆石花费为零——它们垒的是泥土。**
+所以 ladder-6 那 10 块圆石不是「走路必然花圆石」，而是：
+**垒塔用手里恰好有的可放置物**。那一趟身上没泥土，就花了熔炉的圆石。
+
+⇒ 真缺陷改写为：**垒塔／解卡的取料不看下游需求**。修法方向是让取料有优先序
+（泥土/圆石这类无下游用途的优先，被下游账单点名的留到最后），而不是给每一级加补料。
+补料保留为安全网。
+
+⚠️ 两个副产品，都别忽略：
+- `[place]` 记的是 `useItemOn`，**包括开箱／交互**：`手持=minecraft:air 成功 ×12` 就是。
+  那一行里的「落点」字样对非放块用法是误导，下次改词。
+- **被拒的放置很多**（dirt 51 次、总成功 76 次）。「拒绝」占了四成，值得单独看一眼是不是
+  [[a-jump-is-not-a-gain]] 那一类（判在半空、格被占）。
+
+#### 新拦路者：第 9 级熔炼**成功了**，判词读在落袋之前
+
+`rung.IRON = FAILED — iron ingots smelted (0)`，而进程日志说：
+
+```
+[13:13:36] [smelt] INIT ok: furnace=92,64,82 target=6× raw_iron (have=6)
+[13:13:36] [smelt] LOAD ok: in=slot9 fuel=oak_log loaded=2100t need=1200t budget=1660t
+[13:14:36] [smelt] COLLECT: … made=6× iron_ingot taken=6 free=22->20
+```
+
+日志行序是决定性的，**中间没有任何一行**：
+
+```
+2074 [Render thread] [smelt] COLLECT: … made=6× iron_ingot taken=6
+2075 [Server thread] scene 'wd.journey09Iron' -> FAIL — iron ingots smelted (0)
+```
+
+**从炉子取货是客户端菜单点击，服务端要等包到才应用；而 `rig.carrying` 读的是
+`driver.fakePlayer()`——服务端那具身体。** 同一 tick 读，看到的是收货之前的背包。
+六个铁锭判成零，上面每一级都 BLOCKED 在它后面。
+
+预算不是原因：这一级 90 000 tick、熔炼那一步 12 000，实际只用了 5264。
+`smelt.lastError = null` 也不是「静默忽略」——**它是真的没出错**，出错的是判词。
+
+✅ 已修（待编译）：那次读数改成先等服务端跟上——
+`rig.await(() -> rig.carrying("minecraft:iron_ingot") >= 1 || ++settle[0] >= 40, 80, …)`，
+并新增 `iron_ingot.serverSettleTicks` 记等了几 tick。
+**条件写成「计数出现 **或** 计满 40 tick」而不是裸条件**：StageWright 里 `within` 到期本身就是 FAIL，
+只等「铁锭出现」会把一次诚实的「真没炼出来」变成步骤超时，丢掉那句点名原因的判词。
+
+⚠️ **这个接缝多半不止这一处。** 任何「客户端驱动的进程改了背包，紧接着服务端读 `carrying`」
+都同形。本轮只修铁级（有实证的那一处），但下次再遇到「进程日志说成功、判词说 0」，
+**先查这条**，别去查进程。同族：[[aiming-one-body-and-raying-another]]、
+[[the-write-side-was-split-the-read-side-was-not]]。
 2. **到达判据丢 y** 是独立缺陷，但**不要单独落地**：判据先学会 y 而上游还在，
    第 7 级会立刻翻红、读起来像回归。过渡期只把 y 差**写进证据行**（诚实的行，不判失败）。
 3. 熔炉差 4 块圆石按用户长期指令办：**先写死一步去补料**，不依赖上面两条的结论——

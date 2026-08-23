@@ -1681,8 +1681,25 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         ensureCarrying(rig, "minecraft:furnace", "熔炉", () -> makeRoomForAStation(rig, () -> {
         rig.attempting("熔炼铁锭：SmeltProcess 走不完（炉子要真的烧）");
         rig.drive(new SmeltProcess("minecraft:raw_iron", raw, null), 12_000, () -> {
+        // LET THE SERVER CATCH UP BEFORE COUNTING. Measured 2026-08-23, ladder-7, two adjacent log
+        // lines with nothing between them:
+        //
+        //   2074 [Render thread] [smelt] COLLECT: … made=6× iron_ingot taken=6
+        //   2075 [Server thread] scene 'wd.journey09Iron' -> FAIL — iron ingots smelted (0)
+        //
+        // The smelt SUCCEEDED. Collecting from a furnace is client-side menu clicking; the server
+        // applies it when the packets arrive. `rig.carrying` reads `driver.fakePlayer()` — the
+        // SERVER player — so a read in the same tick as the collect sees the inventory from before
+        // it. Six ingots, judged as zero, and every rung above BLOCKED behind it.
+        //
+        // The wait is a tick counter OR the count, never a bare condition: `within` expiring is
+        // itself a FAIL in StageWright, so waiting only on「ingots appear」would convert an honest
+        // "smelted nothing" into a step timeout and lose the message that names the cause.
+        int[] settle = {0};
+        rig.await(() -> rig.carrying("minecraft:iron_ingot") >= 1 || ++settle[0] >= 40, 80, () -> {
             int ingots = rig.carrying("minecraft:iron_ingot");
             rig.evidence("iron_ingot", ingots);
+            rig.evidence("iron_ingot.serverSettleTicks", settle[0]);
             rig.evidence("furnace.after", rig.carrying("minecraft:furnace"));
             rig.evidence("smelt.lastError", String.valueOf(rig.slotError("smelt")));
             rig.noteAdvancement("minecraft:story/smelt_iron");
@@ -1702,6 +1719,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // — and it is worth having even on the runs where the walk succeeds, because then the
             // next rung's failure is provably NOT about where it started.
             walkHome(rig, "iron", () -> rig.reach("铁锭 ×" + ingots + " 出炉"));
+        });
         });
         }));
     }
