@@ -76,7 +76,7 @@
 | 🟠 待做 | J23 | `ElytraProcess:170`（`!p.isFallFlying()` 中途退出）也不戳，**但这一个出口同时是「落地了」和「翅膀在半空断了正在下坠」**（注释自己写着后者）。判成哪个是行为决策不是卫生，唯一能区分的读数在 `elytraDebug` 后面。janitor 正确地没动 | 我 |
 | 📌 记着 | J24 | `JourneyShaft.supportUnder` 用 `rig.ctx().level()`，**latent**：所有调用点现在都在主世界，安全；哪天有人在下界/末地调它就读错世界。⚠️ 它和 `JourneyEndRungs.supportUnder` **方法体逐字相同而读的 level 不同**（后者用 `levelOf(rig)`＝身体所在世界，19 级之后不是 `ctx.level()`）——**合并会弄坏末地的级，别顺手合** | janitor |
 | 🔴 待做 | J24b | **同一个三项式，喂进去的输入不一样，一个推指针一个决定跳。** `WalkerTickProgress:552` 和 `WalkerTickClimb:889` 都是 `shaftFlooded \|\| p.isInWater() \|\| isWater(step.below())`（一字不差），但 Climb 那边的 `shaftFlooded` 在 886-888 多一条 `&& !isWater(step.above())` 会把它清回 false ⇒ **同一 tick 两个答案**。排在 J21/J22 之前：「同一判据两个答案」是这两天所有事故的母形状。⚠️ **要一条能分辨两个答案的场景，不是一次重构** | janitor 报，我判 |
-| 🟠 待做 | J25 | `WorldView.isSubmergedFoot(foot)` 读作「脚被淹了」，测的是 `isWater(foot+2)`——**头顶再上一格**。唯一调用点 `WalkerTickDrive:944` 用得对（它要的就是「深到头顶以上都是水」），纯预防性 rename（`isDeepWaterColumn`）。同族：[[a-reading-is-not-the-quantity-it-looks-like]] | janitor |
+| ❌ 撤回 | J25 | ~~`isSubmergedFoot` 名字撒谎，rename~~ **是假缺陷，别改。** 我已核：调用点**六处**不是一处（`WalkerTickDrive`／`SurfaceDive`／`SwimAshoreBreak`／`SwimBankClimbBreak`／`SwimDown`／`PathFinder`），且声明处 `WorldView:337` 起有整段 javadoc，第一句就把量写死——「water still fills the cell TWO above the foot」。**名字短 ≠ 名字撒谎**。⚠️ 这条的成因：报的人只 grep 了一个文件就写下「唯一调用点」，而 `-A 8` 的窗口没盖到那段 javadoc。**假缺陷比漏报贵**——它会让人去改本来正确的代码（[[a-verification-tool-needs-verifying-too]]） | janitor 报并自行撤回 |
 | 🟠 待做 | Q30 | **追猎全程零行日志。** ladder-14 的 FOOD 关卡 `猎到 minecraft:cow，得生肉 ×5`，而整段窗口里没有任何一行说牛什么时候死、被谁打死、打了几下——`[dig]` 那些行是因为攻击也按着 `keyAttack`。于是「goto 走到了」和「牛自己撞上来」**分不出**，一条 2392 tick 的腿的结局无法归因。这不是「忘了打日志」，是**一整族动作没有仪器**（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第七个现场，这次连开关都没有） | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
@@ -1131,6 +1131,30 @@ janitor 扫全仓的结果（只报未改）。留在这里是因为**加宽真�
 
 ⚠️ **不要在双 loader 闸的两趟之间落这笔代码** —— 每个 gradle 运行任务都编译此刻的树
 （[[the-shared-tree-is-the-real-boundary]]），中间插一笔会让两个 loader 跑的不是同一份东西。
+
+### 普查已落（2026-08-23）—— 以及**这趟闸证明不了它**
+
+三处：`Walker.futileGateBuckets`（9 桶 `AtomicLongArray` + `FUTILE_GATE_BUCKETS` 名字数组）、
+`WalkerTickSearch.futileGateExcluded()`（按闸自己的书写次序 first-match，0–5 是排除、6–8 是闸真的判了）、
+`JourneyRig` 的**逐级 delta**（`futileAtStart` 在 rig 构造时拍基线，行发在 `enter()` 那个
+`ctx.cleanup` 里、在讣告之前且不受 `claimed` 约束）。
+
+四个坑都避开了：计数在 `if` **之前**（否则头号嫌疑人 `goalReached` 恒为零）；
+pass／fail／timeout／死亡**都写**（`strideGuardLine` 只在死亡写，那正是要修的病）；
+逐级 delta 不是累计（静态计数器全 JVM 共享，累计会把 1–8 级混进 9 级那行）；
+`AtomicLongArray` 而非 `long[]`（否则全零有第二种读法）。
+
+⚠️ 预算闸当场拦了一次：`WalkerTickSearch.run()` grandfathered 在 278，
+if/else 改法推到 280 ⇒ 红。把计数收进 helper 才回绿——**和 J20 的 `ElytraProcess.tick()`
+243→250 是同一条闸**（[[a-file-pinned-at-its-budget]]）。
+
+**预登记（写在读闸结果之前）**：专用服套件里 `wd.journey*` 只有 **`wd.journeyArmed` 一条**。
+所以这趟双 loader 闸的判词只能是「普查没碰坏别的」，**不能读成「普查会说话」**——
+后者的第一次证据在 **ladder-16**，判据是：每一级都有一行 `futileGate`，
+且各行的桶和等于该级的搜索数。三态：
+- ✅ 已验 —— 每级一行、和自洽、且至少一级的 `脚格是水` 非零（复现 318 那簇的成因）；
+- 🟡 未触发 —— 有行但全零（走行器没搜过路，**不是**判词）；
+- ❌ 证伪 —— 有级没有行（说明 `cleanup` 不是我以为的必经路径）。
 
 ---
 
