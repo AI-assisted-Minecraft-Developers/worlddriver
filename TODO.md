@@ -1147,6 +1147,23 @@ opt-in **只给 preferred-id 支**：id 是调用方的明示指令，`preferred
 `wd.vineOverWaterClimb`。**`wd.serverTowersWithAFullBackpack` 必须仍 PASS**——它没 opt in，
 所以 opt-in 若渗漏到了默认支，这一条会红，而它红就是「修法泄漏」的直接证据，不是环境噪声。
 
+#### 第 5 趟整梯预登记（三种形状，读结果前落盘）
+
+读的是 `vein*.climb.*.stalled` / `.stock` / `vein*.exit#*.gained` 三行，**先分类再解释**：
+
+| # | 形状 | 读作 |
+|---|---|---|
+| 1 | `.stalled` 缺席（塔跑完）+ `gained=N/N` + `.stock` **下降** + `walkerFallback` 不再出现 | **修好了**——塔自己花掉了圆石，高度不是后备带上去的 |
+| 2 | `.stalled = stuck (no Y gain in 60t: placed=0…)` | 手的链通了，嫌疑转到**跳跃闸**（[[the-jump-that-never-fired]] 那支重新上台） |
+| 3 | 仍是 `no placeable block in hotbar` | **opt-in 没到达这个调用点**——去查 `JourneyShaft` 实际走的是哪个构造器，不是去加宽扫描 |
+
+⚠️ **`.stock` 必须真的下降。** `gained=N/N` 单独不算数：上一趟两座塔都「到了高度」，
+靠的是 `walkerFallback=True`，存量一格没动。[[a-stock-reading-is-not-a-spend]]。
+
+⚠️ **下一个候选死因已经在数里了：`death.food = 2/20`**（上一趟死时 13/20）。塔修好后
+身体活得更久，饿死链——无冲刺、半心地板、任何小伤致死——排在塔后面。**本趟不修**，
+若第 9 级过了，把各级边界的 food 走势读一遍再决定。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 ⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
