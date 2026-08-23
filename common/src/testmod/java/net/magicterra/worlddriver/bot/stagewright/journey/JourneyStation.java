@@ -27,10 +27,35 @@ final class JourneyStation {
 
     private JourneyStation() { }
 
+    /**
+     * After a craft, put the table back in the bag — and say so on every exit.
+     *
+     * <p>All three exits used to be silent but one, and the two quiet ones are where the ladder's
+     * oldest tax hides. Measured across ladder runs 11–14, the bed rung wrote <b>not one</b>
+     * {@code craftingTable.*} row and the furnace rung that follows it opened
+     * {@code standing=none / pickup.left=0 / remade=true} in <b>4 of 4</b> runs: the table the stone
+     * rung carried out is gone by the next craft, and no row anywhere says when or how. A rung that
+     * only reports the re-purchase blames the rung that pays, not the rung that loses it.
+     *
+     * <p>So each exit writes its own key, and the lost case carries the three readings that tell its
+     * causes apart — a 4-block search is what this method acts on, but a 32-block one, the drop
+     * census and the body position separate "the craft walked the body out of its own radius" from
+     * "it was broken and the drop was never collected" from "it was never placed at all". Those want
+     * opposite repairs, and the inventory count reads 0 for all three.
+     */
     static void reclaimTableIfLeftStanding(JourneyRig rig, Runnable then) {
-        if (rig.carrying("minecraft:crafting_table") > 0) { then.run(); return; }
+        int inBag = rig.carrying("minecraft:crafting_table");
+        if (inBag > 0) { rig.evidence("craftingTable.keptInBag", inBag); then.run(); return; }
         BlockPos standing = rig.nearestBlock("minecraft:crafting_table", 4, 3);
-        if (standing == null) { then.run(); return; }
+        if (standing == null) {
+            BlockPos wider = rig.nearestBlock("minecraft:crafting_table", 32, 6);
+            rig.evidence("craftingTable.lostAfterCraft", "包里 0，脚下 4 格内没有立着的桌子；"
+                    + "放宽到 32 格=" + (wider == null ? "还是没有" : wider.toShortString())
+                    + "，地上掉落 " + rig.dropsNearby("minecraft:crafting_table", 32) + " 个，"
+                    + "身体在 " + rig.player().blockPosition().toShortString());
+            then.run();
+            return;
+        }
         rig.evidence("craftingTable.tookItAlong", standing.toShortString());
         takeTableWhereItStands(rig, standing, then);
     }
