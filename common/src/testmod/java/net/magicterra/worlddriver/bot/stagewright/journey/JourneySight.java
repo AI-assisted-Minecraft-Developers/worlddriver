@@ -21,7 +21,9 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>The eye the chooser used is one no body ever has</h2>
  *
- * <p>{@code JourneyPortalRung#standToAimAt} weighed each candidate by clipping from
+ * <p>{@code JourneyPour#standToAimAt} — <b>that file, not {@code JourneyPortalRung}</b>, which this
+ * paragraph named for a while and which has never had such a member; the rung only calls
+ * {@code JourneyPour.standToPour}/{@code standToFill} — weighed each candidate by clipping from
  * {@code (foot.x + 0.5, foot.y + float + eyeHeight, foot.z + 0.5)} — the exact centre of the cell,
  * at a height guessed by adding a whole block when the cell holds fluid. A real body is at neither.
  * A player's box is 0.6 wide, so its centre rests anywhere in {@code [0.2, 0.8]} of its own cell —

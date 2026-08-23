@@ -138,6 +138,46 @@ silent no-op — the class of change that looks like tidying and removes a capab
 
 `python scripts/check_source_budget.py` → **exit 0**（本轮全部改动都是注释与 `TODO.md`）。
 
+### ④ 「点名了另一处」的全量核对：**两条不一致 + 一条真缺陷**
+
+把 ① 那条线索当作一类断言全仓跑了一遍（`{@link Class#member}` / `{@code Class.member}` /
+「same as X」「mirrors X」的机械存在性 + 逐条语义核对，testmod 与 `main/bot` 全量）。
+
+**已落**：`JourneySight.java:24` 点名 `JourneyPortalRung#standToAimAt` —— **那个成员从来不存在**
+（鞍点在 `JourneyPour.java:803`，鞍上那段格心几何也确实是被这个类取代掉的历史做法，叙述本身对）。
+改成点对文件，并把「不是 `JourneyPortalRung`」写进注释，免得下一个人再顺着找一遍。
+
+**没落，但值得下一轮做**（按价值排）：
+
+1. 🔴 **`BackfillProcess:52` / `BuildProcess:59` 在身体消失时不写 `st.builder.lastError`，
+   而共享同一份状态的 `BboxFillProcess:65` / `FarmProcess:71` 写。**
+   这不是风格差异：`BotState.Builder.reset()` 的最后一行逐字写着
+   `// keep lastError so the agent can read it after wait.condition fires` —— **reset 刻意保留
+   lastError**。所以「不写」不等于「不印」，而是**印上一趟遗留的死因**：agent 在
+   `wait.condition` 之后读到一条来自别的运行的错误信息，并被它指向错误的地方。
+   四个进程对同一个概念（身体没了怎么收场）算了两种。修法两行，
+   但**是 `common/src/main`，要报备 + 一趟双 loader 的闸**，本轮禁编译，只报。
+2. 🟡 `ClientWorldView.java:336-342`（同一断言在 `:360` 又写一遍）声称
+   「mirrors the same geometry as `Move#bankClimbContext`」，而本处传
+   `BotConfig.swimBankClimbMaxHeight + 2`，被点名处唯一调用方
+   `SwimBankClimbBreak.java:43` 传的是不带 `+2` 的同一个值；本处也没有对方开头那句
+   `if (w.isWater(from)) return true;` 快路径（`Move.java:352`）。
+   `+2` **方向上是保守的**（更深的窗仍然覆盖 move 会发出的每个候选，所以
+   "also priced finite" 的推论不破），所以这大概率是**注释太满**而不是缺陷 ——
+   但那个 `+2` 全仓没有一个字解释它。**按代码改注释**是安全方向，产品代码要报备。
+3. 🟡 `WorldDriverActuatorSplitScenes.java:659-666` 那段 javadoc 和下一段**叠在一起**，
+   Java 只认后一段 —— 于是它现在挂在 `requirementDrift`(:684) 上，而它描述的
+   `aimFromEyeTo`(:806) 无文档。**算术三处一致，核过了**，纯挂载位置问题。testmod，可自取。
+
+**排除掉的**（下轮别重查）：`JourneyHands.aimBoth`/`holdBoth`、`breakItWhereItStands`、
+`JourneyPortalEntryScenes.swing` 的身体选择全部与注释相符；`pathfinderMaxMs`↔`DEFAULT_MAX_MS`、
+三处 `LIP_TAX=300`、`BANK_REACH`/`STATION_REACH`=8、`SWING_EVERY/MELEE_REACH`=20/4.5 全部对得上；
+`aimedAt(…, hitFluids)` 六个调用点的 true/false 与各自注释相符（scoop 捡液体用 `true`，
+pour/clearPlant 满桶用 `false`）；八个 parkour move 的三道闸同形。
+`{@link Walker#FUTILE_BANK_DIG_TICKS}` 等**四处常量已搬到 `WalkerConstants`**、
+`JourneyRig.java:992` 的行号指错（1409→1659）—— 前者会碰 `BotConfig`（J7 冻结），
+后者是 topology 的产权，**都没动**。
+
 ---
 
 ## ✅ 三闸全绿：闸债结清（Q15a，2026-08-23）
