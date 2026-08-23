@@ -1187,6 +1187,46 @@ TIMEOUT 仍停在最后一次心跳的值上——**滞后而说明了滞后，�
 
 ---
 
+## 🔴 Q31：集成 NeoForge 首跑 RED —— `drownEscapeClientPinnedByNeighbourColumn` ENV_FAIL
+
+```
+02:18:11 [scheduler] chain drownEscape -> idle          ← 上一条场景的链才放手
+02:18:21 scene 'wd.drownEscapeClientPinnedByNeighbourColumn' -> ENV_FAIL (0 ticks, 10002 ms)
+         all 9 arena chunks loaded but only 0 reached entity-ticking after 201 ticks
+         Dimension minecraft:overworld at 249504,100000
+```
+
+**紧邻的前一条 `wd.drownEscapeClientRisesInOpenWater` PASS，`prep.ticks=19 / prep.ms=856`**
+—— 同一族、同一拓扑、隔壁竞技场，提升毫无问题。所以不是「这个拓扑起不了竞技场」。
+
+已确定的边界条件（先写下来，免得复盘时当新证据）：
+
+- 这条场景 **2026-08-23 11:41 才加**（`f0c8deba`），**集成 NeoForge 从没跑过它**——
+  「以前是绿的」这句话在这个拓扑上**不存在**，别去找它；
+- 同一条场景在**集成 Fabric**（今天本地 12:49）**PASS 且未 skip**，所以场景本身能跑；
+- 专用服的三趟里它都是 `skipped=True`（客户端场景），
+  所以今晚数了三遍的 305 **从来没包含过它**（[[skip-is-not-coverage]]）；
+- 我今晚的四笔改动是日志行 + testmod journey 代码，**够不着区块提升**，
+  而失败发生在 PREP、场景体一 tick 都没跑（`0 ticks`）。
+
+**假说**：竞技场的票只把区块钉成 loaded，entity-ticking 仍要身体在附近
+（[[test-arena-needs-its-own-ticket]]、[[empty-level-stops-ticking]]），
+而上一条场景的 `drownEscape` 链在这一条 PREP 开始时还握着身体，
+所以身体没被送进新竞技场 —— 即 **PREP 与上一条场景的收尾在抢同一具身体**。
+
+**预登记（原样重跑一趟集成 NeoForge，读结果前写）**：
+
+- ❌ **确定性成立** —— 同一条再 ENV_FAIL ⇒ 这个 loader 上的真缺陷，进队列按假说查；
+- 🟡 **时序性偶发** —— 这趟绿 ⇒ **不等于没事**（[[three-greens-cannot-see-a-one-in-four]]），
+  记为「一次可复现失败、一次通过」，要的是**观察到收尾/PREP 的交接**，不是再数几个绿；
+- ⚠️ **换了别条红** —— 说明不是这条的问题，是这个拓扑的场景间隔离本身不稳。
+
+⚠️ 判词里写 **105**，不是 309：这个拓扑上 **201 条 skip**，理由都是同一句
+「集成服上有真实客户端…不许再造无头身体（JoinedBody 仅限专用测试服）」。
+身体选型指令让三分之二的场景在这里不可测，**这是设计，不是缺陷，但它必须出现在覆盖率那一栏**。
+
+---
+
 ## 🎯 ladder-16 预登记（**写在开跑之前**，2026-08-23）
 
 真梯不可复现（[[the-ladder-is-not-reproducible]]），所以**级数不能跨趟比**，可比的只有死因族
