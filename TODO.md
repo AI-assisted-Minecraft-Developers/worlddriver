@@ -298,6 +298,40 @@ republish 单开一个槽，不要混进那一轮闸：那会把 loom 三层缓�
 
 ---
 
+## 🔴 集成 NeoForge：竞技场的 9 个区块一个都不加载（Q15c，2026-08-23）
+
+唯一的死因，一条：
+
+```
+pack.placesAndReadsBack -> ENV_FAIL (0 ticks, 10001 ms)
+  the arena never became usable: only 0 of 9 arena chunks ever loaded after 201 ticks,
+  and that stopped changing 201 ticks ago. Dimension minecraft:overworld at 250528,100000.
+```
+
+**不是回归**：`gate-nf-integrated.log`（改动之前）同样 RED，
+`gate-nf-integrated3.log` 记的是**同一条** ENV_FAIL。
+
+**四条读数把范围收到了「NeoForge × 集成」这一个交叉格：**
+
+| 拓扑 | `pack.placesAndReadsBack` | tps |
+|---|---|---|
+| 专用 NeoForge | **PASS**（1 tick, 143 ms） | — |
+| 集成 **Fabric** | **PASS**（1 tick, 872 / 4409 ms 两趟） | 20/20 |
+| 集成 **NeoForge** | **ENV_FAIL**，0/9 区块 | 20/20 |
+
+- **不是慢 tick**：三边 `tps.baseline=20, tps.loaded=20`，而且 PREP 自己数到了 201 tick。
+- **不是坐标离谱**：同一个 `250528,100000`，另外两条拓扑上都能用。
+- ⇒ 差别只可能在**这一个交叉格里的区块票**：NeoForge 的客户端自建服上，
+  StageWright 用来钉住竞技场的那条路没生效。
+
+**下一步要的是读数，不是又一轮候选**（[[a-signature-loads-what-a-local-does-not]] 的教训）：
+给 StageWright 的竞技场 PREP 加一行——**申请了什么票、票落在哪个 level 对象上、
+`chunkSource` 当时怎么回答**。它要跟 `Perf.clientFps` 的 memoize（`19b18c2`）
+**同一次 `publishToMavenLocal` 一起发**，那一趟同时兑现两条验证签名：
+120 行变 0，且这一条从 ENV_FAIL 变 PASS。
+
+---
+
 ## 📌 ladder-8 预登记（写在读结果之前，2026-08-23）
 
 ladder-7 停在 9 级 IRON：`[smelt] COLLECT: made=6× iron_ingot taken=6` 在日志第 2074 行，
