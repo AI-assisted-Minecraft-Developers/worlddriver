@@ -9,6 +9,9 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.network.protocol.game.ServerboundContainerClosePacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -118,6 +121,71 @@ public final class BotInteract {
         boolean ok = mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p));
         if (ok) p.swing(InteractionHand.MAIN_HAND);
         return ok;
+    }
+
+    /**
+     * The execution-layer row for {@code DrownEscapeChain}'s pure-vertical arm.
+     *
+     * <p><b>Here rather than in the chain, for the same reason {@link #continueDestroy} is.</b> The
+     * row reads {@code p.input}, which only {@code LocalPlayer} has. A method DECLARED on a chain
+     * with {@code LocalPlayer} in its descriptor is resolved when that chain's class is prepared,
+     * and the gate's matrix scenes construct chains on a DEDICATED SERVER — measured 2026-08-23,
+     * declaring it there turned {@code wd.drownEscapeGateMatrix} and {@code wd.drownEscapePreempt}
+     * into <i>"Cannot load class net.minecraft.client.player.LocalPlayer in environment type
+     * SERVER"</i>, at 0 ticks, on {@code new DrownEscapeChain()}. {@code javap -p} on the chain
+     * named the two offending descriptors in one line. This class already names {@code LocalPlayer}
+     * throughout, so an {@code invokestatic} into it costs the chain nothing.
+     *
+     * <p>Every field separates exactly one candidate, so none is decoration:
+     * <ul>
+     *   <li>{@code 跳读回} is read back off the player's own {@code Input} — what
+     *       {@code AvatarInput#tick} actually left there last tick, <b>not</b> what the chain asked
+     *       for. That channel is last-writer-wins with nine writers, so "we commanded it" is a
+     *       different claim from "it landed".</li>
+     *   <li>{@code 撞顶} ({@code verticalCollision}) is the one-row proof of "buoyancy IS applying
+     *       and something is in the way" — the state every column scan in the chain is blind to. A
+     *       body neither rising nor sinking is pinned, and only this says so without arithmetic on
+     *       two samples 200 ticks apart. It is true for a body standing on the FLOOR too, so the
+     *       pin signature needs {@code 着地=false} alongside it.</li>
+     *   <li>{@code 身体跨柱} prints the cells the box actually straddles at the lid's height, not
+     *       the one cell {@code blockPosition()} names. A body at x=-27.716 has its edge at
+     *       -28.016 — 0.016 inside the NEXT column, which every single-column scan ignores.</li>
+     *   <li>{@code 破盖中} makes the break arm visible at all.</li>
+     * </ul>
+     *
+     * <p>Unconditional by design: gates never set {@code walkerDebug}, so a flag here would mean no
+     * rows in exactly the runs that need them. The {@code %10} throttle lives at the call site.
+     */
+    public static void drownVerticalRow(Minecraft mc, LocalPlayer p, BlockPos lid,
+                                        boolean lidBlocksRise, boolean breaking) {
+        if (mc.level == null) return;
+        AABB box = p.getBoundingBox();
+        // With nothing in the way `lid` is null, and the row still has to say WHICH cells were
+        // looked at — a reader diagnosing「没升」needs the neighbours named on the clear ticks too,
+        // otherwise the interesting rows have no baseline to differ from.
+        int scanY = lid != null ? lid.getY() : p.blockPosition().getY() + 2;
+        StringBuilder straddled = new StringBuilder();
+        // maxX/maxZ are EXCLUSIVE edges: a box ending exactly on a boundary does not occupy the
+        // next cell, and floor(maxX) would name one it never touches. Vanilla's own convention.
+        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
+            for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
+                BlockPos c = new BlockPos(x, scanY, z);
+                BlockState bs = mc.level.getBlockState(c);
+                if (straddled.length() > 0) straddled.append('，');
+                straddled.append(c.toShortString()).append('=')
+                        .append(BuiltInRegistries.BLOCK.getKey(bs.getBlock()))
+                        .append(bs.getCollisionShape(mc.level, c).isEmpty() ? "" : "(实心)");
+            }
+        }
+        LOG.info("[drownEscape] 竖直支 y={} 落速={} 跳读回={} 着地={} 撞顶={} 水={} 没顶={} 水高={} 气={} "
+                        + "盖格={} 盖挡={} 破盖中={} 身体跨柱={}",
+                String.format(Locale.ROOT, "%.3f", p.getY()),
+                String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y),
+                p.input != null && p.input.jumping, p.onGround(), p.verticalCollision,
+                p.isInWater(), p.isUnderWater(),
+                String.format(Locale.ROOT, "%.3f", p.getFluidHeight(FluidTags.WATER)),
+                p.getAirSupply(), lid == null ? "无（升路是通的）" : lid.toShortString(),
+                lidBlocksRise, breaking, straddled);
     }
 
     /** Internal — used by BuildProcess to drive the real placement pipeline

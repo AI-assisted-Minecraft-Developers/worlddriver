@@ -17,12 +17,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
 import static net.magicterra.worlddriver.bot.util.BotInteract.continueDestroy;
+import static net.magicterra.worlddriver.bot.util.BotInteract.drownVerticalRow;
 import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 
 /**
@@ -215,7 +217,7 @@ public final class DrownEscapeChain implements Chain {
         // 2026-08-23, wd.drownEscapeClientPinnedByNeighbourColumn:「跳读回=true 撞顶=true 盖挡=false」
         // — the command landed, physics said blocked, the scan said clear — 200 ticks, 0.000 blocks.
         // The live death it reproduces spent 261 ticks the same way.
-        BlockPos lid = blockedAbove(mc, p);
+        BlockPos lid = blockedAbove(p);
         boolean lidBlocksRise = lid != null;
         boolean breaking = false;
         // RECENTRE, before reaching for a pick. When the rise is blocked but the body's OWN column
@@ -265,7 +267,11 @@ public final class DrownEscapeChain implements Chain {
         // never takes, and the zero it leaves cannot be told apart from「the arm never ran」.
         // Same lesson, same day, as BotInteract's [place] row. The %10 throttle stays: this arm
         // only ticks while a body is actually drowning, so the volume is an episode, not a stream.
-        if (dbgV++ % 10 == 0) verticalRow(mc, p, lid, lidBlocksRise, breaking);
+        // Through BotInteract for the same reason continueDestroy above goes through it: the row
+        // reads p.input, which only LocalPlayer has, and a method DECLARED here with LocalPlayer in
+        // its descriptor stops this class loading on a dedicated server. An invokestatic resolves
+        // its owner, not its owner's dependencies. See blockedAbove's note for what that cost.
+        if (dbgV++ % 10 == 0) drownVerticalRow(mc, p, lid, lidBlocksRise, breaking);
     }
 
     /** How far up the body's own box is swept to ask「这一升会不会撞上东西」. Half a block: far
@@ -290,15 +296,28 @@ public final class DrownEscapeChain implements Chain {
      *
      * <p>The list comes back lowest-first and the lowest is what this arm wants: that is the face
      * actually bearing on the body.
+     *
+     * <p><b>The parameter is {@link Player}, not {@code LocalPlayer}, and that is load-bearing.</b>
+     * A method DECLARED here whose descriptor names a client class gets resolved when this class is
+     * prepared — and this chain is constructed on a dedicated server by the gate's matrix scenes
+     * ({@code new DrownEscapeChain()} in {@code wd.drownEscapeGateMatrix}). Measured 2026-08-23:
+     * declaring it {@code (Minecraft, LocalPlayer)} turned two green matrix scenes into
+     * <i>"Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER"</i>.
+     * {@code javap -p} named the cause in one line — those were the only two members in the whole
+     * class whose descriptors mentioned {@code LocalPlayer}. Holding a client type in a LOCAL and
+     * calling methods on it stays fine; putting one in a signature declared here does not. The row
+     * printer that genuinely needs {@code LocalPlayer.input} moved to {@code BotInteract} for the
+     * same reason — see {@code BotInteract#drownVerticalRow}.
      */
-    private static BlockPos blockedAbove(Minecraft mc, LocalPlayer p) {
-        if (mc.level == null) return null;
+    private static BlockPos blockedAbove(Player p) {
         List<BlockPos> hits = WalkerGeometry.riseBlockers(p, RISE_PROBE);
         return hits.isEmpty() ? null : hits.get(0);
     }
 
-    /**
-     * The execution-layer row for the pure-vertical arm.
+    /*
+     * The execution-layer row for the pure-vertical arm — BODY IN BotInteract#drownVerticalRow.
+     * Deliberately a plain comment, not javadoc: there is no member here to attach it to, and a
+     * javadoc block with nothing under it silently documents whatever comes next.
      *
      * <p>Before this existed the arm printed <b>nothing</b> per tick, and the lid-break sub-arm
      * printed nothing ever. The log it left behind therefore could not tell apart the three ways a
@@ -324,40 +343,12 @@ public final class DrownEscapeChain implements Chain {
      *       {@link #nearestBreathable} and the {@code lid} cell all ignore.</li>
      *   <li>{@code 破盖中} makes the break arm visible at all.</li>
      * </ul>
+     *
+     * <p><b>The body lives in {@code BotInteract#drownVerticalRow}, not here.</b> It reads
+     * {@code p.input}, which only {@code LocalPlayer} has, and a method DECLARED in this class with
+     * {@code LocalPlayer} in its descriptor stops the class loading on a dedicated server — see
+     * {@link #blockedAbove} for the measurement that established it.
      */
-    private static void verticalRow(Minecraft mc, LocalPlayer p, BlockPos lid,
-                                    boolean lidBlocksRise, boolean breaking) {
-        if (mc.level == null) return;
-        AABB box = p.getBoundingBox();
-        // With nothing in the way `lid` is null, and the row still has to say WHICH cells were
-        // looked at — a reader diagnosing「没升」needs the neighbours named on the clear ticks too,
-        // otherwise the interesting rows have no baseline to differ from. Fall back to the cell the
-        // pre-2026-08-23 code hard-coded, so the two eras' rows line up.
-        int scanY = lid != null ? lid.getY() : p.blockPosition().getY() + 2;
-        StringBuilder straddled = new StringBuilder();
-        // maxX/maxZ are EXCLUSIVE edges: a box ending exactly on a boundary does not occupy the
-        // next cell, and floor(maxX) would name one it never touches. Same convention vanilla's
-        // own collision sweep uses.
-        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
-            for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
-                BlockPos c = new BlockPos(x, scanY, z);
-                BlockState bs = mc.level.getBlockState(c);
-                if (straddled.length() > 0) straddled.append('，');
-                straddled.append(c.toShortString()).append('=')
-                        .append(BuiltInRegistries.BLOCK.getKey(bs.getBlock()))
-                        .append(bs.getCollisionShape(mc.level, c).isEmpty() ? "" : "(实心)");
-            }
-        }
-        LOG.info("[drownEscape] 竖直支 y={} 落速={} 跳读回={} 着地={} 撞顶={} 水={} 没顶={} 水高={} 气={} "
-                        + "盖格={} 盖挡={} 破盖中={} 身体跨柱={}",
-                String.format(Locale.ROOT, "%.3f", p.getY()),
-                String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y),
-                p.input != null && p.input.jumping, p.onGround(), p.verticalCollision,
-                p.isInWater(), p.isUnderWater(),
-                String.format(Locale.ROOT, "%.3f", p.getFluidHeight(FluidTags.WATER)),
-                p.getAirSupply(), lid == null ? "无（升路是通的）" : lid.toShortString(),
-                lidBlocksRise, breaking, straddled);
-    }
 
     @Override public void onInterrupt(Chain by) { releaseHeldKeys(); }
 
