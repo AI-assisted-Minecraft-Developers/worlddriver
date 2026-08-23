@@ -12,6 +12,7 @@
 | ✅ 已测 | Q5b | ladder-8：**10/20**（8→10，9 级 IRON 与 10 级 PORTAL_KIT 首过），死在 11 级 | 我 |
 | ✅ 已绿 | Q15a | **闸债已还**：三闸全 GREEN（集成 NeoForge／专用 Fabric／专用 NeoForge），溺水类加载缺陷结案，见下 | 我 |
 | ✅ 已绿 | Q15b | **第二轮闸**（ladder-9 之后积的九笔）：专用 Fabric GREEN 305/28、专用 NeoForge GREEN 305/27，非 PASS 与上一轮**逐条相同**，classload 0 | 我 |
+| 🔴 排队 | Q15c | **集成 NeoForge 一直是 RED**，唯一死因 `pack.placesAndReadsBack` ENV_FAIL：`0 of 9 arena chunks ever loaded after 201 ticks`。改动前后同因，非回归。见下 | 我 |
 | 🔄 在跑 | Q16b | 11 级 `short_grass` 清不掉：清理取了**客户端** avatar，隔壁文件一直是服务端那具（`337a35e2`）。ladder-9 验 | 我 |
 | ⏭ 排队 | Q13 | 🔴 **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗 | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
@@ -204,7 +205,7 @@ pour/clearPlant 满桶用 `false`）；八个 parkour move 的三道闸同形。
 
 | 闸 | 判词 | 结果文件 PASS（含跳过） | 结果文件里带 skipped 理由的行 | 非 PASS |
 |---|---|---|---|---|
-| `stagewrightIntegratedServerNeoforge` | 306 PASS | 306 | — | 2 金丝雀 + `pack.placesAndReadsBack` ENV_FAIL |
+| `stagewrightIntegratedServerNeoforge` | ⚠️ **RED**（此前我只记了「306 PASS」，避重就轻，已改） | 306 | 204 | 2 金丝雀 + `pack.placesAndReadsBack` **ENV_FAIL** |
 | `stagewrightDedicatedServerFabric` | **GREEN** | 305 | 28 | 2 金丝雀 + `wd.vineOverWaterClimb` + `wd.serverEscapeSealedShelter`（都 `required:false`） |
 | `stagewrightDedicatedServerNeoforge` | **GREEN** | 305 | 27 | 同上四条 |
 
