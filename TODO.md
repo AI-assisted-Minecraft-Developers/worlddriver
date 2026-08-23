@@ -909,6 +909,39 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 
 ---
 
+## 📏 PREP 耗时第一份分布：尾巴是中位的四十倍（Q15c，2026-08-23）
+
+`c94e30e` 让每条场景无条件写 `prep.ticks`／`prep.ms` 之后的第一趟
+（专用服 Fabric，`results-q26-fabric.jsonl`，309 条场景 308 条带行）：
+
+```
+ticks  min 3   / 中位 4   / max 91
+ms     min 52  / 中位 102 / max 4448
+超过 1 秒的：14 / 308
+```
+
+最慢的十条全在 3.9–4.4 秒、80–91 tick，名字集中在 `wd.server*` 那一族 ——
+**是第一次踩到新竞技场区域的那几条**，后面的复用已加载的区块。
+
+**这就是 Q15c 要的那个量。** `pack.placesAndReadsBack` 一趟 ENV_FAIL(10001ms)、
+下一趟 PASS(3336ms)，先前判为「又慢又飘、不是修好了」是**对的**，而现在有了形状：
+本来就存在一条 40 倍于中位的尾巴，专用服上顶到 4.4 秒／10 秒上限，**2.3 倍余量**。
+集成 NeoForge 上那条尾巴只要再长一倍就会翻过去。
+
+⚠️ **一趟不是分布**（[[three-greens-cannot-see-a-one-in-four]]）。这里能说的只有
+「专用 Fabric 这一趟的尾巴长这样」。要结案还需要**集成 NeoForge** 的同一份数
+—— 那是 `pack.placesAndReadsBack` 真正跑的地方，而这一趟根本没跑它。
+
+**仪器自检**：唯一没有 `prep.*` 的是 `cap.dimensionAbsentIsARecordedSkip` ——
+它走的是 `ctx == null` 的 ENV/skip 分支，按设计就没有 ctx。
+**缺席有解释，不是谜**（[[zero-of-one-is-not-a-smaller-zero-of-nine]] 的反面）。
+
+**顺带**：`CLAUDE.local.md` 写着「唯一的失败是 `wd.vineOverWaterClimb`」——**过期了**。
+专用 Fabric 上现在是**两条**可选失败：加上 `wd.serverEscapeSealedShelter`
+（`y=221.0 slotErr=carve timeout at 161440,224,99999`）。两轮判词逐字相同，不是回归。
+
+---
+
 ## 🎯 ladder-15 预登记（写在跑之前，2026-08-23）
 
 **Q26a（`cast.walk` 仪器）**
