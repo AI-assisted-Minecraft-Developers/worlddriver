@@ -481,8 +481,13 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // surroundings (`nearestPreyTarget` centres on it, `seeAtLeast` pins ITS chunks). Recon
         // reads terrain, which needs only a level. This reads entities, which needs somewhere to
         // stand. Six runs died on `还没有身体 —— SPAWN 阶段没有成功创建 avatar` before that landed.
+        // And then remove what world GENERATION put on the route, for the same reason the herd is
+        // surveyed here: this is the one moment the ladder is standing at spawn with nothing spent.
+        // See JourneyPeace for why `doMobSpawning=false` never covered it — the run of 2026-08-22
+        // died on rung 7 to a swamp-hut witch while the verdict row asserted「全程没有敌对生物」.
         surveyTheHerd(rig, () ->
-                rig.reach("空手立于出生点 " + Math.round(fp.getX()) + "," + Math.round(fp.getZ())));
+                JourneyPeace.sweepStructureHostiles(ctx, rig, () ->
+                        rig.reach("空手立于出生点 " + Math.round(fp.getX()) + "," + Math.round(fp.getZ()))));
     }
 
     // =====================================================================================
@@ -2817,26 +2822,28 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * midnight and turns off {@code doDaylightCycle}, {@code doWeatherCycle} and
      * {@code doMobSpawning}. Those pins were chosen so that ARENA scenes stop being decided by tick
      * alignment, and for a scene that resolves in one server tick they cost nothing. This ladder is
-     * the one family they are wrong for: it runs for hours, and the third pin means <b>nothing
-     * hostile ever spawns around it</b>. So every rung below is climbed in what amounts to peaceful
-     * mode, and「全程零布景」describes the fixtures, not the difficulty.
+     * the one family they are wrong for: it runs for hours, and「全程零布景」describes the fixtures,
+     * not the difficulty.
      *
-     * <p>Saying so on the row is the whole fix for now, deliberately. Un-pinning here would change
-     * what every other rung measures mid-climb, and the honest version — a topology that runs the
-     * same ladder in a live world — is a separate run, not a flag. Until that exists, a reader who
-     * takes DRAGON off this row and calls it "beat the game" has been misled by omission, and the
-     * omission is ours.
+     * <p>Un-pinning here would change what every other rung measures mid-climb, and the honest
+     * version — a topology that runs the same ladder in a live world — is a separate run, not a
+     * flag. A reader who takes DRAGON off this row and calls it "beat the game" has been misled by
+     * omission, and the omission is ours.
+     *
+     * <p>⚠️ <b>This used to be a hardcoded constant, and its last clause was false.</b> It said the
+     * third pin means「所以这一趟全程没有敌对生物」, and the run of 2026-08-22 killed the body with a
+     * witch on rung 7 while printing that sentence in the same results file. The row now comes from
+     * {@link JourneyPeace#worldPinReading}, which reads the rules that are actually set and names
+     * the channel they do not cover; the removal it points at is done at SPAWN. A row that states a
+     * rule must state its exception, or it is not a reading — it is a belief.
      */
-    private static final String WORLD_CAVEAT =
-            "世界被 StageWright 钉住（时钟冻在午夜、doMobSpawning=false），所以这一趟全程没有敌对生物"
-                    + " —— 零布景说的是道具，不是难度";
 
     private static void verdict(SceneContext ctx) {
         try {
             JourneyStage height = JourneyLedger.height();
             List<String> staging = JourneyLedger.stagingCalls();
 
-            ctx.record("journey.worldPin", WORLD_CAVEAT);
+            ctx.record("journey.worldPin", JourneyPeace.worldPinReading(ctx));
             ctx.record("journey.height", height == null ? "NONE" : height.name());
             ctx.record("journey.floor", JourneyLedger.FLOOR.name());
             ctx.record("journey.summit", JourneyStage.summit().name());
@@ -2860,7 +2867,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     + "，地板 " + JourneyLedger.FLOOR.name()
                     + "，峰顶 " + JourneyStage.summit().name()
                     + "，布景调用 " + staging.size() + " 次"
-                    + "；" + WORLD_CAVEAT);
+                    + "；" + JourneyPeace.worldPinReading(ctx));
         } finally {
             JourneyRig.teardown();
         }

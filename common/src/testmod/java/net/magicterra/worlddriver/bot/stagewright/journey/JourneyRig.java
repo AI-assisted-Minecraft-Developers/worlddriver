@@ -585,8 +585,38 @@ public final class JourneyRig {
      *  differ. See {@link #STEER_KEY} for why this is not folded into {@link #BODY_KEY}. */
     private static String steerDescription(SceneContext ctx) {
         return realPlayerHelm(ctx)
-                ? "clientUserTask/ClientPlayerAvatar（进程跑在客户端 tick 上，途中会被 panic/dodge/combat 抢占）"
+                ? "clientUserTask/ClientPlayerAvatar（进程跑在客户端 tick 上）；反射链实测：" + armedReflexes()
                 : "serverTick/ServerAvatarManager（进程跑在服务端 tick 上，没有反射链，没有客户端物理）";
+    }
+
+    /**
+     * Which survival reflexes are actually armed, read from {@link BotConfig} at the moment the row
+     * is written.
+     *
+     * <p>This half of the row used to be the words「途中会被 panic/dodge/combat 抢占」, printed
+     * unconditionally, and it was false on every run: the driver ships {@code autoRetreat},
+     * {@code autoFight}, {@code autoDodge}, {@code autoHeal}, {@code autoShield} and
+     * {@code autoEquip} all {@code false} —「so a quiet bot stays quiet」— and no rung turns any of
+     * them on. The 2026-08-22 ladder read six poison ticks and two witch potions over 756 ticks with
+     * every leg ending 「跑完」 and not one preemption, which is what a row saying「会被抢占」
+     * cannot explain and a row saying「一条都没武装」explains completely.
+     *
+     * <p>Sibling of {@link JourneyPeace#worldPinReading}: the same file's other hardcoded
+     * self-description was falsified by the same run. A rig that describes its own capabilities in
+     * prose describes the capabilities it was WRITTEN with, and both of these outlived them.
+     */
+    private static String armedReflexes() {
+        var on = new java.util.ArrayList<String>();
+        if (BotConfig.autoRetreat) on.add("autoRetreat(HP≤" + BotConfig.retreatHpThreshold + ")");
+        if (BotConfig.autoFight) on.add("autoFight(威胁≥" + BotConfig.autoFightThreatThreshold + ")");
+        if (BotConfig.autoDodge) on.add("autoDodge");
+        if (BotConfig.autoHeal) on.add("autoHeal(HP≤" + BotConfig.healHpThreshold + ")");
+        if (BotConfig.autoShield) on.add("autoShield");
+        if (BotConfig.autoEquip) on.add("autoEquip");
+        return on.isEmpty()
+                ? "一条都没武装（autoRetreat/autoFight/autoDodge/autoHeal/autoShield/autoEquip 全 false，"
+                        + "都是出厂默认；所以受到攻击不会有任何抢占）"
+                : String.join("、", on);
     }
 
     /**
@@ -1471,6 +1501,36 @@ public final class JourneyRig {
         return "脚格=" + level.getBlockState(at) + "，脚下=" + level.getBlockState(at.below())
                 + "，头格=" + level.getBlockState(at.above())
                 + "，坠落距离=" + String.format(java.util.Locale.ROOT, "%.1f", fp.fallDistance);
+    }
+
+    /**
+     * Force a chunk in somewhere the body is NOT, on the ladder's own ticket, for the rest of this
+     * scene.
+     *
+     * <p>{@link #pinAroundBody} moves the one travelling pin and is the wrong tool for this: every
+     * entity query in this rig centres on the body, and the two callers that do not — locating a
+     * generation-placed hostile, auditing a landmark the run has not reached — need a second cell
+     * held without letting go of the first. Separate ticket instance, same type, so the body's pin
+     * is untouched.
+     *
+     * <p>Released in {@code ctx.cleanup}, because the arena audit treats a ticket left behind as a
+     * leak and would accuse the next scene of it.
+     *
+     * <p>The radius is in the units {@code addRegionTicket} takes, where the resulting chunk level
+     * is {@code 33 - radius}: 2 is the first value that reaches ENTITY_TICKING, and 3 leaves a ring
+     * of margin so the section holding an entity on a chunk border is inside it too. Loading is
+     * still not instantaneous — see {@code JourneyPeace} for the beat that has to follow.
+     */
+    public void pinDistant(BlockPos at, int radius) {
+        ServerLevel level = ctx.level();
+        ChunkPos cp = new ChunkPos(at);
+        level.getChunkSource().addRegionTicket(JOURNEY_TICKET, cp, radius, cp);
+        ctx.cleanup(() -> level.getChunkSource().removeRegionTicket(JOURNEY_TICKET, cp, radius, cp));
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                level.getChunk(cp.x + dx, cp.z + dz);
+            }
+        }
     }
 
     /** Move the region ticket to the body's current chunk, if it has left the pinned one. */
