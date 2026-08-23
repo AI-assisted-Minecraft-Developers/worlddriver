@@ -2821,7 +2821,18 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         // JourneyPortalRung.clearPlant. A client `breakHold` only presses a key, so
                         // routing the break there leaves the blocker standing; a server-side aim
                         // never reaches the body the client is steering.
-                        var breaker = rig.avatar();
+                        // `rig.body().avatar()`, NOT `rig.avatar()`. The comment above has said
+                        // "break server-side" since it was written; the code took the client avatar
+                        // anyway, and the two are opposite verbs. On a server avatar `breakHold(true)`
+                        // destroys the block outright; on a client one it presses keyAttack, which
+                        // vanilla ignores unless the mouse is grabbed (it never is here), leaving
+                        // `continueDestroy`'s single call as the whole attempt. Measured, ladder-8:
+                        // `cast.cleared.-4, 63, 55 = Block{minecraft:short_grass}` — the row is written
+                        // AFTER a 12-tick settle, so it records the plant still standing, and the rung
+                        // then spent its last clearing re-picking the same cell and failed the run at
+                        // rung 11. `JourneyPortalRung.clearPlantOnLine` has taken the server avatar for
+                        // exactly this reason the whole time.
+                        var breaker = rig.body().avatar();
                         rig.avatar().aimAtBlock(inTheWay);
                         breaker.breakHold(true);
                         breaker.continueDestroy(inTheWay);
