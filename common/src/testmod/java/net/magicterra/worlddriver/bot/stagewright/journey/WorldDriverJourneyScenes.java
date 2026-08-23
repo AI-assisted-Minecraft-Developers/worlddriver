@@ -1191,6 +1191,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         + (kinds.isEmpty() ? "（24 格内地上什么肉都没有）" : "（" + kinds + "）"));
                 rig.evidence("kill.preyLeft", String.valueOf(rig.nearestPrey(24)));
                 rig.evidence("kill.combatError", String.valueOf(rig.slotError("combat")));
+                // `combatKills` is the AUTHORITY on whether anything died, and it was already being
+                // counted — nobody had asked it. The reading that stood in for it was "no death line
+                // in the log window", and that reading is worthless: the FOOD rehearsal of
+                // 2026-08-23 killed a cow and banked three beef with the SAME zero death lines,
+                // because a death is a channel event (`entity.death`) and never a log row. A count
+                // that is always zero because nothing writes it looks exactly like a count that is
+                // zero because nothing happened.
+                rig.evidence("kill.kills", String.valueOf(rig.slotString("combat", "kills")));
+                // Swings vs kills splits the "no kill" case three ways in one pair of numbers:
+                // 0 swings = the in-range branch never fired (a walk/approach problem, not a
+                // combat one); swings > 0 with kills 0 = hits went out and did not finish it;
+                // and `attackRefusal` names the gate when the swing itself was refused.
+                rig.evidence("kill.swings", String.valueOf(rig.slotString("combat", "swings")));
+                rig.evidence("kill.preyVitals", String.valueOf(rig.nearestPreyVitals(24)));
                 ctx.expect(raw).as("raw food collected from the kill").isAtLeast(1);
                 walkHome(rig, () -> rig.reach("猎到 " + prey.species() + "，得生肉 ×" + raw));
             });

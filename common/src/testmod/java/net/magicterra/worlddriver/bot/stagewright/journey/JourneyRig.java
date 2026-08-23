@@ -501,7 +501,10 @@ public final class JourneyRig {
     /** {@code endReason} out of {@link #slot}, or null when that slot has none. */
     public String slotEnd(String name) { return slotString(name, "endReason"); }
 
-    private String slotString(String name, String key) {
+    /** One field out of one slot of the driving half's status, as a string. Public because a hunt
+     *  that banked nothing has to be able to ask {@code combat} for its swing and kill counts, and
+     *  those live in the combat slot alongside the standard fields. */
+    public String slotString(String name, String key) {
         Object v = slot(name).get(key);
         return v == null ? null : String.valueOf(v);
     }
@@ -2040,6 +2043,39 @@ public final class JourneyRig {
             }
         }
         return best;
+    }
+
+    /**
+     * The nearest prey's species, <b>health</b> and distance — the row that says whether hits landed.
+     *
+     * <p>{@link #nearestPrey} answers "is there still something to hunt", which cannot tell a cow
+     * that was never touched from one left at 2 HP. A hunt that banked nothing while the nearest cow
+     * sits below its max was landing damage and failing to finish; one that ends with every cow at
+     * full health never connected. Those are different defects in different files, and this is the
+     * one field that separates them.
+     *
+     * <p>Null when nothing edible is loaded within {@code radius} — which is itself the answer to a
+     * third question, and why the caller prints this string rather than branching on it here.
+     */
+    public String nearestPreyVitals(int radius) {
+        ServerPlayer fp = player();
+        var box = fp.getBoundingBox().inflate(radius, radius / 2.0, radius);
+        net.minecraft.world.entity.animal.Animal best = null;
+        double bestSq = Double.MAX_VALUE;
+        for (var entity : fp.serverLevel().getEntities(fp, box)) {
+            if (!(entity instanceof net.minecraft.world.entity.animal.Animal animal)) continue;
+            if (animal.isBaby()) continue;
+            var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                    .getKey(animal.getType());
+            if (key == null || !EDIBLE_PREY.contains(key.toString())) continue;
+            double d = fp.distanceToSqr(animal);
+            if (d < bestSq) { bestSq = d; best = animal; }
+        }
+        if (best == null) return null;
+        var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(best.getType());
+        return String.format(java.util.Locale.ROOT, "%s %.1f/%.1f HP 距 %.1f 格%s",
+                key, best.getHealth(), best.getMaxHealth(), Math.sqrt(bestSq),
+                best.getHealth() < best.getMaxHealth() ? "（掉过血：打中过）" : "（满血：一下都没挨着）");
     }
 
     /** Every animal species loaded near the body, sorted — what a failed hunt should report instead
