@@ -534,7 +534,19 @@ final class JourneyPour {
     static void liftInPlace(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                     String tag, int tries, Runnable then) {
         int wantY = target.getY() - 1;
-        if (tries > 2) { then.run(); return; }
+        if (tries > 2) {
+            // SAY THAT THIS ROUND DID NOT LIFT AT ALL. Every other exit here writes a row, so the
+            // mute one made「先让重走自己试一次」and「抬了，没帮上」arrive in the results file as the
+            // same thing — no `.lift*` row — and those two want opposite next steps. It fires at
+            // most once per pour: POUR_APPROACHES is 3 and `tries` counts down, so only the first
+            // re-approach is held back. Its own key, not `.liftSkipped`: that one means the lift was
+            // asked and could not help, which is a finding, while this is policy.
+            rig.evidence(tag + ".liftHeld." + tries, "第 " + (POUR_APPROACHES - tries + 1)
+                    + " 次重走不抬升（tries=" + tries + "/" + POUR_APPROACHES
+                    + "）—— 先让重走自己试一次；这一轮之后的失败算不到抬升头上");
+            then.run();
+            return;
+        }
         // THE QUESTION IS THE COLUMN, NOT THE HEIGHT. This used to return whenever the body was at
         // `wantY` or above — 「already high enough, nothing to lift」— and that is a statement about
         // one axis in answer to a failure that lives in two. The caller only reaches here because the
