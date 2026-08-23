@@ -55,6 +55,7 @@
 | ✅ 已改 | Q23e | 三处向零截断印格号全改掉（`AutoSwim:128`、`ContactDamageEscape:76`、`WorldDriverProcessScenes:1169`，最后一处上一行就已经算好了 `cell`） | 我 |
 | 🔴 **挡路** | Q24 | 11 级：`cast.result = SUCCESS` 而 `lava_bucket.after = 1`。两个数来自两端（客户端预测 vs 服务端库存），而分辨用的 `cast.atUse` 上一轮只加进了 12 级。已补，**ladder-13 未触发**（没走到那一浇），仍待读 | 我 |
 | ✅ 已改待验 | Q25 | 隧道停在「看得见」而桶要「够得着」：瞄准用 `TUNNEL_REACH=5.0`（挖掘的数，`destroyBlock` 无距离闸），桶用 `blockInteractionRange()=4.5`。`JourneyFill.BUCKET_REACH` 早就记着这件事，这个调用方没用它。改成以桶自己的距离**重射一次**（不比距离——`5.4m` 是格心，射线停近面）；装桶站点补 `handsAtUse` | 我 |
+| 🟠 待做 | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom:2611`（10 级隧道用，一次瞄准一次 use，没有重瞄、没有换源、没有装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。Q25 是前者缺了后者早就写下的那半格。要么合并、要么把前者的 javadoc 从「看得见的源」改成「够得着的源（调用方以 `BUCKET_REACH` 重射）」—— **前置条件写在一个调用方里就是今天那一族**。合并会改证据键，等真梯落地 | 我 |
 | 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
 | 🟠 待做 | Q23b | `WalkerTickDrive:844` 的 `path-hazard brake` 日志在 `walkerDebug` 后面，真梯从不开 ⇒ 烧死那一趟查不出闸响没响。改无条件（它只在世界变化时响）；`hazard-ahead brake` 加节流。跟 Q7 后半（`MineProcess:341`）合并 | 我 |
 
@@ -880,9 +881,22 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 - **证伪**：`seenNotReached` 出现、身体走近了、`fill.result` 仍是 `PASS`
   ⇒ 走近没用，miss 另有原因（那就去读新加的 `fill.atUse` 的两条射线）。
 
-**仪器自检**：`fill.atUse` 必须出现，且含得到「MISS（… 格内什么都没挡住）」或一个命中格。
-若这一行缺席或读不出射线 ⇒ 仪器仍答不了，先修仪器再谈机制
+**第四态（登记时漏了，补上）**：`seenNotReached` 出现、走近的步数**也用完了**、
+落在新加的 `ctx.fail("看得见岩浆源 … 却够不着它")` 上 ⇒ **闸响了而进近失败**。
+既不是已验也不是证伪，它自己会报出名字；不要硬塞进上面三格。
+
+**仪器自检（改成有条件的）**：`fill.atUse` 必须出现 **——当且仅当这一趟真的走到了
+`fillFrom`**。三趟真梯死在三个不同的地方，没有任何东西保证这趟能走到装桶；
+死在 9 级时这一行的缺席是**合法**的，而按原来那句字面读法会判成「先修仪器」——
+判据自己犯了 [[a-criterion-success-cannot-satisfy]]。走到了就必须含得到
+「MISS（… 格内什么都没挡住）」或一个命中格，读不出射线才是仪器问题
 （[[a-fix-that-cannot-reach-its-own-occasion]] 第五节，今天已踩五次）。
+
+**入口自查（跑前做的只读 grep，结论先写在这）**：这一族的 `fillFrom`
+（`WorldDriverJourneyScenes.java:2611`，private）**只有 `:2570` 一个调用方**，
+而 `tunnel.otherPool`（`:2494`）走的是回到 `reachLava` 自己、再过一遍那道闸。
+所以不存在「绕过闸的第二扇门」，`fill.result=PASS` 却没有 `seenNotReached` 这种读数
+**不能**解释成旧 bug 从别的入口进来了。
 
 **Q24（浇筑那只手的 A/B）**：四态沿用上一节，需要这一趟真的走到 `cast`。
 
