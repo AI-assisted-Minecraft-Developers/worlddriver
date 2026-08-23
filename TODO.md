@@ -1565,6 +1565,55 @@ adopt 后那道新闸沉默，10 tick 而不是 1 tick，`pillarUp` 真的执行
 非 PASS 行必须**恰好**是同样四行、同样的 reason 串；skip 集合是它自己的那份（client-only 场景），
 数量与 Fabric 的 25 条不必相同——**逐条比名字，不比条数**。
 
+### ✅ 双 loader 判词：**两边逐字一致**，而 RED 的真因不在任何一条场景里
+
+同一棵树（`fa7486d3`），两趟之间零改动：
+
+| | PASS | FAIL | TIMEOUT | 非 PASS 名单 |
+|---|---|---|---|---|
+| Fabric | 306 | 3 | 1 | 两只金丝雀 + `vineOverWaterClimb` + `serverEscapeSealedShelter` |
+| NeoForge | 306 | 3 | 1 | **同上，逐条同名同 reason** |
+
+`wd.surfacePillarPointerNeedsItsSupport` 的每一个读数两边**连小数位都相同**
+（`峰值y=222.1074776057609`）。这就是原本要拿到的那份跨 loader 证据。
+
+**但两趟都判 RED，而四行全是 `fail(optional)` 和金丝雀** —— 按 Q26g 那趟的先例
+（`GREEN 305/3F/1T`）这个形状本该是绿的。**先做算术，再找行**，在判词上游找到了：
+
+```
+UNDECLARED: wd.surfacePillarPointerNeedsItsSupport is registered but not in the expected manifest
+            — add it in the same commit that registers it
+```
+
+`f4e41292` 注册了场景没进 `scripts/stagewright/expected-scenes-{fabric,neoforge}.txt`。
+闸是对的，连补救规矩都写在它自己那句话里。`8d7797ea` 已补两份清单。
+
+> ### 📏 通则：**判词的上游还有判词**
+>
+> 我给自己定的规矩是「永远从**结果文件 + `VERDICT:` 行**读判词，别信外壳退出码」
+> （[[never-tail-a-gate-run]] 的同族）。**这条规矩不够。**
+> `VERDICT:` 之前还有 `UNDECLARED:` / `COVERAGE:` / `canary '…': caught as …` 几行，
+> 它们也是判据，而且**它们判的是套件本身而不是被测代码**。
+>
+> 三趟 RED 我都只读了非 PASS 行——前三趟那条场景本身是 required FAIL，
+> **红得有理，于是对不上的地方被掩住了**。真正抓出来的动作是一句算术反问：
+> **「全是 optional，凭什么红？」**
+>
+> ⇒ 纪律：判一趟闸，**先按已知基线算出应有的颜色，再拿实际颜色去对**。
+> 对不上就往 `VERDICT:` 上游读，别在非 PASS 行里反复看。
+
+### 🔴 J31（新，产品代码，排在真梯这趟之后）
+
+`WalkerTickClimb:895` 的放置闸写的是 `p.getY() >= wp.getY() + 0.9`，
+而**同一个文件** `:878` 说能真正放置的只有 `≥ fill.y + 1.0` 的 tick、
+`:880-882` 还点名批评「lower-gated climbout-place takeover（**0.9 threshold**）
+只在 vanilla 会因 AABB 重叠而静默拒绝的那一段里点击」。
+⇒ **注释说 A，代码做 B**，而且是同一份注释批评的那个数。
+两种可能：同一个错误被抄了一份，或者 0.9 在这条路径上另有理由。
+按「要么按代码改注释、要么按注释改代码」的规矩，这两者现在互相矛盾。
+
+（janitor 只读取证，没改。`ServerPlayerAvatar` 在 `bot/sim/**`，是 parity 的地盘。）
+
 ### 📏 留下来的三条通则
 
 1. **一个结果不带理由就不是仪器。** 「ARRIVED，1/200 tick」印了两趟，既没点名吸附也没点名换计划；
