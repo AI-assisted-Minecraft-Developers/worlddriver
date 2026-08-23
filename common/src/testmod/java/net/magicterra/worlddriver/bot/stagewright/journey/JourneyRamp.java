@@ -200,6 +200,14 @@ final class JourneyRamp {
         ServerLevel level = rig.ctx().level();
         BlockPos here = rig.player().blockPosition();
         if (exactRow ? here.getY() == landing.getY() : here.getY() >= landing.getY()) {
+            //「不用修」和「修不出来」是两个发现，而这个出口一个都不写 —— 走这条路的一趟于是一行
+            // `.ramp.*` 也没有，正是上面那段 javadoc 指认的「no .ramp.* row exists in that run at
+            // all」：recover6 里门框替一个身体本就不该站的排背了黑锅。`.noFlight` 是「拒绝」的键，
+            // 不能拿来记「不需要」，否则下一个读的人分不出这两件事。
+            rig.evidence(tag + ".flightSkipped", here.toShortString() + " 已经"
+                    + (exactRow ? "在落点那一排" : "到了落点那一排或更高")
+                    + "（落点 " + landing.toShortString() + "，exactRow=" + exactRow
+                    + "）—— 不用修楼梯");
             then.run();
             return;
         }
@@ -282,7 +290,18 @@ final class JourneyRamp {
             then.run();
             return;
         }
-        if (here.equals(from)) { then.run(); return; }
+        if (here.equals(from)) {
+            // The third outcome, and until now the mute one — which is why「已经站在施工位上」and
+            //「走了但没挪动」reached the results file as the same thing: no `.stand` row either way.
+            // That is the exact pair the note above says these rows exist to tell apart, so this
+            // branch writes one too and「both rows below are unconditional」becomes true of the code
+            // rather than of the intention. No footprint clause here, unlike the other two rows:
+            // `builderStand` refuses every cell on the flight, so `here == from` is off the
+            // footprint by construction and a clause about it could never fire.
+            rig.evidence(tag + ".stand", here.toShortString() + " 已经站在施工位上，不用挪");
+            then.run();
+            return;
+        }
         rig.evidence(tag + ".stand", here.toShortString() + " → " + from.toShortString()
                 + (onTheFlight(flight, here) || onTheFlight(flight, here.above())
                         ? "（现在正压在这道楼梯的足迹上，不挪开第一级就垫不了）" : "（现在不在足迹上）"));
