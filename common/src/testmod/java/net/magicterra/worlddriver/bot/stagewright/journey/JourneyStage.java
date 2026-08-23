@@ -1,8 +1,5 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * The rungs of one vanilla playthrough, in the order they must be climbed.
  *
@@ -233,12 +230,13 @@ public enum JourneyStage {
         return this != BED;
     }
 
-    /** Every rung at or below this one, lowest first — what "reaching" this stage implies. */
-    public List<JourneyStage> upTo() {
-        List<JourneyStage> out = new ArrayList<>(ordinal() + 1);
-        for (int i = 0; i <= ordinal(); i++) out.add(values()[i]);
-        return out;
-    }
+    // An `upTo()` used to sit here —「every rung at or below this one, what reaching this stage
+    // implies」— with no callers and, worse, a different answer from the one the ladder actually
+    // uses. It went by ORDINAL, so it swept BED in; `JourneyLedger.height()` walks the same list
+    // and skips exactly the rungs `criticalPath()` excludes. Two definitions of「what
+    // this rung implies」that disagree about a side quest, one of them unreachable — the next
+    // caller to reach for the convenient one would have re-armed BED as a prerequisite silently.
+    // If the concept is wanted again, derive it from criticalPath() rather than from ordinal().
 
     /** The highest rung declared, i.e. what finishing the game means here. */
     public static JourneyStage summit() {
