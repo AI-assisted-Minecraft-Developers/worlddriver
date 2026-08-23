@@ -156,6 +156,58 @@ ladder-7 停在 9 级 IRON：`[smelt] COLLECT: made=6× iron_ingot taken=6` 在�
 **真客户端真梯历史新高：8/20 → 10/20**（前高是 ladder-7 的 8 级 + 9 级失败）。
 每级 tick：3 级 4506、5 级 2924、7 级 3267、9 级 5958、10 级 2970。
 
+**12–20 级那九条 `-> PASS (0 ticks)` 是 SKIP，不是通过**（[[skip-is-not-coverage]]）。
+真正的战线是 11 级。
+
+---
+
+## 🔴 11 级：清杂草用的是清不动它的那具身体（ladder-8 死因，2026-08-23）
+
+判词：`浇筑瞄准线被挡住，且清不掉：想浇 -4, 62, 54（瞄 -4, 61, 54），
+射线停在 -4, 63, 55 Block{minecraft:short_grass}`。
+
+证据链是完整的，一行都不缺：
+
+```
+cast.picks     = -4, 63, 55 Block{minecraft:short_grass} face=up
+cast.blockedBy = -4, 63, 55 …（无碰撞箱的植物：直接挥手清掉，mine 清不动）
+cast.cleared.-4, 63, 55 = Block{minecraft:short_grass}      ← 清完 12 tick 之后，还在
+cast.range#2   = 2.40
+```
+
+**`cast.cleared.…` 那一行是在 `settle(HoldStill(3), 12)` 之后写的**，所以它记的不是
+「我清了」而是「清完之后那格是什么」——而那格还是 `short_grass`。清理**没有生效**。
+
+**病因**：`pourInto` 里那段的注释从写下那天起就是
+「Break server-side, aim client-side — see the same split in `JourneyPortalRung.clearPlant`」，
+**而它下一行取的是 `rig.avatar()`，客户端那具**。两者是相反的动词：
+
+| | `breakHold(true)` | `continueDestroy` |
+|---|---|---|
+| **服务端 avatar** | **直接把方块销毁** | 继承来的 no-op |
+| 客户端 avatar | 只按下 `keyAttack`，而 vanilla 那条流水线闸在 `mouseHandler.isMouseGrabbed()` 上——驱动的客户端从不抓鼠标 | 一次 `continueDestroyBlock` 调用 |
+
+`JourneyPortalRung.clearPlantOnLine:2580` 一直用的是 `rig.body().avatar()`，
+**同一件事，隔壁文件里是对的**。这是「[[a-fix-that-cannot-reach-its-own-occasion]]」的第五种形状：
+修法写在注释里，代码没照做。
+
+修：`337a35e2`，改一个取值，别的一律不动。
+
+### ladder-9 预登记（写在跑之前）
+
+1. **修法被验证到**：`cast.cleared.…` 这一行必须读到 `Block{minecraft:air}`。
+   - 若这一行**根本不出现** ⇒ 这一趟瞄准线没被挡 ⇒ **修法未被验证**（只是没坏），
+     不许算成功，要另找一趟被挡的样本。
+   - 若仍读到植物 ⇒ 服务端 break 也清不动 ⇒ 病因不在这里，重新调查。
+2. **前进**：`journey.height` ≥ `OBSIDIAN`（11 级）。
+3. **不倒退**：1–10 级全 PASS。
+4. 若 11 级换了个**别的**死因，按「修法生效、但这一级还有第二个病因」记，
+   **不算这条修法失败**——但也不许算通过（[[the-executor-asked-for-more-than-the-judge]]）。
+
+同趟带的四条**只加日志、不改行为**的仪器（都不是本趟的变量）：
+`[place]` 改成打邻格实际变成了什么、`<what>.arrivedY`、`[dig]` 摘掉 `walkerDebug` 闸、
+`craftingTable.broke`。
+
 ## 📏 12 级装水：三行证据不可能同时为真，而两条更漂亮的解释都被字节码否掉（Q14，2026-08-22）
 
 客户端排练 `wd.rehearse12PortalLit` FAIL，`ticks=83`。证据只有四行，但它们互相矛盾：
