@@ -2424,20 +2424,14 @@ public final class JourneyPortalRung {
                 // Re-hold rather than fail outright: a slot that drifted back is exactly the case a
                 // second hold fixes, and the row below says it happened either way. A run with no
                 // `.handSlipped` row never had the problem — three states, not two.
-                if (!JourneyHands.actingHolds(rig, held)) {
-                    rig.evidence(tag + ".handSlipped", "开浇前手上不是 "
-                            + BuiltInRegistries.ITEM.getKey(held) + " 了："
-                            + JourneyHands.heldOnBoth(rig)
-                            + " —— 上一次 hold 之后隔了一次落定，重新拿一次");
-                    JourneyHands.holdForUse(rig, held, tag + ".again");
-                }
+                boolean gripped = JourneyHands.regripBeforeUse(rig, held, tag);
                 JourneyHands.handsAtUse(rig, tag);
                 // AND DO NOT SPEND A USE THAT CANNOT WORK. A bucket-less `useItemInHand` returns PASS
                 // and changes nothing, which is byte-identical to a ray that missed — cell six spent
                 // one on a stack of dirt, reported `cast6.result=PASS`, walked on, and died six legs
                 // later on `recover6.hand = 拿不到 minecraft:bucket … 桶存量 空=0 水=0 岩浆=1`, a
                 // message about the wrong leg entirely.
-                if (!JourneyHands.actingHolds(rig, held)) {
+                if (!gripped) {
                     ctx.fail("开浇的那只手不是 " + BuiltInRegistries.ITEM.getKey(held)
                             + "，重新拿过一次也没拿到：" + JourneyHands.heldOnBoth(rig)
                             + "；" + JourneyHands.bucketStock(rig)

@@ -338,6 +338,34 @@ final class JourneyHands {
         return acting != null && acting.getMainHandItem().getItem() == item;
     }
 
+    /**
+     * Re-assert the hold immediately before a use, and say whether it took.
+     *
+     * <p>The gap {@link #actingHolds} documents is not one site's mistake — it is what
+     * {@link #aimThenAct} does for a living: settle two ticks, aim, act. Every caller that holds
+     * something and then goes through an aim has ten ticks between the hold and the use, and rung
+     * 11's {@code pourInto} has exactly that shape over a bucket its own comment calls「一桶岩浆
+     * 只有一次机会」. It has never been bitten because nothing there holds dirt in between; that is a
+     * property of the neighbouring code, not a guarantee.
+     *
+     * <p>Three states, on purpose, and the caller must keep them apart:
+     * <ul>
+     *   <li>no {@code .handSlipped} row ⇒ the hold never came undone;</li>
+     *   <li>a row and then {@code true} ⇒ it came undone and the second hold fixed it;</li>
+     *   <li>a row and then {@code false} ⇒ refuse the use. A use with the wrong thing in hand
+     *       returns {@code PASS} and changes nothing, which is byte-identical to a ray that
+     *       missed — and the failure then surfaces legs later, somewhere else.</li>
+     * </ul>
+     */
+    static boolean regripBeforeUse(JourneyRig rig, net.minecraft.world.item.Item item, String tag) {
+        if (actingHolds(rig, item)) return true;
+        rig.evidence(tag + ".handSlipped", "动手前手上不是 "
+                + BuiltInRegistries.ITEM.getKey(item) + " 了：" + heldOnBoth(rig)
+                + " —— 上一次 hold 之后隔了一次落定，重新拿一次");
+        holdForUse(rig, item, tag + ".again");
+        return actingHolds(rig, item);
+    }
+
     /** What both bodies hold, for a failure message that has to name the thing that went wrong. */
     static String heldOnBoth(JourneyRig rig) {
         var acting = rig.avatar().player();

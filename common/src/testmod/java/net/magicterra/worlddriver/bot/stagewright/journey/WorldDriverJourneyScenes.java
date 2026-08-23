@@ -2789,6 +2789,19 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         + "\"浇不出黑曜石\"");
                 return;
             }
+            // THE HAND, RE-ASSERTED — `aimThenAct` settles ten ticks between the hold above and this
+            // use, and ten ticks is enough for a hold that went down `ensureHolding`'s bag branch to
+            // come undone on both bodies at once. See JourneyHands.regripBeforeUse; rung 12 lost a
+            // cast to it and reported the failure six legs later. This site has never been bitten
+            // because nothing between the two lines holds anything else — which is a fact about the
+            // neighbours, and the comment above already says this bucket has no second try.
+            if (!JourneyHands.regripBeforeUse(rig, Items.LAVA_BUCKET, "cast")) {
+                ctx.fail("开浇的那只手不是 minecraft:lava_bucket，重新拿过一次也没拿到："
+                        + JourneyHands.heldOnBoth(rig)
+                        + " —— 没有倒。空手 use 只会返回 PASS，"
+                        + "然后这一级会把失败写成「浇不出黑曜石」");
+                return;
+            }
             rig.evidence("cast.result", String.valueOf(rig.avatar().useItemInHand()));
             rig.settle(new HoldStill(10), 20, () -> {
                 var got = level.getBlockState(target).getBlock();
