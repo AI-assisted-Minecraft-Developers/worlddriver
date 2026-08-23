@@ -1527,6 +1527,38 @@ home.gotoEnd.1 = …（判为到达：停在 65, 70, 62，距 64,60 2 格，容�
 
 ⚠️ **判据 1 优先于其余全部。** 一条只在触发时才写的证据行，读者分不清「没触发」和「没写」；
 我这次两支都写了，所以「行不存在」只可能是分支没进——那是个独立缺陷，且会让下面每一条都失去意义。
+
+#### 未定项的裁决（2026-08-23，逐条定死，不再逐次重议）
+
+**流水线顺序**：读 ladder-7 → 写修 → **等 janitor 报告并看完它的 diff** → **一次**编译 →
+两个闸 → ladder-8。
+
+| 闸 | 为什么是它 |
+|---|---|
+| `stagewrightIntegratedServerNeoforge` | 三条 required 场景跨 loader 必须绿；兼作新编译的冒烟 |
+| `stagewrightDedicatedServerFabric` | 验那三条场景的 **skip 路径**。不是走形式：场景类若在构造路径上碰了客户端类型，**专用服注册那一刻就炸**——[[a-scheduler-class-may-pass-a-client-type-not-call-one]] 的爆点就在这里 |
+
+**两闸绿＝溺水整案关闭。** 逃生口：若 ladder-7 的失败是一行能修好的（例如判据 1 那种
+「分支没进」），fix → 编译 → ladder-8 直走，两闸挪到再下一个间隙——**收工手续不挡主线**。
+
+其余裁决：
+
+- **y 盲判据**：过渡行（把 y 差写进 `home.gotoEnd` 证据、**只记不判**）进下一批，编辑点 grep
+  `判为到达`。让判据真正学会 y 的那一修**绑定高位根因一起落**——等 ladder-7 的 `[place]` 行给方向，不提前。
+- **Parked 清单**（饥饿链、`BridgeProcess:84`、`aimThenUse`、F 系列）：**维持 parked，由梯子的失败拉动**。
+  FURNACE 过了、IRON 出新失败就修 IRON 的，不按清单顺序修。
+- **205 条 skip**：不插进梯子循环。触发条件＝梯子遇到需要多天调查的阻塞，或用户点名。
+  届时拿 `drownEscapePreempt` / `drownEscapeSurface` 当客户端舵迁移的模板（案子新鲜、判据现成）。
+- **janitor 的 Q4/Q5**：等它的建议，回来后用「**共享谓词不共享阈值**」这条检验再合并。
+- **`docs/drown-escape-design.md` §5**：两闸关案时补一节结案纪要（场景读数＋去重去向），一次编辑，不单独排期。§3 维持 parked。
+
+⚠️ **janitor 没收工之前不编译。** 共享工作树——它的半成品会混进 ladder-8 的类
+（[[the-shared-tree-is-the-real-boundary]]）。「跑 gradle 前先 `git status`」这条规则覆盖它，
+只是要记住：**janitor 也算「别人」**。
+
+🔎 `[place]` 账对不上时去哪找第二条消耗通道：
+`grep -rn "gameMode.useItemOn" common/src/main` 排除 `BotInteract` 自己——
+walker 的桥／跑酷放块若没走那个汇聚点，就在那里。
 2. **到达判据丢 y** 是独立缺陷，但**不要单独落地**：判据先学会 y 而上游还在，
    第 7 级会立刻翻红、读起来像回归。过渡期只把 y 差**写进证据行**（诚实的行，不判失败）。
 3. 熔炉差 4 块圆石按用户长期指令办：**先写死一步去补料**，不依赖上面两条的结论——
