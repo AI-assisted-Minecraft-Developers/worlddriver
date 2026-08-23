@@ -151,10 +151,15 @@ silent no-op — the class of change that looks like tidying and removes a capab
 
 1. 🔴 **`BackfillProcess:52` / `BuildProcess:59` 在身体消失时不写 `st.builder.lastError`，
    而共享同一份状态的 `BboxFillProcess:65` / `FarmProcess:71` 写。**
-   这不是风格差异：`BotState.Builder.reset()` 的最后一行逐字写着
-   `// keep lastError so the agent can read it after wait.condition fires` —— **reset 刻意保留
-   lastError**。所以「不写」不等于「不印」，而是**印上一趟遗留的死因**：agent 在
-   `wait.condition` 之后读到一条来自别的运行的错误信息，并被它指向错误的地方。
+   这不是风格差异。**机制在自检里翻过一次，记准的版本是这个**：
+   `BotState.Builder.reset()` 最后一行逐字写着
+   `// keep lastError so the agent can read it after wait.condition fires`（reset 刻意保留），
+   我据此先写成「印上一趟遗留的死因」—— **错的**。四个进程的 `start()` 都有
+   `st.builder.lastError = null`（`BackfillProcess:47`、`BboxFillProcess:60`、
+   `BuildProcess:54`、`FarmProcess:66`），所以旧值早被清掉了。
+   真正的形态是另一种：`toMap()` 里是 `if (lastError != null)`，字段**整个不出现** ——
+   agent 在 `wait.condition` 之后读到的是「进程结束了，没有错误」，
+   **一个假的「可以」**，而同一件事在 `BboxFill`/`Farm` 上诚实地报 `player vanished`。
    四个进程对同一个概念（身体没了怎么收场）算了两种。修法两行，
    但**是 `common/src/main`，要报备 + 一趟双 loader 的闸**，本轮禁编译，只报。
 2. 🟡 `ClientWorldView.java:336-342`（同一断言在 `:360` 又写一遍）声称
