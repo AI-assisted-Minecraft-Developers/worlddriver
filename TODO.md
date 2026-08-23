@@ -1098,9 +1098,54 @@ for (int h = 0; h < 9; h++) if (inv.items.get(h).isEmpty()) { hb = h; break; }  
 `holdBoth` 把圆石换进 6 号 → 塔挖头顶那格 → 工具选择把镐换进 6 号、**圆石回背包** →
 `holdById("cobblestone")` 只扫 hotbar → 报「没有」。`atUse` 两侧「槽 6 = stone_pickaxe」正是它。
 
-⇒ 所以塔这一级的正确修法**不在扫描宽度上，在落点规则上**。加宽只是把病征盖住，
-还会把那条守限制的场景判红。同族 [[a-field-with-two-authors]]（一个字段两个作者）的
-下一层：**一格 hotbar 两个消费者，而两者的落点规则字节级相同。**
+同族 [[a-field-with-two-authors]]（一个字段两个作者）的下一层：**一格 hotbar 两个消费者，
+而两者的落点规则字节级相同。**
+
+##### ⛔ 上一版结论写反了，方向已收回
+
+写下的是「正确修法**不在扫描宽度上，在落点规则上**」。**错的。**
+
+**hotbar 满时任何换手都必须挤走一个——那是九格的物理，不是缺陷。** 落点规则无法预知
+下一个消费者要什么；要求挤走者未卜先知是死路。完备的那一半在另一边：**让被挤走的
+消费者能自己找回来。**
+
+- 挤走只对**够不着背包的消费者**致命。`selectBestToolFor` 够得着（挤走它的镐，它下次
+  自己换回来），`holdById` 够不着（挤走它的圆石，它就报「没有」）——**不对称的是可达性，
+  不是落点。**
+- 改落点是**全 walker 的行为变更**，正落在「完全做不到才补引擎能力」判缓行的那一类；
+  per-caller 的 opt-in 是一个构造参数加一个调用点。
+- 而 `HeldItem` 的 javadoc 已经把形状写好了：「a widening has to be per-caller, with a
+  per-caller argument, and it needs a second method beside this one」。
+
+⇒ **修法：`HeldItem` 旁边加第二个方法 `holdByIdFromAnywhere`（先 `holdById`，够不着再
+落到 `Avatar#holdItem`——两具身体都已在那条缝上够得着背包），`TowerProcess` 加一个
+默认 `false` 的构造参数，只有 journey 的调用点传 `true`。** 场景不 opt in，契约逐字保留。
+opt-in **只给 preferred-id 支**：id 是调用方的明示指令，`preferred==null` 的 ANY 扫描不是。
+
+落地后落点碰撞剩下的只是**每课多两次 SWAP 点击的性能账**，不再是正确性问题。
+
+### 修法落地（2026-08-22，读结果前登记）
+
+改动三处，**一个变量**：
+
+| 文件 | 改了什么 |
+|---|---|
+| `HeldItem.java` | 新方法 `holdByIdFromAnywhere`：先 `holdById`，够不着再落到 `Avatar#holdItem`（双身体各自已实现的背包缝）。**没有第四份 SWAP 拷贝。** `holdById` 一字未动 |
+| `TowerProcess.java` | `reachIntoBag` 字段 + 三参构造（两参委托 `false`）；`ensureHoldingPlaceable` 加三参重载，**opt-in 只作用在 `preferred != null` 支** |
+| `JourneyShaft:836` + `JourneyEndRungs:670/1492/1537/1868` | 五个 journey 塔调用点传 `true` |
+
+**没传 true 的（故意）**：`BotApiImpl:681`（公开 verb）、`JourneyUnwedgeScenes:267`、
+`WorldDriverProcessScenes:1006`、`WorldDriverTowerScenes:359`——后三个是 `wd.*` 场景，
+契约场景 `wd.serverTowersWithAFullBackpack` 正是其中之一，逐字保留窄的那条。
+
+⚠️ **`BridgeProcess:84` 共用 `ensureHoldingPlaceable(a, preferred)`，仍是窄的。** journey 的桥
+迟早撞同一堵墙——本趟不捆（一趟一个变量），撞上了再按同一形状 opt in。
+
+#### 无头闸先跑（这次改的是 main 源的塔家族，不是 journey-only）
+
+判据：`stagewrightDedicatedServerFabric` **GREEN**，唯一非金丝雀失败仍是既知 optional
+`wd.vineOverWaterClimb`。**`wd.serverTowersWithAFullBackpack` 必须仍 PASS**——它没 opt in，
+所以 opt-in 若渗漏到了默认支，这一条会红，而它红就是「修法泄漏」的直接证据，不是环境噪声。
 
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 

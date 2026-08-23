@@ -52,6 +52,17 @@ public final class TowerProcess implements BotProcess {
 
     private final int targetY;
     private final String preferredBlockId;
+    /** Whether {@link #preferredBlockId} may be fetched out of the BAG, not just the hotbar.
+     *
+     *  <p>Off by default, and that default is a contract rather than caution:
+     *  {@code wd.serverTowersWithAFullBackpack} stages nine non-blocks in the hotbar with 64
+     *  cobblestone in slot 20 and asserts this process places NOTHING. See {@link HeldItem}'s class
+     *  note for why the repair is a per-caller argument and not a wider scan.
+     *
+     *  <p>On for callers that hand this process the block themselves and then break something —
+     *  the ladder's shaft-exit tower breaks its overhead cell every course, and the tool swap that
+     *  serves that break evicts the cobblestone it was given back into the bag. */
+    private final boolean reachIntoBag;
     private int placed;
     private int stuckTicks;
     private int startFeetY = Integer.MIN_VALUE;
@@ -76,8 +87,14 @@ public final class TowerProcess implements BotProcess {
     private enum Phase { READY, JUMPING, PLACING, DONE }
 
     public TowerProcess(int targetY, String preferredBlockId) {
+        this(targetY, preferredBlockId, false);
+    }
+
+    /** @param reachIntoBag see the field — opt in only if this caller put the block in hand itself. */
+    public TowerProcess(int targetY, String preferredBlockId, boolean reachIntoBag) {
         this.targetY = targetY;
         this.preferredBlockId = preferredBlockId;
+        this.reachIntoBag = reachIntoBag;
     }
 
     public String kind() { return "builder"; }
@@ -141,8 +158,10 @@ public final class TowerProcess implements BotProcess {
         }
         if (feetY > lastApexFloorY) { lastApexFloorY = feetY; stuckTicks = 0; }
 
-        // Always hold the block; auto-pick a BlockItem from hotbar if none specified.
-        if (!ensureHoldingPlaceable(a, preferredBlockId)) {
+        // Always hold the block; auto-pick a BlockItem from hotbar if none specified. Every course,
+        // and that repetition is the point: whatever the last course's break moved into the hand,
+        // this puts the pillar block back.
+        if (!ensureHoldingPlaceable(a, preferredBlockId, reachIntoBag)) {
             st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
             a.releaseInputs();
@@ -299,10 +318,12 @@ public final class TowerProcess implements BotProcess {
      * <ul>
      *   <li><b>A NAMED block</b> ({@code preferred != null}) — the caller asked for that id and
      *       nothing else will do, so it delegates to {@link HeldItem#holdById}, the one scan the
-     *       process family shares. That scan stops at hotbar slot 8 outside creative, and for THIS
-     *       caller that is pinned: {@code wd.serverTowersWithAFullBackpack} stages the cobblestone
-     *       in slot 20 and asserts the tower places nothing and reports
-     *       {@code "no placeable block in hotbar"}.</li>
+     *       process family shares. That scan stops at hotbar slot 8 outside creative, and for a
+     *       caller that has NOT opted in that is pinned: {@code wd.serverTowersWithAFullBackpack}
+     *       stages the cobblestone in slot 20 and asserts the tower places nothing and reports
+     *       {@code "no placeable block in hotbar"}. {@code reachIntoBag} is the per-caller opt-in
+     *       out of that limit — and it applies to THIS branch only, because an id is an explicit
+     *       instruction from the caller and「any block」is not.</li>
      *   <li><b>ANY placeable block</b> ({@code preferred == null}) — a different question with a
      *       different answer, and the hotbar-only limit below is NOT an oversight. Reaching into
      *       slots 9..35 for an unnamed block is the {@code holdPlaceable} family, where the client
@@ -311,9 +332,17 @@ public final class TowerProcess implements BotProcess {
      * </ul>
      */
     public static boolean ensureHoldingPlaceable(Avatar a, String preferred) {
+        return ensureHoldingPlaceable(a, preferred, false);
+    }
+
+    /** @param reachIntoBag let a NAMED block be fetched from slots 9..35; see the overload's note. */
+    public static boolean ensureHoldingPlaceable(Avatar a, String preferred, boolean reachIntoBag) {
         Player p = a.player();
         if (p == null) return false;
-        if (preferred != null) return HeldItem.holdById(a, preferred);
+        if (preferred != null) {
+            return reachIntoBag ? HeldItem.holdByIdFromAnywhere(a, preferred)
+                                : HeldItem.holdById(a, preferred);
+        }
         Inventory inv = p.getInventory();
         // Auto-pick: prefer current slot if it's a BlockItem, else scan hotbar.
         if (isPlaceableBlockItem(inv.getSelected())) return true;

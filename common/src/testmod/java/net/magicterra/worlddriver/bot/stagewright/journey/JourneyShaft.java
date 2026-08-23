@@ -799,13 +799,17 @@ public final class JourneyShaft {
         }
         String pillar = pillarBlock(rig);
         rig.evidence(climbKey(step, ".with"), pillar + " ×" + rig.carrying(pillar));
-        // Put the block in the HAND before the tower asks for it, because the tower can only look in
-        // the hotbar. `Avatar.holdPlaceable` scans slots 0..8 and gives up; `Avatar.holdItem` scans
-        // all 36 and swaps one up. So a body four rungs deep — whose hotbar is pickaxes, a bucket,
-        // flint, food — reports "no placeable block in hotbar" while carrying 110 cobblestone, which
-        // is what the obsidian rung's exit did: 36 blocks of rise, one block gained. Doing it from
-        // the script rather than widening holdPlaceable is deliberate; a caller who knows what it
-        // wants to pillar with can say so, and the asymmetry is logged as an engine finding instead.
+        // Put the block in the HAND before the tower asks for it. `Avatar.holdPlaceable` scans slots
+        // 0..8 and gives up; `Avatar.holdItem` scans all 36 and swaps one up. So a body four rungs
+        // deep — whose hotbar is pickaxes, a bucket, flint, food — reports "no placeable block in
+        // hotbar" while carrying 110 cobblestone, which is what the obsidian rung's exit did: 36
+        // blocks of rise, one block gained.
+        //
+        // This line is the OPENING hand and it is no longer the whole answer. It cannot be: it runs
+        // once, and the tower runs for two hundred ticks, breaking its overhead cell every course
+        // and losing the hand each time. What keeps the hand across courses is the tower's own
+        // `reachIntoBag` opt-in at the settle below. Kept here because the two do different jobs —
+        // this one also sets the SERVER's hand and records the failure to do so as `.hand`.
         var pillarItem = BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(pillar));
         // BOTH BODIES. `TowerProcess` places through `gameMode.useItemOn`, and what lands is decided
         // by the hand the SERVER has — which the mine that preceded this course moved to a pickaxe
@@ -833,7 +837,13 @@ public final class JourneyShaft {
         // rung: forty courses of 55 → 56 → 55, the cobblestone count never moving off 30, and the
         // stall branch below — the one whose whole job is to say why — never firing once, because
         // every course "gained" a block it did not keep.
-        rig.settle(new TowerProcess(at.getY() + 1, pillar), 200, () -> rig.settle(new HoldStill(20), 40, () -> {
+        // `true` = reachIntoBag. Handing the block over once is not enough and the measurement says
+        // so: every course BREAKS the overhead cell, and the tool swap that serves the break shares
+        // a destination rule with the block swap — 「an empty hotbar slot, else inv.selected」 — so on
+        // a full hotbar the pickaxe lands where the cobblestone was and the cobblestone goes back to
+        // the bag. Rung 9 of 2026-08-22 then reported `no placeable block in hotbar` at both veins
+        // while carrying 47 and 105 cobblestone, and both towers placed nothing.
+        rig.settle(new TowerProcess(at.getY() + 1, pillar, true), 200, () -> rig.settle(new HoldStill(20), 40, () -> {
             if (rig.player().blockPosition().getY() > at.getY()) {
                 ascendByTowering(rig, surfaceY, budget - 1, cap, washedOff, then);
                 return;

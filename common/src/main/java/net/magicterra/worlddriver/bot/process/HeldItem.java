@@ -2,9 +2,12 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 /**
  * The ONE "hold the item with THIS registry id" scan for the process family.
@@ -42,6 +45,20 @@ import net.minecraft.world.item.ItemStack;
  * (Build, Backfill, BboxFill, Farm) have no scene defending the limit and a decent case for the
  * other answer, since for them the id is a REQUIREMENT from a schematic/fill/replant rather than a
  * preference; that case still has to be made and gated, not assumed.
+ *
+ * <p><b>{@link #holdByIdFromAnywhere} is that second method</b>, added 2026-08-22 for the ladder's
+ * shaft-exit tower. It exists because of a defect whose cause is NOT this scan's width:
+ * {@code BotInteract.swapFromMainInv} (which fetches BLOCKS) and {@code selectBestToolFor} (which
+ * fetches TOOLS) carry a byte-identical destination rule — 「an empty hotbar slot, else
+ * {@code inv.selected}」 — so on a FULL hotbar they take turns evicting each other. A tower that
+ * breaks its overhead cell therefore loses the block it was handed: the tool swap puts the pickaxe
+ * in the held slot and the cobblestone back in the bag, and the next course asks this scan and is
+ * told「no placeable block in hotbar」 while the body carries 105 of them.
+ *
+ * <p>Eviction on a full hotbar is the physics of nine slots, not a bug — no destination rule can
+ * know what the NEXT consumer will want. What is asymmetric is REACH: the tool side fetches its
+ * item back and this side cannot. So the repair belongs here, per caller, and not in the
+ * destination rule (which would be a whole-walker behaviour change for a two-line problem).
  */
 final class HeldItem {
 
@@ -71,6 +88,33 @@ final class HeldItem {
             }
         }
         return false;
+    }
+
+    /**
+     * {@link #holdById}, and if that cannot see it, the BAG too — the OPT-IN twin, for callers that
+     * have said in their own constructor that they want the wider reach.
+     *
+     * <p>Delegates to {@link Avatar#holdItem} rather than growing a fourth copy of「scan the bag,
+     * SWAP one up」: that seam is already implemented per body — the client sends a real SWAP click
+     * through {@code BotInteract.swapFromMainInv}, the server exchanges the two stacks in place —
+     * and a copy here would be the fourth spelling of a rule that has already diverged once.
+     *
+     * <p>Callers must opt in. {@code wd.serverTowersWithAFullBackpack} asserts the narrow reach for
+     * a tower that did NOT, and「spending blocks the caller never put in hand」stays a side effect
+     * the verb is not allowed to have by default.
+     */
+    static boolean holdByIdFromAnywhere(Avatar a, String itemId) {
+        Player p = a.player();
+        if (p == null) return false;
+        if (holdById(a, itemId)) return true;
+        ResourceLocation id = ResourceLocation.tryParse(itemId);
+        if (id == null) return false;
+        // BuiltInRegistries.ITEM is DEFAULTED: an id nothing is registered under answers AIR rather
+        // than null, and `holdItem(AIR)` would then match the empty stacks that fill a sparse
+        // inventory and report a hand it never arranged.
+        Item item = BuiltInRegistries.ITEM.get(id);
+        if (item == Items.AIR) return false;
+        return a.holdItem(item) && matches(p.getInventory().getSelected(), itemId);
     }
 
     /** Does {@code stk} carry the item registered under {@code itemId}? Empty never matches. */

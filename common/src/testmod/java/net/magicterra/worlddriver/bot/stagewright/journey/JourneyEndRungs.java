@@ -667,7 +667,7 @@ public final class JourneyEndRungs {
         String what;
         if (stalled && overhead) {
             String pillar = pillarBlock(rig);
-            run = new TowerProcess(home.getY(), pillar);
+            run = new TowerProcess(home.getY(), pillar, true);   // reachIntoBag — see JourneyShaft's note
             what = "上一段没拉近，改垒柱上到 y=" + home.getY() + "（用 " + pillar + "）";
         } else {
             run = new IntentProcess(new Intent(new Goal.Near(home, RETURN_ARRIVED_WITHIN)));
@@ -1489,7 +1489,7 @@ public final class JourneyEndRungs {
                 // lift to it; at or above it, the tower reports 「not needed」 in one tick and
                 // costs nothing.
                 int back = ISLAND_WALK_Y;
-                rig.settle(new TowerProcess(back, pillarBlock(rig)), 2_000, () -> {
+                rig.settle(new TowerProcess(back, pillarBlock(rig), true), 2_000, () -> {
                     rig.evidence("crystals.sweep" + sweep + ".unwedge", "重扫前先垒回 y=" + back
                             + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
                             + rig.slotError("builder"));
@@ -1534,7 +1534,7 @@ public final class JourneyEndRungs {
             rig.evidence("crystal." + i + ".climb.plan",
                     "爬到 y=" + top + "，用 " + pillar + " ×" + climbStock);
             LegWatch climb = new LegWatch(rig);
-            rig.settle(new TowerProcess(top, pillar), CRYSTAL_CLIMB_TICKS, climb, () -> {
+            rig.settle(new TowerProcess(top, pillar, true), CRYSTAL_CLIMB_TICKS, climb, () -> {
                 rig.evidence("crystal." + i + ".climb",
                         climbRow(rig, crystal, top, pillar, climbStock, climbFromY, climb));
                 // 「feetY already ≥ targetY」 is the tower's success wording, and it is the WRONG
@@ -1865,7 +1865,7 @@ public final class JourneyEndRungs {
             // the retry differs from the attempt it repeats by more than its serial number.
             if (rig.lostTheWorld() != null) { then.run(); return; }
             if (me.getY() < podium.getY() - 2) {
-                rig.settle(new TowerProcess(podium.getY(), pillarBlock(rig)), DUEL_MARCH_TICKS / 3,
+                rig.settle(new TowerProcess(podium.getY(), pillarBlock(rig), true), DUEL_MARCH_TICKS / 3,
                         () -> {
                     rig.evidence("duel.march." + left + ".tower", "先垒到台面高度 y=" + podium.getY()
                             + " → 脚在 y=" + rig.player().blockPosition().getY() + "，"
