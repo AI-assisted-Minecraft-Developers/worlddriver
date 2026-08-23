@@ -913,6 +913,83 @@ slot.服务端被回滚   = 否（服务端仍是 4）
    「必须 executed 不许 UP-TO-DATE」那条规则是**改动之后验合并态**用的，
    拿来读这一趟会把好消息读成坏消息。
 
+#### 第 3 趟判定：**6/20，死在第 7 级，死因是我预登记里一支都没有的**
+
+编译四个任务全 UP-TO-DATE ⇒ 冻结完好，三趟同一份 build。
+
+| 级 | 本趟 | 基线（8/20 那趟） |
+|---|---|---|
+| 03 WOOD | PASS 2345 tick，8 根原木 | PASS 3852 tick，12 根 |
+| 05 STONE_TOOLS | PASS 5308 tick | PASS 2812 tick |
+| 06 FOOD | PASS 6491 tick，生肉 ×3 | PASS 2682 tick，×4 |
+| 07 BED | **FAIL —— 身体死了** | FAIL（10 轮凑不齐同色） |
+| 08 FURNACE | FAIL（第 1 tick，尸体） | PASS |
+| 09 IRON | BLOCKED | FAIL（淹死） |
+
+**分数退了两级，但第 7 级那个原来的毛病是修好的**——不要把这两件事记成一件：
+
+```
+bed.r1.flock = 3 只可剪（另有尸体 0 具），选 white id=134   bed.r1.target = 已死   bed.r1.gained = 1 块 white
+bed.r2.flock = 5 只可剪（另有尸体 1 具），选 white id=133   bed.r2.target = 已死   bed.r2.gained = 1 块 white
+```
+
+两轮两杀两毛。基线是 5 轮 2 毛、10 轮不够。`另有尸体 N 具` 这一列正在把尸体单独计数，
+`.target = 已死` 说明选中的是活羊且确实杀成了 ⇒ **尸体过滤生效，预登记的第一种成因关闭。**
+第二种成因（combat 没打完）本趟没有样本——两轮都杀成了。
+
+#### 死因：一只女巫，而新仪器当场点名了它
+
+```
+death.blow = magic −1.0→10.5@137；magic −1.0→9.5@304；magic −1.0→8.5@329；magic −1.0→7.5@354；
+             magic −1.0→6.5@379；magic −1.0→5.5@404；
+             indirectMagic（Witch） −4.0→1.5@699；indirectMagic（Witch） −1.5→0.0@756
+death.standingIn = 脚格=water，脚下=dirt，头格=air，坠落距离=0.0
+death.food = 13/20，饱和度 0.0        death.driving = goto        death.at = -51, 62, 67
+```
+
+vanilla 同一秒的原话：`Player659 was killed by Witch using magic`。
+**这是 `death.blow` 这个仪器的第一次兑现**——上一趟那条 `death.cause = Player118 died` 什么都
+没说，这一趟一行就把六次中毒和两瓶药水按 tick 排了出来（[[a-reading-cleared-by-the-event-it-describes]]
+那条的正面）。
+
+#### 判词行说了一句同一份文件当场证伪的话
+
+```
+journey.worldPin = 世界被 StageWright 钉住（时钟冻在午夜、doMobSpawning=false），
+                   所以这一趟全程没有敌对生物 —— 零布景说的是道具，不是难度
+```
+
+它是 `WorldDriverJourneyScenes.java:2830` 的一个**写死的字符串常量**，一个字都没量。
+而 `doMobSpawning=false` **确实生效了**（整份日志零 zombie/skeleton/creeper，自然刷怪一只没出）
+——**假的是那个推论，不是那个设置**：
+
+```java
+// SwampHutPiece.postProcess，反编译自 minecraft-merged-mojang-patched.jar
+if (!this.spawnedWitch && boundingBox.isInside($$13 = this.getWorldPos(2, 2, 5))) {
+    Witch $$14 = EntityType.WITCH.create(worldGenLevel.getLevel());
+    $$14.setPersistenceRequired();                        // 永不消失
+    $$14.finalizeSpawn(worldGenLevel, …, MobSpawnType.STRUCTURE, null);
+    worldGenLevel.addFreshEntityWithPassengers($$14);     // 不经过 NaturalSpawner
+}
+```
+
+沼泽小屋的女巫在**世界生成期**被放下，走的不是 `NaturalSpawner`，所以 `doMobSpawning` 根本
+看不见它；`setPersistenceRequired()` 让它永不消失。种子 5471 出生在沼泽。
+⇒ **对这颗种子，那句话按构造就是假的，而且每一趟都假。**
+
+⚠️ 可迁移的一条：**一条 gamerule 关掉的是一个机制，不是一个现象。**
+「doMobSpawning=false」为真、「没有敌对生物」为假，两句话中间隔着一整条生成期通道。
+写「所以……」的那一刻就该去数一遍。同族 [[an-evidence-row-that-lies]]、
+[[a-row-that-rules-out-the-cause]]。
+
+#### 真正的缺口：中毒 267 tick，抢占一次都没发生
+
+`journey.steer` 自述「途中会被 panic/dodge/combat 抢占」，而
+`journey.helm.endings = holdStill→跑完；goto→跑完；combat→跑完；goto→跑完；combat→跑完`
+——**五段全是「跑完」，没有一段被抢占**。身体从第 137 tick 起中毒，血 11.5→5.5 用了 267 tick，
+又走了 295 tick 才挨第一瓶药水，全程没有还手、没有逃、没有停。
+这是第 7 级 53 格外那只羊的路上（`rung.BED=FAILED — 走向 53 格外的 white 羊`）。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 ⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
