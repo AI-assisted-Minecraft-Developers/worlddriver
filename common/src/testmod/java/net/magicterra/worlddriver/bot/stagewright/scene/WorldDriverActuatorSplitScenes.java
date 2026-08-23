@@ -203,16 +203,24 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             real.getInventory().selected = selectedWas;
             real.setYRot(yawWas);
             real.setXRot(pitchWas);
-            // Say whether it took. A restore nobody verified is a claim, and on this topology the
-            // CLIENT owns both of these quantities — so a server-side put-back is exactly as
-            // contestable as the write it undoes, which is the scene's own subject.
-            ctx.record("cleanup.槽位还原", real.getInventory().selected == selectedWas
-                    ? "是（回到 " + selectedWas + "）"
-                    : "⚠️ 否：想还原成 " + selectedWas + "，实际 " + real.getInventory().selected);
-            ctx.record("cleanup.物品还原", ItemStack.matches(
-                    real.getInventory().items.get(TARGET_SLOT), slotWas)
-                    ? "是" : "⚠️ 否：槽 " + TARGET_SLOT + " 现在是 "
-                            + real.getInventory().items.get(TARGET_SLOT));
+            // Two rows used to sit here saying whether the restore took —「cleanup.槽位还原」and
+            //「cleanup.物品还原」. Deleted, because each failed on its own:
+            //
+            //   • UNREADABLE. `SceneContext.record` is a bare map put and logs nothing, and the
+            //     harness serialises `ctx.records()` inside `record(scene, …)`, which precedes
+            //     `teardown(…)` — the caller of these cleanups — on every terminal path. A row
+            //     written from here lands in a map whose only reader finished reading it.
+            //   • UNFALSIFIABLE. Both read back what the lines above had just written, on this
+            //     thread, with only the two rotation setters in between: `selected == selectedWas`
+            //     one statement after `selected = selectedWas`, and `ItemStack.matches` against the
+            //     very object just placed in the slot. They could print 是 and nothing else.
+            //
+            // The intent was right and the instrument was wrong, so relocating the rows would only
+            // have moved a tautology somewhere visible. The CLIENT does own these two quantities,
+            // but it takes them back by packet on a LATER tick — which is exactly why the scene asks
+            // that question below as `serverSlotSameTick` against `clientSlotSameTick`, two sources
+            // compared, rather than by reading one field twice. Teardown has no later tick, so the
+            // question cannot be asked from here at all.
         });
 
         // ---- 1. the hotbar slot -------------------------------------------------------------
