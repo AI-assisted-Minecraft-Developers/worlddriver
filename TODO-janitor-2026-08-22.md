@@ -209,10 +209,48 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
 就是这条）。所以**「让两个 process 指回 `BotInteract`」是错的方向**，
 它会把 J7 那次事故原样重演。
 
-正解是搬进 `BotUtil`（**量出来的**，不是推的）：`bot/process/` 下 **19 个文件已经 import
-`BotUtil`**，其中 `MineProcess.findReachStand` 用它的 `standingEye`，而 mine 场景就在
-`stagewrightDedicatedServer*` 上跑 —— **`BotUtil` 在专用服上可加载是实证的**。
-`BotInteract.pickFaceTowardsPlayer` 改成一行委托，**六个客户端调用点零改动**。
+正解是搬进 `BotUtil`。`BotInteract.pickFaceTowardsPlayer` 改成一行委托，
+**六个客户端调用点零改动**。
+
+#### ⚠️ 我为这个选择给的理由，**当时有一半是假的实证**（08-23 自查，留档不删）
+
+原文写的是：
+
+> 「**量出来的**，不是推的：`bot/process/` 下 **19 个文件已经 import `BotUtil`**，
+> 其中 `MineProcess.findReachStand` 用它的 `standingEye`，而 mine 场景就在
+> `stagewrightDedicatedServer*` 上跑 —— **`BotUtil` 在专用服上可加载是实证的**。」
+
+**这段话里有两处断裂，而它自称「量出来的」。**
+
+1. **我数的是 import，报出来的是「调用」。** 那个 19 来自 `grep -ln "bot.util.BotUtil"`——
+   **一条数文件有没有 import 的命令**。而 `bot/process/` 普遍用
+   `import static ….BotUtil.*;`（通配），**未被使用的静态通配导入在字节码里不留任何
+   对 `BotUtil` 的引用**，所以 import 数对「有没有调用点」一个字都没说。
+   （这条是 coordinator 指出来的，对。）
+
+   **真数了一遍**（按 `BotUtil` 的 20 个 public static 成员名，逐文件排除同名自定义）：
+   **本轮改动之前，`bot/process/` 下有 29 个真实调用点，散在 32 个文件里的 13 个上。**
+   所以结论碰巧成立，**但我当时并没有为它付过测量的代价**。
+   `MineProcess` 具体也确实有真调用（`canStandHereStatic` :1069、`standingEye`），
+   它那条通配导入**是被用着的** —— 这一点上 coordinator 的推断反了，
+   规则（通配 ≠ 调用）对，落到这个文件上的结论不对。
+
+2. **更要命的是第二处，而且 29 个调用点也补不上它。**
+   我要的命题是「`BotUtil` **在专用服上**可加载」，而调用点只证明**被引用**。
+   一个调用点如果只在集成服拓扑上执行，**对专用服的类加载什么都没证明**。
+   而「mine 场景在 `stagewrightDedicatedServer*` 上跑」这半句，
+   **我从来没测过，是从仓库文档对 222 场清单的描述里读来的，然后写成了「实证」。**
+   coordinator 手上能确认的那份 neoforge mine 读数是**集成服**的（7 执行 / 0 skip）。
+
+**所以正确的说法是**：搬进 `BotUtil` 的方向是对的（`BotInteract` 那条 client-only 的约束
+是真的，指回去会重演 `a1de83a4`），**但「已经验过了」这个结论当时不成立** ——
+证据链有两个环，我关掉了零个，却按关掉了两个来写。
+**这正是 `skip-is-not-coverage` 和「一个读数不是它看起来的那个量」的合体。**
+
+**闸的决定因此是补槽而不是省槽**（coordinator 08-23 拍板，我接受）：
+`stagewrightDedicatedServerNeoforge` 加进这一趟，
+K2/K4 的类加载风险在**两个 loader 的专用服上**都真的被跑一次。
+「验证那条实证」和「直接跑那个闸」同价 —— **同价之下把推理换成测量。**
 
 coordinator 的放行条件（已满足，会在闸上验）：
 **新方法参数保持 `Player`，函数体内不得出现任何 `net.minecraft.client.*` 类型，
