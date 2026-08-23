@@ -50,7 +50,9 @@
 | 🟡 已改未触发 | Q21 | 三次进近逐字相同：`liftInPlace` 的闸是 `y >= wantY`，而失败的是**柱**。闸已拆三支（`be58b518`），但第三趟死得更早，三种行一条没写 ⇒ **未触发**，等下一趟走到那个场合 | 我 |
 | 🔴 **挡路** | Q22 | 12 级下楼那一段在地表打转（同一目标 `-4,62,20`，起点在 y=65~67 换了十几格）→ 落进岩浆湖 `-10,63,19` → 在岩浆里重搜 42 次烧死。入场机制**判不出走进还是滑进**（`fallDistance` 早被重置，`search-begin` 只有 1 秒分辨率），但 `Move.java:286` 证明 A\* 硬拒岩浆 ⇒ **不是规划进去的** | 我 |
 | ✅ 已拍板 | Q23 | advisor：做**逃生反射**。`autoHeal` 算术上跑不过岩浆 DPS，「寻路不踏进源块」已经是现状且只防规划不防滑落；13 级是下界，这条能力无论如何都要有。武装设置≠布景（Q12a：零布景说的是道具不是难度）。**读码后收窄**：反射早就存在且默认开着，前五次发作全部成功 ⇒ 要加强的不是脱离（进了源块 40 tick 挪不满 1 格，物理上没救），是**入场闸** | advisor＋我 |
-| 🟡 已改待验 | Q23a | ~~新加入场闸~~ **撤销**：`Walker.strideFloorGuard` 早就在做同一件事且处处更对（`soleOnSolid` 而非 `onGround`、按血量算致死深度、四 tick 前瞻）。真正缺的是「它为什么整趟没响」—— 那个 0 压着六个状态。已加 `strideGuardSkips[6]` 分桶计数，入岩浆的那一段打差值。判据已预登记 | 我 |
+| 🟡 已改未接线 | Q23a | ~~新加入场闸~~ **撤销**：`Walker.strideFloorGuard` 早就在做同一件事且处处更对（`soleOnSolid` 而非 `onGround`、按血量算致死深度、四 tick 前瞻）。真正缺的是「它为什么整趟没响」—— 那个 0 压着六个状态。已加 `strideGuardSkips[6]` 分桶。**但挂在了 `JourneyFlight` 上，而那个类只有 13 级以后在用**，12 级读不到 ⇒ 跑完改挂 `JourneyRig` 的 `death.*`（rig 级，每一级的死都过） | 我 |
+| 🟠 待做 | Q23d | `strideGuardSkips` 是 `long[]`，元素非 volatile，而邻居全是 `volatile int`（跨线程读）。换 `AtomicLongArray`，否则「桶全为 0」分不清「没调用」和「没可见」 | 我 |
+| 🟠 待做 | Q23e | `(int) p.getX()` 这类**向零截断印格号**在 `bot/` 里扫一遍 —— 修掉的那处多半有兄弟，负坐标下全都在说谎 | 我 |
 | 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
 | 🟠 待做 | Q23b | `WalkerTickDrive:844` 的 `path-hazard brake` 日志在 `walkerDebug` 后面，真梯从不开 ⇒ 烧死那一趟查不出闸响没响。改无条件（它只在世界变化时响）；`hazard-ahead brake` 加节流。跟 Q7 后半（`MineProcess:341`）合并 | 我 |
 
@@ -885,7 +887,45 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 - **证伪**：三种都没有，**但**同一个 `cast`/`water` 标签下仍出现三次逐字相同的进近
   ⇒ 闸拆了三支还是绕过去了，改错了地方。
 
-**3. Q23a —— stride 守卫分桶**：判据见上一节。
+**3. Q23a —— stride 守卫分桶**：⚠️ **判据在开跑之后、读结果之前被我自己推翻了，改判如下。**
+
+登记完我去查了一件本该先查的事：**这一趟真的会写出那一行吗？** 结果是不会。
+
+```
+results-portalLit-lavaDeath.jsonl  →  含 ".flight." 的键：0
+results-ladder11.jsonl             →  含 ".flight." 的键：0
+```
+
+（先用 `grep` 查是 0，本来可能只是 JSON 把中文转义成了 `\uXXXX`；用 `json.loads` 解码之后**仍然是 0**，
+所以这不是编码问题。）
+
+追到源头：`JourneyFlight.recordInto()` 才写 `<what>.flight.<tag>`，而
+`JourneyFlight` **只有 `JourneyNetherRungs` 在构造**（`:293`/`:450`/`:2005`）——
+也就是**13 级以后**。12 级的下楼、烧死那一段，**根本不经过这个类**。
+
+⇒ 我把新读数挂进了一个**这一级永远走不到的记录器**。
+[[a-fix-that-cannot-reach-its-own-occasion]]，今天第三种记忆形状（前两种：
+[[the-audit-that-did-not-ask]] 和 [[an-instrument-behind-a-flag-is-not-an-instrument]]）。
+
+**改判之后的三态**：
+
+- **未触发（预期）**：这一趟没有任何 `*.flight.*` 行 ⇒ 仪器**没被验证到**，
+  原因已知（挂错了类），**不许**读成「没有一段入过岩浆」。原登记那句
+  「这一行不写 ⇒ 没入岩浆」把两个原因压成了一个，正是 [[evidence-that-lies]] 的形状，
+  而且是我刚亲手写进判据里的。
+- **已验（只有走到 13 级才可能）**：跑进下界并且有一段入岩浆，才会出现那一行。
+- **证伪**：出现了 `*.flight.*` 行、桶全为 0 ⇒ 见下面那条关于可见性的注意。
+
+**跑完之后要做的修法（不能现在改，游戏 JVM 活着不许编译）**：
+把 stride 差值改挂到 `JourneyRig.java:1430` 那一组 `death.*` 上（新增 `death.strideGuard`）——
+那是 **rig 级**的，每一级的死亡都过那里，正好是「守卫没救下这一趟」唯一需要它的场合。
+`JourneyFlight` 那份保留，它对 13 级以后的横渡仍然是对的。
+
+**还有一条可见性**：`strideGuardSkips` 是 `long[]`，元素**不是 volatile**，
+而它周围每一个计数器都是 `volatile int`，就因为 `JourneyFlight` 是跨线程读的
+（那段 javadoc 自己写了）。所以「桶全为 0」也有两种读法：**没被调用**，或者**写还没对读线程可见**。
+判「没被调用」之前要拿同一窗口的 `步进`／心跳行证明走行器那几 tick 确实在跑。
+修法：换 `AtomicLongArray`，让它和邻居同一套约定。
 
 **三条共同的注意事项**：`浇成几格` **不是判据**（排练三趟 8/8/4，
 [[the-ladder-is-not-reproducible]]）。死在第几级也不是 —— 只有逐行可证伪的读数算数。
