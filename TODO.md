@@ -1422,6 +1422,65 @@ stone.exit#1.gained = 13/13 block(s)
 🔎 顺带：若身体重回那片湖，`身体跨柱` 那一列会**免费点名 (−29,63,79) 到底是什么**。
 读日志时直接 grep 这个坐标；点到名就把 scratchpad 里那份 67 MB 世界副本删掉，autopsy 一并结案。
 
+#### ladder-6 读数：逐条对上面的预登记
+
+`./gradlew :fabric:runJourneyIntegratedServer`，2026-08-23 04:27 收，22 个场景。
+results 已存 `scratchpad/results-ladder6-prev.jsonl`。
+
+| 预登记的判据 | 读数 | 判 |
+|---|---|---|
+| 不再有 `death.blow = drown …` 这一族 | 全程 **0 次死亡**、`drowned` 0 命中 | ✅ 成立，**但不是修法挣来的**（见下） |
+| `journey.height` 严格高于 `FOOD` | `journey.height = FOOD`，没动 | ❌ **未达成** |
+| 若仍死在 BED，看 `death.cause` 换族没有 | 没死在 BED —— **BED 首次 PASS**（6085 tick，`white_bed.crafted=1`） | 不适用 |
+| `盖挡` 与 `撞顶` 一致（三件同时成立才算钉住） | `竖直支` **0 行**、`PREEMPT` **0 次** | 不适用，**这一趟没得可读** |
+
+⛔ **第一条不能记在修法头上。** 调度器 bid 表打印了 49 次、每次都是 `drownEscape=0.0`——
+通道是活的，所以这个零可信（[[zero-as-evidence-needs-a-live-channel]] 的正面用法）。它说明的是
+**身体这一趟根本没进过溺水态**，不是「进了而被救回来」。梯子对这次修法**零证据**；真证据仍旧
+只有场景那对 200 tick 净升 0.000 → 8 tick 出水。[[the-ladder-is-not-reproducible]]。
+
+✅ **第二条我一度读错，差点去修一把没坏的尺子。** 同一份证据里 `rung.BED = REACHED` 而
+`journey.height = FOOD`，看着像判词坏了。读 `JourneyLedger.height()` 第 201 行：
+`if (!stage.criticalPath()) continue;`，而 `JourneyStage:233` 写着 `return this != BED;`——
+**床是支线，故意不计入主线高度**。两句都对，不矛盾。
+
+于是这一趟的诚实结论是：**名次前进了一级，主线高度没动。**
+上一趟死在 BED（支线），这一趟过了 BED、卡在 FURNACE（主线）。预登记选对了判词。
+
+#### 新的拦路者：熔炉缺 4 个圆石，而那 10 块是走路走掉的
+
+```
+rung.FURNACE = FAILED     furnace.craftError = 缺 4 个 cobblestone     cobblestone.before = 4
+```
+
+账能对上，且不是「挖得不够」：
+
+| 时点 | 圆石 | 去向 |
+|---|---|---|
+| 第 5 级挖完 | 32 | `advancement.mine_stone=earned` |
+| 出井垒到 y=63 | 20 | `stone.exit#1.climb.{6..12}.with=cobblestone ×26→×20`，**一层一块** |
+| 第 5 级收尾 | 14 | 石镐 3 ＋ 石剑 2 ＋ 零头 |
+| 第 8 级开场 | **4** | ← 第 6、7 级之间没了 10 块 |
+
+第 7 级的收尾读数是 `bed.home = 65, 70, 62`——**y=70，比家高 10 格，正好 10 块**。
+判到达那一行自己承认了判据的形状：
+
+```
+home.gotoEnd.1 = …（判为到达：停在 65, 70, 62，距 64,60 2 格，容差 5）
+```
+
+**比的是 x,z 跟 (64,60)，y 没进判据**，所以站在十格高的柱子上算「到家」。
+同族：[[a-surveyed-cell-is-not-its-column]]（路点丢 y）、[[a-tower-nobody-ever-built]]。
+
+⇒ 两个真缺陷，一个是消耗、一个是判据，**别混成一条**：
+
+1. **回家路上会垒塔**，把下游要用的方块花在原地拔高上，没有任何一处记这笔账。
+   先查它为什么垒——是解卡塔还是寻路选了向上的路。
+2. **到达判据丢了 y**，于是缺陷 1 每次都被判成成功，谁也不会去看。
+
+第三件事按用户长期指令办：熔炉差 4 块圆石这种，**先写死一步去补料**，不要上来就改引擎——
+「先用写死步骤测能通关，完全做不到才补引擎能力」。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 ⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
