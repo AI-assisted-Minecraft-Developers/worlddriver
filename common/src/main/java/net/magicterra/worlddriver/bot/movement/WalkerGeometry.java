@@ -164,8 +164,23 @@ public final class WalkerGeometry {
      * @return the blocking cells, lowest first, or an empty list when the rise is clear
      */
     public static List<BlockPos> pillarRiseBlockers(Player p) {
+        return riseBlockers(p, PILLAR_RISE);
+    }
+
+    /**
+     * {@link #pillarRiseBlockers} for a rise that is not a pillar's.
+     *
+     * <p>The scan is the question, the rise is the caller's. A tower asks about {@link #PILLAR_RISE}
+     * because that is when the cell it jumped from frees up; drown-escape asks about half a block
+     * because that is roughly the face a body rising at terminal buoyancy is about to meet, and a
+     * lid a whole block higher is not in its way YET. Same geometry either way — the reason it is
+     * shared is that both were written from the same measurement and one of them was written twice.
+     *
+     * @param rise how far up to sweep the body's own box, in blocks
+     */
+    public static List<BlockPos> riseBlockers(Player p, double rise) {
         Level lvl = p.level();
-        AABB box = p.getBoundingBox().move(0.0, PILLAR_RISE, 0.0);
+        AABB box = p.getBoundingBox().move(0.0, rise, 0.0);
         if (lvl.noCollision(p, box)) return List.of();
         VoxelShape want = Shapes.create(box);
         List<BlockPos> out = new ArrayList<>();

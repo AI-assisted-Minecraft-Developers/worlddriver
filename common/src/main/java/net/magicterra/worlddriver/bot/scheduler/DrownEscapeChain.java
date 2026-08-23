@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
@@ -8,6 +9,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.auto.DrownEscapeGate;
 import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -17,7 +19,6 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
@@ -272,24 +273,19 @@ public final class DrownEscapeChain implements Chain {
      * column, a slab, a stair, a lily pad and a mangrove root alike, because it asks the same
      * geometry vanilla's own collision does rather than re-deriving it from one {@code BlockPos}.
      *
-     * <p>Returns the LOWEST hit: that is the face actually bearing on the body. The bounds
-     * approximation for non-full shapes can only over-report, and it is only consulted after
-     * {@code getBlockCollisions} has already said something is there.
+     * <p><b>The repo already knew this.</b> {@link WalkerGeometry#pillarRiseBlockers} was written
+     * from the same 0.6-width measurement in 2026-08-19 for {@code TowerProcess}, and this arm
+     * re-derived it — so this now delegates instead. Do not re-inline it: that helper's shape test
+     * is {@code Shapes.joinIsNotEmpty}, which is exact where a {@code bounds()} test over-reports
+     * every non-cubic block (a fence's bounds are a full cell, its collision is not).
+     *
+     * <p>The list comes back lowest-first and the lowest is what this arm wants: that is the face
+     * actually bearing on the body.
      */
     private static BlockPos blockedAbove(Minecraft mc, LocalPlayer p) {
         if (mc.level == null) return null;
-        AABB up = p.getBoundingBox().move(0.0, RISE_PROBE, 0.0);
-        if (!mc.level.getBlockCollisions(p, up).iterator().hasNext()) return null;
-        BlockPos best = null;
-        for (int y = Mth.floor(up.minY); y <= Mth.floor(up.maxY - 1.0E-7); y++)
-            for (int x = Mth.floor(up.minX); x <= Mth.floor(up.maxX - 1.0E-7); x++)
-                for (int z = Mth.floor(up.minZ); z <= Mth.floor(up.maxZ - 1.0E-7); z++) {
-                    BlockPos c = new BlockPos(x, y, z);
-                    VoxelShape s = mc.level.getBlockState(c).getCollisionShape(mc.level, c);
-                    if (s.isEmpty() || !s.bounds().move(x, y, z).intersects(up)) continue;
-                    if (best == null || y < best.getY()) best = c;
-                }
-        return best;
+        List<BlockPos> hits = WalkerGeometry.riseBlockers(p, RISE_PROBE);
+        return hits.isEmpty() ? null : hits.get(0);
     }
 
     /**
