@@ -10,7 +10,7 @@
 | ✅ 已落 | Q4 | **死亡断言**：`JourneyRig.await` 每 tick 判活，死了当场以死因结案 | 我 |
 | ✅ 已测 | Q5 | run 8：钉发布配置 → **3 级回归**（6 根 / 13899 tick，对比 13 根 / 2914 tick）。**已回退**，原因见下 | 我 |
 | 🔄 在跑 | Q5b | run 9：run 7 配置 + 石剑 + 死亡断言 → **客户端真身首次爬到 8/20**（6/7/8 三级首过），现在 9 级 IRON | 我 |
-| 🔴 下一个槽 | Q15 | **闸债**：`2ced20f5` 以来七笔产品改动没有一笔过过 306 场的闸。run 9 一收尾就双 loader 补跑，绿了再爬梯 | 我 |
+| ✅ 已绿 | Q15a | **闸债已还**：三闸全 GREEN（集成 NeoForge／专用 Fabric／专用 NeoForge），溺水类加载缺陷结案，见下 | 我 |
 | ⏭ 排队 | Q13 | 🔴 **walker 拿这一级刚砍的原木去垒柱子**（121 次 `pillarUp`，手上原木 7→6） | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
 | 🔧 已编辑待编译 | Q6 | 石剑：5 级顺手合石剑；6/7 级开打前 `holdBestWeapon`；两份重复的 helper 并进 `JourneyRig` | 我 |
@@ -34,6 +34,49 @@
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
 
 ---
+
+## ✅ 三闸全绿：闸债结清（Q15a，2026-08-23）
+
+`80a8ce28` 之后的三趟，都是**读结果文件判的，不是读退出码**：
+
+| 闸 | 判词 | 执行/跳过 | 非 PASS |
+|---|---|---|---|
+| `stagewrightIntegratedServerNeoforge` | 306 PASS | — | 2 金丝雀 + `pack.placesAndReadsBack` ENV_FAIL |
+| `stagewrightDedicatedServerFabric` | **GREEN** | 305 / 28 | 2 金丝雀 + `wd.vineOverWaterClimb` + `wd.serverEscapeSealedShelter`（都 `required:false`） |
+| `stagewrightDedicatedServerNeoforge` | **GREEN** | 278 / 24 | 同上四条 |
+
+六条 `wd.drownEscape*` 在专用 NeoForge 上全 PASS（三条客户端专属的按设计 skip）。
+`Cannot load class … environment type SERVER` 命中 **0**。
+
+**日志里 120 条 `Attempted to load class net/minecraft/client/Minecraft for invalid dist
+DEDICATED_SERVER` 不是这条缺陷的残余**，另立一条查：
+
+- 它们**全部**落在 `pack.measuresItsOwnTickCost` 那一段（119 tick / 6100 ms），一 tick 一条，
+  数量 120 ≈ tick 数 119。别处一条没有——包括跑了几百 tick 的其他场景。
+- 点名的是 `Minecraft`，**不是** `LocalPlayer`；Fabric 那趟同样的场景**零命中**。
+- 所以它是 **NeoForge 专有**、且**只在那一个场景的 tick 路径上**被触发。RuntimeDistCleaner
+  打 ERROR 后抛，被谁吞了每 tick 还能继续——**吞掉它的那处才是要找的东西**。
+- 判词不受影响（那一场 PASS），所以这是**噪声还是缺陷未定**，归 janitor 一条独立调查，
+  产出要求：**点出调用者的栈**，不是再推一轮候选（[[a-signature-loads-what-a-local-does-not]] 的教训）。
+
+---
+
+## 📌 ladder-8 预登记（写在读结果之前，2026-08-23）
+
+ladder-7 停在 9 级 IRON：`[smelt] COLLECT: made=6× iron_ingot taken=6` 在日志第 2074 行，
+判词在 2075 行读到 0 —— 中间**没有任何一行**。客户端菜单的收取要晚一到多 tick 才落到
+`rig.carrying`（它读的是 `driver.fakePlayer()` 那个 ServerPlayer）。修法是给铁锭判据加一段
+沉降等待（`iron_ingot >= 1 || ++settle >= 40`，`within(80)`）。
+
+**这一趟的判据，先写死在这里：**
+
+1. **修法被验证到**：`iron_ingot.serverSettleTicks` 落在 **1..39**。
+   - `= 0` ⇒ 第一次读就已经有铁 ⇒ 修法**没有被验证**（只是没坏），要另找 ladder-7 那次读 0 的原因。
+   - `= 40` ⇒ 等满了还是 0 ⇒ 铁**根本没进包**，是别的死因，跟菜单时序无关。
+2. **前进**：`journey.height` 从 `FURNACE` 走到 **`IRON` 或更高**。没前进就不算这条修法有效。
+3. **不许倒退**：1–8 级（BED 除外，它不在关键路径上）全部仍 `REACHED`。
+
+三条里任何一条不成立，都按不成立记，不改判据。
 
 ## 📏 12 级装水：三行证据不可能同时为真，而两条更漂亮的解释都被字节码否掉（Q14，2026-08-22）
 
