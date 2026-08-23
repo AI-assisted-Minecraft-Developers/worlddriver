@@ -1243,20 +1243,59 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     // 08 — the furnace. Eight of the cobblestone the stone rung banked.
     // =====================================================================================
 
+    /** What a furnace costs. Named because the top-up below and the stone rung's bill both quote it. */
+    private static final int FURNACE_COBBLE = 8;
+
     /**
-     * Craft a furnace from the cobblestone already in the bag.
+     * Craft a furnace from the cobblestone already in the bag, mining the shortfall only if there is one.
      *
-     * <p>No walking and no mining: the stone rung was sized to leave enough behind, so this rung is
-     * purely a 3×3 craft. That makes it the cheapest possible regression sensor for the station-menu
+     * <p><b>The happy path still does no walking and no mining</b>, and that is deliberate: a rung
+     * that is purely a 3×3 craft is the cheapest possible regression sensor for the station-menu
      * seam — if {@code openStationMenu} ever breaks again, this is the rung that says so in eight
-     * seconds rather than the iron rung saying it after a two-minute dig.
+     * seconds rather than the iron rung saying it after a two-minute dig. The top-up is a no-op when
+     * the bag is full enough, so that property survives.
+     *
+     * <p><b>Why a top-up exists at all.</b> The stone rung's bill (see its {@code isAtLeast(20)})
+     * is「pickaxe 3 + exit pillar ~9 + furnace 8」— it budgets nothing for rungs 6 and 7, and
+     * measured 2026-08-23 those two spent <b>ten</b> cobblestone between them: the stone rung banked
+     * 14 and this rung opened holding 4. Raising the stone rung's quota would only move the guess;
+     * asking here, where the requirement is known exactly, is the reading that cannot go stale.
+     *
+     * <p><b>Both branches record.</b> A row that appears only when the top-up fires cannot tell a
+     * reader「it did not happen」from「it was not logged」, and the whole point of this row is to keep
+     * the upstream leak visible instead of quietly paying for it.
      */
     private static void furnace(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.FURNACE);
         rig.generousPathfinding();
         rig.attempting("用已有圆石合成熔炉");
-        rig.evidence("cobblestone.before", rig.carrying("minecraft:cobblestone"));
+        int before = rig.carrying("minecraft:cobblestone");
+        rig.evidence("cobblestone.before", before);
 
+        if (before >= FURNACE_COBBLE) {
+            rig.evidence("furnace.topUp", "不需要 —— 开场 " + before + " ≥ " + FURNACE_COBBLE
+                    + "（这一趟仍是纯合成传感器）");
+            craftFurnace(ctx, rig);
+            return;
+        }
+
+        int need = FURNACE_COBBLE - before;
+        rig.evidence("furnace.topUp", "补料 " + need + " 块 —— 开场 " + before + "，不足 "
+                + FURNACE_COBBLE + "；上游漏了料，这一趟不是纯合成");
+        // Radius 32, not the stone rung's 16: that one mined from the bottom of its own shaft where
+        // stone is everywhere, and its comment already records that at a swamp SURFACE「the radius,
+        // not the quota, is what binds」. This is the cheap attempt on purpose — if it comes back
+        // short the evidence says so by name, and the next step is the stone rung's proven shape
+        // (walk to JourneyRoute.stoneDescent, descendByMining, climbOut) rather than another guess.
+        rig.attempting("补圆石：地表 32 格内挖不到 " + need + " 块石头");
+        rig.drive(new MineProcess(List.of("minecraft:stone"), need, 32), 12_000, () -> {
+            rig.evidence("furnace.topUp.after", rig.carrying("minecraft:cobblestone"));
+            craftFurnace(ctx, rig);
+        });
+    }
+
+    /** The 3×3 craft itself — the part that was this rung before it grew a top-up. */
+    private static void craftFurnace(SceneContext ctx, JourneyRig rig) {
         craftKeepingTheTable(rig, "minecraft:furnace", 6_000, () -> {
             int furnaces = rig.carrying("minecraft:furnace");
             rig.evidence("furnace", furnaces);
