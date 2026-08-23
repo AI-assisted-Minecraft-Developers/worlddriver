@@ -1760,6 +1760,61 @@ wd.drownEscapeClientStaysDownDisarmed       PASS 219 tick
 
 ⇒ **归因表的结论**：闸 1 那两条「计划外」的红，闸 3 全绿，K1/K2/K4 **零命中**。
 janitor 那三笔在 NeoForge 集成拓扑上是干净的。
+
+#### 闸 2（`stagewrightDedicatedServerFabric`）：抓到真缺陷，两次修错，第三次修对
+
+第一趟 RED，两条场景在 **0 tick** 就炸：
+
+```
+wd.drownEscapeGateMatrix / wd.drownEscapePreempt -> FAIL
+  Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER
+```
+
+**这就是那个「多花一个槽」的闸要抓的东西——只是抓到的是我，不是 janitor 那三笔。**
+
+##### 判别子：是**加宽**，不是「点名」也不是「调用」
+
+我提交过两个错的解释，都已在代码里改掉（**留一段被证伪的注释比没有更糟**）：
+
+| 我说过 | 为什么错 |
+|---|---|
+| 「本类声明的方法签名里点名了客户端类」 | 最后一个绿版本的描述符里就有 `LocalPlayer` |
+| 「调用了客户端类型上的方法」 | `KeyMapping.setDown`、`ClientLevel.getBlockState`、`Minecraft.getInstance`、写 `yHeadRot`——绿版本里全都有 |
+
+**真正的判别子**：把 `LocalPlayer` 递给声明为 `Player`/`Entity` 的形参。
+那个**加宽**要求校验器加载 `LocalPlayer` 去证明子类型关系，专用服上没有这个类。
+
+正是我今天引入的：`WalkerGeometry.riseBlockers(Player, double)`。
+而且**我第一次「修复」把 `blockedAbove` 改成收 `Player`，等于亲手又造了一个同样的加宽**。
+
+修法：把加宽整个移进 `BotInteract`（`riseBlockedCell`）。`invokestatic` 只解析宿主，
+而专用服上 `tick` 在 `mc == null` 就返回，那个宿主永远不会被加载——
+与 `continueDestroy` / `drownVerticalRow` 同一形状。
+
+##### 方法论：三轮排除都落空，就该去打栈了
+
+框架只报 `unexpected RuntimeException: Cannot load class …`。
+**那条消息点的是「什么没加载成」，永远不是「谁去要的它」。**
+我拿 `javap` 和 git 历史逐个排除候选，三轮全部落空——**每轮被同一份数据挡回来，本身就是
+「缺的不是推理而是读数」的信号**，而我又多推了两轮才动手。
+
+修法是给场景的三个矩阵各加一道围栏、把 throwable 连栈打出来（打完原样抛出，判词不变）。
+**一次编译，一行栈，直接点名 `WorldDriverSurvivalScenes.java:799`。**
+
+##### 结果
+
+```
+VERDICT: GREEN     305 PASS / 28 skipped
+剩余 3 红全部 required=false：两条框架金丝雀 + wd.vineOverWaterClimb（已知 −711 藤蔓探针）
+                              + wd.serverEscapeSealedShelter
+classload 命中 = 0
+```
+
+修法同样是**量**出来的：`javap -c` 对 `Player` 形参的调用零命中。
+
+⚠️ 顺带作废一条我用过的证据：**02:45 那份 results 不能当基线**。
+提交时间线是 `a1de83a4`(02:01，引入这一族) → **02:45 那趟** → `7fc8b65b`(03:05，修它)，
+02:45 夹在中间却报 PASS，多半跑的是 02:01 之前编译的类（[[compiling-under-a-live-run]]）。
 2. **到达判据丢 y** 是独立缺陷，但**不要单独落地**：判据先学会 y 而上游还在，
    第 7 级会立刻翻红、读起来像回归。过渡期只把 y 差**写进证据行**（诚实的行，不判失败）。
 3. 熔炉差 4 块圆石按用户长期指令办：**先写死一步去补料**，不依赖上面两条的结论——
