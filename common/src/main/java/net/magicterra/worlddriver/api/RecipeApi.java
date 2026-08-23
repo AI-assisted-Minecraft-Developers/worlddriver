@@ -123,28 +123,10 @@ public final class RecipeApi {
     // === mc.recipe.resolve ===================================================
 
     Map<String, Object> resolve(Map<String, Object> params) {
-        Params p = Params.of(params);
-        String target = p.getNonBlank("target");
-        if (target == null) return Map.of("ok", false, "error", "missing target");
-        int count = p.getIntClamped("count", 1, 1, 4096);
-        ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            ResourceLocation trl;
-            try { trl = ResourceLocation.parse(target); }
-            catch (Exception e) { return Map.of("ok", false, "error", "invalid item id: " + target); }
-            if (!BuiltInRegistries.ITEM.containsKey(trl)) {
-                return Map.of("ok", false, "error", "unknown item: " + target);
-            }
-            Map<String, Integer> have = resolveHave(p, botPlayer());   // reads the bag: server thread only
-            RecipeManager rm = level.getRecipeManager();
-            HolderLookup.Provider ra = level.registryAccess();
+        return withPlanContext(params, (target, count, have, rm, ra, stations) -> {
             // Resolution lives in RecipeResolver (single source of truth): the verb
-            // serializes the plan to JSON; CraftProcess executes the same Jobs. Pass the
-            // SAME world-aware station check CraftProcess uses (gap #275), so the plan we
-            // report is the plan that will run: beside a placed table the bot needs no
-            // new one, and reporting otherwise would call a feasible craft infeasible.
-            RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have,
-                    CraftProcess.availableStations(botPlayer(), level));
+            // serializes the plan to JSON; CraftProcess executes the same Jobs.
+            RecipeResolver.Plan plan = RecipeResolver.resolve(rm, ra, target, count, have, stations);
 
             List<Map<String, Object>> steps = new ArrayList<>();
             for (RecipeResolver.Job j : plan.jobs()) {
@@ -180,24 +162,8 @@ public final class RecipeApi {
      *  missing leaf (mine/farm/smelt). Pure computation over the recipe table,
      *  server-thread like resolve. See {@link AcquireResolver}. */
     Map<String, Object> planAcquire(Map<String, Object> params) {
-        Params p = Params.of(params);
-        String target = p.getNonBlank("target");
-        if (target == null) return Map.of("ok", false, "error", "missing target");
-        int count = p.getIntClamped("count", 1, 1, 4096);
-        ServerLevel level = api.level();
-        return api.onServerThread(() -> {
-            ResourceLocation trl;
-            try { trl = ResourceLocation.parse(target); }
-            catch (Exception e) { return Map.of("ok", false, "error", "invalid item id: " + target); }
-            if (!BuiltInRegistries.ITEM.containsKey(trl)) {
-                return Map.of("ok", false, "error", "unknown item: " + target);
-            }
-            Map<String, Integer> have = resolveHave(p, botPlayer());   // reads the bag: server thread only
-            RecipeManager rm = level.getRecipeManager();
-            HolderLookup.Provider ra = level.registryAccess();
-            // Same world-aware station check as CraftProcess/mc.recipe.resolve (gap #275).
-            AcquireResolver.Plan plan = AcquireResolver.plan(rm, ra, target, count, have,
-                    CraftProcess.availableStations(botPlayer(), level));
+        return withPlanContext(params, (target, count, have, rm, ra, stations) -> {
+            AcquireResolver.Plan plan = AcquireResolver.plan(rm, ra, target, count, have, stations);
 
             List<Map<String, Object>> steps = new ArrayList<>();
             for (AcquireResolver.Step s : plan.steps()) {
@@ -227,6 +193,56 @@ public final class RecipeApi {
             env.put("unobtainable", unob);
             return env;
         });
+    }
+
+    /**
+     * The front half both planning verbs share: validate the target, hop to the server thread,
+     * and assemble the world context a plan is computed from.
+     *
+     * <p>It was written twice, byte for byte — the id parse, the registry check, the bag read, the
+     * recipe manager, the registry access, and the station scan. Two copies of a VALIDATION are the
+     * expensive kind: the day one of them learns about a new way an id can be bad, the other keeps
+     * answering the old way, and the two verbs disagree about whether the same request is legal
+     * while both keep reporting {@code ok:false} with confident text.
+     *
+     * <p>The station scan is part of the shared half on purpose. Both plans must be computed
+     * against the SAME world-aware station check {@code CraftProcess} executes against (gap #275),
+     * or the plan reported is not the plan that will run: beside a placed table the bot needs no new
+     * one, and reporting otherwise calls a feasible craft infeasible. Passing it in from here is
+     * what keeps that true for both verbs at once instead of once per copy.
+     *
+     * <p>Only the front half. Each verb still owns its own resolver and its own JSON shape —
+     * {@code steps}/{@code missing}/{@code stations_needed} against
+     * {@code steps}/{@code unobtainable}/{@code feasible} — because those are the parts that really
+     * do differ, and merging them would be the tidy-up this is not.
+     */
+    private Map<String, Object> withPlanContext(Map<String, Object> params, PlanBody body) {
+        Params p = Params.of(params);
+        String target = p.getNonBlank("target");
+        if (target == null) return Map.of("ok", false, "error", "missing target");
+        int count = p.getIntClamped("count", 1, 1, 4096);
+        ServerLevel level = api.level();
+        return api.onServerThread(() -> {
+            ResourceLocation trl;
+            try { trl = ResourceLocation.parse(target); }
+            catch (Exception e) { return Map.of("ok", false, "error", "invalid item id: " + target); }
+            if (!BuiltInRegistries.ITEM.containsKey(trl)) {
+                return Map.of("ok", false, "error", "unknown item: " + target);
+            }
+            Map<String, Integer> have = resolveHave(p, botPlayer());   // reads the bag: server thread only
+            RecipeManager rm = level.getRecipeManager();
+            HolderLookup.Provider ra = level.registryAccess();
+            return body.plan(target, count, have, rm, ra,
+                    CraftProcess.availableStations(botPlayer(), level));
+        });
+    }
+
+    /** The back half of a planning verb: everything after the target is known good and the world
+     *  context is in hand. Runs ON the server thread — {@link #withPlanContext} has already hopped. */
+    @FunctionalInterface
+    private interface PlanBody {
+        Map<String, Object> plan(String target, int count, Map<String, Integer> have,
+                                 RecipeManager rm, HolderLookup.Provider ra, Set<String> stations);
     }
 
     // === helpers =============================================================
