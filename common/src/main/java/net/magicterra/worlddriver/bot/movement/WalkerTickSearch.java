@@ -30,6 +30,31 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
 final class WalkerTickSearch {
     private WalkerTickSearch() {}
 
+    /**
+     * Tally WHY the futile-search gate is skipping this completed search, and say whether it is.
+     * First match in the gate's OWN written order, so buckets 0-5 here plus 6-8 at the call site
+     * partition every completed search and their sum is the search count.
+     *
+     * <p>Counting lives here rather than at the call site because it must happen BEFORE the
+     * {@code if}, or the most-suspect exclusion ({@code goalReached}) can never be observed — a
+     * census that cannot reach its own subject is the defect it exists to find. The predicates are
+     * the gate's, in the gate's order, so nothing here changes what the gate does; the only reason
+     * this is one method and not an expression is {@code run()}'s per-method budget.
+     */
+    private static boolean futileGateExcluded(PathFinder.Result res, Avatar a, Walker wk,
+                                              WorldView world, BlockPos foot) {
+        int bucket = -1;
+        if (BotConfig.walkerFutileSearchCap <= 0) bucket = 0;
+        else if (res.goalReached()) bucket = 1;
+        else if (a.breakHeld()) bucket = 2;
+        else if (wk.waterClimb.digging) bucket = 3;
+        else if (world.isWater(foot)) bucket = 4;
+        else if (!res.hasPath() && world.hasStuckPenalties()) bucket = 5;
+        if (bucket < 0) return false;
+        Walker.futileGateBuckets.incrementAndGet(bucket);
+        return true;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -93,11 +118,10 @@ final class WalkerTickSearch {
             // have cleared). Don't count those; penalties decay in 15-90 s and the counter
             // resumes on the first clean-view failure. Partial results still count — the
             // penalties didn't blind the search enough to matter.
-            if (BotConfig.walkerFutileSearchCap > 0 && !res.goalReached()
-                    && !a.breakHeld() && !wk.waterClimb.digging && !world.isWater(foot)
-                    && !(!res.hasPath() && world.hasStuckPenalties())) {
+            if (!futileGateExcluded(res, a, wk, world, foot)) {
                 boolean gotCloser = wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0.5;
                 boolean moved = wk.searchGov.futileFoot == null || wk.searchGov.futileFoot.distSqr(foot) > 4;
+                Walker.futileGateBuckets.incrementAndGet(gotCloser ? 6 : moved ? 7 : 8);
                 if (gotCloser || moved) {
                     wk.searchGov.futileSearches = 0;
                     wk.searchGov.futileBestDist = wk.goalSpin.bestDistToGoal;

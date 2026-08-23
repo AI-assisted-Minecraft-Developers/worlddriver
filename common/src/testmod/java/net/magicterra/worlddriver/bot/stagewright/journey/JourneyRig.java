@@ -265,6 +265,11 @@ public final class JourneyRig {
         // The obituary. A scene that times out never reaches its own last line, so the only place
         // a missed rung can be written down is a cleanup — those drain on every exit path.
         ctx.cleanup(() -> {
+            // BEFORE the obituary, and outside its `claimed` test: the ledger is handed `rig.evidence`
+            // by reference, so a row written after this point would be missing from a failed rung's
+            // ledger entry, and a row written only for unclaimed rungs would be missing from every
+            // rung that passed — which is the half this census exists to see.
+            rig.evidence("futileGate", rig.futileGateLine());
             if (!rig.claimed) {
                 JourneyLedger.failed(stage, rig.note, rig.evidence, tick(ctx));
             }
@@ -1477,6 +1482,44 @@ public final class JourneyRig {
                 + " 次；没点火 " + sum + " tick"
                 + (sum == 0 ? "（合计为 0 —— 守卫这一趟根本没被调用到，问题不在守卫内部，"
                               + "先看走行器有没有在 tick）" : "，分布：" + sb);
+    }
+
+    /**
+     * The futile-search gate's nine buckets for THIS rung — a delta, unlike {@link #strideGuardLine}.
+     *
+     * <p>The counters are one static array for the whole JVM and every rung of a run shares it, so a
+     * cumulative reading on rung 9 would be rungs 1–9 added together and no rung's row could be read
+     * on its own. One rig per rung ({@code enter} builds exactly one) makes the rig's own birth the
+     * right baseline. {@link JourneyFlight} takes its stride deltas the same way.
+     *
+     * <p>Written on EVERY exit path, from the cleanup that already carries the obituary — not only
+     * on a death like the stride row, and not only on a failure. The run this instrument was built
+     * for ended with the rung PASSING while a leg churned 318 searches, so a census that only speaks
+     * when something failed would have missed exactly the case that motivated it.
+     */
+    private final long[] futileAtStart = futileSnapshot();
+
+    private static long[] futileSnapshot() {
+        long[] v = new long[net.magicterra.worlddriver.bot.movement.Walker.FUTILE_GATE_BUCKETS.length];
+        for (int i = 0; i < v.length; i++)
+            v[i] = net.magicterra.worlddriver.bot.movement.Walker.futileGateBuckets.get(i);
+        return v;
+    }
+
+    /** This rung's share of the futile gate, bucket by bucket. Buckets 0-5 are searches the gate
+     *  never judged; 6-8 are what it did with the ones it judged. */
+    private String futileGateLine() {
+        long sum = 0;
+        StringBuilder sb = new StringBuilder();
+        String[] names = net.magicterra.worlddriver.bot.movement.Walker.FUTILE_GATE_BUCKETS;
+        for (int i = 0; i < names.length; i++) {
+            long v = net.magicterra.worlddriver.bot.movement.Walker.futileGateBuckets.get(i) - futileAtStart[i];
+            sum += v;
+            sb.append(i == 0 ? "" : "，").append(names[i]).append('=').append(v);
+        }
+        return "这一级完成了 " + sum + " 次搜索"
+                + (sum == 0 ? "（一次都没有——走行器这一级没搜过路，别把下面的零读成判词）"
+                            : "，闸的去向：" + sb);
     }
 
     /** How many recent blows the death row carries. Enough to tell one big hit from a slow drain. */

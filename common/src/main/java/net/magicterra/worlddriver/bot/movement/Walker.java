@@ -2090,6 +2090,27 @@ public final class Walker {
         return false;
     }
 
+    /**
+     * Why the futile-search gate did not count a completed search — one bucket per exclusion, plus
+     * the three ways it DID act. Same contract as {@link #strideGuardSkips}: exactly one bucket per
+     * completed search, first match in the gate's written order, so the sum is the number of
+     * searches the gate ran over and any bucket's share is directly readable.
+     *
+     * <p><b>Why counting was needed at all.</b> A run of 318 consecutive searches on one goal, over
+     * two minutes, never tripped a cap of 5 — so five exclusions were suspects and the log named
+     * none of them. It was settled that once from a DIFFERENT instrument's field (a {@code [place]}
+     * row's neighbour cell read {@code water} at the body's own foot), which is luck, not method.
+     * Nothing here changes behaviour; the gate is unchanged and this only says what it did.
+     */
+    public static final java.util.concurrent.atomic.AtomicLongArray futileGateBuckets =
+            new java.util.concurrent.atomic.AtomicLongArray(9);
+    /** Names for {@link #futileGateBuckets}, in bucket order — buckets 0-5 are exclusions (the gate
+     *  never ran), 6-8 are what it did when it did run. */
+    public static final String[] FUTILE_GATE_BUCKETS = {
+            "闸关着(cap<=0)", "搜索到达了目标", "正在挖(breakHeld)", "水中攀爬正在挖",
+            "脚格是水(让给水里的反转圈)", "无路且拉黑还没过期",
+            "清零:离目标更近了", "清零:身体挪了>2格", "计入"};
+
 
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     int guardHoldTicks;
