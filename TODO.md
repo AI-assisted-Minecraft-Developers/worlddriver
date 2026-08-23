@@ -1332,11 +1332,47 @@ java.lang.Error: Watchdog
 一次可复现的崩溃 + 一次通过，**要的是观察到那条通路被切断，不是再数几个绿**
 （[[three-greens-cannot-see-a-one-in-four]]）。
 
-🔴 **Q33a（真正该修的那一条）**：无界切片没有**墙钟上限**。
-`ENTER unbounded-slice` 是常态（绿的那趟 2001 次、崩的那趟 1428 次），
-所以不能禁用它；要的是**一次 `advance()` 超过 N 毫秒就让出这一 tick**。
-日志里已经有 `STILL RUNNING 1000 ms in ONE advance()` —— **仪器已经在了，闸没有**。
-⚠️ 那行警告在崩溃前 1 秒就打过，也就是说**系统当时已经知道自己不对劲，却没有任何人有权叫停**。
+### 🔴 Q33a：机制找到了，**而它把我上面那句修法否掉了**
+
+我先写的是「无界切片没有墙钟上限，该给它加一道」。**那是拿产品代码去修布景。**
+janitor 找到了真因（`WorldDriverMobFightScenes.java:306-307`，`serverFightsAFlyingBlaze` 方法体里）：
+
+```java
+BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+BotConfig.pathfinderMaxMs   = Long.MAX_VALUE / 2;
+```
+
+**两道时间闸被这条场景自己拆了，而它没有碰 `pathfinderMaxNodes`**（默认 `100_000`）
+⇒ 这条场景里的 A\* **只剩节点上限、没有任何时间上限**：
+要么很快找到路（绝大多数情况，所以 2001 次无界切片相安无事），
+要么**一路磨到十万节点，而这十万节点全在同一个服务端 tick 里**。
+栈顶正是每节点必走的那条链 `Walk.valid → canStandAt → isHazard`，
+十万次展开 ＝ 那 60.00 秒。**看门狗的阈值也是 60 秒，这条通路上没有任何东西比它先响。**
+
+⚠️ **生产环境撞不到这个**：线上 `pathfinderSliceMs` 是真的毫秒数，一次搜索摊到多个 tick。
+**所以这是布景造出来的危险，不是产品缺陷。**
+
+**同一个雷的其余引信**（janitor 扫的，都把时间闸设成 `Long.MAX_VALUE/2`）：
+`WorldDriverMobFightScenes` 另外三处（:94/95、:195/196、:581/582）、
+`WorldDriverAvatarScenes:383/384`、`WorldDriverCoreScenes:1250/1251、1311/1312`、
+`WorldDriverParkourVoidScenes:300`、`JourneyRig:1777`（只拆 MaxMs）。
+⚠️ 尤其 `ParkourVoidScenes` —— **名字里就带 void，掉出去正是它的主题**。
+
+**修法定了：布景侧，而且要收进一处。** 不是每条场景各自挑一个数——
+拆时间闸和压节点上限必须是**同一个动作**，否则下一条新场景还会只做前一半。
+形状照 `skipStride` 那种「不指明桶就加不进去」的先例：
+一个 `noTimeLimit(maxNodes)` 之类的布景助手，**拆闸的唯一入口**，参数是必填的。
+
+**否掉的另一条**：给无界切片加墙钟兜底。那会让「无界」名不副实、影响所有拆闸场景，
+而且是**用产品代码去补布景的洞**。
+
+> 和 J27 是同一个病、方向相反：J27 是 baseline **关掉**旗标让分支进不去（测不到真东西），
+> 这里是场景**关掉安全边界**让生产永远见不到的危险变得可达（被假东西杀掉）。
+> **两者都是「套件跑的世界和生产不是同一个」。**
+
+⚠️ 判词措辞也要改：这一趟绿**不是「通过」，是「本趟未触发」**——
+自变量是「身体掉没掉出竞技场」，只要 `bottomless stride → sneak-pin` 那几行还在，
+掉出去就还是一次 60 秒。
 
 ### ⚠️ 顺带记一次我自己的操作错误：**后台通知说 `exit code 0`，而 gradle 是 `BUILD FAILED`**
 
