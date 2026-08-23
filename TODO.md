@@ -61,6 +61,53 @@ DEDICATED_SERVER` 不是这条缺陷的残余**，另立一条查：
 
 ---
 
+## 🔍 每 tick 一次的 Minecraft 类加载（NeoForge 专有，2026-08-23）
+
+**结案：不是缺陷，是 StageWright 的探针每 tick 重试一次注定失败的类加载。** 全部静态定死，
+没有起过任何 gradle。
+
+**谁去要的**：`stagewright/api/src/main/java/net/magicterra/stagewright/scene/Perf.java:221`
+`Perf.clientFps()`，第一行就是 `Class.forName("net.minecraft.client.Minecraft")`。
+它被 `Perf$Accumulator.sample()`（同文件 `:154`，`int frames = clientFps();`）**无条件**调用，
+而 `sample()` 就是 `sampleFor()` 注册的那个 await **条件**——「每 tick 求值一次」是它的设计。
+`pack.measuresItsOwnTickCost` 开两个 60 tick 窗（`worlddriver/stagewright-scenes/pack.js:73`
+的 `sampleFor(60, …)` + `afterLoading(…, 60, …)`），**60+60 = 120 次调用 = 120 行**，与日志
+逐条对齐。核过跑的那份产物，不是只核了工作树：
+`javap -c -cp ~/.m2/…/mc_stagewright-api-0.1.0+1.21.1.jar net.magicterra.stagewright.scene.Perf`
+里 `clientFps()` 偏移 0/2 就是 `ldc "net.minecraft.client.Minecraft"` + `invokestatic Class.forName`，
+`Perf$Accumulator.sample()` 偏移 87 是 `invokestatic Perf.clientFps`。
+
+**谁吞的**：同一方法的 `Perf.java:228` `catch (Throwable t) { return -1; }`
+（字节码 exception handler → `71: iconst_m1; 73: ireturn`）。这就是「每 tick 抛一次还能跑完
+119 tick」的原因，也是它三轮排查里查不到的原因。
+
+**为什么 Fabric 零命中**：**不是因为那条路没跑到。** Fabric 那四趟的
+`pack.measuresItsOwnTickCost` 同样 PASS (119 ticks) 且记下了 `tps.baseline=20, tps.loaded=20`
+——出这两个数就必须跑满 120 次 `sample()`，即 120 次 `Class.forName`。差别只在**谁打日志**：
+NeoForge 的 RuntimeDistCleaner 自己 `LOG.error` 完再抛，Fabric 的 Knot 只抛不打，
+被 `catch (Throwable)` 吞掉之后 Fabric 侧一行都不会有。
+所以上一节「**NeoForge 专有**」这句要按代码改：**触发者两边都跑，只有日志是 NeoForge 专有的。**
+（fabric 日志里那 4–6 条 `Cannot load class … environment type SERVER` 全是 `LocalPlayer`、
+全来自 `wd.drownEscape*` 的 FAIL，与本条无关；fabric4 那趟是 0。）
+
+**为什么是反射而不是字节码引用**：常量池解析失败 JVM 会记住并直接重抛，一处 `invokestatic`
+一辈子只打一条。每 tick 一条 ⇒ 只可能是 `Class.forName`。已排除 worlddriver 侧：
+`common/src/main` 里没有任何 `Class.forName("net.minecraft.client…")`；`neoforge/src` 里唯一的
+`Minecraft.getInstance()` 在 `WorldDriverNeoForgeClient.java:57`，专用服根本不加载那个类，
+且不在任何 tick 路径上。
+
+**遗留的两点，都归 StageWright（本仓不改它）**：
+
+1. `clientFps()` 应该把「这个 JVM 没有客户端」**记住一次**（静态 memo），而不是每 tick 重问。
+   现在这个探针违反了 `Perf` 自己的 javadoc：「there is no extra hook… nothing added to the
+   server's tick path」「an observer that costs tick time changes the very number it reports」
+   ——它恰恰在自己要测的窗口里每 tick 加一次完整的 ModLauncher 类加载+转换+抛异常。
+   本次实测没读出影响（tps 20/20），所以**优先级低**。
+2. 代价是每趟 NeoForge 闸日志里 120 行 ERROR，肉眼与真的 dist 违规**长得一模一样**——
+   这次就是它吃掉了三轮排查。
+
+---
+
 ## 📌 ladder-8 预登记（写在读结果之前，2026-08-23）
 
 ladder-7 停在 9 级 IRON：`[smelt] COLLECT: made=6× iron_ingot taken=6` 在日志第 2074 行，
