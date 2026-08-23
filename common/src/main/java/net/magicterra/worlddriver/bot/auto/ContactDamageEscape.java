@@ -151,14 +151,25 @@ public final class ContactDamageEscape {
     }
 
     /** First horizontal direction whose foot+head cells are passable and
-     *  hazard-free; prefer one that is also standable (solid floor) so the
-     *  escape step does not walk off a ledge. */
+     *  hazard-free — AND whose floor is not itself a hazard; prefer one that is
+     *  also standable (solid floor) so the escape step does not walk off a ledge.
+     *
+     *  <p>The floor test is not symmetry for its own sake. The only caller is the
+     *  degenerate branch above, whose own comment names "it is directly BELOW
+     *  (magma floor)" as the case it exists for — so this picker is asked, by
+     *  construction, from a body standing on a hazard floor, and without the test
+     *  it was free to answer with the neighbouring cell of the same magma slab.
+     *  {@code nearestHazard} would then re-trigger on the next tick, one cell over:
+     *  an escape that escapes into the same harm reads as a working reflex that the
+     *  world keeps beating. {@link LavaProximityEscape#pickClearCardinal} has asked
+     *  {@code f.below()} since it was written; only this copy did not. */
     private static Direction pickClearCardinal(Level lvl, LocalPlayer p) {
         BlockPos foot = p.blockPosition();
         Direction firstClear = null;
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos f = foot.relative(d);
-            if (isContactHazard(lvl, f) || isContactHazard(lvl, f.above())) continue;
+            if (isContactHazard(lvl, f) || isContactHazard(lvl, f.above())
+                    || isContactHazard(lvl, f.below())) continue;
             if (!passable(lvl, f) || !passable(lvl, f.above())) continue;
             if (firstClear == null) firstClear = d;
             if (!passable(lvl, f.below())) return d;   // solid floor → best
