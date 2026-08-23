@@ -25,6 +25,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import java.util.List;
 import java.util.Locale;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.Enchantment;
@@ -121,6 +122,36 @@ public final class BotInteract {
         boolean ok = mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p));
         if (ok) p.swing(InteractionHand.MAIN_HAND);
         return ok;
+    }
+
+    /**
+     * The lowest cell that would stop this body rising {@code rise} blocks, or null if none does.
+     *
+     * <p><b>Here, not in the chain, because of the WIDENING.</b> The scan itself is
+     * {@link net.magicterra.worlddriver.bot.movement.WalkerGeometry#riseBlockers}, which takes a
+     * {@link net.minecraft.world.entity.player.Player} — so calling it with a {@code LocalPlayer}
+     * is a widening conversion, and <b>a widening conversion is exactly what forces the verifier to
+     * LOAD {@code LocalPlayer}</b> in order to prove the subtype relation. Do that inside a chain
+     * and the chain stops loading on a dedicated server, where the gate's matrix scenes construct
+     * it ({@code new DrownEscapeChain()}).
+     *
+     * <p>Measured 2026-08-23 the expensive way. The framework reports only
+     * <i>"Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER"</i>
+     * — which names the class that could not load, never the instruction that asked. Comparing
+     * {@code javap} output and git history against a known-good revision cleared every other
+     * suspect in turn (the class named {@code LocalPlayer} before; it called {@code KeyMapping},
+     * {@code ClientLevel}, {@code Minecraft.getInstance} before; it wrote {@code yHeadRot} before)
+     * and never found the cause, <b>because the cause was not any of those</b>. One stack, printed
+     * by fencing the scene's three matrices separately, named the line in seconds.
+     *
+     * <p>The rule that survives, sharper than「must not call into a client type」:
+     * <b>a class the dedicated server has to load must not hand a client type to a parameter
+     * declared as a wider type.</b> Holding it in a local and calling its own methods is fine.
+     */
+    public static BlockPos riseBlockedCell(Minecraft mc, LocalPlayer p, double rise) {
+        if (mc.level == null) return null;
+        List<BlockPos> hits = net.magicterra.worlddriver.bot.movement.WalkerGeometry.riseBlockers(p, rise);
+        return hits.isEmpty() ? null : hits.get(0);
     }
 
     /**

@@ -25,6 +25,7 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
 import static net.magicterra.worlddriver.bot.util.BotInteract.continueDestroy;
 import static net.magicterra.worlddriver.bot.util.BotInteract.drownVerticalRow;
+import static net.magicterra.worlddriver.bot.util.BotInteract.riseBlockedCell;
 import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 
 /**
@@ -47,7 +48,7 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
  * zero horizontal input, zero turning (the same idle-passivity boundary gap#70
  * drew: a survival float is a reflex, not autonomous movement). If something is
  * in the way of the rise — asked by sweeping the body's own box up, see
- * {@link #blockedAbove}, NOT by naming one cell above one column — break it,
+ * {@code BotInteract#riseBlockedCell}, NOT by naming one cell above one column — break it,
  * {@code allowBreak} permitting, in the {@link BunkerChain} aim+attack style
  * ({@code AntiSuffocate} owns the eye-cell case; the lid here is above it).
  *
@@ -94,7 +95,7 @@ public final class DrownEscapeChain implements Chain {
     private boolean keysHeld;
     /** Throttle counter for the capped-lateral-escape debug line. */
     private int dbg;
-    /** Throttle counter for {@link #verticalRow}. Deliberately NOT shared with {@link #dbg}: one
+    /** Throttle counter for {@code BotInteract#drownVerticalRow}. Deliberately NOT shared with {@link #dbg}: one
      *  counter across two mutually-exclusive arms lets a run of lateral ticks advance the vertical
      *  arm's phase, so the vertical rows would land on an arbitrary subset of ticks instead of
      *  every tenth of its own. Two arms, two clocks. */
@@ -217,7 +218,7 @@ public final class DrownEscapeChain implements Chain {
         // 2026-08-23, wd.drownEscapeClientPinnedByNeighbourColumn:「跳读回=true 撞顶=true 盖挡=false」
         // — the command landed, physics said blocked, the scan said clear — 200 ticks, 0.000 blocks.
         // The live death it reproduces spent 261 ticks the same way.
-        BlockPos lid = blockedAbove(p);
+        BlockPos lid = riseBlockedCell(mc, p, RISE_PROBE);
         boolean lidBlocksRise = lid != null;
         boolean breaking = false;
         // RECENTRE, before reaching for a pick. When the rise is blocked but the body's OWN column
@@ -297,22 +298,25 @@ public final class DrownEscapeChain implements Chain {
      * <p>The list comes back lowest-first and the lowest is what this arm wants: that is the face
      * actually bearing on the body.
      *
-     * <p><b>The parameter is {@link Player}, not {@code LocalPlayer}, and that is load-bearing.</b>
-     * A method DECLARED here whose descriptor names a client class gets resolved when this class is
-     * prepared — and this chain is constructed on a dedicated server by the gate's matrix scenes
-     * ({@code new DrownEscapeChain()} in {@code wd.drownEscapeGateMatrix}). Measured 2026-08-23:
-     * declaring it {@code (Minecraft, LocalPlayer)} turned two green matrix scenes into
-     * <i>"Cannot load class net.minecraft.client.player.LocalPlayer in environment type SERVER"</i>.
-     * {@code javap -p} named the cause in one line — those were the only two members in the whole
-     * class whose descriptors mentioned {@code LocalPlayer}. Holding a client type in a LOCAL and
-     * calling methods on it stays fine; putting one in a signature declared here does not. The row
-     * printer that genuinely needs {@code LocalPlayer.input} moved to {@code BotInteract} for the
-     * same reason — see {@code BotInteract#drownVerticalRow}.
+     * <p><b>BODY IN {@code BotInteract#riseBlockedCell}, and it must stay there.</b> The scan takes
+     * a {@code Player}; this arm has a {@code LocalPlayer}. Handing one to the other is a WIDENING,
+     * and a widening is what forces the verifier to LOAD {@code LocalPlayer} to prove the subtype
+     * relation — which a dedicated server cannot do, and the gate's matrix scenes construct this
+     * chain on one. Keeping the widening inside a client-only class costs nothing: an
+     * {@code invokestatic} resolves its owner, and that owner is never loaded on a server because
+     * {@code tick} returns at {@code mc == null} first.
+     *
+     * <p><b>Two wrong explanations were committed here first; both are retracted.</b> It is not
+     * "the descriptor names a client class" (this class named {@code LocalPlayer} in descriptors
+     * long before, and passed) and not "it calls into a client type" ({@code KeyMapping.setDown},
+     * {@code ClientLevel.getBlockState}, {@code Minecraft.getInstance} and a {@code yHeadRot} write
+     * were all here in the last green revision). Comparing {@code javap} output and git history
+     * cleared every suspect and found nothing, because the cause was in none of them. What settled
+     * it in seconds was one STACK — the scene's three matrices fenced separately so the throwable
+     * could be printed. The lesson is the method, not just the answer: when a message names a
+     * missing CLASS it is telling you what could not load, never who asked.
      */
-    private static BlockPos blockedAbove(Player p) {
-        List<BlockPos> hits = WalkerGeometry.riseBlockers(p, RISE_PROBE);
-        return hits.isEmpty() ? null : hits.get(0);
-    }
+    // (body moved — see above)
 
     /*
      * The execution-layer row for the pure-vertical arm — BODY IN BotInteract#drownVerticalRow.
