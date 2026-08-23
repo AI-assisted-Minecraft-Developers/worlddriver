@@ -256,7 +256,16 @@ public final class DrownEscapeChain implements Chain {
             breaking = true;
         }
         if (!breaking) mc.options.keyAttack.setDown(false);
-        if (BotConfig.walkerDebug && (dbgV++ % 10 == 0)) verticalRow(mc, p, lid, lidBlocksRise, breaking);
+        // UNCONDITIONAL — it used to be gated on walkerDebug, and that gate cost a whole gate slot.
+        // 2026-08-23, stagewrightIntegratedServerNeoforge: both armed arms of the drown scenes came
+        // back 净升 0.000 while the very same code passed on Fabric an hour earlier (2.291 / 2.320).
+        // `[drownEscape] PREEMPT` printed twice, so the chain armed and took the body — but there
+        // were ZERO 竖直支 rows to say what happened next, because gates do not run with
+        // walkerDebug on. A reading available only under a flag is a reading the run that needs it
+        // never takes, and the zero it leaves cannot be told apart from「the arm never ran」.
+        // Same lesson, same day, as BotInteract's [place] row. The %10 throttle stays: this arm
+        // only ticks while a body is actually drowning, so the volume is an episode, not a stream.
+        if (dbgV++ % 10 == 0) verticalRow(mc, p, lid, lidBlocksRise, breaking);
     }
 
     /** How far up the body's own box is swept to ask「这一升会不会撞上东西」. Half a block: far
