@@ -25,18 +25,18 @@
 | 🔴 已量待修 | Q7 | V1 冻屏**数出来了**：单秒最高 **20 次**搜索、26% 的秒 ≥3 次，全在 Render thread；最大单一来源是 **174 次起点目标全同的重问**（`owner=mine`）。「缺计数器」是错的——`search-begin` 一直无条件在打 | 我 |
 | ⏭ 排队 | Q8 | V2 不低头：挖掘瞄准必须**经过** `LookController`，不是绕过它写 `setXRot` | 我 |
 | ✅ 已判 | Q9 | V6「瞬移」：**没有一处是瞬移**，10 处同格居中吸附 + 开场 7.9 格对齐。**结案，不修** | 我 |
-| 📌 已判待验 | Q10 | V5 工作台：两种互斥解释的判别行已落（`craftingTable.broke`，每次破坏都写，第二次自动变 `#2`），ladder-9 收数 | 我 |
+| 🔴 已量待修 | Q10 | V5 工作台：判别行读出来了，而它判的**不是**原先登记那两种解释。四趟真梯（11/12/13/14）**4/4** 在 8 级开场 `standing=none`＋`pickup.left=0`＋`remade=true`＝**每趟都重买一张**；8→10 反而是好的（`tookItAlong`→`broke 地上 1 个`→`before=1`），漏点在 **5→8 之间**，而 7 级（床）**一行 `craftingTable.*` 都没写**——`reclaimTableIfLeftStanding` 三个出口只有一个说话。已补两键（`keptInBag`／`lostAfterCraft`，后者带 32 格重搜＋掉落普查＋身体坐标，把「craft 把身体走出了 4 格半径」「破了没捡」「压根没放过」分开）（`ce352753`）。**下一趟真梯读** | 我 |
 | 📌 部分已判 | Q11 | V3 不挥手：`[dig]` 摘闸后 ladder-9 前 1750 行 **143/143 `ok=true`** ⇒ **挖掘这一族是挥手的**。要重新归类，见下 | 我 |
 | 🔴 已修待闸 | J8 | `BackfillProcess:52` / `BuildProcess:59` 身体消失不写 `lastError`，而 `toMap` 丢 null ⇒ 报成「结束了，没错误」（`fb4fb45a`/`b4335efa`，janitor 找的） | 我 |
 | ✅ 已测 | J10 | 硬规则 12 有秒级闸了：`SchedulerClientCallSurfaceTest` 加扫**形参描述符**（`329d7964`）。`:common:test` 绿，含反向控制 | 我 |
 | ✅ 已落 | J11 | 预算闸自己解析错：先剥块注释再剥字符串，字符串里的 `bot/scheduler/**` 开了个假注释（`a7b5e3fc`）。已校准：全仓只影响 1 个文件 | 我 |
 | ✅ 已测 | J12 | **同一天第二把不剥注释的尺子**：`DayTimeFoldingTest` 被一行 javadoc 判红，而它的「控制」一直靠另一行 javadoc 通过（`5d4d80ff`） | 我 |
 | ✅ 已落 | J13 | `WorldDriverJourneyScenes` 到顶（3017），把工作台/落脚那一族拆进 `JourneyStation`（`28a38cc8`），2851 行。**机械搬运，证据键一个没改** | 我 |
-| 🔴 已修待闸 | Q16c | 9 级回家的路把身体带下 24 格 ⇒ 10 级走不到。补救：低于天光 8 格就先 `climbOut` 再走一趟（`28a38cc8`） | 我 |
+| ✅ **已闸** | Q16c | 9 级回家的路把身体带下 24 格 ⇒ 10 级走不到。补救：低于天光 8 格就先 `climbOut` 再走一趟（`28a38cc8`）。2026-08-23 核：`28a38cc8` **在 HEAD**，其后四道绿闸都带着它跑 ⇒ 不是「待闸」。**这张表第四条过期行** | 我 |
 | ✅ 已落 | J14 | 核完了：`JourneyEndRungs` 那份私有 `walkToColumn` **停在两条修法之前**（缺 `arrivedY`、缺到达分支的 `gotoEnd`）。已删，改指共享版；容差在唯一调用点等价 | 我 |
 | ✅ 已落 | J9 | 那两处**六行逐字相同**的收成了 `JourneyHands.swingOffPlant`（`5e8c0713`）。**两份拷贝错得一模一样**，所以这不是整洁项，它就是 Q16d 的修法本身 | 我 |
 | ✅ 已测 | Q12a | 世界钉法进了 99 级判词：ladder-8 的判词自带 `doMobSpawning=false…零布景说的是道具，不是难度` | 我 |
-| ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
+| ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）。**触发条件改具体**：`PORTAL_LIT`（12 级）在钉住的世界**连续两趟 PASS**。原来写的「爬进两位数」字面上已经满足，但 11 级四趟四种死法不叫稳；现在开刷怪，方差恰好砸在正被查的那一级上 | 我 |
 | ✅ 已落 | J1 | `BunkerChain` / `DrownEscapeChain` 的 `continueDestroy` **两处都已在 HEAD**（各自还带着「keyAttack 单独破不掉」的实测注释）。队列行过期，2026-08-23 核实 | janitor |
 | 🧊 冻结中 | J2 | 到达半径统一成眼→格心，抽进 `BotUtil`，五处指过去 | janitor |
 | 🧊 冻结中 | J3 | `ContactDamageEscape` / `LavaProximityEscape` 升级成 `commandMove` | janitor |
@@ -60,10 +60,15 @@
 | 🟠 待做 | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom:2611`（10 级隧道用，一次瞄准一次 use，没有重瞄、没有换源、没有装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。Q25 是前者缺了后者早就写下的那半格。要么合并、要么把前者的 javadoc 从「看得见的源」改成「够得着的源（调用方以 `BUCKET_REACH` 重射）」—— **前置条件写在一个调用方里就是今天那一族**。合并会改证据键，等真梯落地 | 我 |
 | ✅ 已修待闸 | Q23c′ | 查 Q23c 时查出的**真缺陷**：`ContactDamageEscape.pickClearCardinal` 不问下一格的**地板**，而它唯一的调用分支的注释写着「它就在正下方（磁浆地板）」—— 于是它可以从磁浆板的这一格躲到**同一块板的隔壁格**，下一 tick 再触发一次，读起来像「反射在工作而世界一直赢」。岩浆那个兄弟从写出来就问 `f.below()`，只有这份拷贝没问（`c20e7751`）。[[a-precedent-nobody-ever-verified]] | 我 |
 | 🟠 待做 | J16 | 两份 `pickClearCardinal` 结构逐字相同，只差「危险谓词」和「可穿过怎么问」（`blocksMotion()` vs `getCollisionShape().isEmpty()`，实测在原版方块上等价）。抽进 `BotUtil.stepAwayCardinal(lvl, foot, hazard)`，形参从 `LocalPlayer` 降成 `BlockPos` —— **这才是覆盖不了它的原因**：现在只有 `ContactEscapeGate` 的真值表有场景，方向选择器两边都零覆盖，而降了形参就能在专用服上直接测，不用客户端、不会 SKIP（[[skip-is-not-coverage]]） | 我 |
-| 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
+| ✅ 已判 | Q23c | ~~待做~~ **结案不改**：`LavaProximityEscape.reset()` 只打日志、兄弟还 `forward(false)+jump(false)`，两边注释各自把这份不对称讲清了（通道已是 per-tick，那两行 release 是 belt-and-braces）。补对称是**没有测量支撑的搬动**。这两个类真正的清理是 **J16 的提取**，不是这条 | 我 |
 | ✅ 已落 | Q23b | ~~待做~~ **核实已在 HEAD**：`WalkerTickDrive:844` 无条件，`:911` 的 `hazard-ahead` 走 `announceLavaBrake` 每次交战一行。这张表**第三行过期**（前两条见下面那条纪律） | 我 |
 | ✅ **已闸** | Q26g | 两笔产品代码债（Q7b `retireTarget`／Q23c′ 磁浆地板）跑完双 loader 专用服闸：**Fabric GREEN 305/3F/1T、NeoForge GREEN 305/3F/1T，非 PASS 逐条相同**（`vineOverWaterClimb` 与 `serverEscapeSealedShelter` 都带 `fail(optional)`，判词连 `pocketTicks=81`／`y=221.0` 都一字不差）。日志 `gate-fabric-q26.log`／`gate-neoforge-q26.log`，结果 `results-q26-{fabric,neoforge}.jsonl` | 我 |
 | ✅ 已落 | Q7b | Q7 后半，比登记的更糟：拉黑目标有**四扇门**，`:315`／`:421`／`:462` **一行日志都没有**，只有 `:344` 那扇被 `walkerDebug` 关着。四处逐字相同的三四行收成 `MineProcess.retireTarget`，无条件打一行并带上理由（量级：每行永久花掉一个目标，由候选数封顶，不由 tick 数）。顺带 `finish()` 补 `blacklisted N target(s)` —— 原来那本账数的是 COLLECT 放弃的**掉落物**，不是目标（`4501efe6`）。**待编译** | 我 |
+| 🟠 待做 | Q26c | **ladder-15 判读前先写下**：`cast.rePickBlocked` 的退路是**重跑同一个** `settle(IntentProcess(Near(water,2)), 2000)`。若走行卡死复现，三次 `cast.walk` 会**一字不差**，红落在第四态。那**不是** Q26b 的证伪（闸响了、方向对了），但它**是** [[a-retry-that-changes-nothing]] 的标准形状。修法是让退路**换问题**（`viaMidpoint`／改走 `walkToColumn`），不是加次数 | 我 |
+| 🟠 待做 | Q7c | Q7 的**形状定了**：加宽现有那道闸，**不造第二个调速器** —— `WalkerTickSearch:85` 自己写着「two governors on one loop would race」。规格＝已量出的两条盲区：`!res.goalReached()` 让「搜得到、走不了」永不计数，`distSqr(foot) > 4` 让 5 格 ping-pong 每次清零。**不加新 `BotConfig` 开关**（那个文件 2993/3000，任何新 knob 都把 J7 从「梯子稳后」提成前置），复用 `walkerFutileSearchCap`。**落 Java 之前先离线回放**：拿 ladder-14 已录的 174 案／816 案回放新计数规则，必须抓住那两案且不误伤正常绕行（`journey03Wood` 绕树那段是现成阴性样本）—— 同 Q27 数分母那条纪律，调好阈值再编译，一次过闸 | 我 |
+| ✅ 已判 | Q7d | `pathfinderSliceMs = 30` **不单开一趟 A/B**：抑制重问之后，30ms 每 tick 最多花在**一条**在飞的搜索上，正是产品 `idleSliceMs = 30` 的场合。冻屏的因是**乘数**（每秒 20 次），被 Q7c 除掉后先留 30，V1 若仍在再翻回 6。省一趟 40 分钟 | 我 |
+| 🟡 已报待闸 | J17 | `ExploreProcess:43`／`FollowProcess:61` 的 `p == null` 早退不戳 `lastError`，而 `ProcessSlot.snapshot()` 只在非 null 时才写这个键 ⇒ 这条退出路径向调用方报「跑完了，没出错」。十个兄弟进程都戳，只有这两个漏 —— 和 J8 是**同一族的第二现场**（janitor 找的，单一 owner 已核）。**产品谓词，编译通过不算证据** | janitor |
+| 🟡 已报 | J18 | `BotProcess.onResume` 的注释把「持有 Walker 的九个」点错两个名：`Bridge`／`Tower` 只用 `WalkerGeometry`，真正漏的是 `RunAway`／`Sleep`；`ReplayProcess:70` 显式 override 成空，不算「继承」。数字九对，名字换两个。**按代码改注释**（janitor） | janitor |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
