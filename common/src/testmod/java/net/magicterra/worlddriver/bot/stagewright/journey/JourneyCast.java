@@ -272,6 +272,22 @@ final class JourneyCast {
                         + "然后这一级会把失败写成「浇不出黑曜石」");
                 return;
             }
+            // IS THE BODY STILL MOVING? `cast.atUse` shows both ends agreeing on the eye — but it
+            // samples HERE, and the server runs the ray when it processes the packet, one or more
+            // movement packets later. The angle cannot drift (ServerboundUseItemPacket carries
+            // yRot/xRot and handleUseItem absRotateTo's before useItem); the POSITION can, and
+            // `getPlayerPOVHitResult` starts the line at the eye. Over 2.98 blocks a few tenths
+            // changes which face is hit, and a MISS returns PASS — which spends no bucket, changes
+            // no block, and still lets the client predict SUCCESS. Exactly ladder-16's rung 11.
+            //
+            // The reason to suspect motion here rather than assume stillness: that rung's own
+            // `cast.walk` row read `end=unavailable`, i.e. the walk was STILL DRIVING when its
+            // budget ended. Releasing the controls is not braking.
+            var vel = rig.player().getDeltaMovement();
+            rig.evidence("cast.motionAtUse", String.format(java.util.Locale.ROOT,
+                    "速度=(%.4f,%.4f,%.4f) |水平|=%.4f onGround=%s；goto 槽 end=%s",
+                    vel.x, vel.y, vel.z, Math.hypot(vel.x, vel.z), rig.player().onGround(),
+                    String.valueOf(rig.slotEnd("goto"))));
             rig.evidence("cast.result", String.valueOf(rig.avatar().useItemInHand()));
             rig.settle(new HoldStill(10), 20, () -> {
                 var got = level.getBlockState(target).getBlock();
