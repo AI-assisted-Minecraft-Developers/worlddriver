@@ -52,7 +52,7 @@
 | ✅ 已拍板 | Q23 | advisor：做**逃生反射**。`autoHeal` 算术上跑不过岩浆 DPS，「寻路不踏进源块」已经是现状且只防规划不防滑落；13 级是下界，这条能力无论如何都要有。武装设置≠布景（Q12a：零布景说的是道具不是难度）。**读码后收窄**：反射早就存在且默认开着，前五次发作全部成功 ⇒ 要加强的不是脱离（进了源块 40 tick 挪不满 1 格，物理上没救），是**入场闸** | advisor＋我 |
 | 🟡 已改未接线 | Q23a | ~~新加入场闸~~ **撤销**：`Walker.strideFloorGuard` 早就在做同一件事且处处更对（`soleOnSolid` 而非 `onGround`、按血量算致死深度、四 tick 前瞻）。真正缺的是「它为什么整趟没响」—— 那个 0 压着六个状态。已加 `strideGuardSkips[6]` 分桶。**但挂在了 `JourneyFlight` 上，而那个类只有 13 级以后在用**，12 级读不到 ⇒ 跑完改挂 `JourneyRig` 的 `death.*`（rig 级，每一级的死都过） | 我 |
 | 🟠 待做 | Q23d | `strideGuardSkips` 是 `long[]`，元素非 volatile，而邻居全是 `volatile int`（跨线程读）。换 `AtomicLongArray`，否则「桶全为 0」分不清「没调用」和「没可见」 | 我 |
-| 🟠 待做 | Q23e | `(int) p.getX()` 这类**向零截断印格号**在 `bot/` 里扫一遍 —— 修掉的那处多半有兄弟，负坐标下全都在说谎 | 我 |
+| 🟠 待做 | Q23e | `(int) p.getX()` 这类**向零截断印格号**：全仓扫完只有 3 处（见下），全是兄弟，全在负坐标下说谎。跑完真梯一次改掉 | 我 |
 | 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
 | 🟠 待做 | Q23b | `WalkerTickDrive:844` 的 `path-hazard brake` 日志在 `walkerDebug` 后面，真梯从不开 ⇒ 烧死那一趟查不出闸响没响。改无条件（它只在世界变化时响）；`hazard-ahead brake` 加节流。跟 Q7 后半（`MineProcess:341`）合并 | 我 |
 
@@ -915,6 +915,20 @@ results-ladder11.jsonl             →  含 ".flight." 的键：0
   而且是我刚亲手写进判据里的。
 - **已验（只有走到 13 级才可能）**：跑进下界并且有一段入岩浆，才会出现那一行。
 - **证伪**：出现了 `*.flight.*` 行、桶全为 0 ⇒ 见下面那条关于可见性的注意。
+
+#### Q23e：向零截断印格号，全仓一共 3 处，全是兄弟
+
+`(int)` 对负数向零截断，`blockPosition()` 向下取整，所以 `x=-9.3` 一个印 `-9` 一个是 `-10`。
+扫完 `common/src`（`(int) *.get[XYZ]()`）只有四处命中，其中一处就是刚修掉的：
+
+| 位置 | 印的是什么 | 为什么它也在说谎 |
+|---|---|---|
+| `auto/AutoSwim.java:128` | 溺水浮起时的身体格 | 和刚修的那条**同一个形状**：反射自己的日志印错自己决策用的格 |
+| `auto/ContactDamageEscape.java:76` | 接触伤害逃生时的身体格 | 同上，而且它是 `LavaProximityEscape` 的兄弟，两边一起错 |
+| `scene/WorldDriverProcessScenes.java:1169` | 掉落物**相对**中心的偏移 | 更隐蔽：`(int) it.getX() - cx`，截断发生在**减法之前**，所以负侧的偏移整体差一格 |
+
+三处都是**证据行**，不是判据 —— 但证据行说谎的代价这一天已经付过三次了。
+一次改掉，改成 `blockPosition()`（实体侧同样有）。
 
 **跑完之后要做的修法（不能现在改，游戏 JVM 活着不许编译）**：
 把 stride 差值改挂到 `JourneyRig.java:1430` 那一组 `death.*` 上（新增 `death.strideGuard`）——
