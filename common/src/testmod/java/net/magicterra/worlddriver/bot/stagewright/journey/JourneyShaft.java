@@ -878,13 +878,37 @@ public final class JourneyShaft {
             // state the next one starts from, so this is the one case where asking again is a real
             // retry — see WASHED_OFF_RETRIES for the measurement. Recorded every time, so a climb
             // that only got up because the water let go cannot read as one the tower simply made.
-            if (rig.player().isInWater() && washedOff > 0) {
+            // ⚠️ 「Washed off」 NAMES A MECHANISM, so ask whether the mechanism happened. The only
+            // test used to be isInWater(), which a STILL pool passes forever — and ladder-15 spent
+            // ten courses here on one, every one with placed=0 and the eye at a byte-identical
+            // position. Nothing washed anything; the body was simply floating, and a floating body
+            // can never finish this tower at all (TowerProcess's READY phase requires onGround), so
+            // the retry asked a question whose answer could not change ([[a-retry-that-changes-nothing]]).
+            // Still water is therefore a REASON TO STOP, not a reason to try eight more times: the
+            // caller's fallback leg is the thing that can still work, and ten courses of holding
+            // still is ten courses it does not get.
+            // The BODY's level, deliberately not the enclosing `lvl` (= rig.ctx().level(), the
+            // SCENE's): after rung 19 the body is in another dimension and the two are different
+            // worlds. A fluid read taken from the scene's level would answer about overworld water
+            // at nether coordinates — the same mismatch J24 records for `supportUnder`.
+            ServerLevel bodyLvl = (ServerLevel) rig.player().level();
+            BlockPos foot = rig.player().blockPosition();
+            double flow = bodyLvl.getFluidState(foot).getFlow(bodyLvl, foot).lengthSqr();
+            if (rig.player().isInWater() && washedOff > 0 && flow > 1.0E-6) {
                 rig.evidence(climbKey(step, ".washedOff"),
-                        "水把身体冲下柱子了，还剩 " + (washedOff - 1) + " 次重试");
+                        "水把身体冲下柱子了（流速²=" + String.format(java.util.Locale.ROOT, "%.5f", flow)
+                                + "），还剩 " + (washedOff - 1) + " 次重试");
                 rig.settle(new HoldStill(20), 40, () -> ascendByTowering(rig, surfaceY, budget - 1,
                         cap, washedOff - 1, then));
                 return;
             }
+            // The refutation, recorded: in water, but the water is not moving. Distinguishing this
+            // from a genuine wash-off is the whole point — they want opposite responses, and the
+            // message the run printed for a year claimed the one that was not happening.
+            if (rig.player().isInWater() && washedOff > 0)
+                rig.evidence(climbKey(step, ".stillWater"),
+                        "在水里，但水没有流动（流速²=0）——这不是被冲下来，是浮着站不起来。"
+                                + "不重试（还剩 " + washedOff + " 次没用），交给上层的后备腿");
             then.run();
         }));
     }
