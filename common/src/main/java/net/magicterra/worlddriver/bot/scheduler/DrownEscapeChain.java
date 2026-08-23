@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
+import java.util.Locale;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 
@@ -11,6 +12,11 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
@@ -75,6 +81,11 @@ public final class DrownEscapeChain implements Chain {
     private boolean keysHeld;
     /** Throttle counter for the capped-lateral-escape debug line. */
     private int dbg;
+    /** Throttle counter for {@link #verticalRow}. Deliberately NOT shared with {@link #dbg}: one
+     *  counter across two mutually-exclusive arms lets a run of lateral ticks advance the vertical
+     *  arm's phase, so the vertical rows would land on an arbitrary subset of ticks instead of
+     *  every tenth of its own. Two arms, two clocks. */
+    private int dbgV;
 
     /** How far UP a column is scanned to decide "solid cap vs open surface" and to
      *  find an air surface in a neighbour. A few blocks is enough — the overhang
@@ -215,6 +226,63 @@ public final class DrownEscapeChain implements Chain {
             breaking = true;
         }
         if (!breaking) mc.options.keyAttack.setDown(false);
+        if (BotConfig.walkerDebug && (dbgV++ % 10 == 0)) verticalRow(mc, p, lid, lidBlocksRise, breaking);
+    }
+
+    /**
+     * The execution-layer row for the pure-vertical arm.
+     *
+     * <p>Before this existed the arm printed <b>nothing</b> per tick, and the lid-break sub-arm
+     * printed nothing ever. The log it left behind therefore could not tell apart the three ways a
+     * body can hold jump in water and not move: the intent never reached {@code Input.jumping},
+     * buoyancy applied but a collision face pinned the body, or the break arm ran and never
+     * finished. Measured 2026-08-22 on the integrated ladder (BED rung, {@code -28,61,79}): 261
+     * ticks holding jump, zero rise, air monotonically down to death — and the only in-window rows
+     * in the whole log were the two scheduler handovers.
+     *
+     * <p>Every field separates exactly one candidate, so none of them is decoration:
+     * <ul>
+     *   <li>{@code 跳读回} is read back off the player's own {@code Input}, i.e. what
+     *       {@link net.magicterra.worlddriver.bot.movement.AvatarInput#tick} actually left there on
+     *       the previous tick — <b>not</b> what this class asked for. The command channel is
+     *       last-writer-wins and nine callers write it, so "we commanded it" is not the same claim.</li>
+     *   <li>{@code 撞顶} ({@code verticalCollision}) is the one-row proof of "buoyancy IS applying
+     *       and something is in the way" — the state every column scan in this class is blind to.
+     *       A body that is neither rising nor sinking is pinned, and only this field says so
+     *       without arithmetic on two samples taken 200 ticks apart.</li>
+     *   <li>{@code 身体跨柱} prints the cells the bounding box actually straddles at the lid's
+     *       height, not the one cell {@code blockPosition()} names. A body at x=-27.716 has its box
+     *       edge at -28.016 — 0.016 inside the NEXT column, which {@link #cappedColumn},
+     *       {@link #nearestBreathable} and the {@code lid} cell all ignore.</li>
+     *   <li>{@code 破盖中} makes the break arm visible at all.</li>
+     * </ul>
+     */
+    private static void verticalRow(Minecraft mc, LocalPlayer p, BlockPos lid,
+                                    boolean lidBlocksRise, boolean breaking) {
+        if (mc.level == null) return;
+        AABB box = p.getBoundingBox();
+        StringBuilder straddled = new StringBuilder();
+        // maxX/maxZ are EXCLUSIVE edges: a box ending exactly on a boundary does not occupy the
+        // next cell, and floor(maxX) would name one it never touches. Same convention vanilla's
+        // own collision sweep uses.
+        for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
+            for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
+                BlockPos c = new BlockPos(x, lid.getY(), z);
+                BlockState bs = mc.level.getBlockState(c);
+                if (straddled.length() > 0) straddled.append('，');
+                straddled.append(c.toShortString()).append('=')
+                        .append(BuiltInRegistries.BLOCK.getKey(bs.getBlock()))
+                        .append(bs.getCollisionShape(mc.level, c).isEmpty() ? "" : "(实心)");
+            }
+        }
+        LOG.info("[drownEscape] 竖直支 y={} 落速={} 跳读回={} 着地={} 撞顶={} 水={} 没顶={} 水高={} 气={} "
+                        + "盖格={} 盖挡={} 破盖中={} 身体跨柱={}",
+                String.format(Locale.ROOT, "%.3f", p.getY()),
+                String.format(Locale.ROOT, "%.4f", p.getDeltaMovement().y),
+                p.input != null && p.input.jumping, p.onGround(), p.verticalCollision,
+                p.isInWater(), p.isUnderWater(),
+                String.format(Locale.ROOT, "%.3f", p.getFluidHeight(FluidTags.WATER)),
+                p.getAirSupply(), lid.toShortString(), lidBlocksRise, breaking, straddled);
     }
 
     @Override public void onInterrupt(Chain by) { releaseHeldKeys(); }
