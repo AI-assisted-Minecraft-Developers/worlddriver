@@ -78,7 +78,8 @@
 | 🔴 待做 | J24b | **同一个三项式，喂进去的输入不一样，一个推指针一个决定跳。** `WalkerTickProgress:552` 和 `WalkerTickClimb:889` 都是 `shaftFlooded \|\| p.isInWater() \|\| isWater(step.below())`（一字不差），但 Climb 那边的 `shaftFlooded` 在 886-888 多一条 `&& !isWater(step.above())` 会把它清回 false ⇒ **同一 tick 两个答案**。排在 J21/J22 之前：「同一判据两个答案」是这两天所有事故的母形状。⚠️ **要一条能分辨两个答案的场景，不是一次重构** | janitor 报，我判 |
 | ❌ 撤回 | J25 | ~~`isSubmergedFoot` 名字撒谎，rename~~ **是假缺陷，别改。** 我已核：调用点**六处**不是一处（`WalkerTickDrive`／`SurfaceDive`／`SwimAshoreBreak`／`SwimBankClimbBreak`／`SwimDown`／`PathFinder`），且声明处 `WorldView:337` 起有整段 javadoc，第一句就把量写死——「water still fills the cell TWO above the foot」。**名字短 ≠ 名字撒谎**。⚠️ 这条的成因：报的人只 grep 了一个文件就写下「唯一调用点」，而 `-A 8` 的窗口没盖到那段 javadoc。**假缺陷比漏报贵**——它会让人去改本来正确的代码（[[a-verification-tool-needs-verifying-too]]） | janitor 报并自行撤回 |
 | 🔴 待做 | J26 | `WorldDriverActuatorSplitScenes:201-216` 的两行还原自检写在 `ctx.cleanup` 里 ⇒ **哪儿都不出现**：`record` 排在 `teardown` 之前（结果文件已序列化），而 `SceneContext.record` 是纯 map put 不打日志，`note()` 也早拼完了。**每趟专用服闸都跑这个场景**，所以「还原成没成」从写下那天起零次生效，`⚠️ 否` 那半边无人看见。它的注释自陈「A restore nobody verified is a claim」（[[a-confluence-point-is-not-a-deadline]]） | janitor 扫出，janitor 修 |
-| 🔴 待做 | J27 | **缺陷地图：`applyGameTestBaseline()` 有 38 条旗标与生产默认不同，其中 26 条没有任何场景设回来** ⇒ 它们下面的分支**在整个套件里是死代码**，针对它们写的场景会绿得毫无道理。⚠️ 五条「提了主题却从不打开机制」最像已经恒真：`walkerFloatingBankBobFreeze`、`walkerBuoyantSearchFromSurface`、`walkerSwimAshorePillarDespiteDeepDig`、`pathfinderLogBreakTax`、`pathfinderBreakCostMultiplier`。**两条数值旗标最阴**：`pathfinderBreakCostMultiplier` 生产 2.5／套件 1.0，`pathfinderLogBreakTax` 生产 3.0／套件 1.0 ⇒ **套件里的 A\* 用的是另一套破坏定价**，任何「会不会选择挖穿」的场景量的都不是线上那张成本表——不会红，只会答对隔壁世界的问题。⚠️ 按「读它处数」排只是第一刀：`walkerPillarSurfacePlace` 只有 2 处却是 J24b 的病灶，**它的危害是两个 phase 类因它分岔，面积衡量不到**。脚本 `baselinediff.py`／`baselinemap.py`（scratchpad），**用前先跑那两个校准样本**（[[a-verification-tool-needs-verifying-too]]：第一版正则 `(?<![\w.])flag` 排掉了 `BotConfig.flag` 的写法，把 8 条已覆盖的诬告成盲区） | janitor |
+| ✅ 已普查 | J27 | **普查完成，见下面「J27 全表」一节。头条：无害档是空的——38 个 pin 没有一个的基线值等于它的编译默认值。** 两条原始判断被普查自己推翻：① 两个 double 不是「乘 1.0 恒等所以无害」，**恒等的是乘法不是行为**（生产 2.5／3.0）；② 「26 条从没被设过」照字面是错的——`WorldDriverBridgeScenes:310` 的 `applyCompiledDefaults()` 一次性还原全部 36 个行为旗标，整个 bridge 战役都在生产值上跑。**剩下的活是那 5 条无人覆盖的归零形状**，见下表 | janitor 已交，我判 |
+| ~~🔴 待做~~ | ~~J27 原文~~ | ~~**缺陷地图：`applyGameTestBaseline()` 有 38 条旗标与生产默认不同，其中 26 条没有任何场景设回来**~~ ⇒ 它们下面的分支**在整个套件里是死代码**，针对它们写的场景会绿得毫无道理。⚠️ 五条「提了主题却从不打开机制」最像已经恒真：`walkerFloatingBankBobFreeze`、`walkerBuoyantSearchFromSurface`、`walkerSwimAshorePillarDespiteDeepDig`、`pathfinderLogBreakTax`、`pathfinderBreakCostMultiplier`。**两条数值旗标最阴**：`pathfinderBreakCostMultiplier` 生产 2.5／套件 1.0，`pathfinderLogBreakTax` 生产 3.0／套件 1.0 ⇒ **套件里的 A\* 用的是另一套破坏定价**，任何「会不会选择挖穿」的场景量的都不是线上那张成本表——不会红，只会答对隔壁世界的问题。⚠️ 按「读它处数」排只是第一刀：`walkerPillarSurfacePlace` 只有 2 处却是 J24b 的病灶，**它的危害是两个 phase 类因它分岔，面积衡量不到**。脚本 `baselinediff.py`／`baselinemap.py`（scratchpad），**用前先跑那两个校准样本**（[[a-verification-tool-needs-verifying-too]]：第一版正则 `(?<![\w.])flag` 排掉了 `BotConfig.flag` 的写法，把 8 条已覆盖的诬告成盲区） | janitor |
 | 🟠 待做 | Q30 | **追猎全程零行日志。** ladder-14 的 FOOD 关卡 `猎到 minecraft:cow，得生肉 ×5`，而整段窗口里没有任何一行说牛什么时候死、被谁打死、打了几下——`[dig]` 那些行是因为攻击也按着 `keyAttack`。于是「goto 走到了」和「牛自己撞上来」**分不出**，一条 2392 tick 的腿的结局无法归因。这不是「忘了打日志」，是**一整族动作没有仪器**（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第七个现场，这次连开关都没有） | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
@@ -1439,6 +1440,130 @@ janitor 注释里的原话（「多半是重新寻路把合成计划换掉了」
 | adopt 后那道新闸沉默，且 `跑过pillarUp=true` | **已验**：被测对象终于跑了；PASS/FAIL 才第一次是关于产品的 |
 | 新闸开口（指针不指 pillarUp） | **证伪**：`step=1` 不是全部，回去读 `adoptPath` 的锚点段 |
 | 新闸沉默但 `跑过pillarUp=false` | **未触发**：指针对了却一 tick 没执行到——去读 Climb/Progress 的分支闸 |
+
+⚠️ **「已验」里的 PASS 有两个形状，判词必须点名是哪一个**，预登记里差点糊成一格：
+
+- **垫上了并升上去了**（`垫上了=true`、峰值 ≥ 222）——两个 phase 类在这一格没有分歧；
+- **200 tick 走完仍 `WALKING`，但指针是诚实的**（`垫上了=false`、峰值=221、`走.收尾=WALKING`）——
+  没有一条 `ctx.fail` 会触发，所以它也是绿的。这正是场景 javadoc 预留的
+  「身体升不上去是**另一个**发现，不许印成这一个」那一档。**绿的原因完全不同。**
+
+**这条场景已经烧掉四趟闸。**修完注释之后，除非 janitor 的普查扫出同族，否则不再给第五趟。
+
+### ✅ g6 判词：**已验**——被测对象终于跑了，但 PASS 的形状是我没预登记的第三种
+
+```
+走.跑过pillarUp = true       走.收尾计划 = 节点=2（即 1 步） … 到得了目标=true
+走.收尾 = ARRIVED（用了 10/200 tick）        走.探针 = step=2/2  noStep=8
+柱.支撑格 = 垫上了=false      升.起点y = 221.0  →  升.峰值y = 222.1074776057609（要到 222）
+```
+
+adopt 后那道新闸沉默，10 tick 而不是 1 tick，`pillarUp` 真的执行了。
+**四趟闸之后，这座竞技场第一次是关于产品的。** 非 PASS 从五行回到四行（已知基线），Fabric 的
+`wd.surfacePillar…` 转 PASS。
+
+**但读清楚它为什么绿**——三个预登记形状里没有这一个：
+
+判据是 `s != WALKING && !placed && !reachedRow` 三项**合取**。
+`placed=false`（支撑真的没垫上），`s=ARRIVED`，可是 `峰值y=222.107 ≥ 222`
+⇒ **`reachedRow=true`，第三项把断言关掉了**。
+**身体不是被垫上去的，是自己浮上去的。**
+
+两条后果，都记在这里而不是马上动手：
+
+1. **场景 javadoc 里的前提被自己的数据否掉了。** 它写着「on this geometry the support IS placed
+   by that path」，而 `walkerPillarSurfacePlace` 开着、`allowPlace` 开着、身上 64 个圆石，
+   `垫上了=false`。**抠除那一支要么没走，要么走了没放成。** 这是个真发现，Q34。
+2. ⚠️ **这条断言在这套几何下可能根本不可满足**：两格深的水柱里浮力总把身体托到目的排，
+   `reachedRow` 恒真 ⇒ 第三项恒假 ⇒ **失败永远印不出来**。
+   和[[a-criterion-success-cannot-satisfy]]同族，只是方向反过来——
+   **「成功才写的那一行」的镜像是「失败永远满足不了的那一项」。**
+   下一步要么把浮力这一项从判据里摘掉（它本来就声明「不判物理」），要么换个不浮的几何。
+
+**这条场景已烧掉四趟闸，按之前定的规矩不再给第五趟**——Q34 单独排队，跟着注释订正一起做。
+
+## 📊 J27 全表：竞技场基线的 38 个 pin（janitor 普查，2026-08-23）
+
+### 头条：**无害档是空的**
+
+36 个 boolean **全部**生产 `true` → 基线 `false`；2 个 double 生产非 1.0 → 基线 1.0。
+**没有一个 pin 的基线值等于它的编译默认值。**
+⇒ 基线里没有一处「免费」的改动，**每一处都把竞技场挪离生产**。
+
+> ⚠️ 这一条推翻的是普查者自己上一版的分档，而且原因值得单记：
+> 两个 double 原本判「无害」，理由是「乘 1.0 是恒等」。
+> **恒等的是乘法，不是行为**——生产值是 2.5 和 3.0，1.0 改变的是定价。
+> 「这一列我原本没读」是唯一的成因。[[a-reading-is-not-the-quantity-it-looks-like]]
+
+### ⚠️ 归零 —— 已被场景覆盖（不必动）
+
+| flag | 关掉后走哪一支（读出来的） | 谁设回来 |
+|---|---|---|
+| `walkerDigAimPriority`（prod `:2144`） | **最狠的一个**：`walkerStickyDig` 也是 `false`（`:2136`，§66 已废），而 `Walker:1470` 的守卫是 `(walkerStickyDig \|\| walkerDigAimPriority)` ⇒ 两个都关时 `stickyDig.engage(cell)` **永不被调用**。`engage` 全仓只有两个写者（`Walker:1470` 写入、`WalkerTickPrelude:301` 清除）⇒ `stickyDig.pos` 恒 null，另三处读点按构造不可达。**不是一支死，是整个子系统连同它自己的后备一起死** | 仅 `JourneyRig:1733` |
+| `walkerPillarSurfacePlace`（`:2090`） | `WalkerTickClimb:885` 清不掉 `shaftFlooded` ⇒ `:891` 跳过放置，水柱 pillarUp 变成「只跳不垫」 | `CoverageScenes:880`，且 `:910` 有闸 |
+| `walkerExpectAlarm`（`:2223`） | `WalkerExpectAlarms:49` `if (!FLAG) return;` 整个告警子系统惰性 | `CoverageScenes:148`，判据**正向**（`:190` 要求 `fired > 0`），关了只会红不会假绿 |
+| `walkerDrowningEscape`（`:1964`） | `WalkerTickClimb:187` `if (FLAG) {` 整块 | `CoverageScenes:231` |
+| `walkerPillarReachGoalNoSnap`（`:2326`） | 形状上是 `Walker:838` 的豁免被跳过，**但水目的格根本走不到那里**（`canStandAt` 的 `isWater` 豁免）⇒ **只有形状，从未被观测到归零** | `TerrainScenes:148`、`CoverageScenes:891` |
+
+### ⚠️ 归零形状 —— **无人覆盖，这是活陷阱清单**
+
+按「下一个场景作者最可能踩」排。全是整块门／恒假赋值，不是可选析取项：
+
+| flag | 关掉后 |
+|---|---|
+| `walkerBridgeHoldRepath`（`:2181`） | `WalkerTickRepath:51` `if (FLAG) {` **整块**不执行 |
+| `walkerClimbGaveUpSticky`（`:1973`） | `WalkerTickClimb:495` 整块；且 `:344` 让 `pillarGaveUp` 每 tick 被清 ⇒ 粘滞语义完全消失 |
+| `walkerRouteHysteresis`（`:2066`） | `WalkerTickSearch:268` `keepCurrent = FLAG && …` ⇒ **恒假**，滞回从不生效（顺带让 `:281` 的 digCommitHold 分支反而变可达） |
+| `pathfinderLogBreakTax`（prod **3.0** `:2192`） | `ClientWorldView:448` `if (tax != 1.0 && s.is(LOGS))` 闸恒假 ⇒ **LOGS 那一支是死代码** |
+| `pathfinderBreakCostMultiplier`（prod **2.5** `:2198`） | `ClientWorldView:456` `cost * mult` ⇒ **竞技场挖掘比生产便宜 2.5 倍。这是变松**：规划器比生产更愿意挖，于是**每一条「它挖穿了」的绿都比生产乐观** |
+
+### 变窄（析取项少一个，主路径仍跑）
+
+`walkerStepUpBackoffRetry`／`walkerCarrotBodyLos`／`walkerBankDigGroundBlip`／
+`walkerStuckStepMonotonic`／`walkerAboveNodeStallRecover`／`walkerWallDigFallback`／
+`walkerDryReanchor`／`walkerBuoyantSearchFromSurface`／`walkerBankDigSkipWhenCwpSwims`／
+`walkerBankDigSkipOverhang`／`walkerVineDescentDrop`／`walkerAscentRamBobBreak`／
+`pathfinderForbidParkourFromFloatingWater`／`walkerDeepWaterFloatBeeline`／`walkerWaterWalkReach`／
+`walkerWaterStepDownFloat`／`walkerWallCornerFastChurn`／`walkerSwimAshorePillarDespiteDeepDig`／
+`walkerFutileBankDigRelease`／`walkerBankDigForwardExit`／`walkerFloatingBankBobFreeze`／
+`walkerDigCommitHoldRepath`／`walkerRamNodeAimRelease`／`walkerPhysicalStallClock`
+
+> **这一档不等于安全。** 变窄／归零是**相对于依赖它的场景**说的。
+> 25/38 今天没有任何场景依赖 ⇒ 它们既不变窄也不归零，**它们在等下一个作者**。
+> 已经被咬的那两条就是这么来的。
+
+`allowWaterBucketFall`（`:1262`）不在这一档：它跟 break/place 一样是**能力权限**
+（manifest 自己这么归的），`ClutchController:131` 会说出拒绝理由。
+
+### 两条附注
+
+1. **按名字扫 flag 会系统性低估覆盖。** 全仓唯一一处**整体撤销**是
+   `WorldDriverBridgeScenes:310` 的 `applyCompiledDefaults()`（在 `liveStack(ctx)` 里），
+   把 36 个行为旗标一次性还原成生产值，再单独把 break/place 按回 OFF（`:311-312`）——
+   **整个 bridge 战役都在生产值上跑**。按名字 grep 的扫描器 14 个命中里 12 个是假阳性。
+2. **`allowPlace` / `allowBreak` 一个概念两套执法**（产品代码，先记着别动）：
+   manifest 把两者都描述成**寻路器**权限（`GameTestBaselineManifestTest:59-61`），实际
+   `allowPlace` 在 `bot/process/` 下**零个** verb 查询；`allowBreak` 有三个，其中
+   `DescendProcess:88` 和 `EscapeProcess:99` 直接 `return done(...)` 拒跑。
+   同一个旗标在 17 处是「规划器给挖掘边计价」，在 3 处是「这个 verb 整个不跑」。
+   今天没被咬（`SurvivalScenes:181` 读的是身体高度，提前 `done()` 满足不了它），
+   但 `DescendProcess` **没有任何场景驱动**，那道闸在闸测里一次都没执行过。
+
+### 🔴 从这张表派生的三件事
+
+| # | 事 | 为什么 |
+|---|---|---|
+| J28 | `pathfinderBreakCostMultiplier` 1.0 要么改回 2.5，要么留一行**有意为之**的记录 | 它是**变松**，会让「会不会挖穿」类场景答对隔壁世界的问题 |
+| J29 | 五条无人覆盖的归零形状，各补一道**开关自检**或在 manifest 里标注 | 它们和已经咬过两次的那两条同形，只是还没人写到它们头上 |
+| J30 | `stickyDig` 整个子系统**只有真梯跑过**（`JourneyRig:1733` 是唯一开它的地方） | 闸测零覆盖，而它是挖掘的核心粘滞语义。[[skip-is-not-coverage]] |
+
+---
+
+### 🎯 NeoForge 那趟的基线（**也写在跑之前**）
+
+结果文件是 `neoforge/run-dogfood/stagewright-results.jsonl`（不是 fabric 那个，别读错）。
+非 PASS 行必须**恰好**是同样四行、同样的 reason 串；skip 集合是它自己的那份（client-only 场景），
+数量与 Fabric 的 25 条不必相同——**逐条比名字，不比条数**。
 
 ### 📏 留下来的三条通则
 
