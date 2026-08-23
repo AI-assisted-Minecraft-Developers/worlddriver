@@ -59,7 +59,7 @@
 | ✅ **已验** | Q25 | 隧道停在「看得见」而桶要「够得着」：瞄准用 `TUNNEL_REACH=5.0`（挖掘的数，`destroyBlock` 无距离闸），桶用 `blockInteractionRange()=4.5`。`JourneyFill.BUCKET_REACH` 早就记着这件事，这个调用方没用它。改成以桶自己的距离**重射一次**（不比距离——`5.4m` 是格心，射线停近面）；装桶站点补 `handsAtUse` | 我 |
 | 🟠 待做 | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom:2611`（10 级隧道用，一次瞄准一次 use，没有重瞄、没有换源、没有装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。Q25 是前者缺了后者早就写下的那半格。要么合并、要么把前者的 javadoc 从「看得见的源」改成「够得着的源（调用方以 `BUCKET_REACH` 重射）」—— **前置条件写在一个调用方里就是今天那一族**。合并会改证据键，等真梯落地 | 我 |
 | ✅ 已修待闸 | Q23c′ | 查 Q23c 时查出的**真缺陷**：`ContactDamageEscape.pickClearCardinal` 不问下一格的**地板**，而它唯一的调用分支的注释写着「它就在正下方（磁浆地板）」—— 于是它可以从磁浆板的这一格躲到**同一块板的隔壁格**，下一 tick 再触发一次，读起来像「反射在工作而世界一直赢」。岩浆那个兄弟从写出来就问 `f.below()`，只有这份拷贝没问（`c20e7751`）。[[a-precedent-nobody-ever-verified]] | 我 |
-| 🟠 待做 | J16 | 两份 `pickClearCardinal` 结构逐字相同，只差「危险谓词」和「可穿过怎么问」（`blocksMotion()` vs `getCollisionShape().isEmpty()`，实测在原版方块上等价）。抽进 `BotUtil.stepAwayCardinal(lvl, foot, hazard)`，形参从 `LocalPlayer` 降成 `BlockPos` —— **这才是覆盖不了它的原因**：现在只有 `ContactEscapeGate` 的真值表有场景，方向选择器两边都零覆盖，而降了形参就能在专用服上直接测，不用客户端、不会 SKIP（[[skip-is-not-coverage]]） | 我 |
+| ✅ 已落 | J16 | 两份 `pickClearCardinal` 骨架逐字相同，抽进 `BotUtil.stepAwayCardinal(foot, hazard, open)`，形参从 `LocalPlayer` 降成 `BlockPos` —— **这才是覆盖不了它的原因**：方向选择器两边都零覆盖，降了形参就能在专用服上直接测、不会 SKIP（[[skip-is-not-coverage]]）。⚠️ **我原来写的「`blocksMotion()` vs `getCollisionShape().isEmpty()` 实测在原版方块上等价」是错的**，janitor 用 1.21.1 反编译推翻：`calculateSolid()` 要 `bounds().getSize() >= 0.7291666` 或 `ysize >= 1`，而地毯 0.6875／压力板 0.604／两层雪 0.708 全都不到 ⇒ `blocksMotion()=false`（lava 版当能穿过）而 `getCollisionShape().isEmpty()=false`（contact 版拒绝踩）。**两个谓词在这些方块上答案相反**，按我给的三参签名合并会静默放松 contact 那道活着的闸。所以是**两个**谓词形参，两个调用点逐位等价（`69c70576`） | janitor |
 | ✅ 已判 | Q23c | ~~待做~~ **结案不改**：`LavaProximityEscape.reset()` 只打日志、兄弟还 `forward(false)+jump(false)`，两边注释各自把这份不对称讲清了（通道已是 per-tick，那两行 release 是 belt-and-braces）。补对称是**没有测量支撑的搬动**。这两个类真正的清理是 **J16 的提取**，不是这条 | 我 |
 | ✅ 已落 | Q23b | ~~待做~~ **核实已在 HEAD**：`WalkerTickDrive:844` 无条件，`:911` 的 `hazard-ahead` 走 `announceLavaBrake` 每次交战一行。这张表**第三行过期**（前两条见下面那条纪律） | 我 |
 | ✅ **已闸** | Q26g | 两笔产品代码债（Q7b `retireTarget`／Q23c′ 磁浆地板）跑完双 loader 专用服闸：**Fabric GREEN 305/3F/1T、NeoForge GREEN 305/3F/1T，非 PASS 逐条相同**（`vineOverWaterClimb` 与 `serverEscapeSealedShelter` 都带 `fail(optional)`，判词连 `pocketTicks=81`／`y=221.0` 都一字不差）。日志 `gate-fabric-q26.log`／`gate-neoforge-q26.log`，结果 `results-q26-{fabric,neoforge}.jsonl` | 我 |
@@ -75,6 +75,9 @@
 | 🟠 待做 | J22 | `RecipeApi.resolve` 与 `planAcquire` **开头 14 行逐字相同**（`Params.of`→`getNonBlank`→`getIntClamped`→`onServerThread`→`ResourceLocation.parse`→`containsKey`→…）。真复用点。**校验逻辑一处修一处不修，是它以后会咬人的方式**。抽取要 lambda＋泛型，等能编译的一轮 | janitor |
 | 🟠 待做 | J23 | `ElytraProcess:170`（`!p.isFallFlying()` 中途退出）也不戳，**但这一个出口同时是「落地了」和「翅膀在半空断了正在下坠」**（注释自己写着后者）。判成哪个是行为决策不是卫生，唯一能区分的读数在 `elytraDebug` 后面。janitor 正确地没动 | 我 |
 | 📌 记着 | J24 | `JourneyShaft.supportUnder` 用 `rig.ctx().level()`，**latent**：所有调用点现在都在主世界，安全；哪天有人在下界/末地调它就读错世界。⚠️ 它和 `JourneyEndRungs.supportUnder` **方法体逐字相同而读的 level 不同**（后者用 `levelOf(rig)`＝身体所在世界，19 级之后不是 `ctx.level()`）——**合并会弄坏末地的级，别顺手合** | janitor |
+| 🔴 待做 | J24b | **同一个三项式，喂进去的输入不一样，一个推指针一个决定跳。** `WalkerTickProgress:552` 和 `WalkerTickClimb:889` 都是 `shaftFlooded \|\| p.isInWater() \|\| isWater(step.below())`（一字不差），但 Climb 那边的 `shaftFlooded` 在 886-888 多一条 `&& !isWater(step.above())` 会把它清回 false ⇒ **同一 tick 两个答案**。排在 J21/J22 之前：「同一判据两个答案」是这两天所有事故的母形状。⚠️ **要一条能分辨两个答案的场景，不是一次重构** | janitor 报，我判 |
+| 🟠 待做 | J25 | `WorldView.isSubmergedFoot(foot)` 读作「脚被淹了」，测的是 `isWater(foot+2)`——**头顶再上一格**。唯一调用点 `WalkerTickDrive:944` 用得对（它要的就是「深到头顶以上都是水」），纯预防性 rename（`isDeepWaterColumn`）。同族：[[a-reading-is-not-the-quantity-it-looks-like]] | janitor |
+| 🟠 待做 | Q30 | **追猎全程零行日志。** ladder-14 的 FOOD 关卡 `猎到 minecraft:cow，得生肉 ×5`，而整段窗口里没有任何一行说牛什么时候死、被谁打死、打了几下——`[dig]` 那些行是因为攻击也按着 `keyAttack`。于是「goto 走到了」和「牛自己撞上来」**分不出**，一条 2392 tick 的腿的结局无法归因。这不是「忘了打日志」，是**一整族动作没有仪器**（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第七个现场，这次连开关都没有） | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
@@ -1014,11 +1017,96 @@ Q15c 要的分布从这一趟开始有；**这一趟只收数，不下结论**�
 `!hasPath() && hasStuckPenalties()`。
 
 对 `owner=mine` 那四簇（85/82/74/68），`breakHeld()` 为真是**合法豁免**（注释自己写了）。
-对 318 那簇（`owner=goto`，不在挖），**日志分不出是哪一条**。
+对 318 那簇（`owner=goto`，不在挖），**日志分不出是哪一条** —— 这句当天晚些时候被推翻了，见下。
 
 > **所以先不写加宽，先让那道闸说出它是被哪一条排除的。**
 > 这不是拖延——78.8% 那一半根本不是 `moved` 的问题，
 > 猜错排除项就等于把加宽做在没人走的那条路上。
+
+### 318 那簇的排除项，用日志里**别人的**读数点名了
+
+不用等新仪器。那两分钟里 `[place]` 打了 25 行，每行都带「邻格」——
+而那几个邻格坐标正是同期心跳打的身体格：
+
+```
+23:19:25 心跳 身体=66,62,65        23:19:58 [place] 邻格=66, 62, 65→minecraft:water
+                                   23:20:12 [place] 邻格=64, 62, 67→minecraft:water
+                                   23:20:40 [place] 邻格=69, 62, 64→minecraft:water
+```
+
+⇒ **脚格是水**，排除项就是 `world.isWater(foot)`，这道闸从头到尾**没被调用过**。
+一次 grep，比等一趟梯子便宜四个数量级。
+
+> 纪律：**先问日志里已有的仪器能不能回答**，再决定加仪器。
+> 我差点为了一个「哪条排除项」的问题去加一整套普查，而答案在另一个仪器的字段里躺着。
+> （`[place]` 这行还是当天上午刚摘掉 `walkerDebug` 闸才有的——摘闸的收益比预想的宽。）
+
+### 而交接的**下家没接住** —— 这才是真缺陷
+
+`WalkerTickSearch:84` 的注释把这一族交出去了：
+
+> Water is exempt: … that churn is **owned by** the existing in-water anti-spin (`repathsNoProgress`)
+
+去看下家的武装条件，比这句话**窄两条独立的轴**：
+
+| | 条件 | 本例 |
+|---|---|---|
+| futile 闸让出去的 | `world.isWater(foot)` —— 脚格是水就让 | 让了 |
+| 下家要求（`:181`） | `p.isInWater() && !p.onGround()` —— **漂着**才算 | 4 条步进行全是 `onGround=true`，站在水底 ⇒ 不接 |
+| 下家还挂在（`:155`） | `else if (res.hasPath())` | 无路的结果连 `repathsNoProgress++` 都走不到 ⇒ 不接 |
+
+**站在浅水底的身体、以及任何无路结果，两个调速器都不管。**
+[[guards-and-the-fallbacks-that-ignore-them]] 的「退路绕过不变量」，
+只是这次绕过的不是不变量而是**所有权**：交接双方各自的谓词不互补，中间掉下去一片。
+
+顺带第三个「在水里」的定义在 `WalkerTickAim:647`：`isInWater() || isWater(foot.below())`。
+同一条链路上三个谓词，三个答案。（已让 janitor 扫全仓还有没有第四第五个，只报不改。）
+
+### ⚠️ 但**不要**因此去加宽 —— 这一簇根本不是卡死
+
+顺着往下读一秒钟就翻了盘：
+
+```
+23:20:55 心跳 FOOD goto 本段第2392/12100 tick 身体=69,61,61
+23:20:58 [journey] FOOD REACHED — 猎到 minecraft:cow，得生肉 ×5
+23:20:58 scene 'wd.journey06Food' -> PASS (3254 ticks, 162666 ms)
+```
+
+**这条关卡过了。** 若按「谓词互补」把闸加宽，`cap=5` 会在 churn 开始后两秒把这条腿判 FAILED。
+一个又干净又对称又有反编译级证据支撑的修法，**会掐死一条正在通关的关卡** ——
+[[the-wrong-version-is-always-prettier]] 的第 N 次，这次差点栽在「证据充分」上：
+排除项确证了、所有权缺口确证了，**唯独没问那一簇到底该不该被掐**。
+
+> 规矩：**证明了一道闸没响，离「它本该响」还差一整步。**
+> 先问被它放过的那段**结局是什么**，再谈修。
+
+⚠️ 剩下的歧义**这份日志答不了**：goto 的 2392 tick 预算没走完就被判词满足了，
+所以是「走到了」还是「牛自己撞上来」分不出——**追猎全程零行日志**，
+唯一提到牛的就是关卡自己那行 REACHED。记为下一个仪器缺口（Q30）。
+
+### 「在水里」这个概念，光 walker 链上有**六种拼法**
+
+janitor 扫全仓的结果（只报未改）。留在这里是因为**加宽真要做的那天，选哪一种是主要决定**：
+
+| 族 | 拼法 | 在哪 |
+|---|---|---|
+| **A 格式** | `world.isWater(foot)` | futile 闸的排除项（`WalkerTickSearch:97`）、`walkerFromEndNoProgressDiscard`（`:128`） |
+| **B 漂浮式** | `p.isInWater() && !p.onGround()` | 水里 give-up（`:181`）、`WalkerTickDrive:555`、`WalkerTickPrelude:204` |
+| **C 两项式** | `p.isInWater() \|\| isWater(foot.below())` | `WalkerTickAim:647`（`overWater`） |
+| **D 三项式** | `p.isInWater() \|\| isWater(foot) \|\| isWater(foot.below())` | `WalkerTickClimb:293`（`touchingWater`） |
+| **E 去抖式** | `p.isInWater() \|\| wk.surfaceWaterLatch > 0` | `WalkerTickAim:455`、`WalkerTickClimb:332`、`WalkerTickProgress:595`、`:862` |
+| **G 离线孪生** | 全从格算，用 `foot.above()` 当头格 | `debug/NodePhysics.java:120,123`（回放物理与活身体不同答案） |
+
+三条结论，按有用程度排：
+
+1. **D 已经是补好的那个。** `touchingWater` 与 `overWater` 只差一项，差的正好是 `isWater(foot)`——
+   也就是「浅水站底」那道缝。**这个仓已经有一处把它补上了**，真要动 futile 闸时
+   拿 D 当既有判例，不要新造谓词。**一条已存在的正确写法比六条错误写法加起来更有用。**
+2. **`p.isInWater()` 会闪。** `WalkerConstants:135` 写着它在浮筒顶点会假成 false 约 1 tick，
+   E 族整个存在就是为了骑过这一下。所以 **A→B 不是等价替换**，会顺带把那一 tick 收进来。
+3. **C 有个逐位相反的孪生没名字**：`Walker:1532-1533` 的 `overhang` 里内联着
+   `!hp.isInWater() && !isWater(fc.below())`，正是 `!overWater` 的德摩根展开。
+   **今天两处答案一致，正因为一致才危险**——改定义时没有任何东西会把它一起带走。
 
 ### `moved` 那 16.6% 是真的，而且病因比登记的更具体
 
