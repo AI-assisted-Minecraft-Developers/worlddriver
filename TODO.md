@@ -17,8 +17,8 @@
 | ❌ 已证伪 | Q16b | 11 级 `short_grass`：换服务端 avatar（`337a35e2`）**被排练证伪**，同一格同一棵草原样读回。真因见下 | 我 |
 | ✅ **已验** | Q16d | 真因：**瞄的和破的不是同一具身体**。修法 `5e8c0713` 经确定性 A/B 排练验证：`cast.cleared.-4, 63, 55` 由 `short_grass` → **`air`**，11 级 PASS | 我 |
 | 📌 已判待验 | Q16e | 6 级**间歇**失败（3 趟里 1 趟）。「窗口无死亡行」那条族判**已撤回**——日志没有死亡仪器。已补 `kill.kills`/`kill.swings`/`kill.preyVitals`（`1a4efeac`），等它下次发作点名 | 我 |
-| 🔴 已写待编 | Q18 | **尸体被当成猎物**：ladder-11 的 6 级读到 `preyVitals = cow 0.0/10.0 HP 距 4.0 格`，同时 `preyLeft = cow`。三处扫描都没滤 `isAlive()`。新仪器第一趟就抓到它 | 我 |
-| 🔴 已写待编 | Q17 | **杀完根本没去捡**：6 级读 `rawFood` 就在战斗结束那一 tick，中间**没有收集这一步**。补 `collectAnyOf`（多品类版 `collectByHand`）。代码已写，**等真梯落地再编译** | 我 |
+| ✅ **已验** | Q18 | **尸体被当成猎物**：ladder-11 的 6 级读到 `preyVitals = cow 0.0/10.0 HP 距 4.0 格`，同时 `preyLeft = cow`。三处扫描都没滤 `isAlive()`。新仪器第一趟就抓到它 | 我 |
+| ✅ **已验** | Q17 | **杀完根本没去捡**：6 级读 `rawFood` 就在战斗结束那一 tick，中间**没有收集这一步**。补 `collectAnyOf`（多品类版 `collectByHand`）。代码已写，**等真梯落地再编译** | 我 |
 | ⏭ 排队 | Q13 | 🔴 **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗 | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
 | ✅ 已测 | Q6 | 石剑：ladder-8 全程 `weapon=minecraft:stone_sword`，6/7 级都带着打 | 我 |
@@ -33,7 +33,7 @@
 | ✅ 已测 | J12 | **同一天第二把不剥注释的尺子**：`DayTimeFoldingTest` 被一行 javadoc 判红，而它的「控制」一直靠另一行 javadoc 通过（`5d4d80ff`） | 我 |
 | ✅ 已落 | J13 | `WorldDriverJourneyScenes` 到顶（3017），把工作台/落脚那一族拆进 `JourneyStation`（`28a38cc8`），2851 行。**机械搬运，证据键一个没改** | 我 |
 | 🔴 已修待闸 | Q16c | 9 级回家的路把身体带下 24 格 ⇒ 10 级走不到。补救：低于天光 8 格就先 `climbOut` 再走一趟（`28a38cc8`） | 我 |
-| 🔴 已写待编 | J14 | 核完了：`JourneyEndRungs` 那份私有 `walkToColumn` **停在两条修法之前**（缺 `arrivedY`、缺到达分支的 `gotoEnd`）。已删，改指共享版；容差在唯一调用点等价 | 我 |
+| ✅ 已落 | J14 | 核完了：`JourneyEndRungs` 那份私有 `walkToColumn` **停在两条修法之前**（缺 `arrivedY`、缺到达分支的 `gotoEnd`）。已删，改指共享版；容差在唯一调用点等价 | 我 |
 | ✅ 已落 | J9 | 那两处**六行逐字相同**的收成了 `JourneyHands.swingOffPlant`（`5e8c0713`）。**两份拷贝错得一模一样**，所以这不是整洁项，它就是 Q16d 的修法本身 | 我 |
 | ✅ 已测 | Q12a | 世界钉法进了 99 级判词：ladder-8 的判词自带 `doMobSpawning=false…零布景说的是道具，不是难度` | 我 |
 | ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪+放时钟）—— 等钉住的梯子爬进两位数，或用户主动要 | 我 |
@@ -314,6 +314,18 @@ janitor 报的是「`JourneyEndRungs:2707` 自己复制了一份 `walkToColumn`�
   | **不出现** | 0 | ⚠️ **未触发**，不是失败 —— 打完地上什么也没剩，`collectAnyOf` 第一条腿就
     `drop == null` 直接走 `leftOnTheGroundAnyOf`，**根本没机会写 `walks`**。重跑，不许判 |
   | ≥ 1 | > 0 | 🔍 收集跑了但腿用完了 —— 先读 `pickup.target` 那串轨迹，**这是一条发现，不是判决** |
+
+  ### ✅ 判（`489e23ea` 之后那一趟排练，FOOD PASS）
+
+  | 判据 | 实读 | 判 |
+  |---|---|---|
+  | `pickup.walks ≥ 1` 且 `pickup.left = 0` | `walks=1`、`left=0`、`target=27, 64, 136` | ✅ **已验** |
+  | 旁证 `kill.onGround` | **0 件（24 格内地上什么肉都没有）**（原来 1~2 件） | ✅ |
+  | 非判据的副产品 | `rawFood=5`（原来 3 / 4） | —— |
+
+  **Q18 同趟已验**：`kill.preyVitals = minecraft:chicken 4.0/4.0 HP 距 18.2 格（这一只是满血的）`，
+  上一趟是 `cow 0.0/10.0 HP 距 4.0 格`。刚被杀的四头牛的尸体被滤掉了，
+  报的是**真正还活着**的最近猎物 —— 物种和距离一起变了，这比「值变了」更难伪造。
 
   **不要跟上一趟比 `left`。** 两趟杀的头数不同，剩下的件数本来就不可比；而且一趟掉 3 件、
   收集捡回 2 件，`left=1` 会被读成「失败」，可它走了两趟都成功了。
