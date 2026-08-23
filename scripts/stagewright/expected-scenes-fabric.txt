@@ -441,3 +441,9 @@ wd.actuatorSplitOnAnAdoptedBody
 # rungs use after the fix. Kept as a SECOND scene so the one above stays a ruler for the raw
 # divergence — if anyone routes those call sites back to the server avatar, it still says so.
 wd.actuatorSplitThroughTheClientAvatar
+# The drowning family's execution layer. DrownEscapeChain.tick returns at `mc == null`, so these
+# three EXECUTE only on the integrated topology and SKIP (loudly, naming the hole) everywhere else.
+# The pinned arm is optional until its hypothesis is settled — see the class note.
+wd.drownEscapeClientRisesInOpenWater
+wd.drownEscapeClientPinnedByNeighbourColumn
+wd.drownEscapeClientStaysDownDisarmed
