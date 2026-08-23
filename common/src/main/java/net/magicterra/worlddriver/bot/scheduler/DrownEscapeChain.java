@@ -184,9 +184,27 @@ public final class DrownEscapeChain implements Chain {
                 BotInput.sneak(mc, false);
                 mc.options.keyAttack.setDown(false);
                 keysHeld = true;
-                if (BotConfig.walkerDebug && (dbg++ % 10 == 0))
-                    LOG.info("[drownEscape] CAPPED lid — lateral swim to open water dir={},{} pos={},{},{} air={}",
-                            dir[0], dir[1], bx, by, bz, p.getAirSupply());
+                // UNCONDITIONAL, throttled — deliberately the same gate its vertical sibling
+                // (`dbgV++ % 10 == 0`, no flag) has always had. This row used to be behind
+                // `walkerDebug`, and the asymmetry cost a run: the ladder of 2026-08-23 latched
+                // this chain at 00:56:21 and the body drowned 15 s later at an unchanged
+                // 76,42,60 — 300 ticks in which the ONLY thing the log said was the PREEMPT
+                // line. Not one vertical row printed, which is itself how we know it was THIS
+                // arm (the only path that returns before the vertical one), and this arm said
+                // nothing at all. A reflex that outranks every process and holds the channel is
+                // the last thing that should go quiet while it holds it.
+                //
+                // The horizontal speed is on the row because it is the whole question here: this
+                // arm holds `forward` and claims to swim, and a body that held forward for 300
+                // ticks without moving reads identically to one that was never asked. Bounded by
+                // the drowning episode itself, so the volume is ten rows per near-death.
+                if (dbg++ % 10 == 0)
+                    LOG.info("[drownEscape] CAPPED lid — lateral swim to open water dir={},{} "
+                                    + "pos={},{},{} air={} 水平速度={} y={}",
+                            dir[0], dir[1], bx, by, bz, p.getAirSupply(),
+                            String.format(java.util.Locale.ROOT, "%.4f",
+                                    Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z)),
+                            String.format(java.util.Locale.ROOT, "%.3f", p.getY()));
                 return;
             }
             // dir == null: deep/open water (float vertically below) or capped-but-boxed-in
