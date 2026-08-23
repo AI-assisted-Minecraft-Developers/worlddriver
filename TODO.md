@@ -54,7 +54,9 @@
 | ✅ 已改 | Q23d | `strideGuardSkips` 换成 `AtomicLongArray`，和邻居那一排 `volatile` 同一套约定 —— 否则「桶全为 0」分不清「没调用」和「没可见」 | 我 |
 | ✅ 已改 | Q23e | 三处向零截断印格号全改掉（`AutoSwim:128`、`ContactDamageEscape:76`、`WorldDriverProcessScenes:1169`，最后一处上一行就已经算好了 `cell`） | 我 |
 | 🔴 **挡路** | Q24 | 11 级：`cast.result = SUCCESS` 而 `lava_bucket.after = 1`。两个数来自两端（客户端预测 vs 服务端库存），而分辨用的 `cast.atUse` 上一轮只加进了 12 级。已补，**ladder-13 未触发**（没走到那一浇），仍待读 | 我 |
-| ✅ 已改待验 | Q25 | 隧道停在「看得见」而桶要「够得着」：瞄准用 `TUNNEL_REACH=5.0`（挖掘的数，`destroyBlock` 无距离闸），桶用 `blockInteractionRange()=4.5`。`JourneyFill.BUCKET_REACH` 早就记着这件事，这个调用方没用它。改成以桶自己的距离**重射一次**（不比距离——`5.4m` 是格心，射线停近面）；装桶站点补 `handsAtUse` | 我 |
+| 🔴 **挡路** | Q26 | 11 级：判词说「浇筑瞄准线被挡住」，真因是**去水边那一段走行烧完了 2100 tick 都没到**（身体钉在 `-7,58,45`，目标在 8 格外），然后 `shallowWaterNear(8)` 就近换瞄一处**高 4 格**的水，射线朝上穿地形。修法 a=`cast.walk` 记这一段是走完的还是超时的；b=就近改瞄那处水要先过引擎射线（`cast.tooFar` 只问距离，而距离不是视线） | 我 |
+| 🟠 待做 | Q27 | `[place]` 在 `-7,55,44 面=up` 上 **1 成功 + 10 拒绝**连着刷，而 `邻格=-7,56,44→minecraft:cobblestone` 早就放好了。垒塔在对着已经放好的格重放，每次成功要陪十次拒绝（[[a-jump-is-not-a-gain]] 同族：拒绝没被当成信号） | 我 |
+| ✅ **已验** | Q25 | 隧道停在「看得见」而桶要「够得着」：瞄准用 `TUNNEL_REACH=5.0`（挖掘的数，`destroyBlock` 无距离闸），桶用 `blockInteractionRange()=4.5`。`JourneyFill.BUCKET_REACH` 早就记着这件事，这个调用方没用它。改成以桶自己的距离**重射一次**（不比距离——`5.4m` 是格心，射线停近面）；装桶站点补 `handsAtUse` | 我 |
 | 🟠 待做 | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom:2611`（10 级隧道用，一次瞄准一次 use，没有重瞄、没有换源、没有装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。Q25 是前者缺了后者早就写下的那半格。要么合并、要么把前者的 javadoc 从「看得见的源」改成「够得着的源（调用方以 `BUCKET_REACH` 重射）」—— **前置条件写在一个调用方里就是今天那一族**。合并会改证据键，等真梯落地 | 我 |
 | ✅ 已修待闸 | Q23c′ | 查 Q23c 时查出的**真缺陷**：`ContactDamageEscape.pickClearCardinal` 不问下一格的**地板**，而它唯一的调用分支的注释写着「它就在正下方（磁浆地板）」—— 于是它可以从磁浆板的这一格躲到**同一块板的隔壁格**，下一 tick 再触发一次，读起来像「反射在工作而世界一直赢」。岩浆那个兄弟从写出来就问 `f.below()`，只有这份拷贝没问（`c20e7751`）。[[a-precedent-nobody-ever-verified]] | 我 |
 | 🟠 待做 | J16 | 两份 `pickClearCardinal` 结构逐字相同，只差「危险谓词」和「可穿过怎么问」（`blocksMotion()` vs `getCollisionShape().isEmpty()`，实测在原版方块上等价）。抽进 `BotUtil.stepAwayCardinal(lvl, foot, hazard)`，形参从 `LocalPlayer` 降成 `BlockPos` —— **这才是覆盖不了它的原因**：现在只有 `ContactEscapeGate` 的真值表有场景，方向选择器两边都零覆盖，而降了形参就能在专用服上直接测，不用客户端、不会 SKIP（[[skip-is-not-coverage]]） | 我 |
@@ -904,6 +906,79 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 **Q24（浇筑那只手的 A/B）**：四态沿用上一节，需要这一趟真的走到 `cast`。
 
 **共同**：11 级 PASS 不等于 Q24 结案 —— 浇筑路径上仍然只有证据行、没有行为改动。
+
+---
+
+## 📊 ladder-14 判词（2026-08-23，`results-ladder14.jsonl` / `ladder14-preserved.log`）
+
+**10/20，11 级失败** —— 但**死得比上一趟晚了一整段**：桶装到了，死在那一浇之前的清线循环里。
+
+| 判据 | 判词 |
+|---|---|
+| **Q25 隧道够不着** | ✅ **已验**（登记的三条同时成立） |
+| Q24 `cast.atUse` 服务端半边 | 🟡 **未触发**（第三趟了）—— 整段没有 `cast.result`／`cast.atUse` 键 |
+| Q21 进近三支 | 🟡 未触发 |
+| Q23a stride 分桶 | 🟡 未触发（没死） |
+| 第四态（闸响了而进近失败） | 未落在这一格：进近**成功了** |
+| 仪器自检 `fill.atUse` | ✅ 出现，而且**说出了没人预料的话**（见下） |
+
+### ✅ Q25 已验，三条同时成立，外加一条独立佐证
+
+```
+tunnel.7                 aim -6,26,54 (5.4m) 自 -10,27,51 → -6,26,54 Block{minecraft:lava}
+tunnel.7.seenNotReached  以桶自己的 4.5 格再射一次什么都没打到 —— 先走近，不舀
+tunnel.8/9/10            自 -7, 26, 53（挪了 3 格），5.4m → 1.9m
+fill.result              SUCCESS        ← ladder-13 是 PASS
+lava_bucket              1              ← ladder-13 是 0
+fill.sourceAfter         air            ← ladder-13 一滴没少
+```
+
+登记时写了「单看 `fill.result = SUCCESS` **不能**算已验」，所以点名**唯一的差别**：
+这道闸让身体从 `-10,27,51` 走到 `-7,26,53`，5.4m 变 1.9m。ladder-12 是在够得着的地方
+碰巧停下的；这一趟是**被闸推着走近的**。
+
+**仪器自检额外收获**：`fill.atUse` 打出的**两条射线打到不同的东西** ——
+空桶线 1.22 格命中 `-6,26,54 lava 面=up`，满桶线 2.61 格命中 `-6,26,55 stone 面=north`。
+空桶和满桶用的是不同的流体模式，所以「桶的射线」根本不是一条线而是两条
+（[[a-bucket-is-aimed-not-clicked]] 的下一层）。**开着的仪器会说出你没想到的话。**
+
+### 🔴 Q26：判词说的是瞄准线，真因是**那一段走行根本没到**
+
+```
+lava_bucket.atSurface = 1
+cast.target           = -15, 59, 41      ← 勘测到的水面
+cast.cell             = -7, 62, 47       ← 实际瞄的是另一处水
+cast.range            = 3.40
+cast.picks            = -7,59,46 stone → -7,60,46 dirt → -7,60,47 dirt（清了两块，第三块放弃）
+```
+
+**这两个键之间一条证据行都没有。** `approachAndPour` 是
+`rig.settle(new IntentProcess(new Intent(new Goal.Near(water, 2))), 2_000, then)` ——
+预算耗尽也照样跑 `then`，**而没有任何一行记下它是走完的还是超时的**。
+日志里那一段是这样结束的：
+
+```
+23:40:19 心跳 OBSIDIAN goto 本段第1341/2100 tick 身体=-6,58,46
+23:40:39 心跳 OBSIDIAN goto 本段第1741/2100 tick 身体=-7,58,45
+23:40:49 心跳 OBSIDIAN goto 本段第1941/2100 tick 身体=-7,58,45
+```
+
+身体钉在 `-7,58,45`，目标 `Near[-15,59,41,2]` 在 8 格外。预算烧完之后
+`shallowWaterNear(rig, 8)` **就近换了一处水** `-7,62,47` —— 比身体高 4 格。
+于是射线朝上穿地形，`cast.picks` 三次全打在身体和那处水之间的土石上。
+
+**两条修法（都还没动）**：
+
+- **a｜仪器（必须）**：`cast.walk` 一行 —— 身体在哪、离计划的水面多远、这一段是**走完的**
+  还是**烧完预算的**。缺了它，「走不到」会一直穿着「瞄准线被挡住」的判词
+  （[[a-segment-hides-a-stall-at-its-end]]、[[evidence-that-lies]] 第一节）。
+- **b｜行为**：`cast.tooFar` 只问距离（3.40 < 4.0 就放行），而**距离不是视线**。
+  就近改瞄的那处水必须先过引擎自己的射线，和 Q25 同一个形状、方向相反 ——
+  Q25 是「看得见 ≠ 够得着」，这里是「够得着 ≠ 看得见」（[[a-pour-down-a-blocked-line]]）。
+
+**顺带**：`[place]` 在 `-7,55,44 面=up 邻格=-7,56,44→minecraft:cobblestone` 上
+**1 成功 + 10 拒绝**连着刷，邻格早就是 cobblestone 了还在放 —— 单独记为 Q27。
+Q7 现场也在同一段：`owner=goto start=-7,58,45 goal=Near[-15,59,41,2]` 隔 11 秒同参数重问。
 
 ---
 
