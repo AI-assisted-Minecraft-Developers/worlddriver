@@ -58,7 +58,11 @@ public final class FollowProcess implements BotProcess {
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Player p = a.player();
-        if (p == null) { st.follow.reset(); return true; }
+        // Stamped for the same reason BackfillProcess/BuildProcess stamp theirs: `ProcessSlot
+        // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
+        // unstamped exit is not silence — it is the POSITIVE report "finished, no error". Every
+        // other exit in this file already stamps; this one was the hole.
+        if (p == null) { st.follow.lastError = "player vanished"; st.follow.reset(); return true; }
         Level lvl = p.level();
         Entity target = findTarget(lvl, p);
         if (target == null) {
