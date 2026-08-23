@@ -336,6 +336,13 @@ public final class BotConfig {
     public static volatile boolean contactDamageEscape = true;
     /** Walk away from an adjacent FLOWING lava front (devil-bench deaths #27/#29/#30). */
     public static volatile boolean lavaProximityEscape = true;
+    /** Second trigger for that same reflex: while GROUNDED and moving, refuse the step whose
+     *  landing column holds lava (真梯 2026-08-23, walked into the source pool at −10,63,19).
+     *  The adjacency scan above cannot see a pool below the lip, and by the time it can, the
+     *  body is over it with no ground authority left. Sub-flag of {@link #lavaProximityEscape}
+     *  so the two triggers can be told apart in an A/B; both must be ON for this one to fire.
+     *  Default ON. Read only by the reflex — never the planner. */
+    public static volatile boolean lavaApproachGate = true;
 
     /** gap#70 (live death #18): an IDLE bot (no movement process) that sinks in
      *  deep water gets ZERO self-rescue — {@link #autoSwim}'s lift/beach steer is

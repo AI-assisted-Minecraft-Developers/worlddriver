@@ -1279,8 +1279,10 @@ public final class BotApiImpl implements BotApi {
         // Lava-front backstop (deaths #27/#29/#30): a FLOWING lava cell beside
         // the feet means the front arrives within ~1.5s — walk away NOW. The
         // path brakes prevent walking/falling INTO the flow; this one prevents
-        // dying in place while the planner deliberates.
-        if (mc.player != null) net.magicterra.worlddriver.bot.auto.LavaProximityEscape.tick(mc, mc.player);
+        // dying in place while the planner deliberates. Takes the WorldView for
+        // its second trigger (the grounded landing-column gate), which needs the
+        // same isHazard the pathfinder prices with, not a raw Level read.
+        if (mc.player != null) net.magicterra.worlddriver.bot.auto.LavaProximityEscape.tick(mc, mc.player, world);
         // Keep the combat status slot's liveness in sync with the chain so the
         // awaitable mc.bot.combat route (which polls combat.active) completes the
         // moment the fight ends. Counters/goal/lastError persist for post-mortem.

@@ -370,6 +370,36 @@ public final class WalkerGeometry {
         return fall > threshold;
     }
 
+    /**
+     * The first hazard cell in the OPEN drop column below {@code n}, or {@code null} when
+     * {@code n} is not an open cell at all, the column floors out first, or nothing hazardous
+     * sits within {@code maxDepth}.
+     *
+     * <p>Same walk the three descent guards above do, but it answers a different question and
+     * so it lives beside them rather than inside one of them: they fold the column into a
+     * boolean about FALL HEIGHT, and the lava reflex needs <em>the cell</em> — it steers away
+     * from it — while GROUNDED and on the flat. No existing caller covers that case:
+     * {@link #dropAdjacentExceeds} is consulted only under {@code plannedDescent}, and only to
+     * shed sprint (see {@code WalkerTickDrive}'s steepDescent block). A lethal lava column one
+     * step ahead of a body walking downhill is therefore a question nobody asks, which is how
+     * the 2026-08-23 rehearsal walked into a source pool at −10,63,19 with every guard healthy.
+     *
+     * <p>Requiring {@code n} itself to be open is what separates this from lateral adjacency:
+     * walking a solid rim beside a calm lake reads {@code null} here (the rim is the floor),
+     * so the source-pool carve-out that {@code LavaProximityEscape.nearestThreat} needs for
+     * ordinary iron-country mining must NOT be repeated on a landing column.
+     */
+    public static BlockPos hazardInDropColumn(WorldView world, BlockPos n, int maxDepth) {
+        if (world.isSolid(n) || world.isWater(n)) return null;
+        BlockPos pr = n.below();
+        for (int d = 1; d <= maxDepth; d++) {
+            if (world.isHazard(pr)) return pr;
+            if (world.isSolid(pr) || world.isWater(pr)) return null;
+            pr = pr.below();
+        }
+        return null;
+    }
+
     /** Y-MISLABELED-RISER RAM detector (executor-side, see {@code levelRiserJump} below).
      *  A* can label an edge a LEVEL {@code walk} (Move dy=0) whose DESTINATION floor is actually
      *  +1 — a mislabeled ridge step. The bot, expecting level ground, sprints in, walks off the
