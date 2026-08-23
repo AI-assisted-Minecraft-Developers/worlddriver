@@ -90,13 +90,36 @@ _SIG = re.compile(
 _NAME = re.compile(r"([A-Za-z_$][\w$]*)\s*\(")
 
 
-def _blank_literals(line):
-    """Blank string/char literals and drop a line comment, so their braces don't count."""
+def _strip(line, in_block):
+    """Blank comments and string/char literals in one left-to-right pass.
+
+    Returns (code, still_in_block). ONE pass, because a two-pass version got this wrong for two
+    years: it removed block comments first and literals second, so a `/*` INSIDE a string opened a
+    phantom comment. A Java file whose own failure message mentions a package glob — the literal
+    "bot/scheduler/**" — was enough. With one such string the phantom happened to close on the next
+    real javadoc `*/`; with two the parity flipped, every brace between them vanished, and the
+    checker reported a 3-line test method as 243 lines long.
+
+    That is the failure mode worth naming: a mis-parsing budget gate does not only cry wolf, it
+    also SWALLOWS methods, and a swallowed method is a violation nobody is told about. The gate is
+    an instrument, so it has to be calibrated like one.
+    """
     out, i, n = [], 0, len(line)
     while i < n:
+        if in_block:
+            end = line.find("*/", i)
+            if end < 0:
+                return "".join(out), True
+            out.append(" ")
+            i, in_block = end + 2, False
+            continue
         c = line[i]
         if c == "/" and i + 1 < n and line[i + 1] == "/":
             break
+        if c == "/" and i + 1 < n and line[i + 1] == "*":
+            in_block = True
+            i += 2
+            continue
         if c in "\"'":
             quote = c
             i += 1
@@ -112,7 +135,7 @@ def _blank_literals(line):
             continue
         out.append(c)
         i += 1
-    return "".join(out)
+    return "".join(out), in_block
 
 
 def methods(path):
@@ -121,22 +144,7 @@ def methods(path):
         lines = f.read().split("\n")
     depth, start, name, in_block = 0, None, None, False
     for i, raw in enumerate(lines):
-        line = raw
-        if in_block:
-            end = line.find("*/")
-            if end < 0:
-                continue
-            line, in_block = line[end + 2:], False
-        while True:
-            begin = line.find("/*")
-            if begin < 0:
-                break
-            end = line.find("*/", begin + 2)
-            if end < 0:
-                line, in_block = line[:begin], True
-                break
-            line = line[:begin] + " " + line[end + 2:]
-        code = _blank_literals(line)
+        code, in_block = _strip(raw, in_block)
         s = code.strip()
         if (depth == 1 and start is None and not s.endswith(";")
                 and _SIG.match(s) and "=" not in s.split("(")[0]):
