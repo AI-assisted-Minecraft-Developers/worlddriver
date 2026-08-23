@@ -1,7 +1,11 @@
 package net.magicterra.worlddriver.bot.stagewright;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotHooks;
+import net.magicterra.worlddriver.bot.sim.AvatarFakePlayer;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
@@ -214,11 +218,47 @@ public final class SceneBody {
     }
 
     /** Whether anyone in the player list is a person rather than one of our own bodies. A reading,
-     *  not a gate — see {@link #aClientShouldDrive} for why it must not decide anything here. */
+     *  not a gate — see {@link #aClientShouldDrive} for why it must not decide anything here.
+     *
+     *  <p>⚠️ This one asks {@code instanceof JoinedBody} only, and is deliberately left that way for
+     *  now — see {@link #isDriverMinted}, which is the same question asked completely. Tightening
+     *  this method changes which scenes skip, so it belongs in a change whose subject is that, not
+     *  as a rider on one that adds a caller. */
     public static boolean hasHumanPlayer(SceneContext ctx) {
         for (ServerPlayer p : ctx.players()) {
             if (!(p instanceof JoinedPlayerBodies.JoinedBody)) return true;
         }
         return false;
+    }
+
+    /**
+     * Whether this player is one the driver minted, rather than a person's.
+     *
+     * <p><b>Two types, not one.</b> Four places in the testmod ask this question and three of them
+     * ask it as {@code instanceof JoinedBody} alone, which lets an {@link AvatarFakePlayer} through
+     * as「真玩家」. {@code WorldDriverActuatorSplitScenes} shows the cost inside a single file: its
+     * {@code humanPlayers()} admits one, and then its own next check — which does name both types —
+     * fails the scene with「挑错了身体」. A predicate that disagrees with itself twenty lines apart is
+     * the failure mode this method exists to end, and the reason it is a named method rather than a
+     * copied expression is that the list of minted types will grow again.
+     *
+     * <p>Asked STRUCTURALLY. {@code agent-body-N} is a naming convention
+     * ({@code JoinedPlayerBodies.profileFor}) and conventions get changed by people who do not know
+     * a test reads them; the class is what the bodies actually differ by.
+     */
+    public static boolean isDriverMinted(ServerPlayer p) {
+        return p instanceof JoinedPlayerBodies.JoinedBody || p instanceof AvatarFakePlayer;
+    }
+
+    /** Everyone on this server who is not one of the driver's own bodies, by {@link #isDriverMinted}.
+     *  Server scope, not level scope: a body on another dimension is still not a person, and a scene
+     *  that scoped this to its own level would report「没有真玩家」the moment the client walked into
+     *  the nether. */
+    public static List<ServerPlayer> humanPlayers(SceneContext ctx) {
+        List<ServerPlayer> out = new ArrayList<>();
+        for (ServerPlayer p : ctx.players()) {
+            if (!isDriverMinted(p)) out.add(p);
+        }
+        return out;
     }
 }
