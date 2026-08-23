@@ -15,6 +15,8 @@
 | 🔴 排队 | Q15c | **集成 NeoForge 一直是 RED**，唯一死因 `pack.placesAndReadsBack` ENV_FAIL：`0 of 9 arena chunks ever loaded after 201 ticks`。改动前后同因，非回归。见下 | 我 |
 | ❌ 已证伪 | Q16b | 11 级 `short_grass`：换服务端 avatar（`337a35e2`）**被排练证伪**，同一格同一棵草原样读回。真因见下 | 我 |
 | ✅ **已验** | Q16d | 真因：**瞄的和破的不是同一具身体**。修法 `5e8c0713` 经确定性 A/B 排练验证：`cast.cleared.-4, 63, 55` 由 `short_grass` → **`air`**，11 级 PASS | 我 |
+| 📌 已判待验 | Q16e | 6 级**间歇**失败（3 趟里 1 趟）。「窗口无死亡行」那条族判**已撤回**——日志没有死亡仪器。已补 `kill.kills`/`kill.swings`/`kill.preyVitals`（`1a4efeac`），等它下次发作点名 | 我 |
+| ⏭ 排队 | Q17 | 🔴 **杀完把肉留在地上**：FOOD 排练 `rawFood=3` 而 `kill.onGround=2 件 beef`。6 级要求 ≥1 所以 PASS 盖住了它；9/14 级每件都算数 | 我 |
 | ⏭ 排队 | Q13 | 🔴 **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗 | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
 | ✅ 已测 | Q6 | 石剑：ladder-8 全程 `weapon=minecraft:stone_sword`，6/7 级都带着打 | 我 |
@@ -170,10 +172,50 @@ cast.picks#3 = -4, 61, 54 dirt          ← 床面，可以浇了
 
 ---
 
-⇒ **归「打不中」族，不归「捡不到」族。** 这一刀砍掉了一整类假设（掉落物没捡、拾取半径、背包满）。
-剩下的嫌疑，全是我自己记过的：[[a-server-side-aim-dies-at-the-next-packet]]（真玩家的角度归客户端，
-服务端写的瞄准活不过下一个包）、以及攻击冷却。**注意这和 11 级是同一族的病**：
-一个动作的「瞄」和「做」落在了两具身体上。先修完 11 级再回来，因为读数会共享。
+⇒ ~~归「打不中」族，不归「捡不到」族。~~ **❌ 这句话撤回，理由在下面。**
+
+### ❌ 撤回：「窗口里没有死亡行」这条读数什么也证明不了
+
+FOOD 排练那一趟**确实杀死了一头牛**（判词「猎到 minecraft:cow，得生肉 ×3」，`rawFood=3`），
+而它的 5→6 级窗口里**同样一行死亡都没有**。
+
+⇒ **游戏日志根本没有死亡仪器。** `entity.death` 是 RPC 通道上的事件，不是日志行，
+所以 grep 日志找死亡永远返回零 —— [[evidence-that-lies]] 里那条「拿零当证据，却没有活通道」，
+我又踩了一次，而且是在**给自己的族判做唯一依据**的位置上踩的。
+
+**真正的权威读数一直存在，只是没人问它**：`BotState.combatKills`，
+`CombatProcess:159` 在锁定目标死亡且锁定时还活着的时候加一，
+早就在 `status()` 的 `combat` 槽里。这属于[[an-instrument-behind-a-flag-is-not-an-instrument]]
+的镜像：不是仪器被闸住了，是**仪器一直亮着而没人看**。
+
+**已补**（`1a4efeac`）：`kill.kills`（权威）、`kill.swings`（0 = 贴身那条分支没进；
+>0 且 kills=0 = 打出去了但没打死）、`kill.preyVitals`（猎物血量，
+「掉过血：打中过」／「满血：一下都没挨着」——分开「没碰到」和「碰到了不致命」）。
+
+### 判（FOOD 排练，逐条对上面五条）
+
+| # | 实读 |
+|---|---|
+| 1 | `wd.rehearse06Food` **PASS**，`rawFood=3`，`kill.combatError=null` ⇒ **这一趟打得中** |
+| 2 | `null` |
+| 3 | n/a |
+| 4 | ✅ 照第 4 条读了行，没拿 PASS 结案 |
+| 5 | `animalsNearby=[cat, cow, frog, pig, sheep]` 非空，布景成立 |
+
+⇒ **这一趟没有复现 ladder-10 的失败。** 而 6 级在 ladder-8 / ladder-9 都是过的，
+所以它是**间歇性**的，一趟绿判不了它（[[three-greens-cannot-see-a-one-in-four]]）。
+**不再靠重跑碰它** —— 仪器已经补好，等它下次自己发作时一次点名。
+
+### 🔴 顺带捞到一条实货：**杀完把 2 块肉留在地上**
+
+```
+rawFood      = 3            ← 进包的
+kill.onGround = 2 件（minecraft:beef×2）  ← 留在地上的
+```
+
+这一级 PASS 了（要求 ≥1），所以这条泄漏**被 PASS 盖住了**——判据只问「有没有」，不问「漏没漏」。
+归 [[mined-is-not-collected]] 族。真梯上 6 级只要 1 块就过，但同一个拾取缺陷在 9 级（铁）
+和 14 级（烈焰棒）上是致命的，那里每一件都算数。⇒ 排队，见队列 Q17。
 
 ---
 
