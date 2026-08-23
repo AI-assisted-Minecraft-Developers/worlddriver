@@ -1164,6 +1164,24 @@ opt-in **只给 preferred-id 支**：id 是调用方的明示指令，`preferred
 身体活得更久，饿死链——无冲刺、半心地板、任何小伤致死——排在塔后面。**本趟不修**，
 若第 9 级过了，把各级边界的 food 走势读一遍再决定。
 
+#### 下一个候选死因的读码结果（2026-08-22，趁第 5 趟在跑时量的，**不是**读它的结果）
+
+`death.food = 2/20`（上一趟 13/20）。**整条进食链是死的，三道闸，任何一道都足以让它零次触发**：
+
+| # | 闸 | 现状 |
+|---|---|---|
+| 1 | `BotConfig.autoEat` | **出厂 `false`**，梯子从没武装过（`grep autoEat journey/` 零命中）——和上一趟那六条威胁反射同一个形状 |
+| 2 | `BotInteract.findFoodHotbarSlot`（`BotInteract.java:182-188`） | **只扫 `0..9`**。食物在背包 ⇒ 返回 −1 ⇒ 放弃。**和我这趟刚修的塔是同一个族** [[holdplaceable-only-sees-the-hotbar]] |
+| 3 | `BotApiImpl.builderSuppressesAmbients(c)`（`:1153`） | builder 持通道时 shield/heal/**eat** 三条全部 release。而深层几级**大部分时间都在建塔** |
+
+⇒ 所以 `death.food` 低不是「反射失灵」，是**没有任何东西在喂它**。修法的顺序应当是
+①先武装 ②再把扫描扩到背包（同 opt-in 形状） ③最后才谈 builder 静音要不要开个口子——
+**别从 ③ 开始**，那是最贵且最容易出回归的一头。
+
+⚠️ **`AutoEat.tick` 是按住 `mc.options.keyUse.setDown(true)` 实现的**，与「tick 里面不要驱动
+按键，一直都是用直调代码和发包解决」直接冲突。真要武装它，得先把它改成直调 `useItemInHand`
+一族——**这条要先量再改**，不要顺手一起做。
+
 ### 判据（第 9 级出井塔那条有三支，必须先写反确认支）
 
 ⚠️ **读序变了：`climb.N.stalled` 现在是第一读数，不再是佐证。** 槽位路由落地之后它直接报
