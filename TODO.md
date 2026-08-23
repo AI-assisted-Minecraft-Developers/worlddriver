@@ -1361,11 +1361,49 @@ ladder-15 那个「抢到通道后 300 tick 静默致死」的场合**这趟没�
 ⇒ **仪器已验，缺陷未触发。** 不要把「四次都成功」读成「已修好」
 （[[three-greens-cannot-see-a-one-in-four]]）。
 
-### 下一题：🔴 Q32 —— 第 11 级的浇筑
+### 下一题：🔴 Q32 —— 第 11 级那一浇，两端都拿着桶，而桶没少
 
-`lava poured into standing water casts obsidian in the chosen cell (false)`。
-4534 tick 花掉了，判据是「选定格里成了黑曜石」而它没成。
-这是这趟**唯一**的红，也是下一趟要打的那一级。
+`lava poured into standing water casts obsidian in the chosen cell (false)`，4534 tick。
+这是这趟**唯一**的红。证据已经把它逼到一格，但**逼不进去**：
+
+```
+cast.atUse  客户端 槽4 = lava_bucket；眼 -4.56/64.62/56.91 yaw=146.18 pitch=61.52；
+                        满桶线 -6,61,55 dirt 面=up（2.98 格）；空桶线 -6,62,56 water 面=up（1.97 格）
+            服务端 槽4 = lava_bucket；以上每一项逐字相同
+cast.result       = SUCCESS              ← 客户端 MultiPlayerGameMode.useItem 的预测
+cast.cellAfter    = minecraft:water      ← 目标格没变
+lava_bucket.after = 1 ／ bucket.after = 0 ← 桶还是满的，也没多出空桶
+obsidian.anywhere = 无
+```
+
+**能证的：**
+
+1. **一滴都没浇出去。** 浇成功会留下一个空桶，`bucket.after = 0` 排除了「浇了但浇错地方」。
+   所以「浇进静水该不该变黑曜石」这个机制问题**现在还轮不到问**。
+2. **不是手不对。** `cast.atUse` 两端逐字相同——这正是那行证据自己写好的判别法
+   （「要判是『服务端那只手不对』还是『两端都拿着桶但这一浇被拒』」），落在后者。
+3. **不是瞄错。** 满桶线打在 `-6,61,55` 面=up ⇒ 岩浆落进 `-6,62,55` ＝ 目标格。几何正确。
+4. **`cast.handSlipped` 那次补救是对的且必要的** ——上一次 hold 之后隔了一次落定，
+   两端都掉回圆石（[[a-hold-must-be-adjacent-to-the-use]]；显式的因是**井口垒了 36 块圆石**）。
+   ⚠️ 而 `cast.stillFull` 引用的 `heldOnBoth` 是 **use 之后十 tick** 取的，读到**两端又都是圆石**
+   ⇒ **有个东西在持续抢这只手**，补救只赢了一个瞬间。
+
+**证不了的（不要在这里猜）：** 为什么服务端没有执行这次 use。
+现有仪器全部止步于「调用那一刻」，而 `Item.use` 这条路径**一行仪器都没有**——
+`[place]` 挂在 `useItemOn` 上，桶走的是 `use`（[[a-bucket-is-aimed-not-clicked]]），**两条路**。
+
+**下一步是仪器，不是分析（🔴 Q32a）**：要的是
+**`BucketItem.use` 真正执行那一刻的服务端角度、射线命中格、以及它返回的 `InteractionResult`**，
+而不是场景采样那一刻的。三个候选因各自会留下不同的签名：
+
+| 候选 | 签名 |
+|---|---|
+| 角度没活到包被处理 | 服务端命中格 ≠ `-6,61,55` |
+| 够不着 | 命中 MISS／距离 > `blockInteractionRange` |
+| 被 `mayInteract`／`mayUseItemAt` 拒 | 命中格对，`InteractionResult = FAIL` |
+
+⚠️ **先做仪器再谈修法。** 今晚已经有一次「证据一路涨、方向全错」
+（[[a-guard-that-did-not-fire-may-be-right]]），这一条的证据链看起来同样扎实。
 
 ---
 
