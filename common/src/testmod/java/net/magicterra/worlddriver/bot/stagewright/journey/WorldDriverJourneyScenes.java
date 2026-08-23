@@ -1172,6 +1172,25 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.drive(new CombatProcess(CombatProcess.Mode.KILL, null, prey.species()), 6_000, () -> {
                 int raw = rig.carryingAnyOf(RAW_FOODS);
                 rig.evidence("rawFood", raw);
+                // THREE causes of rawFood=0, and until 2026-08-23 not one row could tell them
+                // apart. ladder-10 died here with the complete evidence being
+                // `prey.arrived=minecraft:cow, weapon=minecraft:stone_sword, combat→跑完, rawFood=0`
+                // — a body standing next to a cow with a sword, and a fight that "finished".
+                // The three: never landed a hit; killed it and left the meat on the ground
+                // (the mined-is-not-collected family); or fought something that was not the prey.
+                // One row each, taken here rather than reasoned about later.
+                int onGround = 0;
+                StringBuilder kinds = new StringBuilder();
+                for (String id : RAW_FOODS) {
+                    int n = rig.dropsNearby(id, 24);
+                    if (n <= 0) continue;
+                    onGround += n;
+                    kinds.append(kinds.isEmpty() ? "" : "、").append(id).append("×").append(n);
+                }
+                rig.evidence("kill.onGround", onGround + " 件"
+                        + (kinds.isEmpty() ? "（24 格内地上什么肉都没有）" : "（" + kinds + "）"));
+                rig.evidence("kill.preyLeft", String.valueOf(rig.nearestPrey(24)));
+                rig.evidence("kill.combatError", String.valueOf(rig.slotError("combat")));
                 ctx.expect(raw).as("raw food collected from the kill").isAtLeast(1);
                 walkHome(rig, () -> rig.reach("猎到 " + prey.species() + "，得生肉 ×" + raw));
             });
