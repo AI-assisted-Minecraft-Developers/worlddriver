@@ -7,6 +7,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerExpectAlarms;
+import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -15,6 +16,8 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
@@ -52,7 +55,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 Scene.of("wd.ascentRamSlideBack", 700, WorldDriverCoverageScenes::ascentRamSlideBack),
                 Scene.of("wd.aboveNodeStallPitFill", 700, WorldDriverCoverageScenes::aboveNodeStallPitFill),
                 Scene.of("wd.verticalResyncSlideBack", 700, WorldDriverCoverageScenes::verticalResyncSlideBack),
-                Scene.of("wd.stepUpBackoffCeiling", 700, WorldDriverCoverageScenes::stepUpBackoffCeiling));
+                Scene.of("wd.stepUpBackoffCeiling", 700, WorldDriverCoverageScenes::stepUpBackoffCeiling),
+                Scene.of("wd.surfacePillarPointerNeedsItsSupport", 700,
+                        WorldDriverCoverageScenes::surfacePillarPointerNeedsItsSupport));
     }
 
     /** 11×11 stone floor at {@code floorY}, cleared air +1..+18 above (the standard
@@ -817,5 +822,123 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             ctx.fail("stepUpBackoffCeiling: walker never finished after the ceiling lifted: step=" + s
                     + " t=" + t + " cappedTicks=" + cappedTicks + " pos=" + fp.position()
                     + " lastError=" + walker.lastError + " endReason=" + walker.lastEndReason);
+    }
+
+    /**
+     * The water-SURFACE pillar: the step pointer must not pass a support that was never placed.
+     *
+     * <p><b>Two phase classes read one word and answer differently.</b> A buoyant {@code pillarUp}
+     * is classified by {@code shaftFlooded}, and the two files that compute it do not compute the
+     * same thing:
+     *
+     * <pre>
+     * WalkerTickClimb:872-877   shaftFlooded = isWater(path.get(step));
+     *                           if (shaftFlooded &amp;&amp; walkerPillarSurfacePlace
+     *                                   &amp;&amp; !isWater(path.get(step).above())) shaftFlooded = false;
+     * WalkerTickProgress:549    shaftFlooded = "pillarUp".equals(se.move) &amp;&amp; isWater(path.get(step));
+     * </pre>
+     *
+     * <p>Progress has no carve-out. So on a water SURFACE cell — destination water, air directly
+     * above — Climb decides「case (b): PLACE a support to gain height」while Progress still calls it
+     * a {@code waterPillar} and takes the branch that deliberately treats an unfilled place cell as
+     * not-really-pending ("the buoyant climb never places the support via the dry path"), checking
+     * only for a still-solid ceiling before it may advance. That premise is precisely what the
+     * carve-out falsifies: on this geometry the support IS placed by that path.
+     *
+     * <p><b>Why no gate has ever seen this.</b> {@code applyGameTestBaseline()} sets
+     * {@code walkerPillarSurfacePlace = false}, and {@code pinnedBaseline()} — which every scene
+     * calls — runs it. With the flag off the carve-out is dead code, the two sides agree by
+     * construction, and a scene written for the divergence would pass while testing nothing. So this
+     * one turns the flag back ON, the way {@code wd.drownEscapeSurface} does for its own. Production
+     * runs with it ON ({@code BotConfig:2090}); the suite is the odd world, not the live one.
+     *
+     * <p><b>The gate is about the POINTER, not about the climb.</b> Whether a fake player's buoyancy
+     * lifts it is a physics question this arena does not settle; whether the walker may declare the
+     * step finished while the support cell is still open water is not. So a body that simply fails
+     * to rise leaves the run {@code WALKING} and is REPORTED — that is a different finding and must
+     * not print as this one.
+     */
+    private static void surfacePillarPointerNeedsItsSupport(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
+        buildFloor(level, cx, cz, floorY);
+
+        // Two-deep column whose TOP cell is the surface: water at standY and standY+1, air above.
+        // The pillarUp's destination is that top water cell — what makes this the SURFACE case
+        // rather than a flooded chimney, and therefore the only geometry the carve-out fires on.
+        for (int dy = 0; dy <= 1; dy++)
+            level.setBlockAndUpdate(new BlockPos(cx, standY + dy, cz), Blocks.WATER.defaultBlockState());
+        level.setBlockAndUpdate(new BlockPos(cx, standY + 2, cz), Blocks.AIR.defaultBlockState());
+
+        final BlockPos foot = new BlockPos(cx, standY, cz);        // where the body starts
+        final BlockPos dest = new BlockPos(cx, standY + 1, cz);    // path.get(step) — the waypoint
+        final BlockPos support = foot;                             // edge.toPlace.get(0)
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.walkerPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
+        BotConfig.allowPlace = true;                 // ditto, and the subject here IS a placement
+        BotConfig.allowBreak = false;
+
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        SimProbes.grantWaterEffects(fp);
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // something to place
+
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        // Vacuity guards. Each names the way this arena could go green while staging a DIFFERENT
+        // case — which is the failure mode a scene about a flag-gated branch is most exposed to.
+        if (!w.isWater(dest))
+            ctx.fail("surfacePillar: 目的格 " + dest.toShortString() + " 不是水 —— 两边的 "
+                    + "shaftFlooded 都会是 false，没有分歧可看，这一趟绿了也不说明什么。");
+        if (w.isWater(dest.above()))
+            ctx.fail("surfacePillar: " + dest.above().toShortString() + " 是水，这是 FLOODED 竖井"
+                    + "不是水面竖井 —— 抠除条件不成立，断言会退化成 0==0。");
+        if (!BotConfig.walkerPillarSurfacePlace)
+            ctx.fail("surfacePillar: walkerPillarSurfacePlace 是关的，WalkerTickClimb 那段抠除是"
+                    + "死代码，两个 phase 类按构造必然同答案。");
+
+        List<BlockPos> plan = List.of(dest);
+        List<Move.Edge> edges = List.of(
+                new Move.Edge(dest, 10, List.of(), List.of(support), "pillarUp"));
+
+        Walker walker = new Walker();
+        if (!walker.adoptForTest(w, plan, edges, foot))
+            ctx.fail("surfacePillar: 走行器拒绝了这条一条边的 pillarUp 计划（锚点闸）——"
+                    + "后面每一行都不再是关于被测对象的。");
+
+        final double startY = fp.getY();
+        double maxY = startY;
+        boolean placed = false;
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        for (; t < 200 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+            maxY = Math.max(maxY, fp.getY());
+            // blocksMotion, not !isAir: the support cell STARTS as water, so "not air" is true
+            // from the first tick and would report a placement that never happened.
+            if (level.getBlockState(support).blocksMotion()) placed = true;
+        }
+        boolean reachedRow = maxY >= dest.getY();
+
+        ctx.record("柱.目的格", dest.toShortString() + "=" + level.getBlockState(dest).getBlock());
+        ctx.record("柱.支撑格", support.toShortString() + " 垫上了=" + placed
+                + "（现在是 " + level.getBlockState(support).getBlock() + "）");
+        ctx.record("升.起点y", startY);
+        ctx.record("升.峰值y", maxY + "（要到 " + dest.getY() + "）");
+        ctx.record("走.收尾", s + "（用了 " + t + "/200 tick）");
+
+        if (s != Walker.Step.WALKING && !placed && !reachedRow)
+            ctx.fail("指针越过了一块没垫上的支撑：走行器以 " + s + " 收尾，而 "
+                    + support.toShortString() + " 仍是 " + level.getBlockState(support).getBlock()
+                    + "，身体峰值 " + maxY + " 也没到目的排 " + dest.getY() + "。"
+                    + "WalkerTickClimb 判这是水面竖井、要垫一块支撑（walkerPillarSurfacePlace 开着），"
+                    + "而 WalkerTickProgress 的 shaftFlooded 没有那道抠除，仍把它当浮力柱，"
+                    + "于是「没填的 place 格不算真的 pending」—— 推进越过的是一块还没发生的垫块。");
     }
 }
