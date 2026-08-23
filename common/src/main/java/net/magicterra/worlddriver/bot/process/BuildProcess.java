@@ -56,7 +56,9 @@ public final class BuildProcess implements BotProcess {
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Player p = a.player();
-        if (p == null) { st.builder.reset(); return true; }
+        // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
+        // so staying silent here reports "finished, no error" rather than nothing at all.
+        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
