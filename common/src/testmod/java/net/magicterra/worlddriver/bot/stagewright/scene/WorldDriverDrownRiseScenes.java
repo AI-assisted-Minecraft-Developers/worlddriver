@@ -69,13 +69,13 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.drownEscapeClientRisesInOpenWater", 400,
                         WorldDriverDrownRiseScenes::risesInOpenWater),
-                // OPTIONAL, and only until it is understood. This arm stages a live defect
-                // hypothesis; if it reproduces, the honest state of the gate is a named RED sensor
-                // (the `wd.vineOverWaterClimb` precedent), not a suite that hides it. Promote it to
-                // required in the same commit as the fix — a required RED nobody can act on is how
-                // a gate stops being read at all.
+                // REQUIRED as of the fix. It went in optional for exactly one run — the run that
+                // had to be allowed to report a red nobody could act on yet — and that run returned
+                // 「净升 0.000 格 / 200 tick，盖挡=false 撞顶=true」. The hypothesis is settled, the
+                // blindness is fixed, and a sensor that stays optional after its subject is
+                // understood is a sensor that will be green-by-accident the day it regresses.
                 Scene.of("wd.drownEscapeClientPinnedByNeighbourColumn", 400,
-                        WorldDriverDrownRiseScenes::pinnedByNeighbourColumn).withRequired(false),
+                        WorldDriverDrownRiseScenes::pinnedByNeighbourColumn),
                 Scene.of("wd.drownEscapeClientStaysDownDisarmed", 400,
                         WorldDriverDrownRiseScenes::staysDownDisarmed));
     }

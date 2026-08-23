@@ -97,6 +97,33 @@ public final class BotInput {
         if (p != null) ai(p).commandMove(0f, 0f);
     }
 
+    /**
+     * Drive toward a world point WITHOUT turning the camera.
+     *
+     * <p>The alternative — slam {@code setYRot} at the target and hold forward — is what the
+     * drown-escape lateral arm and {@code AutoSwim}'s shore-steer do, and it is the right shape for
+     * a metres-long swim. It is the wrong shape for a correction measured in tenths of a block: the
+     * camera whips for a nudge, which is one of the things a watching person reports as「视角乱甩」.
+     *
+     * <p>The conversion is the {@code WalkerTickRepath} back-off idiom, unchanged: vanilla's
+     * {@code travel()} rotates the impulse by the CURRENT yaw, so feeding it the bearing's offset
+     * from that yaw makes the body move along the bearing while the camera stays where it is.
+     *
+     * @param scale impulse magnitude, 1.0 being a full press. Callers correcting a small offset
+     *              should scale it down — a full press across 0.2 blocks in water overshoots to the
+     *              opposite cell boundary, which for the caller that motivated this method would
+     *              swap one pinning neighbour for another.
+     */
+    public static void driveToward(Minecraft mc, double wx, double wz, float scale) {
+        LocalPlayer p = mc.player;
+        if (p == null) return;
+        double dx = wx - p.getX(), dz = wz - p.getZ();
+        if (dx * dx + dz * dz < 1.0E-6) { ai(p).commandMove(0f, 0f); return; }
+        float bearing = (float) Math.toDegrees(Math.atan2(-dx, dz));
+        double d = Math.toRadians(WalkerGeometry.angleDiff(p.getYRot(), bearing));
+        ai(p).commandMove((float) (-Math.sin(d) * scale), (float) (Math.cos(d) * scale));
+    }
+
     /** Jump intent — replaces {@code keyJump.setDown(v)}. */
     public static void jump(Minecraft mc, boolean v) {
         LocalPlayer p = mc.player;

@@ -17,6 +17,7 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
@@ -41,11 +42,20 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
  *
  * <p>Behaviour while holding the channel: PURE VERTICAL float — hold jump,
  * zero horizontal input, zero turning (the same idle-passivity boundary gap#70
- * drew: a survival float is a reflex, not autonomous movement). If the cell two
- * above the foot is a solid lid (a capped 1×1 well — the bunker-seal shape),
- * break it, {@code allowBreak} permitting, in the {@link BunkerChain}
- * aim+attack style ({@code AntiSuffocate} owns the eye-cell case; the lid here
- * is one ABOVE the eye cell, which that reflex never targets).
+ * drew: a survival float is a reflex, not autonomous movement). If something is
+ * in the way of the rise — asked by sweeping the body's own box up, see
+ * {@link #blockedAbove}, NOT by naming one cell above one column — break it,
+ * {@code allowBreak} permitting, in the {@link BunkerChain} aim+attack style
+ * ({@code AntiSuffocate} owns the eye-cell case; the lid here is above it).
+ *
+ * <p>The one horizontal exception to「zero horizontal」, and it is smaller than the
+ * lateral arm's: when the rise is blocked but the body's own column is clear to
+ * air, the body drifts to that column's CENTRE. A player box is 0.6 wide, so a
+ * body pressed against a cell boundary carries 0.3 of itself into the next
+ * column, and one solid cell there pins it — while {@code halt}, the very thing
+ * this arm presses to stay passive, holds that pose. Measured 2026-08-23
+ * (`wd.drownEscapeClientPinnedByNeighbourColumn`): 200 ticks, 0.000 blocks
+ * gained, with the scan reporting a clear path the whole time.
  *
  * <p>Entry/release live in the pure {@link DrownEscapeGate} (matrix-tested with
  * no client): enter at {@code air <= }{@link BotConfig#drownEscapeAirThreshold}
@@ -190,20 +200,39 @@ public final class DrownEscapeChain implements Chain {
         // the impulses after vanilla's key pass, so the keys were the one input nobody read.
         // That is the same failure this class's own doc describes AutoSwim losing to.
         BotInput.jump(mc, true);
-        BotInput.halt(mc);
         BotInput.sprint(mc, false);
         BotInput.sneak(mc, false);                  // a held sneak SINKS the bot (aiStep sink)
         keysHeld = true;
-        // Sealed lid: the cell two above the foot (the bunker roof-seal cell) is
-        // solid while we're trying to rise — break it (allowBreak permitting).
-        // The eye cell itself is AntiSuffocate's job; this is one above it.
-        BlockPos lid = p.blockPosition().above(2);
+        // Sealed lid: whatever stops the rise, break it (allowBreak permitting). The eye cell
+        // itself is AntiSuffocate's job; this is above it.
+        //
+        // ASKED OF THE BODY'S OWN BOX, not of one column. This used to be
+        // `p.blockPosition().above(2)` — the cell two above the foot — which is right only for a
+        // body standing in the middle of its cell. A player box is 0.6 wide, so a body hard against
+        // a boundary has up to 0.3 of itself in the NEXT column, and one solid cell there pins it
+        // while this test, `cappedColumn` and `nearestBreathable` all report a clear path. Measured
+        // 2026-08-23, wd.drownEscapeClientPinnedByNeighbourColumn:「跳读回=true 撞顶=true 盖挡=false」
+        // — the command landed, physics said blocked, the scan said clear — 200 ticks, 0.000 blocks.
+        // The live death it reproduces spent 261 ticks the same way.
+        BlockPos lid = blockedAbove(mc, p);
+        boolean lidBlocksRise = lid != null;
         boolean breaking = false;
-        // Collision-shape test, NOT isSolid: mangrove roots (death #9's ceiling)
-        // are a non-full block — isSolid misses them, so the float pinned the bot
-        // under an unbreakable-in-practice lid while air ran to −17.
-        boolean lidBlocksRise = mc.level != null
-                && !mc.level.getBlockState(lid).getCollisionShape(mc.level, lid).isEmpty();
+        // RECENTRE, before reaching for a pick. When the rise is blocked but the body's OWN column
+        // is clear all the way to air, the obstruction is in a neighbour and the fix is ≤0.3 blocks
+        // of drift, not a dig — a body pressed against a boundary can simply stop pressing.
+        // `BotInput.halt` is what HELD that pose: the pin was being maintained by this very method.
+        // Note the pure-vertical contract this bends is smaller than the lateral arm's, which swims
+        // whole blocks: this never leaves the cell the body already stands in.
+        if (lidBlocksRise && w != null
+                && breathableColumn(w, Mth.floor(p.getX()), Mth.floor(p.getY()), Mth.floor(p.getZ()))) {
+            double cx = Mth.floor(p.getX()) + 0.5, cz = Mth.floor(p.getZ()) + 0.5;
+            double off = Math.sqrt((cx - p.getX()) * (cx - p.getX()) + (cz - p.getZ()) * (cz - p.getZ()));
+            // Eased by the remaining offset: a full press across 0.2 blocks of water carries the
+            // body to the OPPOSITE boundary, trading one pinning neighbour for the other one.
+            BotInput.driveToward(mc, cx, cz, (float) Math.min(1.0, off * 5.0));
+        } else {
+            BotInput.halt(mc);
+        }
         if (BotConfig.allowBreak && lidBlocksRise
                 && mc.level.getBlockState(lid).getDestroySpeed(mc.level, lid) >= 0f) {
             selectBestToolFor(mc, lid);
@@ -227,6 +256,40 @@ public final class DrownEscapeChain implements Chain {
         }
         if (!breaking) mc.options.keyAttack.setDown(false);
         if (BotConfig.walkerDebug && (dbgV++ % 10 == 0)) verticalRow(mc, p, lid, lidBlocksRise, breaking);
+    }
+
+    /** How far up the body's own box is swept to ask「这一升会不会撞上东西」. Half a block: far
+     *  enough to see the face a rising body is about to meet (terminal rise in water is ~0.175 per
+     *  tick), short enough that it never nominates something the body would have drifted clear of.
+     *  A lid a whole block higher is not in the way YET, and this arm re-asks every tick. */
+    private static final double RISE_PROBE = 0.5;
+
+    /**
+     * The cell that stops this body from rising, or null if nothing does.
+     *
+     * <p>The question every column scan in this class approximates, asked exactly: sweep the body's
+     * OWN bounding box up by {@link #RISE_PROBE} and see what it hits. Right for a neighbouring
+     * column, a slab, a stair, a lily pad and a mangrove root alike, because it asks the same
+     * geometry vanilla's own collision does rather than re-deriving it from one {@code BlockPos}.
+     *
+     * <p>Returns the LOWEST hit: that is the face actually bearing on the body. The bounds
+     * approximation for non-full shapes can only over-report, and it is only consulted after
+     * {@code getBlockCollisions} has already said something is there.
+     */
+    private static BlockPos blockedAbove(Minecraft mc, LocalPlayer p) {
+        if (mc.level == null) return null;
+        AABB up = p.getBoundingBox().move(0.0, RISE_PROBE, 0.0);
+        if (!mc.level.getBlockCollisions(p, up).iterator().hasNext()) return null;
+        BlockPos best = null;
+        for (int y = Mth.floor(up.minY); y <= Mth.floor(up.maxY - 1.0E-7); y++)
+            for (int x = Mth.floor(up.minX); x <= Mth.floor(up.maxX - 1.0E-7); x++)
+                for (int z = Mth.floor(up.minZ); z <= Mth.floor(up.maxZ - 1.0E-7); z++) {
+                    BlockPos c = new BlockPos(x, y, z);
+                    VoxelShape s = mc.level.getBlockState(c).getCollisionShape(mc.level, c);
+                    if (s.isEmpty() || !s.bounds().move(x, y, z).intersects(up)) continue;
+                    if (best == null || y < best.getY()) best = c;
+                }
+        return best;
     }
 
     /**
@@ -261,13 +324,18 @@ public final class DrownEscapeChain implements Chain {
                                     boolean lidBlocksRise, boolean breaking) {
         if (mc.level == null) return;
         AABB box = p.getBoundingBox();
+        // With nothing in the way `lid` is null, and the row still has to say WHICH cells were
+        // looked at — a reader diagnosing「没升」needs the neighbours named on the clear ticks too,
+        // otherwise the interesting rows have no baseline to differ from. Fall back to the cell the
+        // pre-2026-08-23 code hard-coded, so the two eras' rows line up.
+        int scanY = lid != null ? lid.getY() : p.blockPosition().getY() + 2;
         StringBuilder straddled = new StringBuilder();
         // maxX/maxZ are EXCLUSIVE edges: a box ending exactly on a boundary does not occupy the
         // next cell, and floor(maxX) would name one it never touches. Same convention vanilla's
         // own collision sweep uses.
         for (int x = Mth.floor(box.minX); x <= Mth.floor(box.maxX - 1.0E-7); x++) {
             for (int z = Mth.floor(box.minZ); z <= Mth.floor(box.maxZ - 1.0E-7); z++) {
-                BlockPos c = new BlockPos(x, lid.getY(), z);
+                BlockPos c = new BlockPos(x, scanY, z);
                 BlockState bs = mc.level.getBlockState(c);
                 if (straddled.length() > 0) straddled.append('，');
                 straddled.append(c.toShortString()).append('=')
@@ -282,7 +350,8 @@ public final class DrownEscapeChain implements Chain {
                 p.input != null && p.input.jumping, p.onGround(), p.verticalCollision,
                 p.isInWater(), p.isUnderWater(),
                 String.format(Locale.ROOT, "%.3f", p.getFluidHeight(FluidTags.WATER)),
-                p.getAirSupply(), lid.toShortString(), lidBlocksRise, breaking, straddled);
+                p.getAirSupply(), lid == null ? "无（升路是通的）" : lid.toShortString(),
+                lidBlocksRise, breaking, straddled);
     }
 
     @Override public void onInterrupt(Chain by) { releaseHeldKeys(); }
