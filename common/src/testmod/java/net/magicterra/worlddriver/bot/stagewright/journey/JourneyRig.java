@@ -265,15 +265,15 @@ public final class JourneyRig {
         // The obituary. A scene that times out never reaches its own last line, so the only place
         // a missed rung can be written down is a cleanup — those drain on every exit path.
         ctx.cleanup(() -> {
-            // BEFORE the obituary, and outside its `claimed` test: the ledger is handed `rig.evidence`
-            // by reference, so a row written after this point would be missing from a failed rung's
-            // ledger entry, and a row written only for unclaimed rungs would be missing from every
-            // rung that passed — which is the half this census exists to see.
-            rig.evidence("futileGate", rig.futileGateLine());
             if (!rig.claimed) {
                 JourneyLedger.failed(stage, rig.note, rig.evidence, tick(ctx));
             }
         });
+        // A row for the futile census BEFORE anything can wait, so「every rung has one」holds even
+        // for a rung that never waits at all — and the placeholder is itself a reading rather than
+        // an absence. Overwritten by the first heartbeat; see recordFutileGate for why a cleanup,
+        // the obvious home, cannot carry this one.
+        rig.recordFutileGate("本级还没有过等待——走行器一次都没被 await 过");
         ctx.record("journey.stage", stage.name() + "(" + stage.label() + ")");
         return rig;
     }
@@ -1342,6 +1342,7 @@ public final class JourneyRig {
         if (driver == null) return;
         if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
         sinceHeartbeat = 0;
+        recordFutileGate(futileGateLine());
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info(
                 "[journey] 心跳 {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
@@ -1492,10 +1493,11 @@ public final class JourneyRig {
      * on its own. One rig per rung ({@code enter} builds exactly one) makes the rig's own birth the
      * right baseline. {@link JourneyFlight} takes its stride deltas the same way.
      *
-     * <p>Written on EVERY exit path, from the cleanup that already carries the obituary — not only
-     * on a death like the stride row, and not only on a failure. The run this instrument was built
-     * for ended with the rung PASSING while a leg churned 318 searches, so a census that only speaks
-     * when something failed would have missed exactly the case that motivated it.
+     * <p>Reported on every outcome — see {@link #recordFutileGate} for where from, and for why the
+     * obvious home does not work. Not only on a death like the stride row, and not only on a
+     * failure: the run this instrument was built for ended with the rung <b>passing</b> while one of
+     * its legs churned 318 searches, so a census that only spoke when something failed would have
+     * missed exactly the case that motivated it.
      */
     private final long[] futileAtStart = futileSnapshot();
 
@@ -1504,6 +1506,33 @@ public final class JourneyRig {
         for (int i = 0; i < v.length; i++)
             v[i] = net.magicterra.worlddriver.bot.movement.Walker.futileGateBuckets.get(i);
         return v;
+    }
+
+    /**
+     * Put this rung's census where the results file will actually see it.
+     *
+     * <p><b>A cleanup cannot carry this row, and that is not obvious.</b> {@code ctx.cleanup} looked
+     * like the right home — the harness calls it「Single confluence point for every outcome」and it
+     * drains on PASS/FAIL/TIMEOUT alike. But the harness calls {@code record(...)} <b>before</b>
+     * {@code teardown(...)} on every one of those paths, and {@code record} is what serialises
+     * {@code ctx.records()} into the results file. A row written in a cleanup is therefore written
+     * after the only reader has already read — present in the log and in the ledger, absent from the
+     * file every verdict is judged from. Found by asking「will this row exist?」before the run rather
+     * than after, which is the entire reason criteria get pre-registered.
+     *
+     * <p>So it is written from {@link #heartbeat} instead — {@code await} is the one choke point
+     * every wait passes through — and again from {@link #reach}, which makes a PASS exact rather
+     * than up to one heartbeat stale. TIMEOUT keeps the stale value, because a scene that times out
+     * never reaches a line of its own; the row says which it is.
+     *
+     * <p>Both maps, both plain puts, deliberately bypassing {@code evidence()}'s clash detector:
+     * this key is REWRITTEN with a new value on purpose, and a guard meant to catch two authors
+     * disagreeing would file every heartbeat as {@code futileGate#2}, {@code #3}, … The same
+     * bypass, for the same reason, as the topology keys in {@link #enter}.
+     */
+    private void recordFutileGate(String line) {
+        evidence.put("futileGate", line);
+        ctx.record("futileGate", line);
     }
 
     /** This rung's share of the futile gate, bucket by bucket. Buckets 0-5 are searches the gate
@@ -2459,6 +2488,7 @@ public final class JourneyRig {
      */
     public void reach(String detail) {
         claimed = true;
+        recordFutileGate(futileGateLine());
         evidence.put("body.invulnerable", bodyIsInvulnerable());
         int staged = JourneyLedger.stagingCalls().size();
         evidence.put("staging.calls", staged);
