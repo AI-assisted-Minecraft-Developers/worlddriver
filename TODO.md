@@ -1231,7 +1231,19 @@ TIMEOUT 仍停在最后一次心跳的值上——**滞后而说明了滞后，�
 | `PinnedByNeighbourColumn` | **ENV_FAIL 10002 ms**（＝PREP 上限） | PASS **6192 ms** |
 | `StaysDownDisarmed` | PASS 17902 ms | PASS 12245 ms |
 
-`10002 ms` 恰好是 PREP 的超时值——**不是硬失败，是一场跟超时赛跑的延迟**。
+⚠️ **这一段我先写错了一版，改正记在这里，因为错的那版更像对的。**
+我看到 `10002 ms` 恰好等于 PREP 上限，就写下「不是硬失败，是一场跟超时赛跑的延迟」。
+读代码之后不成立（janitor 查的，`StageWrightHarness:270 → arenaReady:465 → countChunks:500`）：
+
+- 超时**不是固定预算，是停滞式**：`ready` 只要还在涨就清零计数，
+  `PREP_STALL_TICKS = 200` 才放弃。所以 `after 201 ticks` 的精确含义是
+  **`ready` 从 0 起、201 tick 一次都没涨过** —— **零进展，不是慢**；
+- run 2 那条 **`prep.ticks=81`**（同族两条 18 / 28）——81 tick 内提升完成。
+
+⇒ **双峰，不是延迟分布**：要么异步提升发生（~81 tick），要么它从不启动。
+`readyChunks` 自己的 javadoc 点名了那一步——`ChunkMap.prepareEntityTickingChunk`，
+「a different mechanism with **different owners on each loader**」——
+正好落在「只有集成 NeoForge 红」上。
 
 而 Q15c 要的那半分布正好回答了「为什么慢」，同一个 loader、两个拓扑：
 
@@ -1241,20 +1253,37 @@ TIMEOUT 仍停在最后一次心跳的值上——**滞后而说明了滞后，�
 | min / 中位数 / p90 / max | 3 / **6** / 11 / 109 | 5 / **22** / 32 / 96 |
 | 超过 20 tick | 16（**5.7%**） | 76（**73%**） |
 
-⇒ **集成拓扑的竞技场 PREP 中位数慢 3.7 倍，四分之三的场景超过 20 tick。**
-所以 `PinnedByNeighbourColumn` **不是一条有问题的场景**，
-是**整个拓扑都贴着上限跑**，而它是那一族里最重的一条，偶尔越线。
+⇒ 集成拓扑的竞技场 PREP 中位数慢 3.7 倍。**这是真的，而且和上面那次 ENV_FAIL 无关。**
 
-⚠️ **我原来的假说（上一条场景的 drownEscape 链握着身体没放）是错的**，
-而它错得很像对的：`chain drownEscape -> idle` 确实就打在 ENV_FAIL 前一秒。
-**相邻不是因果**——真正把它讲清楚的是一个我本来为**别的问题**（Q15c）去收的分布。
-这也是「一个样本不能定因」的正面用法：不是再跑一次同一条，
-而是**换一个能覆盖全体的量**（[[one-sample-cannot-name-a-cause]]）。
+⚠️ **两个都要记住的更正：**
 
-**下一步不是修这条场景**（🟠 Q31b）：要么问清集成 PREP 为什么慢
-（这个文件自己的 `SYNC_TICKS = 20` 注释已经点了方向——方块写在服务端、身体在客户端，
-区块包要走一个来回），要么让 PREP 的帽子按拓扑取值。
-**在此之前，集成拓扑上任何 ENV_FAIL 都要先量耗时再谈机制。**
+1. **我的假说错了。**「上一条场景的 `drownEscape` 链握着身体没放」——按代码不成立：
+   竞技场的票是 `reach = radius + ENTITY_TICKING_MARGIN(2)`，
+   javadoc 写死了「no entity in the arena would ever tick」才加的裕度，
+   **entity-ticking 本来就不需要身体在场**；PREP 路径全程不引用身体
+   （身体是 RUN 阶段 `body.teleportTo` 进去的）；相邻竞技场相距 **512 格＝32 区块**，
+   远超任何模拟距离。它错得很像对的，因为 `chain drownEscape -> idle`
+   确实就打在 ENV_FAIL 前一秒 —— **相邻不是因果**。
+2. **这张分布也回答不了那次 ENV_FAIL。** `prep.ticks` **只写在成功路径上**
+   （ENV_FAIL 时 `ctx` 还没构造），所以它是**成功者的耗时分布**，
+   按定义看不见失败的那一次。我拿它去解释一次失败，
+   是[[a-reading-is-not-the-quantity-it-looks-like]]的又一例：
+   一张看起来在回答问题、实际回答隔壁问题的账。
+
+**保住的那半个直觉换了机制**（janitor 的读法，有代码位置）：
+`teardown` 的顺序是 `runCleanups → sweepArena → forceChunks(false)`，
+第一步把真客户端玩家从 249k 传回出生点、紧接着撤上一个竞技场的票 ——
+这两件事的区块加载／卸载洪峰，正落在下一条 PREP 的停滞窗口里，
+而它等的偏偏是个异步提升。**争的不是身体，是区块系统。**
+
+**下一步（🟠 Q31b），以及下次怎么读**：
+
+- 判词**写 `prep.ticks=N`，不写「绿了」**。19 左右＝真健康，150-190＝差一点就红；
+  这次 run 2 是 **81**，说明这条场景的地本来就是那一族里最慢的，但确实提升了。
+- 要把「这条场景」和「这块地」分开：`originFor` 是纯函数、slot 由 `slotByName` 定，
+  **改注册顺序就能换块地重跑同一条**。
+- ⚠️ **不要**把 PREP 判据从 entity-ticking 放宽到 loaded ——
+  那正是 `ENTITY_TICKING_MARGIN` 的注释警告过的方向，会让竞技场里的实体永不 tick。
 
 ⚠️ 判词里写 **105**，不是 309：这个拓扑上 **201 条 skip**，理由都是同一句
 「集成服上有真实客户端…不许再造无头身体（JoinedBody 仅限专用测试服）」。
