@@ -1668,6 +1668,19 @@ public final class JourneyRig {
         // Empty when not asked for, default here in Java: the build file holding a lever
         // permanently open is a mistake this block has made once already (see the rehearse budget).
         BotConfig.walkerDebug = "true".equals(System.getProperty("worlddriver.journey.walkerDebug", ""));
+        // FIVE TIMES THE SHIPPED DEFAULT (6 ms), on the axis the freeze complaint is about — and
+        // until now the only line here without a reason. 6 ms is chosen to keep a search well
+        // inside one 16 ms frame WHILE WALKING; 30 ms is what the product spends only when the
+        // body is IDLE and waiting (pathfinderIdleSliceMs), where a hitch is cheaper than a stall.
+        // This line spends the idle figure on every walking tick, i.e. up to 60% of a 50 ms tick
+        // on A*, on the render thread.
+        //
+        // That matters because the freeze the user watched was watched HERE: whatever share of it
+        // comes from this line is a property of the rig, not of the shipped client, and no amount
+        // of Walker work will remove it. It is left at 30 deliberately — changing it mid-series
+        // would confound the rung timings the ladder is being read for — but it must be one arm of
+        // the A/B when the repeat-search suppression lands, or that fix will be credited with a
+        // change this line could have made on its own.
         BotConfig.pathfinderSliceMs = 30;
         // Bound by NODES, not by the wall clock — the shape 58 scene sites across nine files
         // already use, and for the reason PathFinder's own comment gives: a millisecond cap makes
@@ -1676,7 +1689,7 @@ public final class JourneyRig {
         // still in force.
         //
         // ⚠️ THIS BOUGHT NOTHING MEASURABLE, and the row that would have said so is easy to skip.
-        // Across the whole 14th ladder run — 6289 `search-begin` lines — `STOP cause=` appears ZERO
+        // Across a whole ladder run on 2026-08-21 — 6289 `search-begin` lines — `STOP cause=` ZERO
         // times: no search has ever been cut off by either cap. So this is a determinism argument,
         // not a fix, and nothing here should be cited as having unblocked a rung.
         //
