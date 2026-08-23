@@ -106,6 +106,38 @@ A 组对 `BotUtil` 零命中）。方法级的承诺守不住类级的性质。*
 **排除掉的**（下轮别重查）：`WorldDriverSurvivalScenes.java:888` 那条 `LocalPlayer` 提及是
 分栏诊断脚手架的说明，不是规则表述；`fabric`/`neoforge`/`testmod` 三个输出零命中。
 
+### ③ `aim + breakHold + continueDestroy` 三件套：**两处逐字相同，可以收；第三处不能碰**
+
+**只报不落**——`WorldDriverJourneyScenes.pourInto` 是 ladder-9 的被验对象，这一轮不动它。
+
+逐行对拉（`337a35e2` 之后）：
+
+| | `JourneyPortalRung.clearPlantOnLine:2580` | `WorldDriverJourneyScenes.pourInto:2835` |
+|---|---|---|
+| 取哪具身体破坏 | `rig.body().avatar()` | `rig.body().avatar()` |
+| 取哪具身体瞄准 | `rig.avatar()` | `rig.avatar()` |
+| 五行序列 | aim → `breakHold(true)` → `continueDestroy` → `breakHold(false)` | **逐字相同** |
+| settle | `new HoldStill(3), 12` | **逐字相同** |
+| 回调体 | 重瞄 `want` 再 `then.run()` | 写 `cast.cleared.<格>` 再递归 `pourInto` |
+
+**六行核心已经逐字相同了**（`337a35e2` 修完之后才相同——修之前差的正是第一行）。
+唯一的差是回调体，所以收拢是安全的：`Runnable` 传进去，`cast.cleared.*` 那些
+**ladder-9 预登记判据依赖的证据键原样留在调用点**。
+
+- **落点**：`JourneyHands`（package-private，两个调用点同包）。它本来就是「同一件事让两具身体
+  都做到」的集合处，`aimBoth` / `holdBoth` 是同族——这一族的第三个成员就该在这儿。
+- **建议签名**：`static void swingOffPlant(JourneyRig rig, BlockPos cell, Runnable after)`。
+- **javadoc 必须带上 `337a35e2` 的读数**（`cast.cleared.-4, 63, 55 = short_grass`），
+  因为这个 helper 存在的理由就是「这两处刚刚才不一致过」。
+
+**第三处 `JourneyRig.breakItWhereItStands:1115` 不是同族，不要并进去**：它同步判世界并
+返回 boolean（契约是「一次调用之内这一格开没开」），带 `canBreak`/`selectTool`，**没有**
+`continueDestroy`，**没有** settle。合并会让它的判据**变松**——而它自己的注释第 1122 行
+逐字写着「Routing it through avatar() to be consistent would turn every in-place dig into a
+silent no-op — the class of change that looks like tidying and removes a capability」。
+
+`python scripts/check_source_budget.py` → **exit 0**（本轮全部改动都是注释与 `TODO.md`）。
+
 ---
 
 ## ✅ 三闸全绿：闸债结清（Q15a，2026-08-23）
