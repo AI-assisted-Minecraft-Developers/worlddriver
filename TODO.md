@@ -1292,6 +1292,63 @@ TIMEOUT 仍停在最后一次心跳的值上——**滞后而说明了滞后，�
 
 ---
 
+## 🔴 Q33：一趟闸被服务端看门狗杀了 —— 一次寻路吃满 60 秒
+
+`gate-fabric-j24b-crash1.log` / `results-j24b-crash1.jsonl`（171 of 310 就死了，**判词是空的**）。
+
+```
+04:29:44 [Server Watchdog/ERROR] A single server tick took 60.00 seconds
+java.lang.Error: Watchdog
+  at LevelWorldView.isHazard(LevelWorldView.java:61)
+  at WorldView.canStandAt(WorldView.java:277)
+  at moves.Walk.valid(Walk.java:12)
+```
+
+现场是 `wd.serverFightsAFlyingBlaze`：身体先正常进了竞技场（`身体=186528,222,100000`），
+`stride floor-guard: bottomless stride 186534,221,99997 → sneak-pin` 连响四次，
+**随后掉到 y=-60**，战斗进程再从 `186539,-60,100000` 寻回 `y=190`
+⇒ 一次 `ENTER unbounded-slice` 在**一个 tick 里**展开 250 格垂直路。
+
+**两条已经排掉的，别重复走：**
+
+1. **不是竞技场 slot 位移。** 加了一条新场景，我担心后面所有 slot 被推一格、地形随之改变。
+   同一条场景两趟的身体坐标：上趟 `186528,221`，这趟 `186524,221` —— **同一个 slot 169**。
+2. **不是「出现了无界切片」本身。** `ENTER unbounded-slice` 在**上一趟绿的**里 **2001** 次、
+   这趟 **1428** 次 —— 它是常态。崩的是**其中一次跑了 60 秒**。
+
+⇒ 现在的读法（**是读法不是判词**）：早就在的隐患
+（[[a-whole-fight-in-one-server-tick]] ＋ [[the-pathfinder-generates-chunks]]），
+触发条件是**身体掉出竞技场之后要寻一条 250 格的垂直路**。
+
+**预登记（原样重跑，读结果前写）**：
+- ❌ 再崩在同一条 ⇒ 确定性；顺带必须回答「为什么这趟掉出去、上趟没掉」；
+- 🟡 绿 ⇒ 情境性，**不等于没事**，隐患照记；
+- ⚠️ 崩在别条 ⇒ 与场景无关，病在「掉出竞技场 → 无界搜索」这条通路。
+
+### 判词：🟡 **情境性** —— 重跑 310 条全跑完，`serverFightsAFlyingBlaze` PASS
+
+隐患**不销案**。它的形状已经写清楚，触发条件也写清楚了：
+**身体掉出竞技场 → 从 y=-60 寻一条 250 格的垂直路 → 一次 `unbounded-slice` 吃满一个 tick**。
+一次可复现的崩溃 + 一次通过，**要的是观察到那条通路被切断，不是再数几个绿**
+（[[three-greens-cannot-see-a-one-in-four]]）。
+
+🔴 **Q33a（真正该修的那一条）**：无界切片没有**墙钟上限**。
+`ENTER unbounded-slice` 是常态（绿的那趟 2001 次、崩的那趟 1428 次），
+所以不能禁用它；要的是**一次 `advance()` 超过 N 毫秒就让出这一 tick**。
+日志里已经有 `STILL RUNNING 1000 ms in ONE advance()` —— **仪器已经在了，闸没有**。
+⚠️ 那行警告在崩溃前 1 秒就打过，也就是说**系统当时已经知道自己不对劲，却没有任何人有权叫停**。
+
+### ⚠️ 顺带记一次我自己的操作错误：**后台通知说 `exit code 0`，而 gradle 是 `BUILD FAILED`**
+
+我写的是 `./gradlew … > log 2>&1; echo "EXIT=$?"` —— **末尾那个 `echo` 成功了，
+所以整条命令的退出码永远是 0**，任务通知照抄它。救我的不是退出码，是**场景数不对**（171 而非 310）。
+
+> 这是 [[never-tail-a-gate-run]] 的同族：**别让外壳的退出码替判词说话。**
+> 正确写法是把 gradle 的退出码**写进日志**（`echo "GRADLE_EXIT=$?" >> log`），
+> 而判词永远从**结果文件 + `VERDICT:` 行**读。这趟起就这么写。
+
+---
+
 ## 📊 ladder-16 判词（2026-08-23，`results-ladder16.jsonl` / `ladder16-preserved.log`）
 
 **10/20，`journey99Verdict` PASS**（爬到 PORTAL_KIT ＝ 承诺的地板，**布景调用 0 次**）。
