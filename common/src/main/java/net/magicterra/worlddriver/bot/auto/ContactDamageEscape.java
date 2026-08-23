@@ -94,7 +94,8 @@ public final class ContactDamageEscape {
         if (Math.hypot(dx, dz) < 0.35) {
             // Standing IN the hazard (berry bush / fire) or it is directly BELOW
             // (magma floor): away-vector is degenerate — pick a clear cardinal.
-            Direction d = pickClearCardinal(mc.level, p);
+            Direction d = BotUtil.stepAwayCardinal(p.blockPosition(),
+                    c -> isContactHazard(mc.level, c), c -> passable(mc.level, c));
             if (d != null) { dx = d.getStepX(); dz = d.getStepZ(); }
             else { dx = 1; dz = 0; }  // fully ringed: any push beats standing still
         }
@@ -150,33 +151,11 @@ public final class ContactDamageEscape {
         return BotUtil.HAZARD_BLOCKS.contains(s.getBlock()) || s.is(BlockTags.FIRE);
     }
 
-    /** First horizontal direction whose foot+head cells are passable and
-     *  hazard-free — AND whose floor is not itself a hazard; prefer one that is
-     *  also standable (solid floor) so the escape step does not walk off a ledge.
-     *
-     *  <p>The floor test is not symmetry for its own sake. The only caller is the
-     *  degenerate branch above, whose own comment names "it is directly BELOW
-     *  (magma floor)" as the case it exists for — so this picker is asked, by
-     *  construction, from a body standing on a hazard floor, and without the test
-     *  it was free to answer with the neighbouring cell of the same magma slab.
-     *  {@code nearestHazard} would then re-trigger on the next tick, one cell over:
-     *  an escape that escapes into the same harm reads as a working reflex that the
-     *  world keeps beating. {@link LavaProximityEscape#pickClearCardinal} has asked
-     *  {@code f.below()} since it was written; only this copy did not. */
-    private static Direction pickClearCardinal(Level lvl, LocalPlayer p) {
-        BlockPos foot = p.blockPosition();
-        Direction firstClear = null;
-        for (Direction d : Direction.Plane.HORIZONTAL) {
-            BlockPos f = foot.relative(d);
-            if (isContactHazard(lvl, f) || isContactHazard(lvl, f.above())
-                    || isContactHazard(lvl, f.below())) continue;
-            if (!passable(lvl, f) || !passable(lvl, f.above())) continue;
-            if (firstClear == null) firstClear = d;
-            if (!passable(lvl, f.below())) return d;   // solid floor → best
-        }
-        return firstClear;
-    }
-
+    /** This reflex's notion of a cell a body fits through, handed to
+     *  {@link BotUtil#stepAwayCardinal} as its {@code open} test. Stricter than the lava
+     *  sibling's {@code !blocksMotion()}: a carpet or a pressure plate is refused here and
+     *  stepped over there. Kept as it was — the picker they now share takes the test as a
+     *  parameter precisely so neither caller had to move to merge. */
     private static boolean passable(Level lvl, BlockPos pos) {
         return lvl.getBlockState(pos).getCollisionShape(lvl, pos).isEmpty();
     }

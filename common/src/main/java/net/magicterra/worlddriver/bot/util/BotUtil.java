@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.Block;
@@ -197,6 +198,47 @@ public final class BotUtil {
         if (here.blocksMotion() && !here.getFluidState().is(Fluids.WATER)) return false;
         if (head.blocksMotion() && !head.getFluidState().is(Fluids.WATER)) return false;
         return true;
+    }
+
+    /**
+     * First horizontal direction a body at {@code foot} can be shoved into: both body cells
+     * {@code open}, no {@code hazard} in the foot, head OR floor cell, preferring a direction that
+     * also has a floor (a cell whose {@code open} test FAILS one below the feet) so an escape does
+     * not trade a hazard for a ledge. Null when every cardinal is refused — the caller decides what
+     * a fully ringed body does.
+     *
+     * <p>Both escape reflexes ask this, each from its own copy until now. The copies had already
+     * drifted once, in the clause that matters most: {@code hazard(f.below())} was in
+     * {@code LavaProximityEscape}'s copy from the day it was written and missing from
+     * {@code ContactDamageEscape}'s — and that copy's ONLY caller is the branch whose own comment
+     * names「the hazard is directly BELOW (magma floor)」as the case it exists for. So an escape off
+     * a magma slab was free to answer with the next cell of the same slab, re-trigger next tick one
+     * cell over, and read as a working reflex the world keeps beating.
+     *
+     * <p><b>Two predicates, not one.</b> The hazard test is the difference anyone would expect
+     * between the two callers. {@code open} is the one a merge would have flattened silently:
+     * the contact caller asks {@code getCollisionShape(...).isEmpty()}, the lava caller asks
+     * {@code !blocksMotion()}, and those disagree about thin-collision cells (carpet, pressure
+     * plate, lily pad) — the contact caller refuses to step onto one, the lava caller steps over
+     * it. Choosing either for both moves a live gate, and moves the contact one LOOSER, which is
+     * the direction that needs a measurement rather than a tidy-up. Each caller still hands in its
+     * own; only the skeleton is shared.
+     *
+     * <p>Takes the foot {@code BlockPos} rather than the player on purpose. A {@code LocalPlayer}
+     * parameter is why neither copy could ever be exercised off a client: any scene that would
+     * cover them SKIPS on a dedicated server, so the drift above went unnoticed by every gate.
+     */
+    public static Direction stepAwayCardinal(BlockPos foot, Predicate<BlockPos> hazard,
+                                             Predicate<BlockPos> open) {
+        Direction firstClear = null;
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            BlockPos f = foot.relative(d);
+            if (hazard.test(f) || hazard.test(f.above()) || hazard.test(f.below())) continue;
+            if (!open.test(f) || !open.test(f.above())) continue;
+            if (firstClear == null) firstClear = d;
+            if (!open.test(f.below())) return d;   // solid floor → best
+        }
+        return firstClear;
     }
 
     /**

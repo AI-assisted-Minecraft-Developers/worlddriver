@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -95,7 +96,12 @@ public final class LavaProximityEscape {
                 || isLava(mc.level, awayCell.below())
                 || !mc.level.getBlockState(awayCell.below()).blocksMotion();
         if (badVector) {
-            Direction d = pickClearCardinal(mc.level, p);
+            // `open` is this reflex's own notion of a cell the body fits through, and it is
+            // LOOSER than the contact sibling's: `!blocksMotion()` steps over a carpet or a
+            // pressure plate that `getCollisionShape().isEmpty()` refuses. The shared picker
+            // takes the test as a parameter so merging the two moved neither.
+            Direction d = BotUtil.stepAwayCardinal(p.blockPosition(),
+                    c -> isLava(mc.level, c), c -> !mc.level.getBlockState(c).blocksMotion());
             if (d != null) { dx = d.getStepX(); dz = d.getStepZ(); }
             else { dx = 1; dz = 0; }   // fully ringed: any push beats standing still
         }
@@ -137,22 +143,6 @@ public final class LavaProximityEscape {
 
     private static boolean isLava(Level lvl, BlockPos pos) {
         return lvl.getFluidState(pos).is(FluidTags.LAVA);
-    }
-
-    /** First horizontal direction whose foot+head are passable and lava-free
-     *  with a standable floor — prefer not trading lava for a ledge. */
-    private static Direction pickClearCardinal(Level lvl, LocalPlayer p) {
-        BlockPos foot = p.blockPosition();
-        Direction firstClear = null;
-        for (Direction d : Direction.Plane.HORIZONTAL) {
-            BlockPos f = foot.relative(d);
-            if (isLava(lvl, f) || isLava(lvl, f.above()) || isLava(lvl, f.below())) continue;
-            if (lvl.getBlockState(f).blocksMotion()
-                    || lvl.getBlockState(f.above()).blocksMotion()) continue;
-            if (firstClear == null) firstClear = d;
-            if (lvl.getBlockState(f.below()).blocksMotion()) return d;   // solid floor
-        }
-        return firstClear;
     }
 
     /** No key/command release here, unlike the sibling {@link ContactDamageEscape#reset}: the
