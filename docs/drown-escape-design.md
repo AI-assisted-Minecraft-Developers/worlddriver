@@ -436,7 +436,83 @@ static { if (SURFACE_SCAN_UP > 5) throw new AssertionError("SURFACE_SCAN_UP out 
 
 ### 4.4 仪器
 
-竖直支原先每 tick 什么都不打，破盖支从来没打过。现在有一行（`walkerDebug` 门控，每 10 tick）：
+竖直支原先每 tick 什么都不打，破盖支从来没打过。现在有一行（每 10 tick，**无条件**——
+它一度挂在 `walkerDebug` 上，而闸从不开那个开关，于是白费了一个闸位）：
 `跳读回`（从 `p.input.jumping` **读回**，不是「我命令过」）、`撞顶`（`verticalCollision`）、
 `身体跨柱`（AABB 真正压到的每一柱）、`破盖中`。三列各自杀死一个候选。
+
+---
+
+## §5 这些场景先炸了专用服，而三次解释都是错的（2026-08-23，已结案）
+
+§4 的三条场景在集成拓扑上 SKIP 得好好的，但把 `wd.drownEscapeGateMatrix` 送进
+`stagewrightDedicatedServerFabric` 时：
+
+```
+wd.drownEscapeGateMatrix -> FAIL (0 ticks)
+    unexpected RuntimeException: Cannot load class
+    net.minecraft.client.player.LocalPlayer in environment type SERVER
+```
+
+`0 ticks` 是关键：炸在**类加载期**，场景一行都没跑。触发点是场景里的 `new DrownEscapeChain()`。
+
+### 5.1 三个解释，两个是我提的，都错
+
+| 说法 | 反例 |
+|---|---|
+| 仓库原有规则：「a scheduler class may pass a client type around, but **must not call into one**」 | 不够。照它写照样炸 |
+| 我的第一版：「本类的方法签名里点名了客户端类」 | 上一个绿版本的描述符里**早就有** `LocalPlayer` |
+| 我的第二版：「调用了客户端类型上的方法」 | 上一个绿版本里有 `KeyMapping.setDown`、`ClientLevel.getBlockState`、`Minecraft.getInstance`、写 `yHeadRot` |
+
+按第一版改的那一笔（`78c97615`）把参数从 `LocalPlayer` 放宽成 `Player`，
+**等于亲手造了一个真正的病灶**——闸照红。修错的方向和真缺陷长得一模一样。
+
+### 5.2 判别子是「加宽」
+
+> **把客户端类型递给一个声明为更宽类型的形参。**
+
+`WalkerGeometry.riseBlockers(Player, double)` 收到一个 `LocalPlayer`——这个**加宽**
+要求校验器加载 `LocalPlayer` 去证明子类型关系，而专用服上没有这个类。
+把同一个 `LocalPlayer` 放在**局部变量**里、调用它自己的方法，一直都没问题：
+局部变量的类型在本类常量池里，不需要证明任何子类型关系。
+
+这条比仓库原有的「不许调用客户端类型」**更准也更窄**：调用不是判别子，加宽才是。
+
+### 5.3 修法形状
+
+把加宽整个移进一个**客户端专用类**——这里是 `BotInteract.riseBlockedCell` /
+`BotInteract.drownVerticalRow`。`invokestatic` 只解析**宿主**，不解析宿主的依赖；
+而 `DrownEscapeChain.tick` 第一行就是 `if (mc == null) return`，专用服上宿主永远不被加载。
+这和 `continueDestroy` 是同一形状，即仓库里已经被闸验证过的那个。
+
+验证不靠推理：`javap -c DrownEscapeChain` 里对 `Player` 形参方法的调用数 = **0**，
+`WalkerGeometry` 的常量池里 `net/minecraft/client` 引用数 = **0**。
+
+### 5.4 找它的方法（这一节比结论有用）
+
+框架只报 `Cannot load class …`。**这条消息点的是「什么没加载成」，
+永远不是「谁去要的它」**，而后者才是要找的东西。
+
+我拿 `javap` 和 git 历史逐个排除候选，**三轮全落空**，每一轮都被同一份数据挡回来。
+**同一份数据连挡三轮，说明缺的不是推理而是读数。** 我又多推了两轮才动手：
+给场景的三个矩阵各加一道围栏，把 throwable 连栈打出来（打完原样重抛，判词不变）——
+**一次编译，一行栈，直接点名文件和行号**。
+
+顺带作废了一条我一直在用的证据：那份「改动前是绿的」基线，时间戳夹在
+「引入缺陷的提交」和「修它的提交」之间却报 PASS，多半跑的是更早编译的类。**基线也要先验时间线。**
+
+### 5.5 结案读数
+
+`80a8ce28` 之后三闸，全部**读结果文件**判的，不是读退出码：
+
+| 闸 | 判词 | `drownEscape` 六条 |
+|---|---|---|
+| `stagewrightIntegratedServerNeoforge` | 306 PASS | 全 PASS |
+| `stagewrightDedicatedServerFabric` | **GREEN**（305 / 28 跳过） | 三条执行 PASS，三条客户端专属按设计 SKIP |
+| `stagewrightDedicatedServerNeoforge` | **GREEN**（278 执行 / 24 跳过） | 同上 |
+
+`environment type SERVER` 命中 **0**。（NeoForge 日志里另有 120 条
+`invalid dist DEDICATED_SERVER`，点的是 `Minecraft` 不是 `LocalPlayer`，
+且只落在 `pack.measuresItsOwnTickCost` 一场里、一 tick 一条——**是另一件事**，
+在 `TODO.md` 单独立条。）
 
