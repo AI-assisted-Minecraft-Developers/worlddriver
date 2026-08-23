@@ -149,6 +149,38 @@ J1 写着「冻结中」而两处 `continueDestroy` 都已落）。两次都是*
 ④等 NeoForge 那趟落地再一起改 —— **两个 loader 必须跑在同一棵树上**，
 否则「非 PASS 逐条相同」这条可比性判据就没了（边界是工作树，不是提交）。
 
+### 🔴 J24b 根因（读码定死，2026-08-24）：这面旗**全产品只有一个读者**
+
+```
+BotConfig.java:2090                       walkerPillarSurfacePlace = true    （生产默认）
+BotConfig.java:2957                       walkerPillarSurfacePlace = false   （套件基线）
+WalkerTickClimb.java:885                  唯一的读者
+WalkerTickProgress.java                   ——— 一次都不读 ———
+```
+
+`WalkerTickClimb:885-887`：旗开着且「目的格是水、它上面那格是空气」（水面竖井，不是灌满的烟囱）
+⇒ **把 `shaftFlooded` 抠回 false**，改按 case (b) 走：跳起来在浪尖把支撑垫上。
+
+`WalkerTickProgress:550`：`shaftFlooded = "pillarUp".equals(se.move) && isWater(path.get(step))`
+—— **没有那道抠除**。于是同一格上：
+
+- `waterPillar=true`（`:551-552`）⇒ 进 `:557` 那支，而那支的注释明写
+  「浮力爬升永远不会从干路径垫支撑，所以没填的 place 格不算真的 pending」，
+  **只有仍然实心的天花板才算 pending**；
+- `:570` 的到达闸是 `(onGround() || shaftFlooded) && y >= 目的格.y - 0.1`，
+  `shaftFlooded=true` ⇒ **腾空也算**，只要浮到高度就推进。
+
+⇒ **Progress 在支撑还没垫上时就把指针推过去了**，而 `Walker:2373` 的 Progress 排在
+`:2374` 的 Climb 前面、先返回就轮不到 Climb —— 那一格本该被垫的支撑，永远等不到它那一 tick。
+
+⚠️ **Progress 那条注释不是错的，是过期的**：它记录的前提（「干路径不会垫」）
+正是 `walkerPillarSurfacePlace` 这面旗打破的东西。**旗加进 Climb 的时候没人回头改 Progress**，
+[[the-write-side-was-split-the-read-side-was-not]] 同族。
+
+修法形状：**把这个分类抽成一处，两个 phase 类都问它**（J24b 原来写着「要一条能分辨两个答案的
+场景，不是一次重构」——现在那条场景有了，所以重构的前置条件已经满足）。
+⚠️ 别只在 Progress 里复制那三行 —— 复制正是这个缺陷的成因。
+
 ## 📌 Q32 下一轮：在**排练**里问，不在真梯上问（2026-08-24）
 
 Q32（浇桶那一刻服务端到底跑没跑 `useItem`）现在只剩两个候选，而它们的分辨器还没造出来。
