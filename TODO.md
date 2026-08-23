@@ -149,6 +149,16 @@ J1 写着「冻结中」而两处 `continueDestroy` 都已落）。两次都是*
 ④等 NeoForge 那趟落地再一起改 —— **两个 loader 必须跑在同一棵树上**，
 否则「非 PASS 逐条相同」这条可比性判据就没了（边界是工作树，不是提交）。
 
+### ✅ 判：NeoForge 闸 `gate-neoforge-pillar.log`（**同一棵树** `02438dd3`），`GRADLE_EXIT=1`／`VERDICT: RED`
+
+三条非 PASS **逐条相同**：两条 `fail(optional)` 判词一字不差（`pocketTicks=81`／`y=221.0`），
+柱式那条连 `身体峰值 223.15324475991724`、`走.指针高水位=2/3`、`柱.分档=指针越过未垫` 都相同。
+canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader 特有的**，
+是 `:common` 里那两个 phase 类的事，跟预期一致。
+
+覆盖数两边差一条：Fabric `277 executed / 25 skipped`，NeoForge `278 / 24`（总数都是 302）。
+**没有归因，只是记着** —— 这是既有的按 loader 跳过差异，不是这一轮引入的。
+
 ### 🔴 J24b 根因（读码定死，2026-08-24）：这面旗**全产品只有一个读者**
 
 ```
