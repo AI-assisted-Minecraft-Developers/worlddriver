@@ -135,6 +135,27 @@ ladder-7 停在 9 级 IRON：`[smelt] COLLECT: made=6× iron_ingot taken=6` 在�
 
 三条里任何一条不成立，都按不成立记，不改判据。
 
+### 判（跑到 10 级时读的，跑还在继续）
+
+| 判据 | 读数 | 判 |
+|---|---|---|
+| 1 修法被验证到（`serverSettleTicks` ∈ 1..39） | **`iron_ingot.serverSettleTicks=1`** | ✅ **中** |
+| 2 `journey.height` ≥ `IRON` | `IRON REACHED` → `PORTAL_KIT REACHED` | ✅ **超** |
+| 3 1–8 级不倒退 | 八条全 PASS | ✅ 中 |
+
+**差的正好是一 tick。** 客户端菜单的收取要到下一 tick 才落进 ServerPlayer 的包，
+而 ladder-7 的判词就在 `[smelt] COLLECT` 那一 tick 里读，读到 0 —— 日志里那两行之间
+一行都没有，因为**中间根本没有一 tick**。这不是「等久一点就好」那类修法：
+`settle=1` 说明**只差一 tick**，也就是说这条判据从来只错在时序，不错在数量。
+
+`iron_ingot=6 → afterBuckets=3 → after=2`：一只桶花 3 块，所以 **6→3 是一只桶，不是两只**；
+3→2 那一块是打火石。**十级只带出一只桶**，而这一条直接决定 11/12 级的往返趟数
+（[[trips-are-decided-by-bucket-count]]、[[ten-casts-one-bucket]]）。若 11 级卡在来回运岩浆，
+病因先看这里，别先怀疑走路。
+
+**真客户端真梯历史新高：8/20 → 10/20**（前高是 ladder-7 的 8 级 + 9 级失败）。
+每级 tick：3 级 4506、5 级 2924、7 级 3267、9 级 5958、10 级 2970。
+
 ## 📏 12 级装水：三行证据不可能同时为真，而两条更漂亮的解释都被字节码否掉（Q14，2026-08-22）
 
 客户端排练 `wd.rehearse12PortalLit` FAIL，`ticks=83`。证据只有四行，但它们互相矛盾：
