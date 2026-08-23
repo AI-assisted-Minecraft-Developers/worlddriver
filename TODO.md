@@ -199,8 +199,23 @@ kill.preyVitals= minecraft:cow 0.0/10.0 HP 距 4.0 格（这一只掉过血）  
 先前判的「98% 只占 1 tick，所以要减少次数、不是调 `pathfinderSliceMs`」由此坐实，
 而且指出了减哪一部分：**起点与目标都没变、上一次已经失败过的那次重问。**
 
-⇒ 修法方向（未动手）：一次 (start, goal) 与上次完全相同、且世界没变过的搜索，
-不该重新发起 —— 把上一次的失败结论按「身体没动」的有效期缓存住。
+### 来源已定位，而且代码里早就写着
+
+`MineProcess:84` 的注释：「The walker **repaths forever** against an unclimbable dry face rather
+than reporting FAILED … the known-**UNSOLVED** steep-dry-climb execution churn」。
+它的看门狗 `GOING_STALL_TICKS = 100` 把每个卡住的目标兜到约 5 秒
+⇒ **每个卡住的目标约 100 次搜索**，174 次差不多正好是两个目标。
+
+⇒ **病灶不在 `MineProcess`**（它的看门狗是对的，而且是被死亡#26 逼出来的）。
+在 **Walker：身体没动、目标没变，它每 tick 照样重问一次**。
+
+⇒ 修法方向（未动手）：(start, goal) 与上次完全相同、且身体没移动过的搜索不该重新发起 ——
+把上一次的结论按「身体没动」的有效期缓存住。判据用**重复计数**，不是总次数。
+
+**顺带一条**：`MineProcess:341` 那句「放弃这个目标、拉黑」的日志被 `BotConfig.walkerDebug` 闸着，
+而那个闸从不开（[[an-instrument-behind-a-flag-is-not-an-instrument]]，同一天第三次）。
+所以「看门狗刚刚兜住了一次」在日志里是看不见的 —— 上面那 174 次只能靠反推。**这条要摘闸。**
+
 **先不动**：这一趟真梯正在跑，而且这属于产品代码，要单独一趟双 loader 的闸。
 
 ---
