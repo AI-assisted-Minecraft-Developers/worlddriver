@@ -837,13 +837,26 @@ if (!w.isPassable(from.offset(0, 2, 0))) return false;
 
 写进 `WorldDriverParkourVoidScenes.java`（它已经在演 parkour 的边界情形），形状：
 
-- 布景：`from` 站得住，`from+2` 放 **`fire`**（passable 且 `isHazard`；比岩浆干净，
-  不会流走，也不会把布景烧掉相邻方块 —— 用 `fire` 而不是 `lava` 是为了让布景可复现）。
-- `from` 与 `to` 之间隔 1 格空（够 `Parkour2`），`to` 站得住。
-- 判据：**`Parkour2.valid(w, from)` 与 `ParkourAscend.valid(w, from)` 在同一格上给出不同答案。**
-- **这条断言在缺陷存在时会红吗？** 会 —— 它直接断言两者相等；今天必红（`true` vs `false`），
-  修完必绿。**不要**写成「parkour2 拒绝了」，那在修之前是 `0==0` 的反面（永远红得没信息量）。
-- 修完之后这条断言自动变成**回归守卫**：以后任何一个新 leap 成员漏掉这一格，它会点名。
+**⚠️ 不要写成「`Parkour2` 对比 `ParkourAscend`」的跨成员对照** —— 那混了两个自变量。
+`ParkourAscend` 的落点在 **+1**，`Parkour2` 的落点在**同层**，所以给一个同层落点的布景里
+`ParkourAscend.valid` 返回 `false` **可能只是因为没落点**，跟 hazard 闸无关；
+修完之后它变绿也可能是布景的原因。**一轮只改一个自变量。**
+
+正确形状是**同一个 move 的双臂对照**（唯一自变量 = `from+2` 有没有火）：
+
+- 两臂共用布景：`from` 站得住，`to` 站得住，中间隔 1 格空（`Parkour2` 的形状）。
+- **控制臂**：`from+2` 是空气 → `Parkour2.valid(w, from)` **必须为 `true`**。
+  这一臂是防「布景根本不成立」的 —— 没有它，实验臂的 `false` 分不清是 hazard 闸
+  还是布景本身就不合法（**「零行日志有两种解释」的同族**）。
+- **实验臂**：`from+2` 放 **`fire`**（passable 且在 `BotUtil.HAZARD_BLOCKS` 的
+  `BlockTags#FIRE` 那条里；用 `fire` 而不是 `lava` 是因为岩浆会流走、会烧掉相邻方块，
+  布景不可复现）。
+- 判据：**实验臂今天返回 `true`（缺陷），修完返回 `false`。**
+  今天必红、修完必绿，且红的原因和绿的原因是同一个自变量。
+- 同一条场景把 `ParkourAscend` 也跑一遍**它自己的**双臂（落点抬到 +1），
+  控制臂 `true` / 实验臂 `false` —— 它今天就该这样，作为**正面对照**：
+  证明这条断言认得出「闸生效」长什么样，而不是只会报 `false`。
+- 修完之后这三条自动变成**回归守卫**：以后任何一个新 leap 成员漏掉这一格，它会点名。
 
 **修法二选一**（下一轮定，别现在拍）：把那半句抄进另外五个成员，或者
 ——更符合这个仓库的形状——把整段起跳净空提成 `Move` 上的一个方法（`clearFallColumn` /
