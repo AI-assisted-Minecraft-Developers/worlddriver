@@ -49,8 +49,9 @@
 | 🟡 部分已验 | Q20 | 起塔柱降级（`5be23a86`）：`washedOff` **16→8**，`cast7`/`water8` 归零、踏面被垒死那条来路断了（`stairsBroken` 报坏 0 行）。**`cast6` 证伪** —— 改用的 `2,19` 紧挨楼梯柱，水漫到邻柱。下一步：选柱时把「这一柱当前那一排有没有流体」也问上 | 我 |
 | 🟡 已改未触发 | Q21 | 三次进近逐字相同：`liftInPlace` 的闸是 `y >= wantY`，而失败的是**柱**。闸已拆三支（`be58b518`），但第三趟死得更早，三种行一条没写 ⇒ **未触发**，等下一趟走到那个场合 | 我 |
 | 🔴 **挡路** | Q22 | 12 级下楼那一段在地表打转（同一目标 `-4,62,20`，起点在 y=65~67 换了十几格）→ 落进岩浆湖 `-10,63,19` → 在岩浆里重搜 42 次烧死。入场机制**判不出走进还是滑进**（`fallDistance` 早被重置，`search-begin` 只有 1 秒分辨率），但 `Move.java:286` 证明 A\* 硬拒岩浆 ⇒ **不是规划进去的** | 我 |
-| ✅ 已拍板 | Q23 | advisor：做**逃生反射**。`autoHeal` 算术上跑不过岩浆 DPS（20 血 / 40 tick），「寻路不踏进源块」已经是现状且只防规划不防滑落；13 级是下界，这条能力无论如何都要有。武装设置≠布景（Q12a：零布景说的是道具不是难度） | advisor |
-| 🔴 **挡路** | Q23a | 岩浆逃生反射：进了危险格要有东西抢占当前进程往岸上走。产品代码，单独编译、单独一个双 loader 闸位 | 我 |
+| ✅ 已拍板 | Q23 | advisor：做**逃生反射**。`autoHeal` 算术上跑不过岩浆 DPS，「寻路不踏进源块」已经是现状且只防规划不防滑落；13 级是下界，这条能力无论如何都要有。武装设置≠布景（Q12a：零布景说的是道具不是难度）。**读码后收窄**：反射早就存在且默认开着，前五次发作全部成功 ⇒ 要加强的不是脱离（进了源块 40 tick 挪不满 1 格，物理上没救），是**入场闸** | advisor＋我 |
+| 🔴 **挡路** | Q23a | `LavaProximityEscape.nearestThreat` 只扫脚格 8 邻域＋下一层（`oy=-1..0`），且 `!own && isSource → continue` 把静止源池整个排除。从岸上下坠时它第一次看见池子已经是正上方一格。要按**竖直速度**分场合：贴着湖挖矿照旧不响，向下带速时把视野往下延伸 | 我 |
+| 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
 | 🟠 待做 | Q23b | `WalkerTickDrive:844` 的 `path-hazard brake` 日志在 `walkerDebug` 后面，真梯从不开 ⇒ 烧死那一趟查不出闸响没响。改无条件（它只在世界变化时响）；`hazard-ahead brake` 加节流。跟 Q7 后半（`MineProcess:341`）合并 | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
@@ -727,6 +728,90 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
    ⇒ **A\* 永远不会把岩浆格排进路径。** 所以 `-10,63,19` 不可能是被规划出来的落脚点，
    身体是**被物理带进去的**（漂移／滑落／被冲），Q23 里「让寻路不踏进源块」那一支
    **本来就已经实现了**，它救不了这一趟。
+
+#### 再更正：**逃生反射一直开着、被调用了、而且这一趟响了六次**
+
+我上面那句「泡在岩浆里没有任何东西会抢占」**也是错的**。
+`journey.topology` 那行只点了六个设置的名（`autoRetreat/autoFight/autoDodge/autoHeal/autoShield/autoEquip`），
+`lavaProximityEscape` **不在其中** —— 我拿一份**根本没问到它**的自检下了结论。
+[[the-audit-that-did-not-ask]]，同一形状今天第二次。
+
+事实：`BotConfig.lavaProximityEscape` 默认 **`true`**（`BotConfig.java:338`），
+`BotApiImpl.java:1283` 每个客户端 tick 都调，日志 `[lavaEscape]` **无条件**。
+烧死那一趟里它出现 **11 行 = 六次发作**：
+
+```
+20:33:50 flow front adjacent -9, 63, 13 at -7,64,14 (hp=20.0) → walking away
+20:33:51 handing back (clear), 16 ticks
+20:33:59 …同上… / 20:34:00 handing back (clear), 17 ticks
+20:34:32 flow front adjacent -9, 63, 17 at -7,64,16 → 20:34:33 handing back (clear), 25 ticks
+20:34:57 …同上… / 20:34:57 handing back (clear), 18 ticks
+20:39:04 …同上… / 20:39:05 handing back (clear), 16 ticks
+20:40:05 flow front adjacent -10, 63, 19 at -9,64,19 (hp=20.0) → walking away   ← 没有 handing back
+```
+
+**前五次全部成功**，每次 16~25 tick 脱离，hp 全程 20.0。这条反射是有效的。
+第六次才是死因，而它的位置读数**本身在说谎**。
+
+#### 那行日志用 `(int)` 印格号，负坐标下它印的不是身体所在的格
+
+`LavaProximityEscape.java:66`：
+
+```java
+(int) p.getX(), (int) p.getY(), (int) p.getZ()
+```
+
+`(int)` 是**向零截断**，`blockPosition()` 是**向下取整**。`p.getX() = -9.3` 时
+日志印 `-9`，而代码里 `foot.getX()` 是 **`-10`**。这一级整段都在负 x 上。
+
+这一条把「相邻」和「就在上面」区分不开，而两者在这段代码里走**完全不同的分支**：
+
+- 若 foot 真的是 `-9,64,19`：`-10,63,19` 是 `ox=-1` ⇒ `own=false`，
+  而 `death.standingIn` 已证明它是 **`lava[level=0]` 源块** ⇒
+  `if (!own && fs.isSource()) continue;` **会跳过它**，反射根本不该响。**但它响了。**
+- ⇒ 反推：foot 实际是 **`-10,64,19`**，`-10,63,19` 是 `ox=0,oz=0,oy=-1` ⇒ `own=true`，
+  源块照数。**身体当时就站在岩浆源的正上方。**
+
+而站在正上方，逃生向量就是退化的：`dx = me.x - (lastLava.getX()+0.5)` 只有零点几，
+`hypot < 0.35` ⇒ `badVector` ⇒ 落到 `pickClearCardinal`。
+换句话说**第六次发作走的是和前五次完全不同的那条分支**，而日志把两者印成了同一句话。
+[[a-reading-is-not-the-quantity-it-looks-like]]。
+
+#### 进了源块之后逃不出来，是算术问题，不是驱动问题
+
+42 次 `search-begin start=-10, 63, 19` **格号一模一样**，跨约 2 秒，
+期间反射每 tick 都在 `driveForward`。岩浆里水平速度约 0.02 格/tick，
+40 tick 撑死挪 0.8 格 —— **一格都跨不出去**。
+所以「进去以后往外走」这条路**在物理上就不成立**，
+能救命的只有**不进去**。这也把 advisor 那条「13 级是下界所以无论如何都要有」
+的结论**收窄**了：要加强的不是脱离，是**入场闸**。
+
+#### 入场闸为什么没拦住
+
+`nearestThreat` 只扫**脚格周围 8 格 ＋ 下面一层**（`oy = -1..0`），
+而这一趟身体是从 y=66~67 一路向西下坠／下滑进 y=63 的池子：
+
+```
+20:40:04  search-begin start=-6, 66, 17
+20:40:05  [lavaEscape] … at (印成)-9,64,19   ← 实为 -10,64,19
+20:40:05  search-begin start=-10, 63, 19  ×7   ← 已在岩浆里
+```
+
+一秒之内 `-6,66` → `-10,64` → `-10,63`。**反射第一次看见它时，身体已经在池子正上方一格。**
+再往前一格它什么都看不见，因为池面在脚下 3 格，超出 `oy=-1` 的视野。
+
+而且 `!own && fs.isSource() → continue` 这条**明确把静止的源池排除在外**
+（注释说「mining beside a calm lava lake is normal iron-country work」）——
+对**挖矿贴着湖走**是对的，对**从岸上往湖里落**是错的。
+这两种场合的区别不在池子，在**身体的竖直速度**。
+
+#### 还有一处不对称（读代码时顺手抓到）
+
+`ContactDamageEscape.reset()`（`:171-184`）会 `BotInput.forward(mc,false)` + `jump(mc,false)`，
+`LavaProximityEscape.reset()`（`:156-162`）**只打日志**。
+两边注释各自解释了自己是对的：后者说「命令是逐 tick 的，不再重申就等于交还」，
+前者说「保险起见」。**同一个通道上两条不同的收尾约定**，
+其中一条的注释还在描述已经退休的 keybind 时代。这是 Q23c，归代码卫生。
 
 #### 而两道现成的岩浆闸，都在一个从不打开的开关后面
 
