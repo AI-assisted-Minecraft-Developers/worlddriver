@@ -500,6 +500,46 @@ ladder-9 没跑到，仍未验）。
 | 4 | **11 级那条旧修法**：若 11 级跑到且出现 `cast.cleared.…`，必须读到 `air` | 11 级跑到但没被挡 ⇒ 那条**仍然未验**，不许因为这一级过了就算它有效 |
 | 5 | **不倒退**：1–9 级全 PASS | — |
 
+### 判（ladder-10，2026-08-23）
+
+| 判据 | 读数 | 判 |
+|---|---|---|
+| 1 出现 `iron.sunkOnTheWayHome` | **全日志零命中**（连 `food.` 前缀的都没有） | ❌ **补救未被验证**，9 级根本没跑到 |
+| 2 补救有效 | 不适用 | — |
+| 3 `journey.height` ≥ `PORTAL_KIT` | **`STONE_TOOLS`（5 级）** | ❌ 大幅倒退 |
+| 4 11 级那条旧修法 | 没跑到 | ❌ **仍然未验**（连续第二趟） |
+| 5 1–9 级不倒退 | **6 级 PASS → FAIL** | ❌ 倒退 |
+
+**死因不是我这一趟的变量。** 6 级判词是 `raw food collected from the kill (0)`，
+证据只有五行：
+
+```
+prey = minecraft:cow, prey.distance = 54, prey.arrived = minecraft:cow
+weapon = minecraft:stone_sword, rawFood = 0
+journey.helm.endings = holdStill→跑完；goto→跑完；combat→跑完
+```
+
+身体带着石剑走到了牛跟前，combat 进程**跑完了**，包里 0 块生肉。
+**这一级在此之前的两趟都过**（ladder-8 1907 tick、ladder-9 3157 tick），
+而它死在 `walkHome` **之前**——`food.huntEndedAt` 一行都没有，所以这一趟改的那段
+（`walkHome` 的竖直补救）**根本没执行到**。这一级路径上我这一轮没有任何行为改动。
+
+**三趟三个死点（11 → 10 → 6）**，而且 `animalsNearby` 每趟都不同
+（这趟多了 cat / pig / sheep）。[[the-ladder-is-not-reproducible]]：**按死因族判，不按趟数判。**
+
+### 这一级的证据太薄，分不开三种病因（下一笔仪器）
+
+`combat→跑完` + `rawFood=0` 至少有三个互斥解释，而现有的行一个都分不开：
+
+1. **一下都没打中**（瞄准/攻击冷却/够不着）；
+2. **打死了但没捡**（[[mined-is-not-collected]] 同族——掉落物在地上）；
+3. **打的不是那只**（`prey.arrived` 只说到了一只牛跟前）。
+
+要加的行：开打前后的目标血量与是否存活、`dropsNearby(beef)`、以及挥手次数。
+**都是只加日志。**
+
+---
+
 **判据 1 落空时的补样办法，也先写死**（别再花 50 分钟碰运气）：
 `./gradlew :fabric:runRehearsalIntegratedServer -Prehearse=OBSIDIAN`。
 **必须是 integrated 那条**——`JourneyRig.avatar()` 在 `!realPlayerHelm` 时直接返回
