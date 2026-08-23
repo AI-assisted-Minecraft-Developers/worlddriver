@@ -982,6 +982,115 @@ Q15c 要的分布从这一趟开始有；**这一趟只收数，不下结论**�
 
 ---
 
+## 📊 ladder-15 判词（2026-08-23，`results-ladder15.jsonl` / `ladder15-preserved.log`）
+
+**8/20，9 级身体死了（淹死）。** 33 分 26 秒，光 9 级就烧了 28592 tick / 23.8 分钟。
+
+⚠️ **不要把 11→8 读成回归。** 真梯不可复现（[[the-ladder-is-not-reproducible]]），级数不能跨趟比；
+这一趟新增的是一个**死因族**，那才是可比的东西。ladder-14 到 ladder-15 之间改的五处
+（`JourneyCast` 搬运、桶射线谓词、改瞄前过射线、`retireTarget`、磁浆地板）**没有一处碰 9 级**。
+
+| 预登记判据 | 判词 |
+|---|---|
+| Q26a（`cast.walk` 仪器） | 🟡 **未触发** —— 没走到 11 级，登记的第二态，**合法缺席不是仪器问题** |
+| Q26b（改瞄前过射线） | 🟡 **未触发** —— 同上，修法仍未被验证 |
+| 第四态（闸响了而进近失败） | 未落在这一格 |
+| Q24（`cast.atUse` 服务端半边） | 🟡 **未触发，第四趟了** |
+| Q21（进近三支） | 🟡 未触发 |
+| **Q23a（stride 六桶）** | ✅ **已验** —— 这一趟真的死了，那一行第一次说话（见下） |
+| Q15c（`prep.*` 分布） | ✅ 收到，仍**不下结论**，缺集成 NeoForge 那一半 |
+
+### 🔴 Q28：最高优先级的求生反射抢到通道，然后自己不动了 —— 300 tick
+
+```
+00:56:21 [drownEscape] PREEMPT — floating straight up (air=100 underwater=true enter<=100 release>=280)
+00:56:25 心跳 IRON goto 本段第7251 tick 身体=76,42,60
+00:56:35 心跳 IRON goto 本段第7451 tick 身体=76,42,60      ← 同一格
+00:56:36 Player357 drowned
+00:56:36 [scheduler] chain drownEscape -> idle             ← 直到死后才放手
+```
+
+抢占之后**一条 `竖直支` 都没印**。前四次抢占（00:24:16／00:53:28／00:53:34／00:55:05）
+每次都印 1–2 行竖直支再 `released`，所以那条读数是好的。**第五次一行都没有，
+正因为走的不是竖直支** —— `tick()` 里唯一在竖直支之前 `return` 的路径是
+**横向逃生支（`DrownEscapeChain:170-191`）**，而它自己那行读数关在
+`BotConfig.walkerDebug` 后面（默认 false，这一趟没开 `-PwalkerDebug`）。
+
+> **同一个方法里，竖直支的读数是无条件的（`dbgV++ % 10 == 0`），
+> 横向支的读数带着 `walkerDebug &&`。** 一个凌驾所有进程、握着通道的反射，
+> 恰恰在它握着的那段时间里没有声音。[[an-instrument-behind-a-flag-is-not-an-instrument]]
+> —— **今天第四次**（`MineProcess` 四扇门、`reclaimTableIfLeftStanding` 三个出口、这条）。
+
+**Q28a（仪器，已修 `7c8493ae`）**：摘掉 `walkerDebug &&`，保留 `% 10` 节流（量级＝每次濒死十行），
+并在行里加**水平速度**和 `y` —— 这一支按着 `forward` 声称在游，而
+「按了 300 tick 没挪一格」和「根本没被叫到」现在读起来一模一样。**产品代码，要一趟双 loader 闸。**
+
+**Q28b（行为，因未知）**：横向支跑了 300 tick，身体一格没动。候选：yaw 指进石头、
+`lateralEscapeDir` 选的开阔柱其实到不了、水里 `forward` 推不动。**先别猜，等 Q28a 的读数。**
+
+⚠️ 反过来的证据也记着：前三次抢占**都成功脱险**（`released air=144`，其中两次
+`盖格=77,41,63 盖挡=true 破盖中=true`，破盖那半边是好的）。所以**不是「这条链坏了」**，
+是**这一格的几何**让它失效——[[one-sample-cannot-name-a-cause]]，别去大修一条四次里三次管用的链。
+
+### 🔴 Q29：爬井的「被水冲下柱子」重试，十次一字不差
+
+```
+climb.0 … climb.9   stalled = stuck (no Y gain in 60t: placed=0, holding=64,
+                              phase=JUMPING, apexFeetY=39, shortJumps=4, overhead=无)
+                    state   = onGround=true inWater=true y=39.00
+                    atUse   = 眼睛 81.70/40.62/58.30 朝 yaw=-33.69 pitch=89.50   ← 十次全同
+                    washedOff = 水把身体冲下柱子了，还剩 N 次重试
+```
+
+**`placed=0`：一块都没垒过，所以根本没有「柱子」可被冲下。** 那行判词说的机制没有发生
+（[[evidence-that-lies]]）。真相是 `phase=JUMPING`＋`apexFeetY=39`＋`shortJumps=4`：
+**在水里跳不起来，塔的「跳到顶点再往脚下垫」这一步永远进不到 PLACING。**
+
+重试的判据（`JourneyShaft:881`）只有 `rig.player().isInWater() && washedOff > 0`
+—— **它不问身体有没有真的变化**。而注释写着「In moving water the state at the end of a course
+is not the state the next one starts from」，这一趟**连眼睛坐标都逐字相同**，那句话在这里为假。
+十次课程烧掉 600+ tick，然后 `walkerFallback=True` 一把从 y=39 带到 45（`gained 6/24`）——
+**兜底腿比塔管用**。修法：这一课与上一课的 `(y, placed)` 相同就判定「冲下柱子」被证伪，直接交兜底，
+不是加次数（[[a-retry-that-changes-nothing]]、[[a-tower-nobody-ever-built]]）。
+
+### ✅ Q23a 已验：stride 守卫第一次说出它为什么整趟没响
+
+```
+death.strideGuard = stride 守卫整趟点火 0 次；没点火 33582 tick，分布：
+  关着/跑酷=395   脚不在实心上（或在水里）=24260   没在平移 h<0.03=6908
+  前方那格不可穿过（就是地）=388   计划本来就要下到那一柱=87   那一柱在危险之前就见底了=1544
+```
+
+六桶都有数，**分布本身就是判词**：72%（24260/33582）的 tick 卡在
+「**脚不在实心上或在水里**」这一桶。这一趟的死因是淹死，stride 守卫本来就不该是那道闸
+—— 所以这是**已验（仪器）＋不适用（场合）**，不是守卫失灵。⚠️ 一趟不是分布，
+但这一行以后每趟死都会写，攒得起来。
+
+### 📌 Q10 更正：不是 4/4，是 **4/5**
+
+ladder-15 的 8 级**只有** `craftingTable = 1` —— 没有 `standing`／`pickup.left`／`remade`，
+即 `ensureCraftingTable` **早返回了**：这一趟桌子从 5 级**活着带到了** 8 级。
+
+> 一小时前我按四趟写下「4/4，每趟都重买」。**第五个样本就推翻了「每趟」。**
+> 同 [[one-sample-cannot-name-a-cause]] 的第三节：**任何「每次都」落笔前先数分母。**
+
+所以 Q10 是**变量结局**（5 趟丢 4），不是确定性缺陷 —— 而 `ce352753` 补的
+`craftingTable.keptInBag` 这一趟本该正好点名健康那条路，下一趟就能按趟分类。
+
+### 🩺 这一趟真正的形状：身体下到 y=39 的水里，再也没上来
+
+`vein1.mine.endReason` 写着 `sweep WALKING toward BlockPos{x=82, y=40, z=59}` —— 采矿在 y=60，
+**收集掉落物的扫掠把身体从 y=60 一路带到 y=40 的水里**（顺带 `blacklisted 20 target(s)`，
+`4501efe6` 那本新账第一次有数）。之后：塔爬不出来（Q29）→ 兜底腿到 y=45 →
+回家那一段又降回 y=39（`home.arrivedY = 39（起 45，净升 -6）`，`home.viaMidpoint = 72,62 (卡在 80,39,65)`）
+→ 76,42,60 淹死。
+
+**Q16c 那条补救（低于天光 8 格先 `climbOut`）没被证伪，是没轮到** ——
+`home.sunkOnTheWayHome` 缺席，因为它挂在 `walkToColumn` 用完次数之后的 `strand` 支上，
+而身体在那之前就死了。
+
+---
+
 ## 📊 ladder-14 判词（2026-08-23，`results-ladder14.jsonl` / `ladder14-preserved.log`）
 
 **10/20，11 级失败** —— 但**死得比上一趟晚了一整段**：桶装到了，死在那一浇之前的清线循环里。
