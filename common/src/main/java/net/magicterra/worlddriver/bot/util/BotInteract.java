@@ -1,7 +1,10 @@
 package net.magicterra.worlddriver.bot.util;
 
+import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
+
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -132,8 +135,21 @@ public final class BotInteract {
         // very check vanilla uses to allow the placement. Callers that need to
         // NOT be sneaking (e.g. SleepProcess clicking a bed) should release the
         // shift key themselves before calling.
+        ItemStack held = p.getMainHandItem();
         InteractionResult r = mc.gameMode.useItemOn(p, InteractionHand.MAIN_HAND, hit);
         if (r.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
+        // UNCONDITIONAL, and that is the point. This used to print nothing, and the 2026-08-23
+        // ladder could not answer「the run lost ten cobblestone between two rungs — where?」because
+        // the only placement path in the game logged nothing at the verbosity a ladder runs at.
+        // A reading that exists only under walkerDebug is a reading the ladder never takes, and a
+        // zero-row log then cannot tell「it never placed」from「it never printed」. Placements are
+        // rare enough (a tower course is one) that the volume is not worth the blind spot.
+        LOG.info("[place] {} 手持={} 点击格={} 面={} 落点={} 身体y={} 结果={}",
+                r.consumesAction() ? "成功" : "拒绝",
+                BuiltInRegistries.ITEM.getKey(held.getItem()) + "×" + held.getCount(),
+                clickBlock.toShortString(), face,
+                clickBlock.relative(face).toShortString(),
+                String.format(Locale.ROOT, "%.3f", p.getY()), r);
         return r;
     }
 
