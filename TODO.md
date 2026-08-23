@@ -11,6 +11,7 @@
 | ✅ 已测 | Q5 | run 8：钉发布配置 → **3 级回归**（6 根 / 13899 tick，对比 13 根 / 2914 tick）。**已回退**，原因见下 | 我 |
 | ✅ 已测 | Q5b | ladder-8：**10/20**（8→10，9 级 IRON 与 10 级 PORTAL_KIT 首过），死在 11 级 | 我 |
 | ✅ 已绿 | Q15a | **闸债已还**：三闸全 GREEN（集成 NeoForge／专用 Fabric／专用 NeoForge），溺水类加载缺陷结案，见下 | 我 |
+| ✅ 已绿 | Q15b | **第二轮闸**（ladder-9 之后积的九笔）：专用 Fabric GREEN 305/28、专用 NeoForge GREEN 305/27，非 PASS 与上一轮**逐条相同**，classload 0 | 我 |
 | 🔄 在跑 | Q16b | 11 级 `short_grass` 清不掉：清理取了**客户端** avatar，隔壁文件一直是服务端那具（`337a35e2`）。ladder-9 验 | 我 |
 | ⏭ 排队 | Q13 | 🔴 **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗 | 我 |
 | ⏭ 排队 | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分 | 我 |
@@ -275,6 +276,10 @@ sample of the window it measures」。`clientFps()` 现在把解析结果记在�
 > `publishToMavenLocal` **之后的第一趟** `stagewrightDedicatedServerNeoforge`，
 > 日志里这 120 行必须变 0，且 `pack.measuresItsOwnTickCost` 仍 PASS、
 > 仍出 `tps.baseline/tps.loaded`。
+
+**已兑现**：`gate-r2-neoforge`（2026-08-23，ladder-9 之后那一轮）实测
+`client/Minecraft for invalid dist` **命中 = 120**，与预登记一字不差。
+这条预登记当场挡住了一次误判——不写它，我会把这 120 行读成「memoize 没生效」。
 
 **ladder-9 之后那一轮闸预期仍然是 120 行**——那一轮吃的还是旧产物，
 把它读成「memoize 没生效」就是又一次没验时间线的基线
