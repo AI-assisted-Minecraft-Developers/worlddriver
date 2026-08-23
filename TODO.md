@@ -53,7 +53,8 @@
 | 🟡 已接线待验 | Q23a | ~~新加入场闸~~ **撤销**：`Walker.strideFloorGuard` 早就在做同一件事且处处更对。真正缺的是「它为什么整趟没响」。`strideGuardSkips` 六桶已改挂 `JourneyRig` 的 `death.strideGuard`（rig 级，每一级的死都过），`JourneyFlight` 的每段差值保留给 13 级以后。**要一趟死掉的真梯才验得到** | 我 |
 | ✅ 已改 | Q23d | `strideGuardSkips` 换成 `AtomicLongArray`，和邻居那一排 `volatile` 同一套约定 —— 否则「桶全为 0」分不清「没调用」和「没可见」 | 我 |
 | ✅ 已改 | Q23e | 三处向零截断印格号全改掉（`AutoSwim:128`、`ContactDamageEscape:76`、`WorldDriverProcessScenes:1169`，最后一处上一行就已经算好了 `cell`） | 我 |
-| 🔴 **挡路** | Q24 | 11 级：`cast.result = SUCCESS` 而 `lava_bucket.after = 1`。两个数来自两端（客户端预测 vs 服务端库存），而分辨用的 `cast.atUse` 上一轮只加进了 12 级。已补，下一趟读服务端那半边 | 我 |
+| 🔴 **挡路** | Q24 | 11 级：`cast.result = SUCCESS` 而 `lava_bucket.after = 1`。两个数来自两端（客户端预测 vs 服务端库存），而分辨用的 `cast.atUse` 上一轮只加进了 12 级。已补，**ladder-13 未触发**（没走到那一浇），仍待读 | 我 |
+| ✅ 已改待验 | Q25 | 隧道停在「看得见」而桶要「够得着」：瞄准用 `TUNNEL_REACH=5.0`（挖掘的数，`destroyBlock` 无距离闸），桶用 `blockInteractionRange()=4.5`。`JourneyFill.BUCKET_REACH` 早就记着这件事，这个调用方没用它。改成以桶自己的距离**重射一次**（不比距离——`5.4m` 是格心，射线停近面）；装桶站点补 `handsAtUse` | 我 |
 | 🟠 待做 | Q23c | `LavaProximityEscape.reset()` 只打日志，兄弟 `ContactDamageEscape.reset()` 还 `forward(false)+jump(false)`。同一通道两条收尾约定，其中一条注释在讲已退休的 keybind 时代 | 我 |
 | 🟠 待做 | Q23b | `WalkerTickDrive:844` 的 `path-hazard brake` 日志在 `walkerDebug` 后面，真梯从不开 ⇒ 烧死那一趟查不出闸响没响。改无条件（它只在世界变化时响）；`hazard-ahead brake` 加节流。跟 Q7 后半（`MineProcess:341`）合并 | 我 |
 
@@ -866,6 +867,51 @@ death.blow         lava −4.0 ×5，555→595 tick（40 tick 内 20 血）
 
 **不预登记「哪个桶最大」**。那是这次要测的量，先猜等于把结论写进判据
 （[[a-criterion-success-cannot-satisfy]] 的镜像：判据要能证伪，不能只会印我想要的那句）。
+
+## 📊 ladder-13 判词（2026-08-23，`results-ladder13-scoopOutOfReach.jsonl`）
+
+又是 **10 级 PORTAL_KIT**，11 级失败，但**死得比上一趟更早**：桶根本没装到岩浆，
+所以**走不到那一浇**。
+
+| 判据 | 判词 |
+|---|---|
+| `cast.atUse` 服务端半边（A/B） | 🟡 **未触发** —— 整段没有任何 `cast.*` 键。按登记：**不许读成「问题好了」** |
+| Q21 进近三支 | 🟡 未触发（同上，没走到） |
+| Q23a stride 分桶 | 🟡 未触发（没死，`death.*` 没写） |
+
+### 🔴 Q25：隧道停在「看得见」那一步，而桶要的是「够得着」
+
+```
+tunnel.7 = aim -6, 26, 54 (-56/23, 5.4m) 自 -10, 27, 51 → -6, 26, 54 Block{minecraft:lava}
+fill.hand = minecraft:bucket（槽 6）
+fill.aim = -56/23
+fill.result = PASS          ← vanilla 射线打空时的返回值
+lava_bucket = 0
+fill.sourceAfter = Block{minecraft:lava}     ← 一滴没少
+```
+
+**身体从头到尾没挪过**：八条 `tunnel.*` 全是「自 `-10, 27, 51`」。
+`destroyBlock` **没有距离闸**（[[the-avatar-mined-through-rock]]），所以隧道能挖到它**看得见**的地方；
+而桶是**瞄**出去的（[[a-bucket-is-aimed-not-clicked]]），`Item.getPlayerPOVHitResult` 用的是
+`blockInteractionRange()` = **4.5**。`reachLava` 的瞄准射线用的是 `TUNNEL_REACH = 5.0`（挖掘的数），
+于是它在源块进入视野的那一刻就交棒给 `fillFrom`，而那时桶根本够不着。
+
+**而这个知识仓库里早就有**：`JourneyFill.BUCKET_REACH = 4.5`，javadoc 一字不差地写着
+「`TUNNEL_REACH` 比它长半格，是挖掘的数；用错会让 miss 报成一个从没进过桶射线的阻挡物」。
+**同一族今天第五次**：正确的值在隔壁文件里，这个调用方没用它
+（[[a-fix-that-cannot-reach-its-own-occasion]] 第一节）。
+
+**修法用重射，不用比距离**。`tunnel.7` 印的 `5.4m` 是到**格心**的，而射线停在**近面** ——
+一个 5.0 的射线打得到近面、格心却在 5.4 处，所以**任何架在这个数上的阈值问的都不是引擎的问题**
+（[[a-centre-eye-is-not-the-eye-that-fires]] 同族）。改成：看见源块之后，
+**以 `BUCKET_REACH` 再射一次**，打到的必须是同一格才交棒；否则走近再来，
+步数用完就报「看得见却够不着」而不是「挖不到」。
+
+**并且给装桶站点补上 `handsAtUse`** —— 这是第三个也是最后一个用桶的站点。
+`fill.result = PASS` 跟「手不对」和「被拒绝」**逐字节相同**，这一趟是靠手工反推才分开的；
+`describeRay` 会直接把 MISS 连同它射了多远一起印出来。
+
+---
 
 ## 🎯 ladder-13 预登记（写在跑之前，2026-08-23）
 
