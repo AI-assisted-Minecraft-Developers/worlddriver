@@ -110,8 +110,17 @@ public final class BotInteract {
      * <p>Routing it through here is the shape that provably survives: this class already names
      * {@code MultiPlayerGameMode} eight times over, and the same chains have always called
      * {@code aimAtBlockSnap} / {@code selectBestToolFor} here without the loader minding — an
-     * {@code invokestatic} resolves its owner, not its owner's dependencies. The rule to carry
-     * forward: <b>a scheduler class may pass a client type around, but must not call into one.</b>
+     * {@code invokestatic} resolves its owner, not its owner's dependencies.
+     *
+     * <p><b>The rule this paragraph used to state was not sharp enough, and it cost a day.</b> It
+     * said "a scheduler class may pass a client type around, but must not call into one". Calling is
+     * not the discriminator: the last green build of {@code DrownEscapeChain} called
+     * {@code KeyMapping.setDown}, {@code ClientLevel.getBlockState} and {@code Minecraft.getInstance}
+     * and loaded fine. <b>The discriminator is the WIDENING: handing a client type to a parameter
+     * declared as a wider type</b> ({@code Player}/{@code Entity}) forces the verifier to LOAD
+     * {@code LocalPlayer} to prove the subtype relation, and a dedicated server has no such class.
+     * A {@code LocalPlayer} held in a local and called on its own methods was never the problem.
+     * Full account in {@code docs/drown-escape-design.md} §5.
      *
      * <p>The swing is not decoration — see {@code Avatar#breakHold}. Vanilla swings on every
      * successful {@code continueDestroyBlock} tick, and a dig without one is both visibly armless

@@ -167,6 +167,28 @@ etc.) working in this project. Keep it short and authoritative.
     from the cause. That helper now takes its own region ticket; if you add another, it needs
     one too — the gate will not tell you.
 
+12. **Never hand a client type to a wider parameter from a class a dedicated server loads.**
+    Gate: `stagewrightDedicatedServerFabric` **and** `stagewrightDedicatedServerNeoforge` —
+    two different mechanisms (Fabric's Knot classloader checks the environment type;
+    NeoForge's `RuntimeDistCleaner` checks the dist), so one loader passing proves nothing
+    about the other. The failure is at **class-load time**, so the scene dies at `0 ticks`
+    with `unexpected RuntimeException: Cannot load class net.minecraft.client.player
+    .LocalPlayer in environment type SERVER` — which names *what* failed to load and never
+    *who asked for it*.
+
+    Holding a `LocalPlayer` in a local and calling its own methods is fine and always was.
+    What is not fine is passing it to a parameter declared `Player`/`Entity`: that
+    **widening** makes the verifier load `LocalPlayer` to prove the subtype relation.
+    "It calls into a client type" is NOT the rule — the last green build called
+    `KeyMapping.setDown`, `ClientLevel.getBlockState` and `Minecraft.getInstance`.
+
+    The shape that survives: put the widening inside a **client-only** class and reach it
+    with `invokestatic` (`BotInteract.riseBlockedCell` / `continueDestroy` are the models).
+    `invokestatic` resolves its owner, not its owner's dependencies, and a chain whose
+    `tick` opens with `if (mc == null) return` never loads that owner on a server.
+    Verify by measurement — `javap -c` the class and count calls that take a `Player`
+    parameter — not by reading the source. Full account: `docs/drown-escape-design.md` §5.
+
 ## Log locations
 
 Runtime output is local-only and must never appear at the project root:
