@@ -907,6 +907,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 new Move.Edge(dest, 10, List.of(), List.of(support), "pillarUp"));
 
         Walker walker = new Walker();
+        // GOAL FIRST, then adopt. {@code setGoal} nulls path and edges (Walker:783-785), so adopting
+        // before it hands the walker a plan and then throws that plan away. And ticking with NO goal
+        // is not an option either: the per-tick decisions dereference {@code wk.goal} unguarded, so
+        // the first version of this scene died on tick one with an NPE and never reached a single
+        // one of the vacuity gates above — a scene that compiles and asserts nothing.
+        walker.setGoal(new Goal.Block(dest));
         if (!walker.adoptForTest(w, plan, edges, foot))
             ctx.fail("surfacePillar: 走行器拒绝了这条一条边的 pillarUp 计划（锚点闸）——"
                     + "后面每一行都不再是关于被测对象的。");
@@ -914,12 +920,14 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         final double startY = fp.getY();
         double maxY = startY;
         boolean placed = false;
+        boolean ranPillarUp = false;
         Walker.Step s = Walker.Step.WALKING;
         int t = 0;
         for (; t < 200 && s == Walker.Step.WALKING; t++) {
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
+            if ("pillarUp".equals(walker.pathMove())) ranPillarUp = true;
             // blocksMotion, not !isAir: the support cell STARTS as water, so "not air" is true
             // from the first tick and would report a placement that never happened.
             if (level.getBlockState(support).blocksMotion()) placed = true;
@@ -932,6 +940,16 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ctx.record("升.起点y", startY);
         ctx.record("升.峰值y", maxY + "（要到 " + dest.getY() + "）");
         ctx.record("走.收尾", s + "（用了 " + t + "/200 tick）");
+        ctx.record("走.跑过pillarUp", ranPillarUp);
+
+        // THE FOURTH VACUITY GATE, and the one the first design was missing. The three above check
+        // the WORLD; none of them checks that the SUBJECT ran. Handing the walker a goal makes it
+        // free to repath, and a repath swaps the synthetic pillarUp edge for whatever A* prefers —
+        // after which every reading below is about a different move, and the arena goes green while
+        // the two phase classes were never asked the question.
+        if (!ranPillarUp)
+            ctx.fail("surfacePillar: 这一趟从没有一 tick 在执行 pillarUp 边（多半是重新寻路把合成"
+                    + "计划换掉了），所以下面的判据说的不是被测对象。要修的是布景，不是产品。");
 
         if (s != Walker.Step.WALKING && !placed && !reachedRow)
             ctx.fail("指针越过了一块没垫上的支撑：走行器以 " + s + " 收尾，而 "
