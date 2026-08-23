@@ -193,6 +193,7 @@ wd.ascentRamSlideBack
 wd.aboveNodeStallPitFill
 wd.verticalResyncSlideBack
 wd.stepUpBackoffCeiling
+wd.surfacePillarPointerNeedsItsSupport
 wd.bridgeLongRun
 wd.bridgeHurdle1
 wd.bridgeHurdleSlabBypass

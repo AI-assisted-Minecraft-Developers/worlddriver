@@ -880,14 +880,17 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.walkerPillarSurfacePlace = true;   // pinnedBaseline() turns it off for arenas
         BotConfig.allowPlace = true;                 // ditto, and the subject here IS a placement
         BotConfig.allowBreak = false;
-        // Also baseline-disabled (BotConfig:2326 production ON, :2968 arena OFF) — and this one
-        // decides whether the scene has a subject at all. The destination is UNSTANDABLE by
-        // construction: it is a surface water cell whose support has yet to be placed, which is
-        // the entire geometry. So Walker.snapGoalToStandable rewrites the goal to the nearest
-        // standable cell — and that is the cell the body is already standing in, one below. The
-        // walker then reports ARRIVED on tick ONE and the pillarUp edge never runs. The first
-        // gate run of this scene died exactly there (走.收尾=ARRIVED 用了 1/200 tick,
-        // 走.跑过pillarUp=false), caught by the fourth guard below rather than passing vacuously.
+        // Also baseline-disabled (BotConfig:2326 production ON, :2968 arena OFF). Production runs
+        // with it ON and this scene is about pillaring, so ON is the right world to test in.
+        //
+        // It is NOT, however, why the first run of this scene never executed its subject — an
+        // earlier revision of this comment claimed that and was wrong, so the refutation stays
+        // here to stop the next reader re-deriving it: the goal snap this flag exempts never runs
+        // at all on this geometry. WorldView#canStandAt's first line is
+        //     !canStandOn(below) && !isClimbable(foot) && !isWater(foot)
+        // and the destination IS water, so the third term exempts it from needing a support ⇒
+        // canStandAt(dest) is true ⇒ snapGoalToStandable returns on its own first line. Confirmed
+        // by 走.目标被吸附=false. The real cause was the plan's shape (see the plan below).
         BotConfig.walkerPillarReachGoalNoSnap = true;
 
         ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
