@@ -308,6 +308,47 @@ final class JourneyHands {
     }
 
     /**
+     * Is the body that will actually run the use holding {@code item} RIGHT NOW?
+     *
+     * <p>The one question {@link #holdForUse} cannot answer, because it is asked at the wrong moment.
+     * {@code holdForUse} runs where the caller decides to use something; the use runs after the aim,
+     * after the plant clearing, after the last settle — and ladder-11's twelfth rung showed those are
+     * far enough apart for the hold to come undone on BOTH bodies at once.
+     *
+     * <p><b>How a hold comes undone, measured.</b> Cell six read {@code cast6.hand =
+     * minecraft:lava_bucket} with {@code 真正要动手的那只手：槽 4 = minecraft:lava_bucket} — client and
+     * server agreeing — and then, ten ticks later, {@code cast6.atUse = 客户端 槽 4 = minecraft:dirt}
+     * and {@code 服务端 槽 4 = minecraft:dirt}. Cells zero through five never did. What is different
+     * about six is that six is the first cell whose pour needed a RAISE, and the tower holds dirt:
+     * that hold pushed the bucket out of the hotbar, so the next hold went down
+     * {@code BotInteract.ensureHolding}'s main-inventory branch instead of its hotbar branch — a swap
+     * <b>click</b> on the client and a stack swap on the server, two authors of one slot, and swapping
+     * the same pair twice is the identity. The second one landed during the settle.
+     *
+     * <p>So this is not a lag reading and re-reading it later does not fix it: the slot really does
+     * hold dirt by then. Ask here, right before the use, and re-hold — see {@link #holdForUse}'s
+     * caller in {@code JourneyPortalRung.placeFluid} for the gate that follows.
+     *
+     * <p>Reads the ACTING body ({@code rig.avatar()}), because that is the one whose
+     * {@code useItemInHand} runs; on a headless helm the two are the same object and this degrades to
+     * the server reading.
+     */
+    static boolean actingHolds(JourneyRig rig, net.minecraft.world.item.Item item) {
+        var acting = rig.avatar().player();
+        return acting != null && acting.getMainHandItem().getItem() == item;
+    }
+
+    /** What both bodies hold, for a failure message that has to name the thing that went wrong. */
+    static String heldOnBoth(JourneyRig rig) {
+        var acting = rig.avatar().player();
+        return "客户端 " + (acting == null ? "没有身体"
+                        : "槽 " + acting.getInventory().selected + " = "
+                          + BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem()))
+                + "，服务端 槽 " + rig.player().getInventory().selected + " = "
+                + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem());
+    }
+
+    /**
      * Both bodies, at the instant of the use — the reading every earlier row was too early to take.
      *
      * <p>Rung 12's pour has three rows and no two of them describe the same thing:
@@ -378,7 +419,7 @@ final class JourneyHands {
      * <p>Only on failure, deliberately. On the success path these three numbers are noise in every
      * evidence map the ladder writes, and this rung already spends its budget of rows.
      */
-    private static String bucketStock(JourneyRig rig) {
+    static String bucketStock(JourneyRig rig) {
         return String.format(java.util.Locale.ROOT, "桶存量 空=%d 水=%d 岩浆=%d",
                 rig.carrying("minecraft:bucket"),
                 rig.carrying("minecraft:water_bucket"),
