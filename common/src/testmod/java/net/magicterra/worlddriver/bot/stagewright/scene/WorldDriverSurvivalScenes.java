@@ -883,9 +883,27 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     }
 
     private static void drownEscapeGateMatrixScene(SceneContext ctx) {
-        drownEscapeGateMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
-        drownEscapeChainLifecycleMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
-        drownEscapeLateralMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); });
+        // Each matrix is fenced SEPARATELY and its throwable is logged with a full stack. The
+        // framework reports only `unexpected RuntimeException: <message>`, and for a class-loading
+        // failure the message ("Cannot load class …LocalPlayer in environment type SERVER") names
+        // the class that could not load but NOT the instruction that asked for it. Two hours of
+        // reading javap output and git history could not answer「which of the three matrices, and
+        // at which call」 — one stack does. Rethrown afterwards so the verdict is unchanged.
+        runMatrixNamingItsStack(ctx, "gate", () -> drownEscapeGateMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));
+        runMatrixNamingItsStack(ctx, "lifecycle", () -> drownEscapeChainLifecycleMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));
+        runMatrixNamingItsStack(ctx, "lateral", () -> drownEscapeLateralMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));
+    }
+
+    /** Run one matrix, and if it throws something that is not a scene assertion, print the whole
+     *  stack under a name before letting it propagate. See the caller for why. */
+    private static void runMatrixNamingItsStack(SceneContext ctx, String which, Runnable body) {
+        try {
+            body.run();
+        } catch (LinkageError | RuntimeException e) {
+            WorldDriverCommon.LOG.error("[matrixStack] {} threw {}: {}", which,
+                    e.getClass().getName(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     // ==================================================================================
