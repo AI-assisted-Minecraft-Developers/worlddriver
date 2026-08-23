@@ -161,6 +161,7 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
 |---|---|---|---|
 | `e1cdc1b0` | 背包枚举只写一遍，传输层两侧不可能再分叉 | K1 | **待编译** |
 | `838e3e80` | 「朝向眼睛的那个面」搬进 processes 够得着的那个家 | K2 | **待编译** |
+| `4a7ff6c2` | 工作台/熔炉的「找」也合并，「放」那半边晚了两个 gap 才合 | K4 | **待编译** |
 
 ### K1 `ItemSnap.inventoryRows` —— 一个为「两侧分叉」而生的类，只收敛了一半
 
@@ -221,6 +222,45 @@ coordinator 的放行条件（已满足，会在闸上验）：
 
 **风险**：低–中。行为逐字不变；真正的风险是**类加载**，而那正是
 `stagewrightDedicatedServerFabric` 这个闸的探测对象。
+
+### K4 站台扫描：「放」那半边合过了，「找」那半边还是两份 —— 并且**触及半径表在撒谎**
+
+K2 合完之后重扫，`CraftProcess` / `SmeltProcess` 还剩一块 7 行重复：
+`findTable` 与 `findFurnace`，**只差被测的那个方块**。同样的 r=4 / dy=±2 扫描盒，
+同样的「眼→格心平方距离」排序，同样的 `REACH = 4.3`（**两个文件各写了一遍这个 4.3**）。
+
+**为什么这一条不是普通去重**：**同一对文件的同一对动词，「放」那半边已经因为分叉付过两次账。**
+`PlaceNearby` 的 javadoc 逐字记着：
+
+> placeTable and placeFurnace each carried their own copy of this loop and **the copies diverged**:
+> **gap#61** fixed only the table's (hole-rim dy=+1), **gap#62** then found the furnace still on
+> the pre-evolution version… Divergent copies is how the #42 family happens.
+
+**「放」被合并了，「找」被留在原地。** 修一半的抽取是这个仓库反复出现的形状
+（`ItemSnap` 收敛了 wear、没收敛枚举，见 K1 —— 同一晚第二例）。
+
+#### 顺带抓到一条撒谎的注释（brief 第 2 条，**按代码改注释**）
+
+`BotUtil.standingEye` 的 javadoc 有一张「reach predicates, 2026-08-22」表，
+开头写着「"Within reach" is asked in **five** places」并列了五行。
+**这两个 4.3 就是第六和第七个**——同样量眼到格心，同样带自己的半径，
+**在那张表被写下的时候就已经在那儿了**。
+表已改成七行并标注日期；同时加了一句给下一个读者的：
+**一张只列了一部分的分歧表比没有表更糟**，因为「五处」会被当成搜索已经做完。
+**要加行之前，数一遍 grep，不要数这段散文。**
+
+#### 一处刻意**没有**顺手统一的地方
+
+两份原始代码用的是**严格 `<`** 对上初值 `reach²` 的滚动最优，
+即恰好在 `reach` 上的格**被拒**；而 `eyeWithin` 是 `<=`，**会收下它**。
+差别只有一个浮点相等那么宽，几乎永远看不见——
+**而这正是不该顺手换的理由**：它无偿地**放松**一道闸，
+而一次没人观察得到的放松，就是一次事后没人归因得了的放松。
+`nearestBlockWithinReach` 因此保留原比较，理由写进了它的 javadoc。
+
+**风险**：低。逐字保留扫描盒、排序、比较与初值；三个调用点行为不变。
+两个 4.3 **保持不变**（它们是「走向哪个站台」的排序截断，不是释放闸；
+偏紧最多多调一次 `PlaceNearby`，这一点也写进了表）。
 
 ## 1. 实际改了什么
 
