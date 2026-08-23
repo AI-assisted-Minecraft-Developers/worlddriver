@@ -534,7 +534,35 @@ final class JourneyPour {
     static void liftInPlace(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                     String tag, int tries, Runnable then) {
         int wantY = target.getY() - 1;
-        if (tries > 2 || rig.player().blockPosition().getY() >= wantY) { then.run(); return; }
+        if (tries > 2) { then.run(); return; }
+        // THE QUESTION IS THE COLUMN, NOT THE HEIGHT. This used to return whenever the body was at
+        // `wantY` or above — 「already high enough, nothing to lift」— and that is a statement about
+        // one axis in answer to a failure that lives in two. The caller only reaches here because the
+        // pour's ray gate REFUSED, and a body can be dead on the right row and in the wrong column.
+        //
+        // Measured, PORTAL_LIT rehearsal 2026-08-23: `water8.raisedY = 60/60（停在 3,21，指定柱
+        // 3,20，不是同一柱）`. The tower drifted one cell and `driftKeptPinned` adopted it; from there
+        // the ray put the water in `3,61,21` instead of `4,61,20`. Three approaches then produced
+        // `water8.stand.3 / .2 / .1` byte-identical, with `clear3` and `clear2` both reporting
+        // 「浇线上没有可清的方块」 — this early return is why nothing between them changed anything.
+        //
+        // Ask instead whether the cell the body is IN would land the pour. When it would, a lift
+        // genuinely cannot help (the miss is sub-cell: the centre eye this predicate uses is not the
+        // eye that fires — see JourneySight) and the old behaviour is kept, out loud. When it would
+        // not, the lift's own `raiseColumn` already knows which column does, and at equal height that
+        // makes this a lateral move rather than a climb.
+        BlockPos at = rig.player().blockPosition();
+        if (at.getY() >= wantY && pourLandsFrom(ctx.level(), rig.player(), at, target, away)) {
+            rig.evidence(tag + ".liftSkipped." + tries, at.toShortString()
+                    + " 已经在 y=" + wantY + " 那一排，而且这一格自己验得过这一浇 —— 抬升帮不上忙，"
+                    + "差的是格内位置（格心眼不是开火的那只眼）");
+            then.run();
+            return;
+        }
+        if (at.getY() >= wantY)
+            rig.evidence(tag + ".liftSideways." + tries, at.toShortString()
+                    + " 高度够了（y=" + wantY + "）但这一柱验不过这一浇 —— 平移到验得过的那一柱，"
+                    + "不是往上垒");
         // DIRECTLY BEHIND FIRST, then whatever else verifies. `raiseColumn` ranks by distance and the
         // body's own column is at distance zero, so on a lift it always wins — and the shot from the
         // body's column to a target one cell sideways is the diagonal this whole rung keeps losing
@@ -554,6 +582,18 @@ final class JourneyPour {
                 + "（走不到选定的落脚格，修一段楼梯上到和 " + target.toShortString() + " 同高）"
                 + (verified != null ? "：站上去射线落得进目标格"
                         : "：没有一柱验得过射线，就在身体这一柱上修，不钉"));
+        // AND SAY SO WHEN THE LIFT IS THE BODY'S OWN CELL. With no verified column and the body
+        // already on the row, `landing` is where the body is standing, so the flight has nothing to
+        // build and the approach that follows re-asks a deterministic question in an unchanged world.
+        // That is the whole shape of `a-retry-that-changes-nothing`, and it costs an approach each
+        // time it happens silently.
+        if (landing.equals(here)) {
+            rig.evidence(tag + ".liftIsHere." + tries, here.toShortString()
+                    + " 就是要修到的那一格 —— 这一次抬升什么也不会改，"
+                    + "接下来那一次进近问的是同一个世界里的同一个问题");
+            then.run();
+            return;
+        }
         JourneyRamp.buildTo(rig, JourneyPortalRung.forgeCorridor, landing, tag + ".lift", () -> {
             if (rig.player().blockPosition().getY() >= wantY) {
                 rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
