@@ -1169,7 +1169,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // pickaxe until 2026-08-22, while every fight from the Nether onward was equipped.
             rig.evidence("weapon", rig.holdBestWeapon());
             rig.attempting("猎杀 " + prey.species() + "：CombatProcess 没能拿到生肉");
-            rig.drive(new CombatProcess(CombatProcess.Mode.KILL, null, prey.species()), 6_000, () -> {
+            // GO AND GET IT. Until 2026-08-23 this read `rawFood` the tick the fight finished and
+            // never walked anywhere, so the meat this rung banked was only whatever the body happened
+            // to step over mid-fight. A rehearsal killed four cows and banked four beef with one more
+            // still lying on the ground — which PASSED, because the rung needs one. The leak was
+            // invisible to its own assertion, and the identical leak at rung 9 (iron) and rung 14
+            // (rods) is fatal. `collectByHand`'s note has said "two rungs needing the same walk is
+            // what a shared rig is for" since rung 14 hit it; this is the third rung.
+            rig.drive(new CombatProcess(CombatProcess.Mode.KILL, null, prey.species()), 6_000, () ->
+              rig.collectAnyOf(RAW_FOODS, JourneyRig.MAX_PICKUP_LEGS, JourneyRig.MAX_PICKUP_LEGS,
+                      "kill", () -> {
                 int raw = rig.carryingAnyOf(RAW_FOODS);
                 rig.evidence("rawFood", raw);
                 // THREE causes of rawFood=0, and until 2026-08-23 not one row could tell them
@@ -1179,6 +1188,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // The three: never landed a hit; killed it and left the meat on the ground
                 // (the mined-is-not-collected family); or fought something that was not the prey.
                 // One row each, taken here rather than reasoned about later.
+                //
+                // These now read AFTER the collect above, so what they measure has shifted by one
+                // step and the shift is the useful one: `kill.onGround` was "what nobody fetched"
+                // and is now "what the collect could not reach" — a much narrower accusation. Both
+                // rows still separate the three causes, because `rawFood > 0` is what says the meat
+                // was collected at all.
                 int onGround = 0;
                 StringBuilder kinds = new StringBuilder();
                 for (String id : RAW_FOODS) {
@@ -1214,7 +1229,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 rig.evidence("kill.preyVitals", String.valueOf(rig.nearestPreyVitals(24)));
                 ctx.expect(raw).as("raw food collected from the kill").isAtLeast(1);
                 walkHome(rig, () -> rig.reach("猎到 " + prey.species() + "，得生肉 ×" + raw));
-            });
+              }));
         });
     }
 

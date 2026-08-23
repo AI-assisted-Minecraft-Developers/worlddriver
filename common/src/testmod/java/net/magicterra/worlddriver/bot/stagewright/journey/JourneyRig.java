@@ -1859,6 +1859,62 @@ public final class JourneyRig {
     }
 
     /**
+     * The nearest drop of <b>any</b> of {@code itemIds} — for a haul that is not one item.
+     *
+     * <p>A hunt does not drop one thing. Kill a cow and a pig on the way and the ground holds beef
+     * AND porkchop, and a collect keyed to a single id walks past half of it. The single-id
+     * {@link #nearestDrop} is right for a vein (one ore, one item) and wrong for a kill.
+     */
+    public BlockPos nearestDropOfAny(java.util.Collection<String> itemIds, double radius) {
+        BlockPos best = null;
+        double bestD2 = Double.MAX_VALUE;
+        ServerPlayer fp = player();
+        for (String id : itemIds) {
+            BlockPos p = nearestDrop(id, radius);
+            if (p == null) continue;
+            double d2 = fp.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(p));
+            if (d2 < bestD2) { bestD2 = d2; best = p; }
+        }
+        return best;
+    }
+
+    /**
+     * {@link #collectByHand} for a haul of several item kinds — walk to the nearest of ANY of them.
+     *
+     * <p><b>The third caller of the same missing walk.</b> {@code collectByHand}'s note below records
+     * the ore rungs and rung 14 (seven blazes killed, zero rods banked, two lying on the floor). Rung
+     * 6 is the third: it read {@code rawFood} the tick {@code CombatProcess} finished and never went
+     * to fetch anything, so a rehearsal on 2026-08-23 banked 4 beef off 4 cows with
+     * {@code kill.onGround=1 件（minecraft:beef×1）} beside the PASS. It passed because the rung only
+     * needs one — the leak was invisible to its own assertion, and the same leak at rung 9 (iron) or
+     * rung 14 (rods) is fatal, because there every single item is counted.
+     *
+     * <p>Legs are shared across kinds rather than per kind: three walks total, each to whatever is
+     * nearest. Per-kind legs would let one abundant drop spend the whole budget while a single
+     * porkchop two blocks away is never fetched.
+     */
+    public void collectAnyOf(java.util.Collection<String> itemIds, int legs, int total,
+                             String key, Runnable then) {
+        if (legs <= 0) { leftOnTheGroundAnyOf(itemIds, key, then); return; }
+        BlockPos drop = nearestDropOfAny(itemIds, PICKUP_RADIUS);
+        if (drop == null) { leftOnTheGroundAnyOf(itemIds, key, then); return; }
+        evidence(key + ".pickup.walks", total - legs + 1);
+        evidence(key + ".pickup.target", drop.toShortString());
+        settle(new IntentProcess(new Intent(new Goal.Block(drop))), 600,
+                () -> settle(new HoldStill(30), 50,
+                        () -> collectAnyOf(itemIds, legs - 1, total, key, then)));
+    }
+
+    /** {@link #leftOnTheGround} over a set: what the collect could not get, summed over the kinds,
+     *  read AFTER it stops for the same reason. */
+    private void leftOnTheGroundAnyOf(java.util.Collection<String> itemIds, String key, Runnable then) {
+        int left = 0;
+        for (String id : itemIds) left += dropsNearby(id, PICKUP_RADIUS);
+        evidence(key + ".pickup.left", left);
+        then.run();
+    }
+
+    /**
      * Walk to what this rung just dropped and pick it up, by hand, up to {@link #MAX_PICKUP_LEGS}
      * legs.
      *
@@ -2032,6 +2088,7 @@ public final class JourneyRig {
         double bestSq = Double.MAX_VALUE;
         for (var entity : fp.serverLevel().getEntities(fp, box)) {
             if (!(entity instanceof net.minecraft.world.entity.animal.Animal animal)) continue;
+            if (!animal.isAlive()) continue;                    // a corpse mid-death-animation
             if (animal.isBaby()) continue;                     // a calf drops nothing worth the walk
             var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
                     .getKey(animal.getType());
@@ -2064,6 +2121,12 @@ public final class JourneyRig {
         double bestSq = Double.MAX_VALUE;
         for (var entity : fp.serverLevel().getEntities(fp, box)) {
             if (!(entity instanceof net.minecraft.world.entity.animal.Animal animal)) continue;
+            // A CORPSE IS NOT PREY. A killed animal stays in the entity list through its ~20-tick
+            // death animation, and this row caught one: ladder-11's rung 6 recorded
+            // `minecraft:cow 0.0/10.0 HP 距 4.0 格` beside `kill.preyLeft=minecraft:cow` — "there is
+            // still a cow" was a body the rung had just killed. That ambiguity is the whole reason
+            // the log-grep verdict was retracted, and it must not come back through this row.
+            if (!animal.isAlive()) continue;
             if (animal.isBaby()) continue;
             var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
                     .getKey(animal.getType());
@@ -2090,6 +2153,7 @@ public final class JourneyRig {
         java.util.Set<String> seen = new java.util.TreeSet<>();
         for (var entity : fp.serverLevel().getEntities(fp, box)) {
             if (!(entity instanceof net.minecraft.world.entity.animal.Animal animal)) continue;
+            if (!animal.isAlive()) continue;   // same reason as nearestPreyTarget: a corpse is not one
             var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
                     .getKey(animal.getType());
             if (key != null) seen.add(key.toString());
