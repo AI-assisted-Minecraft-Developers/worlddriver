@@ -71,9 +71,11 @@ public final class ContactDamageEscape {
             active = true;
             episodeTicks = 0;
             lastHazard = null;
-            LOG.info("[contactEscape] {} damage (hp={}) at {},{},{} → stepping out of contact",
-                    msgId, String.format("%.1f", p.getHealth()),
-                    (int) p.getX(), (int) p.getY(), (int) p.getZ());
+            // blockPosition(), not (int) casts — see the sibling note in LavaProximityEscape. This
+            // reflex reasons about the touching hazard's OFFSET from the foot cell, so a row that
+            // truncates the foot cell toward zero mis-states the very relation it is reporting.
+            LOG.info("[contactEscape] {} damage (hp={}) at {} → stepping out of contact",
+                    msgId, String.format("%.1f", p.getHealth()), p.blockPosition().toShortString());
         }
         if (hot) linger = LINGER_TICKS;
         else if (--linger <= 0) { reset(mc, "clear"); return false; }

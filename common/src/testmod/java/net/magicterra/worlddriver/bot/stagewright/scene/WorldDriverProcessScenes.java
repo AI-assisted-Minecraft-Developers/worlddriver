@@ -1166,8 +1166,12 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 if (it.getItem().is(Items.RAW_IRON)) {
                     drops += it.getItem().getCount();
                     BlockPos cell = it.blockPosition();
-                    where.append(" drop@").append((int) it.getX() - cx).append(",")
-                         .append((int) it.getY() - floorY).append(",").append((int) it.getZ() - cz)
+                    // From `cell` — which this loop already computed one line up — and not from
+                    // (int) casts of the raw doubles: those truncate toward zero, so a drop at
+                    // x=-0.4 read as offset 0 while it sat in the cell at -1. The offset is the
+                    // whole point of the row, and the arena's own origin can be negative.
+                    where.append(" drop@").append(cell.getX() - cx).append(",")
+                         .append(cell.getY() - floorY).append(",").append(cell.getZ() - cz)
                          .append("(d=").append(String.format("%.1f", Math.sqrt(it.distanceToSqr(fp))))
                     // Is there a way IN? level.destroyBlock has no reach gate, so this avatar can
                     // break a block it could never have touched — and an ore mined through solid
