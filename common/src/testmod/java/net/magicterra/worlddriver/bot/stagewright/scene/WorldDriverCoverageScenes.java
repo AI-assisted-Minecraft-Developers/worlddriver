@@ -1018,6 +1018,13 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ctx.record("走.指针高水位", maxStep + "/" + plan.size()
                 + "（>=2 表示已离开第一条 pillarUp 边）");
         ctx.record("柱.指针越过未垫", pointerPastUnplaced);
+        // THE VERDICT TIER, said outright. The three outcomes are pre-registered beside the
+        // criterion below, and a reader must not have to derive which one happened by subtracting
+        // the placement line from 升.峰值y. The divergence wins when both latches are set: a
+        // placement that lands after the pointer moved on does not un-advance the pointer.
+        ctx.record("柱.分档", pointerPastUnplaced ? "指针越过未垫 —— 分歧坐实（产品缺陷）"
+                : placed ? "垫上了 —— 两个 phase 类同答案，不分歧"
+                : "身体没升到放置合法线 —— 这一趟没问到分歧，别当成绿");
         // An outcome without its reason is not an instrument: the first run printed 「ARRIVED，
         // 1/200 tick」 and that named neither the snap nor the repath. lastEndReason is written at
         // every terminal() call site and carries the arrival CLASS, goalSnapped included.
