@@ -1317,6 +1317,100 @@ TIMEOUT 仍停在最后一次心跳的值上——**滞后而说明了滞后，�
 就必须有一道闸**直接读那件事发生过**（计数器、`pathMove()`、状态戳），
 不能靠「布景摆对了所以它一定会走那条」推。**推理不是仪器。**
 
+### ✅ 第四道闸第一趟就开口了，而它抓到的是 J27 名单上的一条（`gate-fabric-g3.log`）
+
+Fabric 闸 RED，非 PASS 五行，四行是已知基线，**新增的唯一一行就是这条场景自己**：
+
+```
+走.收尾   = ARRIVED（用了 1/200 tick）      走.跑过pillarUp = false
+升.起点y = 221.0   升.峰值y = 221.0（要到 222）
+柱.支撑格 = 194208, 221, 100000 垫上了=false（现在是 water）
+```
+
+**前三道闸（第一类）全沉默——世界确实是对的；第四道（第二类）说了话。**
+这是这条通则第一份实证：一次「绿而没测」被换成了一次 RED。
+
+### ❌ 我给它安的第一个真凶是错的，而**它在跑之前就能被读死**
+
+我当时的解释：`Goal.Block.reached` 是精确相等（`Goal.java:83`），身体 221、目标 222，
+第一 tick 不可能真到，所以一定是 `Walker.snapGoalToStandable`（`:826`）
+把目标吸附到了脚下——而豁免它的 `walkerPillarReachGoalNoSnap`
+（`BotConfig:2326` 生产 true / `:2968` 基线 false）恰好在 J27 名单上。**故事太顺了。**
+
+顺到我**先提交了（`b7e73974`）再去查**。查的时候六行就翻了：
+
+```java
+default boolean canStandAt(BlockPos foot) {
+    if (!canStandOn(foot.below()) && !isClimbable(foot) && !isWater(foot)) return false;   // WorldView:273
+```
+
+**目的格是水，第三项直接豁免了「脚下要有支撑」这条要求** ⇒ `canStandAt(dest)` 为 **true**
+⇒ `snapGoalToStandable` 在 `:829` 第一行就 return，**吸附从来没跑过**。
+g4 的 `走.目标被吸附=false` 只是补了个签字。
+
+> **自检问题不是「量对了吗」，是「这个断言能不能只靠读代码就证伪」。**
+> 能，而且只要六行——那就必须在提交之前读，不是在闸跑着的时候读。
+> 又一次[[the-wrong-version-is-always-prettier]]。
+
+（旗标那笔改动本身留着：生产默认就是 ON，一条讲垫高的场景开着它是对的，只是它不是这次的真因。）
+
+### ✅ 真凶：`走.收尾理由=path-consumed`——**一个只有一个写者的位，翻了**
+
+g4 新加的那行一读就定了案：
+
+```
+走.收尾=ARRIVED（用了 1/200 tick）  走.收尾理由=path-consumed  走.目标被吸附=false
+```
+
+`classifyArrival(bestEffort, reachedFoot, snapped)`（`Walker:2378`）要返回 `path-consumed`，
+必须 `bestEffort == false`。而这条场景自己的 adopt 传的是 `goalReached=false`
+⇒ `seg.pathBestEffort = !res.goalReached()` = **true**。
+`grep` 全仓，写这个字段的**只有 `adoptPath` 一处**（`Walker:2667`）。
+
+⇒ **tick 0 之内一定发生了第二次 adopt**，而且那次的结果 `goalReached=true`。
+即：**走行器在第一 tick 里重新寻了一次路，把合成的 `pillarUp` 边换成了 A\* 自己的计划。**
+janitor 注释里的原话（「多半是重新寻路把合成计划换掉了」）是对的，我不该去改它。
+
+**为什么会重新寻路，也就是修法在哪**：`WalkerTickRepath:186` 那一支的守卫是
+`seg.pathBestEffort && seg.commitEnd != null` —— **best-effort 段是走行器有权替换的段**，
+它会去找续接。而 `adoptForTest` 的四参形态**把 `goalReached` 写死成 `false`**，
+于是任何「先 adopt 再 tick」的场景，交出去的计划天生就是可替换的。
+这条计划的最后一格**就是目标格**，说它到不了目标本来就是错的。
+
+**修法**：
+1. `Walker` 加五参 `adoptForTest(..., boolean goalReached)`，四参形态委托过去传 `false`
+   （另外五个调用点只看 adopt 的裁决、不 tick，不受影响）；本场景传 `true`。
+2. `pathMove()` 在 tick **前后各采一次**：它读的是当前 step 指针，
+   而一个 tick 可以「执行完这条边顺手把它的节点消费掉」，
+   于是只在 tick 后采样的话，**一步计划的最后一条边永远采不到**。
+3. 记 `走.收尾计划`（`walker.planTally()`，自带「到得了目标=」）和 `走.探针`
+   ——计划被换掉是这座竞技场失去被测对象的头号方式，而这次**从终态类反推它花了一整趟闸**。
+
+### 🎯 g5 预登记（**写在读结果之前**）
+
+`wd.surfacePillarPointerNeedsItsSupport` 一条，四种结局各判各的：
+
+| 读数 | 判词 |
+|---|---|
+| `跑过pillarUp=true`，PASS | **已验**：布景终于有被测对象，且产品这一格没分歧 |
+| `跑过pillarUp=true`，FAIL 在「**指针越过了一块没垫上的支撑**」 | **已验，且缺陷复现**——这正是这条场景写出来要抓的东西，是好结果不是坏结果 |
+| `跑过pillarUp=false` 且 `走.收尾计划` 不是那条一步 pillarUp | **未触发**：还是被换掉了，`goalReached` 不是唯一的替换入口，回去查 `safetyRepath` 那一支 |
+| `跑过pillarUp=false` 而 `走.收尾计划` 就是那条一步 pillarUp | **证伪**：计划没被换，那 `pathMove()` 这个仪器本身有问题 |
+
+⚠️ 判 FAIL 时**必须看是哪一条 fail 文案**：闸文案 = 布景还没站住；
+「指针越过」文案 = 布景站住了、产品说话了。**两者都是 RED，含义相反。**
+
+其余四行必须**恰好**是已知基线（`canaryMustFail` / `canaryMustTimeout` /
+`wd.vineOverWaterClimb` `pocketTicks=81` / `wd.serverEscapeSealedShelter` `y=221.0`）。
+
+### 📏 留下来的两条通则
+
+1. **一个结果不带理由就不是仪器。** 「ARRIVED，1/200 tick」印了两趟，既没点名吸附也没点名换计划；
+   `lastEndReason` 一行就把它定了。凡是记 outcome 的地方都要问一句：**它的 why 在哪一行。**
+2. **只有一个写者的字段，它的值就是一份证据链。** `pathBestEffort` 翻成 false 这件事，
+   配上「`adoptPath` 是唯一写者」，等于**证明**了第二次 adopt 存在——不用日志，不用再跑一趟。
+   排查时先 `grep` 出写者集合，比先猜机制便宜得多。
+
 ---
 
 ## 🔴 Q33：一趟闸被服务端看门狗杀了 —— 一次寻路吃满 60 秒

@@ -922,7 +922,13 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // the first version of this scene died on tick one with an NPE and never reached a single
         // one of the vacuity gates above — a scene that compiles and asserts nothing.
         walker.setGoal(new Goal.Block(dest));
-        if (!walker.adoptForTest(w, plan, edges, foot))
+        // goalReached=TRUE, and it is not cosmetic: the 4-arg seam says best-effort, a best-effort
+        // segment is one the walker may replace, and on the first run it did — inside tick ONE it ran
+        // a continuation search, adopted a real path and threw the synthetic pillarUp edge away. The
+        // tell was 走.收尾理由=path-consumed, a class classifyArrival can only return with
+        // seg.pathBestEffort FALSE, which the scene's own adopt had set TRUE — so something re-adopted.
+        // This plan's last node IS the goal cell, so declaring otherwise was simply wrong.
+        if (!walker.adoptForTest(w, plan, edges, foot, true))
             ctx.fail("surfacePillar: 走行器拒绝了这条一条边的 pillarUp 计划（锚点闸）——"
                     + "后面每一行都不再是关于被测对象的。");
 
@@ -933,6 +939,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         Walker.Step s = Walker.Step.WALKING;
         int t = 0;
         for (; t < 200 && s == Walker.Step.WALKING; t++) {
+            // BEFORE the tick as well as after: pathMove() reads the edge at the CURRENT step pointer,
+            // and a tick that executes an edge and then consumes its node leaves the pointer past the
+            // end — so a post-tick-only sample can never see the last edge of a one-node plan. The
+            // question is "was pillarUp the edge this tick was about to run", and only this side answers it.
+            if ("pillarUp".equals(walker.pathMove())) ranPillarUp = true;
             s = walker.tick(av, w);
             av.step();
             maxY = Math.max(maxY, fp.getY());
@@ -955,6 +966,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // every terminal() call site and carries the arrival CLASS, goalSnapped included.
         ctx.record("走.收尾理由", String.valueOf(walker.lastEndReason));
         ctx.record("走.目标被吸附", walker.goalSnapped());
+        // The plan the walker ENDED with, next to the one this scene handed it. A swap is the single
+        // most likely way this arena stops being about its subject, and inferring it from a terminal
+        // class took a full gate run; these two print it.
+        ctx.record("走.收尾计划", walker.planTally());
+        ctx.record("走.探针", walker.progressProbe());
 
         // THE FOURTH VACUITY GATE, and the one the first design was missing. The three above check
         // the WORLD; none of them checks that the SUBJECT ran. Handing the walker a goal makes it
@@ -971,8 +987,9 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                     + "本级的目的格按构造就是不可站立的（支撑要靠这次 pillarUp 垫出来），"
                     + "所以豁免它的 walkerPillarReachGoalNoSnap 必须开着；竞技场基线把它关了。");
         if (!ranPillarUp)
-            ctx.fail("surfacePillar: 这一趟从没有一 tick 在执行 pillarUp 边（目标没被吸附，那多半是"
-                    + "重新寻路把合成计划换掉了），所以下面的判据说的不是被测对象。要修的是布景，不是产品。");
+            ctx.fail("surfacePillar: 这一趟从没有一 tick 在执行 pillarUp 边，所以下面的判据说的不是"
+                    + "被测对象。要修的是布景，不是产品。目标没被吸附，所以看「走.收尾计划」"
+                    + "——它若不是那条一步 pillarUp，就是又被重新寻路换掉了。");
 
         if (s != Walker.Step.WALKING && !placed && !reachedRow)
             ctx.fail("指针越过了一块没垫上的支撑：走行器以 " + s + " 收尾，而 "

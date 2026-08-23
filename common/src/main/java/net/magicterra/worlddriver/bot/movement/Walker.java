@@ -1192,7 +1192,19 @@ public final class Walker {
      *  headless server-sim doesn't reproduce for this live water dead-stop. @return adoptPath's verdict:
      *  true = ACCEPTED (segment adopted, the bot will drive it), false = REJECTED as mis-anchored. */
     public boolean adoptForTest(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges, BlockPos foot) {
-        return adoptPath(new PathFinder.Result(plan, planEdges, false, 0, 0L, 0.0), world, foot);
+        return adoptForTest(world, plan, planEdges, foot, false);
+    }
+
+    /** {@link #adoptForTest} for a scene that goes on to TICK the walker. The 4-arg form declares the
+     *  plan BEST-EFFORT, and a best-effort segment is one the walker is entitled to replace: it kicks
+     *  off a continuation search, adopts the result, and the synthetic edges are gone. That is how
+     *  {@code wd.surfacePillarPointerNeedsItsSupport} lost its subject on tick ONE — its terminal read
+     *  {@code path-consumed}, a class {@link #classifyArrival} can only return once
+     *  {@code seg.pathBestEffort} is false, and {@link #adoptPath} is its only writer. A synthetic plan
+     *  whose last node IS the goal has to say so, or it does not survive its own first tick. */
+    public boolean adoptForTest(WorldView world, List<BlockPos> plan, List<Move.Edge> planEdges,
+                                BlockPos foot, boolean goalReached) {
+        return adoptPath(new PathFinder.Result(plan, planEdges, goalReached, 0, 0L, 0.0), world, foot);
     }
 
     // Jump / sneak actuators — drive the player's OWN AvatarInput (Input.jumping /
