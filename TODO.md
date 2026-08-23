@@ -1614,7 +1614,7 @@ UNDECLARED: wd.surfacePillarPointerNeedsItsSupport is registered but not in the 
 
 （janitor 只读取证，没改。`ServerPlayerAvatar` 在 `bot/sim/**`，是 parity 的地盘。）
 
-### 📏 留下来的三条通则
+### 📏 留下来的四条通则
 
 1. **一个结果不带理由就不是仪器。** 「ARRIVED，1/200 tick」印了两趟，既没点名吸附也没点名换计划；
    `lastEndReason` 一行就把它定了。凡是记 outcome 的地方都要问一句：**它的 why 在哪一行。**
@@ -1626,6 +1626,27 @@ UNDECLARED: wd.surfacePillarPointerNeedsItsSupport is registered but not in the 
    （`path[0]` 是起点、`edges[0]` 是 null）——于是它交给走行器的是一份**零步计划**。
    ⚠️ 而 `节点=1（即 0 步）` 这几个字**早就印在 g5 的证据行里**，是我先去追「谁换了计划」才没看见：
    **先把每一行读完，再挑一行去追。**
+4. ⚠️ **但同一个畸形形状，在另一处可能就是题目本身。**
+   我据第 3 条下令「`WorldDriverWaterCrossScenes` 那五处也缺起点节点，一起换掉——
+   它们安全是巧合不是设计」，**错的，而且会打掉三条断言的被测对象**：
+   那五处测的是 `adoptPath` 的**段锚定闸**，五条臂里三条期望「因为没锚定而被拒绝」，
+   补上起点节点就等于把题目擦掉。（`:1070` 那道「远节点必须离脚够远」的守卫补完**照样通过**
+   ——它量的是距离，而被它保护的东西已经没了。）
+
+   | | 那一处（缺陷） | 那五处（题目） |
+   |---|---|---|
+   | 计划的角色 | 走者要**执行**的路径 | 交给闸**评判**的输入 |
+   | `edges.get(0)` | 应为 null | 故意非 null |
+   | adopt 之后 | **tick 它** | 只读裁决 |
+   | 用的重载 | 5 参 | 4 参 |
+
+   > **扫描器命中的是形状；判一族之前必须读调用点。**
+   > 「N 处长得一样」是**开始调查的理由**，不是**合并它们的理由**。
+
+   而我说「安全是巧合」用的正是形状——**推理又一次冒充了测量**（今晚第四次）。
+   落法因此改成**两个构造器**：`syntheticPlan(foot, nodes, edges)` 让畸形造不出来（要 tick 那族），
+   `misanchoredSegment(nodes, edges)` 让故意的畸形**必须说出口**（只评判那族）。
+   [[a-malformed-input-may-be-the-subject]]
 
 ---
 
