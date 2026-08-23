@@ -197,8 +197,6 @@ public final class JourneyEndRungs {
      *  next search is genuinely a different one rather than the same refusal from one cell over. */
     private static final int SIDESTEP_BLOCKS = 24;
 
-    /** How many times a short walk re-plans before its caller calls the target unreachable. */
-    private static final int MAX_WALK_ATTEMPTS = 3;
 
     /** Chunks either side of the baked stronghold that the frame scan loads and reads. Six is
      *  thirteen chunks square — 208 blocks — which comfortably contains a stronghold's own sprawl
@@ -892,7 +890,8 @@ public final class JourneyEndRungs {
                 new BlockPos(stand.getX(), 0, stand.getZ())).getY();
         rig.evidence("shaft.top", stand.getX() + "," + surface + "," + stand.getZ()
                 + " → 房间 y=" + stand.getY());
-        walkToColumn(rig, "shaftTop", stand.getX(), stand.getZ(), 2, 12_000, MAX_WALK_ATTEMPTS, () -> {
+        WorldDriverJourneyScenes.walkToColumn(rig, "shaftTop", stand.getX(), stand.getZ(), 2,
+                12_000, WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, () -> {
             // The shaft must not be bridged over. A walker allowed to place while descending fills
             // in the hole it is standing in, which reads as "the block broke but the body did not
             // sink" — the same confusion the overworld shafts already had to disarm.
@@ -2692,32 +2691,24 @@ public final class JourneyEndRungs {
     }
 
     // =====================================================================================
-    // Driving — copied from the overworld rungs rather than shared, see the class note.
+    // Driving — the shared walk, NOT a copy. See `WorldDriverJourneyScenes.walkToColumn`.
     // =====================================================================================
-
-    /**
-     * Walk to a surface COLUMN, and try again from wherever the walker actually stopped.
-     *
-     * <p>Not defensive padding: {@code IntentProcess} reports its goal reached for a partial path, so
-     * one drive can come back "done" with the body somewhere else entirely — measured elsewhere on
-     * this ladder at eighty-eight blocks short, reported as "cannot reach the descent point". Each
-     * attempt is a {@link JourneyRig#settle} rather than a drive, so a leg that burns its budget
-     * costs an attempt instead of the rung, and the distance check is what decides.
-     */
-    private static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
-                                     int budget, int left, Runnable onArrived, Runnable onStuck) {
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance))), budget, () -> {
-            BlockPos at = rig.player().blockPosition();
-            double away = Math.hypot(at.getX() - x, at.getZ() - z);
-            int attempt = MAX_WALK_ATTEMPTS - left + 1;
-            rig.evidence(what + ".arrivedDistance", Math.round(away));
-            rig.evidence(what + ".walkAttempts", attempt);
-            if (away <= tolerance + 3) { onArrived.run(); return; }
-            rig.evidence(what + ".goto." + attempt, JourneyLeg.walkerEnd(rig));
-            if (left <= 1) { onStuck.run(); return; }
-            walkToColumn(rig, what, x, z, tolerance, budget, left - 1, onArrived, onStuck);
-        });
-    }
+    //
+    // There used to be a private copy here, and it was the version from BEFORE two fixes the
+    // shared one has since received — because a copy does not receive fixes:
+    //
+    //   * `<what>.arrivedY`. `Goal.XZ` has no y term, so `arrivedDistance=0` is equally true of a
+    //     body standing in the right column and thirteen blocks up its own pillar. Every rung
+    //     after a walk is planned as if the body were on the ground.
+    //   * `<what>.gotoEnd.<attempt>` on the ARRIVAL branch. `arrivedDistance=4, walkAttempts=1`
+    //     is the same two digits for a body that walked here and stopped, and one the walker GAVE
+    //     UP on four blocks out — and the tolerance accepts both.
+    //
+    // Neither had reached this file. The one call site passed `tolerance=2`, where the old test
+    // `away <= tolerance + 3` and the shared `away <= ARRIVED_WITHIN` are both `<= 5`, so the swap
+    // changed nothing but what gets recorded. (The same morning, 2026-08-23, a different pair of
+    // "six identical lines" turned out to be the same defect twice — a duplicate is not merely
+    // untidy, it is a place fixes do not arrive.)
 
     /**
      * Dig the block under the body, let it fall in, repeat until its feet reach {@code targetY}.
