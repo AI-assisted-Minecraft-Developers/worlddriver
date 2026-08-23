@@ -299,6 +299,11 @@ janitor 报的是「`JourneyEndRungs:2707` 自己复制了一份 `walkToColumn`�
   按单一 id 收集会从另一半旁边走过去。三条腿在**品类之间共享**，每条走向最近的那一件；
   按品类各给三条腿会让一堆牛肉吃光预算，而两格外那一块猪排永远没人去。
 
+  **全梯扫过一遍，只有 6 级漏**（2026-08-23，只读）：床（`collectByHand(woolId, 2, …)`）、
+  烈焰棒（`BLAZE_PICKUP_LEGS`）、末影珍珠（`MAX_PICKUP_LEGS`）、矿脉（`raw_iron`）、
+  燧石、工作台 —— 每一处都在。**这条族到此关上**，不用再扫第二遍。
+  真梯的对照读数：9 级 `vein1/vein2.pickup.left = 0`、`onGround = 0`，同一套例程工作正常。
+
   **预登记**（编译后跑一趟 `-Prehearse=FOOD`）：
 
   | `pickup.walks` | `pickup.left` | 判 |
