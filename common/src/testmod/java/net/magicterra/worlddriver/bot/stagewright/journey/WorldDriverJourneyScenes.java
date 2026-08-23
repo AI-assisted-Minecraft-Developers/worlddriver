@@ -758,6 +758,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             int attempt = MAX_WALK_ATTEMPTS - left + 1;
             rig.evidence(what + ".arrivedDistance", Math.round(away));
             rig.evidence(what + ".walkAttempts", attempt);
+            // The goal is Goal.XZ — two dimensions, deliberately. So `arrivedDistance=0` is TRUE of a
+            // body standing in the right column and thirteen blocks up its own pillar, and true again
+            // of one at the bottom of a shaft. Neither the distance nor the attempt count can tell
+            // those apart, and every rung after this one is planned as if the body were on the ground.
+            // Recorded on BOTH branches (above the arrival test) because the give-up branch needs it
+            // just as much. Evidence only — the judge is unchanged; the fix, when it comes, belongs to
+            // whatever left the body up there, not here.
+            rig.evidence(what + ".arrivedY", at.getY() + "（起 " + before.getY() + "，净升 "
+                    + (at.getY() - before.getY()) + "），脚下="
+                    + rig.player().level().getBlockState(at.below()));
             if (away <= ARRIVED_WITHIN) {
                 // WHAT THE WALKER SAID, on the ARRIVAL path as well — the row this pair could not
                 // carry. `arrivedDistance=4, walkAttempts=1` is the same two digits for two different
