@@ -233,7 +233,9 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         this.keptAtStart = Walker.guardKeptPlans;
         this.advancesAtStart = Walker.stepAdvancesLogged;
         this.strideFiresAtStart = Walker.strideGuardFires;
-        this.strideSkipsAtStart = Walker.strideGuardSkips.clone();
+        this.strideSkipsAtStart = new long[Walker.STRIDE_SKIP_REASONS.length];
+        for (int i = 0; i < strideSkipsAtStart.length; i++)
+            strideSkipsAtStart[i] = Walker.strideGuardSkips.get(i);
         // THE leg boundary, for everything that is budgeted per leg. Walker#newLeg's note says why
         // it is taken from here and not given a definition of its own.
         Walker.newLeg();
@@ -693,9 +695,9 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
         StringBuilder sb = new StringBuilder("这一段里 stride 守卫点火 ")
                 .append(Walker.strideGuardFires - strideFiresAtStart)
                 .append(" 次，没点火的原因分布：");
-        for (int i = 0; i < Walker.strideGuardSkips.length; i++)
+        for (int i = 0; i < Walker.STRIDE_SKIP_REASONS.length; i++)
             sb.append(i == 0 ? "" : "，").append(Walker.STRIDE_SKIP_REASONS[i]).append('=')
-              .append(Walker.strideGuardSkips[i] - strideSkipsAtStart[i]);
+              .append(Walker.strideGuardSkips.get(i) - strideSkipsAtStart[i]);
         return sb.toString();
     }
 

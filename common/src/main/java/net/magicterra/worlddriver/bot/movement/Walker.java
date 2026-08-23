@@ -2064,8 +2064,16 @@ public final class Walker {
      * <p>Exactly one bucket moves per tick — the method is a chain of early returns — so the sum is
      * the tick count the guard ran over, and any single bucket's share is directly readable.
      * Write-only breadcrumbs on the same terms as the counters above; nothing branches on them.
+     *
+     * <p>{@link java.util.concurrent.atomic.AtomicLongArray}, not a bare {@code long[]}: every
+     * counter around this one is {@code volatile} precisely because the instruments reading them
+     * hold no Walker and sit on another thread. A plain array's ELEMENTS carry no such guarantee,
+     * so「all six buckets are zero」would have had a second reading —「the writes are not visible
+     * yet」— on the one occasion the row exists to settle. A reading that cannot distinguish its
+     * own staleness from its subject is not a reading.
      */
-    public static final long[] strideGuardSkips = new long[6];
+    public static final java.util.concurrent.atomic.AtomicLongArray strideGuardSkips =
+            new java.util.concurrent.atomic.AtomicLongArray(6);
     /** Names for {@link #strideGuardSkips}, in bucket order, so the instrument printing them and
      *  the code filling them cannot drift apart. */
     public static final String[] STRIDE_SKIP_REASONS = {
@@ -2078,7 +2086,7 @@ public final class Walker {
      *  early return in {@link #strideFloorGuard} stays a one-liner and none can be added without
      *  naming which bucket it belongs to. */
     private static boolean skipStride(int reason) {
-        strideGuardSkips[reason]++;
+        strideGuardSkips.incrementAndGet(reason);
         return false;
     }
 

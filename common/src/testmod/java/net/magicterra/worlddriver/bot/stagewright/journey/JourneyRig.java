@@ -1436,12 +1436,47 @@ public final class JourneyRig {
         evidence("death.stage", stage.name());
         evidence("death.legTicks", legTicks);
         evidence("death.driving", driving == null ? "无驱动器" : driving);
+        // WHY THE STRIDE GUARD SAID NOTHING, on every rung, because死 is where it matters.
+        // The buckets first shipped hanging off JourneyFlight.report(), and JourneyFlight is
+        // constructed only by JourneyNetherRungs — so rung 12, which burned to death walking into
+        // a source pool, could never print them. Here is rig-level: every rung's death passes
+        // through this method, which is exactly the set of occasions the reading exists for.
+        evidence("death.strideGuard", strideGuardLine());
         diedOf = "身体死了：" + how + "（" + stage.name() + " 级，位置 "
                 + fp.blockPosition().toShortString() + "，本段第 " + legTicks + " tick，驱动器 "
                 + (driving == null ? "无" : driving) + "）—— 死后的每一条读数都在描述一具尸体："
                 + "背包已掉落、按键不再产生位移、挖掘不再推进，而行走的判词会把这一切报成「走不到」。";
         WorldDriverCommon.LOG.error("[journey] {}", diedOf);
         return true;
+    }
+
+    /**
+     * The stride guard's fires and its six skip buckets, run-cumulative.
+     *
+     * <p>Cumulative on purpose, unlike the per-leg deltas {@code JourneyFlight} reports: this is
+     * written once, at a death, and a death is the end of the run — so「this run」and「up to here」
+     * are the same window, and a delta would need a baseline nobody took.
+     *
+     * <p><b>All-zero has two readings and the line says so.</b> Either the guard was never called
+     * on this run, or the walker ticked so little that it never got the chance; the sum IS the
+     * number of ticks it ran over, so a zero sum is the second and a zero in one bucket with a
+     * non-zero sum is a real share. Naming the buckets from {@link Walker#STRIDE_SKIP_REASONS}
+     * rather than by index keeps this row and the code filling it from drifting apart.
+     */
+    private String strideGuardLine() {
+        long sum = 0;
+        StringBuilder sb = new StringBuilder();
+        String[] names = net.magicterra.worlddriver.bot.movement.Walker.STRIDE_SKIP_REASONS;
+        for (int i = 0; i < names.length; i++) {
+            long v = net.magicterra.worlddriver.bot.movement.Walker.strideGuardSkips.get(i);
+            sum += v;
+            sb.append(i == 0 ? "" : "，").append(names[i]).append('=').append(v);
+        }
+        return "stride 守卫整趟点火 "
+                + net.magicterra.worlddriver.bot.movement.Walker.strideGuardFires
+                + " 次；没点火 " + sum + " tick"
+                + (sum == 0 ? "（合计为 0 —— 守卫这一趟根本没被调用到，问题不在守卫内部，"
+                              + "先看走行器有没有在 tick）" : "，分布：" + sb);
     }
 
     /** How many recent blows the death row carries. Enough to tell one big hit from a slow drain. */
