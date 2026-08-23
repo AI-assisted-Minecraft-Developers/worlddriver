@@ -243,11 +243,20 @@ public final class BotInteract {
         // A reading that exists only under walkerDebug is a reading the ladder never takes, and a
         // zero-row log then cannot tell「it never placed」from「it never printed」. Placements are
         // rare enough (a tower course is one) that the volume is not worth the blind spot.
-        LOG.info("[place] {} 手持={} 点击格={} 面={} 落点={} 身体y={} 结果={}",
+        // The row says 邻格→<what is actually there now>, NOT「落点」. useItemOn is ONE verb for two
+        // different acts: placing a block, and interacting with one (opening a chest, using a table —
+        // those show up as 手持=minecraft:air 成功). Calling the neighbour cell a「落点」made the first
+        // reading of this log count twelve interactions as twelve placements. The cell's post-call
+        // state is the only thing that separates them, and the client predicts a placement in the same
+        // tick, so it is readable right here.
+        BlockPos target = clickBlock.relative(face);
+        LOG.info("[place] {} 动作={} 手持={} 点击格={} 面={} 邻格={}→{} 身体y={} 结果={}",
                 r.consumesAction() ? "成功" : "拒绝",
+                held.getItem() instanceof BlockItem ? "放置" : "交互",
                 BuiltInRegistries.ITEM.getKey(held.getItem()) + "×" + held.getCount(),
                 clickBlock.toShortString(), face,
-                clickBlock.relative(face).toShortString(),
+                target.toShortString(),
+                BuiltInRegistries.BLOCK.getKey(p.level().getBlockState(target).getBlock()),
                 String.format(Locale.ROOT, "%.3f", p.getY()), r);
         return r;
     }
