@@ -44,7 +44,7 @@ private static AvatarInput in(Minecraft mc, LocalPlayer p) {
 
 | # | 做什么 | 依据 |
 |---|---|---|
-| Q1 | `BunkerChain:150` + `DrownEscapeChain:199` 各补一句 `mc.gameMode.continueDestroyBlock(pos, BotInteract.pickFaceTowardsPlayer(pos, p))`（照 `AntiSuffocate:158`） | 拍板 1；F2b(b) |
+| ~~Q1~~ | ✅ **已作废（2026-08-23 核实）——不要再做**。见下 | 拍板 1；F2b(b) |
 | Q2 | `ContactDamageEscape` / `LavaProximityEscape` 的 `forward` 升级成 `commandMove`，javadoc 写明「commandForward 会被同 tick 的 walker 静默丢弃」 | 拍板 5；F1 |
 | Q3 | `WalkerTickPrelude:255,302` 的脚基判据改成眼→格心，并把判据抽成 `BotUtil` 里挨着 `standingEye` 的一个方法，五处全指过去 | 拍板 3；B-1 |
 | Q4（待判） | `BotInteract.releaseKeys()` 收敛（见 §1b 注 3） | 我提的，未拍板 |
@@ -53,7 +53,29 @@ private static AvatarInput in(Minecraft mc, LocalPlayer p) {
 **Q1 的一条注意**：`pickFaceTowardsPlayer` **已经是**唯一取法（`AntiSuffocate:155` 就在用），
 不存在「第六种算法」需要收敛 —— 那一条拍板意见的前提不成立，两处直接照抄即可。
 
-### Q1 的确切改法（冻结期已验证，放行后照抄）
+### ~~Q1 的确切改法~~ —— 作废，那三处早就是这么写的
+
+核实（2026-08-23）：`grep keyAttack.setDown(true)` 全模组只有三处，**三处都已经在调
+`BotInteract.continueDestroy`**：
+
+| 处 | 按键行 | 管线行 |
+|---|---|---|
+| `AntiSuffocate` | :161 | 同块内 |
+| `BunkerChain` | :151 | **:163 `continueDestroy(mc, p, below)`** |
+| `DrownEscapeChain` | :211 | **:214 `continueDestroy(mc, p, lid)`** |
+
+而 `BotInteract.continueDestroy`（:113-118）**正文就是这条队列要求补的两句**：
+
+```java
+boolean ok = mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p));
+if (ok) p.swing(InteractionHand.MAIN_HAND);
+```
+
+也就是说这条队列写下的时候，它要求的改动**已经以更好的形状落过了**——抽成了共用方法，
+而不是在两个类里各抄两行。照队列做只会把它抄回去。**队列会过期，代码不会**：
+下一轮 janitor 拿到任何一条「补上 X」之前，先 grep X 在不在。
+
+↓ 以下是这条队列的原文，留档不执行。
 
 两个文件都已有 `mc`、`p`(`LocalPlayer`)，且都已 `import static ...BotInteract.<…>`，
 所以各加**一行 static import** + **一行调用**：
