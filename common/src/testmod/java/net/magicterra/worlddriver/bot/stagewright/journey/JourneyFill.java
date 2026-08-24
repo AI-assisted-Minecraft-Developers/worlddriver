@@ -292,7 +292,7 @@ public final class JourneyFill {
                 rig.evidence(tag + ".fromHere", rig.player().blockPosition().toShortString()
                         + " 已经看得见源块 " + inReach.toShortString() + "（够得着），不走过去了"
                         + "；" + eyeNow(rig));
-                JourneyHands.holdForUse(rig, Items.BUCKET, tag);
+                if (!bucketInHand(ctx, rig, tag)) return;
                 scoop(ctx, rig, src, inReach, tag, wanted, id, lava, tries, AIM_TRIES, then);
                 return;
             }
@@ -356,9 +356,37 @@ public final class JourneyFill {
             BlockPos aim = seen != null ? seen : (spot == null ? src : spot.source());
             if (!aim.equals(src)) rig.evidence(tag + ".aim", src.toShortString() + " → "
                     + aim.toShortString() + "（计划的那格被挡住，改瞄看得见的一格）");
-            JourneyHands.holdForUse(rig, Items.BUCKET, tag);
+            if (!bucketInHand(ctx, rig, tag)) return;
             scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, AIM_TRIES, then);
         });
+    }
+
+    /**
+     * The bucket, or a stop — the guard the pour side has always had and this side never did.
+     *
+     * <p>{@code holdForUse} returns a boolean and all four of this file's calls threw it away, so a
+     * fill whose hand could not be got aimed anyway. Ladder j48 measured the whole shape:
+     *
+     * <pre>
+     * lava6.hand    = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe；桶存量 空=0 水=1 岩浆=0
+     * lava6.aimsAt#5 = -11, 63, 16 Block{minecraft:lava} 源块=true 液位=8      ← the ray was perfect
+     * lava6.result  = PASS                                                    ← a pickaxe's use
+     * (verdict)       装不到 minecraft:lava_bucket
+     * </pre>
+     *
+     * <p>Three re-aims and three cleared sightlines were spent on a body holding a pickaxe, and the
+     * rung then reported a fill problem — about a leg whose real cause was the pour before it
+     * leaving the only bucket full of water. {@code JourneyPortalRung}'s pour has stopped on exactly
+     * this since「不要花掉一次不可能成功的 use」was written for it; the fill is the same sentence on
+     * the other side of the trip, and only one side had it.
+     */
+    private static boolean bucketInHand(SceneContext ctx, JourneyRig rig, String tag) {
+        if (JourneyHands.holdForUse(rig, Items.BUCKET, tag)) return true;
+        ctx.fail("装桶的那只手不是 minecraft:bucket：" + JourneyHands.heldOnBoth(rig)
+                + "；" + JourneyHands.bucketStock(rig)
+                + " —— 不装了。空手 use 只会返回 PASS，重瞄和清射线都会白花，"
+                + "然后这一级会把失败写成「装不到…」，而真因在拿不到桶之前");
+        return false;
     }
 
     /** How many times a fill may re-aim, or clear its own line, before it spends the attempt.
@@ -611,7 +639,7 @@ public final class JourneyFill {
         // cobblestone, `recover1.aimsAt=-10,57,38 water 源块=true 液位=8` said the ray was dead
         // on the source, and `recover1.result=PASS` — a pickaxe's use, indistinguishable from a
         // bucket that missed, which is the same trap `holdForUse` was written for.
-        JourneyHands.holdForUse(rig, Items.BUCKET, tag);
+        if (!bucketInHand(ctx, rig, tag)) return;
         // WHAT THIS USE CHANGED, not what the bag happens to hold. `carrying(id) >= 1` is the
         // same claim as "this fill worked" only while the body can carry exactly one — and it
         // could, so the two were indistinguishable and the weaker one shipped. Carry two and the
@@ -744,7 +772,17 @@ public final class JourneyFill {
                 return;
             }
             rig.avatar().aimAtBlock(more);
-            JourneyHands.holdForUse(rig, Items.BUCKET, tag + ".more" + carried);
+            // The one call in this file that must NOT stop the rung when the hand is wrong — this
+            // whole method is a bonus, and its own contract two branches down already says
+            //「带着已经装到的下去，不判红」. Going home one bucket light costs a trip; failing here
+            // costs the run. So the guard is the same question with the other answer: give up the
+            // bonus rather than spend a use that cannot work.
+            if (!JourneyHands.holdForUse(rig, Items.BUCKET, tag + ".more" + carried)) {
+                noteLoad(rig, tag, carried, "第 " + (carried + 1) + " 桶拿不到空桶："
+                        + JourneyHands.heldOnBoth(rig) + " —— 加装是白赚的，不为它花一次 use");
+                then.run();
+                return;
+            }
             int before = rig.carrying("minecraft:lava_bucket");
             var result = rig.avatar().useItemInHand();
             int after = rig.carrying("minecraft:lava_bucket");
