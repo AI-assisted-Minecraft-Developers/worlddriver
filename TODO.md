@@ -536,6 +536,57 @@ ClassCastException: HashMap$Node cannot be cast to HashMap$TreeNode
 ⇒ **J32-A 回测层双 loader 结案**：推导与释放已验，且两个 loader 上是同一组数。
 **定价那半仍未验**——它只在 `ClientWorldView` 上存在，归现场层（真梯对 run 8）。
 
+### ✅✅ 现场层：**3 级在出厂配置上过了**（`results-j32a-shipping.jsonl`，`2685d623`）
+
+`:fabric:runJourneyIntegratedServer`，`BUILD SUCCESSFUL in 14m 43s`，
+`journey.stagingCalls = 0`（零布景，真爬）。与 run 8 **同载具、同种子、一个变量**：
+
+| 读数 | run 8（出厂，无豁免） | 本趟（出厂 + 豁免） | 竞技场基线（税 1.0） |
+|---|---|---|---|
+| 3 级判词 | **FAIL** | **PASS** | PASS |
+| 原木 | 6 | **12** | 13 |
+| tick | 13 899 | **5 974** | 2 914 |
+| **首棵树产出** | **4** | **7** | 7 |
+| 退休行（那一族） | **49** | **19** | — |
+
+⇒ 按预登记三态判：**已验**。木税就是 run 8 里 3 级失败的病因，
+而定域豁免在**不动 travel 定价**的前提下把它解掉了——
+`wood.firstTreeLogs=7` 与预登记写的「回到 ~7」**一模一样**，这是最硬的一条：
+它量的正是「够不够得着树干第五根」这件事本身。
+
+⚠️ **一条判据没有按字面兑现，如实记**：我写的是「退休行塌到个位数」，实际是 **19**（49 → 19）。
+方向、量级、结局都对，但 19 不是个位数。这 19 行是不是还有第二个病因（J28 的破坏乘子），
+**本趟答不了**——要答得先有一趟税=1.0 的同载具计数当地板，目前没有那份日志。
+📌 **不许**把 19 记成「已经降到底了」，也不许记成「还有病」。它现在是个**没有地板的数**。
+
+### 真梯这趟停在 8 级（熔炉），死因与木税无关
+
+`furnace.craftError = 缺 1 个 cobblestone`，`cobblestone.before = 7`（需要 8）。
+判词行：`rung.FURNACE = FAILED — 补做工作台：地上也没有，只能再买一张`。
+
+🔴 **顺带查出一条**：补料那一行**说了谎**——
+
+```
+furnace.topUp        = 补料 1 块 —— 开场 7，不足 8；上游漏了料，这一趟不是纯合成
+furnace.topUp.after  = 7          ← 补完还是 7
+journey.stagingCalls = 0          ← 而且没有任何布景调用被记账
+```
+
+两个独立读数都说**什么都没加进去**，可那一行的措辞是完成时的（「补料 1 块」）。
+它描述的是**意图**，不是**结果**（[[evidence-that-lies]]）。
+⇒ 单开一号，修法形状是「让它打自己做成了什么，而不是打自己打算做什么」。
+
+### 📌 棘轮欠账：BED 连续 8 趟全绿，却还是 `gating=false`
+
+`JourneyStage.BED` 至今 `gating=false`。而 `JourneyStage` 自己的 javadoc 写着策略：
+「when a stage first goes green, it is flipped to required **in the same commit**,
+which is what stops a frontier from quietly sliding backwards」。
+查了历史结果文件：`ladder11/12/13/14/15/16/17` **加本趟共 8 趟，`wd.journey07Bed` 趟趟 PASS**。
+
+⇒ 棘轮**没扣**。后果有两面：BED 若回归，今天**不会**变红；
+且 `journey.height` 报的是 `FOOD` 而不是 `BED`（这一条**不是缺陷**——非闸级本就不计高度，
+先查了 `gating` 字段的含义才没把它当成少报）。修法就是按仓库自己的策略把它翻过来。
+
 ### 该怎么判（现场层，对照 run 8）
 
 ⚠️ 要真的只有一个变量，本趟必须把 `JourneyRig` 钉回 `applyCompiledDefaults()`——
