@@ -142,15 +142,45 @@ final class JourneyStation {
      * Two tests of the same condition that disagree are a bug generator: one of them is always wrong,
      * and which one is not knowable from the failure.
      */
+    /**
+     * Would the placer find somewhere to put a station from this cell?
+     *
+     * <p>Mirrors {@code PlaceNearby.place}'s scan — the same eight offsets over the same three
+     * {@code dy} rows — but its support test is <b>stricter on purpose</b>, and the difference is a
+     * measured one.
+     *
+     * <p>{@code PlaceNearby} accepts any support that is not air and not replaceable, and then
+     * clicks its top face. A LILY PAD satisfies that and cannot be built on. Ladder j47's furnace
+     * rung died of exactly this — three ticks, sixteen cobblestone in the bag, a table in the bag,
+     * and {@code 需要工作台（背包里有，但脚边没有可放置的空位）} — with the one line that says why
+     * in the game log rather than the results:
+     *
+     * <pre>
+     * [craft] placeNearby: click failed cell=67,64,59 (air) below=67,63,59 (lily_pad)
+     * </pre>
+     *
+     * <p>So the whole recovery below never ran: this method answered「there is room」, returned
+     * without writing a row, and the placer then failed on the one candidate it had. The rung
+     * reported the message the driver gives for「no spot」about a body that had a spot and could not
+     * use it — a message that sends a reader looking for the wrong thing.
+     *
+     * <p>{@code isFaceSturdy(UP)} is the condition the game itself applies to placing on a top face,
+     * so this is not a heuristic tightened by guesswork: it is the question the click will ask, put
+     * before the walk instead of after it. Being stricter than the placer can only send the body to
+     * ground that works; the placer's own copy stays as it is — see TODO J46 for why that one is an
+     * engine change and not this commit's.
+     */
     private static boolean placerWouldFindRoom(ServerLevel lvl, BlockPos foot) {
         int[][] off = {{0, -1}, {0, 1}, {1, 0}, {-1, 0}, {1, -1}, {1, 1}, {-1, -1}, {-1, 1}};
         for (int dy : new int[]{0, -1, 1}) {
             for (int[] o : off) {
                 BlockPos cell = foot.offset(o[0], dy, o[1]);
+                BlockPos below = cell.below();
                 var cs = lvl.getBlockState(cell);
-                var bs = lvl.getBlockState(cell.below());
+                var bs = lvl.getBlockState(below);
                 if (!cs.canBeReplaced()) continue;
                 if (bs.isAir() || bs.canBeReplaced()) continue;
+                if (!bs.isFaceSturdy(lvl, below, net.minecraft.core.Direction.UP)) continue;
                 return true;
             }
         }

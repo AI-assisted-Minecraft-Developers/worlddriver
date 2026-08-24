@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -16,33 +17,39 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * A craft with nowhere to put its table, and the step aside that gives it one.
+ * A support that passes every test the placer has and still cannot be built on.
  *
  * <p><b>Why this is a scene and not another ladder run.</b> Three fixes in a row were recoveries for
  * rare failures, and three consecutive ladder runs — stopping at rungs 11, 10 and 6, each on a
- * different cause — did not exercise a single one of them. A ladder can only answer「did it happen
- * this time」. What has to be answered is「when it happens, does the recovery work」, and the only
- * way to ask that is to stage the occasion. This is the first of those.
+ * different cause — did not exercise a single one. A ladder answers「did it happen this time」; what
+ * has to be answered is「when it happens, does the recovery work」.
  *
- * <p><b>The occasion, measured.</b> Ladder j47's furnace rung failed in THREE ticks with
- * {@code cobblestone.before = 16}, {@code furnace.topUp = 不需要} and
- * {@code craftingTable.keptInBag = 1} — nothing missing and the table in the bag — on
- * {@code 需要工作台（背包里有，但脚边没有可放置的空位）}. The bed rung's walk home had stopped three
- * blocks short of its goal, inside the arrival tolerance, leaving the body at {@code 67,63,60} on
- * {@code tall_seagrass}.
+ * <p><b>What the first version of this scene found, which is why it is now about lily pads.</b> It
+ * staged the body over deep water and asserted a recovery that had just been added to the craft.
+ * The scene went red on that assertion and green on everything else, and the evidence said why:
+ * {@code station.steppingOff.0 = …219 → …216} then {@code furnace.crafted = 1}. The job already
+ * belonged to {@code JourneyStation.makeRoomForAStation}, which runs earlier and is strictly more
+ * capable, so the new retry never got a turn. The retry was removed; a scene paid for itself inside
+ * five minutes by deleting a fix instead of confirming it.
  *
- * <p><b>The staging matches the real predicate, not the symptom.</b> {@code PlaceNearby.place} walks
- * eight horizontal offsets across three {@code dy} rows and takes the first cell that
- * {@code canBeReplaced()} and whose cell BELOW is neither air nor replaceable. Water passes the
- * first test and fails the second, so what kills the craft is not「the body is wet」— it is that
- * every candidate's SUPPORT is water. That distinction is load-bearing: ladders j34 and j46 both
- * ended the bed rung on {@code 脚下=water} and both crafted the furnace fine, so a scene staged on
- * wetness would assert something the passing runs also satisfy.
+ * <p><b>The occasion that is real.</b> Ladder j47's furnace rung failed in three ticks holding
+ * sixteen cobblestone and a table, on {@code 需要工作台（背包里有，但脚边没有可放置的空位）}, and
+ * {@code makeRoomForAStation} wrote no row at all — it had answered「there is room」. The one line
+ * that says why lives in the game log rather than the results:
  *
- * <p><b>Not staged to the threshold.</b> The pool is four cells of water deep where two would do and
- * reaches nine cells across where three would do; dry land sits six to ten blocks out where the
- * search allows sixteen. A scene that only just meets its own precondition stops testing the fix the
- * first time an unrelated constant moves.
+ * <pre>
+ * [craft] placeNearby: click failed cell=67,64,59 (air) below=67,63,59 (lily_pad)
+ * </pre>
+ *
+ * A lily pad is not air and cannot be replaced, so it passes the support test both the placer and
+ * the recovery use — and its top face holds nothing. The rung then reported「no spot」about a body
+ * that had a spot it could not use.
+ *
+ * <p><b>The staging is taken from the body, not predicted.</b> A body dropped into water settles at
+ * whatever row the surface puts it in, and the whole point of this arena is that the pad sits in the
+ * body's OWN row. So the pool is built first, the body is dropped and stepped, and only then is the
+ * pad placed beside where it actually came to rest. Predicting that row is how a scene ends up
+ * asserting on geometry it does not have.
  */
 public final class JourneyWorkableSpotScenes implements SceneProvider {
 
@@ -56,16 +63,15 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
     /** The water surface, as a dy offset inside the arena box. */
     private static final int SURFACE = 20;
 
-    /** How deep the pool is under the body. Four: {@code PlaceNearby} probes {@code dy} of 0, −1 and
-     *  +1, so two would already leave every support wet — this is double that, on purpose. */
+    /** How deep the pool is. Four: the placer probes {@code dy} of 0, −1 and +1, so two would already
+     *  leave every support wet — this is double that, so a body that settles a row lower than
+     *  expected is still over water on every side. */
     private static final int DEPTH = 4;
 
-    /** Half-width of the pool. Four: the probe only ever looks one cell out, so this is four times
-     *  what the precondition needs and survives a body that drifts a cell while settling. */
+    /** Half-width of the pool. Four: the probe only ever looks one cell out. */
     private static final int POOL = 4;
 
-    /** Where the dry platform starts and ends, in +x. Six out, so the walk is a real leg rather than
-     *  a step, and well inside {@code WORKABLE_SEARCH = 16}. */
+    /** Where the dry platform starts and ends, in +x. */
     private static final int SHORE_NEAR = 6;
     private static final int SHORE_FAR = 10;
 
@@ -74,8 +80,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
         ctx.cleanup(() -> clearBox(ctx));
         stage(ctx);
 
-        BlockPos foot = ctx.rel(0, SURFACE, 0);
-        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
+        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, SURFACE, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 16));
         fp.getInventory().items.set(1, new ItemStack(Items.CRAFTING_TABLE, 1));
@@ -83,60 +88,74 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
         ServerPlayerAvatar av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
-        // THE CONTROL, before the subject: prove the staged spot really refuses a table. Without it
-        // a green run cannot tell「the recovery worked」from「there was never anything to recover
-        // from」, which is the failure mode that made three ladder runs worthless.
-        BlockPos stood = fp.blockPosition();
-        ctx.record("staged.foot", stood.toShortString() + "，脚格="
-                + level.getBlockState(stood).getBlock() + "，脚下="
-                + level.getBlockState(stood.below()).getBlock());
-        ctx.record("staged.supportsDry", supportsAround(level, stood));
-        ctx.check(supportsAround(level, stood))
-                .as("控制组：布景必须真的放不下桌子 —— 八邻三层里支撑面不是水的格数必须是 0，"
-                    + "否则下面那条「补救生效」是 0==0（身体 " + stood.toShortString() + "）")
-                .isEqualTo(0);
+        BlockPos foot = fp.blockPosition();
+        BlockPos pad = foot.east();
+        level.setBlockAndUpdate(pad, Blocks.LILY_PAD.defaultBlockState());
+        ctx.record("staged.foot", foot.toShortString() + "，脚格="
+                + level.getBlockState(foot).getBlock() + "，脚下="
+                + level.getBlockState(foot.below()).getBlock());
+        ctx.record("staged.pad", pad.toShortString() + " = " + level.getBlockState(pad).getBlock());
 
-        BlockPos dry = JourneyTerrain.nearestDryColumn(level, stood, 16);
-        ctx.record("staged.dryLand", dry == null ? "16 格内没有干柱" : dry.toShortString());
-        ctx.check(dry).as("控制组：岸必须够得着，否则补救无路可走").isNotNull();
+        // THE CONTROL, and it is the whole finding: the staged spot has EXACTLY ONE support the old
+        // test accepts, that support is the pad, and NOTHING here is sturdy enough to build on. A
+        // green run without these three numbers could not tell「the recovery worked」from「the
+        // staging never posed the question」.
+        int loose = supports(level, foot, false);
+        int sturdy = supports(level, foot, true);
+        ctx.record("staged.supports", "旧判据（非空气且不可替换）认可 " + loose
+                + " 个，真能承重（isFaceSturdy UP）的有 " + sturdy + " 个");
+        ctx.check(loose > 0).as("控制组 A 旧判据必须被骗过去，否则这一格根本不是 j47 那个场合："
+                + loose + " 个").isTrue();
+        ctx.check(sturdy).as("控制组 B 而真正承得住的必须一个都没有，否则合成本来就会成功，"
+                + "下面「补救跑了」是 0==0：" + sturdy + " 个").isEqualTo(0);
+        ctx.check(level.getBlockState(pad).is(Blocks.LILY_PAD))
+                .as("控制组 C 睡莲要真的还在（水没冲走它）：" + level.getBlockState(pad).getBlock())
+                .isTrue();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.FURNACE, driver);
         WorldDriverJourneyScenes.craftKeepingTheTable(rig, "minecraft:furnace", 3_000, () -> {
             BlockPos ended = fp.blockPosition();
-            String noRoom = String.valueOf(rig.evidenceOf("furnace.noRoomFor"));
-            String stepped = String.valueOf(rig.evidenceOf("furnace.steppedAside"));
+            Object stepped = rig.evidenceOf("station.steppingOff.0");
             ctx.record("subject.endedAt", ended.toShortString() + "，脚下="
                     + level.getBlockState(ended.below()).getBlock());
+            ctx.record("subject.steppingOff", String.valueOf(stepped));
+            ctx.record("subject.noGround", String.valueOf(rig.evidenceOf("station.noGround")));
 
-            ctx.check(rig.evidenceOf("furnace.noRoomFor")).as(
-                    "A 补救**被观察到进入** —— `furnace.noRoomFor` 必须写了，否则这一趟根本没发作，"
-                    + "断言的是别的东西: " + noRoom).isNotNull();
-            ctx.check(rig.evidenceOf("furnace.steppedAside")).as(
-                    "B 补救**被观察到跑完** —— 只有 A 没有 B 就是「看见了但没动」: " + stepped).isNotNull();
-            ctx.check(supportsAround(level, ended) > 0).as(
-                    "C 挪完之后脚边真的有支撑面（判的是身体最后站在哪，不是走了几格）: 身体 "
-                    + ended.toShortString() + "，非水支撑面 " + supportsAround(level, ended)
-                    + " 个").isTrue();
+            ctx.check(stepped).as(
+                    "A 补救**被观察到进入** —— `station.steppingOff.0` 必须写了。它没写就说明 "
+                    + "placerWouldFindRoom 又被睡莲骗过去了，也就是这条修法没生效："
+                    + stepped).isNotNull();
+            ctx.check(supports(level, ended, true) > 0).as(
+                    "B 身体最后站的那一格真的承得住东西（判的是终点，不是走了几格）：" + ended
+                    + " 有 " + supports(level, ended, true) + " 个").isTrue();
             ctx.check(rig.carrying("minecraft:furnace")).as(
-                    "D 而且熔炉真的合出来了 —— A/B/C 全中而这一条不中，说明挪窝治的不是这个病")
+                    "C 而且熔炉真的合出来了 —— A/B 全中而这条不中，说明挪窝治的不是这个病")
                     .isEqualTo(1);
         });
     }
 
-    /** How many of the cells {@code PlaceNearby.place} would probe have a support that is neither air
-     *  nor replaceable — i.e. how many places a table could actually go. Written out here rather
-     *  than called because that method is private to the process and takes an {@code Avatar}; the
-     *  offsets and the two tests are copied deliberately and are what the control asserts on. */
-    private static int supportsAround(ServerLevel level, BlockPos foot) {
+    /**
+     * How many of the cells {@code PlaceNearby.place} probes have a usable support.
+     *
+     * <p>{@code sturdy=false} is the test the placer and {@code JourneyStation} both used before
+     * 2026-08-24: not air, not replaceable. {@code sturdy=true} adds the question the click will
+     * actually ask. Both are spelled out here rather than called because the placer's copy is
+     * private to a process and takes an {@code Avatar} — and because the SCENE's job is to state
+     * what it staged, in numbers a reader can check, rather than to agree with the code under test
+     * by construction.
+     */
+    private static int supports(ServerLevel level, BlockPos foot, boolean sturdy) {
         int[][] off = {{0, -1}, {0, 1}, {1, 0}, {-1, 0}, {1, -1}, {1, 1}, {-1, -1}, {-1, 1}};
         int n = 0;
         for (int dy : new int[]{0, -1, 1}) {
             for (int[] o : off) {
                 BlockPos cell = foot.offset(o[0], dy, o[1]);
                 BlockPos below = cell.below();
-                if (!level.getBlockState(cell).canBeReplaced()) continue;
-                if (level.getBlockState(below).isAir()
-                        || level.getBlockState(below).canBeReplaced()) continue;
+                var cs = level.getBlockState(cell);
+                var bs = level.getBlockState(below);
+                if (!cs.canBeReplaced()) continue;
+                if (bs.isAir() || bs.canBeReplaced()) continue;
+                if (sturdy && !bs.isFaceSturdy(level, below, Direction.UP)) continue;
                 n++;
             }
         }
@@ -145,26 +164,18 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
 
     private static void stage(SceneContext ctx) {
         clearBox(ctx);
-        // The bed of the world, well under the pool so nothing in the probe's reach touches it.
         for (int dx = -POOL - 8; dx <= SHORE_FAR + 4; dx++)
             for (int dz = -POOL - 4; dz <= POOL + 4; dz++)
                 ctx.setBlock(dx, SURFACE - DEPTH - 1, dz, Blocks.STONE);
-        // The pool, four deep and nine across.
         for (int dx = -POOL; dx <= POOL; dx++)
             for (int dz = -POOL; dz <= POOL; dz++)
                 for (int dy = SURFACE - DEPTH; dy <= SURFACE; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.WATER);
-        // The shore: a solid platform whose top is the water's own row, so the walk out is flat and
-        // the leg being tested is「go somewhere workable」rather than「climb」.
-        for (int dx = SHORE_NEAR; dx <= SHORE_FAR; dx++)
+        // The shore, and the rim that lets the body wade out rather than climb: this scene is about
+        // the craft, and a body that cannot leave the pool would fail it for the wrong reason.
+        for (int dx = POOL + 1; dx <= SHORE_FAR; dx++)
             for (int dz = -3; dz <= 3; dz++)
-                for (int dy = SURFACE - DEPTH; dy <= SURFACE - 1; dy++)
-                    ctx.setBlock(dx, dy, dz, Blocks.STONE);
-        // And the rim between pool and shore, so the body can wade out rather than needing to swim
-        // up a wall — the scene is about the craft, not about climbing.
-        for (int dx = POOL + 1; dx < SHORE_NEAR; dx++)
-            for (int dz = -3; dz <= 3; dz++)
-                for (int dy = SURFACE - DEPTH; dy <= SURFACE - 1; dy++)
+                for (int dy = SURFACE - DEPTH; dy <= SURFACE; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.STONE);
     }
 
