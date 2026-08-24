@@ -583,9 +583,24 @@ journey.stagingCalls = 0          ← 而且没有任何布景调用被记账
 which is what stops a frontier from quietly sliding backwards」。
 查了历史结果文件：`ladder11/12/13/14/15/16/17` **加本趟共 8 趟，`wd.journey07Bed` 趟趟 PASS**。
 
-⇒ 棘轮**没扣**。后果有两面：BED 若回归，今天**不会**变红；
-且 `journey.height` 报的是 `FOOD` 而不是 `BED`（这一条**不是缺陷**——非闸级本就不计高度，
-先查了 `gating` 字段的含义才没把它当成少报）。修法就是按仓库自己的策略把它翻过来。
+把整张表列出来才看清这是**漏扣而不是设计**：
+
+| 梯级 | `gating` |
+|---|---|
+| RECON … PORTAL_KIT（`JourneyLedger.FLOOR` 及以下） | **全 true** |
+| **BED** | **false** ← 地板以下唯一的例外 |
+| OBSIDIAN … DRAGON（前沿） | 全 false |
+
+`gating` 标的是「引擎已经爬过」对「前沿」。BED 上头的 FURNACE / IRON / PORTAL_KIT 都已经是 true，
+只有它没翻 ⇒ **地板以下唯一一个「回归了也不会变红」的梯级**。已按仓库自己的策略翻过来。
+
+⚠️ **我差点把一条错的因果写进记录**：先前这一节说「翻过来 `journey.height` 就会报 BED」。
+**不会**。`JourneyLedger.height()` 走的是 `criticalPath()`，那是**另一个**标志，
+硬编码 `this != BED`，理由自陈「a bed is not progress toward the dragon」。
+两个标志问的是两件事——**「这里回归了要不要变红」**与**「够到它算不算climb 前进了」**——
+一个支线梯级完全可以第一问是、第二问否。`height=FOOD` 而 `rung.BED=REACHED` **不是缺陷**。
+（这也是先查 `gating()` 的调用点、再查 `height()` 的实现才没写错的：
+`gating()` 只喂 `Scene.withRequired(...)`，别的都不碰。）
 
 ### 该怎么判（现场层，对照 run 8）
 
