@@ -167,13 +167,13 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     }
 
     /**
-     * One rung, at the required-ness {@link JourneyStage#gating()} declares.
+     * One rung, at the required-ness {@link JourneyStage#gating()} declares, registered with
+     * {@code withArena(false)} because the journey never enters its plot.
      *
      * <p>The scene's {@code required} flag is read from the stage rather than written here, so
-     * promoting a rung is one edit in one place and cannot half-happen.
-     */
-    /**
-     * A rung. Registered with {@code withArena(false)}, because the journey never enters its plot.
+     * promoting a rung is one edit in one place and cannot half-happen. (This paragraph sat in a
+     * SECOND javadoc block stacked above the one below it, which javac silently drops — the two
+     * were merged on 2026-08-25 rather than one being deleted, because both are load-bearing.)
      *
      * <p>{@code JourneyRig}'s class note says it plainly: the harness force-loads each scene's arena
      * and the journey leaves it immediately — it plays at world spawn and walks for kilometres. So
@@ -836,7 +836,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         return id == null ? "minecraft:oak_log" : id.toString();
     }
 
-    /** Logs of every species the body is carrying — the wood stage does not care which tree it was. */
     /** The haul broken down by species — see the evidence line for why the total is not enough. */
     private static String logKinds(JourneyRig rig) {
         StringBuilder sb = new StringBuilder();
@@ -853,6 +852,9 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             "minecraft:spruce_log", "minecraft:jungle_log", "minecraft:acacia_log",
             "minecraft:dark_oak_log", "minecraft:cherry_log", "minecraft:mangrove_log");
 
+    /** Logs of every species the body is carrying — the wood stage does not care which tree it was.
+     *  (This line sat stacked above {@link #logKinds}, where javac dropped it: the breakdown helper
+     *  was inserted between the doc and the method it describes.) */
     private static int totalLogs(JourneyRig rig) {
         int total = 0;
         for (String id : LOG_KINDS) {
@@ -1069,19 +1071,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     }
 
     /**
-     * Find prey, walking back to spawn once if there is none in view.
-     *
-     * <p>Where this rung STARTS is wherever the stone rung left the body, and that is not a fixed
-     * place: it is the far end of whatever cobblestone the stone rung had to walk to. Seventeen runs
-     * found a cow and the eighteenth found {@code [minecraft:cat, minecraft:frog]} — swamp fauna,
-     * ninety-six blocks of it — because the body simply began somewhere else.
-     *
-     * <p>The retry therefore has to CHANGE THE QUESTION, which the walk-retry on this ladder already
-     * learned once the hard way. Re-scanning from the same cell would ask the identical question and
-     * get the identical answer. Spawn is the one cell this seed has an animal claim about, so the
-     * body goes there and looks again — and only then is "no animals" a statement about the world.
-     */
-    /**
      * Write down where the animals are, while it is still early enough to be true.
      *
      * <p>Recon surveys terrain, and terrain stays put. This one does not — which is exactly why the
@@ -1129,10 +1118,26 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 () -> rig.settle(new HoldStill(20), 60, () -> hunt(ctx, rig, false)));
     }
 
-    private static void hunt(SceneContext ctx, JourneyRig rig, boolean mayWalkHome) {
+    /**
+     * Find prey, looking FURTHER once if there is none in view.
+     *
+     * <p>Where this rung STARTS is wherever the stone rung left the body, and that is not a fixed
+     * place: it is the far end of whatever cobblestone the stone rung had to walk to. Seventeen runs
+     * found a cow and the eighteenth found {@code [minecraft:cat, minecraft:frog]} — swamp fauna,
+     * ninety-six blocks of it — because the body simply began somewhere else.
+     *
+     * <p>The retry therefore has to CHANGE THE QUESTION. It changes the RADIUS, not the standpoint:
+     * see the branch below for the two walk-to-spawn premises that were tried and refuted, the
+     * second of them by the very survey written to support it. This javadoc used to say the
+     * opposite —「spawn is the one cell this seed has an animal claim about, so the body goes there
+     * and looks again」— while sitting stacked above {@link #surveyTheHerd}, where javac dropped it;
+     * the parameter that carried the same stale claim in its name ({@code mayWalkHome}) is the flag
+     * below.
+     */
+    private static void hunt(SceneContext ctx, JourneyRig rig, boolean mayWiden) {
         JourneyRig.Prey prey = rig.nearestPreyTarget(PREY_SEARCH_BLOCKS);
         rig.evidence("animalsNearby", rig.animalsNearby(PREY_SEARCH_BLOCKS));
-        if (prey == null && mayWalkHome) {
+        if (prey == null && mayWiden) {
             // Look FURTHER from where the body is, rather than walking somewhere else to look.
             //
             // Two premises were tried and both were wrong, and the second was refuted by the very
@@ -1238,7 +1243,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         });
     }
 
-    /** How far the food rung looks for something to eat. */
     /**
      * Walk back to world spawn, and record it when that fails.
      *
@@ -1263,15 +1267,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     }
 
     /**
-     * As above, under the calling rung's own evidence prefix.
-     *
-     * <p>Two rungs chase animals now — {@link #food} and {@link #bed} — and both have to hand the
-     * body back somewhere the rungs above can navigate from. Sharing the walk but not the key
-     * matters: a bed rung that recorded {@code food.strandedAt} would be describing the right cell
-     * under the wrong rung's name, and the next reader would go and investigate a hunt that was
-     * never the one that stranded it.
-     */
-    /**
      * How far below daylight is "in a hole" rather than "on uneven ground".
      *
      * <p>Eight, because that is more than the relief this route crosses on the surface and less
@@ -1281,6 +1276,15 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      */
     private static final int SUNK_BELOW = 8;
 
+    /**
+     * As above, under the calling rung's own evidence prefix.
+     *
+     * <p>Two rungs chase animals now — {@link #food} and {@link JourneyBedRung#bed} — and both have
+     * to hand the body back somewhere the rungs above can navigate from. Sharing the walk but not
+     * the key matters: a bed rung that recorded {@code food.strandedAt} would be describing the
+     * right cell under the wrong rung's name, and the next reader would go and investigate a hunt
+     * that was never the one that stranded it.
+     */
     static void walkHome(JourneyRig rig, String key, Runnable then) {
         BlockPos home = rig.ctx().level().getSharedSpawnPos();
         BlockPos at = rig.player().blockPosition();
@@ -1404,6 +1408,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         });
     }
 
+    /** How far the food rung looks for something to eat. */
     static final int PREY_SEARCH_BLOCKS = 96;
 
     /** Chunks pinned while it looks — enough that {@link #PREY_SEARCH_BLOCKS} is a real radius and
@@ -1785,7 +1790,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // dropped" and "it dropped and was never collected" all read as raw_iron=0, and they
             // live in three different files.
             rig.evidence(tag + ".raw_iron.onGround", rig.dropsNearby("minecraft:raw_iron", 48));
-            rig.collectByHand("minecraft:raw_iron", MAX_PICKUP_LEGS, tag, then);
+            rig.collectByHand("minecraft:raw_iron", JourneyRig.MAX_PICKUP_LEGS, tag, then);
         });
     }
 
@@ -1857,20 +1862,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     }
 
     /**
-     * Pick the table back up NOW, while the body is still standing next to it.
-     *
-     * <p>Chasing it later does not converge, and the ladder demonstrated that twice. Searching for a
-     * standing table at the next craft works only while the body has not gone anywhere: once the
-     * iron rung started working two and three veins, the next craft was a hundred blocks and several
-     * shafts away, {@code craftingTable.standing} came back {@code none}, and the run bought another
-     * table it could not afford — {@code 缺 1 个 oak_log} with five iron ingots in the bag. Widening
-     * that search is a race the body always wins.
-     *
-     * <p>So the reclaim happens where the cost is fixed: immediately after the craft, one block
-     * away. Silent when there is nothing standing, because {@code CraftProcess} does reclaim its own
-     * table most of the time and this is the backstop for when it does not.
-     */
-    /**
      * Craft one thing, with a table to craft it on, and leave holding that table.
      *
      * <p>The three steps have all existed for a while and only three of the ladder's crafts did all
@@ -1887,6 +1878,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * cost immediately after the craft, which is the only moment the table is guaranteed to be
      * within reach — thirty seconds later the rung has walked a hundred blocks and the 32-block
      * search that would find it again is looking in the wrong place.
+     *
+     * <p>Measured twice, on two different rungs, which is why widening that search was not the
+     * answer: besides the six-raw-iron run above, once the iron rung started working two and three
+     * veins its next craft was a hundred blocks and several shafts away —
+     * {@code craftingTable.standing=none} and another table the run could not afford,
+     * {@code 缺 1 个 oak_log} with five iron ingots in the bag. Chasing the table later is a race
+     * the body always wins. (This paragraph is the surviving half of a javadoc that used to sit
+     * stacked above this one, describing {@code reclaimTableIfLeftStanding} after that method had
+     * already moved to {@link JourneyStation}; its other claim — that the reclaim is silent when
+     * nothing is standing — had become the opposite of what that method does.)
      */
     static void craftKeepingTheTable(JourneyRig rig, String itemId, int budget, Runnable then) {
         craftKeepingTheTable(rig, itemId, budget, true, then);
@@ -1977,42 +1978,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         });
     }
 
-    /**
-     * Walk onto the drops a mine left behind, one at a time.
-     *
-     * <p>The scripted counterpart to {@code MineProcess}'s collect sweep, and it exists because the
-     * sweep is the one leg of the mining chain the ladder keeps losing material to:
-     * {@code broke 2/8, raw_iron=0, raw_iron.onGround=2, collect timed out after 240 ticks}, with
-     * the body five blocks from ore it had broken itself.
-     *
-     * <p>This does not fix the sweep and is not meant to — {@code wd.serverMineHarvestBuried} owns
-     * that. What it does is keep the rung's failure attributable: the scene READS the item's own
-     * position out of the world and walks to it, so a pickup that still does not happen cannot be
-     * blamed on a search. {@code pickup.walks} records how many legs it took, which is the number
-     * that says whether the sweep is getting better or worse.
-     *
-     * <p>Best-effort by design. Each leg is a {@link JourneyRig#settle}, so a drop in a place the
-     * walker cannot stand costs one leg rather than the whole rung.
-     */
-    // MOVED TO JourneyRig. It sat private here, so rung 14 could not reach it and did not collect at
-    // all: seven blazes killed, zero rods banked, `dropsNearby=2 根掉在地上没捡` printed beside the
-    // verdict. Two rungs needing the same walk is what the shared rig is for — and dropsNearby and
-    // nearestDrop, the pair it completes, were already there.
-
-    /**
-     * As above, under a caller-chosen evidence key.
-     *
-     * <p>The key is not decoration. Evidence entries overwrite by name, so two veins collecting the
-     * same item wrote {@code pickup.walks} / {@code pickup.target} over each other and the surviving
-     * pair described only the LAST vein. A run then read {@code vein1.raw_iron=0,
-     * vein1.raw_iron.onGround=2} — two ingots' worth lying where the body had just been — beside a
-     * {@code pickup.target} ten blocks away at the other vein, which says nothing about whether
-     * vein 1's collect ever walked anywhere. Same shape as the shaft and climb keys, which have
-     * been indexed from the start for exactly this reason.
-     */
-    /** @see JourneyRig#MAX_PICKUP_LEGS */
-    private static final int MAX_PICKUP_LEGS = JourneyRig.MAX_PICKUP_LEGS;
-
+    // collectByHand MOVED TO JourneyRig. It sat private here, so rung 14 could not reach it and did
+    // not collect at all: seven blazes killed, zero rods banked, `dropsNearby=2 根掉在地上没捡`
+    // printed beside the verdict. Two rungs needing the same walk is what the shared rig is for —
+    // and dropsNearby and nearestDrop, the pair it completes, were already there.
+    //
+    // Its two javadocs stayed behind and dangled here until 2026-08-25, describing a method this
+    // file no longer has (javac dropped both, since the next declaration was a constant). JourneyRig
+    // carries the rest of the argument; these are the two claims only this copy made, kept because a
+    // reader deciding whether to "fix" the scripted pickup needs them:
+    //   • it does NOT fix MineProcess's collect sweep and is not meant to — wd.serverMineHarvestBuried
+    //     owns that. It keeps the rung's failure attributable, by reading the item's own position out
+    //     of the world, so a pickup that still fails cannot be blamed on a search.
+    //   • best-effort by design: each leg is a JourneyRig#settle, so a drop somewhere the walker
+    //     cannot stand costs one leg rather than the whole rung.
 
     // =====================================================================================
     // 10 — the portal kit. Buckets and a flint-and-steel: the last thing the overworld owes.
@@ -2718,9 +2697,8 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>It also tears the run down — the body, its chunk ticket, the driver registry — on every
      * path, because the journey deliberately leaves state alive between its stages and something has
      * to be the end of it.
-     */
-    /**
-     * What a green ladder does NOT claim.
+     *
+     * <h2>What a green ladder does NOT claim</h2>
      *
      * <p>StageWright pins the world for every suite it runs — {@code WorldPin} freezes the clock at
      * midnight and turns off {@code doDaylightCycle}, {@code doWeatherCycle} and
@@ -2741,7 +2719,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * the channel they do not cover; the removal it points at is done at SPAWN. A row that states a
      * rule must state its exception, or it is not a reading — it is a belief.
      */
-
     private static void verdict(SceneContext ctx) {
         try {
             JourneyStage height = JourneyLedger.height();
