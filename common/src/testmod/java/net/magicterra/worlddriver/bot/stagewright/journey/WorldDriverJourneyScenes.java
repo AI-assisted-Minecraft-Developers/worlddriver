@@ -1895,6 +1895,41 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
 
     private static void craftKeepingTheTable(JourneyRig rig, String itemId, int budget,
                                              boolean mayFetchWood, Runnable then) {
+        craftKeepingTheTable(rig, itemId, budget, mayFetchWood, true, then);
+    }
+
+    /** How far to look for a column a station can stand on. Sixteen: far enough to leave the shallows
+     *  a walk home can end in, near enough that the walk itself is not a leg worth a diagnosis. */
+    private static final int WORKABLE_SEARCH = 16;
+
+    /**
+     * Move to somewhere a station can be put down, once.
+     *
+     * <p>Writes its row on every path — including「there was nowhere to go」— because a recovery that
+     * is silent when it declines is indistinguishable from one that never ran, and the retry above
+     * spends its only attempt either way.
+     */
+    private static void stepSomewhereWorkable(JourneyRig rig, String key, Runnable then) {
+        ServerLevel lvl = rig.ctx().level();
+        BlockPos at = rig.player().blockPosition();
+        BlockPos dry = JourneyTerrain.nearestDryColumn(lvl, at, WORKABLE_SEARCH);
+        rig.evidence(key + ".noRoomFor", at.toShortString() + " 脚下="
+                + lvl.getBlockState(at.below()).getBlock() + "，放不下工作台；最近的干柱="
+                + (dry == null ? WORKABLE_SEARCH + " 格内一柱都没有" : dry.toShortString()));
+        if (dry == null) { then.run(); return; }
+        rig.attempting("挪到放得下工作台的一柱：走不到 " + dry.getX() + "," + dry.getZ());
+        walkToColumn(rig, key + ".workable", dry.getX(), dry.getZ(), 1, 1_200,
+                () -> { rig.evidence(key + ".steppedAside",
+                        rig.player().blockPosition().toShortString() + "（想去 "
+                        + dry.toShortString() + "）"); then.run(); },
+                () -> { rig.evidence(key + ".steppedAside", "没走到，停在 "
+                        + rig.player().blockPosition().toShortString() + "（想去 "
+                        + dry.toShortString() + "）"); then.run(); });
+    }
+
+    private static void craftKeepingTheTable(JourneyRig rig, String itemId, int budget,
+                                             boolean mayFetchWood, boolean mayStepAside,
+                                             Runnable then) {
         String key = itemId.substring(itemId.indexOf(':') + 1);
         ensureCraftingTable(rig, () -> {
             // RESTATE THE NOTE HERE, because `attempting` means "what this rung would be failing for
@@ -1921,6 +1956,24 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // already made once. See topUpWood for why the wood BILL cannot be the answer here.
                 if (mayFetchWood && rig.carrying(itemId) == 0 && error.contains("_log")) {
                     topUpWood(rig, () -> craftKeepingTheTable(rig, itemId, budget, false, then));
+                    return;
+                }
+                // THE SECOND CAUSE A RETRY CAN FIX, and it is about the GROUND rather than the bag.
+                // Ladder j47's furnace rung failed in THREE ticks with `cobblestone.before = 16`,
+                // `furnace.topUp = 不需要` and `craftingTable.keptInBag = 1` — nothing missing, and
+                // the table in hand — on `需要工作台（背包里有，但脚边没有可放置的空位）`. The bed
+                // rung had walked home to `67,63,60`, three blocks short of the goal and inside the
+                // arrival tolerance, and left the body standing on `tall_seagrass`: in water, where
+                // no cell beside it can take a table (see JourneyTerrain#nearestDryColumn).
+                //
+                // Keyed off the ERROR the craft actually reported rather than off「is the body in
+                // fluid」, because the fluid reading is a proxy and the two disagree: j34 and j46
+                // BOTH ended this rung on `脚下=water` and both crafted the furnace fine. What
+                // decides the rung is whether there is somewhere to put the table, and only the
+                // craft can say.
+                if (mayStepAside && rig.carrying(itemId) == 0 && error.contains("没有可放置的空位")) {
+                    stepSomewhereWorkable(rig, key, () ->
+                            craftKeepingTheTable(rig, itemId, budget, mayFetchWood, false, then));
                     return;
                 }
                 reclaimTableIfLeftStanding(rig, then);

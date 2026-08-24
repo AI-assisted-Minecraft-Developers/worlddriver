@@ -449,6 +449,39 @@ public final class JourneyTerrain {
      */
     public record RimTax(List<CostModifier> bias, int cells, String story) {}
 
+    /**
+     * The nearest column within {@code r} whose surface is dry, or null.
+     *
+     * <p>Hoisted out of {@code JourneyCast} on 2026-08-24 when a second caller appeared and the two
+     * occasions turned out to be one question. The first was a body that surfaced from a lava dive
+     * still swimming; the second was the furnace rung failing in three ticks on
+     * {@code 需要工作台（背包里有，但脚边没有可放置的空位）} after the bed rung's walk home stopped
+     * three blocks short at {@code 67,63,60} with {@code 脚下=tall_seagrass}. Different rungs,
+     * different verbs, same answer: <b>go to a column that is dry and stand on it.</b>
+     *
+     * <p>A dry column is a sufficient condition for「there is somewhere to put a station」rather
+     * than a proxy for it: {@link #dryUnderfoot} refuses any column with fluid anywhere in the five
+     * rows around its surface, so what is left is solid ground with open air over it.
+     *
+     * <p>Ranked by squared horizontal distance from the body, and the y it returns is the surface's
+     * own — a caller that walks to the column arrives standing on it.
+     */
+    public static BlockPos nearestDryColumn(ServerLevel level, BlockPos from, int r) {
+        BlockPos best = null;
+        long bestD2 = Long.MAX_VALUE;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                long d2 = (long) dx * dx + (long) dz * dz;
+                if (d2 >= bestD2) continue;
+                int x = from.getX() + dx, z = from.getZ() + dz;
+                if (!dryUnderfoot(level, x, z)) continue;
+                bestD2 = d2;
+                best = new BlockPos(x, daylightAt(level, new BlockPos(x, 0, z)), z);
+            }
+        }
+        return best;
+    }
+
     /** How far from the pool an approach may end and still count as having reached it. Eight, the
      *  same figure {@link #pickDigColumn} rings out to and {@code JourneyFill.STATION_REACH} uses:
      *  everything the rung does next is sized off this distance, so a bank further out than the

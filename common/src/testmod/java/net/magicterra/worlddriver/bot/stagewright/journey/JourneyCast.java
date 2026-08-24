@@ -77,7 +77,7 @@ final class JourneyCast {
                 ? "是 —— 脚格与脚下都是流体，" + at.toShortString() + "，先上岸再浇"
                 : "否 —— " + at.toShortString() + "，脚下=" + lvl.getBlockState(at.below()).getBlock());
         if (!afloat) { then.run(); return; }
-        BlockPos dry = nearestDryColumn(lvl, at, DRY_LAND_SEARCH);
+        BlockPos dry = JourneyTerrain.nearestDryColumn(lvl, at, DRY_LAND_SEARCH);
         rig.evidence("lava.exit.dryLand", dry == null
                 ? DRY_LAND_SEARCH + " 格内没有一柱是干的" : dry.toShortString());
         // Nothing to walk to is not a reason to stop: the pour may still find shallow water from
@@ -104,21 +104,6 @@ final class JourneyCast {
     /** The nearest column with standing room at its own surface, by {@link JourneyTerrain#dryUnderfoot}
      *  — the same predicate the descent uses to refuse a wet column, asked here for the opposite
      *  reason. Ranked by horizontal distance only: the y is whatever that column's daylight is. */
-    private static BlockPos nearestDryColumn(ServerLevel lvl, BlockPos from, int r) {
-        BlockPos best = null;
-        long bestD2 = Long.MAX_VALUE;
-        for (int dx = -r; dx <= r; dx++) {
-            for (int dz = -r; dz <= r; dz++) {
-                long d2 = (long) dx * dx + (long) dz * dz;
-                if (d2 >= bestD2) continue;
-                int x = from.getX() + dx, z = from.getZ() + dz;
-                if (!JourneyTerrain.dryUnderfoot(lvl, x, z)) continue;
-                bestD2 = d2;
-                best = new BlockPos(x, JourneyTerrain.daylightAt(lvl, new BlockPos(x, 0, z)), z);
-            }
-        }
-        return best;
-    }
 
     /**
      * Pour the lava into standing water, at a cell chosen before the pour.
