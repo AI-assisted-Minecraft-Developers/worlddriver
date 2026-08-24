@@ -2046,9 +2046,17 @@ public final class JourneyPortalRung {
             // and the problem is not this precondition. Nothing casts in a carved mould at all,
             // while the built arena mould casts 10/10. Keep the relaxation (the precondition was
             // never the blocker) but do not read it as evidence the geometry works.
-            if (ctx.level().getFluidState(wet).isEmpty())
-                rig.evidence("water.fell." + i, wet.toShortString() + " 空了，水多半落进了目标格 "
-                        + cell.toShortString() + "（现在是 " + ctx.level().getBlockState(cell).getBlock() + "）");
+            // ASK THE TARGET, do not guess about it. The old wording was「水多半落进了目标格 cell」
+            // followed by cell's own state in brackets — and j48 printed that sentence with
+            // 「（现在是 air）」 beside it, a row disagreeing with itself in its own parentheses.
+            // The two cells are two independent readings; print both and let them say what they say.
+            if (ctx.level().getFluidState(wet).isEmpty()) {
+                boolean landed = !ctx.level().getFluidState(cell).isEmpty();
+                rig.evidence("water.fell." + i, wet.toShortString() + " 空了；目标格 "
+                        + cell.toShortString() + " 现在是 " + ctx.level().getBlockState(cell).getBlock()
+                        + (landed ? "（有流体 —— 水落到目标格去了）"
+                                  : "（也没有流体 —— 两格都是空的，这一浇要么没发生，要么流去了别处）"));
+            }
             BlockPos src = pool.get(Math.min(i, pool.size() - 1));
             // Reopened first, because the trip that fetched this lava is thousands of ticks long and
             // the cell was left open at the top of it. Gravel that has not finished falling by the
@@ -2481,16 +2489,47 @@ public final class JourneyPortalRung {
                             + "「浇不出黑曜石」或者更晚的「装不到水」");
                     return;
                 }
+                // THE CALIBRATION ROW, taken BEFORE the use, in the watcher's own format. It reads the
+                // same instant `.atUse` does — nothing between the two lines ticks the server — so two
+                // rows that disagree mean the INSTRUMENT is broken and nothing below may be read as a
+                // fact about the world. See JourneyHands#handTrace; rung 11's pour has carried this
+                // since j43b and rung 12's, the one that actually keeps failing, never had it.
+                JourneyHands.handTrace(rig, tag, -1);
                 rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
-                rig.settle(new HoldStill(3), 12, () -> {
+                // THE HAND ON CONSECUTIVE SERVER TICKS. `.result` is the CLIENT's prediction and
+                // `.spent` is the SERVER after the wait; between them sits the tick that decides this
+                // cell — the one where the server processes the use packet and reads its OWN
+                // `inventory.selected`. Nothing in this rung has ever sampled that, so「the hand was
+                // right at the send and wrong at the handling」was indistinguishable from a refusal,
+                // and j48 spent its whole rung-12 budget on that ambiguity.
+                //
+                // Ten ticks rather than the three this settle used to wait, and ten because that is
+                // what rung 11's pour already waits — the same window, not a tighter one invented
+                // here. TRACE_TICKS is 6 because the answer「the other author is merely slower」lives
+                // on use+5, so the settle has to outlast the trace or the last sample never happens.
+                // The longer wait is also strictly safer for the round trip `.spent` claims to have
+                // waited out, and that row's own wording moves with the constant.
+                int[] traced = {0};
+                rig.settle(new HoldStill(POUR_SETTLE), 20, () -> {
+                    if (traced[0] < JourneyHands.TRACE_TICKS) JourneyHands.handTrace(rig, tag, traced[0]++);
+                }, () -> {
                     // The pour is over; everything downstream — the lift, the walk home — pillars.
                     BotConfig.allowPlace = placeWas;
+                    // HOW MANY TICKS THE INSTRUMENT SAW, so silence can be read. Missing entirely ⇒
+                    // the run never reached this pour (未触发, evidence for neither side); present
+                    // with 0 ⇒ the settle was skipped and the instrument never fired, so its silence
+                    // is also not evidence; present with 6 ⇒ the trace rows are the answer.
+                    rig.evidence(tag + ".handTrace.samples", "采到 " + traced[0] + "/"
+                            + JourneyHands.TRACE_TICKS + " 个服务端 tick。t0 与 useItemInHand 落在同一个"
+                            + "服务端 tick —— 以每行的 gameTime 为准，别以 tick 序号为准。"
+                            + "t-1 是发包前的校准行：它与 " + tag + ".atUse 必须一致，不一致就是仪器坏了。");
                     int after = stock.get();
                     rig.evidence(tag + ".spent", after < before
                             ? BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
                               + "（倒出去了）"
                             : BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
-                              + "，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生");
+                              + "，等过 " + POUR_SETTLE
+                              + " tick 往返仍未消耗 —— 桶还满着，这一浇没有发生");
                     // AND STOP, because everything downstream assumes the bucket is now empty.
                     //
                     // This row has been able to say「这一浇没有发生」for several runs and nothing
@@ -2506,10 +2545,14 @@ public final class JourneyPortalRung {
                     if (after >= before) {
                         ctx.fail("这一浇没有发生："
                                 + BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
-                                + "，等过 3 tick 往返仍未消耗 —— 桶还满着。"
+                                + "，等过 " + POUR_SETTLE + " tick 往返仍未消耗 —— 桶还满着。"
                                 + "客户端说 " + rig.evidenceOf(tag + ".result")
                                 + "，服务端没消耗，两个数来自两端；"
-                                + "这一浇的手与瞄准：" + rig.evidenceOf(tag + ".atUse"));
+                                + "这一浇的手与瞄准：" + rig.evidenceOf(tag + ".atUse")
+                                + "。要判是「服务端那只手在处理包那一刻就不对了」还是「两端都拿着桶而这一浇被拒」，"
+                                + "去读 " + tag + ".handTrace.t*.server 那一组（先看 "
+                                + tag + ".handTrace.samples 确认仪器响了）—— "
+                                + tag + ".atUse 只答得了发包那一刻");
                         return;
                     }
                     then.run();
@@ -2517,6 +2560,20 @@ public final class JourneyPortalRung {
             }));
         });
     }
+
+    /**
+     * How long a pour waits before judging whether its bucket emptied.
+     *
+     * <p>Ten, copied from rung 11's {@code pourInto} rather than picked here: the two pours ask the
+     * same question of the same round trip, and inventing a second number would make「等过 N tick」
+     * mean two things in one results file. It used to be three, which is why the wait had to grow —
+     * {@link JourneyHands#TRACE_TICKS} samples six consecutive server ticks after the use, and a
+     * settle that ends on tick three cannot produce the sixth sample.
+     *
+     * <p>Every message that quotes the wait quotes THIS constant. A row saying「等过 3 tick」beside a
+     * settle that waited ten is the kind of stale literal that gets read as a measurement.
+     */
+    private static final int POUR_SETTLE = 10;
 
     /** How long to let the alcove empty after the water is taken back, and how many such legs.
      *  Water without a source is gone in under a second, so five legs of forty ticks is generous —
