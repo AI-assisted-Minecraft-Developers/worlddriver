@@ -507,12 +507,11 @@ public final class JourneyShaft {
         // it would report arrival and call this method anyway: the same question asked twice. Getting
         // out of water is a horizontal problem and it belongs to the caller, which is why the iron
         // rung now ends with a walk home. This row is what makes that decision checkable.
-        var atFeet = rig.ctx().level().getBlockState(end);
-        var below = rig.ctx().level().getBlockState(end.below());
-        // Wet is not the same as afloat: a body standing on rock in a knee-deep puddle is fine. What
-        // sinks is a body with fluid at its feet AND fluid under them.
-        boolean afloat = !rig.ctx().level().getFluidState(end).isEmpty()
-                && !rig.ctx().level().getFluidState(end.below()).isEmpty();
+        var atFeet = lvlOf(rig).getBlockState(end);
+        var below = lvlOf(rig).getBlockState(end.below());
+        // Wet is not the same as afloat — see afloat(), which is where that distinction lives now
+        // and which JourneyCast's ashore walk asks with the same two cells.
+        boolean afloat = afloat(lvlOf(rig), end);
         rig.evidence(climbName + ".endedOn", "脚格=" + atFeet.getBlock() + "，脚下=" + below.getBlock()
                 + (afloat ? " —— 浮在水里，脚下没有地板；上面每一级都会从一个正在下沉的身体开始" : ""));
         // How much of the climb actually happened, as a fraction rather than as a landing height.
@@ -1218,6 +1217,29 @@ public final class JourneyShaft {
      *  the portal rung's alcove is seven cells tall, so a body on its top row and a column whose
      *  only floor is the bottom one are the extremes this has to span. */
     static final int COLUMN_FOOTHOLD_DROP = 7;
+
+    /**
+     * Is a body standing at {@code at} FLOATING — fluid at its feet and fluid under them?
+     *
+     * <p>Two cells, and the second one is the whole test. Wet is not afloat: a body standing on rock
+     * in a knee-deep puddle has a floor and stays where it was put, while a body with fluid under it
+     * has nothing holding it up and sinks at water's terminal velocity for as long as nothing drives
+     * it — measured on 2026-08-22 as a 25-block fall over one smelt wait, from a climb that had just
+     * reported {@code toY=64, gained=20/20}.
+     *
+     * <p>It was written twice, byte for byte: here in {@link #recordExit}, which prints
+     * {@code endedOn}, and again in {@code JourneyCast.standOnDryGround}, the one caller that took
+     * {@code recordExit}'s hand-off and walks the body ashore. Two copies of a predicate whose
+     * failure mode is「it looked wet enough」is how the second caller ends up asking one cell instead
+     * of two, so the question now has one implementation and the remaining callers can be counted.
+     *
+     * <p><b>Not the same question as {@code JourneyPour.pourLandsFrom}'s {@code afloat}</b>, which
+     * asks only about the FEET cell and feeds an eye-height decision — a body swimming with rock
+     * under it still aims from the swimming eye. Same word, different quantity; do not merge them.
+     */
+    static boolean afloat(ServerLevel level, BlockPos at) {
+        return !level.getFluidState(at).isEmpty() && !level.getFluidState(at.below()).isEmpty();
+    }
 
     /**
      * The three readings that separate the three worlds a floating climb can be in.

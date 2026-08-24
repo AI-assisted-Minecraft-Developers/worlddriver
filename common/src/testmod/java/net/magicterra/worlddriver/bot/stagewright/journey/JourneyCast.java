@@ -62,13 +62,16 @@ final class JourneyCast {
      * javadoc already priced that one: it falls through to a {@code Goal.YLevel(surfaceY)} fallback
      * which is satisfied at that very moment, i.e. the same question asked twice.
      *
-     * <p>Both branches record, and the afloat test is the one {@code recordExit} prints — fluid at
-     * the feet AND under them, because a body standing on rock in knee-deep water is fine.
+     * <p>Both branches record, and the afloat test is literally the one {@code recordExit} prints:
+     * this leg used to spell out the same two-cell predicate a second time, and it now calls
+     * {@link JourneyShaft#afloat} so the hand-off and the row that motivates it can never drift
+     * apart — a caller answering「wet」where the exit answered「afloat」would walk ashore for a body
+     * that was standing on rock, or leave one floating.
      */
     private static void standOnDryGround(JourneyRig rig, Runnable then) {
         ServerLevel lvl = rig.ctx().level();
         BlockPos at = rig.player().blockPosition();
-        boolean afloat = !lvl.getFluidState(at).isEmpty() && !lvl.getFluidState(at.below()).isEmpty();
+        boolean afloat = JourneyShaft.afloat(lvl, at);
         rig.evidence("lava.exit.afloat", afloat
                 ? "是 —— 脚格与脚下都是流体，" + at.toShortString() + "，先上岸再浇"
                 : "否 —— " + at.toShortString() + "，脚下=" + lvl.getBlockState(at.below()).getBlock());
