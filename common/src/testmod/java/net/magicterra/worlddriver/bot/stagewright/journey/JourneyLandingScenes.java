@@ -356,32 +356,47 @@ public final class JourneyLandingScenes implements SceneProvider {
      * is asserted, not assumed — control A asks the engine, after the settle.
      */
     private static void reseatsWhenItCanSeeNoWater(SceneContext ctx) {
-        bankedPondScoop(ctx, 0);
+        bankedPondScoop(ctx, false);
     }
 
     /**
-     * The same trap with a taller bank, so the seat the re-seat picks lands OUTSIDE the approach.
+     * The same trap, with the only workable seat beside a DIFFERENT pond — far outside the approach.
      *
      * <p><b>Why this is not the same scene twice.</b> The first run of the scene above chose the
-     * bank top as its seat — {@code distSqr} 2 from the pond, i.e. already inside
+     * bank top as its seat, {@code distSqr} 2 from the pond, i.e. already inside
      * {@code Goal.Near(water, 2)} — so the re-entry's second approach had nothing to do and the
-     * guard against it walking the body back off the seat <b>never executed</b>. Recorded as I5
-     * 未触发 rather than passed. {@code standToFill} picks stands out of the POND's neighbourhood,
-     * not out of the approach's radius, so a seat at {@code distSqr} 6 (the rim cell diagonally off
-     * a source) is ordinary — and with the bank stacked out of reach it is the ONLY thing left.
-     * This variant makes the guard's occasion certain instead of hoping the geometry supplies it.
+     * guard against it undoing the move <b>never executed</b>. Recorded as I5 未触发, not passed.
+     *
+     * <p><b>And raising the bank would not have fixed that.</b> {@code standToFill} only ever
+     * returns cells in a source's own 3×3 neighbourhood ({@code dy ∈ [-2,1]}), so the seat is at
+     * most {@code distSqr} 6 from <i>the source it was chosen for</i> — and with one pond that
+     * source IS {@code water}, which puts every possible seat within a whisker of the approach.
+     * Arithmetic, not luck: no amount of stacking stone moves it.
+     *
+     * <p><b>What actually separates them is that the seat may belong to another source.</b>
+     * {@code standToScoop} searches {@code FILL_RESEARCH} = 8 around the POND, so a second pond
+     * seven blocks away contributes its own rim cells — and a seat there is seven blocks from the
+     * {@code water} the re-entry would walk back to. So: ring the near pond at head height, which
+     * kills every seat around it while leaving it open above (still the distance-nearest); and put
+     * the far pond outside {@code visibleSourceNear}'s radius <i>of the body</i> but inside
+     * {@code standToScoop}'s radius <i>of the near pond</i>. Without the guard, the re-entry walks
+     * the body all the way back to the ringed pond it cannot drink from, and the scene says so.
      */
     private static void keepsTheSeatItMovedTo(SceneContext ctx) {
-        bankedPondScoop(ctx, 1);
+        bankedPondScoop(ctx, true);
     }
 
+    /** How far west the second pond sits. Nine: outside {@code visibleSourceNear}'s radius 8 of a
+     *  body two blocks east of the first pond, and seven from that pond, so it is inside
+     *  {@code standToScoop}'s radius 8 of it. Both halves of that sentence are asserted. */
+    private static final int FAR_POND_DX = -9;
+
     /**
-     * @param extraBank courses of stone stacked on the natural bank, across {@code dz ∈ [-1,1]}.
-     *        Zero reproduces the ladder's own geometry, where the bank top itself is standable and
-     *        is what the re-seat picks. One puts that cell inside the bank, leaving only the pond's
-     *        own rim — which is past {@code Goal.Near}'s radius, and that is the whole difference.
+     * @param farSeat false stages the ladder's own geometry — the bank top is standable and is what
+     *        the re-seat picks, {@code distSqr} 2 from the pond. True rings the near pond so it
+     *        yields no seat at all and adds a second pond whose rim is the only seat there is.
      */
-    private static void bankedPondScoop(SceneContext ctx, int extraBank) {
+    private static void bankedPondScoop(SceneContext ctx, boolean farSeat) {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
         flatGround(ctx);
@@ -392,13 +407,18 @@ public final class JourneyLandingScenes implements SceneProvider {
         // source walled by stone on all four sides and floored by it.
         BlockPos pond = ctx.rel(-2, GROUND, 0);
         ctx.setBlock(-2, GROUND, 0, Blocks.WATER);
-        // Stacked across three cells of z, not one: a single raised block leaves its two diagonal
-        // neighbours standable and the ray to the pond from them passes exactly through the raised
-        // block's corner — an outcome that turns on which side of a boundary a float lands, which
-        // is not a thing a scene should be resting on.
-        for (int dy = 1; dy <= extraBank; dy++)
-            for (int dz = -1; dz <= 1; dz++)
-                ctx.setBlock(-1, GROUND + dy, dz, Blocks.STONE);
+        if (farSeat) {
+            // RING the near pond at head height — all eight neighbours, leaving the cell directly
+            // above it open. That is what makes it yield no seat: every candidate `standToFill`
+            // would consider around it is either this ring (foot cell occupied) or the original
+            // stone below it. Open above, so it is still what `shallowWaterNear` ranks first, which
+            // is what keeps it the `water` the re-entry would walk back to.
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                    if (dx != 0 || dz != 0)
+                        ctx.setBlock(-2 + dx, GROUND + 1, dz, Blocks.STONE);
+            ctx.setBlock(FAR_POND_DX, GROUND, 0, Blocks.WATER);
+        }
 
         ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND, 0));
         ServerPlayer fp = driver.fakePlayer();
@@ -417,8 +437,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         // row that costs an hour to a reader who trusts it.
         BlockPos bank = ctx.rel(-1, GROUND, 0);
         ctx.record("staged.foot", seated.toShortString() + "，眼睛 y=" + fp.getEyePosition().y
-                + "，岸 " + bank.toShortString() + " 顶 y=" + (bank.getY() + 1 + extraBank)
-                + "（加高 " + extraBank + " 层）");
+                + "，岸 " + bank.toShortString() + " 顶 y=" + (bank.getY() + 1 + (farSeat ? 1 : 0))
+                + (farSeat ? "（近塘四周已围栏，另有远塘）" : "（原生岸，没加高）"));
         ctx.record("staged.pond", pond.toShortString() + "，其上="
                 + level.getBlockState(pond.above()).getBlock() + "，与身体 distSqr="
                 + seated.distSqr(pond));
@@ -435,15 +455,27 @@ public final class JourneyLandingScenes implements SceneProvider {
                 + "只会印「换不了座位」，那不是这个场景要判的东西").isNotNull();
         ctx.check(!seated.equals(seat)).as("控制组 D 而且那个落脚点不是脚下这一格：挑出来的是 "
                 + seat + "，身体在 " + seated).isTrue();
-        if (extraBank > 0) {
+        if (farSeat) {
             // THE CONTROL THAT MAKES THIS VARIANT A DIFFERENT TEST. Without it a run whose seat
-            // happened to land inside the approach would pass exactly as the short-bank scene does,
-            // and G below would once again be judging nothing.
+            // landed inside the approach would pass exactly as the near-pond scene does, and G
+            // below would once again be judging nothing.
             ctx.check(seat != null && seat.distSqr(pond) > 4).as(
-                    "控制组 D' 高岸这一版**必须**把座位逼到 `Goal.Near(water,2)` 半径之外 —— "
-                    + "落在半径内的话再入时那次接近无事可做，G 就又变成 0==0："
+                    "控制组 D' 这一版**必须**把座位逼到 `Goal.Near(water,2)` 半径之外 —— "
+                    + "落在半径内的话再入时那次接近无事可做，G 就又是 0==0："
                     + "座位 " + seat + " 距塘 distSqr="
                     + (seat == null ? "—" : String.valueOf(seat.distSqr(pond)))).isTrue();
+            // And that the two radii really do separate: the far pond must be OUT of the body's
+            // reach (else A above would have found it and there is no trap) and IN the near pond's
+            // (else `standToScoop` never sees it and there is no seat). Both are staged by one
+            // number, so one row proves or kills the whole geometry.
+            BlockPos far = ctx.rel(FAR_POND_DX, GROUND, 0);
+            ctx.record("staged.far", far.toShortString() + "，距身体 distSqr=" + seated.distSqr(far)
+                    + "，距近塘 distSqr=" + pond.distSqr(far));
+            ctx.check(seat != null && seat.distSqr(far) < seat.distSqr(pond)).as(
+                    "控制组 D'' 而且挑中的座位属于**远塘**而不是近塘：座位 " + seat
+                    + " 距远塘 distSqr=" + (seat == null ? "—" : String.valueOf(seat.distSqr(far)))
+                    + "，距近塘 distSqr=" + (seat == null ? "—" : String.valueOf(seat.distSqr(pond)))
+                    + " —— 若它仍属近塘，说明围栏没把近塘的落脚点全封掉").isTrue();
         }
 
         int before = fp.getInventory().countItem(Items.WATER_BUCKET);
@@ -469,11 +501,29 @@ public final class JourneyLandingScenes implements SceneProvider {
             // off the seat it just paid for. One pond cannot make that fail, so this is a guard for
             // the day a second source is within `FILL_RESEARCH` of the first, not a measurement of
             // it today.
-            ctx.check(ended.equals(seat)).as("G 用桶的那一刻身体站在换到的那个座位上，没有被第二次"
-                    + "`Goal.Near` 又带走：期望 " + seat + "，实到 " + ended
-                    + (extraBank > 0 ? " —— 高岸这一版里这是**被测项**，座位在半径外，"
-                            + "再入若还跑一次接近就会把身体拽回塘边"
-                            : " —— 矮岸这一版里座位本来就在半径内，这一条只是回归守卫")).isTrue();
+            // G ASKS A DIFFERENT QUESTION IN THE TWO VARIANTS, and deliberately so.
+            //
+            // The near-pond variant asks for the exact cell, which it reaches: its re-seat is one
+            // step onto the bank. The far variant cannot ask that — the walk is a dozen blocks and
+            // `Goal.Block` reports「arrived」one cell out (the first staging of it measured
+            // `期望 …382,221,99999，实到 …381,221,99999`, which is arrival tolerance and not a
+            // body that got dragged anywhere). Asking for cell identity there would red the scene
+            // for the walker's tolerance while the thing under test was fine.
+            //
+            // What the guard actually promises is「the re-entry did not walk the body back to
+            // `water`」, so that is what the far variant asks: still OUTSIDE the approach radius.
+            // It is not a weaker question — a regression walks the body to within 2 of the pond by
+            // construction, which is exactly what this refuses.
+            if (farSeat) {
+                ctx.check(ended.distSqr(pond) > 4).as("G 用桶的那一刻身体**仍在 `Goal.Near(近塘,2)` "
+                        + "半径之外** —— 再入若还跑一次接近，就会把它拽回那口它喝不到的塘："
+                        + "终点 " + ended + " 距近塘 distSqr=" + ended.distSqr(pond)
+                        + "，换到的座位是 " + seat).isTrue();
+            } else {
+                ctx.check(ended.equals(seat)).as("G 用桶的那一刻身体站在换到的那个座位上，"
+                        + "没有被第二次 `Goal.Near` 又带走：期望 " + seat + "，实到 " + ended
+                        + " —— 近塘这一版座位本来就在半径内，这一条只是回归守卫").isTrue();
+            }
             ctx.check(after > before).as("H 桶真的装上了水（判存量，不是判 use 的返回值）："
                     + before + " → " + after).isTrue();
         });
