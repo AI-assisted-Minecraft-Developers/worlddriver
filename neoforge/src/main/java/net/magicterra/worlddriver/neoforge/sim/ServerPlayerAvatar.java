@@ -6,39 +6,34 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
 /**
- * NeoForge shim (P1.6 Task 1) over the common
- * {@link net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar}. It keeps this original
- * FQN and the {@link FakePlayer} return type so ~3000 lines of legacy GameTest
- * callers ({@code FakePlayer fp = av.fakePlayer()};
- * {@code ServerPlayerAvatar av = ServerPlayerAvatar.create(...)}) compile with
- * <b>zero source changes</b>. All sim logic lives in the common superclass — this
- * class only:
- * <ol>
- *   <li>covariantly narrows {@link #fakePlayer()} back to {@link FakePlayer};</li>
- *   <li>mints bodies through the {@link ServerAvatarBodies} seam (the neoforge mod
- *       installs a {@code FakePlayerFactory}-backed factory in
- *       {@code WorldDriverNeoForge}, so {@code shared}/{@code unique} return the same
- *       cached {@code FakePlayer} instances as before the migration) and returns
- *       THIS shim type from {@code create}/{@code createUnique}.</li>
- * </ol>
+ * NeoForge shim over the common {@link net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar},
+ * keeping this FQN and narrowing {@link #fakePlayer()} back to {@link FakePlayer}. All sim logic
+ * lives in the common superclass; this class only mints bodies through the
+ * {@link ServerAvatarBodies} seam ({@code WorldDriverNeoForge} installs a
+ * {@code FakePlayerFactory}-backed factory there, so {@code unique} returns the same cached
+ * {@code FakePlayer} instances as before the migration) and returns THIS type.
  *
- * <p>The {@code faithfulBreak} static flag is <b>not</b> redeclared here on purpose:
- * legacy writes {@code ServerPlayerAvatar.faithfulBreak = ...} resolve to the single
- * inherited common field, the same field the common {@code step()} reads.
+ * <p><b>Its stated reason for existing is gone.</b> This javadoc said the shim keeps「~3000 lines
+ * of legacy GameTest callers」compiling with zero source changes. That suite was retired in
+ * P4-final, and the scenes that replaced it construct the COMMON types — nothing outside this
+ * package imports either shim. The one live path is {@code /agentserver}:
+ * {@code ServerWorldDriver.createIsolated} → {@link #createUnique}. The {@code create} twin (all
+ * callers share one body) had no caller left and was deleted; deleting it also stopped it hiding
+ * the inherited common static of the same name.
+ *
+ * <p>The {@code faithfulBreak} static flag is <b>not</b> redeclared here on purpose: writes of
+ * {@code ServerPlayerAvatar.faithfulBreak} resolve to the single inherited common field, the same
+ * field the common {@code step()} reads.
  */
 public class ServerPlayerAvatar extends net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar {
 
     /** Per-arena body sequence for {@link #createUnique} — the neoforge side owns this counter
      *  (the common one serves the migrated scenes on BOTH loaders), so this shim's
-     *  legacy-caller "agent-body-N" name stream is identical to today. */
+     *  "agent-body-N" name stream is independent of theirs. */
     private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
             new java.util.concurrent.atomic.AtomicInteger();
 
     public ServerPlayerAvatar(FakePlayer fp) { super(fp); }
-
-    public static ServerPlayerAvatar create(ServerLevel level, double x, double y, double z) {
-        return init((FakePlayer) ServerAvatarBodies.shared(level), x, y, z);
-    }
 
     public static ServerPlayerAvatar createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
