@@ -458,12 +458,23 @@ return cost * BotConfig.pathfinderBreakCostMultiplier;              // 出厂 2.
 **该做的是给税加上它一直缺的那个上下文：采集进程在自己的目标木簇上把税豁免掉**，
 travel 走的每一根树干照旧收税。范围锁在进程内、进出各一次，**不改全局默认**。
 
-三条待核（都不用跑闸，读码即可）：
-1. 采集进程当前是怎么给 walker 下目标的——是单格 `Goal.Block` 还是「这棵树」？
-   若是单格，rung 3 要砍的第 5 根下面那 4 根**不是目标格**，豁免就必须按**木簇**定义而不是按目标格。
-2. 有没有现成的「目标木簇」概念可以复用（`mc.plan.acquire` / mine 进程内部）？
-   ⚠️ 先 `git log -S` 再动手——这一族已经有三次「派出去才发现 HEAD 里早有了」。
-3. `pathfinderBreakCostMultiplier` 是 J28 单独排的号，**同一个答案覆盖两者**，别分两笔做。
+**三条待核里的前两条已经读掉了（2026-08-24）：**
+
+1. ✅ 目标是**单格 stand**：`MineProcess:262` `walker.setGoal(new Goal.Block(t.stand))`。
+2. ✅ **不需要「木簇」这个新概念**——`MineProcess:940/999` 自陈它「一次 SEARCH 爬一根」
+   （`climbs a trunk one log per SEARCH rather than one huge floating goal`），
+   `:979-981` 是「站正下方往上挖」。⇒ **每一趟的路本来就要穿过树干那一列**，
+   而那正是这条税要禁止的形状。所以豁免的范围是现成的：
+   **当 `MineProcess` 当前目标方块是 `BlockTags.LOGS` 时，在这一段目标的存续期内把
+   `pathfinderLogBreakTax` 当成 1.0**；travel 的每一根树干照旧收 3.0。
+   进出各一次，**不改全局默认**，也不给真梯单调一张表（那样真梯量的就不是出厂配置了）。
+   ⚠️ 已知代价要写下来：豁免期内路过**别的**树也变便宜。目标短程，可接受，但要记着。
+3. `pathfinderBreakCostMultiplier`（J28 的号）**先不动**。rung 3 的判词点名的是 log 税
+   （「Named cause, not a shrug」），break 乘子只是「pushes the same way」；
+   而它作用于**每一次**破坏（`:456`），豁免它会顺带把「穿石头抄近路」也放便宜。
+   **先只豁免 log 税再量**——一次动一个变量，否则 rung 3 变绿了也不知道是哪一条的功劳。
+
+⚠️ 动手前先 `git log -S pathfinderLogBreakTax`——这一族已经有三次「派出去才发现 HEAD 里早有了」。
 
 ### 🔴 J24b 根因（读码定死，2026-08-24）：这面旗**全产品只有一个读者**
 
