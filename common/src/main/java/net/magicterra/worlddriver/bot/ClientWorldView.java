@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.magicterra.worlddriver.bot.world.ThreatAvoidance;
@@ -445,7 +446,14 @@ public final class ClientWorldView implements WorldView {
         // "寻路走到树里" (both ultra-journey churns started at a trunk on the path).
         // Like the leaf cell tax this prices the hidden approach/aim/canopy-snag cost;
         // 1.0 = byte-identical.
-        if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS))
+        // ...EXCEPT on the one leg whose whole job is to chew through a tree. Reaching the fifth log
+        // of a trunk means breaking the four under it, so at 3× those paths price out — measured on
+        // the ladder's wood rung, same seed, one variable: 13 logs / 2 914 ticks at 1.0 against
+        // 6 logs / 13 899 ticks at 3.0, with 49 rows of `[mine] no approach to stand`. The waiver is
+        // scoped to a log mine goal rather than turned off globally, so a leg that is merely
+        // PASSING a forest still pays 3× and keeps what this tax was added for.
+        if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS)
+                && !MineProcess.miningALog())
             cost *= BotConfig.pathfinderLogBreakTax;
         // Dig-aversion multiplier (§74): the per-block tick estimate is honest, yet a
         // dig-dense route drags the same hidden costs as the wrong-tool case in miniature

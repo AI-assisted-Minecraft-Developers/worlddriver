@@ -73,9 +73,65 @@ public final class MineProcess implements BotProcess {
     // mine command can't chain hops across the world (e.g. swim an ocean toward
     // scattered red_sand). Set lazily on first tick (attach has no player).
     private BlockPos startAnchor;
+    /** <b>Write only through {@link #aimAt}.</b> Five sites used to assign this field directly, and
+     *  the trunk-tax waiver below has to know about every one of them — a flag maintained beside
+     *  five assignments is a flag with five authors. */
     private BlockPos currentTarget;
     private BlockPos currentStand;
     private Direction currentFace;
+
+    /**
+     * Which MineProcess owns the trunk-tax waiver, or null when nobody is working a log.
+     *
+     * <p><b>Why this exists.</b> {@code pathfinderLogBreakTax} ships at 3.0 so A* stops chewing
+     * through forests it is merely PASSING, and that is correct everywhere except the one job whose
+     * whole purpose is to chew through a tree: reaching the fifth log of a trunk means breaking the
+     * four under it, and at 3× those paths price out. Measured on the ladder's wood rung, same seed,
+     * one variable: 13 logs / 2 914 ticks at 1.0 against 6 logs / 13 899 ticks at 3.0, with 49 rows
+     * of {@code [mine] no approach to stand} naming the mechanism. So the tax is waived for the leg
+     * that goes to fetch a log, and left at 3.0 for every leg that is merely travelling.
+     *
+     * <p><b>Why an owner and not a boolean.</b> Clearing on any exit would let a winding-down
+     * instance wipe a live one's waiver: old instance's {@code finish()} can run after a new
+     * instance's first {@code aimAt}. One textual writer with two calling instances is still two
+     * authors. Only the owner may release.
+     *
+     * <p><b>Why {@link #onCancelled} overrides.</b> {@code BotProcess.onCancelled} is a no-op by
+     * default and this class did not override it, while {@code cancelAllProcesses("player-death")}
+     * and {@code ChainProcessLifecycle.drop} both end a process WITHOUT running any of the five
+     * assignment sites. Dying up a tree would otherwise leave the waiver set for the rest of the
+     * session — every subsequent journey silently priced at 1.0, which is the regression the tax
+     * was added to fix.
+     */
+    private static volatile MineProcess logWaiverOwner;
+
+    /** True while some MineProcess is working a goal whose target block IS a log — the trunk tax is
+     *  waived for exactly that stretch. Read by {@code ClientWorldView.breakCost}, which runs once
+     *  per candidate node inside the A* loop; that is why this answers from a stored boolean-ish
+     *  reference rather than resolving a BlockPos against the level. */
+    public static boolean miningALog() { return logWaiverOwner != null; }
+
+    /**
+     * The one place {@link #currentTarget} changes, so the waiver is DERIVED from the goal rather
+     * than latched beside it: aim at a non-log (or at nothing) and it lapses on the same line.
+     *
+     * <p>That also gets the sub-goals right for free. The leaf-clearing and overburden sites aim at
+     * a leaf or a covering block, not at a log, so the waiver correctly lifts for those stretches
+     * and comes back when the log does.
+     */
+    private void aimAt(BlockPos target, Level lvl) {
+        currentTarget = target;
+        if (target != null && lvl != null && lvl.getBlockState(target).is(BlockTags.LOGS)) {
+            logWaiverOwner = this;
+        } else if (logWaiverOwner == this) {
+            logWaiverOwner = null;
+        }
+    }
+
+    /** Release the waiver on the paths that never reach {@link #aimAt} — see {@link #logWaiverOwner}. */
+    @Override public void onCancelled(String reason) {
+        if (logWaiverOwner == this) logWaiverOwner = null;
+    }
     // True when currentTarget is a leaf being cleared to open access to a real
     // target (not itself a quota block) — see findClearingTarget.
     private boolean currentTargetClearing;
@@ -254,7 +310,7 @@ public final class MineProcess implements BotProcess {
                     finish(st, p, lvl, noTargetReason != null ? "no harvestable target" : "no reachable target");
                     return true;
                 }
-                currentTarget = t.block;
+                aimAt(t.block, lvl);
                 currentStand = t.stand;
                 currentFace = t.face;
                 currentTargetClearing = t.clearing();
@@ -303,7 +359,7 @@ public final class MineProcess implements BotProcess {
                             if (BotConfig.walkerDebug)
                                 LOG.info("[mine] stand unreachable for {} -> clear leaf {} (stand {})",
                                         currentTarget, clear.block(), clear.stand());
-                            currentTarget = clear.block();
+                            aimAt(clear.block(), lvl);
                             currentStand = clear.stand();
                             currentFace = clear.face();
                             currentTargetClearing = true;
@@ -394,7 +450,7 @@ public final class MineProcess implements BotProcess {
                 // also what keeps every drop at the bottom of a hole the body can enter.
                 BlockPos overburden = currentTargetClearing ? null : firstBreakableToward(a, lvl, p, currentTarget);
                 if (overburden != null) {
-                    currentTarget = overburden;
+                    aimAt(overburden, lvl);
                     currentTargetClearing = true;
                     breakStartId = currentBlockId(lvl);
                     breakingTicks = 0;
@@ -446,7 +502,7 @@ public final class MineProcess implements BotProcess {
                         }
                     }
                     a.breakHold(false);
-                    currentTarget = null;
+                    aimAt(null, lvl);
                     if (broken >= desiredQty) {
                         phase = Phase.COLLECT;
                         collectTicks = 0;
@@ -618,6 +674,10 @@ public final class MineProcess implements BotProcess {
      * quota question.
      */
     private void finish(BotState st, Player p, Level lvl, String reason) {
+        // Release the trunk-tax waiver here too, not only on the assignment sites: a run that ends
+        // mid-BREAKING (budget spent, quota met on the last swing) leaves currentTarget pointing at
+        // a log, and the waiver would outlive the order that earned it.
+        aimAt(null, lvl);
         int left = p == null || lvl == null ? 0 : looseDrops(lvl, p);
         st.mine.goalReached = broken >= desiredQty;
         st.mine.endReason = reason + " (broke " + broken + "/" + desiredQty
@@ -664,7 +724,7 @@ public final class MineProcess implements BotProcess {
                 currentTarget, why, retiredTargets);
         blacklist.add(currentTarget);
         a.breakHold(false);
-        currentTarget = null;
+        aimAt(null, null);          // no Level here, and none is needed: a null target is never a log
         phase = Phase.SEARCH;
     }
 
