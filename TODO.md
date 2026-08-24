@@ -1096,10 +1096,47 @@ static BlockPos standToScoop(JourneyRig rig, BlockPos pool) {
 `JourneyRamp.java:195` 就印过它（`standToFill 否决了 13 个候选，理由 脚下不实心`）。
 ⇒ **仪器早就有，只是这一个调用点没接线。** 补一行读数=把这个 map 传出去，不是新写一个。
 
-⇒ 下一步（按序，且**先读数后改逻辑** [[a-question-asked-backwards-still-answers]]）：
-1. `standToScoop` 把 `why` 接出来写进 `waterFill.reseat` 那一行；
-2. 有了直方图再问真正的问题——**不是「为什么没选 y=63」，而是「12 级为什么允许自己继承 11 级的座位」**。
-   javadoc 自己说了「从 11 级把身体丢在哪儿就从哪儿开火」：座位是继承的，于是它是个抛硬币。
+#### 两个缺陷，都是读代码读出来的，而且**互相加固**（`JourneyFill.standToFill`）
+
+**(A) 按到身体的距离排序 + 短路，于是身体脚下那格恒赢（`JourneyFill.java:962-963`）**
+
+```java
+double d = foot.distSqr(from);      // from = 身体现在站的那格
+if (d >= bestD) continue;           // ← 连判都不判，也不记 why
+```
+
+身体站的 `-4, 62, 55` **本身就在水源的 3×3 候选集里**，一旦它通过检查，`bestD` 就是 **0**，
+此后**任何候选都过不了 `d >= bestD` 这一关**——黑曜石顶上的 `-4, 63, 54`（距离约 2）
+连可见性都没被问过。⇒ **换座位只能把身体从「不合格」的格挪走，永远不能挪到「更好」的格。**
+这也解释了我 J53 那两条场景为什么是绿的：那里的座位是我特意布景成不合格的。
+
+**(B) 验证用的眼睛不是开火的那只眼（`JourneyFill.java:987-988` vs `waterFill.atUse`）**
+
+```java
+var eye = new Vec3(foot.getX() + 0.5, foot.getY() + eyeHeight, foot.getZ() + 0.5);   // 格心
+var aim = Vec3.atCenterOf(src);
+```
+
+验证射线从**格心**发出；真正开火的射线从**身体真实位置**发出。j55 的两个数摆在一起：
+
+| | x | y | z |
+|---|---|---|---|
+| 格心眼（验证用，-4,62,55） | −3.50 | 63.62 | 55.**50** |
+| 真实眼（`waterFill.atUse`） | −3.46 | 63.62 | 55.**70** |
+
+y 完全吻合（`62 + 1.62`），**z 差 0.20，而且是朝着远离目标（z=54）的方向偏**。
+就这 0.2 格把射线蹭到了 `-5, 62, 55` 那块草的顶面。
+⇒ **一格可以先通过验证、再开火失败**，而这正是 [[a-centre-eye-is-not-the-eye-that-fires]]
+那一族的第 N 次：验证用格心、执行带足迹和浮高。
+
+**两条合起来才是这一趟的死因**：(B) 让脚下那格**假通过**，(A) 随即保证不再看第二个候选。
+单修任何一条都不够——(A) 修了，(B) 仍会把某个错格选进来；(B) 修了，(A) 仍不肯换更好的座位。
+
+⇒ 下一步（按序，**先读数后改逻辑** [[a-question-asked-backwards-still-answers]]）：
+1. `standToScoop` 把 `why` 接出来写进 `waterFill.reseat`（仪器本来就有，`JourneyRamp.java:195` 印过它，
+   只是这一个调用点 `new LinkedHashMap<>()` 当场丢弃）；
+2. 同一趟把 (A)(B) 各自的读数打出来：候选总数、被 `d >= bestD` 短路掉的个数、
+   以及格心眼与真实眼的差值——**先证明这两条在真梯上确实发生**，再改排序和射线原点。
 注意 [[water-is-not-a-floor]]：水源正上方那格永远不合格，脚下的「地板」就是水本身。
 
 ### 🔴🔴 J59（j54 全局统计，2026-08-25 07:25）：垒台阶这一支**一级都没垒成过**，9/9 全是 `0/N`
@@ -1193,6 +1230,26 @@ if (level.getBlockState(cell).blocksMotion()) return true;   // 同一句里读 
 ⚠️ 待办：只有 `JourneyStairs.placeInto:449` 一处 `placeOn`，全部 rung 都从这里过 —— 修一处即可，
 但也意味着改错一处就全错。修法必须**等到往返完成再判**，而不是把判词换成读客户端世界
 （那只会把预测当成落定，[[a-lagging-reading-became-the-crime-scene]] 的反面）。
+
+#### 修法已落地并过闸（2026-08-25 08:05）
+
+`Stop.PENDING`：`layWhereItStands` 多一个 `settled` 形参。**旧签名原样保留、委托为 `settled=true`**，
+所以 `JourneyRampScenes` 的三处调用逐字不变——它们驱动的是服务端落子的身体，判词本来就是对的。
+`lay` 用 `settled=false`，遇 PENDING 就 `HoldStill(4)` 等一轮**再按同一级重问**；
+`layWhereItStands:429` 开头那句「已经实心就 laid++」于是第一次真正记到了本趟自己垫的那一级。
+**每一级各有一次延期**（`settledAt` 记的是级号不是趟号）；第二次仍不实心才写 `.step.N`，
+而那时 `whyNotLaid` 读到的才是往返之后的世界。
+
+`stagewrightDedicatedServerFabric`：**`VERDICT: GREEN`**，必需失败 0，COVERAGE 289 执行 / 25 跳过。
+三条 `fail(optional)` 全部**早于本次改动**——`wd.vineOverWaterClimb`、`wd.serverEscapeSealedShelter`
+和 `wd.journeyGetsAshoreBeforePouring`，最后这条在改动前的 `gate6-fabric.log`、`gate5-*`、
+`gate-fabric-2/3/4`、`gate-fabric-reseat` 里都在。
+⚠️ **基线是三条，不是两条**——CLAUDE.local.md 里「两条常驻失败」那句已经过期。
+
+⚠️ **但闸证明不了这个修法。** j55 的收尾行写着：八条 `wd.journey*` 辅助场景在集成服拓扑上**全部 skip**
+（「集成服上有真实客户端…不许再造无头身体」），而专用服上身体是服务端落子、走的是 `settled=true`。
+⇒ **没有任何一个闸拓扑会执行 PENDING 这一支**；闸只能证明没弄坏别的。
+只有真梯（`:fabric:runJourneyIntegratedServer`）能量它。[[skip-is-not-coverage]]
 
 ### ⚠️ 被杀的后台包装：跑着的那一半活下来，没跑到的那一半跟着死（2026-08-25 07:10）
 
