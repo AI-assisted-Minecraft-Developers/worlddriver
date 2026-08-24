@@ -824,7 +824,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
+        // earlier version of this scene put the body — the takeover's entry gate
+        // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -910,7 +913,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;   // deterministic: each repath completes in one go
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
+        // earlier version of this scene put the body — the takeover's entry gate
+        // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1003,7 +1009,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
+        // earlier version of this scene put the body — the takeover's entry gate
+        // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1091,7 +1100,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
+        // earlier version of this scene put the body — the takeover's entry gate
+        // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1207,36 +1219,45 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     // scene asserts anything about height gained.
     // ─────────────────────────────────────────────────────────────────────────────────────────
 
-    /** Basin + bank shared by the two ledger scenes: deep water the body floats in, a bank it wants
-     *  to climb (so the climb-out takeover engages), dry land beyond. Returns the goal. */
+    /**
+     * The +2 low bank the two ledger scenes both use — deliberately the same shape as
+     * {@code wd.waterLowBank}, because that is the geometry the climb-out takeover is KNOWN to
+     * engage on. An earlier version of these scenes built its own basin and parked the body three
+     * blocks off the bank; the takeover never engaged, both scenes reported {@code engages=0}, and
+     * the vacuity guard below is what caught it. Returns the goal on the dry land behind the bank.
+     */
     private static BlockPos buildLedgerBasin(ServerLevel level, int cx, int cz, int floorY, int surface) {
-        final int span = 3, bankTop = surface + 1;
-        for (int dx = -2; dx <= span + 4; dx++)
-            for (int dz = -3; dz <= 3; dz++)
+        final int bankTop = surface + 1;
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 6; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-        for (int dx = -2; dx <= span; dx++)
-            for (int y = floorY + 1; y <= surface + 3; y++) {
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 3), Blocks.STONE.defaultBlockState());
+        for (int dz = -3; dz <= 1; dz++)
+            for (int y = floorY + 1; y <= bankTop; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx - 3, y, cz + dz), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + 3, y, cz + dz), Blocks.STONE.defaultBlockState());
             }
-        for (int dz = -3; dz <= 3; dz++)
-            for (int y = floorY + 1; y <= surface + 3; y++)
-                level.setBlockAndUpdate(new BlockPos(cx - 2, y, cz + dz), Blocks.STONE.defaultBlockState());
-        for (int dx = -1; dx < span; dx++)
-            for (int dz = -2; dz <= 2; dz++) {
+        for (int dx = -3; dx <= 3; dx++)
+            for (int y = floorY + 1; y <= bankTop; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+        for (int dx = -2; dx <= 2; dx++)
+            for (int dz = -2; dz <= 1; dz++) {
                 for (int y = floorY + 1; y <= surface; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
-                for (int y = surface + 1; y <= surface + 4; y++)
+                for (int y = surface + 1; y <= surface + 5; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
             }
-        for (int dx = span; dx <= span + 4; dx++)
-            for (int dz = -2; dz <= 2; dz++) {
-                for (int y = floorY + 1; y <= bankTop; y++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.DIRT.defaultBlockState());
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int y = floorY + 1; y <= surface; y++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 2), Blocks.DIRT.defaultBlockState());
+            level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + 2), Blocks.GRASS_BLOCK.defaultBlockState());
+        }
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = 3; dz <= 6; dz++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, bankTop, cz + dz), Blocks.GRASS_BLOCK.defaultBlockState());
                 for (int y = bankTop + 1; y <= bankTop + 4; y++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
             }
-        return new BlockPos(cx + span + 2, bankTop + 1, cz);
+        return new BlockPos(cx, bankTop + 1, cz + 4);
     }
 
     /** Topmost water cell of the column the body floats in, or null once the column is filled. */
@@ -1280,7 +1301,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
+        // earlier version of this scene put the body — the takeover's entry gate
+        // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1296,6 +1320,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Sampled per tick, never at the end: the tick placeFutile goes true the takeover releases
         // and zeroes the counter (WalkerTickClimb:500-502), so a post-hoc read always sees 0.
         boolean sawFutile = false;
+        boolean pinning = false;
         BlockPos pinnedAt = null;
         double bandLow = Double.MAX_VALUE, bandHigh = -Double.MAX_VALUE;
         Walker.Step s = Walker.Step.WALKING;
@@ -1304,13 +1329,22 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             s = walker.tick(av, w);
             av.step();
             if (walker.pillarPlaceFutile()) sawFutile = true;
+            // TWO PHASES, and the order is the whole staging. Let the body swim and bob FREELY
+            // until the takeover actually engages — its entry gate wants a bob-stall below a bank
+            // it cannot mount, and a body held still never accumulates one. Only then start
+            // holding the band. Pinning from tick 0 is what made the first version of this scene
+            // report engages=0.
+            if (!pinning && Walker.waterPillarEngages > engages0) pinning = true;
+            if (!pinning) continue;
             // THE BAND. Hold the feet 0.95 above the top water cell's floor: past the 0.9 crest
             // gate, short of the 1.0 vanilla needs. Re-applied every tick because the climb-out
             // drives forward and jumps, and one un-pinned tick is one tick of real physics.
-            BlockPos top = topWater(w, cx, cz, floorY, surface);
+            // Dead centre in the column on BOTH horizontal axes, so the AABB overlaps the cell on
+            // all three and vanilla's refusal is geometric rather than lucky.
+            BlockPos top = topWater(w, cx, cz + 1, floorY, surface);
             if (top != null) {
                 pinnedAt = top;
-                fp.setPos(cx + 0.5, top.getY() + 0.95, cz + 0.5);
+                fp.setPos(cx + 0.5, top.getY() + 0.95, cz + 1.5);
                 fp.setDeltaMovement(0, 0, 0);
                 // Where the body sat RELATIVE to the cell it was meant to fill. The pin makes this
                 // constant by construction, and recording it is how the arena proves the constant
@@ -1384,11 +1418,18 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.allowPlace = true;
         BotConfig.allowBreak = true;
         BotConfig.allowSwimEscapeBreak = true;
-        BotConfig.walkerPillarSurfacePlace = true;
+        BotConfig.allowSwimEscapePlace = true;     // on the ENTRY gate (WalkerTickClimb:457)
+        // FALSE for the same reason as the positive scene: this flag does not gate the ledger path,
+        // and turning it on adds the :921 crest-place, which fills cells WITHOUT going through the
+        // ledger — the one route that would let this scene see a fill it is not measuring.
+        BotConfig.walkerPillarSurfacePlace = false;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
+        // earlier version of this scene put the body — the takeover's entry gate
+        // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1400,48 +1441,78 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
         final int engages0 = Walker.waterPillarEngages;
-        int maxNoPlace = 0, filled = 0;
-        boolean sawFutile = false;
+        int filled = 0;
+        boolean pinning = false;
+        // The reading that decides this scene: what the ledger held on the tick AFTER a cell
+        // actually filled. -1 = no fill was ever observed, which the guards below turn into a
+        // staging failure rather than a pass.
+        int ledgerAfterFill = -1;
+        int footLow = Integer.MAX_VALUE, footHigh = Integer.MIN_VALUE;
         java.util.Set<BlockPos> wasWater = new java.util.HashSet<>();
         Walker.Step s = Walker.Step.WALKING;
         int t = 0;
-        for (; t < 400 && s == Walker.Step.WALKING; t++) {
-            BlockPos top = topWater(w, cx, cz, floorY, surface);
+        // 60, not 400. Once the run is long enough for the ledger to climb past the futility line
+        // on its own, "it never declared futility" stops being evidence about the FILL and becomes
+        // evidence about the budget. This scene asks one question — does a landing zero the
+        // counter — so it runs just past the landing and stops.
+        for (; t < 60 && s == Walker.Step.WALKING; t++) {
+            BlockPos top = topWater(w, cx, cz + 1, floorY, surface);
+            boolean wasSolidBefore = top == null || w.isSolid(top);
             if (top != null) wasWater.add(top);
             s = walker.tick(av, w);
             av.step();
-            if (walker.pillarPlaceFutile()) sawFutile = true;
-            // 1.05, not 0.95: clear of the cell by vanilla's own rule, so the click lands.
-            BlockPos nowTop = topWater(w, cx, cz, floorY, surface);
-            if (nowTop != null) {
-                fp.setPos(cx + 0.5, nowTop.getY() + 1.05, cz + 0.5);
+            if (!pinning && Walker.waterPillarEngages > engages0) pinning = true;
+            if (pinning) {
+                // A CONSTANT absolute height, and that is the point. Pinning relative to a moving
+                // top would let foot.getY() climb as cells fill, and the high-water half of the
+                // reset rule (b) would fire — after which a green run would prove nothing about
+                // the landing half (a), which is what this scene is for. Held still, foot.getY()
+                // cannot refresh the high-water mark after the first tick, so (a) is the only
+                // reset left and the assertion below is about it alone.
+                fp.setPos(cx + 0.5, surface + 1.05, cz + 1.5);
                 fp.setDeltaMovement(0, 0, 0);
+                footLow = Math.min(footLow, fp.blockPosition().getY());
+                footHigh = Math.max(footHigh, fp.blockPosition().getY());
+                // Did THIS tick turn a water cell solid? Then the very next reading of the ledger
+                // is the one the fix is about.
+                if (top != null && !wasSolidBefore && w.isSolid(top) && ledgerAfterFill < 0)
+                    ledgerAfterFill = walker.pillarNoPlaceTicks();
             }
-            maxNoPlace = Math.max(maxNoPlace, walker.pillarNoPlaceTicks());
         }
         for (BlockPos c : wasWater) if (w.isSolid(c)) filled++;
         int engages = Walker.waterPillarEngages - engages0;
 
         ctx.record("闸.接管次数", engages);
-        ctx.record("账.计数峰值", maxNoPlace);
-        ctx.record("账.判过徒劳吗", sawFutile);
         ctx.record("柱.真的垫上了几格", filled + "/" + wasWater.size());
-        ctx.record("走.收尾", s + "（用了 " + t + "/400 tick）");
+        ctx.record("账.落地后的计数", ledgerAfterFill < 0 ? "没观察到落地" : String.valueOf(ledgerAfterFill));
+        ctx.record("脚.格高范围", footLow > footHigh ? "没钉过" : "[" + footLow + ", " + footHigh + "]");
+        ctx.record("走.收尾", s + "（用了 " + t + "/60 tick）");
         ctx.record("走.探针", walker.progressProbe());
 
         if (engages == 0)
             ctx.fail("pillarLedgerReal: 接管一次都没 engage —— 布景不对，下面每一行说的都不是被测对象。"
                     + "探针=" + walker.progressProbe());
-        // THE SELF-PROOF, and it must come first.
-        if (filled == 0)
-            ctx.fail("pillarLedgerReal: 整趟没有任何一格从水变成实心 —— 这条场景要断言的是「真放成了就不算徒劳」，"
-                    + "而前提「真放成了」没有成立。这时候 placeFutile 为假什么也证明不了（没放成也会是假），"
-                    + "断言退化成 0==0。要修的是布景。身体钉在 topWater+1.05，vanilla 本该接受。");
+        // THE SELF-PROOF, and it must come first: without an observed fill, "the ledger stayed at 0"
+        // is satisfied by a run in which nothing whatsoever happened.
+        if (filled == 0 || ledgerAfterFill < 0)
+            ctx.fail("pillarLedgerReal: 整趟没有观察到任何一格从水变成实心（成了 " + filled + " 格，"
+                    + "落地后读数=" + ledgerAfterFill + "）—— 这条场景要断言的是「真放成了就会清零」，"
+                    + "而前提「真放成了」没有成立。这时候计数器是 0 什么也证明不了（没放成、没engage、"
+                    + "一切顺利，三种情况都会是 0）。要修的是布景：身体钉在 " + (surface + 1.05)
+                    + "，高于填充格 1.0，vanilla 本该接受。");
+        // (b) MUST NOT BE THE EXPLANATION. The body is held at one absolute height, so foot.getY()
+        // is constant and the high-water half of the reset rule cannot refresh after the first
+        // tick. If this range is wider than one cell the pin failed, and a green run below would be
+        // ambiguous between "the landing cleared it" and "the rise cleared it" — the scene would no
+        // longer be about the half it claims to test.
+        if (footHigh > footLow)
+            ctx.fail("pillarLedgerReal: 脚所在格在 [" + footLow + ", " + footHigh + "] 之间变过 —— "
+                    + "钉位没守住，高水位那一半 (b) 可能才是清零的原因，这一趟证不了 (a)。");
 
-        if (sawFutile)
-            ctx.fail("一本记结果的账把成功也记成了徒劳：这一趟真的垫上了 " + filled + " 格，"
-                    + "而 placeFutile 仍然为真过（pillarNoPlaceTicks 峰值 " + maxNoPlace
-                    + "），也就是说挖掘后备会抢走一次正在成功的攀爬。"
-                    + "计数器必须在「那一格确实变实心」时清零，只在没变实心时递增。");
+        if (ledgerAfterFill != 0)
+            ctx.fail("一格实实在在垫上了，账本却没清零：落地那一 tick 之后 pillarNoPlaceTicks 是 "
+                    + ledgerAfterFill + "，而身体整趟钉在同一格（脚格 " + footLow + "），"
+                    + "所以高水位那一半不可能代它清零 —— 清零只能来自「那一格真的变实心」这一条，而它没发生。"
+                    + "照这样下去，一次正在成功的攀爬会在 " + "51 tick 后被判徒劳、被挖掘后备抢走。");
     }
 }
