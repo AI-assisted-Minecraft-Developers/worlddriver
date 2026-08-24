@@ -84,7 +84,9 @@
 | ~~🔴 待做~~ | ~~J27 原文~~ | ~~**缺陷地图：`applyGameTestBaseline()` 有 38 条旗标与生产默认不同，其中 26 条没有任何场景设回来**~~ ⇒ 它们下面的分支**在整个套件里是死代码**，针对它们写的场景会绿得毫无道理。⚠️ 五条「提了主题却从不打开机制」最像已经恒真：`walkerFloatingBankBobFreeze`、`walkerBuoyantSearchFromSurface`、`walkerSwimAshorePillarDespiteDeepDig`、`pathfinderLogBreakTax`、`pathfinderBreakCostMultiplier`。**两条数值旗标最阴**：`pathfinderBreakCostMultiplier` 生产 2.5／套件 1.0，`pathfinderLogBreakTax` 生产 3.0／套件 1.0 ⇒ **套件里的 A\* 用的是另一套破坏定价**，任何「会不会选择挖穿」的场景量的都不是线上那张成本表——不会红，只会答对隔壁世界的问题。⚠️ 按「读它处数」排只是第一刀：`walkerPillarSurfacePlace` 只有 2 处却是 J24b 的病灶，**它的危害是两个 phase 类因它分岔，面积衡量不到**。脚本 `baselinediff.py`／`baselinemap.py`（scratchpad），**用前先跑那两个校准样本**（[[a-verification-tool-needs-verifying-too]]：第一版正则 `(?<![\w.])flag` 排掉了 `BotConfig.flag` 的写法，把 8 条已覆盖的诬告成盲区） | janitor |
 | ✅ 已修待验 | J39 | **11 级淹死，离浇筑只差一次。** `lava_bucket.atSurface=1` 而 `lava.exit#6.endedOn=脚格=water，脚下=water —— 浮在水里，脚下没有地板`，接着 `death.blow=drown −2.0→0.0@146`、`death.driving=goto`。`recordExit` 的 javadoc 早写过这个形状并把修法交给调用方（「the iron rung now ends with a walk home」）——**铁级接了，黑曜石级没接**。已在 `JourneyCast.leaveWithTheLava` 补 `standOnDryGround`（`dbb664d4`，复用 `JourneyTerrain.dryUnderfoot`，预算 600 tick）| 我 |
 | 🟠 待判 | J40 | **引擎问题，先记不修**：身体在水里被 `goto` 驱动了 146 tick、连挨 8 次窒息伤害，**没有任何一层自救**。`JourneyRig.await` 每 tick 判活，但判的是「死没死」不是「快死了」。两个问题分开：① 走行器该不该在 `getAirSupply()` 见底时自己上岸（引擎）；② 关卡层该不该在空气/血量过线时中止这条腿去补救（写死步骤）。按指令先做 ②，而 ② 现在连仪器都没有 | 我 |
-| 🔴 已复现待查 | J38 | **走到了掉落那一格、站了 30 tick，东西没进包。** j34 趟 8 级逐行：`craftingTable.broke=64,61,62，破坏后地上 1 个，身体在 64,61,63` → `pickup.walks=1` → `pickup.target=64,61,62` → **`pickup.left#2=1`** → `craftingTable=0` → `lostAfterCraft=…地上掉落 1 个，身体在 64,61,62`。走成功了、终点就是掉落格、`collectByHand` 的 `HoldStill(30)` 也跑完了，**物品还在地上**。这跟 J37 是**两条**缺陷：J37 是「看见了不去捡」，这条是「捡了没捡到」。两个待分辨的解释：① **背包满**（这一刻带着 22 圆石＋工具＋羊毛＋床＋熟肉＋熔炉，`ItemEntity.playerTouch` 装不下就是不装，[[the-hand-is-not-the-bag]]）；② 碰撞/拾取延迟。**分辨它们的仪器**：捡之前记空槽数、物品实体的精确坐标与 `pickupDelay`、身体的 double 坐标。⚠️ 别先改代码——现在两个解释都解释得通（[[one-sample-cannot-name-a-cause]]）。🔎 **同一趟的对照组已经有了**：9 级 `vein1.pickup.left=0`、`vein2.pickup.left=0`，**捡东西这一族本身是好的**，而且那是在包更满的时候。⇒ 差别不在「捡」，在**这一个物品**：`raw_iron` 能并进已有槽，`crafting_table`（包里 0）要一个**新槽**。所以①还活着，但要先数槽而不是先猜 | 我 |
+| 🔴 待做 | J45 | **两笔修法连着两趟无法验收**（J34 塔、J39 浮水）：发作条件都没复现。⇒ 用测试框架把发作条件**摆出来**——两条竞技场场景，一条把身体放在自建塔顶跑 `walkHome` 到达支，一条让爬升结束时身体浮在水面跑 `leaveWithTheLava`，断言**补救的那几行证据出现**且终态脚下是固体。判据要求「观察到补救运行」而非数绿（[[three-greens-cannot-see-a-one-in-four]]）。⚠️ 新场景同一笔提交补两个 `expected-scenes-*.txt` | 我 |
+| 🔴 已判待修 | J44 | **12 级被岩浆烧死在回程**：`death.blow=lava −4.0×3；onFire −1.0×2`，`death.at=-8,66,10`（脚下 sand），`death.driving=goto`，`forge.return=3,64,17 → 楼梯口 -8,66,19 → 楼梯底 2,56,19`。回程经过楼梯口一带踩进岩浆。⚠️ 同级另有一条**别并进来**：`forge.carved=66/67 格开了，1 格没挖动`，模腔不完整，但那不是死因 | 我 |
+| ✅ **已结案待修** | J38 | **走到了掉落那一格、站了 30 tick，东西没进包。** j34 趟 8 级逐行：`craftingTable.broke=64,61,62，破坏后地上 1 个，身体在 64,61,63` → `pickup.walks=1` → `pickup.target=64,61,62` → **`pickup.left#2=1`** → `craftingTable=0` → `lostAfterCraft=…地上掉落 1 个，身体在 64,61,62`。走成功了、终点就是掉落格、`collectByHand` 的 `HoldStill(30)` 也跑完了，**物品还在地上**。这跟 J37 是**两条**缺陷：J37 是「看见了不去捡」，这条是「捡了没捡到」。两个待分辨的解释：① **背包满**（这一刻带着 22 圆石＋工具＋羊毛＋床＋熟肉＋熔炉，`ItemEntity.playerTouch` 装不下就是不装，[[the-hand-is-not-the-bag]]）；② 碰撞/拾取延迟。**分辨它们的仪器**：捡之前记空槽数、物品实体的精确坐标与 `pickupDelay`、身体的 double 坐标。⚠️ 别先改代码——现在两个解释都解释得通（[[one-sample-cannot-name-a-cause]]）。🔎 **同一趟的对照组已经有了**：9 级 `vein1.pickup.left=0`、`vein2.pickup.left=0`，**捡东西这一族本身是好的**，而且那是在包更满的时候。⇒ 差别不在「捡」，在**这一个物品**：`raw_iron` 能并进已有槽，`crafting_table`（包里 0）要一个**新槽**。所以①还活着，但要先数槽而不是先猜 | 我 |
 | 🔴 已查明待修 | J37 | **工作台的丢失分支数出了地上那一个，然后走人。** `JourneyStation:50-57`：包里 0 且 4 格内没立着的 ⇒ 把 32 格搜索、掉落普查、身体坐标写成一行 `craftingTable.lostAfterCraft`，然后 `then.run()`。上趟 7 级读到的正是「**地上掉落 1 个**，身体在 -46,62,99」——**它看见了**。而 `collectByHand` 就在同一族里，`PICKUP_RADIUS` 也**恰好是 32**，即它走的就是这一行数出来的那一个。⇒ `dropsNearby > 0` 时改成去捡。这就是那条 javadoc 自称的「the ladder's oldest tax」，4/4 趟每趟重买一张桌子的根。⚠️ 与 `furnace.topUp` 同形：**说得出补救、从不执行**（[[a-fix-that-cannot-reach-its-own-occasion]]）。**等本趟真梯落地再编译**（[[compiling-under-a-live-run]]）。⚠️ **次序**：J37 的补救正是走 `collectByHand`，而 J38 说的就是这条路走到了却没捡到 ⇒ **不能先修 J37 再指望它生效**。两条一趟做完，但读的是**两组不同的行**：J37 读「丢失分支到底有没有发起收集」，J38 读「收集为什么空手」。不是两个变量搅在一起 | 我 |
 | 📐 已查明待修 | J33 | **专用服身体和客户端身体给「挖穿」定的不是同一个价**：`LevelWorldView.breakCost:93-104` 只有 `COST_PER_TICK × ticks`，`ClientWorldView` 叠了四道税（浮水 ×25/×5、错工具 ×3、树干税、`pathfinderBreakCostMultiplier`）。⇒ 专用服上任何「会不会挖穿」的场景量的都是另一张表。与 J27 是两条独立机制。**证据在这个类自己的 javadoc 里**（`:79-83`：为 lily-pad 那道税专门重写过 `isBreakableObstruction`，说的就是这个问题——修了一处没修一族）。✅ **搬法评估已交（见下节）**，并**多找出第五条、方向相反**的分歧：服务端规划器按**手里正拿着的那件**定价（`LevelWorldView:100`），而它自己的执行器破坏前会从**全部 36 格**换上最优工具（`ServerPlayerAvatar.selectTool:324-343`）⇒ **规划器比执行器严**。三条承重断言我逐条核过：`selectTool` 确实扫 `inv.items.size()`、`LevelWorldView` 确实**只有 1 参 `breakCost`**（浮水税那条 2 参路径根本进不来）、`ClientWorldView` 确实只扫 `slot < 9`。搬法分两笔两闸，**不与真梯同趟** | janitor 已评估，待做 |
 | 🔴 已修待验 | J34 | **7 级把身体留在自己垒的 16 级塔顶上，8 级因此死掉。** `home.arrivedY = 78（起 62，净升 16），脚下=cobblestone`，判据只量水平距离（3 ≤ 容差 5），`Goal.XZ` 没有 y 项 ⇒ 那一级**判绿**。代价两笔：塔**就是**丢掉的圆石（8 级开场 7，石级存 20），且 y=78 让 `mineSearchVerticalRadius=8` 的扫描带整段落在地表之上，补料 1 tick 空手而回。已补 `settleOntoHomeGround`（双向、每趟都记 `*.homeElevation`；向上拆塔回收圆石，向下 `climbOut`），并把 8 级补料改成打结果、加勘测石后备（`d0de99db`）。**下一趟真梯读** | 我 |
@@ -185,6 +187,83 @@ F 只是结局。上一趟的教训正是**趟级的数是结局不是证据**�
 🔻 **本趟自带的回归风险**：上岸那一步最多花 600 tick，若 `dryUnderfoot` 在沼泽里找不到干柱，
 会白花这 600 tick 再去浇。11 级预算 100 000，影响可忽略；但若读到
 `lava.exit.dryLand = 16 格内没有一柱是干的`，那说明搜索半径或判据选错了，**记 J41 另开**。
+
+---
+
+## ✅ 判：j39 真梯（`results-j39-elevenOfTwenty.jsonl`，`/tmp/journey-j39.log`）
+
+`BUILD SUCCESSFUL in 31m 11s`，`GRADLE_EXIT=0`。
+**11/20，`journey.height = OBSIDIAN`，布景调用 0 次** —— 又一个出厂配置新纪录。
+11 级：`OBSIDIAN 达成 —— 在 -4, 62, 54 浇出黑曜石，桶已回到手上 ×1`，`cast.cellAfter = obsidian`。
+
+### 预登记逐条判
+
+| # | 判据 | 结果 |
+|---|---|---|
+| H | `lava.exit.afloat` 一定写 | ✅ **已验** —— `lava.exit.afloat = 否 —— -4,63,56，脚下=vine` |
+| I | afloat=是 ⇒ dryLand + ashore | ⏸ **未触发** —— 这趟 afloat=否 |
+| J | 11 级不再以窒息结束 | ⏸ **按机制算未触发**（见下） |
+| K | 11 级 PASS | ✅ 是，但**不是 J39 的证据** |
+| L | `pickup.empty` 出现时字段齐全 | ✅ **已验，而且一趟就判死了 J38**（见下） |
+
+⇒ **J39 记「已修未验」。** 这趟出井的读数是
+`lava.exit#5.endedIn = -4,56（就是那一柱）`、`gained = 36/36`、`endedOn = 脚格=vine，脚下=vine`
+——**爬升本身这次是完美的，身体根本没落进水里**，上岸那一步一次都没被执行。
+11 级过了是因为爬升正常，不是因为修法。
+
+### 🔻 连着两次了：一条针对罕见故障的修法，没法用「跑一趟绿了」来验
+
+J34（塔）与 J39（浮水）**各自的发作条件在下一趟都没复现**，于是两笔都停在「已修未验」。
+这不是运气不好，是**方法错了**：拿真梯当验收台，验的是「这趟有没有发作」，
+不是「发作时修法管不管用」（[[three-greens-cannot-see-a-one-in-four]]：
+判据必须是**观察到补救运行**，不是数绿）。
+
+⇒ **下一步不是再跑一趟真梯**，而是用测试框架**把发作条件摆出来**：
+两条竞技场场景，一条把身体放在自建塔顶上跑 `walkHome` 的到达支，
+一条让身体在爬升结束时浮在水面上跑 `leaveWithTheLava`，
+断言**补救那几行证据出现**且身体最终脚下是固体。
+摆的时候注意别摆成刚好达标（[[staging-for-rungs-nobody-has-climbed]]）。
+新场景 ⇒ 同一笔提交补两个 `expected-scenes-*.txt`。
+
+### ✅ J38 结案：不是背包满，是**根本没走到**
+
+仪器 `4eceadb2` 第一趟就点名，在 5 级：
+
+```
+crafting_table.pickup.empty = 走到 60,62,75 站满 30 tick 却什么都没拿到 ——
+  空槽 29／36，身体在 67.66,62.00,78.20；实体在 60.98,62.75,75.00（相距 7.45 格），
+  拾取延迟未过=false，数量 1
+```
+
+- **空槽 29/36** ⇒ 「背包满」这条解释**证伪**。
+- **相距 7.45 格** ⇒ 走这一腿**没到**，而 `collectByHand` 把它当成到了。
+
+病灶：`settle(new IntentProcess(...), 600, cb)` —— **`rig.settle` 在预算烧完时调回调，
+和进程跑完时一模一样，`collectByHand` 没有任何一行分辨这两者**。
+🔎 **这条陷阱本仓库已经治过一次**：`JourneyCast.approachAndPour` 的 `cast.walk` 行，
+注释逐字写着「`rig.settle` runs its callback when the budget is spent just as it does when
+the process finishes, and nothing here told them apart」。**治了那一处，没治这一族**
+——与 J33（lily-pad 那道税）、J41（`recordExit` 的交接）同形。
+
+修法两半：① `collectByHand` 记一行「这一腿是走完的还是预算烧完的、终点离目标多远」；
+② `JourneyStation.takeTableWhereItStands` 传的是 `legs=1`，**只走一次**
+（`JourneyRig.MAX_PICKUP_LEGS` 是 3），走不到就没有第二次机会。
+
+### 🔴 J44（新）：12 级被岩浆烧死在回程
+
+```
+death.blow       = lava −4.0→10.0@252；lava −4.0→6.0@261；lava −4.0→2.0@271；
+                   onFire −1.0→1.0@298；onFire −1.0→0.0@318
+death.at         = -8, 66, 10    脚下=sand，头格=air，坠落距离=0.2
+death.driving    = goto          death.legTicks = 318
+forge.return     = 3,64,17 → 楼梯口 -8,66,19 → 楼梯底 2,56,19
+forge.carved     = 66/67 格开了，1 格没挖动 —— 见 carve.stuck，壁龛不是完整的
+forge.stairsBroken = 11 级都完好
+```
+
+回程走到楼梯口一带（`-8,66,·`）时踩进岩浆，先挨三下 `lava` 再烧死。
+⚠️ **同一级还有第二条**：`forge.carved = 66/67`，模腔差一格没挖开
+——但那不是死因，别把两件事并成一条（先分清再归因）。
 
 ---
 
