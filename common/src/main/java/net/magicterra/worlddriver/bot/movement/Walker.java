@@ -2075,6 +2075,13 @@ public final class Walker {
      * <i>unconditionally false</i>: nothing changed colour, so nothing changed.
      */
     public static volatile int waterPillarEngages;
+    /** Times the climb-out actually clicked — {@code crestClearOf} passed and {@code Avatar#place}
+     *  was called. The one bit neither the ledger nor the world can supply: a cell that stayed water
+     *  means「clicked and vanilla refused」and「never clicked at all」equally well, and those are
+     *  opposite findings about the crest gate. {@code wd.pillarLedgerCountsRefusedPlaces} ran a full
+     *  400 ticks against a threshold that made the second one true and reported the colour the first
+     *  one would have — read it together with whether the cell turned solid. */
+    public static volatile int waterPillarPlaceCalls;
     /** Times the pillar exceeded its engage-anchored ceiling and bailed to the fallback actuators.
      *  <b>Never read alone</b> — see {@link #waterPillarEngages}. */
     public static volatile int waterPillarCeilingBails;

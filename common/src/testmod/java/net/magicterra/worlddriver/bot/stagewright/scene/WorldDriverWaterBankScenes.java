@@ -1316,6 +1316,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
         final int engages0 = Walker.waterPillarEngages;
+        // Without this the scene cannot tell its own two failure modes apart. "The cell never turned
+        // solid" is what a refused click leaves behind AND what no click at all leaves behind, and
+        // this arena is built to assert the first. Under the 2026-08-24 unified threshold it was
+        // silently the second for 400 ticks and still reported PASS.
+        final int clicks0 = Walker.waterPillarPlaceCalls;
         int maxNoPlace = 0;
         // Sampled per tick, never at the end: the tick placeFutile goes true the takeover releases
         // and zeroes the counter (WalkerTickClimb:500-502), so a post-hoc read always sees 0.
@@ -1358,6 +1363,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         int engages = Walker.waterPillarEngages - engages0;
 
         ctx.record("闸.接管次数", engages);
+        ctx.record("闸.点击开火次数", Walker.waterPillarPlaceCalls - clicks0);
         ctx.record("账.计数峰值", maxNoPlace);
         ctx.record("账.判过徒劳吗", sawFutile);
         ctx.record("柱.钉住格", pinnedAt == null ? "无（水柱被填满了）" : pinnedAt.toShortString()
@@ -1388,6 +1394,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + "低于 0.9 就没进过旧的 crest 闸，到了 1.0 原版就会接受放置。两种情况下这一趟"
                     + "都不是在问「被拒的点击算不算进展」，绿了也不说明账本记的是结果。");
 
+        // THE CLICK ITSELF, and it has to be asked out loud. Everything above is satisfied by a run
+        // in which the crest gate never opened: the cell stays water, the counter climbs, futility
+        // fires. That is not this scene's subject —「被拒的点击不算进展」needs a click to have been
+        // refused. It went unnoticed for one whole gate run, which is why it is a guard now.
+        if (Walker.waterPillarPlaceCalls - clicks0 == 0)
+            ctx.fail("pillarLedger: 整趟一次点击都没开火（crest 闸没开过）—— 计数器爬到 " + maxNoPlace
+                    + " 说明的是「没人按」，不是「按了没用」。这一趟没有测到被测的那件事。");
         if (!sawFutile)
             ctx.fail("这本账记的是动作不是结果：连续 " + t + " tick 每一次放置都被 vanilla 拒绝（"
                     + "身体钉在 " + (pinnedAt == null ? "?" : String.valueOf(pinnedAt.getY() + 0.95))
@@ -1399,8 +1412,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
     /**
      * J31 REVERSE: a place that really lands must NOT be counted as futile. Pins the body at
-     * {@code cell.y + 1.05} so vanilla accepts, and asserts the cell actually filled BEFORE
-     * asserting the ledger stayed under the futility line.
+     * {@code cell.y + 0.95} holding MUD — inside the crest band and above mud's 0.875 collision top,
+     * the one combination vanilla accepts while the body is still in the cell — and asserts the cell
+     * actually filled BEFORE asserting the ledger stayed under the futility line.
+     *
+     * <p>It used to pin at {@code cell.y + 1.05} holding a full cube, on the belief that clearing the
+     * cell by 1.0 is what vanilla wants. Above 1.0 the foot cell moves up and the fill cell moves
+     * with it, so the gate asked for {@code cell.y + 2.0} and the click could never fire: the scene
+     * was unsatisfiable by construction and its every red was about its own staging.
      *
      * <p>The order matters. "nothing was placed and nothing gave up" and "things were placed so
      * nothing gave up" print the same verdict, so the fill has to be proven first or this scene is
@@ -1450,6 +1469,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
         final int engages0 = Walker.waterPillarEngages;
+        final int clicks0 = Walker.waterPillarPlaceCalls;
         int filled = 0;
         boolean pinning = false;
         // The reading that decides this scene: what the ledger held on the tick AFTER a cell
@@ -1514,6 +1534,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         int engages = Walker.waterPillarEngages - engages0;
 
         ctx.record("闸.接管次数", engages);
+        ctx.record("闸.点击开火次数", Walker.waterPillarPlaceCalls - clicks0);
         ctx.record("柱.真的垫上了几格", filled + "/" + wasWater.size());
         ctx.record("账.落地那一tick", ledgerAtFill < 0 ? "没观察到落地" : String.valueOf(ledgerAtFill));
         ctx.record("账.落地后的计数", ledgerAfterFill < 0 ? "没观察到落地" : String.valueOf(ledgerAfterFill));

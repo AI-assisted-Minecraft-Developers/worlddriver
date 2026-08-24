@@ -196,6 +196,7 @@ final class WalkerTickClimb {
             wk.waterClimb.pillarNoPlaceTicks++;
         }
         if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
+            Walker.waterPillarPlaceCalls++;
             a.place(world, fillCell);
             // Remember THIS cell, overwriting any older attempt: an earlier cell that filled late
             // must not be allowed to pay for the one being clicked now.
