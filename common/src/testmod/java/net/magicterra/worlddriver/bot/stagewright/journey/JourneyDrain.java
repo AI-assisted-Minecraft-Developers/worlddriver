@@ -84,11 +84,22 @@ final class JourneyDrain {
      * time, then one cast later {@code 等了 200 tick 仍有流体：2,56,20（流动，没源就会自己退）},
      * and the return that followed could not reach the mould at all.
      *
-     * <p>Three and not more: a feeder further than three cells from every corridor cell is not
-     * flooding this corridor through geometry this rung carved, and widening a scan is the classic
-     * way to turn one clear answer into twelve unusable ones.
+     * <p><b>Eight, and the three it replaced was an instrument that could not see its own subject.</b>
+     * The paragraph here used to argue "three and not more — a feeder further than three cells is not
+     * flooding this corridor". That is false about vanilla water: a source spreads to horizontal
+     * level 7, so a feeder up to <b>seven</b> cells away reaches this corridor, and a fall resets the
+     * level so it can reach further still. Ladder j54 is what makes this concrete — {@code drain.7}
+     * timed out and this scan reported {@code 壁龛与楼梯底周围 3 格内没有水源块}, which reads exactly
+     * like a finding ("so it really is just still receding") while being a <b>false negative by
+     * construction</b>: at radius three it could not have found a feeder at five even if one were
+     * standing there. A reading that cannot fail is not evidence.
+     *
+     * <p>The old note's real worry — that a wide scan drowns one clear answer in twelve useless ones
+     * — is handled where it belongs, in {@link JourneyForge#sourcesAround}: it dedups, sorts
+     * highest-y first so the upstream end reads first, and caps the printed list. Narrowing the
+     * search to keep the output short traded the answer for the formatting.
      */
-    private static final int DRAIN_UPSTREAM = 3;
+    private static final int DRAIN_UPSTREAM = 8;
 
     /** The legs the caller starts with. Here rather than at the call site so the wait's length and
      *  the sentences that quote it cannot drift apart. */
