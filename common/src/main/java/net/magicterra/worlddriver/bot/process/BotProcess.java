@@ -20,9 +20,13 @@ import net.minecraft.client.Minecraft;
  *  so the client scheduler/chains keep calling it unchanged.
  *
  *  <p><b>The migration is finished.</b> Every process in this package overrides
- *  {@code tick(Avatar,...)} and none overrides {@code tick(Minecraft,...)}; the only
- *  override of the legacy signature left anywhere is a stub inside a scene. The bridge
- *  and the throwing default below are therefore not a staging area any more — the bridge
+ *  {@code tick(Avatar,...)} and NOTHING anywhere overrides {@code tick(Minecraft,...)} —
+ *  re-derive that with {@code grep -rn "boolean tick(Minecraft"} rather than from this
+ *  sentence; the only hits are the default below plus unrelated per-tick statics in
+ *  {@code bot/auto} and {@code ClutchController}. (This paragraph read「the only override
+ *  left is a stub inside a scene」for a while and was pointing at a
+ *  {@code Chain.tick(Minecraft,…)} stub — a different interface, {@code void}, not this
+ *  one.) The bridge and the throwing default below are therefore not a staging area any more — the bridge
  *  is the live client entry point (the scheduler and every chain still call it), and the
  *  default throw is now only reachable by a NEW process that forgets to implement the
  *  canonical one. Adding a process means overriding {@code tick(Avatar,...)}; there is no
@@ -74,8 +78,13 @@ public interface BotProcess {
      *  finalize per-session observers — fire the pathfinder's terminal so a path archive is
      *  flushed for the partial run — before the channel is released.
      *
-     *  <p>Same story as {@link #onResume}: {@code IntentProcess} is the only override, so
-     *  every cancelled mine/build/farm/follow drops its path archive on the floor. */
+     *  <p><b>No process in this package flushes an archive here except {@code IntentProcess}.</b>
+     *  It is not the only OVERRIDE — {@code MineProcess} overrides it too — but that one releases
+     *  the log-cost waiver ({@code logWaiverOwner}) and never touches its {@code Walker}, so a
+     *  cancelled mine drops its path archive exactly like build/farm/follow do. Count the overrides
+     *  with {@code grep -rn "void onCancelled"}, and read each body before concluding it repaths:
+     *  「overrides the hook」and「finalizes the walker」are two different questions, and this
+     *  sentence answered the second with the first for a while. */
     default void onCancelled(String reason) {}
 
     /** Optional sub-state string for {@code mc.bot.status} (key
