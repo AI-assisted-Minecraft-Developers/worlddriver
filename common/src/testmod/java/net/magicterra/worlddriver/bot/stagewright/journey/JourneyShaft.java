@@ -520,6 +520,27 @@ public final class JourneyShaft {
         // capability failure nobody reads. This is the number to grep across runs.
         int gained = rig.player().blockPosition().getY() - exitFromY;
         rig.evidence(climbName + ".gained", gained + "/" + exitRise + " block(s)");
+        // ONE ROW THAT CANNOT BE MISREAD, because each of the three above is individually true of a
+        // failure and the reader is left to join them. Ladder j54's `cast8#10` printed
+        // `gained = 6/6` beside `endedIn = -7,22（不是同一柱）` and `endedOn = 脚格=air，脚下=air`:
+        // a body that gained its full height, ten columns away, standing on nothing. Every row was
+        // honest and the composite was still missing — and `6/6` is what a reader reaches for.
+        //
+        // Deliberately NOT replacing them: they are the diagnosis, this is the verdict. And it is
+        // stated as「没垒成」rather than as a fraction, because the whole failure mode here is a
+        // fraction that looks like success.
+        boolean onColumn = end.getX() == climbColX && end.getZ() == climbColZ;
+        boolean footed = below.blocksMotion();
+        boolean full = gained >= exitRise;
+        rig.evidence(climbName + ".verdict", onColumn && footed && full
+                ? "垒成了：站在指定柱 " + climbColX + "," + climbColZ + " 上，脚下 " + below.getBlock()
+                  + "，涨满 " + gained + "/" + exitRise + " 格"
+                : "没垒成 —— "
+                  + (full ? "" : "只涨了 " + gained + "/" + exitRise + " 格；")
+                  + (onColumn ? "" : "落在 " + end.getX() + "," + end.getZ()
+                        + " 而不是指定柱 " + climbColX + "," + climbColZ + "（射线是照指定柱算的）；")
+                  + (footed ? "" : "脚下 " + below.getBlock() + " 不是地板；")
+                  + "⚠ 上面那行 gained 只量高度差，单独读会把这一趟读成成功");
         // A CLIMB THAT ENDED LOWER IS NOT A SHORT CLIMB. `gained=-3/20` reads as a fraction like any
         // other, and on 2026-08-19 it went past every reader between `vein2.exit#3` and the rung that
         // failed two legs later for want of a free cell to stand a crafting table in. A negative
