@@ -32,27 +32,6 @@ public final class JourneyShaft {
 
     private JourneyShaft() {}
 
-    /**
-     * Climb back out of the shaft this rung dug.
-     *
-     * <p>The counterpart nobody needed until mining became honest. Before the reach gate the bot
-     * never dug a shaft, so it never had to leave one; now a mining rung ends standing at y=60 in a
-     * one-wide hole, and the NEXT rung inherits that. Measured: the food rung asked for a cow 67
-     * blocks away and spent its whole 8 000-tick budget "走向猎物" from the bottom of a pit.
-     *
-     * <p>Placing is on, because pillaring is how a player leaves a shaft and the run is carrying
-     * the cobblestone it just mined. Best-effort by design — a rung that reached its goal should
-     * not be failed for an awkward exit, and the next rung's own guard will say so if it matters.
-     *
-     * <p><b>Scripted, not searched.</b> The first version handed the exit to the walker as
-     * {@code Goal.YLevel(surfaceY)} and sized its budget off {@code wd.serverPillarsOutOfAPit},
-     * which leaves a four-deep arena pit in 46 ticks. In the field that bought <b>one block in
-     * 6 000 ticks</b> — {@code exit.fromY=54 → exit.toY=55} — and the food rung then spent its
-     * entire budget re-searching a route out of the hole from {@code 71,55,74}. A nine-deep shaft
-     * cut sideways into a stone face is not the arena's clean column, and asking a search to
-     * rediscover the way up is exactly the shape of plan this suite promises not to need. So the
-     * ascent is spelled out the same way {@link #descendByMining} spells out the descent.
-     */
     /** Where the last climb started and how far it meant to go, so {@link #recordExit} can report
      *  the fraction it actually covered rather than only the height it stopped at. */
     static int exitFromY, exitRise;
@@ -191,6 +170,27 @@ public final class JourneyShaft {
         return climbName + ".climb." + step + what;
     }
 
+    /**
+     * Climb back out of the shaft this rung dug.
+     *
+     * <p>The counterpart nobody needed until mining became honest. Before the reach gate the bot
+     * never dug a shaft, so it never had to leave one; now a mining rung ends standing at y=60 in a
+     * one-wide hole, and the NEXT rung inherits that. Measured: the food rung asked for a cow 67
+     * blocks away and spent its whole 8 000-tick budget "走向猎物" from the bottom of a pit.
+     *
+     * <p>Placing is on, because pillaring is how a player leaves a shaft and the run is carrying
+     * the cobblestone it just mined. Best-effort by design — a rung that reached its goal should
+     * not be failed for an awkward exit, and the next rung's own guard will say so if it matters.
+     *
+     * <p><b>Scripted, not searched.</b> The first version handed the exit to the walker as
+     * {@code Goal.YLevel(surfaceY)} and sized its budget off {@code wd.serverPillarsOutOfAPit},
+     * which leaves a four-deep arena pit in 46 ticks. In the field that bought <b>one block in
+     * 6 000 ticks</b> — {@code exit.fromY=54 → exit.toY=55} — and the food rung then spent its
+     * entire budget re-searching a route out of the hole from {@code 71,55,74}. A nine-deep shaft
+     * cut sideways into a stone face is not the arena's clean column, and asking a search to
+     * rediscover the way up is exactly the shape of plan this suite promises not to need. So the
+     * ascent is spelled out the same way {@link #descendByMining} spells out the descent.
+     */
     static void climbOut(JourneyRig rig, int surfaceY, String tag, Runnable then) {
         climbPinned = false;
         BlockPos at = rig.player().blockPosition();
@@ -238,8 +238,10 @@ public final class JourneyShaft {
         climbColZ = clear.getZ();
         rig.evidence(climbName + ".column", climbColX + "," + climbColZ
                 + (climbPinned ? "（钉住：换柱等于换射线，不许改）" : "（起塔柱，走不回就改）"));
-        // The six-arg form on purpose: the five-arg one is a standalone ENTRY point and resets the
-        // column and the pin, which are exactly the two things this method has just set.
+        // The `int washedOff` overload on purpose: the `String tag` one is a standalone ENTRY point
+        // and resets the column and the pin, which are exactly the two things this method has just
+        // set. (Both take six arguments — this comment said "the six-arg form, not the five-arg
+        // one" until 2026-08-24, which named nothing at all; the fifth parameter is the difference.)
         ascendByTowering(rig, surfaceY, cap, cap, WASHED_OFF_RETRIES, () -> {
             if (rig.player().blockPosition().getY() >= surfaceY) { recordExit(rig, then); return; }
             // A PINNED CLIMB FALLS BACK TOO — WITHOUT DIGGING. This used to stop here on the grounds
@@ -438,9 +440,10 @@ public final class JourneyShaft {
      *
      * <p>Runs after the walker fallback, which is the only part of a climb that can move the body
      * DOWN: a tower cannot, and the mine legs only cut upward. Re-enters the scripted ascent through
-     * the six-arg form so the climb keeps its own name and its own rows — the five-arg entry bumps
-     * {@code climbSeq}, and a rescue that renamed the climb would file its evidence under a key no
-     * reader of the first half would look for.
+     * the {@code int washedOff} overload so the climb keeps its own name and its own rows — the
+     * {@code String tag} entry bumps {@code climbSeq}, and a rescue that renamed the climb would
+     * file its evidence under a key no reader of the first half would look for. (Both overloads
+     * take six arguments; counting them names neither.)
      *
      * <p>The column is re-chosen from where the body actually is, and the pin is deliberately not
      * honoured here: a pinned climb that has fallen back has already adopted another column two
@@ -549,21 +552,6 @@ public final class JourneyShaft {
     }
 
     /**
-     * Rise one course: clear whatever is overhead, then pillar into the space.
-     *
-     * <p>The mirror of {@link #descendByMining}, and recursive for the same reason — a course is
-     * two await legs and the body has to actually move between them.
-     *
-     * <p>{@link net.magicterra.worlddriver.bot.process.TowerProcess} cannot break, so a body that
-     * mined sideways and is standing under its own ceiling would jump into rock forever and report
-     * "stuck (no Y gain)". Clearing {@code feet+2} first is what makes the tower legal: that is the
-     * cell the head moves into once the feet rise one.
-     *
-     * <p>Best-effort, but not silently: a course that gains nothing with a clear ceiling stops the
-     * climb and records the builder's own reason, because forty identical no-op legs report a
-     * missing capability where "no placeable block in the hotbar" is the actual answer.
-     */
-    /**
      * How many courses a climb may lose to moving water before it gives up.
      *
      * <p>Flowing water PUSHES entities, and a body on top of a one-block pillar is the easiest thing
@@ -610,6 +598,21 @@ public final class JourneyShaft {
         ascendByTowering(rig, surfaceY, budget, cap, WASHED_OFF_RETRIES, then);
     }
 
+    /**
+     * Rise one course: clear whatever is overhead, then pillar into the space.
+     *
+     * <p>The mirror of {@link #descendByMining}, and recursive for the same reason — a course is
+     * two await legs and the body has to actually move between them.
+     *
+     * <p>{@link net.magicterra.worlddriver.bot.process.TowerProcess} cannot break, so a body that
+     * mined sideways and is standing under its own ceiling would jump into rock forever and report
+     * "stuck (no Y gain)". Clearing {@code feet+2} first is what makes the tower legal: that is the
+     * cell the head moves into once the feet rise one.
+     *
+     * <p>Best-effort, but not silently: a course that gains nothing with a clear ceiling stops the
+     * climb and records the builder's own reason, because forty identical no-op legs report a
+     * missing capability where "no placeable block in the hotbar" is the actual answer.
+     */
     static void ascendByTowering(JourneyRig rig, int surfaceY, int budget, int cap, int washedOff,
                                  Runnable then) {
         BlockPos at = rig.player().blockPosition();
