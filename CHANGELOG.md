@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-24
 
+- **The ladder now runs on the configuration the driver ships, and the wood rung passes on it.**
+  `JourneyRig` pinned the arena baseline plus one measured flag because the shipping table had been
+  measured and was worse — 6 logs / 13 899 ticks / FAIL against 13 logs / 2 914 ticks / PASS, with
+  the trunk tax named as the cause. With the tax scoped (previous entry) the same pin on
+  `applyCompiledDefaults()` gives **12 logs / 5 974 ticks / PASS, first tree 7 (was 4),
+  `stagingCalls=0`** — one variable against that run, same seed, same vehicle. The retire rows for
+  「never got closer, actually unreachable」 fell 49 → 19. That 19 has no floor to compare against
+  yet, so it is recorded as a number, not as a verdict on whether a second cause remains.
+  `pathfinderBreakCostMultiplier` is deliberately untouched — one variable at a time.
+
+- **The bed rung is gating.** It was the only rung below `JourneyLedger.FLOOR` still shipping
+  `gating=false`, with FURNACE, IRON and PORTAL_KIT above it already true — so a bed regression was
+  the one regression under the floor that could not turn a run red. It has been green for eight
+  consecutive ladder runs. This does not change the reported height: that walks `criticalPath()`,
+  which excludes BED on purpose, because a bed is not progress toward the dragon.
+
 - **The trunk tax is waived for the leg that goes to fetch a log, and only for that leg.**
   `pathfinderLogBreakTax` ships at 3.0 so A* stops routing through forests it is merely passing,
   which is right everywhere except the one job whose whole purpose is to chew through a tree:
