@@ -8,6 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.Heightmap;
 
 /**
  * Reading the ground the journey's mining rungs work in.
@@ -249,16 +250,40 @@ public final class JourneyTerrain {
         return true;
     }
 
+    /**
+     * The height of open sky over a column — where "climb back out" actually means.
+     *
+     * <p><b>The one door.</b> This expression was written out by hand three times inside this file
+     * alone — here, in {@link #dryUnderfoot}, and in {@code daylightY} — with the same heightmap
+     * type each time, so today the three agree. That is the state a divergence starts from: the
+     * javadoc below is attached to only one of the three, and a reader who lands on either of the
+     * others gets a bare {@code getHeightmapPos} call with no reason beside it. They now go through
+     * this method, and {@code daylightY} is the {@link JourneyRig}-shaped wrapper around it.
+     *
+     * <p>Every mining rung records a {@code surfaceY} on arrival and climbs back to it afterwards,
+     * and until this existed that number was {@code player().blockPosition().getY()}: <b>wherever
+     * the body happened to be standing</b>. That is the surface only if the previous rung left it
+     * on the surface, and mining rungs do not.
+     *
+     * <p>Measured, and it is the whole of a rung failing two rungs later. The portal kit walked to
+     * its gravel column from the bottom of the iron rung's shaft, read {@code surfaceY = 43}, dug,
+     * and then climbed <i>perfectly</i> back to 47 — {@code exit.rise = 4 block(s)},
+     * {@code exit.toY = 47}, goal met. The real surface was around 60. The obsidian rung then began
+     * fourteen blocks underground, could not route 84 blocks to the lava, and reported that as a
+     * walking failure. A rung that climbs out to a number nobody checked has not climbed out.
+     *
+     * <p>The heightmap answers the question that was actually being asked, and it does not care
+     * where the body is.
+     */
     public static int daylightAt(ServerLevel level, BlockPos at) {
-        return level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types
-                .MOTION_BLOCKING_NO_LEAVES, at).getY();
+        return level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, at).getY();
     }
+
     /** Standing room, not swimming room: no fluid in the few cells a body occupies at this column's
      *  own surface. This is the cell the descent's first course is taken from, and a body floating
      *  in a swamp pond never falls into the hole it just dug. */
     public static boolean dryUnderfoot(ServerLevel level, int x, int z) {
-        int surface = level.getHeightmapPos(net.minecraft.world.level.levelgen.Heightmap.Types
-                .MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z)).getY();
+        int surface = daylightAt(level, new BlockPos(x, 0, z));
         for (int y = surface + 2; y >= surface - 2; y--) {
             if (!level.getBlockState(new BlockPos(x, y, z)).getFluidState().isEmpty()) return false;
         }
@@ -514,26 +539,16 @@ public final class JourneyTerrain {
     }
 
     /**
-     * The height of open sky over a column — where "climb back out" actually means.
+     * {@link #daylightAt} for a caller that has a rig rather than a level — read that one for what
+     * this number is and for the rung it cost to learn.
      *
-     * <p>Every mining rung records a {@code surfaceY} on arrival and climbs back to it afterwards,
-     * and until now that number was {@code player().blockPosition().getY()}: <b>wherever the body
-     * happened to be standing</b>. That is the surface only if the previous rung left it on the
-     * surface, and mining rungs do not.
-     *
-     * <p>Measured, and it is the whole of a rung failing two rungs later. The portal kit walked to
-     * its gravel column from the bottom of the iron rung's shaft, read {@code surfaceY = 43}, dug,
-     * and then climbed <i>perfectly</i> back to 47 — {@code exit.rise = 4 block(s)},
-     * {@code exit.toY = 47}, goal met. The real surface was around 60. The obsidian rung then began
-     * fourteen blocks underground, could not route 84 blocks to the lava, and reported that as a
-     * walking failure. A rung that climbs out to a number nobody checked has not climbed out.
-     *
-     * <p>The heightmap answers the question that was actually being asked, and it does not care
-     * where the body is.
+     * <p>The level it reads is the SCENE's ({@code rig.ctx().level()}), which is the right one for
+     * every current caller and is the thing to look at first if a rung above 19 ever asks — after
+     * that one the body is in another dimension and the scene's level answers about overworld
+     * terrain at nether coordinates. {@code JourneyShaft.ascendByTowering}'s washed-off branch is
+     * the one place that already takes the body's level instead, and says why.
      */
     public static int daylightY(JourneyRig rig, BlockPos at) {
-        return rig.ctx().level().getHeightmapPos(
-                net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                at).getY();
+        return daylightAt(rig.ctx().level(), at);
     }
 }
