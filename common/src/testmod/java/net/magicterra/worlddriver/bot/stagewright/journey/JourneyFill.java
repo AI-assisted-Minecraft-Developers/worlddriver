@@ -901,6 +901,26 @@ public final class JourneyFill {
         return false;
     }
 
+    /**
+     * A cell to stand in from which a bucket WILL fill from {@code pool}, or null when there is none.
+     *
+     * <p>The lava fetch has chosen its stand this way for a long time; the water scoop in rung 12
+     * never has, and j52 is what that costs. That rung fires from wherever rung 11 left the body,
+     * and the two seats it lands in are not equivalent: at {@code y=63} the ray clears the bank and
+     * the bucket fills (j48, j51), at {@code y=62} it stops on the terrain one block away —
+     * {@code 空桶线 -5,62,55 minecraft:grass_block（1.05 格）} — and nothing within reach is visible
+     * at all (j50, j52). Two seats, four runs, two of each.
+     *
+     * <p>Only the stand is returned. The caller re-asks {@link #visibleSourceNear} once it has
+     * actually moved, rather than trusting the source this picked: between choosing and arriving
+     * the body walks, and an aim is a fact about an eye position that has since changed.
+     */
+    static BlockPos standToScoop(JourneyRig rig, BlockPos pool) {
+        FillSpot spot = standToFill(rig.ctx().level(), rig, pool, false, FILL_RESEARCH,
+                new java.util.LinkedHashMap<>());
+        return spot == null ? null : spot.stand();
+    }
+
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
                                         int radius, Map<String, Integer> why) {
         // PREFERENCE, not a rule. Asked as a rule it removed the only stands there were — run 37

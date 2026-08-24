@@ -120,6 +120,22 @@ public final class JourneyPortalRung {
     }
 
     private static void scoopWater(SceneContext ctx, JourneyRig rig, BlockPos water, Runnable then) {
+        scoopWater(ctx, rig, water, SCOOP_RESEATS, then);
+    }
+
+    /**
+     * How many times the scoop may move before it gives up and spends the use anyway.
+     *
+     * <p>One. The question a re-seat answers is「can this body see any water from ANY nearby
+     * stand」, and {@code standToFill} answers it over the whole neighbourhood in one call — so a
+     * second move would be the same question asked from a cell two blocks over, which is how a
+     * retry that changes nothing gets written. If one move does not find a seat, the seat is not
+     * the problem.
+     */
+    private static final int SCOOP_RESEATS = 1;
+
+    private static void scoopWater(SceneContext ctx, JourneyRig rig, BlockPos water, int reseats,
+                                   Runnable then) {
         if (water == null) {
             ctx.fail("装不到水：附近没有底下实心的水面（身体在 " + rig.player().blockPosition() + "）");
             return;
@@ -162,6 +178,36 @@ public final class JourneyPortalRung {
                     : "没有一格水源是这只眼睛看得见的；退回按距离的最近 "
                         + (nearest == null ? "没有" : nearest.toShortString())
                         + " 照瞄一次 —— 若它也失败，`waterFill.atUse` 的空桶线会写出挡路的是哪一块");
+            // NOTHING VISIBLE IS A SEAT PROBLEM, and the seat is the thing to change.
+            //
+            // j52 measured the other half of this leg: `visibleSourceNear` correctly returned null
+            // — `waterFill.aim = 没有一格水源是这只眼睛看得见的` — and the code below then aimed at
+            // the distance-nearest cell anyway and spent the one use it had. The ray row it printed
+            // named the blocker at last: `空桶线 -5,62,55 minecraft:grass_block（1.05 格）`, which
+            // is ORIGINAL TERRAIN one block from the body, not anything this ladder built.
+            //
+            // Which means the answer is not another target. From a seat with a bank in the way
+            // there is no target; from one block higher the same pond fills a bucket on the first
+            // try (j48, j51). `standToFill` has picked stands this way for the lava fetch since it
+            // was written — it requires the cell to be standable AND the clip from it to land on
+            // the source — and this scoop is the one fill that never asked it.
+            if (clear == null && reseats > 0) {
+                BlockPos pool = nearest != null ? nearest : water;
+                BlockPos seat = JourneyFill.standToScoop(rig, pool);
+                BlockPos here = rig.player().blockPosition();
+                if (seat != null && !seat.equals(here)) {
+                    rig.evidence("waterFill.reseat", here.toShortString() + " → " + seat.toShortString()
+                            + "（从这个座位一格水源都看不见，换一个看得见 " + pool.toShortString()
+                            + " 的落脚点再问一次）");
+                    rig.settle(new IntentProcess(new Intent(new Goal.Block(seat))), 2_000,
+                            () -> scoopWater(ctx, rig, water, reseats - 1, then));
+                    return;
+                }
+                rig.evidence("waterFill.reseat", seat == null
+                        ? "换不了座位：附近没有一个「站得住且看得见水源」的落脚点 —— "
+                          + "那就不是座位的问题，照瞄一次把挡路的写进 atUse"
+                        : "换不了座位：挑出来的还是脚下这一格 " + here.toShortString());
+            }
             BlockPos aim = clear != null ? clear : nearest;
             if (aim == null) aim = water;
             JourneyHands.holdForUse(rig, Items.BUCKET, "waterFill");
