@@ -2491,6 +2491,27 @@ public final class JourneyPortalRung {
                               + "（倒出去了）"
                             : BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
                               + "，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生");
+                    // AND STOP, because everything downstream assumes the bucket is now empty.
+                    //
+                    // This row has been able to say「这一浇没有发生」for several runs and nothing
+                    // has ever read it. Ladder j48 measured what that costs: `water6.spent =
+                    // water_bucket 1→1` and the rung walked on to fetch lava with its only bucket
+                    // still full of water, spent the next leg re-aiming three times and clearing
+                    // three sightlines while holding a stone pickaxe, and died on
+                    // `装不到 minecraft:lava_bucket`. Six legs downstream, about the wrong one.
+                    //
+                    // A verdict that names this leg is worth more than a run that limps: the cell
+                    // is uncast either way, and the ONLY difference is whether the reader is sent
+                    // to the leg that failed or to the one that inherited it.
+                    if (after >= before) {
+                        ctx.fail("这一浇没有发生："
+                                + BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
+                                + "，等过 3 tick 往返仍未消耗 —— 桶还满着。"
+                                + "客户端说 " + rig.evidenceOf(tag + ".result")
+                                + "，服务端没消耗，两个数来自两端；"
+                                + "这一浇的手与瞄准：" + rig.evidenceOf(tag + ".atUse"));
+                        return;
+                    }
                     then.run();
                 });
             }));
