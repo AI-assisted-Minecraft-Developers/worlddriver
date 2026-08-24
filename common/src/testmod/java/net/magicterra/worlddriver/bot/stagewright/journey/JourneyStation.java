@@ -49,10 +49,26 @@ final class JourneyStation {
         BlockPos standing = rig.nearestBlock("minecraft:crafting_table", 4, 3);
         if (standing == null) {
             BlockPos wider = rig.nearestBlock("minecraft:crafting_table", 32, 6);
+            int onGround = rig.dropsNearby("minecraft:crafting_table", 32);
             rig.evidence("craftingTable.lostAfterCraft", "包里 0，脚下 4 格内没有立着的桌子；"
                     + "放宽到 32 格=" + (wider == null ? "还是没有" : wider.toShortString())
-                    + "，地上掉落 " + rig.dropsNearby("minecraft:crafting_table", 32) + " 个，"
+                    + "，地上掉落 " + onGround + " 个，"
                     + "身体在 " + rig.player().blockPosition().toShortString());
+            // GO AND GET IT. This branch used to count the drop and walk away, which is the ladder's
+            // oldest tax paying itself: measured three runs running (j32a, j34 twice, j39), the row
+            // read 「地上掉落 1 个」and the next rung opened `standing=none / remade=true` and bought
+            // another table. The census radius here and `JourneyRig.PICKUP_RADIUS` are both 32, so
+            // the collect walks to the very drop this row counted — a diagnostic that names a remedy
+            // nobody runs is worse than one that names nothing.
+            if (onGround > 0) {
+                rig.collectByHand("minecraft:crafting_table", JourneyRig.MAX_PICKUP_LEGS,
+                        "craftingTable.lost", () -> {
+                            rig.evidence("craftingTable.lostThenFetched",
+                                    rig.carrying("minecraft:crafting_table"));
+                            then.run();
+                        });
+                return;
+            }
             then.run();
             return;
         }
@@ -81,7 +97,13 @@ final class JourneyStation {
             rig.evidence("craftingTable.broke", standing.toShortString() + "，破坏后地上 "
                     + rig.dropsNearby("minecraft:crafting_table", 32) + " 个，身体在 "
                     + rig.player().blockPosition().toShortString());
-            rig.collectByHand("minecraft:crafting_table", 1, then);
+            // THREE LEGS, NOT ONE. Measured j39 at the stone rung: `crafting_table.pickup.empty =
+            // 走到 60,62,75 站满 30 tick 却什么都没拿到 —— 空槽 29／36 … 相距 7.45 格` — the bag
+            // had 29 free slots and the body was seven blocks short, i.e. the walk had not arrived.
+            // A single leg gives that walk no second chance, and the table is then bought again one
+            // rung later. The retry is not「the same question twice」（[[a-retry-that-changes-nothing]]）
+            // because each leg starts from where the last one stopped, which is nearer.
+            rig.collectByHand("minecraft:crafting_table", JourneyRig.MAX_PICKUP_LEGS, then);
         });
     }
 

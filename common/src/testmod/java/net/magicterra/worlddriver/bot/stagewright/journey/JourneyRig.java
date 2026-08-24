@@ -2140,10 +2140,16 @@ public final class JourneyRig {
                     drop.hasPickUpDelay(), drop.getItem().getCount());
             break;
         }
+        // WHICH WAY THE WALK ENDED, in the same row. Measured j39: this row's first firing read
+        // 「空槽 29／36 … 相距 7.45 格」— the bag had room and the body was seven blocks short, so
+        // the leg had not arrived at all. `settle` runs its callback when the budget is spent
+        // exactly as it does when the process finishes, and nothing here told them apart; the same
+        // trap has a fix one file over (`JourneyCast.approachAndPour`'s `cast.walk`), and this
+        // family never got it.
         evidence(key + ".pickup.empty", String.format(
-                "走到 %s 站满 30 tick 却什么都没拿到 —— 空槽 %d／%d，身体在 %.2f,%.2f,%.2f；%s",
+                "走到 %s 站满 30 tick 却什么都没拿到 —— 空槽 %d／%d，身体在 %.2f,%.2f,%.2f；%s；这一腿 %s",
                 walkedTo.toShortString(), free, inv.items.size(),
-                fp.getX(), fp.getY(), fp.getZ(), nearest));
+                fp.getX(), fp.getY(), fp.getZ(), nearest, JourneyLeg.walkerEnd(this)));
     }
 
     /** What the collect could not get, read after it stops rather than before it starts. A drop
