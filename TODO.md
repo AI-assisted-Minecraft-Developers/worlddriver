@@ -80,6 +80,9 @@
 | 🔴 待做 | J26 | `WorldDriverActuatorSplitScenes:201-216` 的两行还原自检写在 `ctx.cleanup` 里 ⇒ **哪儿都不出现**：`record` 排在 `teardown` 之前（结果文件已序列化），而 `SceneContext.record` 是纯 map put 不打日志，`note()` 也早拼完了。**每趟专用服闸都跑这个场景**，所以「还原成没成」从写下那天起零次生效，`⚠️ 否` 那半边无人看见。它的注释自陈「A restore nobody verified is a claim」（[[a-confluence-point-is-not-a-deadline]]） | janitor 扫出，janitor 修 |
 | ✅ 已普查 | J27 | **普查完成，见下面「J27 全表」一节。头条：无害档是空的——38 个 pin 没有一个的基线值等于它的编译默认值。** 两条原始判断被普查自己推翻：① 两个 double 不是「乘 1.0 恒等所以无害」，**恒等的是乘法不是行为**（生产 2.5／3.0）；② 「26 条从没被设过」照字面是错的——`WorldDriverBridgeScenes:310` 的 `applyCompiledDefaults()` 一次性还原全部 36 个行为旗标，整个 bridge 战役都在生产值上跑。**剩下的活是那 5 条无人覆盖的归零形状**，见下表 | janitor 已交，我判 |
 | ~~🔴 待做~~ | ~~J27 原文~~ | ~~**缺陷地图：`applyGameTestBaseline()` 有 38 条旗标与生产默认不同，其中 26 条没有任何场景设回来**~~ ⇒ 它们下面的分支**在整个套件里是死代码**，针对它们写的场景会绿得毫无道理。⚠️ 五条「提了主题却从不打开机制」最像已经恒真：`walkerFloatingBankBobFreeze`、`walkerBuoyantSearchFromSurface`、`walkerSwimAshorePillarDespiteDeepDig`、`pathfinderLogBreakTax`、`pathfinderBreakCostMultiplier`。**两条数值旗标最阴**：`pathfinderBreakCostMultiplier` 生产 2.5／套件 1.0，`pathfinderLogBreakTax` 生产 3.0／套件 1.0 ⇒ **套件里的 A\* 用的是另一套破坏定价**，任何「会不会选择挖穿」的场景量的都不是线上那张成本表——不会红，只会答对隔壁世界的问题。⚠️ 按「读它处数」排只是第一刀：`walkerPillarSurfacePlace` 只有 2 处却是 J24b 的病灶，**它的危害是两个 phase 类因它分岔，面积衡量不到**。脚本 `baselinediff.py`／`baselinemap.py`（scratchpad），**用前先跑那两个校准样本**（[[a-verification-tool-needs-verifying-too]]：第一版正则 `(?<![\w.])flag` 排掉了 `BotConfig.flag` 的写法，把 8 条已覆盖的诬告成盲区） | janitor |
+| 🔴 已修待验 | J34 | **7 级把身体留在自己垒的 16 级塔顶上，8 级因此死掉。** `home.arrivedY = 78（起 62，净升 16），脚下=cobblestone`，判据只量水平距离（3 ≤ 容差 5），`Goal.XZ` 没有 y 项 ⇒ 那一级**判绿**。代价两笔：塔**就是**丢掉的圆石（8 级开场 7，石级存 20），且 y=78 让 `mineSearchVerticalRadius=8` 的扫描带整段落在地表之上，补料 1 tick 空手而回。已补 `settleOntoHomeGround`（双向、每趟都记 `*.homeElevation`；向上拆塔回收圆石，向下 `climbOut`），并把 8 级补料改成打结果、加勘测石后备（`d0de99db`）。**下一趟真梯读** | 我 |
+| 🟠 待判 | J35 | **引擎问题，先记不修**：一条 `Goal.XZ` 的回家腿为什么会净升 16？嫌疑是解卡塔按「当前高度+8」抬（[[a-retry-that-climbs-away-from-its-target]]），16 ≈ 两轮。按「先用写死步骤」的指令，J34 的关卡级守卫够用；这条留号，别蒸发 | 我 |
+| 🟠 待做 | J36 | `WorldDriverJourneyScenes.java` **2915/3000**，只剩 85 行余量。熔炉级该按 `JourneyBedRung` 的先例拆出去（[[a-file-pinned-at-its-budget]]：刮注释是拿可读性换额度，不算修） | janitor |
 | 🟠 待做 | Q30 | **追猎全程零行日志。** ladder-14 的 FOOD 关卡 `猎到 minecraft:cow，得生肉 ×5`，而整段窗口里没有任何一行说牛什么时候死、被谁打死、打了几下——`[dig]` 那些行是因为攻击也按着 `keyAttack`。于是「goto 走到了」和「牛自己撞上来」**分不出**，一条 2392 tick 的腿的结局无法归因。这不是「忘了打日志」，是**一整族动作没有仪器**（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第七个现场，这次连开关都没有） | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
@@ -90,6 +93,33 @@ J1 写着「冻结中」而两处 `continueDestroy` 都已落）。两次都是*
 ⇒ 纪律：**开一趟真梯之前，把所有「在查／冻结中／待验」的行拿去 `git show HEAD:` 核一遍。**
 一行过期的状态会让人以为某条修法没上梯，于是这一趟的读数被判给了错的账本
 （[[reading-the-tree-is-not-reading-head]] 的反向：那次是树比 HEAD 新，这次是**账本比 HEAD 旧**）。
+
+---
+
+## 📌 预登记：J34 之后这趟真梯（2026-08-25，**写在跑之前，也写在读结果之前**）
+
+跑法：`./gradlew :fabric:runJourneyIntegratedServer > /tmp/journey-j34.log 2>&1`，
+结果 `fabric/run-journey-integrated/results.jsonl`。
+
+**这趟带着三笔从没上过梯的东西**：`2685d623`（rig 钉出厂配置，J32-A 那趟已带）、
+`b3548b8b`（BED 翻 `gating=true`，**本趟首次**）、`d0de99db`（J34，本趟首次）。
+BED 翻 gating 只改它的必需性，而它连绿 8 趟 ⇒ **不改变本趟应有的颜色**。
+
+| # | 判据 | 已验 | 未触发 | 证伪 |
+|---|---|---|---|---|
+| A | `bed.homeElevation` **一定在**（两个分支都写） | 行存在 | —（没有「未触发」这一档） | 行缺失 |
+| B | 若 A 读出 `差 ≥ +8` ⇒ `bed.towerRecovered` 存在且圆石数 > 落塔前 | 两行都有且数涨 | A 读出 \|差\| < 8（这一趟没垒塔） | 有 A 无 B，或数没涨 |
+| C | 8 级 `cobblestone.before` ≥ 16（上趟 7） | ≥16 | — | < 16 |
+| D | 若 `furnace.topUp` 写了「差 N 块」⇒ `furnace.topUp.mined` 与 `.error` **都在** | 三行齐 | `furnace.topUp` 写的是「不需要」 | 只有意图行没有结果行 |
+| E | 勘测石后备（`furnace.stone.*`） | 行在且 8 级过 | **预期就是这一档**（C 成立则用不上） | 行在但仍然缺料 |
+| F | 8 级 PASS，`journey.height` 越过 FOOD | 是 | — | 否 |
+| G | 判词行不再点名一条**成功了的**腿 | 8 级过则不适用；若败，判词与终点一致 | 8 级 PASS | 判词仍指 `补做工作台` 而证据说桌子回来了 |
+
+⚠️ **E 的正确期待是「未触发」**。一趟没有 `furnace.stone.*` 行的运行**不是覆盖**
+（[[skip-is-not-coverage]]）——它只说明没走到那条分支。要给后备定级得单独造场合。
+
+⚠️ **不许**把「8 级过了」直接记成「J34 已验」。J34 的机制判据是 A/B/C 三条；
+F 只是结局。上一趟的教训正是**趟级的数是结局不是证据**。
 
 ---
 
