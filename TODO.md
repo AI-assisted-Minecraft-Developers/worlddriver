@@ -85,7 +85,8 @@
 | ✅ 已修待验 | J39 | **11 级淹死，离浇筑只差一次。** `lava_bucket.atSurface=1` 而 `lava.exit#6.endedOn=脚格=water，脚下=water —— 浮在水里，脚下没有地板`，接着 `death.blow=drown −2.0→0.0@146`、`death.driving=goto`。`recordExit` 的 javadoc 早写过这个形状并把修法交给调用方（「the iron rung now ends with a walk home」）——**铁级接了，黑曜石级没接**。已在 `JourneyCast.leaveWithTheLava` 补 `standOnDryGround`（`dbb664d4`，复用 `JourneyTerrain.dryUnderfoot`，预算 600 tick）| 我 |
 | 🟠 待判 | J40 | **引擎问题，先记不修**：身体在水里被 `goto` 驱动了 146 tick、连挨 8 次窒息伤害，**没有任何一层自救**。`JourneyRig.await` 每 tick 判活，但判的是「死没死」不是「快死了」。两个问题分开：① 走行器该不该在 `getAirSupply()` 见底时自己上岸（引擎）；② 关卡层该不该在空气/血量过线时中止这条腿去补救（写死步骤）。按指令先做 ②，而 ② 现在连仪器都没有 | 我 |
 | 🔴 待做 | J45 | **两笔修法连着两趟无法验收**（J34 塔、J39 浮水）：发作条件都没复现。⇒ 用测试框架把发作条件**摆出来**——两条竞技场场景，一条把身体放在自建塔顶跑 `walkHome` 到达支，一条让爬升结束时身体浮在水面跑 `leaveWithTheLava`，断言**补救的那几行证据出现**且终态脚下是固体。判据要求「观察到补救运行」而非数绿（[[three-greens-cannot-see-a-one-in-four]]）。⚠️ 新场景同一笔提交补两个 `expected-scenes-*.txt` | 我 |
-| 🔴 已判待修 | J44 | **12 级被岩浆烧死在回程**：`death.blow=lava −4.0×3；onFire −1.0×2`，`death.at=-8,66,10`（脚下 sand），`death.driving=goto`，`forge.return=3,64,17 → 楼梯口 -8,66,19 → 楼梯底 2,56,19`。回程经过楼梯口一带踩进岩浆。⚠️ 同级另有一条**别并进来**：`forge.carved=66/67 格开了，1 格没挖动`，模腔不完整，但那不是死因 | 我 |
+| 🟡 已修待验 | J44 | **12 级被岩浆烧死在回程**：`death.blow=lava −4.0×3；onFire −1.0×2`，`death.at=-8,66,10`（脚下 sand），`death.driving=goto`。**根因读码可证**：坑沿加价只挂在去程一条腿上，回程与取料腿都传 `List.of()`。修法 `0b30962a`（三条腿都加价、每趟重算），预登记见下 | 我 |
+| 🟠 已判待修 | J44b | 12 级 `forge.carved = 66/67`。仪器自带判据表（`noteStuckCarve` 的 javadoc：`canBreak=false` 六邻 6/6 = 被砌死；**`canBreak=false` 在远处 = 身体压根没走到**；`canBreak=true` 贴着 = 预算烧完），而 j39 读到 `carve.firstStuck = 2,62,17=dirt：身体 -6,64,19，距 **8.5 格**，canBreak=false，六邻实心 **4/6**` ⇒ **第二档：没走到**。仪器上一轮就是为分这三档写的，第一次发作就分出来了。与 J44 死因无关，**别并进同一趟判读** | 我 |
 | ✅ **已结案待修** | J38 | **走到了掉落那一格、站了 30 tick，东西没进包。** j34 趟 8 级逐行：`craftingTable.broke=64,61,62，破坏后地上 1 个，身体在 64,61,63` → `pickup.walks=1` → `pickup.target=64,61,62` → **`pickup.left#2=1`** → `craftingTable=0` → `lostAfterCraft=…地上掉落 1 个，身体在 64,61,62`。走成功了、终点就是掉落格、`collectByHand` 的 `HoldStill(30)` 也跑完了，**物品还在地上**。这跟 J37 是**两条**缺陷：J37 是「看见了不去捡」，这条是「捡了没捡到」。两个待分辨的解释：① **背包满**（这一刻带着 22 圆石＋工具＋羊毛＋床＋熟肉＋熔炉，`ItemEntity.playerTouch` 装不下就是不装，[[the-hand-is-not-the-bag]]）；② 碰撞/拾取延迟。**分辨它们的仪器**：捡之前记空槽数、物品实体的精确坐标与 `pickupDelay`、身体的 double 坐标。⚠️ 别先改代码——现在两个解释都解释得通（[[one-sample-cannot-name-a-cause]]）。🔎 **同一趟的对照组已经有了**：9 级 `vein1.pickup.left=0`、`vein2.pickup.left=0`，**捡东西这一族本身是好的**，而且那是在包更满的时候。⇒ 差别不在「捡」，在**这一个物品**：`raw_iron` 能并进已有槽，`crafting_table`（包里 0）要一个**新槽**。所以①还活着，但要先数槽而不是先猜 | 我 |
 | 🔴 已查明待修 | J37 | **工作台的丢失分支数出了地上那一个，然后走人。** `JourneyStation:50-57`：包里 0 且 4 格内没立着的 ⇒ 把 32 格搜索、掉落普查、身体坐标写成一行 `craftingTable.lostAfterCraft`，然后 `then.run()`。上趟 7 级读到的正是「**地上掉落 1 个**，身体在 -46,62,99」——**它看见了**。而 `collectByHand` 就在同一族里，`PICKUP_RADIUS` 也**恰好是 32**，即它走的就是这一行数出来的那一个。⇒ `dropsNearby > 0` 时改成去捡。这就是那条 javadoc 自称的「the ladder's oldest tax」，4/4 趟每趟重买一张桌子的根。⚠️ 与 `furnace.topUp` 同形：**说得出补救、从不执行**（[[a-fix-that-cannot-reach-its-own-occasion]]）。**等本趟真梯落地再编译**（[[compiling-under-a-live-run]]）。⚠️ **次序**：J37 的补救正是走 `collectByHand`，而 J38 说的就是这条路走到了却没捡到 ⇒ **不能先修 J37 再指望它生效**。两条一趟做完，但读的是**两组不同的行**：J37 读「丢失分支到底有没有发起收集」，J38 读「收集为什么空手」。不是两个变量搅在一起 | 我 |
 | 📐 已查明待修 | J33 | **专用服身体和客户端身体给「挖穿」定的不是同一个价**：`LevelWorldView.breakCost:93-104` 只有 `COST_PER_TICK × ticks`，`ClientWorldView` 叠了四道税（浮水 ×25/×5、错工具 ×3、树干税、`pathfinderBreakCostMultiplier`）。⇒ 专用服上任何「会不会挖穿」的场景量的都是另一张表。与 J27 是两条独立机制。**证据在这个类自己的 javadoc 里**（`:79-83`：为 lily-pad 那道税专门重写过 `isBreakableObstruction`，说的就是这个问题——修了一处没修一族）。✅ **搬法评估已交（见下节）**，并**多找出第五条、方向相反**的分歧：服务端规划器按**手里正拿着的那件**定价（`LevelWorldView:100`），而它自己的执行器破坏前会从**全部 36 格**换上最优工具（`ServerPlayerAvatar.selectTool:324-343`）⇒ **规划器比执行器严**。三条承重断言我逐条核过：`selectTool` 确实扫 `inv.items.size()`、`LevelWorldView` 确实**只有 1 参 `breakCost`**（浮水税那条 2 参路径根本进不来）、`ClientWorldView` 确实只扫 `slot < 9`。搬法分两笔两闸，**不与真梯同趟** | janitor 已评估，待做 |
@@ -224,6 +225,65 @@ J34（塔）与 J39（浮水）**各自的发作条件在下一趟都没复现**
 断言**补救那几行证据出现**且身体最终脚下是固体。
 摆的时候注意别摆成刚好达标（[[staging-for-rungs-nobody-has-climbed]]）。
 新场景 ⇒ 同一笔提交补两个 `expected-scenes-*.txt`。
+
+**排期决定（2026-08-24）**：J45 排在 J44 之后，理由不是"不重要"而是可以承受——
+J34/J39 两笔补救**在每一条路径上都写证据行**（`*.homeElevation` 无条件写、
+`lava.exit.afloat` 无条件写），所以一次误伤不会是静默的，下一趟自己会点名。
+而 J37/J38 的修法落在**常发**路径上（工作台丢失 3/3 趟都发作），下一趟真梯顺手就验了。
+天花板是 12 级，J45 保护的东西不在通往 12 级的路上。
+
+---
+
+## 🔴 J44 已修：坑沿加价只骑了三条腿里的一条（`0b30962a`）
+
+### 读码即可证伪的根因
+
+j39 的 12 级死在 `cast1.return` 那条腿上——证据键的插入顺序把它钉死了：
+`cast1.return` 与 `cast1.stairsBroken` 写了，`cast1.returnedY` 没写，中间就是死亡行。
+那条腿是从装料点 `-8,64,14` 走去楼梯口 `-8,66,19`，**五格**；身体却死在 `-8,66,10`，
+往北跑出九格，`lava −4.0×3；onFire −1.0×2`。
+
+岩浆往返一共三条腿，加价只骑了第一条：
+
+| 腿 | 谁 | 传给 `Intent` 的 bias | |
+|---|---|---|---|
+| 去程找湖 | `JourneyPortalRung.descendToTheForge` | `avoidTheRim`（613 格 ×300） | ✅ |
+| 走去装料点 | `JourneyFill:329` | `new Intent(where)` —— 没有 | ❌ 朝湖走 |
+| 楼梯 flight 每一段 | `JourneyPortalRung.walkTheStairs` | `List.of()` | ❌ **死在这条** |
+
+而「回程会横穿湖沿」这件事**本来就写在文件里**——写在那条发作之后才跑的补救的
+javadoc 里（`:869` 「the walk back crosses the lake's own rim」）。
+即 [[a-fix-that-cannot-reach-its-own-occasion]]：守卫存在、场合已知、
+两者从来没接上，只接了一个**事后**补救。
+
+### 修法（`0b30962a`，三个文件）
+
+加价提进 `JourneyTerrain.avoidTheRim(level, lava)`，返回 `RimTax(bias, cells, story)`
+一次扫描同时供搜索和证据；三条腿都挂上。**每趟重算，不做快照**——舀走一个源块留下一格空气、
+清一次射线敲掉一块挡土（`lava1.clearedLine.2 = -9,63,17 stone`，离确认源块 `-9,63,18` 一格），
+湖沿只会往外长，去程那一刻的快照描述的是"找到的湖"不是"做出来的湖"。
+
+### 📌 预登记（下一趟真梯读之前写下）
+
+| # | 判据 | 已验 | 未触发 | 证伪 |
+|---|---|---|---|---|
+| A | `cast*.rimTax` / `forge.rimTax` **每趟 flight 都写** | 12 级有 ≥4 条 `*.rimTax` | 没走到 12 级 | 走到了却一条没有 |
+| B | **计数会涨**：把 12 级所有 `*.rimTax` 按插入顺序取格数，末值 > 首值 | 涨了 ⇒ 重算是必要的 | 只有一条 | 恒定 ⇒ 快照本来就够，重算是白花的（记下来，别当成红） |
+| C | 死因不再是 `lava`/`onFire` | 12 级 PASS，或 FAIL 但 `death.blow` 不含 lava/onFire | 没到 12 级 | 又是 `lava −4.0` ⇒ 加价不够或走的不是这条腿 |
+| D | `JourneyFill` 那条腿也带上了 | 12 级有 `lava0.rimTax`/`lava1.rimTax` | — | 只有 flight 的有 |
+| E | **不误伤**：加价没把 flight 卡住 | `*.returnStopped` 不比 j39 多 | j39 本来就 0 条 | 新出现 `returnStopped` ⇒ 加价让路更贵到走不完 |
+
+⚠️ **这一趟同时载着 J37**（工作台丢失分支去捡、`collectByHand` 给三腿）。
+两笔的读数不重叠——J37 读 `craftingTable.lostThenFetched` 与 `*.pickup.*`，
+J44 读 `*.rimTax` 与 `death.blow`——**归因是干净的**。
+但要预先记下二阶效应：桌子不再被反复重买，5–10 级的木头/木板账会变，
+那几级的 tick 数与库存差**是预期变化，不是异常**。
+
+⚠️ **J38 不要过度结案**。判词只建立在**一个**被仪器点名的样本上（j39：相距 7.45 格、
+空槽 29）。j34 那个样本的形状不同（身体就在掉落格上、东西还在地上），
+「记录晚了」只是勉强解释得通。修法对两种因都成立，且仪器现在会打出距离与 `walkerEnd`——
+所以**仪器永久留着**：哪一趟再出 `pickup.empty` 而**相距 < 1.5 格且有空槽**，J38 就有第二半，
+当场重开。
 
 ### ✅ J38 结案：不是背包满，是**根本没走到**
 
