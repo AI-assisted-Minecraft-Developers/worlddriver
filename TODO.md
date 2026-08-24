@@ -159,6 +159,51 @@ canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader
 覆盖数两边差一条：Fabric `277 executed / 25 skipped`，NeoForge `278 / 24`（总数都是 302）。
 **没有归因，只是记着** —— 这是既有的按 loader 跳过差异，不是这一轮引入的。
 
+## ✅ 判：J24b 修法闸（跑在 `95bd5a9b`）—— Fabric `GRADLE_EXIT=0`／`VERDICT: GREEN`
+
+⚠️ **绿不是证据**：场景已经是 `.withRequired(false)`，它无论如何都不会染红。判读看的是分档那一行：
+
+```
+柱.分档=垫上了 —— 两个 phase 类同答案，不分歧
+柱.指针越过未垫=false     走.指针高水位=2/3     走.收尾=ARRIVED（用了 68/200 tick）
+升.峰值y=223.12068624371344（放置合法线 222.0，目标排 223）
+```
+
+68 tick（原来 21）＝指针确实在**等**支撑落地才推进，跟修法的意图一致。
+非 PASS 集合只剩基线那两条 `fail(optional)`，canary 三条 `(expected)`，无 `UNDECLARED:`。
+
+**回归面直接对拉，不靠估计**：两趟结果文件的场景名集合**各 311 个、完全相同**，
+判定集**只差一条** —— `wd.surfacePillarPointerNeedsItsSupport: FAIL -> PASS`。
+其余 310 条一条没动。这与 janitor 给的结构性论证对上了：旗关着时
+`floodedShaft(w,d) ≡ w.isWater(d)` **恒等**，而全仓打开这面旗的只有那条场景本身
+⇒ 别的场景**到不了**被改的那一支。
+
+**NeoForge（同一棵树）`GRADLE_EXIT=0`／`VERDICT: GREEN`，判词一模一样**：
+`柱.分档=垫上了`、`指针越过未垫=false`、`走.收尾=ARRIVED（68/200 tick）`。
+名字集合 310 条一致，判定同样**只差柱式那一条 FAIL→PASS**。
+两个 loader 的非 PASS 集合**逐条相同**：`canaryMustFail`／`canaryMustTimeout`（预期）＋
+`wd.serverEscapeSealedShelter`／`wd.vineOverWaterClimb`（基线 optional）。
+
+⇒ 按预登记：**修法验成，`.withRequired(false)` 摘掉**。
+⚠️ 摘这一下**不再单起一趟闸**：场景已经 PASS，required 与否只改判词映射不改行为，
+这一点读代码就能确定（`Verdict.java:232` 只用 `required` 决定 `code`，不影响场景执行）。
+下一趟闸（J31 之后）会顺带盖住它。**基线回到两条 `fail(optional)`。**
+
+### ⚠️ 顺带治一条会骗人的判读行：`COVERAGE` 的 `executed` 不含「跑了但失败的」
+
+`stagewright/engine/.../Verdict.java:242` 的 `executed++` **只在最后那个 else（PASS 且非 skip）里**；
+失败的场景走 `:231` 那支，**既不算 executed 也不进 `didNotRun`**。
+
+于是这两趟：`277 executed / 25 skipped` → `278 / 25`。
+看起来像「多跑了一条场景」，实际是「**少红了一条**」。
+我是靠直接对拉场景名集合和判定集才排除掉的，**不是靠读那行字**。
+
+> **`executed` 这个词的意思不是「执行了」，是「执行且通过了」。**
+> 失败越多，这个数越小 —— 一个随失败量浮动的分母（[[a-reading-is-not-the-quantity-it-looks-like]]）。
+
+修法在 StageWright 那边：那行改成三个数都说出来（executed / failed / skipped），
+或把 `executed` 改成它实际的意思。⚠️ **别为这个中途切仓**，worlddriver 这边的活先做完。
+
 ## 🔴 J31 重写（2026-08-24，读码定死）：**闸不是阈值问题，是那个「有没有进展」的计数器在数点击**
 
 原来登记的是「`+0.9` 和注释里的 `≥ +1.0` 互相矛盾」。读完之后**矛盾是真的，但它不是病灶**。
@@ -206,17 +251,53 @@ if (!fcSolid && fcSupport && fcCleared) {
 ### 三、所以修法有两半，而**第二半才是治本的**
 
 - (a) 两处 `0.9` 改成 `1.0`，并抽成一个具名谓词（四处同一个物理问题不该有两个常数）；
-- (b) **`pillarNoPlaceTicks = 0` 只能由「`fillCell` 真的变实心」触发**，不能由「点了一下」触发。
-  ⚠️ 判据本来就在同一段里算好了：`fcSolid = world.isSolid(fillCell)`（`:551`）——
-  这本账要的数**已经在手边，只是没被用来记这一笔**。
+- (b) **`pillarNoPlaceTicks = 0` 只能由「那一格真的变实心」触发**，不能由「点了一下」触发。
+  ⚠️ `Walker:282` 那个字段的注释本来就写着它该记
+  「ticks … without a **successful place / height gain**」——**(b) 不是新设计，
+  是把实现改回它自己写下的语义**。
+
+  ⛔ **判据不能用 `fcSolid`（`:551`）** —— 我原来是这么写的，janitor 驳回，三条理由都成立：
+  ①它读在 `:560` 的 place **之前**，成功那一 tick 方块还没落；
+  ②下一 tick `fillCell` 会挪走 —— `while (isWater(fillCell.above()))` 的推进条件是「上面那格是水」，
+  刚垫上的那格不再是水 ⇒ 循环停在**它下面那一格** ⇒ 新的 `fillCell` 仍是水；
+  ③`!fcSolid` 本来就是进这条分支的前置。
+  ⇒ 照那样落会**把缺陷翻到反面**：计数器一路涨 ⇒ 50 tick 后 `placeFutile` 为真 ⇒
+  **挖掘后备抢掉一次正在成功的攀爬**，而且是在水里挖。**比原缺陷坏。**
+  （我那条判据是从「同一段里已经有这个读数」推出来的 —— **形状对，取值没查**。）
+
+  ⛔ **也不能用「`foot.getY()` 比上一 tick 高」** —— 这条路径的整个场合就是
+  「身体 bob 到 `[cell.y+0.9, cell.y+1.0)`」，**bob 的波峰恰好跨一个方块边界**，
+  于是 `foot.getY()` 每个 bob 周期都涨一格再掉回来。**一块都没垫上也每周期为真** ⇒
+  用另一个读数把原缺陷原样复制回来。字段注释里的「height gain」指**永久**增益，
+  逐 tick 差值恰恰就是浮力本身（[[a-jump-is-not-a-gain]]）。
+
+  ✅ **判据 = 记住按的那一格，下一 tick 再问它**：`WaterClimb` 加 `placeAttemptCell`，
+  按下时记住，下一 tick `world.isSolid(placeAttemptCell)` 为真才清零。
+  三条边界：和 `Walker:296` 那批一起 reset；换格按时覆盖旧值
+  （**别让上一格的成功给这一格记账**）；别人填了那格也算进展（确实是进展）。
 
 ⚠️ **只做 (a) 不够**：点击还会因为别的原因失败（没支撑、被挡、够不着），
 那时账本照样说谎。**只做 (b) 也能自愈 (a)**：阈值错了，计数器就会涨，后备就会接管。
 所以 (b) 必做，(a) 是顺带把两个常数收成一个。
 
-⚠️ **落之前要一条能分辨的场景**，跟 J24b 同一条纪律：
-要能造出「在 `[0.9,1.0)` 带里 bob 且支撑齐全」的几何，断言 `placeFutile` 会在
-`PILLAR_FUTILE_TICKS` 之后为真。**不许拿「梯子变好了」当证据**——见下面那条。
+⚠️ **落之前要一条能分辨的场景**，跟 J24b 同一条纪律，而且**要两条断言不是一条**：
+
+1. **正向**：`[0.9,1.0)` 带里 bob、支撑齐全 ⇒ `PILLAR_FUTILE_TICKS`（`WalkerConstants:621`=50）
+   之后 `placeFutile` 为真；
+2. ⚠️ **反向**：一次**能成功**的水面垫石 ⇒ 计数器清零、`placeFutile` **保持假**、挖掘后备**不接管**。
+
+只写第 1 条的话，**`pillarNoPlaceTicks++` 无条件递增也能满分通过** —— 那正是上面那个反向缺陷。
+⚠️ 反向那条还要**先断言那一格真的变实心**再断言 `placeFutile` 为假，否则
+「没垫上也没接管」和「垫上了所以没接管」印出来一模一样（[[staging-for-rungs-nobody-has-climbed]]）。
+
+⚠️ 两条都要**显式打开 `walkerPillarSurfacePlace`**（J32：闸里默认关着，这条路根本跑不到），
+新场景**同一笔提交补两份 `expected-scenes-*.txt`**。
+**不许拿「梯子变好了」当证据**——真梯上这条路的旗是关的，而且梯子有别的变量。
+
+> 这一轮最该记住的：**一个修法可以把缺陷翻到反面，而反面在闸里不会红。**
+> J31 的 (b) 若照我原来的判据落，破坏的是**健康**路径，而那条路径因为 J32
+> 在竞技场里跑不到 —— 它只会在真梯上或生产里发作。
+> 「先写能分辨的场景、再改代码」不是流程洁癖，是唯一能看见反向缺陷的办法。
 
 ### 四、⚠️ 而这条路在真梯上到底走不走得到，先别假设
 
