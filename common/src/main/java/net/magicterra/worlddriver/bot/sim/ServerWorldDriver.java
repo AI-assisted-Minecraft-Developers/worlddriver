@@ -25,10 +25,22 @@ import net.minecraft.server.level.ServerPlayer;
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerWorldDriver}; body type is now
- * vanilla {@link ServerPlayer}. {@code non-final} with {@code non-final}
- * accessors so the NeoForge shim of the same simple name can covariantly return
- * the original {@code FakePlayer} / neoforge {@code ServerPlayerAvatar} types
- * that legacy GameTest callers bind to.
+ * vanilla {@link ServerPlayer}.
+ *
+ * <p><b>The {@code non-final} accessors outlived the reason this javadoc gave for them.</b> It
+ * said they existed so the NeoForge shim of the same simple name could covariantly return the
+ * {@code FakePlayer} / neoforge {@code ServerPlayerAvatar} types «that legacy GameTest callers
+ * bind to». That suite was retired in P4-final and nothing binds to those types now. The shim is
+ * still here and still narrows {@link #avatar()} and {@link #fakePlayer()}, so this class and
+ * those accessors stay {@code non-final} — but what stands behind it is one command, NeoForge's
+ * {@code /agentserver}, not a caller population: no file outside
+ * {@code net.magicterra.worlddriver.neoforge.sim} imports or spells either shim class.
+ *
+ * <p>Who holds a driver of THIS type: the testmod's scenes, via
+ * {@code SceneBody.mint}/{@code managed}/{@code bare} — and {@code JourneyRig}, which wraps an
+ * adopted real player when the topology supplies one and mints otherwise; plus
+ * {@link ServerAvatarManager}, which keeps the registered drivers and {@link #tick()}s them from
+ * each loader's server-tick hook.
  */
 public class ServerWorldDriver {
     private final ServerPlayerAvatar avatar;
