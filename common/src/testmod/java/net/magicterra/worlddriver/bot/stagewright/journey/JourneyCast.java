@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
@@ -338,6 +339,36 @@ final class JourneyCast {
             // `cast.handSlipped` fired with COBBLESTONE in slot 0 on both bodies — the shaft climb-out
             // pillars up to 36 blocks of cobblestone, and the pillar's own hold is what displaces the
             // bucket. The neighbour that bites is not the next line, it is the last leg.
+            // SILENCE THE OTHER AUTHOR FOR THE LENGTH OF THE POUR.
+            //
+            // Re-gripping is as close to the use as a caller can get and ladder j46 proved it is
+            // still not close enough: `cast.handSlipped` fired, `cast.again.hand` re-took the
+            // bucket, `cast.atUse` recorded lava_bucket on BOTH ends — and then
+            // `handTrace.t0.server = gameTime=28476 槽4 = lava_bucket` was followed by
+            // `t1.server = gameTime=28477 槽4 = cobblestone ×29`. The slot INDEX never moved (the
+            // row prints `inv.selected`), so what changed is the slot's CONTENTS, which is
+            // `BotInteract.ensureHoldingPillarBlock`'s tail: a real SWAP click that pulls a pillar
+            // block out of the main inventory into the selected slot and pushes the bucket back
+            // into the bag — hence `lava_bucket.after = 1` beside a cell that is still water.
+            //
+            // Its three call sites (WalkerTickDrive:210, WalkerTickStallDetect:269/282) and the
+            // two `ensureHoldingPlaceableAny` ones (Walker:1771/2379) ALL short-circuit on
+            // `BotConfig.allowPlace` before they touch the hand, so turning it off for these twelve
+            // ticks makes the swap unreachable rather than merely unlikely. Nothing here needs to
+            // place: the body is standing still, aimed, about to empty a bucket.
+            //
+            // Restored on every exit below — the fail branch and the settle's completion — because
+            // the walk that follows the pour DOES need to pillar.
+            boolean placeWas = BotConfig.allowPlace;
+            BotConfig.allowPlace = false;
+            // AND A NET UNDER IT. The two restores below cover every path this method can take, but
+            // not the one it cannot: `cast.handTrace.samples` documents that a body which leaves the
+            // world skips the settle outright, and then the flag would stay false for whatever runs
+            // after — a global flipped by a scene that never came back. Cleanups drain on every exit,
+            // including a timeout, so the flag cannot outlive the scene that turned it off.
+            ctx.cleanup(() -> BotConfig.allowPlace = placeWas);
+            rig.evidence("cast.placeHeldOff", "浇的这一段关掉放置权（原值 " + placeWas
+                    + "）—— 垒塔的 hold 是 SWAP 走槽内容的那个作者，三个调用点都先短路 allowPlace");
             boolean gripped = JourneyHands.regripBeforeUse(rig, Items.LAVA_BUCKET, "cast");
             // BOTH BODIES AT THE INSTANT OF THE USE, unconditionally — the row ladder-12 needed and
             // did not have. `useItemInHand` is `MultiPlayerGameMode.useItem`, i.e. a CLIENT-side
@@ -349,6 +380,7 @@ final class JourneyCast {
             // of them was ever recorded.
             JourneyHands.handsAtUse(rig, "cast");
             if (!gripped) {
+                BotConfig.allowPlace = placeWas;
                 ctx.fail("开浇的那只手不是 minecraft:lava_bucket，重新拿过一次也没拿到："
                         + JourneyHands.heldOnBoth(rig)
                         + " —— 没有倒。空手 use 只会返回 PASS，"
@@ -399,6 +431,9 @@ final class JourneyCast {
                     JourneyHands.handTrace(rig, "cast", traced[0]++);
                 }
             }, () -> {
+                // FIRST LINE OF THE CALLBACK, before anything can fail or return: the pour is over,
+                // and everything after it — the walk home, the next fetch — is allowed to pillar.
+                BotConfig.allowPlace = placeWas;
                 // HOW MANY TICKS THE INSTRUMENT ACTUALLY SAW, so that silence can be read. Three
                 // outcomes have to look different on disk and this row is what separates them:
                 // this row missing entirely ⇒ the run never reached the pour (未触发, evidence for

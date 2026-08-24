@@ -2451,6 +2451,20 @@ public final class JourneyPortalRung {
                 // Re-hold rather than fail outright: a slot that drifted back is exactly the case a
                 // second hold fixes, and the row below says it happened either way. A run with no
                 // `.handSlipped` row never had the problem — three states, not two.
+                // AND SILENCE THE OTHER AUTHOR WHILE THE POUR HAPPENS — the same guard the obsidian
+                // rung's pour carries, for the finding that closed it: re-gripping is as close to
+                // the use as a caller can get, and ladder j46 measured the swap landing INSIDE the
+                // tick the server processed the use (`handTrace.t0.server` lava_bucket at
+                // gameTime=28476, `t1.server` cobblestone ×29 at 28477, `inv.selected` never
+                // moving). The swap is `BotInteract.ensureHoldingPillarBlock`'s main-inventory tail;
+                // its call sites all short-circuit on `BotConfig.allowPlace` first, so the flag is
+                // what makes it unreachable rather than merely unlikely. The comment above already
+                // named the tower's hold as the displacer — this is what stops it, rather than
+                // re-taking the bucket after it has struck.
+                boolean placeWas = BotConfig.allowPlace;
+                BotConfig.allowPlace = false;
+                ctx.cleanup(() -> BotConfig.allowPlace = placeWas);
+                rig.evidence(tag + ".placeHeldOff", "浇的这一段关掉放置权（原值 " + placeWas + "）");
                 boolean gripped = JourneyHands.regripBeforeUse(rig, held, tag);
                 JourneyHands.handsAtUse(rig, tag);
                 // AND DO NOT SPEND A USE THAT CANNOT WORK. A bucket-less `useItemInHand` returns PASS
@@ -2459,6 +2473,7 @@ public final class JourneyPortalRung {
                 // later on `recover6.hand = 拿不到 minecraft:bucket … 桶存量 空=0 水=0 岩浆=1`, a
                 // message about the wrong leg entirely.
                 if (!gripped) {
+                    BotConfig.allowPlace = placeWas;
                     ctx.fail("开浇的那只手不是 " + BuiltInRegistries.ITEM.getKey(held)
                             + "，重新拿过一次也没拿到：" + JourneyHands.heldOnBoth(rig)
                             + "；" + JourneyHands.bucketStock(rig)
@@ -2468,6 +2483,8 @@ public final class JourneyPortalRung {
                 }
                 rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
                 rig.settle(new HoldStill(3), 12, () -> {
+                    // The pour is over; everything downstream — the lift, the walk home — pillars.
+                    BotConfig.allowPlace = placeWas;
                     int after = stock.get();
                     rig.evidence(tag + ".spent", after < before
                             ? BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
