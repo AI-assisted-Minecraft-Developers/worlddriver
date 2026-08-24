@@ -508,7 +508,8 @@ subject.endedAt     = 241312, 216, 99999，脚下=Block{minecraft:stone}
 |---|---|---|
 | 🟠 待做 | J46 | **引擎侧那份孪生没修**：`PlaceNearby.place`（`common/src/main`）用的还是「非空气且不可替换」，所以它仍会对着睡莲白点一次。改它是**引擎改动**，按「先用写死步骤」的规矩没有并进这一笔。代价已量：每次多一次失败点击并打一行日志。要改时**两份必须一起改**，否则就是 [[two-ones-that-disagree]] |
 | ✅ 已验 | J45a | 场景 `wd.journeyCraftStepsAsideForRoom` 已登记进两个 `expected-scenes`，随闸常跑 |
-| 🔴 待做 | J45b | 还欠两条：塔顶跑 `walkHome` 到达支、爬升结束浮水上跑 `leaveWithTheLava`。`JourneyRig.forArena` 已就位并被这一条用上了 |
+| ✅ **已验** | J45b | 补齐了：`wd.journeyStepsDownOffItsOwnTower`（J34 拆塔支，**PASS**：差 +12 格 → `towerRecovered 落到 y=221，圆石 0→12`，终点 `脚下=stone`）、`wd.journeyClimbsOutOfItsOwnPit`（同一守卫的**反方向**，此前从没被任何一趟执行过，**PASS**）、`wd.journeyGetsAshoreBeforePouring`（见 J47，常驻已知红） |
+| 🔴 已判待修 | J47 | **浮在水面的身体走不上齐平的岸**，而每一行读数都像成功。`wd.journeyGetsAshoreBeforePouring` 三趟逐字相同：`dryLand=242843,221` → `end=path-consumed`、`停在 242844,221`、`脚下=water`。**不是「没有那条边」**：`Move.waterEscapeContext` 对这一格返回 true（脚下 3×3 有水），`Walk.valid` 只看**目标格**、根本不查起点，而目标 `canStandAt` 成立。所以路径产得出来，是**走完了而身体没到** ⇒ 走行器的逐节点到达判定给一具浮着的身体推进了指针（[[a-pointer-that-advanced-in-mid-air]]），再由 `ARRIVED_WITHIN=5` 把差一格判成到达（[[arrived-is-not-at-the-goal]]）。⚠️ `SwimAshoreBreak` 帮不上：它是 **+1 高**的移动，专治高岸，齐平岸不归它管。修法两条路——引擎侧修指针推进（正解但是引擎改动），或写死步骤：**上岸失败就在脚下垫一块**（身体带着圆石，浇筑要的是"脚下有地板"而不是"站在岸上"）。按规矩先走后者 |
 
 ### ✅ J38 结案：不是背包满，是**根本没走到**
 
