@@ -491,6 +491,34 @@ non-PASS: canaryMustFail / canaryMustTimeout / wd.vineOverWaterClimb / wd.server
 ⇒ **回测层结案**：推导（目标是原木才武装、世界里有原木不算）与释放（顶替走生产那道门）
 都验到了。**定价那半仍未验**，归现场层。
 
+### ⚠️ NeoForge 第一趟是**死跑**，不是红判（`gate-neoforge-j32a-DEAD-transformer.log`）
+
+`GRADLE_EXIT=1` / `BUILD FAILED in 3m 39s`，但**整趟没有一行 `VERDICT:`** —— 游戏根本没起来。
+死因在 architectury 的重映射器里，不在本仓：
+
+```
+ClassCastException: HashMap$Node cannot be cast to HashMap$TreeNode
+  at java.util.HashMap$TreeNode.moveRootToFront / treeify / treeifyBin / putVal
+  at dev.architectury.transformer.RuntimeFileAccess.addFile(RuntimeFileAccess.java:50)
+  at ...SimpleTransformerHandler.lambda$remapTR$5 ← TinyRemapper 的线程池
+```
+
+`RuntimeFileAccess` 拿一个**非同步 `HashMap`** 接多个 remapper 线程的并发 `put`，
+把桶转红黑树那一刻结构写坏了。⇒ **是数据竞争，因此是偶发的**：处置是**重跑**，不是调查本仓。
+
+`CLAUDE.local.md` 记了这个形态的**症状**，这里补上**成因**和判别法。jstack 签名当场核过：
+
+```
+"DestroyJavaVM"  在
+"main"           不在
+"Server thread"  不在
+"pool-2-thread-*" × 24  全部 parked   ← architectury 从不关闭的线程池吊着 JVM
+```
+
+⇒ 认准 `-Darchitectury.main.class=` 那个 pid 杀掉即可释放构建（本次 63440）。
+📌 **`GRADLE_EXIT=1` 有两种含义**，别混：判词说 RED 是**红**，一行判词都没有是**死**。
+先数 `VERDICT:` 行，再谈颜色（[[a-verdict-has-upstream-verdicts]] 的同一条纪律）。
+
 ### 该怎么判（现场层，对照 run 8）
 
 ⚠️ 要真的只有一个变量，本趟必须把 `JourneyRig` 钉回 `applyCompiledDefaults()`——
