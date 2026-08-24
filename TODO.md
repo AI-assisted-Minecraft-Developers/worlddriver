@@ -906,6 +906,24 @@ waterFill.aim#2 = 244375, 220, 100000（通视的最近水源，与按距离的�
 （`DriverApi.route` + `ToolCatalog` schema），并且**共用 `GoalResolver` 那一份解析**，
 而不是让脚本层再抄一遍。需要编译器 ⇒ 排在 j54 之后做。
 
+**📌 实现方向已经量出来了（06:40，读源码，未改一行）——委托对象是 `applyDirection`，不是 `resolveCardinalDirection`：**
+
+| 接受集 | north/south/east/west | up/down | forward | back | backward | ahead | left/right | 归一化 |
+|---|---|---|---|---|---|---|---|---|
+| `GoalResolver.applyDirection`（`:93`） | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | `trim().toLowerCase` |
+| `GoalResolver.resolveCardinalDirection`（`:177`） | ✓ | ✗ | ✓ | ✓ | ✗ | ✗ | ✓ | 无 |
+| `prelude.js` 的 tunnel | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✓ | 无 |
+
+⚠️ **我一度以为「`mc.bot.goto` 的 schema 写了 `left`/`right` 而 `applyDirection` 不认」是个活缺陷——错了。**
+`case "left"` / `case "right"` 就在 `:118-130`，只是落在我第一次 grep 的窗口之外。
+两个 schema 的词都被各自的解析器全覆盖 ⇒ janitor 那句「今天两个缺口都不可达」**是对的**，
+`back`/`backward` 的分裂是 **API 一致性问题，不是运行时缺陷**。
+（[[a-question-asked-backwards-still-answers]]：窗口切窄了的 grep 会给出一个自洽但错的结论。）
+
+⇒ 结论：tunnel 提升之后应当委托 **`applyDirection`** —— 它是三者里唯一的全集，
+而且是唯一做归一化的。`resolveCardinalDirection` 少了 `up`/`down`，
+正是 tunnel 需要而它给不出的两个词。
+
 ### 📌 归因契约：janitor 那笔重构进闸之前的基线（2026-08-25 05:33，**写在它的改动进闸之前**）
 
 12 小时的 `wd-janitor` 这一轮在改 `common/src/main`（**不碰** journey 包、`bot/sim/**`、
