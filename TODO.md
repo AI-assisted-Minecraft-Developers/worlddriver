@@ -219,7 +219,8 @@ canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader
 | `wd.waterLowBank` | PASS，且带 BEFORE 的签名：三次 `cleared=true` 落在 `.98`、起跳弧 +0.42/+0.33/+0.25、`ARRIVED`、`bobTicks` 回到 ~38（不是 495） | 已验／未触发／证伪 |
 | `wd.pillarLedgerCountsRefusedPlaces` | PASS，且**这次点击真的开火了**：`账.计数峰值≈51`、`账.判过徒劳吗=True`、`柱.那一格实心了吗=False`（圆石在 0.95 被原版拒）、`带.身体高于填充格=[0.950, 0.950]` | 已验／未触发／证伪 |
 | `wd.pillarLedgerClearsOnARealPlace` | PASS：`柱.真的垫上了几格≥1/N`、`账.落地那一tick>0`、`账.落地后的计数=0`、`账.读数时接管还在吗=True`、`脚.格高范围` 是单格 | 已验／未触发／证伪 |
-| 其余 308 条 | 与 j31b 那趟**同名同判**，一条都不许动 | 已验／未触发／证伪 |
+| 其余 309 条（Fabric） | 与 **j31b** 那趟同名同判，一条都不许动 | 已验／未触发／证伪 |
+| 其余 309 条（NeoForge） | 与 **`results-j31-neoforge.jsonl`**（它自己的第一轮）同名同判。⚠️ 这一行原先写的是「与 j31b 同名同判」，那是个 **Fabric 专属文件**——NeoForge 从没跑过第二轮，比对基准只能是它自己 | 已验／未触发／证伪 |
 
 ### 第一轮 Fabric 结果（`26fba984`，`VERDICT: GREEN`，`BUILD SUCCESSFUL in 4m 48s`）
 
@@ -251,9 +252,48 @@ canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader
    它测的就不再是「被拒的点击不算进展」，**是变弱不是变强**；
 2. 反向场景 PASS 而 `账.落地那一tick=0` —— 被新守卫拦住才对，若没拦住说明守卫本身没跑到。
 
-### 一处**没有**照建议改的地方，连同理由（下次咨询要提）
+### 对上一次**全绿基线** j24b 的差：310 条共有场景**判罚零变化**
 
-建议是「`:553` 和 `:927` 都退回 `+0.9`」。我只改了 `:553`（自柱那一处），
+比 `results-j24b-fabric.jsonl`（J31 回归之前最后一趟全绿）：
+
+```
+j24b: 310   j31d: 312
+new since j24b:  ['wd.pillarLedgerClearsOnARealPlace', 'wd.pillarLedgerCountsRefusedPlaces']
+gone since j24b: []
+outcome changed vs the last GREEN baseline: 0
+```
+
+⇒ 修法**把最后一趟全绿基线原样恢复了**，多出来的只有那两条新账本场景。
+这比「对 j31b 只翻了两条」更强：它排掉了「修法换了一批不同的红」这种可能。
+
+### 📌 NeoForge 那趟的预登记（写在读结果之前）
+
+⚠️ 诚实标注：写这一节时后台任务通知已经报了 `exit code 0`，但**日志和 results 都还没读**——
+下面的期望不是从结果倒推的，是从 NeoForge **自己第一轮**的非 PASS 名单算出来的。
+
+`results-j31-neoforge.jsonl` 的非 PASS 是 **7 条**（不是 Fabric 的 4 条）：
+
+```
+canaryMustFail FAIL           canaryMustTimeout TIMEOUT
+wd.vineOverWaterClimb FAIL    wd.serverEscapeSealedShelter FAIL     ← 基线 4 条
+wd.waterLowBank FAIL
+wd.pillarLedgerCountsRefusedPlaces FAIL      ← 第一轮是 engages=0 的空转红
+wd.pillarLedgerClearsOnARealPlace FAIL
+```
+
+**该翻的是恰好三条，方向全是 FAIL→PASS**，场景集合仍是 312，其余同名同判。
+第四条翻转（任何方向）是**发现**，不是噪声。
+基线名单**必须从它自己的第一轮文件读**，不许把 Fabric 那 4 条搬过来——
+本仓有过 loader 分裂的 optional（成就那条在 parity 文档里一度 Fabric 绿／NeoForge 红），
+「判词的上游还有判词」是**逐 loader**成立的。
+
+### 一处**没有**照「建议」改的地方，连同理由（已闭环）
+
+> ⚠️ provenance：这里的「建议」是**我自己早前的推理**，被我误记成了外部意见。
+> 本轮真正咨询过一次，结论是**保持现状**，理由与下面三条重合，并补了一句：
+> 「`:927` 那半是过宽的」。分歧就此关闭，本节保留原文。
+
+原话是「`:553` 和 `:927` 都退回 `+0.9`」。我只改了 `:553`（自柱那一处），
 `:927`（现 `:1031`）**保持 `feetClearOf` 的 `+1.0`**，依据两条：
 
 - 那一处填的是 `edge.toPlace.get(0)`，代码自己注掉是「**old feet cell**」——跳起来之后往回填，
