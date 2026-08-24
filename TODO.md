@@ -395,6 +395,25 @@ if (!shaftFlooded && a.holdThrowawayPlaceable()) { … if (p.getY() >= wp.getY()
 它阻塞的是 **J32 要不要给真梯武装 `walkerPillarSurfacePlace`** ——
 没有这个答案就武装，等于按一个说不通的因果去改真梯配置。
 
+### ⚖️ J31 高水位版 双闸预登记（2026-08-24，**写在读结果之前**）
+
+跑的是 `12407cfb`（产品 `9a16d73a`：清零 ⟺ (a) 记住的那格变实心 **或** (b) `foot.getY()` 高水位刷新）。
+基线仍是四条非 PASS（两条 canary + `wd.vineOverWaterClimb` + `wd.serverEscapeSealedShelter`）。
+⇒ **预期两个 loader 都 GREEN。**
+
+1. **`wd.waterLowBank` 回到 PASS。** 仍红 ⇒ 按已定方向查 `engagePillar` 重锁列那一下的高水位重置
+   （`9a16d73a` 新加的那行），**不许退 `feetClearOf`、不许调 `PILLAR_FUTILE_TICKS`**。
+2. **两条新场景 PASS，且 `闸.接管次数 > 0`。** 仍是 0 ⇒ 还是布景够不到入口闸，与产品无关。
+3. ⚠️ **本轮的反向风险，必须单独判**：(b) 让「高度涨了」也清零，
+   **它有可能把 `placeFutile` 清得再也兑现不了** —— 那等于用另一条路把 J31 的原缺陷装回去，
+   而且**闸会是绿的**。判别器就是正向场景：它必须仍然打出 `账.判过徒劳吗=true`。
+   > **两条场景互为判别器**：`waterLowBank` 绿证明 (b) 不误伤健康爬出；
+   > 正向场景仍红（判过徒劳）证明 (b) 没把闸清死。**只看其中一条都不算数。**
+   ⇒ 若 `waterLowBank` 绿而正向场景**也**绿但 `账.判过徒劳吗=false`，
+   **那是最坏情况，比 RED 还糟**：判据被满足而机制已失效。逐条读证据行，别只看颜色。
+4. **water 族其余成员任何变动仍是信号**（同上一轮，理由未变：`:553` 在旗关着时就活）。
+5. **柱式场景看 `柱.分档`，不看 tick 数。**
+
 ### 🔴 J31 双闸判词（2026-08-24）：**RED，而且预登记的三条里有两条被证伪**
 
 跑的是 `1c015469`。两个 loader **完全一致**（Fabric `GRADLE_EXIT=1`，NeoForge `GRADLE_EXIT=1`），
