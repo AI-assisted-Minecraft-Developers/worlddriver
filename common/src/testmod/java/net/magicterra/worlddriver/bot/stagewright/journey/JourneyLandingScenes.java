@@ -52,7 +52,9 @@ public final class JourneyLandingScenes implements SceneProvider {
                 // PASS by itself, which is the whole reason it stays in the suite red rather than
                 // being softened into something a broken walker can satisfy.
                 Scene.of("wd.journeyGetsAshoreBeforePouring", 6_000,
-                        JourneyLandingScenes::getsAshoreBeforePouring).withRequired(false));
+                        JourneyLandingScenes::getsAshoreBeforePouring).withRequired(false),
+                Scene.of("wd.journeyScoopsPastItsOwnObsidian", 6_000,
+                        JourneyLandingScenes::scoopsPastItsOwnObsidian));
     }
 
     /** Natural ground level inside the arena box. */
@@ -229,6 +231,99 @@ public final class JourneyLandingScenes implements SceneProvider {
             ctx.check(level.getFluidState(ended.below()).isEmpty()).as(
                     "C 身体最后脚下是固体，不是水（判终点，不是判走了几格）：" + ended.toShortString()
                     + "，脚下=" + level.getBlockState(ended.below()).getBlock()).isTrue();
+        });
+    }
+
+    // --------------------------------------------------- the lidded source ----
+
+    /**
+     * A bucket must fill from a source it can SEE, not the one that is nearest.
+     *
+     * <p><b>The occasion, and why it needs staging.</b> Rung 12 opens by scooping water, standing
+     * where rung 11 just cast obsidian — and rung 11 casts it into the very pond rung 12 drinks
+     * from. On ladder j50 the body happened to stand at y=62 and the fresh obsidian sat on the
+     * diagonal to the nearest source: {@code waterFill.result = FAIL}, rung 12 dead at tick 7.
+     * On j48 and j51 the body happened to stand at y=63, its ray cleared the obsidian's top face,
+     * and the same code filled. Same coordinate, same 1.4 blocks, opposite outcomes — the seat
+     * decided it, so no number of ladder runs decides anything. This stages the bad seat.
+     *
+     * <p><b>Why a lid rather than a wall.</b> A wall has to be placed on the exact line the ray
+     * takes, which is arithmetic this scene would then be testing instead of the fix. A lid
+     * directly ABOVE the near source blocks every ray from every body standing higher than it, so
+     * the staging cannot quietly stop reproducing the trap when an unrelated constant moves.
+     *
+     * <p><b>What it asserts, in order.</b> First that the trap is real (the distance-ranked finder
+     * still picks the lidded cell — otherwise every later check is 0==0), then that the engine's
+     * own clip agrees the lid blocks it (the ruler, before the measurement), then that the
+     * line-of-sight finder picks a different cell, and finally that a bucket used at that cell
+     * actually fills. The last one is the only one that is end-to-end, and the first one is the
+     * only one that keeps the last one honest.
+     */
+    private static void scoopsPastItsOwnObsidian(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        ctx.cleanup(() -> clearBox(ctx));
+        flatGround(ctx);
+
+        // Cut both sources INTO the stone, for the reason the pool above is cut in: water whose top
+        // row sits proud of the surface flows away, and a scene whose sources drain before it
+        // measures them has staged nothing.
+        BlockPos lidded = ctx.rel(-1, GROUND, -1);
+        BlockPos open = ctx.rel(2, GROUND, 0);
+        ctx.setBlock(-1, GROUND, -1, Blocks.WATER);
+        ctx.setBlock(2, GROUND, 0, Blocks.WATER);
+        // THE OBSIDIAN, and obsidian specifically rather than any solid: this is the block the real
+        // failure was made of, and a reader who greps for it should land here.
+        ctx.setBlock(-1, GROUND + 1, -1, Blocks.OBSIDIAN);
+
+        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
+        ServerPlayer fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
+        fp.getInventory().selected = 0;
+        ServerPlayerAvatar av = driver.avatar();
+        for (int i = 0; i < 3; i++) av.step();
+
+        JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
+        BlockPos foot = fp.blockPosition();
+        BlockPos nearest = JourneyTerrain.shallowWaterNear(rig, 8);
+        BlockPos visible = JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH);
+        ctx.record("staged.foot", foot.toShortString() + "，眼睛 y=" + fp.getEyePosition().y);
+        ctx.record("staged.lidded", lidded.toShortString() + "，其上="
+                + level.getBlockState(lidded.above()).getBlock());
+        ctx.record("staged.open", open.toShortString() + "，其上="
+                + level.getBlockState(open.above()).getBlock());
+        ctx.record("subject.nearest", String.valueOf(nearest));
+        ctx.record("subject.visible", String.valueOf(visible));
+
+        ctx.check(lidded.equals(nearest)).as("控制组 A 按距离的最近**必须**是被盖住的那一格，"
+                + "否则这个布景根本没造出那个陷阱，后面每一条都是 0==0：按距离取到的是 "
+                + nearest).isTrue();
+        ctx.check(JourneyFill.bucketLineLandsOn(rig, lidded, true)).as(
+                "控制组 B 先校准尺子：引擎自己的 clip 必须**同意**盖子挡住了那一格 —— "
+                + "这一条要求它返回 false。返回 true 说明盖子没挡住，那么 A 造出的不是陷阱").isFalse();
+
+        ctx.check(visible).as("C 通视 finder 必须给得出一格 —— 给不出就说明它把两格都否了").isNotNull();
+        ctx.check(!lidded.equals(visible)).as("D 而且**不是**被盖住的那一格：它选了 " + visible).isTrue();
+        ctx.check(open.equals(visible)).as("E 选中的正是那格露天的水源：期望 " + open
+                + "，实到 " + visible).isTrue();
+
+        // END TO END. Everything above is about choosing; this is the bucket. `waterFill.result`
+        // is the same key the rung writes, on purpose — a reader comparing this scene against a
+        // ladder run should be reading the same row name.
+        int before = fp.getInventory().countItem(Items.WATER_BUCKET);
+        JourneyHands.aimThenAct(rig, visible, () -> {
+            JourneyHands.holdForUse(rig, Items.BUCKET, "waterFill");
+            JourneyHands.handsAtUse(rig, "waterFill");
+            rig.evidence("waterFill.result", String.valueOf(rig.avatar().useItemInHand()));
+            rig.settle(new HoldStill(3), 12, () -> {
+                int after = fp.getInventory().countItem(Items.WATER_BUCKET);
+                ctx.record("subject.waterBucket", before + " → " + after);
+                ctx.record("subject.result", String.valueOf(rig.evidenceOf("waterFill.result")));
+                ctx.record("subject.atUse", String.valueOf(rig.evidenceOf("waterFill.atUse")));
+                ctx.check(after > before).as("F 桶真的装上了水（判存量，不是判 use 的返回值 —— "
+                        + "空桶 use 在射线落到非 BucketPickup 方块上时返回 FAIL，落空时返回 PASS，"
+                        + "两者都不动存量）：" + before + " → " + after
+                        + "；那一刻的手与两条射线：" + rig.evidenceOf("waterFill.atUse")).isTrue();
+            });
         });
     }
 

@@ -349,6 +349,7 @@ wd.journeyCraftStepsAsideForRoom
 wd.journeyStepsDownOffItsOwnTower
 wd.journeyClimbsOutOfItsOwnPit
 wd.journeyGetsAshoreBeforePouring
+wd.journeyScoopsPastItsOwnObsidian
 
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
