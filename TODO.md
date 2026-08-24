@@ -248,7 +248,7 @@ AFTER   climbout-place col=124064,100001 fill=206 fcSolid=false support=true cle
 - 接管的产物**不是**「锁定朝向前压＋跳」，而是**在身体自己脚下那一格垒方块、再从它上面跳走**，一周期一格。
 - `+1.0` 恰好掐死这条路：浮在 `X.98` 的身体永远够不到 `X+1.0`，三次点击一次都不发生。
 
-### ⚠️ Q36（未解释，禁止当结论）：原版为什么放行了贴身放置
+### ✅ Q36（已解答）：原版为什么放行了贴身放置 —— 放的是**泥**，碰撞盒只有 14/16 高
 
 读到的原版链路是 `BlockItem.canPlace` → `CollisionGetter.isUnobstructed(state,pos,ctx)` →
 `EntityGetter.isUnobstructed(null, shape)`，放置者自己会被算进去（`Player` 构造里
@@ -257,14 +257,32 @@ AFTER   climbout-place col=124064,100001 fill=206 fcSolid=false support=true cle
 所以现在**只知道格子确实变实心了，不知道谁填的**。`WalkerTickClimb:911-915` 那句
 「vanilla silently rejects the still-overlapping AABB」也一并落进这个问号里（原 Q35 并入本条）。
 
-下一步**只读、不跑**：
+两条只读的线索接上了，答案是**方块本身**：
 
-1. 读 `wd.waterLowBank` 的布景（`WorldDriverWaterBankScenes.java:649-704`），拿到
-   `(124064,205,100001)`、`(124064,206,100002)` 等格的真实内容；
-2. `ServerPlayerAvatar.place` 按 `Direction.values()` = DOWN,UP,N,S,W,E **取第一个实心邻格**。
-   若选中的是 **DOWN** 且 205 已实心，则 `getClickedPos()` 落在 205 而不是 206，
-   F2 的解释要换（F1/F3/F4 不变，修法方向也不变）。
-   ⇒ **这条读完之前，不许把「原版允许贴身放置」写进任何注释或场景断言。**
+- **布景解出坐标**（`WorldDriverWaterBankScenes.java:649-704`）：`cx=124064, cz=100000,
+  floorY=200, surface=206, bankTop=207`。于是 `(124064,205,100001)` 是水、`(124064,207,100001)`
+  是空气、`(124064,206,100000)` 是水，而 `(124064,206,100002)` 是岸体 **DIRT**。
+  `ServerPlayerAvatar.place` 按 `Direction.values()` = DOWN,UP,**N,S**,W,E 取第一个实心邻格
+  ⇒ 选中 SOUTH，`getClickedPos()` = `(124064,206,100001)` = **正是 fillCell**。
+  「其实填的是 205」这条备选**排除**。
+- **手里那块是泥**：`:697-702` 明确要求 SAND/GRAVEL 不可用、MUD 必须可用，背包只有
+  `SAND×9` + mud ⇒ `holdPlaceable()` 只能选 MUD。
+  `MudBlock.SHAPE = Block.box(0,0,0,16,14,16)`，`getCollisionShape` 返回它
+  （满格的是 `getBlockSupportShape`，**两个形状不是一回事**）。
+  `CollisionGetter.isUnobstructed(state,pos,ctx)` 用的是 **collision** shape：
+  格 206 里它只占 `y ∈ [206.000, 206.875]`，身体 AABB 底面 206.9795 **在它上方 0.105**
+  ⇒ 不相交 ⇒ **原版放行**。
+
+⇒ **两个常数各自都对，只是对不同的方块**：
+
+| 被放的方块 | 碰撞盒顶 | 原版接受所需的 `p.getY() − cell.getY()` |
+|---|---|---|
+| 泥／灵魂沙／耕地／土径 | 0.875 | ≥ 0.875（`+0.9` 留 0.025 余量） |
+| 满格方块（石、土、圆石…） | 1.0 | ≥ 1.0 |
+
+所以 `WalkerTickClimb:99` 与 `:911-915` 那两段注释（「`[+0.9,+1.0)` 是原版保证拒绝的带」）
+**只对满格方块成立**，而这条场景放的从来不是满格方块。`1c015469` 把两者统一成 `+1.0`，
+等于拿满格方块的规矩去判一块泥。原 Q35 一并结掉：那句注释不是笔误，是**换了方块就不成立**。
 
 ### 被推翻的三条已提交叙事
 
@@ -284,7 +302,19 @@ bank — on the press"）是我把 `8ca35aa9` 的错误写进 TODO、janitor 照
 | 位置 | 它真正在问 | 常数 |
 |---|---|---|
 | `WalkerTickClimb:956`、`WalkerTickDrive:246` | 身体整个高过这一格 | `+1.0` ✅ 不动 |
-| `WalkerTickClimb:553`、`:927` | 现在按下去，这一格会不会被填上 | 退回 `+0.9`（连同日志的 `need=` 参数） |
+| `WalkerTickClimb:553`、`:927` | 现在按下去，原版会不会接受 | **不是常数**，见下 |
+
+第二个谓词的通式是「身体 AABB 与**这一格若被填上会占据的碰撞盒**不相交」，即
+`p.getY() >= cell.getY() + <被放方块的碰撞盒顶>`。`+1.0` 是它在满格方块上的**特例**，
+`+0.9` 是它在泥上的近似——两者都不是通式。两条路，先记下不拍板：
+
+- **A（保守）** `:553`/`:927` 退回 `+0.9`（连同日志的 `need=` 参数）。改动最小，
+  但把一个只对 14/16 方块成立的常数继续写死；哪天手里换成圆石，同一处照样错，
+  而且错的方向是**放置被原版拒**、账本记一次徒劳，不会有人看见。
+- **B（问真问题）** 让谓词读手里那块的碰撞盒顶。代价是 `Avatar` 要多一个「手里这块的默认
+  state」的读法——**新增接口面按 `AGENTS.md` 的规矩要算账**。
+  另记一条设计观察（⚠️ 是推理不是结论）：J31 的账本改动（落地才清零）**恰好让宽松阈值变安全**，
+  因为被拒的点击不再伪装成进展；「放宽阈值、让原版当裁判」这条路是今天才成立的。
 
 账本改动（落地／高水位清零）**保留**：正向场景 `wd.pillarLedgerCountsRefusedPlaces` 已 PASS
 且 `账.判过徒劳吗=True`，那一半独立成立，不受本次改判影响。
