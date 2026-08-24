@@ -17,9 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path — so a body at `cell.y + 0.95` clears it by 0.075 and the placement lands. Worse, on the
   locked column the fill cell IS the body's own foot cell, where `p.getY() >= floor(p.getY()) + 1.0`
   is a contradiction: the gate was not tightened, it was welded shut, for every body and every held
-  item. `crestClearOf` (`+0.9`) is back at that one site, `feetClearOf` keeps `+1.0` at the two that
-  fill the OLD feet cell after a jump — reachable at the bob crest, and the right boundary for the
-  full cubes those hold. The debug line's `need=` prints the bound it actually used.
+  item. `crestClearOf` (`+0.9`) is back at that one site. `feetClearOf` keeps `+1.0` and now has
+  exactly one caller, `WalkerTickClimb:1037`; the other two of the four never moved and spell the
+  same bound inline (`WalkerTickClimb:1066`, `WalkerTickDrive:246`). All three fill the OLD feet
+  cell after a jump, which is reachable at the bob crest and is the right boundary for the full
+  cubes they hold. The debug line's `need=` prints the bound it actually used.
 
 - **`wd.waterLowBank` was the whole mechanism in eight ticks, and nobody had read it.** The
   regression surface of the unification was exactly one scene, and the two runs are line-identical
