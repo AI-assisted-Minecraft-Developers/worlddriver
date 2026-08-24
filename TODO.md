@@ -595,6 +595,56 @@ lava6.hand         = 拿不到 minecraft:bucket，手上是 minecraft:stone_pick
 ⇒ 修在 `holdBoth` 这一层，**不是修在浇筑那个调用方**，否则就是把今天那句提交信息
 （「给装桶侧补上浇筑侧早有的守卫」）在下一层重演一遍。
 
+### ✅ 判：j49 真梯（`results-j49-castHandSwappedAtT1.jsonl`，`/tmp/journey-j49.log`）
+
+`GRADLE_EXIT=0`，`VERDICT:` 行 **0 条**（真梯任务不打这一行，判词在 `wd.journey99Verdict` 里）。
+**10/20，`journey.height = PORTAL_KIT`，`journey.stagingCalls = 0`** —— 比 j48 的 11/20 **退了一级**，
+死在 **11 级**（j48 那趟 11 级是过的，死在 12 级）。
+
+**这一退不是我这两笔修法造成的，而且这一趟给了 J50 一份比 j48 更硬的证据。**
+11 级本来就带着 `handTrace`（j43b 那笔），于是它把整件事按 tick 拍了下来：
+
+```
+cast.handSlipped   = 动手前手上不是 lava_bucket 了：客户端 槽 7 = cobblestone，服务端 槽 7 = cobblestone
+cast.again.hand    = lava_bucket（槽 7）
+cast.atUse         = 客户端 槽 7 = lava_bucket …；服务端 槽 7 = lava_bucket …
+cast.handTrace.t-1.client = 槽 7 = lava_bucket ×1   gameTime=33410     ← 校准行，与 atUse 一致
+cast.handTrace.t-1.server = 槽 7 = lava_bucket ×1   gameTime=33411
+cast.result        = SUCCESS
+cast.handTrace.t0.client  = 槽 7 = bucket ×1        gameTime=33410     ← 客户端自己预测「倒出去了」
+cast.handTrace.t0.server  = 槽 7 = lava_bucket ×1   gameTime=33411     ← 服务端手里还是满的
+cast.handTrace.t1.client  = 槽 7 = cobblestone ×28  gameTime=33411
+cast.handTrace.t1.server  = 槽 7 = cobblestone ×28  gameTime=33412     ← 交换落地，比 use 包早
+cast.handTrace.t2..t5     = 两边都是 cobblestone ×28
+cast.cellAfter     = Block{minecraft:water}      lava_bucket.after = 1
+cast.handTrace.samples = 采到 6/6 个服务端 tick
+```
+
+**服务端那一格从 `lava_bucket` 直接变成 `cobblestone`，中间从来没经过 `bucket`（空桶）**
+—— 也就是说它一次都没被消耗过。`handSlipped` 说明第一次 hold 的点击包①已经落地把手换回了圆石；
+重拿走的是**背包交换分支**，它的点击包②在 `gameTime=33412` 落地，**排在 use 包前面**，
+于是服务端处理 use 时手里是 `cobblestone`（`BlockItem.use` 返回 PASS，不消耗、不打印）。
+
+⇒ **和 j48 的 12 级是同一条 J50，换了一级、换了一件挤手的物品（圆石而不是石镐）。**
+`cast.placeHeldOff（原值 true）` 说明 Q19b 那道放置权闸**确实关上了**，而这件事照样发生
+—— 因为挤手的不是垒塔那条路径，是 **hold 自己**（[[a-guard-that-did-not-fire-may-be-right]]：
+闸是对的，它守的不是这个作者）。
+
+**判据对账**（按 j48 后写下的那张表）：
+
+| # | 结果 |
+|---|---|
+| A1／A2／A3 | **未触发** —— 12 级 SKIP，那条 `.spent` 判词这一趟没有场合 |
+| B1／B3 | **未触发** —— 11 级的 `fill.result=SUCCESS`、`lava_bucket=1`，装桶那一侧这趟没出问题 |
+| B2 | ✅ **已验**（跑之前查的） |
+| C | 10/20，比 j48 低一级。**按预登记那句 ⚠️，这不是对 (A)/(B) 的证伪** —— 真梯不可复现，要按死因的族判（[[the-ladder-is-not-reproducible]]） |
+
+⚠️ 顺带记下：`wd.journey99Verdict` **PASS**，`GRADLE_EXIT=0`，而这一趟其实退了一级。
+地板是 `PORTAL_KIT`，height 正好等于地板 ⇒ 判词按定义放行。
+**真梯任务的退出码和判词场景都不是「有没有进步」的判据**，级数才是。
+
+---
+
 ### 📌 预登记：J50 修法（写在编译之前，也写在 j50 跑之前）
 
 三笔，全在 testmod，**没有引擎改动**：
