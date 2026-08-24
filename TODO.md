@@ -542,13 +542,32 @@ ClassCastException: HashMap$Node cannot be cast to HashMap$TreeNode
 它现在钉的是 run 7 配置。✅ 已核 `walkerDigAimPriority` **出厂就是 true**（`BotConfig:2144`），
 是基线把它关掉（`:2959`）真梯再开回来 ⇒ 它在两套里**都开着**，不是混淆变量。
 
+⚠️⚠️ **主判据引用的那行日志已经不存在了**（写代码时才查出来，见下），下表是改准之后的。
+
 | 读数 | run 8（税 3.0，无豁免） | 竞技场基线（1.0） | 本趟预期 |
 |---|---|---|---|
-| `[mine] no approach to stand` 行数 | **49** | — | **塌到个位数** ← 机制直证 |
+| **`[mine] blacklist` 行数**（理由含「一点没靠近…实际到不了」） | **49**（当时印作 `no approach to stand`） | — | **塌到个位数** ← 机制直证 |
 | 首棵树产出 | 4 | 7 | 回到 ~7 |
 | 3 级原木 / tick | 6 / 13899 | 13 / 2914 | PASS（账单 8） |
 
-**主判据是 `no approach to stand` 的塌陷，不是原木数**（[[the-ladder-is-not-reproducible]]）。
+**主判据是那一族退休行的塌陷，不是原木数**（[[the-ladder-is-not-reproducible]]）。
+
+#### 🔴 差一点用一条量不到的判据跑 25 分钟
+
+原判据写的是数 `[mine] no approach to stand` 的行数。**那个字样在当前代码里一处都没有**——
+`git log -S` 查出 `4501efe6`（2026-08-23 23:27，即 run 8 测完的**第二天**）把它换成了
+`retireTarget` 统一的 `[mine] blacklist {}（{}）—— 第 {} 个退休目标，回到 SEARCH`，
+每个出口配具名理由；本例那条读作「`%dt` 内对落脚点 `%s` 一点没靠近（最近 `%.1f` 格）—— 实际到不了」。
+
+⇒ 照原判据跑完会数出 **0 行**，而 **0 既读作「修好了」也读作「仪器被改名了」**，
+两者指向相反的结论（[[a-criterion-success-cannot-satisfy]] / [[an-instrument-behind-a-flag-is-not-an-instrument]]）。
+
+⚠️ **同族第二个坑，一并记下**：`MineProcess` 里六条 `[mine]` 诊断行有五条坐在
+`BotConfig.walkerDebug` 后面，而出厂默认是 **false**，`applyCompiledDefaults()` 正会把它关掉。
+**只有 `:731` 的 `[mine] blacklist` 是无条件的**——这也是选它当主判据的第二个理由。
+`4501efe6` 自己的注释就写过这件事（「the fourth spoke only behind `walkerDebug`, which no journey run sets」）。
+📌 已把「别 grep 那个旧字样」写进 `MineProcess` / `ClientWorldView` / `CHANGELOG` 三处，
+因为**run 8 那 49 行是真证据**，不能删；能删的只有让后来者 grep 到空的那个指针。
 
 - **已验**：塌陷 **且** 3 级 PASS ⇒ 木税就是全部病因。
 - **半验**：塌陷了但原木仍不够。⚠️ **这一档有两个解释，不许只记一个**：

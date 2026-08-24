@@ -91,6 +91,12 @@ public final class MineProcess implements BotProcess {
      * of {@code [mine] no approach to stand} naming the mechanism. So the tax is waived for the leg
      * that goes to fetch a log, and left at 3.0 for every leg that is merely travelling.
      *
+     * <p><b>Do not grep for that string</b> — {@code 4501efe6} replaced it the day after the
+     * measurement. The row that says the same thing today is {@link #retireTarget}'s unconditional
+     * {@code [mine] blacklist <pos>（<why>）}, and the {@code why} for this failure reads
+     * {@code 「…t 内对落脚点 … 一点没靠近（最近 … 格）—— 实际到不了」}. Counting the old wording
+     * on a current run yields zero, which reads as「fixed」and means「the instrument was renamed」.
+     *
      * <p><b>Why an owner and not a boolean.</b> Clearing on any exit would let a winding-down
      * instance wipe a live one's waiver: old instance's {@code finish()} can run after a new
      * instance's first {@code aimAt}. One textual writer with two calling instances is still two

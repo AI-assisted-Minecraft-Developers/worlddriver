@@ -12,7 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which is right everywhere except the one job whose whole purpose is to chew through a tree:
   reaching the fifth log of a trunk means breaking the four under it, and at 3× those paths price
   out. Measured on the wood rung, same seed, one variable — 13 logs / 2 914 ticks at 1.0 against
-  6 logs / 13 899 ticks at 3.0, with 49 rows of `[mine] no approach to stand` naming the mechanism.
+  6 logs / 13 899 ticks at 3.0, with 49 rows naming the mechanism. (Those rows printed as `[mine] no
+  approach to stand`; `4501efe6` renamed them the next day, so a current run says the same thing as
+  `[mine] blacklist <pos>（<why>）` — grepping the old wording now returns zero and reads as a fix.)
   The waiver is derived from `MineProcess`'s current target rather than latched beside it, so it
   lapses on the same line that aims somewhere else; the leaf-clearing and overburden sub-goals get
   the right answer for free. Travel still pays 3×, which is what globally restoring the tax to 1.0
