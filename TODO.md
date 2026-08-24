@@ -439,6 +439,30 @@ j31d 那 312 条里只跑了标记 `wd.journeyArmed`，`wd.journey03Wood` **不�
 否则 `UNDECLARED:` 变红。⚠️ 三条都**不许**声称验证了定价——那半只有现场层答得了，
 两层的结论分开写（[[skip-is-not-coverage]] 的同一条纪律）。
 
+### 📌 闸的颜色预登记（`0dc10339`，写在跑之前）
+
+已落地：`wd.mineLogWaiverEngages`、`wd.mineStoneLeavesTheWaiverOff`、
+`wd.mineLogWaiverReleasedOnSupersede`（`WorldDriverProcessScenes`，两份清单同 commit）。
+另有两笔产品代码：`9d5c626d`（豁免本体）、`dd7eee2d`（rig 顶替时也走 `onCancelled`）。
+
+**该是什么颜色**：**312 → 315 条，两个 loader 都该 GREEN**，
+新增三条全 PASS，其余 312 条与**各自的** j31d 文件同名同判。
+**第四处变化（任何方向）是发现，不是噪声。**
+
+三条各自的 ⚠️「会骗过我的绿」：
+
+| 场景 | 骗人的绿长什么样 |
+|---|---|
+| `…Engages` | PASS 而 `闸.豁免开着的 tick 数=0` —— 被「原木没采到」那条守卫拦下才对；没拦住说明守卫没跑到 |
+| `…LeavesTheWaiverOff` | PASS 而 `闸.石头采掉了吗=False` —— 那是「什么都没干」，不是对照 |
+| `…ReleasedOnSupersede` | PASS 而 `闸.第几 tick 武装的=-1` —— 0 → 0 不是释放 |
+
+⚠️ 还有一条全局的：**任一场景打出「进场时豁免就是开的」** ⇒ 有 owner 在场景之间泄漏，
+那一趟的所有豁免读数都作废，先修泄漏再谈判据。
+
+⚠️ 这三条**证不了**「乘法被跳过」（专用服走 `LevelWorldView`，那条税在那里根本不存在）。
+它们证的是推导与释放。定价那半仍然只有现场层能答，**别把绿闸读成回测**。
+
 ### 该怎么判（现场层，对照 run 8）
 
 ⚠️ 要真的只有一个变量，本趟必须把 `JourneyRig` 钉回 `applyCompiledDefaults()`——
