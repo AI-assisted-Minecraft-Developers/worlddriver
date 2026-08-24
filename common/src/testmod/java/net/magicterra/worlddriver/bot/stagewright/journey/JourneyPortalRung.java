@@ -154,7 +154,21 @@ public final class JourneyPortalRung {
             return;
         }
         rig.attempting("装一桶水带下去 —— 底下没有水可回头取");
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(water, 2))), 2_000, () -> {
+        // AFTER A RE-SEAT, DO NOT APPROACH AGAIN. The re-seat below has just walked the body onto
+        // the one cell it could find that sees the pond, and `standToFill` picks that cell out of
+        // the POND's neighbourhood — not out of `Goal.Near`'s radius of `water`. A perfectly good
+        // seat is routinely 2.45 blocks away (the rim cell diagonally off a source is `distSqr` 6),
+        // so re-running the approach on the way back in would walk the body straight off the seat
+        // it just spent its one move on, and there is no second move to recover with.
+        //
+        // `Goal.Near.reached` is `distSqr <= radius²`, so naming the cell the body is standing in
+        // makes this settle end on its first tick instead of becoming a second walk. Keyed off
+        // `reseats` rather than a new parameter: below the initial budget means a re-seat was spent,
+        // and that is exactly the re-entry this must not undo.
+        Goal approach = reseats < SCOOP_RESEATS
+                ? new Goal.Block(rig.player().blockPosition())
+                : new Goal.Near(water, 2);
+        rig.settle(new IntentProcess(new Intent(approach)), 2_000, () -> {
             // The leg that had no reading. Everything below aims and uses a bucket, and a body that
             // stopped thirty blocks short produces exactly the same rows as one that arrived and
             // missed — so a failed fill here has read as「装水失败」whatever the real cause was.
