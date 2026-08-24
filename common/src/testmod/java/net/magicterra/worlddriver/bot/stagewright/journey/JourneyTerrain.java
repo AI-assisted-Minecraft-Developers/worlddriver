@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -390,6 +391,63 @@ public final class JourneyTerrain {
                 }
         return java.util.Set.copyOf(out);
     }
+
+    /** How much a step onto the crater's rim costs the search, in the pathfinder's own units. Three
+     *  hundred: a plain walk edge is 10, so this is thirty blocks of detour per rim cell, and the
+     *  route that goes round is cheaper up to that; finite, so a pool whose every approach is rim
+     *  still has a route — see the {@code CostModifier}-not-{@code Constraint} paragraph on
+     *  {@link #poolsLipCells}. */
+    public static final double LIP_TAX = 300;
+
+    /** How far around the pool the rim is priced, and how far up. Twelve out covers the whole
+     *  crater at the sizes this rung meets; nine up covers the walking rows above a basin floor. */
+    public static final int LIP_TAX_RADIUS = 12;
+    public static final int LIP_TAX_RISE = 9;
+
+    /**
+     * The rim, priced for one search — <b>recomputed, never cached</b>.
+     *
+     * <p>Every caller on the lava round trip needs this and until 2026-08-24 exactly one of the
+     * three had it. The approach ({@code JourneyPortalRung.descendToTheForge}) built the set inline;
+     * the walk to the fill station and every leg of the stairwell flight passed {@code List.of()},
+     * so the two legs that run <b>after</b> the lake has been opened up were the two that priced it
+     * at nothing. Ladder j39 died on the second of those: {@code cast1.return} left the fill station
+     * at {@code -8,64,14} for the stairwell mouth five blocks away at {@code -8,66,19}, went north
+     * along the crater instead, and took {@code lava −4.0×3；onFire −1.0×2} at {@code -8,66,10}.
+     * That the return crosses the lake's own rim was already written down — in the javadoc of the
+     * recovery that fires <i>after</i> it goes wrong.
+     *
+     * <p><b>Recomputed</b> because the rim moves while the rung works, always outward: each fill
+     * takes a source out and leaves an air cell, and each cleared aim line breaks a block that was
+     * holding the lake in ({@code lava1.clearedLine.2 = -9, 63, 17 stone 挡在眼睛和 -9, 63, 18 之间,
+     * 敲掉它} — one cell from a confirmed source). A set built at the approach and reused would price
+     * the lake the rung <i>found</i>, not the one it <i>made</i>. The cost is one pass over
+     * {@code (2r+1)² × rise} cells per search, milliseconds on the server thread, against a leg that
+     * costs the run.
+     *
+     * <p>Returns an empty list — not a modifier that always answers zero — when the pool has no rim,
+     * so a search with nothing to avoid is handed nothing to ask.
+     */
+    public static RimTax avoidTheRim(ServerLevel level, BlockPos lava) {
+        if (lava == null) return new RimTax(List.of(), 0, "没有湖坐标，这一段不加价");
+        java.util.Set<BlockPos> rim = poolsLipCells(level, lava, LIP_TAX_RADIUS, LIP_TAX_RISE);
+        List<CostModifier> bias = rim.isEmpty() ? List.of()
+                : List.of((from, to, edge, goal, world) -> rim.contains(to) ? LIP_TAX : 0.0);
+        return new RimTax(bias, rim.size(), rim.size() + " 格坑沿每踏一格加价 " + (int) LIP_TAX
+                + "（普通走一格是 10，即绕 " + (int) (LIP_TAX / 10) + " 格也比踏上去便宜）；半径 "
+                + LIP_TAX_RADIUS + "、y=" + (lava.getY() + 1) + ".." + (lava.getY() + LIP_TAX_RISE));
+    }
+
+    /**
+     * One rim scan, handed to the search and to the evidence together.
+     *
+     * <p>A record rather than two calls because the scan is the expensive half and both halves want
+     * the same one — and because {@code cells} is a measurement worth keeping per leg, not just per
+     * rung: the rim GROWS as the rung works the lake, and a flight-by-flight count is the only thing
+     * that shows it. A row that reads 613 → 641 → 688 across one rung's returns is the recompute
+     * earning its keep; one that never moves says the snapshot would have done.
+     */
+    public record RimTax(List<CostModifier> bias, int cells, String story) {}
 
     /** How far from the pool an approach may end and still count as having reached it. Eight, the
      *  same figure {@link #pickDigColumn} rings out to and {@code JourneyFill.STATION_REACH} uses:

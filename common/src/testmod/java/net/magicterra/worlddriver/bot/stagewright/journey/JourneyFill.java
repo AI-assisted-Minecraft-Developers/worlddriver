@@ -326,7 +326,18 @@ public final class JourneyFill {
         // The LAVA fetch keeps its digging: it walks across open ground to a lake, nowhere near the
         // mould, and taking the capability away there would only make an ordinary route fail. Same
         // distinction `digWithoutTunnelling` and the mould walk already draw.
-        Intent walk = lava ? new Intent(where)
+        // AND IT MAY NOT WALK THE RIM TO GET THERE. This is the leg that goes deliberately close to
+        // the lake, and it was the one carrying `new Intent(where)` — no bias at all — while the
+        // approach that first found the lake priced every rim cell at 300. A stand chosen for having
+        // no hole beside it does not constrain the route to it, which is the whole argument of
+        // JourneyTerrain#poolsLipCells, made there about the approach and not applied here.
+        //
+        // Centred on `src` rather than on the rung's lake column: this fetch is about THIS source,
+        // the station sits within reach of it, and the two are never far enough apart for the
+        // twelve-block radius to miss the crater the walk actually skirts.
+        JourneyTerrain.RimTax rim = lava ? JourneyTerrain.avoidTheRim(ctx.level(), src) : null;
+        if (rim != null) rig.evidence(tag + ".rimTax", rim.story());
+        Intent walk = rim != null ? new Intent(where, rim.bias())
                 : new Intent(where, List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
         rig.settle(new IntentProcess(walk), 1_500, () -> {
             // Re-ask from where the body ACTUALLY ended up. The plan above is what makes a good spot

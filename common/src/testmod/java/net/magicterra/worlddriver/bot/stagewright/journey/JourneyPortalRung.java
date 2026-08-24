@@ -9,7 +9,6 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
@@ -265,10 +264,15 @@ public final class JourneyPortalRung {
      * names.
      */
     private static void walkTheStairs(JourneyRig rig, List<BlockPos> route, int i, boolean down,
-                                      Runnable then) {
+                                      JourneyTerrain.RimTax tax, Runnable then) {
         if (i >= route.size()) { then.run(); return; }
         BlockPos want = route.get(i);
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), List.of(),
+        // The tax rides EVERY waypoint, not only the overland first one. Inside the stairwell it
+        // costs nothing to carry: JourneyTerrain#onThePoolsLip only counts a cell whose neighbour
+        // opens onto a column that falls to lava within LIP_DEPTH, and the flight is cut walking
+        // AWAY from the pool with rock on both sides, so no step of it is in the set. Narrowing the
+        // tax to i==0 would buy nothing and would go wrong the first time a fill breaks the wall.
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(want), tax.bias(),
                 CapabilityProfile.ALL, List.of(new NoBreak()))), 600, () -> {
             BlockPos got = rig.player().blockPosition();
             double off = Math.sqrt(got.distSqr(want));
@@ -283,7 +287,7 @@ public final class JourneyPortalRung {
                         + String.format("%.2f", off) + " 格 —— 身体处："
                         + cellStory(rig.ctx().level(), got, !down) + "；要去的那格："
                         + cellStory(rig.ctx().level(), want, !down);
-            walkTheStairs(rig, route, i + 1, down, then);
+            walkTheStairs(rig, route, i + 1, down, tax, then);
         });
     }
 
@@ -358,9 +362,22 @@ public final class JourneyPortalRung {
         // to triangulate from `forge.carved 67/67` and the body having walked back down. Twenty
         // quiet rows across a rung are a small price for a row that can say "checked, and fine".
         rig.evidence(tag + ".stairsBroken", JourneyStairs.report(rig.ctx().level()));
-        if (faults.isEmpty()) { walkTheStairs(rig, stairRoute(down), 0, down, then); return; }
+        // THE RIM, PRICED FOR THIS FLIGHT. The first waypoint of the down route is the stairwell
+        // mouth and the body reaches it across open ground beside the lake — which is the leg that
+        // killed ladder j39 (`cast1.return`, `-8,64,14` → `-8,66,19`, dead at `-8,66,10` of
+        // `lava −4.0×3；onFire −1.0×2`). It ran untaxed because the tax was built inside the
+        // approach and never left it, while the file's own recovery javadoc thirty lines down
+        // already said in words that「the walk back crosses the lake's own rim」.
+        //
+        // Recomputed per flight, not carried from the approach: see JourneyTerrain#avoidTheRim —
+        // the fills and the cleared aim lines keep opening new ways in, so the count on this row is
+        // expected to CLIMB across a rung's returns, and a flat one is the finding.
+        JourneyTerrain.RimTax tax = JourneyTerrain.avoidTheRim(rig.ctx().level(), lavaPool);
+        rig.evidence(tag + ".rimTax", tax.story());
+        List<BlockPos> route = stairRoute(down);
+        if (faults.isEmpty()) { walkTheStairs(rig, route, 0, down, tax, then); return; }
         JourneyStairs.mend(rig, tag, faults, 0,
-                () -> walkTheStairs(rig, stairRoute(down), 0, down, then));
+                () -> walkTheStairs(rig, route, 0, down, tax, then));
     }
 
     /**
@@ -968,36 +985,31 @@ public final class JourneyPortalRung {
         return bank == null ? lava : bank;
     }
 
-    /** How much a step onto the crater's rim costs the search, in the pathfinder's own units. Three
-     *  hundred: a plain walk edge is 10, so this is thirty blocks of detour per rim cell, and the
-     *  route that has to be beaten crosses three or four of them. Wide enough that any way round is
-     *  cheaper; finite, so a pool whose every approach is rim still has a route — see
-     *  {@link JourneyTerrain#poolsLipCells} for why this is a tax and not a prune. */
-    private static final double LIP_TAX = 300;
-
-    /** How far around the pool the rim is priced, and how far up. Twelve out covers the whole
-     *  crater on this seed's lake — the bank scan's own tally found its 37 lip columns inside
-     *  eight — and nine up spans the fluid's row to the walking row three above it. */
-    private static final int LIP_TAX_RADIUS = 12;
-    private static final int LIP_TAX_RISE = 9;
+    /**
+     * The lake this rung is working, kept for the legs that run after the approach.
+     *
+     * <p>The rim tax needs a centre, and only {@link #descendToTheForge} is handed one. The flight
+     * between the stairwell and the fill station runs a dozen times per rung out of
+     * {@link #walkTheStairs}, which has no lava in scope and until 2026-08-24 therefore priced the
+     * crater at nothing — see {@link JourneyTerrain#avoidTheRim}. Null outside the rung, and the
+     * helper answers {@code List.of()} for a null pool rather than throwing, so a flight that
+     * somehow runs before the descent walks untaxed exactly as it did before.
+     */
+    private static BlockPos lavaPool;
 
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
         rig.attempting("背着一桶水走到岩浆湖边站得住的一格，挖一段楼梯下到岩浆层");
         BlockPos bank = pinTheApproach(ctx, rig, lava);
+        lavaPool = lava;
         // THE ROUTE, not only its end. See JourneyTerrain#poolsLipCells: a chosen bank cell did not
         // stop the walker planning along the rim and pinning the body on it, because a destination
-        // cannot steer a path. The set is built once, here, on the server thread; the search's own
-        // thread only ever does a hash lookup against an immutable set.
-        Set<BlockPos> rim = JourneyTerrain.poolsLipCells(ctx.level(), lava,
-                LIP_TAX_RADIUS, LIP_TAX_RISE);
-        rig.evidence("lava.rimTax", rim.size() + " 格坑沿每踏一格加价 " + (int) LIP_TAX
-                + "（普通走一格是 10，即绕 " + (int) (LIP_TAX / 10) + " 格也比踏上去便宜）；半径 "
-                + LIP_TAX_RADIUS + "、y=" + (lava.getY() + 1) + ".." + (lava.getY() + LIP_TAX_RISE)
-                + "；这一段和它的中点腿都带着这份加价");
-        List<CostModifier> avoidTheRim = List.of(
-                (from, to, edge, goal, world) -> rim.contains(to) ? LIP_TAX : 0.0);
+        // cannot steer a path. The set is built on the server thread; the search's own thread only
+        // ever does a hash lookup against an immutable set.
+        JourneyTerrain.RimTax tax = JourneyTerrain.avoidTheRim(ctx.level(), lava);
+        rig.evidence("lava.rimTax", tax.story()
+                + "；这一段、它的中点腿，以及此后每一趟楼梯 flight 和每一趟走去装料点都带着这份加价");
         WorldDriverJourneyScenes.walkToColumn(rig, "lava", bank.getX(), bank.getZ(), 0, 24_000,
-                avoidTheRim, () -> {
+                tax.bias(), () -> {
             BlockPos at = rig.player().blockPosition();
             final int surfaceY = JourneyTerrain.daylightY(rig, at);
             rig.evidence("forge.surfaceY", surfaceY + "（脚下 y=" + at.getY() + "）");
