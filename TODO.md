@@ -216,11 +216,11 @@ canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader
 
 | 场景 | 预登记判据 | 三态 |
 |---|---|---|
-| `wd.waterLowBank` | PASS，且带 BEFORE 的签名：三次 `cleared=true` 落在 `.98`、起跳弧 +0.42/+0.33/+0.25、`ARRIVED`、`bobTicks` 回到 ~38（不是 495） | 已验／未触发／证伪 |
-| `wd.pillarLedgerCountsRefusedPlaces` | PASS，且**这次点击真的开火了**：`账.计数峰值≈51`、`账.判过徒劳吗=True`、`柱.那一格实心了吗=False`（圆石在 0.95 被原版拒）、`带.身体高于填充格=[0.950, 0.950]` | 已验／未触发／证伪 |
-| `wd.pillarLedgerClearsOnARealPlace` | PASS：`柱.真的垫上了几格≥1/N`、`账.落地那一tick>0`、`账.落地后的计数=0`、`账.读数时接管还在吗=True`、`脚.格高范围` 是单格 | 已验／未触发／证伪 |
-| 其余 309 条（Fabric） | 与 **j31b** 那趟同名同判，一条都不许动 | 已验／未触发／证伪 |
-| 其余 309 条（NeoForge） | 与 **`results-j31-neoforge.jsonl`**（它自己的第一轮）同名同判。⚠️ 这一行原先写的是「与 j31b 同名同判」，那是个 **Fabric 专属文件**——NeoForge 从没跑过第二轮，比对基准只能是它自己 | 已验／未触发／证伪 |
+| `wd.waterLowBank` | PASS，且带 BEFORE 的签名：三次 `cleared=true` 落在 `.98`、起跳弧 +0.42/+0.33/+0.25、`ARRIVED`、`bobTicks` 回到 ~38（不是 495） | ✅ **已验（双 loader）** |
+| `wd.pillarLedgerCountsRefusedPlaces` | PASS，且**这次点击真的开火了**：`账.计数峰值≈51`、`账.判过徒劳吗=True`、`柱.那一格实心了吗=False`（圆石在 0.95 被原版拒）、`带.身体高于填充格=[0.950, 0.950]` | ✅ **已验（双 loader）** |
+| `wd.pillarLedgerClearsOnARealPlace` | PASS：`柱.真的垫上了几格≥1/N`、`账.落地那一tick>0`、`账.落地后的计数=0`、`账.读数时接管还在吗=True`、`脚.格高范围` 是单格 | ✅ **已验（双 loader）** |
+| 其余 309 条（Fabric） | 与 **j31b** 那趟同名同判，一条都不许动 | ✅ **已验**（翻转 2 条，皆 FAIL→PASS） |
+| 其余 309 条（NeoForge） | 与 **`results-j31-neoforge.jsonl`**（它自己的第一轮）同名同判。⚠️ 这一行原先写的是「与 j31b 同名同判」，那是个 **Fabric 专属文件**——NeoForge 从没跑过第二轮，比对基准只能是它自己 | ✅ **已验**（翻转 3 条，皆 FAIL→PASS） |
 
 ### 第一轮 Fabric 结果（`26fba984`，`VERDICT: GREEN`，`BUILD SUCCESSFUL in 4m 48s`）
 
@@ -286,6 +286,53 @@ wd.pillarLedgerClearsOnARealPlace FAIL
 基线名单**必须从它自己的第一轮文件读**，不许把 Fabric 那 4 条搬过来——
 本仓有过 loader 分裂的 optional（成就那条在 parity 文档里一度 Fabric 绿／NeoForge 红），
 「判词的上游还有判词」是**逐 loader**成立的。
+
+### ✅ 判：NeoForge `gate-neoforge-j31d.log`（同一棵树 `2566b9e8`）—— `VERDICT: GREEN`
+
+`GRADLE_EXIT=0`、`BUILD SUCCESSFUL in 4m 53s`。判词块上方三条都干净：三只 canary 各就各位、
+`COVERAGE: 281 executed / 24 skipped`（跳过的全是客户端专属 verb，专用服上是设计如此）、
+**没有 `UNDECLARED:`**（本轮没加场景，`expected-scenes-*.txt` 本就不该动）。
+
+对它自己的第一轮 `results-j31-neoforge.jsonl`：
+
+```
+j31(round1): 312   j31d: 312
+only in j31 : []          only in j31d: []
+outcome changed: 3
+   wd.pillarLedgerClearsOnARealPlace: FAIL -> PASS
+   wd.pillarLedgerCountsRefusedPlaces: FAIL -> PASS
+   wd.waterLowBank:                    FAIL -> PASS
+non-PASS in j31d: canaryMustFail / canaryMustTimeout / wd.vineOverWaterClimb / wd.serverEscapeSealedShelter
+```
+
+**恰好三条，方向全是 FAIL→PASS，非 PASS 收回基线 4 条，没有第四条翻转。**
+
+两条账本场景的读数与 Fabric **逐字相同**——同一钉高、只有手里那块不同：
+
+| 场景 | 手里 | `闸.点击开火次数` | `柱.那一格实心了吗` | 账本 |
+|---|---|---|---|---|
+| `…CountsRefusedPlaces` | 圆石 | **50** | False | 峰值 51，`判过徒劳=True`，带 `[0.950,0.950]` |
+| `…ClearsOnARealPlace` | 泥 | **1** | 垫 1/2 | `落地那一tick=2` → `落地后=0`，`读数时接管还在=True`，脚格 `[208,208]` |
+
+两条⚠️「会骗过我的绿」都没踩：正向 `柱.那一格实心了吗=False`（不是 True），
+反向 `账.落地那一tick=2`（不是 0，新守卫没被绕过）。
+
+`wd.waterLowBank` 不落 data 行，签名从日志读（竞技场 x 与 Fabric 同为 124064，世界是钉住的）：
+
+```
+12855 climbout-place fill=206 … cleared=true(p.y=206.98 need=206.9)
+12865 climbout-place fill=207 … cleared=true(p.y=207.98 need=207.9)
+12874 climbout-place fill=208 … cleared=true(p.y=208.98 need=208.9)
+12883 climbout-place fill=209 … support=false cleared=true(p.y=209.98 need=209.9)
+12929 [wd.waterLowBank] step=ARRIVED pos=(124064.5,208.0,100004.30) maxY=210.23 onBank=true bobTicks=38
+```
+
+`need=` 打的是 **206.9 而不是 207.0** ⇒ 跑的确实是 `crestClearOf`，不是旧的统一闸；
+起跳弧 207.98→208.40→208.73→208.98（+0.42/+0.33/+0.25）每周期净涨整一格；
+`bobTicks=38` 回到 BEFORE 的量级（回归时是 495）。第四次（209.98）`support=false` 不落地，
+与 Fabric 那趟同一处，已记为唯一未解释的增量，不追。
+
+⇒ **J31 结案：两个 loader 全 GREEN，判据逐条兑现。**
 
 ### 一处**没有**照「建议」改的地方，连同理由（已闭环）
 
