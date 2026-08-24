@@ -290,13 +290,12 @@ if (!fcSolid && fcSupport && fcCleared) {
 ⚠️ 反向那条还要**先断言那一格真的变实心**再断言 `placeFutile` 为假，否则
 「没垫上也没接管」和「垫上了所以没接管」印出来一模一样（[[staging-for-rungs-nobody-has-climbed]]）。
 
-⚠️ 两条都要**显式打开 `walkerPillarSurfacePlace`**（J32：闸里默认关着，这条路根本跑不到），
+⛔ ~~两条都要**显式打开 `walkerPillarSurfacePlace`**（J32：闸里默认关着，这条路根本跑不到）~~
+**这句是假的，见下面第五节。改成：两条场景都要显式把它设成 `false`。**
 新场景**同一笔提交补两份 `expected-scenes-*.txt`**。
-**不许拿「梯子变好了」当证据**——真梯上这条路的旗是关的，而且梯子有别的变量。
+**不许拿「梯子变好了」当证据**——梯子有别的变量。
 
 > 这一轮最该记住的：**一个修法可以把缺陷翻到反面，而反面在闸里不会红。**
-> J31 的 (b) 若照我原来的判据落，破坏的是**健康**路径，而那条路径因为 J32
-> 在竞技场里跑不到 —— 它只会在真梯上或生产里发作。
 > 「先写能分辨的场景、再改代码」不是流程洁癖，是唯一能看见反向缺陷的办法。
 
 ### 四、⚠️ 而这条路在真梯上到底走不走得到，先别假设
@@ -313,6 +312,60 @@ janitor 核出：`JourneyRig.generousPathfinding()`（`:1688-1733`）调 `pinned
    产品里唯一读者 `WalkerTickClimb:885`，唯一打开它的地方是为它写的那条场景。
    `JourneyRig:1728-1732` 自陈「the ladder cannot yet be measured on the configuration it ships」
    —— 这是那笔待办的一个具体受害者。**单独排号，见 J32。**
+
+### 五、⛔ 更正（2026-08-24，读调用链定死）：那面旗**不是** `:553` 的闸
+
+上面第三节里我写「两条场景都要显式打开 `walkerPillarSurfacePlace`（闸里默认关着，这条路根本跑不到）」，
+janitor 照办，还把它升级成场景里的一条硬断言：
+
+```java
+if (!BotConfig.walkerPillarSurfacePlace)
+    ctx.fail("walkerPillarSurfacePlace 是关的，水面爬出那条路根本走不到，断言会退化成 0==0。");
+```
+
+**这句话是假的。** 它和我们**自己那张表**（上面 J24b 根因那四行：唯一读者 `WalkerTickClimb:885`）
+直接冲突——`:553` 不是 `:885`。两句话各自看都成立，摆在同一份文件的相隔三十行处，
+没有任何一方被质疑过（[[two-ones-that-disagree]]）。
+
+读调用链：`:553` 所在的 climb-out place 分支，入口闸在 `:438-441`
+
+```java
+if (waterClimbing && wk.waterClimb.stall > WATER_CLIMB_STALL && !wk.waterClimb.pillarGaveUp
+        && (!deepDig || swimAshorePillarFallback)
+        && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
+```
+
+`:450 pillaring = true` → `:459 if (pillaring)` → `:538` 的 `else` → `:553`。
+**整条链上没有那面旗。** 而那面旗全产品唯一读者是 `floodedShaft`（`WalkerTickClimb:92`，J24b 之后
+从 `:885` 挪进来的），`floodedShaft` 只被 `:920` 和 `WalkerTickProgress:553` 调用——都不在这条链上。
+
+⇒ **`:553` 在旗关着时就是活的**，也就是它在真梯和生产里都是活的。
+
+**而打开那面旗会让场景更差**，因为它多放出一条落石路径。`:921` 那支：
+
+```java
+if (!shaftFlooded && a.holdThrowawayPlaceable()) { … if (p.getY() >= wp.getY() + 0.9) a.placeOn(wp.below(), UP); }
+```
+
+旗关着时水格上 `shaftFlooded` 恒真 ⇒ 这条 crest 落石**根本不跑**；旗一开，水面格（上方是空气）
+变成 `shaftFlooded=false`，它活过来，**而且它不碰 `pillarNoPlaceTicks`**
+⇒ 正向场景里多出一条能改变世界、却不进判据的落石路径，正好污染「从没垫上过」这个前提。
+旗还同时翻转 Progress 那边 J24b 刚改的语义 ⇒ 一条场景三个活动部件。
+
+**改法：两条场景都显式 `walkerPillarSurfacePlace = false`**，并把上面那条 `ctx.fail` 反过来写。
+
+⚠️ **连带作废一条判闸口径**：第四节第 1 条说「那趟闸若出现第四条非 PASS，结构上不可能是这次修法引起的」
+—— 那是 J24b 的论证，**不能搬到 J31**。既然 `:553` 在旗关着时就活，现有 water-bank 那一族场景
+本来就在跑这条计数器，J31 这一闸里**任何 water 族的颜色变动都是信号**。
+
+### 六、`:927` 的注释要 1.0，代码写 0.9
+
+`WalkerTickClimb:911-915` 自陈「能真正落石的只有 bob crest ≥ `fill.y+1.0` 的那 1–2 tick」，
+而 `:927` 的代码是 `p.getY() >= wp.getY() + 0.9`。**同一段里注释和代码差 0.1。**
+`Level#isUnobstructed` 的边界就是 +1.0（身体 AABB 底在 `p.getY()`，格占 `[y,y+1)`，
+`p.getY() ∈ [y+0.9, y+1.0)` 必然重叠 ⇒ 原版必拒）。所以四处阈值抽具名谓词时
+**`:927` 也要收进来，统一到 1.0**。收紧是单调安全的：`[0.9,1.0)` 里的点击百分之百被原版拒，
+删掉它们丢不掉任何一次**成功**的落石。
 
 ## 🟠 J32（新）：真梯的 37 面旗留在竞技场表上，是为 rung 3 的砍树税做的决定
 
