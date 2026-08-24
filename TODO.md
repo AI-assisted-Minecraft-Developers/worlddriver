@@ -809,6 +809,21 @@ manifest。** 这一次算出来的基线是 GREEN 288/25，实到 RED 且判词
 `visibleSourceNear` 半径 8（所以 A 仍然是 null），却在近塘的 `standToScoop` 半径 8 内。
 新增控制组 **D''**：挑中的座位必须离**远塘**比离近塘近，否则说明围栏没封干净。
 
+### ⏸ j54 要等 05:47 那个 cron 过去再起（2026-08-25 05:26 决定）
+
+12 小时一次的 `wd-janitor` 在 **05:47** 触发，它的章程是「找到问题了就立即做」——也就是
+**会改代码、会编译**，而且它不知道我这边有没有活着的游戏 JVM。一趟真梯约 15 分钟：
+05:33 起跑就正好横跨 05:47，那就是 [[compiling-under-a-live-run]]，只不过握着编译器的是它。
+⇒ **顺序**：闸跑完（约 05:31）→ 只写记录不编译 → 让 janitor 跑完并安静下来 →
+在它留下的树上重新编译 → 再起 j54。代价是二十分钟，换掉的是一趟作废的证据。
+
+⚠️ 起 j54 之前照旧三件事：按**命令行**确认没有游戏 JVM（`architectury.main.class=`，
+不能用 `jps` —— [[jps-cannot-tell-whose-game-it-is]]）、`git status`、
+**先删掉 `fabric/run-journey-integrated/stagewright-results.jsonl`**，
+否则残留的结果文件照样能回答问题（[[evidence-that-lies]]）。
+读的时候多一行可读：`shaft.reColumn.N.upstream` 现在也在竖井这条路上，
+所以这一趟若 11 级再淹，它会自己说出是谁在喂那口水——那正是 J54 欠的那笔读数。
+
 ### ⚪ 第 3 闸判读（2026-08-25 05:21）：预测应验，且顺手踩到一个 grep 陷阱
 
 | 判据 | 结果 |
