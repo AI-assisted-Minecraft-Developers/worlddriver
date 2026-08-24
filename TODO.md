@@ -1051,7 +1051,9 @@ wet.7.ramp.laid   = 0/2      cast7.ramp.laid   = 0/2      cell.8.ramp.laid = 0/3
 wet.8.ramp.laid   = 0/4      water8.ramp.laid  = 0/4      cast8.lift.laid  = 0/3
 ```
 
-**九次尝试，九次零级。** 而 8 条 `*.step.N` 里 **7 条的拒绝理由是「不知道」**：
+**九次尝试，九次零级。** ~~而 8 条 `*.step.N` 里 **7 条的拒绝理由是「不知道」**~~
+（⚠️ 这个数是错的，见下面结案处的分档表：真实是 4 条「不知道」、3 条「现在是 water」、
+2 条 `BODY_IN_THE_WAY`。我当时把两种已解释的停因也算进了「不知道」）：
 
 ```
 3, 56, 19 垫不上（现在是 Block{minecraft:air}，贴得到实心面（身体也不压在这一格里
@@ -1071,6 +1073,65 @@ J56 里那句「起塔也被水掐了」仍然成立，但**台阶根本没垒�
 今天三次靠「补一行读数」就把病因钉死（J50 的 `handTrace`、J52 的 `drain.N.upstream`、
 J51 的射线行），这一条形状完全相同。⚠️ 在读数拿到之前**不要**去改放置逻辑
 （[[a-question-asked-backwards-still-answers]]：今天我已经因为跳过读数错判过两次 J56）。
+
+#### ✅ J59 结案（2026-08-25 07:40）：拒绝的不是 vanilla，是**判词早了一个 tick**
+
+那一行读数不用补了 —— 它一直都在，在 `BotInteract.clientUseItemOn`（无条件打印，见该处注释）。
+j54 的 `debug-1.log.gz` 里，台阶那几格的 `[place]` 行长这样：
+
+```
+[06:46:58] [Server thread] [place] 成功 手持=…cobblestone×53 点击格=3, 55, 18 面=up 邻格=3, 56, 18→minecraft:cobblestone 结果=SUCCESS
+[06:46:58] [Server thread] [place] 拒绝 手持=…cobblestone×53 点击格=3, 56, 17 面=south 邻格=3, 56, 18→minecraft:cobblestone 结果=FAIL
+[06:46:58] [Server thread] [place] 拒绝 手持=…cobblestone×53 点击格=4, 56, 18 面=west  邻格=3, 56, 18→minecraft:cobblestone 结果=FAIL
+```
+
+**第一面就 SUCCESS，格子也确实变成了圆石，手里的数还少了一个**（×54→×53→×52，每次成功减一）。
+可 `placeInto` 仍然往下试第二面、第三面 —— 它只有在自己那句判词说「还不是实心」时才会继续。
+
+```java
+av.placeOn(against, d.getOpposite());                        // 客户端预测 + 发包
+if (level.getBlockState(cell).blocksMotion()) return true;   // 同一句里读 ServerLevel
+```
+
+`JourneyStairs.placeInto:449-450`，以及 `JourneyRamp.layWhereItStands:453` 那句一模一样的复查。
+`level` 是 **ServerLevel**；`placeOn` 走 `gameMode.useItemOn`，对 `LocalPlayer` 而言是**发包**，
+服务端最早也要下一个 tick 才处理。**所以这句判词在客户端身体上恒为假**，与 vanilla 收不收无关。
+`邻格→` 打的是 `p.level()`，客户端那一份，所以它看得见、判词看不见。
+
+**这是身体选型带出来的：** 专用服上的 `JoinedBody` 直接在服务端落子，下一句读得到，判词是对的；
+集成服+客户端按用户的规定用 `LocalPlayer` 驱动，同一个 helper 就整个失效了。
+⇒ 一处写法，两种身体，只有一种成立 —— [[the-write-side-was-split-the-read-side-was-not]]。
+
+**准确的说法是：这句判词分不出「被拒」和「还没到」** —— 不是「九次都没被拒」。
+把 j54 的九行按停因摊开，三种成色完全不同：
+
+| 停因 | 条数 | 行 |
+|---|---|---|
+| `BODY_IN_THE_WAY` | 2 | `wet.7`、`water8` —— 真实、已解释，且**根本不是放置被拒**（碰撞箱那一支） |
+| 「现在是 **water**」 | 3 | `cast6` 2,56,18、`cast7` 3,56,21、`cast8.lift` 3,56,18 |
+| 「现在是 **air**」+「原因不在这两条里」 | 4 | `cell.6`、`wet.6`、`cell.8`、`wet.8` |
+
+而 `cast6` 那一格 `2, 56, 18`，日志里正是
+`[06:45:03] 成功 … 邻格=2, 56, 18→minecraft:cobblestone 结果=SUCCESS`。
+⇒ **`whyNotLaid` 的「现在是 X」印的是放置之前的状态，却被当作放置之后的结果在读。**
+这是同一句读数上的第二个缺陷，和返回值那个各自独立：一个把「还没到」判成「被拒」，
+一个把「之前」印成「现在」。[[a-reading-is-not-the-quantity-it-looks-like]]
+
+**服务端确实收下了 —— 有硬证据。** `placeInto:448` 只会贴着 **ServerLevel** 说是实心的邻格点击。
+`[06:47:01]` 那次用的是 `点击格=3, 56, 18 面=south`：也就是 06:46:58 那颗「被判为拒绝」的圆石，
+三秒后已经成了服务端自己认的实心锚点。⇒ 往返是完成的，判词只是早了一句。
+
+⚠️ 未解释、且与本条无关的一笔：`3, 56, 18` 在 06:47:01 之后又被谁清掉了，
+以致 06:51:49 重新摆了一次。j54 的结果里**没有任何 `borrowed.*` / `picks.*` 键**，
+所以「浇筑收回借用的那一级」这个嫌疑在证据上不成立。单列，不并进 J59。
+
+**为什么历史上又有 `2/3`**：`layWhereItStands:429` 开头会跳过已经实心的 support，
+于是**上一趟**落的子被**下一趟**记账。j54 九次 `0/N` 是因为 `Stop.REFUSED` 当场返回，
+`stepAsideFor` 没有第二趟可给。⇒ 「垒成几级」这个数从来没量过这一趟垒了几级。
+
+⚠️ 待办：只有 `JourneyStairs.placeInto:449` 一处 `placeOn`，全部 rung 都从这里过 —— 修一处即可，
+但也意味着改错一处就全错。修法必须**等到往返完成再判**，而不是把判词换成读客户端世界
+（那只会把预测当成落定，[[a-lagging-reading-became-the-crime-scene]] 的反面）。
 
 ### ⚠️ 被杀的后台包装：跑着的那一半活下来，没跑到的那一半跟着死（2026-08-25 07:10）
 
