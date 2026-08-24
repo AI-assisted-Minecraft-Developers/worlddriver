@@ -57,20 +57,19 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 Scene.of("wd.aboveNodeStallPitFill", 700, WorldDriverCoverageScenes::aboveNodeStallPitFill),
                 Scene.of("wd.verticalResyncSlideBack", 700, WorldDriverCoverageScenes::verticalResyncSlideBack),
                 Scene.of("wd.stepUpBackoffCeiling", 700, WorldDriverCoverageScenes::stepUpBackoffCeiling),
-                // OPTIONAL because it currently REPRODUCES a product defect, not because it is
-                // flaky: WalkerTickClimb carves `shaftFlooded` back to false on a water-surface
-                // pillar and WalkerTickProgress has no such carve-out, so Progress advances the
-                // step pointer past a support cell that is still open water. Both loaders red it
-                // identically off 02438dd3 (走.指针高水位=2/3, 柱.分档=指针越过未垫), which is the
-                // first row of the verdict table pre-registered before the run.
+                // Asks whether WalkerTickProgress may call a pillarUp step finished while the cell
+                // its edge is supposed to fill is still open water. It may not: both phases now
+                // read one shared answer (WalkerTickClimb.floodedShaft), so Progress's arrival gate
+                // demands onGround() on a water-SURFACE cell and the pointer waits for the support.
                 //
-                // ⚠️ PUT IT BACK TO REQUIRED THE MOMENT THE CARVE-OUT IS SHARED. An optional red
-                // that nobody is obliged to look at is how a known defect becomes a permanent
-                // baseline row — this suite already carries two of those. The fix is tracked as
-                // J24b; when the scene reports 柱.分档=垫上了, delete this call in the same commit.
+                // It was RED, on purpose, and briefly optional. Off 02438dd3 both loaders reported
+                // 走.指针高水位=2/3, 柱.分档=指针越过未垫 — the pointer had left the first pillarUp
+                // edge while the support was water. That is the row this scene exists to catch, and
+                // it caught it before any human noticed the divergence. Required again as of the
+                // fix; the reading that says it is honest is 柱.分档=垫上了 with 走.收尾 around 68
+                // ticks — 21 was the number when the pointer did not wait.
                 Scene.of("wd.surfacePillarPointerNeedsItsSupport", 700,
-                        WorldDriverCoverageScenes::surfacePillarPointerNeedsItsSupport)
-                        .withRequired(false));
+                        WorldDriverCoverageScenes::surfacePillarPointerNeedsItsSupport));
     }
 
     /** 11×11 stone floor at {@code floorY}, cleared air +1..+18 above (the standard
