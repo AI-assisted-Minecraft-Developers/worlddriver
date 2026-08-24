@@ -413,6 +413,10 @@ if (!shaftFlooded && a.holdThrowawayPlaceable()) { … if (p.getY() >= wp.getY()
    **理由（janitor 提出，成立）**：旧代码里脚过 0.9 就清零，`pillarNoPlaceTicks` 实际峰值是 1，
    ⇒ **`PILLAR_FUTILE_TICKS = 50` 在此之前从来没约束过任何东西**，这是它头一次真的开始计数。
    若某条健康爬出两次成功落石间隔 > 51 tick，它现在会被判 futile 并交给挖掘后备。
+   ⚠️ 补一条**这一闸也可能移动但与 J31 无关**的：`wd.pillarLedgerCountsRefusedPlaces` 和
+   `wd.pillarLedgerClearsOnARealPlace` 是**这一闸才第一次跑**的两条，它们红了要按
+   「新场景自身的布景问题」读，不能算进 water 族回归——两者的失败信息已经写成能自我分辨的了
+   （`engages==0` / 带外 / 那格变实心 各有各的判词）。
    - 出现这种变动 ⇒ **是 50 这个数没校准，不是账本记错了**；修法方向不变，调的是常数。
      **不许因此回滚账本**（回滚就回到「点击即清零 ⇒ 永远不 futile」那个原缺陷）。
 4. **`wd.surfacePillarPointerNeedsItsSupport` 保持 PASS，且 `柱.分档` 仍是「垫上了」。**
@@ -429,6 +433,37 @@ vs 竞技场基线 2914 tick PASS，点名 `pathfinderLogBreakTax` 3.0 / `pathfi
 把砍树路径定价出局。**那个决定是对的，但它是一刀切的**，顺带关掉了 rung 11 需要的那一面。
 要的不是「全开」或「全关」，是**逐面旗给出理由**——J27 的普查表已经把 38 面列全了，
 这里缺的是把「真梯该开哪几面」单独定下来。⚠️ 别在正跑着的闸中途改旗表，会毁掉可比性。
+
+### 📐 J32-A（2026-08-24，读码，**J32 的真问题不是选旗，是两条税和第 3 级的目标互相矛盾**）
+
+税是**乘性叠加**的，`ClientWorldView:441-456`：
+
+```java
+if (!bestCorrect) cost *= 3;                                        // 工具不对
+if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS))
+    cost *= BotConfig.pathfinderLogBreakTax;                        // 出厂 3.0，基线 1.0
+…
+return cost * BotConfig.pathfinderBreakCostMultiplier;              // 出厂 2.5，基线 1.0
+```
+
+⇒ 出厂配置下一个 log 格是 **3.0 × 2.5 = 7.5×**。这就是 rung 3 的 13899 tick 和
+49 行 `[mine] no approach to stand`。
+
+**关键是它们的自陈目的**（`:442-447`）：这条税是为了阻止 A\* 从**路过**的树干里穿过去
+（用户可见的「寻路走到树里」）。而 rung 3 的活**就是把这棵树砍了**。
+⇒ 同一个乘子同时给两种完全相反的意图定价，**它缺的判别器是「这根木头是路障还是货」**。
+
+所以 J32 该做的**不是**把这两个数改小（那会把「寻路走到树里」放回来，
+而那是有用户报告的真缺陷），也不是给真梯单独调一张表（那样真梯量的就永远不是出厂配置）。
+**该做的是给税加上它一直缺的那个上下文：采集进程在自己的目标木簇上把税豁免掉**，
+travel 走的每一根树干照旧收税。范围锁在进程内、进出各一次，**不改全局默认**。
+
+三条待核（都不用跑闸，读码即可）：
+1. 采集进程当前是怎么给 walker 下目标的——是单格 `Goal.Block` 还是「这棵树」？
+   若是单格，rung 3 要砍的第 5 根下面那 4 根**不是目标格**，豁免就必须按**木簇**定义而不是按目标格。
+2. 有没有现成的「目标木簇」概念可以复用（`mc.plan.acquire` / mine 进程内部）？
+   ⚠️ 先 `git log -S` 再动手——这一族已经有三次「派出去才发现 HEAD 里早有了」。
+3. `pathfinderBreakCostMultiplier` 是 J28 单独排的号，**同一个答案覆盖两者**，别分两笔做。
 
 ### 🔴 J24b 根因（读码定死，2026-08-24）：这面旗**全产品只有一个读者**
 
