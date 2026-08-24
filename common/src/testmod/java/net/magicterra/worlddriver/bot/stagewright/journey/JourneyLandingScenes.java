@@ -377,8 +377,12 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos visible = JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH);
         BlockPos nearest = JourneyTerrain.shallowWaterNear(rig, 8);
         BlockPos seat = nearest == null ? null : JourneyFill.standToScoop(rig, nearest);
+        // ABSOLUTE, not the arena-relative constant. `GROUND` is an offset handed to `ctx.rel`; the
+        // first run of this scene printed 「岸顶 y=21」 beside a body at y=220, which is the kind of
+        // row that costs an hour to a reader who trusts it.
+        BlockPos bank = ctx.rel(-1, GROUND, 0);
         ctx.record("staged.foot", seated.toShortString() + "，眼睛 y=" + fp.getEyePosition().y
-                + "，岸顶 y=" + (GROUND + 1));
+                + "，岸 " + bank.toShortString() + " 顶 y=" + (bank.getY() + 1));
         ctx.record("staged.pond", pond.toShortString() + "，其上="
                 + level.getBlockState(pond.above()).getBlock() + "，与身体 distSqr="
                 + seated.distSqr(pond));
