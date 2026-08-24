@@ -54,7 +54,9 @@ public final class JourneyLandingScenes implements SceneProvider {
                 Scene.of("wd.journeyGetsAshoreBeforePouring", 6_000,
                         JourneyLandingScenes::getsAshoreBeforePouring).withRequired(false),
                 Scene.of("wd.journeyScoopsPastItsOwnObsidian", 6_000,
-                        JourneyLandingScenes::scoopsPastItsOwnObsidian));
+                        JourneyLandingScenes::scoopsPastItsOwnObsidian),
+                Scene.of("wd.journeyReseatsWhenItCanSeeNoWater", 6_000,
+                        JourneyLandingScenes::reseatsWhenItCanSeeNoWater));
     }
 
     /** Natural ground level inside the arena box. */
@@ -324,6 +326,103 @@ public final class JourneyLandingScenes implements SceneProvider {
                         + "两者都不动存量）：" + before + " → " + after
                         + "；那一刻的手与两条射线：" + rig.evidenceOf("waterFill.atUse")).isTrue();
             });
+        });
+    }
+
+    // ------------------------------------------------------- the bank in the way ----
+
+    /**
+     * When no source is visible from where it stands, the scoop must MOVE — not spend its one use.
+     *
+     * <p><b>Why this is a different scene from {@link #scoopsPastItsOwnObsidian} and not a case of
+     * it.</b> That one stages a blocked source next to an open one, so the chooser has a right
+     * answer to find and never enters the re-seat at all. This one stages a pond with <i>no</i>
+     * seat-visible source, which is the other branch: {@code visibleSourceNear} returns null and the
+     * only thing left to change is the body's own cell. Ladder j52 measured exactly that
+     * ({@code waterFill.aim = 没有一格水源是这只眼睛看得见的}) and then aimed anyway.
+     *
+     * <p><b>Why a bank and not a lid.</b> A lid over the only source blocks the ray from every cell
+     * — including the one the re-seat would move to — so {@code standToScoop} returns null too and
+     * the branch has nowhere to go. The trap has to be <i>directional</i>, and the ladder's real one
+     * was: {@code 空桶线 -5,62,55 minecraft:grass_block（1.05 格）} is a bank one block above the
+     * body's feet, and the same pond filled a bucket on the first try from one block higher (j48,
+     * j51). So the staging is a seat cut one below the bank, with the pond behind it.
+     *
+     * <p><b>The body is staged exactly {@code Goal.Near}'s radius from the pond</b> (distSqr 4 for
+     * radius 2, and {@code reached} is {@code <=}), so the approach the scoop opens with is already
+     * satisfied and cannot quietly walk the body out of the trap before the branch is reached. That
+     * is asserted, not assumed — control A asks the engine, after the settle.
+     */
+    private static void reseatsWhenItCanSeeNoWater(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        ctx.cleanup(() -> clearBox(ctx));
+        flatGround(ctx);
+
+        // The seat, one below the surface. The bank is the untouched stone at dx=-1.
+        ctx.setBlock(0, GROUND, 0, Blocks.AIR);
+        // The pond, cut in so its top is flush with the surface and it cannot flow away: a lone
+        // source walled by stone on all four sides and floored by it.
+        BlockPos pond = ctx.rel(-2, GROUND, 0);
+        ctx.setBlock(-2, GROUND, 0, Blocks.WATER);
+
+        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND, 0));
+        ServerPlayer fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
+        fp.getInventory().selected = 0;
+        ServerPlayerAvatar av = driver.avatar();
+        for (int i = 0; i < 3; i++) av.step();
+
+        JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
+        BlockPos seated = fp.blockPosition();
+        BlockPos visible = JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH);
+        BlockPos nearest = JourneyTerrain.shallowWaterNear(rig, 8);
+        BlockPos seat = nearest == null ? null : JourneyFill.standToScoop(rig, nearest);
+        ctx.record("staged.foot", seated.toShortString() + "，眼睛 y=" + fp.getEyePosition().y
+                + "，岸顶 y=" + (GROUND + 1));
+        ctx.record("staged.pond", pond.toShortString() + "，其上="
+                + level.getBlockState(pond.above()).getBlock() + "，与身体 distSqr="
+                + seated.distSqr(pond));
+        ctx.record("staged.visible", String.valueOf(visible));
+        ctx.record("staged.nearest", String.valueOf(nearest));
+        ctx.record("staged.seat", String.valueOf(seat));
+
+        ctx.check(visible).as("控制组 A 从这个座位**必须**一格水源都看不见 —— 看得见就说明岸没挡住，"
+                + "换座位这一支根本不会跑，后面每一条都是 0==0：通视 finder 给出的是 "
+                + visible).isNull();
+        ctx.check(nearest).as("控制组 B 按距离的 finder 仍要找得到这口塘，否则 `pool` 是 null，"
+                + "走的是另一条路").isNotNull();
+        ctx.check(seat).as("控制组 C 换座位必须**有地方可去** —— `standToScoop` 返回 null 时这一支"
+                + "只会印「换不了座位」，那不是这个场景要判的东西").isNotNull();
+        ctx.check(!seated.equals(seat)).as("控制组 D 而且那个落脚点不是脚下这一格：挑出来的是 "
+                + seat + "，身体在 " + seated).isTrue();
+
+        int before = fp.getInventory().countItem(Items.WATER_BUCKET);
+        JourneyPortalRung.scoopWaterOnly(ctx, rig, pond, () -> {
+            BlockPos ended = fp.blockPosition();
+            Object reseat = rig.evidenceOf("waterFill.reseat");
+            int after = fp.getInventory().countItem(Items.WATER_BUCKET);
+            ctx.record("subject.reseat", String.valueOf(reseat));
+            ctx.record("subject.endedAt", ended.toShortString());
+            ctx.record("subject.waterBucket", before + " → " + after);
+            ctx.record("subject.aim", String.valueOf(rig.evidenceOf("waterFill.aim")));
+            ctx.record("subject.result", String.valueOf(rig.evidenceOf("waterFill.result")));
+
+            // E FIRST, because `then` only runs when the fill already succeeded — so without this
+            // the scene would sign off a fill that happened to work from the bad seat and never
+            // moved. The row must be present AND must read as a move: the same key carries the
+            // 「换不了座位」 refusals, and a refusal is not a re-seat.
+            ctx.check(reseat).as("E 换座位这一支**被观察到跑过** —— `waterFill.reseat` 必须写了。"
+                    + "没写就说明装上水的是坏座位自己，这一支还是没被执行过").isNotNull();
+            ctx.check(!String.valueOf(reseat).startsWith("换不了座位")).as(
+                    "F 而且它真的换了，不是印了一行拒绝：" + reseat).isTrue();
+            // G — the concern that the re-entry re-runs `Goal.Near(water,2)` and can walk the body
+            // off the seat it just paid for. One pond cannot make that fail, so this is a guard for
+            // the day a second source is within `FILL_RESEARCH` of the first, not a measurement of
+            // it today.
+            ctx.check(ended.equals(seat)).as("G 用桶的那一刻身体站在换到的那个座位上，没有被第二次"
+                    + "`Goal.Near` 又带走：期望 " + seat + "，实到 " + ended).isTrue();
+            ctx.check(after > before).as("H 桶真的装上了水（判存量，不是判 use 的返回值）："
+                    + before + " → " + after).isTrue();
         });
     }
 

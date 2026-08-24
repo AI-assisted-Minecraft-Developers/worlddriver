@@ -124,6 +124,19 @@ public final class JourneyPortalRung {
     }
 
     /**
+     * Entry for the staged scene that judges the re-seat, which the ladder reaches only by climbing
+     * eleven rungs first.
+     *
+     * <p>Deliberately routed through the same two-argument overload the ladder uses rather than
+     * taking a re-seat budget of its own: a scene that passed its own number would stop testing
+     * {@link #SCOOP_RESEATS} the moment that constant moved, which is the whole thing the scene is
+     * standing guard over.
+     */
+    static void scoopWaterOnly(SceneContext ctx, JourneyRig rig, BlockPos water, Runnable then) {
+        scoopWater(ctx, rig, water, then);
+    }
+
+    /**
      * How many times the scoop may move before it gives up and spends the use anyway.
      *
      * <p>One. The question a re-seat answers is「can this body see any water from ANY nearby

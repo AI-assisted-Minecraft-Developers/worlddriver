@@ -347,6 +347,8 @@ wd.journeyStepsDownOffItsOwnTower
 wd.journeyClimbsOutOfItsOwnPit
 wd.journeyGetsAshoreBeforePouring
 wd.journeyScoopsPastItsOwnObsidian
+# The other branch of the same chooser: nothing visible from the seat, so the seat is what moves.
+wd.journeyReseatsWhenItCanSeeNoWater
 
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
