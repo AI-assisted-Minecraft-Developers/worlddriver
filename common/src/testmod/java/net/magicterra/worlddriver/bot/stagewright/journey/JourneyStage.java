@@ -62,8 +62,20 @@ public enum JourneyStage {
     /** Fed: something killed or foraged and eaten, hunger recovered. */
     FOOD("食物", Chapter.OVERWORLD, true),
 
-    /** A bed, slept in, spawn point moved — ROADMAP N1's durability keystone. */
-    BED("床", Chapter.OVERWORLD, false),
+    /** A bed, slept in, spawn point moved — ROADMAP N1's durability keystone.
+     *
+     *  <p>Promoted after eight consecutive green ladder runs (ladder11 through ladder17, and the
+     *  first run on the shipping configuration) — the ratchet described above, applied late. It was
+     *  the only rung below {@link JourneyLedger#FLOOR} still shipping non-gating, with FURNACE, IRON
+     *  and PORTAL_KIT above it already gating, so a BED regression was the one regression under the
+     *  floor that could not turn a run red.
+     *
+     *  <p>This does NOT change what the run reports as its height, and is not meant to:
+     *  {@link JourneyLedger#height} walks {@link #criticalPath()}, which excludes BED on purpose
+     *  because a bed is not progress toward the dragon. The two flags answer different questions —
+     *  「does a regression here go red」 and 「does reaching it mean the climb advanced」 — and a
+     *  side rung can honestly be yes to the first and no to the second. */
+    BED("床", Chapter.OVERWORLD, true),
 
     /** A furnace and fuel: the first station that turns time into materials. */
     FURNACE("熔炉", Chapter.OVERWORLD, true),
