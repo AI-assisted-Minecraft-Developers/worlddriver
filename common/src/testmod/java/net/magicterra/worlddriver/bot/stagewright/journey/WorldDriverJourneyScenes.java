@@ -118,7 +118,12 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // drops one of whatever colour it happens to be, and each kill is a walk. Cheap when the
         // seed has no sheep at all — two scans and a finding.
         out.add(stage("wd.journey07Bed", JourneyStage.BED, 26_000, JourneyBedRung::bed));
-        out.add(stage("wd.journey08Furnace", JourneyStage.FURNACE, 8_000,
+        // 30 000, and the happy path still costs 33 ticks: a budget is a cap, not a duration, so the
+        // "regression sensor that answers in eight seconds" property this rung was sized for is
+        // untouched. What 8 000 could not afford was the one branch that has to leave the spot —
+        // when the bag is short, the top-up may now walk to the surveyed stone, sink a shaft and
+        // climb back out, which is the stone rung's own shape and cost it 3 720 ticks there.
+        out.add(stage("wd.journey08Furnace", JourneyStage.FURNACE, 30_000,
                 WorldDriverJourneyScenes::furnace));
         // 90 000, because this rung can dig TWICE: seed 5471's first vein is one ore, so a run that
         // needs the portal kit's four ingots walks to a second column, sinks an eleven-deep shaft
@@ -1282,10 +1287,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         rig.evidence(key + ".huntEndedAt", at.toShortString() + "，离出生点 "
                 + Math.round(Math.hypot(at.getX() - home.getX(), at.getZ() - home.getZ())) + " 格");
         rig.attempting("打完猎回出生点，别把下一级留在荒野里");
-        Runnable arrived = () -> {
+        Runnable arrived = () -> settleOntoHomeGround(rig, key, home, () -> {
             rig.evidence(key + ".home", rig.player().blockPosition().toShortString());
             then.run();
-        };
+        });
         Runnable strand = () -> {
             BlockPos stuck = rig.player().blockPosition();
             rig.evidence(key + ".strandedAt", stuck.toShortString() + "，离出生点 "
@@ -1325,6 +1330,78 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                 arrived, strand);
                     });
                 });
+    }
+
+    /**
+     * Leave the next rung a body standing on the ground, not on top of what it built to get here.
+     *
+     * <p><b>The failure this is written from.</b> The bed rung 2026-08-24 ended
+     * {@code home.arrivedY = 78（起 62，净升 16），脚下=Block{minecraft:cobblestone}} beside
+     * {@code home.gotoEnd.1 = …预算用完时进程还在走…判为到达：停在 64,78,63，距 64,60 3 格，容差 5}.
+     * The rung PASSED: {@link #walkToColumn}'s goal is a column, {@code Goal.XZ} has no y term, and
+     * three blocks of horizontal error is inside the tolerance whatever the altitude. So the body
+     * was handed to the furnace rung sixteen courses up a cobblestone tower it had pillared itself
+     * — and both halves of that cost a rung. The tower <b>was</b> the missing cobblestone
+     * ({@code cobblestone.before=7} where the stone rung banks twenty), and standing on it put
+     * {@code MineProcess}'s {@code mineSearchVerticalRadius=8} scan band entirely above the terrain,
+     * so a top-up that asked for one stone found no candidate at all and aborted in one tick.
+     *
+     * <p><b>Why the existing guard could not catch it.</b> {@code walkHome} already asks「is the
+     * body under something」— but only on the STRAND branch, and only downward. A body can also
+     * <i>arrive</i> wrong in either direction, which is the mirror of the one-axis mistake that
+     * guard was itself written for.
+     *
+     * <p><b>Why the home column's heightmap is the right reference and the body's own is not.</b>
+     * Once the tower exists it IS terrain, so {@code daylightY} at the body's column happily reports
+     * the tower top. The home column is three blocks away and carries no tower, so it still reads
+     * natural ground. The same reading also makes the natural-relief case safe rather than merely
+     * tolerable: descending to the level of ground three blocks away cannot leave the body in a pit,
+     * because that level is what it will walk out onto.
+     *
+     * <p>Both directions, and the elevation is recorded on every path — a row that appears only when
+     * the recovery fires cannot tell「it was level」from「nobody looked」.
+     */
+    private static void settleOntoHomeGround(JourneyRig rig, String key, BlockPos home, Runnable then) {
+        BlockPos at = rig.player().blockPosition();
+        int ground = JourneyTerrain.daylightY(rig, home);
+        int off = at.getY() - ground;
+        rig.evidence(key + ".homeElevation", "身体 y=" + at.getY() + "，出生柱地面 y=" + ground
+                + "（差 " + (off >= 0 ? "+" : "") + off + " 格），脚下="
+                + rig.player().level().getBlockState(at.below()).getBlock());
+        if (Math.abs(off) < SUNK_BELOW) { then.run(); return; }
+
+        // Restore explicitly rather than trusting the scene pin: the pin does restore at scene end,
+        // but this rung has rungs' worth of work left after the descent and a paving walker in the
+        // middle of it is the pathology being fixed, not a tidy-up detail.
+        boolean place = BotConfig.allowPlace;
+        if (off > 0) {
+            rig.attempting("从自己垒的塔上下来：拆塔的竖井挖不动");
+            BotConfig.allowPlace = false;      // a paving walker will not sink — see the stone rung
+            JourneyShaft.descendByMining(rig, ground, () -> {
+                BotConfig.allowPlace = place;
+                // Mining a tower back is not a side effect, it is the point: every course is a
+                // block the walker spent, and the rungs above this one are the ones that needed it.
+                rig.evidence(key + ".towerRecovered", "落到 y=" + rig.player().blockPosition().getY()
+                        + "，圆石 " + rig.carrying("minecraft:cobblestone"));
+                walkToColumn(rig, key + "AfterDescent", home.getX(), home.getZ(), 3, 12_000, 1,
+                        then, then);
+            }, wet -> {
+                // Standing part-way down a wet column beats standing on the tower, so this ends the
+                // descent and carries on rather than failing the rung: the rung's contract is the
+                // bed, and this whole routine is about what the NEXT rung inherits.
+                BotConfig.allowPlace = place;
+                rig.evidence(key + ".towerDescentWet", "柱子中段有水，停在 " + wet.toShortString()
+                        + " —— 不再往下挖，下一级从这里出发");
+                then.run();
+            });
+            return;
+        }
+        rig.attempting("从坑里爬回地面：climbOut 上不去");
+        JourneyShaft.climbOut(rig, ground, key + "HomeUp", () -> {
+            rig.evidence(key + ".climbedBackTo", rig.player().blockPosition().toShortString());
+            walkToColumn(rig, key + "AfterClimbBack", home.getX(), home.getZ(), 3, 12_000, 1,
+                    then, then);
+        });
     }
 
     static final int PREY_SEARCH_BLOCKS = 96;
@@ -1394,17 +1471,95 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         }
 
         int need = FURNACE_COBBLE - before;
-        rig.evidence("furnace.topUp", "补料 " + need + " 块 —— 开场 " + before + "，不足 "
+        // PHRASED AS A SHORTFALL, NOT AS A DELIVERY. This row used to read「补料 N 块」— perfect
+        // tense — and was written BEFORE the mine ran. Measured 2026-08-24 it said that over
+        // `furnace.topUp.after=7`: nothing had been added, and the sentence describing the run's
+        // INTENT was the one a reader quoted as its OUTCOME. What it achieved is recorded below,
+        // after the only code that can know it.
+        rig.evidence("furnace.topUp", "差 " + need + " 块 —— 开场 " + before + "，不足 "
                 + FURNACE_COBBLE + "；上游漏了料，这一趟不是纯合成");
+        // Does the band the scan will sweep even HOLD stone? Same vertical radius MineProcess uses,
+        // so this asks the scan's own question rather than a nearby one — and it is the reading that
+        // separates the two ways the cheap attempt can come back empty. Measured, the failing run
+        // had the body sixteen courses up a tower at y=78 over terrain at 63, which put the whole
+        // ±8 band in the air: "none" here means the world under the body's feet was never in scope,
+        // and a coordinate means there WAS a candidate and something else refused it.
+        rig.evidence("furnace.topUp.stoneInBand", String.valueOf(
+                rig.nearestBlock("minecraft:stone", 32, BotConfig.mineSearchVerticalRadius)));
         // Radius 32, not the stone rung's 16: that one mined from the bottom of its own shaft where
         // stone is everywhere, and its comment already records that at a swamp SURFACE「the radius,
         // not the quota, is what binds」. This is the cheap attempt on purpose — if it comes back
-        // short the evidence says so by name, and the next step is the stone rung's proven shape
-        // (walk to JourneyRoute.stoneDescent, descendByMining, climbOut) rather than another guess.
+        // short the evidence says so by name, and the fallback below is the stone rung's proven
+        // shape rather than another guess.
         rig.attempting("补圆石：地表 32 格内挖不到 " + need + " 块石头");
         rig.drive(new MineProcess(List.of("minecraft:stone"), need, 32), 12_000, () -> {
-            rig.evidence("furnace.topUp.after", rig.carrying("minecraft:cobblestone"));
-            craftFurnace(ctx, rig);
+            int after = rig.carrying("minecraft:cobblestone");
+            rig.evidence("furnace.topUp.after", after);
+            rig.evidence("furnace.topUp.mined", (after - before) + " 块（要 " + need + "）");
+            // The miner's own reason for stopping. Its absence is why the failing run could not say
+            // whether the scan saw nothing, could not reach what it saw, or lacked the tool — three
+            // answers that read identically as「跑完」in journey.helm.endings.
+            rig.evidence("furnace.topUp.error", String.valueOf(rig.slotError("mine")));
+            if (after >= FURNACE_COBBLE) { craftFurnace(ctx, rig); return; }
+            topUpAtTheSurveyedStone(ctx, rig, FURNACE_COBBLE - after);
+        });
+    }
+
+    /**
+     * The top-up's second answer: go where the survey certified there is stone.
+     *
+     * <p>The cheap attempt above mines from wherever the rung below happened to leave the body, and
+     * that is exactly the assumption that failed — a body standing above the terrain has no stone in
+     * the scan's ±8 band no matter how wide the horizontal radius is. This is the same four steps
+     * the stone rung runs and passes with (walk to the column, sink, mine, climb out), on the same
+     * surveyed coordinates, so it inherits that rung's corrections rather than re-deriving them:
+     * a {@code Goal.XZ} with tolerance 0 because the survey certified one column dry, and
+     * {@code allowPlace=false} through the descent because a paving walker will not sink.
+     *
+     * <p><b>The quota is computed, not guessed,</b> because the stone rung already paid for guessing
+     * it: 「paying the exit out of the furnace's share is what stranded a run at the bottom of its
+     * own hole」. Climbing out costs about one block per course, so the bill is the shortfall plus
+     * the depth this shaft will sink plus a margin.
+     *
+     * <p>Insurance, and expected never to fire once the bed rung stops leaving the body on a tower.
+     * A run in which these rows are absent is a run that did not need them — which is why the
+     * shortfall row above is written whether or not this is reached.
+     */
+    private static void topUpAtTheSurveyedStone(SceneContext ctx, JourneyRig rig, int shortfall) {
+        BlockPos stone = JourneyRoute.firstStone;
+        BlockPos shaft = JourneyRoute.stoneDescent;
+        rig.evidence("furnace.stone.shortfall", shortfall);
+        rig.attempting("去勘测过的石头补料：走不到柱 " + shaft.getX() + "," + shaft.getZ());
+        rig.drive(new IntentProcess(new Intent(new Goal.XZ(shaft.getX(), shaft.getZ(), 0))), 8_000, () -> {
+            BlockPos at = rig.player().blockPosition();
+            double away = Math.hypot(at.getX() - shaft.getX(), at.getZ() - shaft.getZ());
+            rig.evidence("furnace.stone.arrived", at.toShortString() + "，离柱 " + Math.round(away) + " 格");
+            if (away > 5) {
+                // Do NOT fail here. The rung's contract is a furnace, and the craft below reports
+                // the shortfall by name; failing on「走不到」would replace the real bill with a
+                // walking diagnosis and lose the cobblestone count that says how short it was.
+                craftFurnace(ctx, rig);
+                return;
+            }
+            int depth = Math.max(0, at.getY() - (stone.getY() + 1));
+            int quota = shortfall + depth + 4;
+            rig.evidence("furnace.stone.quota", quota + " = 缺 " + shortfall + " + 井深 " + depth + " + 余量 4");
+            rig.attempting("挖竖井下到石层：身体没能随井下降");
+            boolean place = BotConfig.allowPlace;
+            BotConfig.allowPlace = false;
+            JourneyShaft.descendByMining(rig, stone.getY() + 1, () -> {
+                BotConfig.allowPlace = place;
+                rig.evidence("furnace.stone.landedY", rig.player().blockPosition().getY());
+                rig.attempting("挖石头：MineProcess 拿不到圆石");
+                rig.drive(new MineProcess(List.of("minecraft:stone"), quota, 16), 16_000, () -> {
+                    rig.evidence("furnace.stone.cobble", rig.carrying("minecraft:cobblestone"));
+                    rig.evidence("furnace.stone.error", String.valueOf(rig.slotError("mine")));
+                    // Climb out BEFORE crafting, for the reason the stone rung records: a one-wide
+                    // shaft has no free cell to stand a table in.
+                    JourneyShaft.climbOut(rig, shaft.getY(), "furnace.stone.exit",
+                            () -> craftFurnace(ctx, rig));
+                });
+            });
         });
     }
 
@@ -1875,21 +2030,37 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
 
     private static void craftKeepingTheTable(JourneyRig rig, String itemId, int budget,
                                              boolean mayFetchWood, Runnable then) {
-        ensureCraftingTable(rig, () -> rig.drive(new CraftProcess(itemId, 1), budget, () -> {
-            String key = itemId.substring(itemId.indexOf(':') + 1);
-            String error = String.valueOf(rig.slotError("craft"));
-            rig.evidence(key + ".crafted", rig.carrying(itemId));
-            rig.evidence(key + ".craftError", error);
-            // One retry, and only for the one cause a retry can fix. "缺 … _log" is the recipe
-            // resolver saying the bag is short of wood, and the ladder has a tree for that; every
-            // other error would repeat identically, which is the mistake walkToColumn already made
-            // once. See topUpWood for why the wood BILL cannot be the answer here.
-            if (mayFetchWood && rig.carrying(itemId) == 0 && error.contains("_log")) {
-                topUpWood(rig, () -> craftKeepingTheTable(rig, itemId, budget, false, then));
-                return;
-            }
-            reclaimTableIfLeftStanding(rig, then);
-        }));
+        String key = itemId.substring(itemId.indexOf(':') + 1);
+        ensureCraftingTable(rig, () -> {
+            // RESTATE THE NOTE HERE, because `attempting` means "what this rung would be failing for
+            // FROM NOW ON" and the leg that set it last has, by the time this line runs, SUCCEEDED.
+            // Measured on the furnace rung 2026-08-24: the verdict printed
+            // 「FAILED —— 补做工作台：地上也没有，只能再买一张」 over evidence that reads
+            // `craftingTable.remade=true, craftingTable=1, craftingTable.keptInBag=1` — the table
+            // came back, and the row blamed the one leg that had worked. The terminal cause was
+            // three rows further down (`craft.lastError=缺 1 个 cobblestone`), so the run's two
+            // accounts of its own failure disagreed and the louder one was wrong.
+            //
+            // It belongs on THIS line rather than in each rung because `ensureCraftingTable` is the
+            // only thing between a rung's own note and its craft, and it sets a note on three of its
+            // four branches. Fixing it per-rung would be five copies of one sentence, four of which
+            // would go stale the next time this helper grows a branch.
+            rig.attempting("合成 " + itemId + "：CraftProcess 走不完");
+            rig.drive(new CraftProcess(itemId, 1), budget, () -> {
+                String error = String.valueOf(rig.slotError("craft"));
+                rig.evidence(key + ".crafted", rig.carrying(itemId));
+                rig.evidence(key + ".craftError", error);
+                // One retry, and only for the one cause a retry can fix. "缺 … _log" is the recipe
+                // resolver saying the bag is short of wood, and the ladder has a tree for that;
+                // every other error would repeat identically, which is the mistake walkToColumn
+                // already made once. See topUpWood for why the wood BILL cannot be the answer here.
+                if (mayFetchWood && rig.carrying(itemId) == 0 && error.contains("_log")) {
+                    topUpWood(rig, () -> craftKeepingTheTable(rig, itemId, budget, false, then));
+                    return;
+                }
+                reclaimTableIfLeftStanding(rig, then);
+            });
+        });
     }
 
     /**
