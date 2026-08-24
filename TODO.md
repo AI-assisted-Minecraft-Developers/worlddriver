@@ -399,6 +399,57 @@ cast.cellAfter = water    lava_bucket.after = 1    obsidian.anywhere = 无
 | P5 | **不误伤**：关放置权没把浇后那一步憋死 | 没有新出现的抬升/垒塔类失败 | — | 新出现 `liftInPlace`/垒塔失败 ⇒ 窗口开太宽 |
 | P6 | 坑沿加价（`0b30962a`＋`2dc8ded4`，j46 零执行）终于跑到 | 12 级有 `*.rimTax` 且末值 > 首值 | 没走到 12 级 | 恒定值 |
 
+### 📖 j47 判词：**height = FOOD**，P1–P6 又是全部未触发；8 级第一次因为「没地方放桌子」而败
+
+`BUILD SUCCESSFUL in 13m 15s`，结果留档 `results-j47-noRoomForTheTable.jsonl`。
+1–7 级全过（BED 也过了，`journey.height` 跳过它是因为 `criticalPath()` 硬编码 `this != BED`），
+**8 级 3 tick 就 FAIL**：`furnaces crafted (0)`。
+
+⚠️ 顺带纠一条读法：结果行的字段是 **`outcome`** 不是 `status`；
+按 `status` 读会整列拿到 `None`，看起来像「一级都没跑」。
+
+```
+cobblestone.before   = 16                 furnace.topUp = 不需要 —— 开场 16 ≥ 8
+craftingTable.keptInBag = 1               furnace.crafted = 0
+furnace.craftError   = 需要工作台（背包里有，但脚边没有可放置的空位——先清出一格）
+```
+
+料够、桌子在包里、3 tick 内没走过一步 ⇒ **败在站位**。上一级尾巴给出原因：
+
+```
+bed.homeElevation = 身体 y=63，出生柱地面 y=63（差 +0 格），脚下=tall_seagrass[half=upper]
+home.gotoEnd.1    = 判为到达：停在 67, 63, 60，距 64,60 3 格，容差 5
+bed.huntEndedAt   = -49, 62, 77，离出生点 114 格
+```
+
+**本轮三笔修法全部被排除**，而且是零执行意义上的：
+`rimTax` 行 0 条、`placeHeldOff` 行 0 条（都没走到那两级），
+`bed.homeElevation = 差 +0 格` ⇒ **J34 的守卫一次都没开火**。
+
+#### 对照组翻掉了「站在水里」这个解释
+
+j34 与 j46 的 7 级**同样以 `脚下=water` 收尾，而两趟的 8 级都过了**。
+⇒ 「身体在水里」不是判据，**「脚边有没有一格放得下桌子」才是**。
+所以修法 `3fbe52e0` 挂在 **`CraftProcess` 真正报出来的那句错**上，不挂在流体读数上
+（挂流体就是又造一条 [[a-criterion-success-cannot-satisfy]] 的邻居：
+对照组证明流体为真而合成成功）。
+
+修法：`craftKeepingTheTable` 加第二条一次性重试分支——
+错误里含「没有可放置的空位」⇒ `stepSomewhereWorkable` 走到最近的干柱再合一次。
+`nearestDryColumn` 同时提进 `JourneyTerrain`（第二个调用方出现了，
+而两处问的是同一个问题：J39 的上岸和这里的挪窝）。
+
+#### 📌 j48 预登记（在 P1–P6 之外追加）
+
+| # | 判据 | 已验 | 未触发 | 证伪 |
+|---|---|---|---|---|
+| R1 | 补救**被观察到运行**（不是数绿） | 有 `furnace.noRoomFor` **且**有 `furnace.steppedAside` | 两行都没有（这趟站位本来就好——**这才是最可能的一档**） | 有 `noRoomFor` 无 `steppedAside` |
+| R2 | 挪完之后合成成功 | R1 成立且 `furnace.crafted = 1` | R1 未触发 | 挪了仍 `crafted = 0` |
+| R3 | 没有把好站位挪坏 | 8 级仍 PASS | — | 8 级新出现走行类失败 |
+
+⚠️ R1 大概率**未触发**——这一族修法（J34/J39/这条）连着三笔都是「罕见故障的补救」，
+而真梯验不了未发作的补救。这正是 **J45** 要解决的事，它的优先级因此又高了一档。
+
 ### ✅ J38 结案：不是背包满，是**根本没走到**
 
 仪器 `4eceadb2` 第一趟就点名，在 5 级：
