@@ -56,7 +56,9 @@ public final class JourneyLandingScenes implements SceneProvider {
                 Scene.of("wd.journeyScoopsPastItsOwnObsidian", 6_000,
                         JourneyLandingScenes::scoopsPastItsOwnObsidian),
                 Scene.of("wd.journeyReseatsWhenItCanSeeNoWater", 6_000,
-                        JourneyLandingScenes::reseatsWhenItCanSeeNoWater));
+                        JourneyLandingScenes::reseatsWhenItCanSeeNoWater),
+                Scene.of("wd.journeyKeepsTheSeatItMovedTo", 6_000,
+                        JourneyLandingScenes::keepsTheSeatItMovedTo));
     }
 
     /** Natural ground level inside the arena box. */
@@ -354,6 +356,32 @@ public final class JourneyLandingScenes implements SceneProvider {
      * is asserted, not assumed — control A asks the engine, after the settle.
      */
     private static void reseatsWhenItCanSeeNoWater(SceneContext ctx) {
+        bankedPondScoop(ctx, 0);
+    }
+
+    /**
+     * The same trap with a taller bank, so the seat the re-seat picks lands OUTSIDE the approach.
+     *
+     * <p><b>Why this is not the same scene twice.</b> The first run of the scene above chose the
+     * bank top as its seat — {@code distSqr} 2 from the pond, i.e. already inside
+     * {@code Goal.Near(water, 2)} — so the re-entry's second approach had nothing to do and the
+     * guard against it walking the body back off the seat <b>never executed</b>. Recorded as I5
+     * 未触发 rather than passed. {@code standToFill} picks stands out of the POND's neighbourhood,
+     * not out of the approach's radius, so a seat at {@code distSqr} 6 (the rim cell diagonally off
+     * a source) is ordinary — and with the bank stacked out of reach it is the ONLY thing left.
+     * This variant makes the guard's occasion certain instead of hoping the geometry supplies it.
+     */
+    private static void keepsTheSeatItMovedTo(SceneContext ctx) {
+        bankedPondScoop(ctx, 1);
+    }
+
+    /**
+     * @param extraBank courses of stone stacked on the natural bank, across {@code dz ∈ [-1,1]}.
+     *        Zero reproduces the ladder's own geometry, where the bank top itself is standable and
+     *        is what the re-seat picks. One puts that cell inside the bank, leaving only the pond's
+     *        own rim — which is past {@code Goal.Near}'s radius, and that is the whole difference.
+     */
+    private static void bankedPondScoop(SceneContext ctx, int extraBank) {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
         flatGround(ctx);
@@ -364,6 +392,13 @@ public final class JourneyLandingScenes implements SceneProvider {
         // source walled by stone on all four sides and floored by it.
         BlockPos pond = ctx.rel(-2, GROUND, 0);
         ctx.setBlock(-2, GROUND, 0, Blocks.WATER);
+        // Stacked across three cells of z, not one: a single raised block leaves its two diagonal
+        // neighbours standable and the ray to the pond from them passes exactly through the raised
+        // block's corner — an outcome that turns on which side of a boundary a float lands, which
+        // is not a thing a scene should be resting on.
+        for (int dy = 1; dy <= extraBank; dy++)
+            for (int dz = -1; dz <= 1; dz++)
+                ctx.setBlock(-1, GROUND + dy, dz, Blocks.STONE);
 
         ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND, 0));
         ServerPlayer fp = driver.fakePlayer();
@@ -382,7 +417,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         // row that costs an hour to a reader who trusts it.
         BlockPos bank = ctx.rel(-1, GROUND, 0);
         ctx.record("staged.foot", seated.toShortString() + "，眼睛 y=" + fp.getEyePosition().y
-                + "，岸 " + bank.toShortString() + " 顶 y=" + (bank.getY() + 1));
+                + "，岸 " + bank.toShortString() + " 顶 y=" + (bank.getY() + 1 + extraBank)
+                + "（加高 " + extraBank + " 层）");
         ctx.record("staged.pond", pond.toShortString() + "，其上="
                 + level.getBlockState(pond.above()).getBlock() + "，与身体 distSqr="
                 + seated.distSqr(pond));
@@ -399,6 +435,16 @@ public final class JourneyLandingScenes implements SceneProvider {
                 + "只会印「换不了座位」，那不是这个场景要判的东西").isNotNull();
         ctx.check(!seated.equals(seat)).as("控制组 D 而且那个落脚点不是脚下这一格：挑出来的是 "
                 + seat + "，身体在 " + seated).isTrue();
+        if (extraBank > 0) {
+            // THE CONTROL THAT MAKES THIS VARIANT A DIFFERENT TEST. Without it a run whose seat
+            // happened to land inside the approach would pass exactly as the short-bank scene does,
+            // and G below would once again be judging nothing.
+            ctx.check(seat != null && seat.distSqr(pond) > 4).as(
+                    "控制组 D' 高岸这一版**必须**把座位逼到 `Goal.Near(water,2)` 半径之外 —— "
+                    + "落在半径内的话再入时那次接近无事可做，G 就又变成 0==0："
+                    + "座位 " + seat + " 距塘 distSqr="
+                    + (seat == null ? "—" : String.valueOf(seat.distSqr(pond)))).isTrue();
+        }
 
         int before = fp.getInventory().countItem(Items.WATER_BUCKET);
         JourneyPortalRung.scoopWaterOnly(ctx, rig, pond, () -> {
@@ -424,7 +470,10 @@ public final class JourneyLandingScenes implements SceneProvider {
             // the day a second source is within `FILL_RESEARCH` of the first, not a measurement of
             // it today.
             ctx.check(ended.equals(seat)).as("G 用桶的那一刻身体站在换到的那个座位上，没有被第二次"
-                    + "`Goal.Near` 又带走：期望 " + seat + "，实到 " + ended).isTrue();
+                    + "`Goal.Near` 又带走：期望 " + seat + "，实到 " + ended
+                    + (extraBank > 0 ? " —— 高岸这一版里这是**被测项**，座位在半径外，"
+                            + "再入若还跑一次接近就会把身体拽回塘边"
+                            : " —— 矮岸这一版里座位本来就在半径内，这一条只是回归守卫")).isTrue();
             ctx.check(after > before).as("H 桶真的装上了水（判存量，不是判 use 的返回值）："
                     + before + " → " + after).isTrue();
         });

@@ -352,6 +352,9 @@ wd.journeyGetsAshoreBeforePouring
 wd.journeyScoopsPastItsOwnObsidian
 # The other branch of the same chooser: nothing visible from the seat, so the seat is what moves.
 wd.journeyReseatsWhenItCanSeeNoWater
+# Same trap, bank stacked out of reach, so the seat lands past the approach's radius and the guard
+# that stops the re-entry undoing the move has an occasion.
+wd.journeyKeepsTheSeatItMovedTo
 
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
