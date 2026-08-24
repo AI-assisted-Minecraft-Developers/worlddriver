@@ -845,6 +845,15 @@ lava.arrivedY = 63（起 65，净升 -2），脚下=Block{minecraft:water}[level
 
 ⚠️ **不许从这一趟推出水是哪来的。** y=53 那格水是天然的、是上一级留下的、还是 11 级
 自己浇的，一趟看不出来（[[one-sample-cannot-name-a-cause]]）。要问就下一趟专门加一行读数。
+（读数已落：`shaft.reColumn.N.upstream`，复用 J52 那把 `JourneyForge.sourcesAround` 尺子。）
+
+**候选修法（未做，等 j54 的读数再定）**：第 6 行才是这一趟真正的转折 —— 后备**报了成功**
+（`gained = 10/10`）却把身体留在**水面上、且不是原柱**，接着第 7 行的选柱就是**从一具浮着的
+身体**量出来的。这一族在别处**已经有现成解法**：`JourneyCast.standOnDryGround`
+（`lava.exit.afloat` / `lava.exit.dryLand` 那一对读数，`wd.journeyGetsAshoreBeforePouring`
+就是它的场景）。竖井的 `climbOut` 从来没调过它。⇒ 若 j54 证实爬出后仍浮着，
+**优先复用那一支而不是再写一个**（这也正合 12 小时 janitor 的复用要求）。
+⚠️ 但别把它和「起塔在流动水里被冲下来」当成一件事——那是更前面的一条腿。
 
 **不是这几笔修法造成的**，三条独立理由：(1) 判词落在 `JourneyShaft` 的下挖柱选择上，
 跟取水、跟 `plainSource` 都不是同一族；(2) `plainSource` 那一笔在 **j51 之前**就落了，
