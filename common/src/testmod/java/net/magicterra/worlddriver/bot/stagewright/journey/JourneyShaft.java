@@ -1242,6 +1242,24 @@ public final class JourneyShaft {
     }
 
     /**
+     * Is there no dry floor under these feet?
+     *
+     * <p>Not the same question as {@link #afloat}, and the difference is a whole cell.
+     * {@code afloat} needs the FOOT cell to be fluid too, so it flips to false the moment a head
+     * clears the surface — while a body treading water at the surface still has nothing to stand on,
+     * cannot place, and cannot work. Measured by {@code wd.journeyGetsAshoreBeforePouring}, which
+     * watched a recovery step from {@code y=220} to {@code y=221}, report {@code 还浮着=false}, and
+     * end with {@code 脚下=water}: every row read like an arrival at the bank and the body was still
+     * in the pool.
+     *
+     * <p>So「did I get out of the water」asks about the FLOOR, which is the thing the caller actually
+     * needs. Same lesson as the walker's own: water is not a floor.
+     */
+    static boolean noDryFooting(ServerLevel level, BlockPos at) {
+        return !level.getFluidState(at.below()).isEmpty();
+    }
+
+    /**
      * The three readings that separate the three worlds a floating climb can be in.
      *
      * <p>How far the fluid reaches ABOVE the first solid floor under the body (a body cannot be

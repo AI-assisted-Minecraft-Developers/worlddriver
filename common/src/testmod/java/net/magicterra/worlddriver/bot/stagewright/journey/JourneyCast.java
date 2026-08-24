@@ -69,12 +69,21 @@ final class JourneyCast {
      * apart — a caller answering「wet」where the exit answered「afloat」would walk ashore for a body
      * that was standing on rock, or leave one floating.
      */
-    private static void standOnDryGround(JourneyRig rig, Runnable then) {
+    // Package-visible so `wd.journeyGetsAshoreBeforePouring` can run this leg on its own. Driving
+    // `leaveWithTheLava` instead would be wrong twice over: it starts with a climb this arena has no
+    // shaft for, and it ENDS by casting, so a red would as often be about the pour as about getting
+    // out of the water.
+    static void standOnDryGround(JourneyRig rig, Runnable then) {
         ServerLevel lvl = rig.ctx().level();
         BlockPos at = rig.player().blockPosition();
-        boolean afloat = JourneyShaft.afloat(lvl, at);
+        // THE FLOOR, not the head. This used to ask `JourneyShaft.afloat`, which also requires the
+        // FOOT cell to be fluid and therefore answers「no」for a body treading water at the surface —
+        // a body that has nothing to stand on, cannot place, and cannot pour. See
+        // JourneyShaft#noDryFooting for the run that measured the difference.
+        boolean afloat = JourneyShaft.noDryFooting(lvl, at);
         rig.evidence("lava.exit.afloat", afloat
-                ? "是 —— 脚格与脚下都是流体，" + at.toShortString() + "，先上岸再浇"
+                ? "是 —— 脚下是流体（不问头顶：浮在水面上一样没有地板），" + at.toShortString()
+                  + "，先上岸再浇"
                 : "否 —— " + at.toShortString() + "，脚下=" + lvl.getBlockState(at.below()).getBlock());
         if (!afloat) { then.run(); return; }
         BlockPos dry = JourneyTerrain.nearestDryColumn(lvl, at, DRY_LAND_SEARCH);
@@ -89,8 +98,72 @@ final class JourneyCast {
         // health bar is 200 ticks of swimming — a leg allowed to spend thousands here would watch
         // the body die exactly as the cast's own goto did.
         WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ(), 1, 600,
-                () -> { ashore(rig); then.run(); },
-                () -> { ashore(rig); then.run(); });
+                () -> stepOntoTheBank(rig, dry, then),
+                () -> stepOntoTheBank(rig, dry, then));
+    }
+
+    /** How long the last step onto the bank may take. Two hundred, not the eighty this started at:
+     *  the first arena run spent the whole eighty one cell short of the bank. The drowning budget
+     *  that justified eighty applies to the leg BEFORE this one — by here the body is at the surface
+     *  with its air supply full (measured: {@code 血 20.0，空气 300}), so what this spends is time,
+     *  not health. Two hundred is still under one drowning bar if the body does go back under. */
+    private static final int LAST_STEP = 200;
+
+    /**
+     * The step the tolerance swallowed.
+     *
+     * <p>{@code walkToColumn} above is given a tolerance of one, which is right for the leg — asking
+     * a drowning body for an exact cell is how a recovery spends its budget in the water. But「within
+     * one of the bank」and「on the bank」are different places, and the scene
+     * {@code wd.journeyGetsAshoreBeforePouring} caught this recovery reporting success from the
+     * wrong one:
+     *
+     * <pre>
+     * lava.exit.afloat  = 是 …
+     * lava.exit.dryLand = 242843, 221, 100000
+     * (ended)             242844, 220, 100000，脚下=water
+     * </pre>
+     *
+     * <p>One block out and one block down — still in the water it was sent to leave, with every row
+     * above it reading like a success. So the arrival is re-asked as the question that matters (is
+     * the body still afloat) rather than as a distance, and only a body that is still floating pays
+     * for one more short leg at the exact cell. Same family as the bed rung's walk home, which
+     * judged「arrived」three blocks short inside a tolerance of five and handed the next rung a body
+     * standing in a swamp.
+     *
+     * <p>Records on both paths: a run where the extra step was not needed has to look different from
+     * one where nobody asked.
+     */
+    private static void stepOntoTheBank(JourneyRig rig, BlockPos dry, Runnable then) {
+        ServerLevel lvl = rig.ctx().level();
+        if (!JourneyShaft.noDryFooting(lvl, rig.player().blockPosition())) {
+            rig.evidence("lava.exit.onTheBank", "一步就够了，落在 "
+                    + rig.player().blockPosition().toShortString());
+            ashore(rig);
+            then.run();
+            return;
+        }
+        rig.attempting("上岸最后一格：容差把身体留在水里了，补一步到 " + dry.toShortString());
+        // TOLERANCE ZERO, and a COLUMN rather than a cell. Two readings from the arena decided both
+        // halves. The leg above reported `end=arrived …距 242843,100000 1 格，容差 5` — the walker's
+        // own arrival radius is five and the `1` this caller passed is a different quantity, so
+        // 「arrived」was true of a body one cell out in the water. And a `Goal.Block` retry returned
+        // almost immediately without moving: the exact cell carries a y the swimming body does not
+        // have. Asking for the COLUMN with no slack is the question that has one answer.
+        WorldDriverJourneyScenes.walkToColumn(rig, "lava.lastStep", dry.getX(), dry.getZ(), 0,
+                LAST_STEP, () -> bankRow(rig, dry, then), () -> bankRow(rig, dry, then));
+    }
+
+    private static void bankRow(JourneyRig rig, BlockPos dry, Runnable then) {
+        ServerLevel lvl = rig.ctx().level();
+        BlockPos at = rig.player().blockPosition();
+        rig.evidence("lava.exit.onTheBank", "容差留下的最后一格：想到 " + dry.toShortString()
+                + "，停在 " + at.toShortString() + "，脚下还是流体="
+                + JourneyShaft.noDryFooting(lvl, at) + "（脚下="
+                + lvl.getBlockState(at.below()).getBlock() + "）；这一腿 end="
+                + rig.slotEnd("goto"));
+        ashore(rig);
+        then.run();
     }
 
     private static void ashore(JourneyRig rig) {
