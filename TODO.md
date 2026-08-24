@@ -924,6 +924,22 @@ waterFill.aim#2 = 244375, 220, 100000（通视的最近水源，与按距离的�
 而且是唯一做归一化的。`resolveCardinalDirection` 少了 `up`/`down`，
 正是 tunnel 需要而它给不出的两个词。
 
+**做法（等编译器空出来就照着做，顺序不能反）：**
+
+1. `ToolCatalog` / `BotTools` 加 `mc.bot.tunnel` 的 schema：`direction`（enum 用
+   `applyDirection` 的全集，**含 `up`/`down`**）、`distance` 1..64 必填、`width` 1..8 默认 1、
+   `height` 1..8 默认 2、`fill` 可选方块 id。⚠️ **`distance` 必填这一点不能丢** ——
+   `prelude.js:198` 有一整段注释解释为什么不能靠 `Math.max(1,…)` 兜底（会把缺失的距离悄悄变成挖一格）。
+2. `DriverApi.route` 加 `mc.bot.tunnel`，实现搬进 `bot/` 侧，走廊 bbox 用 `applyDirection` 算方向，
+   **yaw 取实时的 `p.getYRot()`**，不要再读 `mc.observe.player` 的快照（那是滞后一 tick 的根源）。
+3. `prelude.js` 的 `tunnel` 改成**薄转发**：`Driver.invoke('mc.bot.tunnel', opts)`。
+   保留函数名和返回形状，`validation/25_phase_d3.js` 才不用改。
+4. 跑双 loader 闸 + 脚本验证套件。**判据**：`25_phase_d3.js` 那两条（缺 `distance` 报错、
+   未知方向报错）必须仍然过，而且现在要**多一条**：MCP/RPC 侧调得到 `mc.bot.tunnel`。
+
+⚠️ **不要顺手统一 `back`/`backward` 那两个 enum。** 那是独立一件事，需要「一个 enum＋一个接受集＋
+一条验证脚本」（janitor 的原话），混进这一笔会让闸出问题时分不清是哪半边（[[a-segment-hides-a-stall-at-its-end]]）。
+
 ### 📌 归因契约：janitor 那笔重构进闸之前的基线（2026-08-25 05:33，**写在它的改动进闸之前**）
 
 12 小时的 `wd-janitor` 这一轮在改 `common/src/main`（**不碰** journey 包、`bot/sim/**`、
