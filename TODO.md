@@ -367,6 +367,61 @@ if (!shaftFlooded && a.holdThrowawayPlaceable()) { … if (p.getY() >= wp.getY()
 **`:927` 也要收进来，统一到 1.0**。收紧是单调安全的：`[0.9,1.0)` 里的点击百分之百被原版拒，
 删掉它们丢不掉任何一次**成功**的落石。
 
+### 🟡 Q35（新，开放，读码提出，**不阻塞 J31**）：那段根因注释描述的到底是哪一支
+
+`WalkerTickClimb:911-915` 里有一句字面站不住的话：
+
+> the lower-gated climbout-place takeover (0.9 threshold) clicks **only in the 62.9-63.0 band**
+> where vanilla silently rejects the still-overlapping AABB
+
+`fcCleared = p.getY() >= fillCell.getY() + 0.9` 是**下界，不是带**。浪尖 63.08 ≥ 63.0 ≥ 62.9，
+所以 takeover 在浪尖那 1–2 tick 也点击。而且已核实那次点击不是射线：
+`ClientPlayerAvatar:56 → BotInteract.walkerPlace:652-670` 自己挑一个实心支撑面再调
+`clientUseItemOn(support, face)`，和 `:927`／`:956` 的 `placeOn` 是**同一个原语**
+⇒ `:541` 的 `setXRot(40f)` 跟落不落成无关，不能用「瞄歪了」解释。
+支撑也不会假：`Move.hasPlaceSupport`（`pathfinder/Move.java:250`）是「下方实心 **或** 四个水平邻格任一实心」，
+水岸本身就是水平邻格。
+
+⇒ **若 takeover 已接管，`:553` 在浪尖应该垫得上。** 那段注释描述的死锁，更可能是
+**takeover 没接管**、于是跑 `:921` 那支、而旗关着时 `shaftFlooded` 恒真 ⇒ 那支一块都不垫。
+两支由 `wk.waterClimb.pillaring` 这个latch 二选一，同一 tick 只跑一支——注释把它们当成
+「互相错过窗口」，读起来像同时在跑。
+
+判别器（一趟就够，别再推）：在死锁现场记 `pillaring` 和 `engages`。
+- 接管了 ⇒ 注释错，真凶在 `:553` 之内（那 J31 的账本修法直接可见）；
+- 没接管 ⇒ 注释对但措辞误导，真凶是 `:438-441` 的进入闸，`:553` 是另一个场合。
+
+⚠️ 这条**不阻塞 J31**：账本数点击不数方块，这一点在两种解释下都成立。
+它阻塞的是 **J32 要不要给真梯武装 `walkerPillarSurfacePlace`** ——
+没有这个答案就武装，等于按一个说不通的因果去改真梯配置。
+
+### ⚖️ J31 双闸预登记（2026-08-24，**写在读结果之前**）
+
+跑的是 `1c015469`（四处阈值统一成 `feetClearOf`=1.0 + 账本在方块落地时清零）。
+基线：两条 `fail(optional)`（`wd.vineOverWaterClimb`、`wd.serverEscapeSealedShelter`）＋ 两条 canary。
+柱式场景已改回 required 并且上一闸是 PASS。⇒ **预期两个 loader 都 GREEN。**
+
+逐条判据，每条只有三种落点（已验／未触发／证伪）：
+
+1. **两条新场景出现且 PASS。** 没出现 ⇒ 注册漏了或 `expected-scenes-*.txt` 对不上，
+   会先在 `UNDECLARED:` 行显形——**从 `VERDICT:` 往上读**，别去翻失败行。
+2. **非 PASS 集合恰为**：`canaryMustFail`、`canaryMustTimeout`、`wd.serverEscapeSealedShelter`、
+   `wd.vineOverWaterClimb`。⚠️ **不用 `COVERAGE:` 那行判**（`Verdict.java:242` 的 `executed++`
+   只数 PASS，分母随失败数浮动）——直接比对场景名集合与结局集合。
+3. ⚠️ **water 族任何颜色变动都是信号。** 点名要看的：`wd.deepWaterClimboutNoBlock`、
+   `wd.deepWaterClimboutDrift`、`wd.waterLowBank`、`wd.riverSheerBank`。
+   **理由（janitor 提出，成立）**：旧代码里脚过 0.9 就清零，`pillarNoPlaceTicks` 实际峰值是 1，
+   ⇒ **`PILLAR_FUTILE_TICKS = 50` 在此之前从来没约束过任何东西**，这是它头一次真的开始计数。
+   若某条健康爬出两次成功落石间隔 > 51 tick，它现在会被判 futile 并交给挖掘后备。
+   - 出现这种变动 ⇒ **是 50 这个数没校准，不是账本记错了**；修法方向不变，调的是常数。
+     **不许因此回滚账本**（回滚就回到「点击即清零 ⇒ 永远不 futile」那个原缺陷）。
+4. **`wd.surfacePillarPointerNeedsItsSupport` 保持 PASS，且 `柱.分档` 仍是「垫上了」。**
+   ⚠️ `走.收尾` 的 tick 数（上一闸 68/200）**可能变**，因为 `:927` 从 0.9 收到 1.0，
+   而这条场景走的就是那条 crest 落石路径。**tick 数变了不等于坏了——判据看分档那一行。**
+5. **柱式场景之外，`:927` 收紧还可能碰到别的 pillarUp 场景**；若有，同样按第 3 条的逻辑读：
+   收紧只删掉原版必拒的点击，**丢不掉任何一次成功的落石**，所以变红只能是「多等了几 tick」，
+   不可能是「垫不上了」。若真出现「垫不上了」，那说明这条单调性论证错了，**那才是要停下来的**。
+
 ## 🟠 J32（新）：真梯的 37 面旗留在竞技场表上，是为 rung 3 的砍树税做的决定
 
 `:1714-1718` 记着 `applyCompiledDefaults()` 只跑过一次就被撤：rung 3 出厂配置 13899 tick FAIL
