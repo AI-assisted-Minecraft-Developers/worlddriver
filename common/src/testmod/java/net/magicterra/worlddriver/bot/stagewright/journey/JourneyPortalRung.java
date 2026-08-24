@@ -261,7 +261,9 @@ public final class JourneyPortalRung {
      * {@link #returnToTheForge} for {@link #stairBottom} — which is the whole point of cutting a
      * staircase instead of a shaft: the two legs of every cast become one {@code IntentProcess} walk
      * each, with no scripted climb and no scripted descent to go wrong between them. */
-    private static BlockPos stairTop, stairBottom;
+    /** Package-private since the drain moved to {@link JourneyDrain}: the stair foot is the one
+     *  coordinate both files have to agree on, and a copy would be a second author for it. */
+    static BlockPos stairTop, stairBottom;
     private static Direction stairDir = Direction.SOUTH;
 
     /** Every fourth step is waypoint enough: consecutive waypoints are four blocks apart INSIDE the
@@ -541,46 +543,6 @@ public final class JourneyPortalRung {
                 fluidStory(level, stairBottom), stairBottom.above().toShortString(),
                 level.getBlockState(stairBottom.above()).getBlock(),
                 fluidStory(level, stairBottom.above()));
-    }
-
-    /**
-     * The cells a body ends the descent in — the bottom step, its head room, and the clearance the
-     * climb back out jumps through.
-     *
-     * <p>The same three cells {@code digStairsDown} cuts for every step, named here because two
-     * different things now ask about them: the return's own flood row and {@link #drainTheAlcove}'s
-     * wait.
-     */
-    private static List<BlockPos> stairFootCells() {
-        if (stairBottom == null) return List.of();
-        return List.of(stairBottom, stairBottom.above(), stairBottom.above(2));
-    }
-
-    /**
-     * Is the foot of the flight standing in the cast's own water? Recorded on every return.
-     *
-     * <p><b>The water this rung pours has somewhere to go, and it goes down the stairs.</b> The
-     * alcove's floor row IS the flight's bottom row, so a source placed in the mould floods the
-     * corridor and then runs out of it along the one open route there is. Measured on the ladder run
-     * of 2026-08-19: {@code cast8.landing = … 楼梯底 2, 56, 19=water（流动 flowing_water），其上
-     * 2, 57, 19=water（流动 flowing_water）} — the body came down the flight and landed in a puddle,
-     * which is where the climb that follows reports {@code afloat} and「垒不高」.
-     *
-     * <p><b>Why this is a reading and not a repair.</b> Two verbs could touch these cells and both
-     * are wrong. Mining is a no-op — a pick does not remove water, which is why {@link JourneyStairs}
-     * excludes flooding from its faults in the first place. Placing DOES remove it, and placing here
-     * fills the bottom step: the same audit would then report the step blocked, which is exactly the
-     * failure the unwedge's tower already caused once. So what is left is to wait for it (flowing
-     * water with no source runs out on its own — {@link #drainTheAlcove} now waits on these cells
-     * too) and to say so when it has not.
-     */
-    private static String stairFootStory(ServerLevel level) {
-        if (stairBottom == null) return "还没有楼梯底坐标";
-        String wet = JourneyForge.firstFluid(level, stairFootCells());
-        if (wet == null) return "楼梯底 " + stairBottom.toShortString() + " 那三格没有流体";
-        return "⚠ 楼梯底积水：" + wet + "（楼梯底 " + stairBottom.toShortString()
-                + "，模腔的水顺着楼梯流下来积在这里）—— 不能挖（挖水是 no-op），"
-                + "也不能垫（垫上就是把最后一级砌死），只能等它退";
     }
 
     /** The fluid in one cell, named rather than left to a Fluid's own toString — and「无」when there
@@ -923,7 +885,7 @@ public final class JourneyPortalRung {
             // AND WHETHER THE FOOT OF THE FLIGHT IS UNDER WATER, as its own row. See stairFootStory:
             // it is buried inside `landing` today, at the end of a format string about the body, and
             // the one run that needed it read past it.
-            rig.evidence(tag + ".stairFoot", stairFootStory(ctx.level()));
+            rig.evidence(tag + ".stairFoot", JourneyDrain.stairFootStory(ctx.level()));
             if (flightShortfall != null) rig.evidence(tag + ".returnStopped", flightShortfall);
             if (here.getY() > floorY + 1) {
                 // A BODY THAT CANNOT WALK TO THE STAIRS IS USUALLY IN A HOLE IT DUG ITSELF.
@@ -2156,7 +2118,7 @@ public final class JourneyPortalRung {
                 riseToTakeItBack(ctx, rig, wet, away, "recover" + i, () ->
                 JourneyFill.fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
                         watchFrame(rig, "recover" + i + " 从 " + wet.toShortString() + " 收水", () ->
-                        drainTheAlcove(ctx, rig, i, DRAIN_LEGS,
+                        JourneyDrain.drainTheAlcove(ctx, rig, i, JourneyDrain.legs(),
                         watchFrame(rig, "drain." + i + " 等壁龛排干",
                         () -> castCell(ctx, rig, base, away, pool, i + 1, then))))));
             }))));
@@ -2619,58 +2581,6 @@ public final class JourneyPortalRung {
      */
     private static final int POUR_SETTLE = 10;
 
-    /** How long to let the alcove empty after the water is taken back, and how many such legs.
-     *  Water without a source is gone in under a second, so five legs of forty ticks is generous —
-     *  it is sized to be long enough that "still wet" means the SOURCE is still there. */
-    private static final int DRAIN_TICKS = 40;
-    private static final int DRAIN_LEGS = 5;
-
-    /**
-     * Wait for the water the cast borrowed to run out of the alcove.
-     *
-     * <p>Taking the bucket back is not the same as the alcove being dry, and the gap between those
-     * two is a whole cell. One source placed in an open mould floods everything below it: measured,
-     * the rung recovered its bucket, opened the next frame cell one tick later and read
-     * {@code opened.1=-10,51,23=water} — a cell it had just cut out of solid rock. Pouring into that
-     * is the mistake the "两格都必须是空气" gate exists to stop, so it stopped, and the finding read
-     * as a mining failure.
-     *
-     * <p>Flowing water with no source disappears on its own, so this is a wait and not a repair. If
-     * it is still wet after all the legs, the source was never picked up — a different failure, and
-     * this says so rather than letting the next cell report it second-hand.
-     */
-    private static void drainTheAlcove(SceneContext ctx, JourneyRig rig, int i, int legs,
-                                       Runnable then) {
-        String wet = JourneyForge.firstFluid(ctx.level(), List.copyOf(forgeCorridor));
-        // THE FOOT OF THE STAIRS IS DOWNHILL OF THE MOULD, so it is the last thing to dry and the
-        // first thing the next return lands in — and this gate used to certify「壁龛已排干」with the
-        // bottom step under water, because the bottom step is not a corridor cell. See
-        // stairFootStory: waiting is the only legal answer here, so the wait is what is widened.
-        String foot = JourneyForge.firstFluid(ctx.level(), stairFootCells());
-        if ((wet == null && foot == null) || legs <= 0) {
-            // THE SENTENCE USED TO NAME A CAUSE THE ROW ITSELF DISPROVES. It said "水源没被收回来"
-            // — the source was never picked up — and every recover in the run reports CONSUME. Now
-            // that firstFluid states source-or-flowing, the answer is in: on the run that lit the
-            // portal, drain.6 through drain.9 all read `（流动，没源就会自己退）`. Nothing is
-            // feeding the alcove; the water is simply still on its way out after 200 ticks, in a
-            // seven-tall room whose floor the tidy has just unplugged. That is a wait to lengthen or
-            // a floor to leave alone, not a bucket to chase.
-            rig.evidence("drain." + i, wet == null ? "壁龛已排干"
-                    : "等了 " + (DRAIN_LEGS * DRAIN_TICKS) + " tick 仍有流体：" + wet
-                      + " —— 挖开下一格它会灌进去；是不是源块见括号，流动的只是还没退完");
-            // Its own row, unconditionally — a drain that waited for the stairwell and a drain that
-            // never looked at it must not read alike.
-            rig.evidence("drain." + i + ".stairFoot", foot == null
-                    ? "楼梯底那三格已排干" + (stairBottom == null ? "（还没有楼梯底坐标）"
-                            : "（" + stairBottom.toShortString() + "）")
-                    : "等了 " + (DRAIN_LEGS * DRAIN_TICKS) + " tick 楼梯底仍有流体：" + foot
-                      + " —— 下一趟下楼会落进水里，塔垒不起来（见 cast*.stairFoot / climb.*.afloat）");
-            then.run();
-            return;
-        }
-        rig.settle(new HoldStill(DRAIN_TICKS / 2), DRAIN_TICKS,
-                () -> drainTheAlcove(ctx, rig, i, legs - 1, then));
-    }
 
     /** How far back along its own line a pour may look. Three, which is one more than the usual
      *  {@code push} and one less than {@code standToPour}'s reach — far enough to cover the cells a
