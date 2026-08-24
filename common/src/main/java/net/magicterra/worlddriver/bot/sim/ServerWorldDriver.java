@@ -99,10 +99,27 @@ public class ServerWorldDriver {
     public ServerWorldDriver mine(BlockPos target) {
         this.mineTarget = target.immutable();
         walker.setGoal(new Goal.Near(target, 2));
-        process = null;
+        releaseProcess("superseded by mine");
         finished = false;
         last = Walker.Step.WALKING;
         return this;
+    }
+
+    /**
+     * Let go of the held process through the same door the client uses.
+     *
+     * <p>Both entry points below used to drop the reference and nothing else, while the client's
+     * {@code UserTaskChain.setProcess} cancels the outgoing process first. That asymmetry is only
+     * invisible while no process owns anything outside itself — and one now does:
+     * {@code MineProcess} holds the trunk-tax waiver for the length of a log goal and releases it in
+     * {@code onCancelled}. A scene that hands this driver a new process while the old one is
+     * mid-trunk would otherwise leak that waiver into every scene after it, which is the quietest
+     * possible cross-scene contamination: nothing fails, prices merely change.
+     */
+    private void releaseProcess(String reason) {
+        BotProcess prev = process;
+        process = null;
+        if (prev != null) prev.onCancelled(reason);
     }
 
     /** Run a real (Avatar-migrated) {@link BotProcess} headless on the server tick.
@@ -111,6 +128,7 @@ public class ServerWorldDriver {
      *  drives the FakePlayer through its {@code tick(Avatar,...)} path — no
      *  bespoke driver logic, no client {@code mc}. */
     public ServerWorldDriver runProcess(BotProcess p) {
+        releaseProcess("superseded");
         p.attach(botState);
         this.process = p;
         this.mineTarget = null;
