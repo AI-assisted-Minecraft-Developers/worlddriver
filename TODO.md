@@ -365,9 +365,39 @@ cast.cellAfter = water    lava_bucket.after = 1    obsidian.anywhere = 无
 **Q19 的修法（浇前重拿）在这个形状上到顶了**：守卫贴得再近也贴不进「同一 tick」。
 [[a-hold-must-be-adjacent-to-the-use]] 的下一层——相邻还不够，要**这段时间里没有第二个作者**。
 
-⚠️ **下一步不是直接关放置权**。得先**点名那个写者**：
-[[a-field-with-one-writer-is-a-proof]] 反过来说，写者集合没查清就改，改的可能是没病的那一边
-（[[a-question-asked-backwards-still-answers]]）。先查谁能往选中格塞可放置方块。
+#### 写者点到名了（读码，不靠猜）
+
+先排除了一个方向错误：仪器印的 `槽 N` **是 `inv.selected` 索引**（`JourneyHands:373-375`），
+而它整段一直是 4 ⇒ **换的不是选中格，是槽 4 的内容**。
+所以写者**不是** `ensureHoldingPlaceableAny`（那个只挪索引并发 `SetCarriedItem` 包）。
+
+真正的写者是它的镜像 **`BotInteract.ensureHoldingPillarBlock`**，尾巴上那句
+`return swapFromMainInv(mc, p, ok)` —— 一次**真 SWAP 点击**，把主背包（菜单槽 9–35）里的
+垒塔方块换进选中的快捷栏格，被顶掉的岩浆桶落回背包。这同时解释了两件事：
+索引不动、以及 `lava_bucket.after = 1`（桶还在，只是不在手里）。
+
+它的三个调用点 `WalkerTickDrive:210`、`WalkerTickStallDetect:269/282`，
+连同 `ensureHoldingPlaceableAny` 的两个 `Walker:1771/2379`，
+**五处全都先短路 `BotConfig.allowPlace` 再碰手**。
+
+#### 修法 `75459d0d`：浇的那十几 tick 里关掉放置权
+
+不是"再贴近一点重拿"（j46 证明贴到极限也没用），而是**这段时间里不许有第二个作者**。
+两处浇筑点各加一份（11 级 `JourneyCast.pourInto`、12 级 `JourneyPortalRung:2454`），
+失败支与 settle 完成回调各还原一次，另加 `ctx.cleanup` 兜底——
+`handTrace.samples` 自己写着「身体掉出世界 ⇒ settle 被跳过」，那条路上没有还原点，
+而一个被场景翻掉又没翻回来的全局正是 [[a-scene-that-owns-a-global]]。
+
+#### 📌 j47 预登记
+
+| # | 判据 | 已验 | 未触发 | 证伪 |
+|---|---|---|---|---|
+| P1 | 闸真的武装了 | 11 级有 `cast.placeHeldOff`（无条件行） | 没走到 11 级 | 走到了却没有 |
+| P2 | **判词行**：`handTrace.t1..t5.server` 不再变成方块 | 全程是 `lava_bucket`/`bucket` | 无 t 行 | 仍变成方块 ⇒ **写者不是放置权**，我认错方向，回去打栈 |
+| P3 | 11 级过 | `cast.cellAfter = obsidian` 且 PASS | — | `cellAfter=water` 且 `lava_bucket.after=1` |
+| P4 | 12 级同一份闸也在 | 有 `cast*.placeHeldOff` | 没走到 12 级 | 走到了却没有 |
+| P5 | **不误伤**：关放置权没把浇后那一步憋死 | 没有新出现的抬升/垒塔类失败 | — | 新出现 `liftInPlace`/垒塔失败 ⇒ 窗口开太宽 |
+| P6 | 坑沿加价（`0b30962a`＋`2dc8ded4`，j46 零执行）终于跑到 | 12 级有 `*.rimTax` 且末值 > 首值 | 没走到 12 级 | 恒定值 |
 
 ### ✅ J38 结案：不是背包满，是**根本没走到**
 
