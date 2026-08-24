@@ -512,7 +512,80 @@ subject.endedAt     = 241312, 216, 99999，脚下=Block{minecraft:stone}
 | ✅ 已验 | J45a | 场景 `wd.journeyCraftStepsAsideForRoom` 已登记进两个 `expected-scenes`，随闸常跑 |
 | ✅ **已验** | J45b | 补齐了：`wd.journeyStepsDownOffItsOwnTower`（J34 拆塔支，**PASS**：差 +12 格 → `towerRecovered 落到 y=221，圆石 0→12`，终点 `脚下=stone`）、`wd.journeyClimbsOutOfItsOwnPit`（同一守卫的**反方向**，此前从没被任何一趟执行过，**PASS**）、`wd.journeyGetsAshoreBeforePouring`（见 J47，常驻已知红） |
 | 🟡 **已修待验** | J48 | **12 级新天花板：一浇没发生，没人管，六条腿之后判词报了错的腿。** j48 逐行：`water6.spent = water_bucket 1→1，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生` ⇒ **仪器说得清清楚楚，而关卡照走不误**；下一趟 `lava6.hand = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe；桶存量 空=0 水=1 岩浆=0` ⇒ **`JourneyFill.fillFrom` 不检查 `holdForUse` 的返回值**，于是拿着石镐重瞄三次、清三次射线、`aimsAt#5 = -11,63,16 lava 源块=true 液位=8` 射线正中岩浆仍然 `miss`，`lava6.result = PASS`（空手 use 就是 PASS）。最终判词 `装不到 minecraft:lava_bucket` 说的是第七趟，真因在第六浇。⇒ 两笔修法：**(A) `*.spent` 说没浇成就当场停或重浇**（这行本来就是为此写的）；**(B) 装桶侧照浇筑侧的样子检查 `holdForUse`，拿不到就停**——浇筑侧早有 `if (!gripped) ctx.fail(...)`，装桶侧没有（[[a-precedent-nobody-ever-verified]] 的镜像：同一族两处只有一处守着） |
+| 🔴 **已定死待修** | J50 | **J48 的真因：两个作者做同一次交换，而交换是对合。** `holdBoth` 对两具身体各调一次 `holdItem`：客户端 `swapFromMainInv` 本地换一次**并发一个 SWAP 点击包**，服务端 `ServerPlayerAvatar.holdItem:707` **直接换、不发包** ⇒ 服务端那对堆栈被换两次＝没换。快捷栏分支写的是 `inv.selected=s`（幂等）所以无害 —— **j48 的 12 级里成功的浇筑全是「槽 0」，唯一失败的 `water6` 是「槽 3」**，分界线就在这里。七行读数逐 tick 对得上，见下面「J50」一节。修法：客户端拓扑下服务端那一半只读不写 |
 | 🔴 已判待修 | J47 | **浮在水面的身体走不上齐平的岸**，而每一行读数都像成功。`wd.journeyGetsAshoreBeforePouring` 三趟逐字相同：`dryLand=242843,221` → `end=path-consumed`、`停在 242844,221`、`脚下=water`。**不是「没有那条边」**：`Move.waterEscapeContext` 对这一格返回 true（脚下 3×3 有水），`Walk.valid` 只看**目标格**、根本不查起点，而目标 `canStandAt` 成立。所以路径产得出来，是**走完了而身体没到** ⇒ 走行器的逐节点到达判定给一具浮着的身体推进了指针（[[a-pointer-that-advanced-in-mid-air]]），再由 `ARRIVED_WITHIN=5` 把差一格判成到达（[[arrived-is-not-at-the-goal]]）。⚠️ `SwimAshoreBreak` 帮不上：它是 **+1 高**的移动，专治高岸，齐平岸不归它管。修法两条路——引擎侧修指针推进（正解但是引擎改动），或写死步骤：**上岸失败就在脚下垫一块**（身体带着圆石，浇筑要的是"脚下有地板"而不是"站在岸上"）。按规矩先走后者 |
+
+## 🔴 J50（2026-08-24，**读码定死，j48 逐行对得上**）：两个作者做同一次交换，而交换是对合
+
+**这是 J48 的真因，不是它的第三笔修法。** J48 修的是「没浇成还往下走」和「拿不到桶还去瞄」，
+两笔都只改归因。**为什么那一浇没发生**，答案在这里。
+
+### 判别式：成功的都是槽 0，唯一失败的是槽 3
+
+j48 的 12 级，七轮浇筑（`water0..6` / `cast0..5`），**除 `water6` 外每一条 `*.hand` 都是「槽 0」**，
+`water6.hand` 是**「槽 3」**。`water6` 之前隔着 `cell.6.ramp.*`（垒斜坡，握圆石）和 `tidy.6`（挖），
+它们把桶挤出了快捷栏 —— 于是这一次 hold 走的不是快捷栏分支，是**背包交换分支**。
+
+```
+water6.hand        = minecraft:water_bucket（槽 3 = minecraft:water_bucket；服务端槽 3）
+water6.handSlipped = 动手前手上不是 minecraft:water_bucket 了：
+                     客户端 槽 3 = minecraft:stone_pickaxe，服务端 槽 3 = minecraft:stone_pickaxe
+water6.again.hand  = minecraft:water_bucket（槽 3 = minecraft:water_bucket；服务端槽 3）
+water6.atUse       = 客户端 槽 3 = minecraft:water_bucket …；服务端 槽 3 = minecraft:water_bucket …
+water6.result      = SUCCESS
+water6.spent       = minecraft:water_bucket 1→1 …这一浇没有发生
+lava6.hand         = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe（槽 3）；桶存量 空=0 水=1 岩浆=0
+```
+
+### 两个作者，读码可证
+
+`JourneyHands.holdBoth` 对**两具身体各调一次** `holdItem`：
+
+- **客户端** `BotInteract.ensureHolding:606` → `swapFromMainInv:633`：本地交换 `items[ms] ↔ items[hb]`，
+  **并且** `mc.gameMode.handleInventoryMouseClick(…, ClickType.SWAP, p)` 发出一个
+  `ServerboundContainerClickPacket`。
+- **服务端** `ServerPlayerAvatar.holdItem:707-712`：**直接**在 `ServerPlayer` 上交换
+  `items[selected] ↔ items[i]`，注释自陈「Contents only, so it rides broadcastChanges」——**不发包**。
+
+⇒ 服务端那一对堆栈被交换了**两次**：一次是直调，一次是那个点击包到达时。
+**交换是对合（involution），交换两次等于没换。**
+而快捷栏分支写的是 `inv.selected = s`（幂等），所以同样的双作者在那一支**无害**——
+`槽 0` 全绿、`槽 3` 独红，就是这条分界线。
+
+### 逐 tick 对账（每一行读数都对得上）
+
+| 时刻 | 客户端 slot3 | 服务端 slot3 | 证据行 |
+|---|---|---|---|
+| 第一次 hold | bucket（并发出点击包①） | bucket（直调） | `water6.hand` 两边都是 bucket ✅ |
+| 服务端处理点击包① | ← broadcastChanges | **pickaxe**（第二次交换＝还原） | — |
+| `regripBeforeUse` 一问 | pickaxe | pickaxe | `water6.handSlipped` 两边都是 pickaxe ✅ |
+| 第二次 hold | bucket（并发出点击包②） | bucket（直调） | `water6.again.hand` ✅ |
+| 发 use 包那一刻 | bucket | bucket | `water6.atUse` 两边都是 bucket ✅ |
+| 服务端处理点击包② | ← | **pickaxe** | — |
+| 服务端处理 use 包 | — | 手里是 **pickaxe** | `result=SUCCESS`（客户端预测）／`spent 1→1` ✅ |
+
+**七行读数，七行相符，没有一行需要「多半」「大概」。**
+
+⚠️ `holdForUse` 的 javadoc（`JourneyHands:183-191`）写着「别往包竞态上想」，
+并援引 `ensureHasSentCarriedItem()`。**那条论证只覆盖快捷栏那一支**（`SetCarriedItem` 包），
+对容器点击包一个字都没说。别让它把背包分支的解释挡回去 ——
+它答的是另一个分支的另一个问题（[[two-ones-that-disagree]] 的温和版：两句各自为真）。
+
+### 修法：客户端拓扑下让客户端当唯一作者
+
+客户端那次交换**本来就会**通过有序连接把服务端改对，而且点击包排在 use 包**前面**——
+正是今天把事情搞坏的那个顺序，在只剩一个作者时恰好把事情做对。
+所以 `holdBoth` 在两具身体不是同一对象、且客户端那一半成功时，**服务端只读不写**。
+客户端那一半失败（客户端根本没有这件东西）才回退到服务端直调 ——
+那正是这个方法的 javadoc 要保住的「两份背包已经分叉」的纠偏方向。
+
+⚠️ **这一笔也会咬到我今天刚落的 (B)**：`JourneyFill.spendTheBucket` 的 `bucketInHand`
+紧挨着 `useItemInHand`，走的是同一个 `holdBoth`。装桶侧在背包分支上会以同样的方式失手，
+只不过它会退化成 `.miss` 重试而不是当场死 —— 读起来像飘。
+⇒ 修在 `holdBoth` 这一层，**不是修在浇筑那个调用方**，否则就是把今天那句提交信息
+（「给装桶侧补上浇筑侧早有的守卫」）在下一层重演一遍。
+
+---
 
 ## 📌 预登记：J48 两笔修法（2026-08-24，**写在编译之后、跑之前，也写在读结果之前**）
 
