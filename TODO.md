@@ -395,6 +395,81 @@ if (!shaftFlooded && a.holdThrowawayPlaceable()) { … if (p.getY() >= wp.getY()
 它阻塞的是 **J32 要不要给真梯武装 `walkerPillarSurfacePlace`** ——
 没有这个答案就武装，等于按一个说不通的因果去改真梯配置。
 
+### 🔴 J31 双闸判词（2026-08-24）：**RED，而且预登记的三条里有两条被证伪**
+
+跑的是 `1c015469`。两个 loader **完全一致**（Fabric `GRADLE_EXIT=1`，NeoForge `GRADLE_EXIT=1`），
+按预登记用集合比对而不是 `COVERAGE:` 行：
+
+```
+场景名集合  310 → 312   新增恰为两条新场景，没有消失的
+既有结局    只动了一条：wd.waterLowBank  PASS → FAIL      （两个 loader 相同）
+非 PASS     canaryMustFail, canaryMustTimeout,
+            wd.serverEscapeSealedShelter, wd.vineOverWaterClimb   （基线，符合预期）
+          + wd.pillarLedgerCountsRefusedPlaces, wd.pillarLedgerClearsOnARealPlace  （新场景，engages=0）
+          + wd.waterLowBank                                        （回归）
+```
+
+预登记逐条落点：1 **证伪**（两条新场景 FAIL，不是 PASS）；2 **证伪**（多了三条）；
+3 **已验**（water 族确有变动，且正是点名的族）；4 **已验**（柱式场景保持 PASS）；5 **未触发**。
+
+#### ⛔ 但第 3 条给的**归因**是错的：不是「阈值 50 没校准」
+
+预登记里我和 janitor 都写着「若某条健康爬出被判 futile ⇒ 是 50 这个数没校准」。
+`bail (place futile)` 确实出现了 **6 次**（全跨度普查；我第一次用 700 行窗口扫出「0 次」，
+是窗口太窄的假否定，**同一个窄窗错误在 BEFORE 那边也犯了一次**）。但 50 不是要改的东西。
+
+**把两趟的逐 tick 读数摆在一起就翻案了**（两趟都是这条场景自己开的 `walkerDebug`，
+`WorldDriverWaterBankScenes:693`）：
+
+| | BEFORE（`95bd5a9b`，PASS） | AFTER（`1c015469`，FAIL） |
+|---|---|---|
+| 接管 tick 数 | 56 | 660 |
+| `cleared=true` | **4** | **0** |
+| `fill` 走向 | 206→207→208→209→**210** | 206→207，然后**掉回 205** |
+| bail | 1 次「no longer climbing」（人已在岸上） | drifted×9、**place futile×6**、no longer climbing×2 |
+| 结局 | `ARRIVED onBank=true bobTicks=38` | `WALKING onBank=false bobTicks=479` |
+
+那 4 个 `cleared=true` 的高度**全是 0.98**，也就是**全在 `[0.9,1.0)` 这条我们断言「原版必拒」的带里**。
+
+#### 🔴 而它们**真的落成了方块**——「收紧是单调安全的」这条论证是假的
+
+判别器不用再跑：`Move.hasPlaceSupport(cell)` = 下方实心 **或** 四个水平邻格任一实心。
+BEFORE 出现了 `fill=208 support=true`。这个竞技场里 y=208 那一层四周全是空气
+（岸顶 `bankTop=207`，围墙也只砌到 207），⇒ **`support=true` 只能来自下方的 (…,207,…) 变成了实心**，
+而那格原本是空气。**⇒ 0.98 那次点击真的放下了方块。**
+
+⇒ `feetClearOf` 的 javadoc 里那句「1.0 是 will-be-placed 与 will-be-refused 的精确边界，
+没有可调的余地」，**在这个调用点上不成立**。
+
+**为什么**（读码给出的解释，与观测一致）：`Level#isUnobstructed` 拒的是**与身体 AABB 相交**的格。
+- `:956`（干柱）填的是 `place` = **身体自己那一柱的旧脚格**，身体正竖直压在它上面 ⇒ 垂直距离**就是**判据 ⇒ 1.0 对；
+- `:553`（爬出）填的是 `fillCell` = **锁定列**的顶层水格，而身体正被「锁定朝向前压」推着离开那一列，
+  水平方向常常已经不在那一柱上 ⇒ **AABB 根本不相交** ⇒ 垂直阈值在这里是个启发式，不是原版边界。
+
+**⇒ 把四处收成一个 `feetClearOf` 是一次范畴错误**：它把「同柱」的边界套到了一个目标格未必同柱的站点上。
+
+#### ✅ 结论与改法（最小、方向不变）
+
+1. **`:553`（`climboutPlaceTick` 里的 `fcCleared`）退回 `0.9`**，并把「为什么这一处不是 1.0」
+   写在它旁边（目标格未必是身体那一柱）。
+2. **`:969`（pillarUp crest）保持 `feetClearOf`=1.0**，它填的是身体自己那一柱的旧脚格，
+   而且它自己的注释（`:911-915`）本来就要求 1.0。`:956` / `WalkerTickDrive:246` 本来就是 1.0，不动。
+3. **账本那一半（`placeAttemptCell`）保留**。它和 0.9 是相容的：0.98 那次点击**落成了**，
+   下一 tick `world.isSolid(tried)` 为真 ⇒ 计数器清零 ⇒ `placeFutile` 不会误伤这条健康爬出；
+   而真的一块都没落时它照样会涨。**这正是账本该干的事，J31 的方向不变。**
+4. ⚠️ **`PILLAR_FUTILE_TICKS = 50` 不要动。** 它这一趟看起来像元凶，其实只是把上游的错误放大出来了；
+   先改上游再谈校准，否则调的是一个被污染的量（[[a-reading-is-not-the-quantity-it-looks-like]]）。
+
+#### 📌 两条新场景：`engages=0`，是**布景**问题不是产品问题
+
+两条都栽在自己的空转守卫上（这守卫是对的，它拦住了一次会被读成「复现了缺陷」的布景失败）。
+证据行：`闸.接管次数=0`、`带.身体高于填充格=[0.950, 0.950]`（钉位是准的）、
+`走.收尾=WALKING（用了 400/400 tick）`、探针 `step=1/5 … noStep=60`。
+⚠️ 而且**这两条场景的前提本身也要跟着上面的发现重写**：它们假设「钉在 0.95 ⇒ 原版必拒」，
+而这一趟证明了在爬出这个站点上 0.95 未必被拒。**先解决 `engages=0`，同时把前提改成
+「让那一格真的填不上」的直接断言**（场景已经在断言「那一格仍是水」，把它变成主判据即可），
+别再依赖那条已经被证伪的带内推理。
+
 ### ⚖️ J31 双闸预登记（2026-08-24，**写在读结果之前**）
 
 跑的是 `1c015469`（四处阈值统一成 `feetClearOf`=1.0 + 账本在方块落地时清零）。
