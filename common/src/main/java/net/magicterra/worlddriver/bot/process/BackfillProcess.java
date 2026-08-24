@@ -190,13 +190,17 @@ public final class BackfillProcess implements BotProcess {
     /** No "last resort: stand on top of the target" arm, unlike {@code BuildProcess}'s twin. That is
      *  not an omission: backfill only ever targets a cell that is AIR (see {@link #pickCandidate}),
      *  and {@link #canStand} on the cell above requires the cell below it — the target — to block
-     *  motion. The arm would be dead code here. */
+     *  motion. The arm would be dead code here.
+     *
+     *  <p>Nor is a "candidate must not be the target / must not hold it in its head cell" guard
+     *  needed: the scan is cardinal-only, so every {@code {dx,dz}} moves exactly one horizontal
+     *  axis by ±1 and both coincidences need {@code dx==dz==0}. Two such guards stood here,
+     *  copied from {@code BuildProcess} and unreachable in both. Widening this scan to a
+     *  {@code {0,0}} column or to diagonals brings the need for them back. */
     private BlockPos findStandableNear(Level lvl, BlockPos block) {
         for (int dy : new int[]{0, -1, 1}) {
             for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
-                if (cand.equals(block)) continue;
-                if (cand.offset(0, 1, 0).equals(block)) continue;
                 if (canStand(lvl, cand)) return cand;
             }
         }
