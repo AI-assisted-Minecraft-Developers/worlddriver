@@ -91,6 +91,8 @@
 | 🟠 待判 | J35 | **引擎问题，先记不修**：一条 `Goal.XZ` 的回家腿为什么会净升 16？嫌疑是解卡塔按「当前高度+8」抬（[[a-retry-that-climbs-away-from-its-target]]），16 ≈ 两轮。按「先用写死步骤」的指令，J34 的关卡级守卫够用；这条留号，别蒸发 | 我 |
 | ✅ 已落 | J36 | `WorldDriverJourneyScenes.java` 2915/3000 → **2756**（余量 244）。熔炉级按 `JourneyBedRung` 的先例拆成 `JourneyFurnaceRung.java`（`4ea27336`，janitor）。我复核过：21 条 `wd.journey*` 注册**一条不少**，`:common:compileTestmodJava` 与源码预算闸都绿 | janitor 落，我验 |
 | 🟠 待做 | Q30 | **追猎全程零行日志。** ladder-14 的 FOOD 关卡 `猎到 minecraft:cow，得生肉 ×5`，而整段窗口里没有任何一行说牛什么时候死、被谁打死、打了几下——`[dig]` 那些行是因为攻击也按着 `keyAttack`。于是「goto 走到了」和「牛自己撞上来」**分不出**，一条 2392 tick 的腿的结局无法归因。这不是「忘了打日志」，是**一整族动作没有仪器**（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第七个现场，这次连开关都没有） | 我 |
+| 📐 已查明只列不改 | J41 | **`recordExit` 的三条「记录而不修」，13 个爬升入口里真接了的：afloat **1/13**、endedIn **1/13**、gained/lost **2/13** 在调用点判（另 4 处靠下游或下一级的守卫兜）。头条是 `WorldDriverJourneyScenes:2521` 的 `tunnel.fell`——它走 `ascendByTowering` 的 `String tag` 入口，**根本不进 `recordExit`**，三行一行都没有，而它爬的是岩浆廊道。逐点表见下面「J41 全表」一节 | janitor 查，我排 |
+| 📐 已判不动 | J42 | **`JourneyRig` 的门面缝：缝是真的且干净，但本轮不切，两个数都量了。** `1856–2410` 这一带 27 个方法里 **20 个是纯查询**（不写 `evidence(`、不跑 `settle(`），不纯的 7 个还**连续**（收集那一族 `2024–2178`）——所以缝存在。代价是 **192 个调用点、13 个文件**，收益 **0**（2606/3000 还有 394 行余量，没有任何重复概念会因此消失）。⇒ **等 `JourneyRig` 逼近 3000 再切，那时这 400 行就是现成的搬运单。** 另：`JourneyRig:1297-1312` 有一处孤儿 javadoc（写的是 `heartbeat`，挂在 `sinceHeartbeat` 上）。**这个文件归 topology，janitor 一个字没动。** 细节见下面「J42」一节 | janitor 查，topology 决定 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
 它的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
@@ -263,6 +265,81 @@ which is why the iron rung now ends with a walk home.」**铁级接了这条，�
 就死，给几千等于重演那条 `goto`）。两个分支都记 `lava.exit.ashore`（含血量与空气值）。
 ⚠️ **没有**去改 `recordExit` 成「泡在水里就不算爬完」——它自己的注释已经算过：
 那会掉进一个**当场就已满足**的 `Goal.YLevel(surfaceY)` 后备，等于把同一个问题问两遍。
+
+### 📐 J41 全表（2026-08-24，janitor，**只读了码，这一节没改任何调用点**）：`recordExit` 的三条「记录而不修」，谁真接了
+
+J39 证明了「至少有一个调用方没接这条」。数完了：**接的是少数。**
+
+`JourneyShaft.recordExit` 印三条自己不处理的读数，每一条的 javadoc 都把修法明确推给调用方：
+
+| 行 | 说的是 | `recordExit` 自己写下的交接词 |
+|---|---|---|
+| `endedOn` | 脚格与脚下**都是流体** ⇒ 浮着，脚下没有地板 | 「Getting out of water is a horizontal problem and it belongs to the caller」 |
+| `gained` / `lost` | 实升 N／应升 M；`lost` 是**爬完反而更深** | 「This is the number to grep across runs」——**没有一处 grep 它** |
+| `endedIn` | 落点不是起塔那一柱 | 「for a caller that wants a ray rather than an altitude those are different outcomes」 |
+
+**13 个爬升入口，逐个数过**（file:line 取自 HEAD `e7a289cb`，全部在 `common/src/testmod/.../journey/`）：
+
+| # | 调用点 | 标签 | afloat | gained/lost | endedIn | 没接的那一格该接什么 |
+|---|---|---|---|---|---|---|
+| 1 | `JourneyCast:33` | `lava.exit` | ✅ `standOnDryGround`（J39 `dbb664d4`） | ❌ | —（不钉柱） | 差 5 格没到就直接去浇；`gained` 该判一次 |
+| 2 | `JourneyFurnaceRung:155` | `furnace.stone.exit` | ❌ | ❌ | — | **它自己上一行就写着**「a one-wide shaft has no free cell to stand a table in」，然后不看爬没爬出来就 `craftFurnace` |
+| 3 | `JourneyPortalRung:892` | `<tag>.returnStuck<n>` | ❌ | ⚠️ 下游重问（`Goal.Block(stairTop)` + `tries-1`） | — | 重问会**烧掉整个 `tries` 预算**在一具没离开岩浆坑的身体上；afloat 在岩浆里是另一种死法 |
+| 4 | `JourneyPour:172/173` | `<tag>`（raiseInColumn） | ❌ | ✅ `raisedY`（高/矮两侧都判） | ✅ `raisedY` 点名柱 + 浇筑自己的 `.picks` 射线闸 | **afloat 恰恰是这一级的已知死法**（`climb.N.afloat`、模腔被自己的桶淹），而 `done` 只印高度不印介质 |
+| 5 | `JourneyPour:618` | `<tag>.lift` | ❌ | ✅ `liftedY` | ⚠️ 不判柱 | 抬升瞄的是 `landing` 那一格，落到别柱等于换射线 |
+| 6 | `WorldDriverJourneyScenes:982` | `stone.exit` | ❌ | ❌ | — | 与 #2 同形：爬出来就是为了有地方摆桌子，然后不验就 `craftKeepingTheTable` |
+| 7 | `WorldDriverJourneyScenes:1331` | `<key>Home` | ❌ | ⚠️ 下游 `settleOntoHomeGround` 双向量 `homeElevation`（J34） | — | 那个下游守卫**只在走到了的那一支跑**；走丢的一支只记 `strandedAt` |
+| 8 | `WorldDriverJourneyScenes:1404` | `<key>HomeUp` | ❌ | ❌ | — | 🔴 **最尖的一条**：它**本身就是**「身体掉坑里」的补救腿，而它不检查自己补救成功没有——只记 `climbedBackTo` 就走 |
+| 9 | `WorldDriverJourneyScenes:1747` | `<tag>.exit`（铁矿每一脉） | ❌ | ⚠️ 隔一级：`:1858` 的 `walkHome` 兜 | — | 中间还要再挖一条脉，一具没出井的身体先去挖第二脉 |
+| 10 | `WorldDriverJourneyScenes:2098` | `kit.exit` | ❌ | ⚠️ **下一级的入口守卫**兜：`:2175` 的 `here.getY() < sky - 2` | — | 这个模式要写明，否则「没接」会被误读成漏；它**不覆盖 afloat** |
+| 11 | `WorldDriverJourneyScenes:2178` | `start.exit` | ❌ | ❌ | — | 🔴 与 #8 同形：它**就是** #10 的那道守卫，而它爬完不回头验一次就 `walkToTheLava` |
+| 12 | `WorldDriverJourneyScenes:2309` | `shaft.reColumn<n>.exit` | ❌ | ⚠️ 下游 `sinkInSomeColumn` 重选柱 | — | 重选问的是**另一个问题**（这根柱能不能挖），一具还在井里的身体照样能回答它 |
+| 13 | `WorldDriverJourneyScenes:2521` | `tunnel.fell` | ❌ | ❌ | ❌ | 🔴 **头条：它连记都没记。** 走的是 `ascendByTowering` 的 `String tag` 入口，那个重载**不调 `recordExit`**，所以 `toY`/`endedIn`/`endedOn`/`gained`/`lost`/`pillarStock` **六行一行都没有**——只有 `tunnel.climbedBackTo`。而它爬的是**岩浆廊道**，正是最需要 `endedOn` 的地方 |
+
+**数出来的比例**：afloat **1/13**，`endedIn` **1/13**，`gained/lost` 在调用点判的 **2/13**（#4 #5），
+另有 **4 处**靠下游或下一级守卫间接兜（#3 #7 #9 #10，其中 #7 只兜一支），**完全没接的 5 处**（#2 #6 #8 #11 #13）。
+
+⚠️ **只列不改，这是刻意的**：每个调用点该怎么接是各自关卡的事，一次改一族会让下一趟真梯的红无法归因。
+排下轮的话，按「补救腿不验自己」优先：**#8 → #11 → #13 → #2/#6**。
+
+📌 顺带记两条同族的，**都没改**：
+
+- `ascendByTowering` 的两个重载里，只有 `int washedOff` 那个走 `recordExit`；`String tag` 那个是
+  **公开入口**（#13 用的就是它）。「记录」这条不变量**由它自己的一个入口违反**。
+- `JourneyShaft` 里 16 处世界读数走 `lvlOf(rig)` = `rig.ctx().level()`（**关卡的**世界，另有 5 处
+  直接写全式，同一个东西），
+  而同一文件 `:894` 一行**故意不用它**并写明理由：19 级之后身体在别的维度，两个 level 是两个世界。
+  这就是队列里 **J24** 记的那条，只是 J24 只点了 `supportUnder` 一处。今天所有 `JourneyShaft`
+  入口都在主世界，**latent，安全**；哪天有人在下界／末地起塔，`lvlOf` 是那一行要改的地方。
+
+### 📐 J42（2026-08-24，janitor，**只读了码，`JourneyRig` 归 topology，一个字没动**）：门面缝是真的，但现在切是纯亏
+
+`JourneyRig` 现在同时是「关卡运行时」「证据记账本」「背包/世界查询门面」「行走与收集的封装」。
+问「有没有一条干净的缝」，答案是**有**，而且比预想的干净——但两个数一摆就不该现在切：
+
+| 量 | 数 | 怎么得的 |
+|---|---|---|
+| 文件行数 | **2606 / 3000**（余 394） | `wc -l`；没有预算压力 |
+| `1856–2410` 这一带的方法 | **27 个** | 按缩进 4 的声明数 |
+| 其中**纯查询**（不写 `evidence(`、不跑 `settle(`／`await(`） | **20 个** | `carrying` `carryingAnyOf` `dropsNearby` `dropStacks` `dropCensus` `gained` `nearestDrop` `nearestDropOfAny` `nearestBlock`×2 `nearestPrey` `nearestPreyTarget` `nearestPreyVitals` `animalsNearby` `woolNearby` `sheepNearby` `deadSheepNearby` `dimension` `heldItemId` `item` |
+| 不纯的 7 个 | **连续成一块**：`2024–2178` | `collectAnyOf` `leftOnTheGroundAnyOf` `collectByHand`×3 `whyNothingWasPickedUp` `leftOnTheGround`——收集那一族，它们写 evidence 也跑 settle |
+| **搬一次的代价** | **192 个调用点、13 个文件** | `grep -rno 'rig\.(carrying|dropsNearby|nearestDrop|…)\('`；最大户 `WorldDriverJourneyScenes` 62、`JourneyEndRungs` 40 |
+
+⇒ **判：本轮不切，也不建议下轮切。** 收益是 0——余量 394 行，且**没有任何重复概念会因此消失**
+（门面搬家不合并任何东西）；代价是 192 处改动横跨 topology／coordinator／janitor 三方产权的文件。
+**触发条件写清楚**：等 `JourneyRig` 逼近 3000 时，`1856–2023` + `2179–2410` 这约 400 行纯查询
+就是现成的搬运单，而 `2024–2178` 那一块**必须留下**（它要 `settle`）。
+
+⚠️ 另记一处 janitor 没动的：**`JourneyRig:1297-1312` 是孤儿 javadoc** ——
+那一整段写的是 `heartbeat`（「Say where the body is, every HEARTBEAT_TICKS ticks…」），
+但它后面紧跟着 `sinceHeartbeat` 自己的 javadoc，所以 Java 只认后一段，**前一段既不出现在
+文档里，又骑在一个字段头上**。同形的两处我已在自己产权内的 `JourneyShaft` 修掉（`f94359d0`）。
+**这一处归 topology 决定。** 全仓同形的**还剩 39 处、23 个文件**（我修掉 2 处之前是 41），
+数法：`rg -U -n --multiline-dotall '\*/\s*\n\s*/\*\*' -g '*.java' common/src`。
+这个数法**本身没有假阳性**（两段 javadoc 中间没有任何声明 ⇒ 前一段一定没挂在自己的声明上），
+但**修法有两种**，必须逐处读调用点决定：前一段描述的是下面某个别的声明（→ 搬过去，`JourneyShaft`
+那两处就是），还是它压根是段分节说明（→ 降成 `//`，别用 `/** */`）。
+落在 `common/src/main` 的（`Walker`、`BotConfig`、`MineProcess` 等）动前要报备。
 
 ### 复现计数更新
 
