@@ -450,6 +450,66 @@ j34 与 j46 的 7 级**同样以 `脚下=water` 收尾，而两趟的 8 级都�
 ⚠️ R1 大概率**未触发**——这一族修法（J34/J39/这条）连着三笔都是「罕见故障的补救」，
 而真梯验不了未发作的补救。这正是 **J45** 要解决的事，它的优先级因此又高了一档。
 
+---
+
+## ✅ J45 首战：场景第一次跑就**删掉**了一笔修法，第二次**验成**了另一笔
+
+### 第一跑：我加的补救是重复的，而且排在更强的那条后面
+
+`wd.journeyCraftStepsAsideForRoom` 头一版把身体摆在深水上，断言我新加的
+`furnace.noRoomFor`/`furnace.steppedAside`。**红在 A/B，控制组全绿** ——
+即布景确实放不下桌子，而我的补救一次都没轮到。证据一行说完：
+
+```
+station.steppingOff.0 = 241312, 219, 100000 → 241312, 216, 100000
+furnace.crafted = 1      furnace.craftError = null
+```
+
+`JourneyStation.makeRoomForAStation`（`ensureCraftingTable:1479` 就在调用它）
+**早就在做同一件事**，而且更完整：走到用同一谓词选出的一格 → 没地可走就在井壁挖壁龛 →
+再不行写 `station.noGround`。⇒ **`3fbe52e0` 那条重试撤销**（`aa0554b9`）。
+一条场景在五分钟内**删掉**了一笔修法，而不是确认它——这正是真梯做不到的事。
+
+### 第二跑：真因是「睡莲骗过了支撑面判据」
+
+那么 j47 的 8 级为什么会败？它**一条 `station.*` 都没有** ⇒ `placerWouldFindRoom`
+当时答的是「有地方」。唯一说明原因的一行在游戏日志里，不在 results 里：
+
+```
+[craft] placeNearby: click failed cell=67,64,59 (air) below=67,63,59 (lily_pad)
+```
+
+睡莲**非空气、不可替换**，所以过了放置器和补救共用的那道支撑面筛，
+而它的上表面**承不住任何方块**。于是判据说有、点击必失败，
+关卡把「有位置但用不了」报成了「没有位置」，读者被送去查错的东西。
+[[the-collision-box-is-not-the-cell]] 同族：拿「非可替换」当「站得住东西」的代理。
+
+修法 `aa0554b9`：`placerWouldFindRoom` 补一句 `isFaceSturdy(lvl, below, UP)` ——
+那正是点击本身要问的问题，把它挪到走之前问，而不是走之后才发现。
+`groundWithRoomNear` 也用同一个谓词，所以修一处覆盖整族。
+
+### 判词：**GREEN**，而且是**被观察到**的
+
+`stagewrightDedicatedServerFabric` → `VERDICT: GREEN`，`GRADLE_EXIT=0`，
+`COVERAGE: 284 executed`（比上一趟多的那一条就是它），场景 `PASS`：
+
+```
+staged.supports     = 旧判据（非空气且不可替换）认可 1 个，真能承重（isFaceSturdy UP）的有 0 个
+subject.steppingOff = 241312, 219, 100000 → 241312, 216, 100000
+subject.endedAt     = 241312, 216, 99999，脚下=Block{minecraft:stone}
+```
+
+**为什么这两行同时出现就等于修法生效**：`station.steppingOff` 只在
+`placerWouldFindRoom` 答「没地方」时才写，而同一趟的 `loose = 1` 说明旧判据会答「有」。
+两者并存只可能是谓词已经变严 ⇒ 不需要再跑一趟反向实验去证明判据能变红
+（[[verify-by-making-the-criterion-impossible]] 这次由**数字本身**满足）。
+
+| 行 | 队列 | 事 |
+|---|---|---|
+| 🟠 待做 | J46 | **引擎侧那份孪生没修**：`PlaceNearby.place`（`common/src/main`）用的还是「非空气且不可替换」，所以它仍会对着睡莲白点一次。改它是**引擎改动**，按「先用写死步骤」的规矩没有并进这一笔。代价已量：每次多一次失败点击并打一行日志。要改时**两份必须一起改**，否则就是 [[two-ones-that-disagree]] |
+| ✅ 已验 | J45a | 场景 `wd.journeyCraftStepsAsideForRoom` 已登记进两个 `expected-scenes`，随闸常跑 |
+| 🔴 待做 | J45b | 还欠两条：塔顶跑 `walkHome` 到达支、爬升结束浮水上跑 `leaveWithTheLava`。`JourneyRig.forArena` 已就位并被这一条用上了 |
+
 ### ✅ J38 结案：不是背包满，是**根本没走到**
 
 仪器 `4eceadb2` 第一趟就点名，在 5 级：
