@@ -850,7 +850,16 @@ waterFill.aim#2 = 244375, 220, 100000（通视的最近水源，与按距离的�
 `VERDICT: GREEN`、`COVERAGE: 289 executed / 25 skipped`、必需失败 **0** 条、
 可选失败恰好是基线那三条、无 `MISSING-EXPECTED` / `UNDECLARED`、两条新场景都 PASS。
 ⇒ 归因契约里「任何偏离先记重构的账」这一条**没有被触发**：`isHazard` 合并与两处恒假守卫的删除
-在 Fabric 上零场景差异。NeoForge 那趟还在跑（`b6807e83`+`267255d3` 删的两个 `create` 只有它判得了）。
+在 Fabric 上零场景差异。
+
+**NeoForge 同趟也 GREEN**：`COVERAGE: 290 executed / 24 skipped`（＝它自己的 288 基线＋两条新场景）、
+`NEOFORGE_EXIT=0`、必需失败 0 条、可选失败仍是同样那三条、无 manifest 判定。
+⇒ `b6807e83`+`267255d3` 删掉的两个 `create` 静态方法**在唯一判得了它们的那一侧过了**
+（`:neoforge:compileJava` 也确实重跑了、不是 UP-TO-DATE；另外我按名字 grep 过反射，
+`getMethod`/`Class.forName` 没有一处指向它们，`"create"` 字面量全是 Create 模组的 modid）。
+
+**两条新场景在两个 loader 上的 tick 数完全相同**（`Reseats…` 17 ticks、`Keeps…` 64 ticks）
+⇒ 布景是确定性的，不是碰巧。J53 与 J53c 至此都是**双 loader 已验**。
 
 **⚠️ 两条必须记下来、免得下一轮有人「顺手清理」**：
 
