@@ -89,7 +89,7 @@
 | 📐 已查明待修 | J33 | **专用服身体和客户端身体给「挖穿」定的不是同一个价**：`LevelWorldView.breakCost:93-104` 只有 `COST_PER_TICK × ticks`，`ClientWorldView` 叠了四道税（浮水 ×25/×5、错工具 ×3、树干税、`pathfinderBreakCostMultiplier`）。⇒ 专用服上任何「会不会挖穿」的场景量的都是另一张表。与 J27 是两条独立机制。**证据在这个类自己的 javadoc 里**（`:79-83`：为 lily-pad 那道税专门重写过 `isBreakableObstruction`，说的就是这个问题——修了一处没修一族）。✅ **搬法评估已交（见下节）**，并**多找出第五条、方向相反**的分歧：服务端规划器按**手里正拿着的那件**定价（`LevelWorldView:100`），而它自己的执行器破坏前会从**全部 36 格**换上最优工具（`ServerPlayerAvatar.selectTool:324-343`）⇒ **规划器比执行器严**。三条承重断言我逐条核过：`selectTool` 确实扫 `inv.items.size()`、`LevelWorldView` 确实**只有 1 参 `breakCost`**（浮水税那条 2 参路径根本进不来）、`ClientWorldView` 确实只扫 `slot < 9`。搬法分两笔两闸，**不与真梯同趟** | janitor 已评估，待做 |
 | 🔴 已修待验 | J34 | **7 级把身体留在自己垒的 16 级塔顶上，8 级因此死掉。** `home.arrivedY = 78（起 62，净升 16），脚下=cobblestone`，判据只量水平距离（3 ≤ 容差 5），`Goal.XZ` 没有 y 项 ⇒ 那一级**判绿**。代价两笔：塔**就是**丢掉的圆石（8 级开场 7，石级存 20），且 y=78 让 `mineSearchVerticalRadius=8` 的扫描带整段落在地表之上，补料 1 tick 空手而回。已补 `settleOntoHomeGround`（双向、每趟都记 `*.homeElevation`；向上拆塔回收圆石，向下 `climbOut`），并把 8 级补料改成打结果、加勘测石后备（`d0de99db`）。**下一趟真梯读** | 我 |
 | 🟠 待判 | J35 | **引擎问题，先记不修**：一条 `Goal.XZ` 的回家腿为什么会净升 16？嫌疑是解卡塔按「当前高度+8」抬（[[a-retry-that-climbs-away-from-its-target]]），16 ≈ 两轮。按「先用写死步骤」的指令，J34 的关卡级守卫够用；这条留号，别蒸发 | 我 |
-| 🟠 待做 | J36 | `WorldDriverJourneyScenes.java` **2915/3000**，只剩 85 行余量。熔炉级该按 `JourneyBedRung` 的先例拆出去（[[a-file-pinned-at-its-budget]]：刮注释是拿可读性换额度，不算修） | janitor |
+| ✅ 已落 | J36 | `WorldDriverJourneyScenes.java` 2915/3000 → **2756**（余量 244）。熔炉级按 `JourneyBedRung` 的先例拆成 `JourneyFurnaceRung.java`（`4ea27336`，janitor）。我复核过：21 条 `wd.journey*` 注册**一条不少**，`:common:compileTestmodJava` 与源码预算闸都绿 | janitor 落，我验 |
 | 🟠 待做 | Q30 | **追猎全程零行日志。** ladder-14 的 FOOD 关卡 `猎到 minecraft:cow，得生肉 ×5`，而整段窗口里没有任何一行说牛什么时候死、被谁打死、打了几下——`[dig]` 那些行是因为攻击也按着 `keyAttack`。于是「goto 走到了」和「牛自己撞上来」**分不出**，一条 2392 tick 的腿的结局无法归因。这不是「忘了打日志」，是**一整族动作没有仪器**（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第七个现场，这次连开关都没有） | 我 |
 
 **放行规则**：janitor 的 J1–J3 涉及产品代码，要一趟双 loader 的闸，槽由我发；
@@ -155,6 +155,33 @@ F 只是结局。上一趟的教训正是**趟级的数是结局不是证据**�
 📌 还差一件仪器：`bed.towerRecovered` 只记了**拆塔之后**的圆石数，
 没有记拆塔**之前**的，所以「这一趟拆回来几块」本趟量不到，只能靠净损间接判。
 下一趟之前补上前后两个数（本趟不改代码——[[compiling-under-a-live-run]]）。
+
+---
+
+## 📌 预登记：J39 之后这趟真梯（2026-08-25，**写在跑之前，也写在读结果之前**）
+
+跑法同上。这趟带两笔从没上过梯的：`dbb664d4`（J39 上岸步骤，**行为改动**）与
+`4eceadb2`（J38 仪器，**只加读数不改行为**），外加 `4ea27336`（熔炉级拆文件，纯搬运）。
+**自变量只有一个：上岸。**
+
+**应有颜色**：1–10 级按 j34 全 PASS（若有一级掉了，先怀疑拆文件那笔，再怀疑地形随机）；
+11 级是前沿，PASS 或 FAIL 都不叫回归。
+
+| # | 判据 | 已验 | 未触发 | 证伪 |
+|---|---|---|---|---|
+| H | `lava.exit.afloat` **一定写**（我这次确认了两个分支都写） | 行存在 | —（没有这一档） | 11 级跑到了出井之后却没有这行 |
+| I | 若 `afloat=是` ⇒ `lava.exit.dryLand` 与 `lava.exit.ashore` 都在，且 ashore 的 `脚下=` 不是流体 | 三行齐且脚下是固体 | `afloat=否`（这趟出井没落在水里） | 有 afloat=是 而缺后两行，或上岸后脚下仍是流体 |
+| J | 11 级不再以窒息结束 | 没有 `death.blow` 含 `drown` | — | 仍然 drown |
+| K | 11 级 PASS（黑曜石到手） | PASS | — | FAIL（**但死因若不是 drown，J39 仍算已验**） |
+| L | J38 仪器：出现 `*.pickup.empty` 时，必须同时给出空槽数与实体距离 | 行齐 | 一趟没有这行 | 有行但字段缺 |
+
+⚠️ **L 的「未触发」不等于 J38 修好了**——那条仪器只在「走到了却空手」时才写，
+一趟没有它只说明这趟没发生（[[skip-is-not-coverage]]）。
+⚠️ **K 与 J 要分开判**：11 级可能因为别的原因失败而 J39 依然生效。
+**判 J39 看的是 H/I/J，不是 K**——又一次「趟级的数是结局不是证据」。
+🔻 **本趟自带的回归风险**：上岸那一步最多花 600 tick，若 `dryUnderfoot` 在沼泽里找不到干柱，
+会白花这 600 tick 再去浇。11 级预算 100 000，影响可忽略；但若读到
+`lava.exit.dryLand = 16 格内没有一柱是干的`，那说明搜索半径或判据选错了，**记 J41 另开**。
 
 ---
 
