@@ -1268,7 +1268,15 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.allowPlace = true;
         BotConfig.allowBreak = true;
         BotConfig.allowSwimEscapeBreak = true;        // digFallbackHere, else placeFutile hands off to nothing
-        BotConfig.walkerPillarSurfacePlace = true;    // J32: the baseline pins this OFF, and the branch is its only reader
+        BotConfig.allowSwimEscapePlace = true;        // on the ENTRY gate (WalkerTickClimb:457) — pinned explicitly, not inherited
+        // FALSE, explicitly, and not because that is the default. This flag is NOT the gate on the
+        // ledger path: the entry condition at WalkerTickClimb:455-457 does not mention it, so the
+        // climbout-place branch is live either way. Turning it ON would ADD a second placement
+        // route — the crest-place at :921, reachable only once floodedShaft() reports false — which
+        // fills cells WITHOUT touching pillarNoPlaceTicks. That route would quietly falsify this
+        // scene's premise that nothing ever gets placed, and it would also flip the phase-class
+        // semantics J24b just settled. One moving part, not three.
+        BotConfig.walkerPillarSurfacePlace = false;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1281,9 +1289,6 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
-        if (!BotConfig.walkerPillarSurfacePlace)
-            ctx.fail("pillarLedger: walkerPillarSurfacePlace 是关的，水面爬出那条路根本走不到，断言会退化成 0==0。");
-
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
         final int engages0 = Walker.waterPillarEngages;
@@ -1292,6 +1297,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // and zeroes the counter (WalkerTickClimb:500-502), so a post-hoc read always sees 0.
         boolean sawFutile = false;
         BlockPos pinnedAt = null;
+        double bandLow = Double.MAX_VALUE, bandHigh = -Double.MAX_VALUE;
         Walker.Step s = Walker.Step.WALKING;
         int t = 0;
         for (; t < 400 && s == Walker.Step.WALKING; t++) {
@@ -1306,6 +1312,12 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 pinnedAt = top;
                 fp.setPos(cx + 0.5, top.getY() + 0.95, cz + 0.5);
                 fp.setDeltaMovement(0, 0, 0);
+                // Where the body sat RELATIVE to the cell it was meant to fill. The pin makes this
+                // constant by construction, and recording it is how the arena proves the constant
+                // is the one it meant: 0.95 is inside the old crest gate (0.9) and below vanilla's
+                // acceptance line (1.0), which is the whole point of the staging.
+                bandLow = Math.min(bandLow, fp.getY() - top.getY());
+                bandHigh = Math.max(bandHigh, fp.getY() - top.getY());
             }
             maxNoPlace = Math.max(maxNoPlace, walker.pillarNoPlaceTicks());
         }
@@ -1317,6 +1329,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.record("柱.钉住格", pinnedAt == null ? "无（水柱被填满了）" : pinnedAt.toShortString()
                 + " 身体y=" + String.format("%.3f", fp.getY()));
         ctx.record("柱.那一格实心了吗", pinnedAt != null && w.isSolid(pinnedAt));
+        ctx.record("带.身体高于填充格", String.format("[%.3f, %.3f]", bandLow, bandHigh)
+                + "（旧 crest 闸 0.9／原版接受线 1.0）");
         ctx.record("走.收尾", s + "（用了 " + t + "/400 tick）");
         ctx.record("走.探针", walker.progressProbe());
 
@@ -1330,6 +1344,15 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (pinnedAt != null && w.isSolid(pinnedAt))
             ctx.fail("pillarLedger: 钉住的那一格 " + pinnedAt.toShortString() + " 竟然变实心了 —— "
                     + "0.95 这个高度本该被 Level#isUnobstructed 拒绝，布景没有造出「必然被拒」的带。");
+        // THE BAND, self-proved. Without this the scene can go green for the opposite reason: a body
+        // that never rose at all also never places, so the counter also climbs and placeFutile also
+        // fires — a PASS that says nothing about the refusal band. Asserting both edges pins the
+        // staging to the one geometry the defect lived in.
+        if (bandHigh < 0.9 || bandHigh >= 1.0 || bandLow < 0.9)
+            ctx.fail("pillarLedger: 身体相对填充格的高度是 [" + String.format("%.3f", bandLow) + ", "
+                    + String.format("%.3f", bandHigh) + "]，没有整趟落在 [0.9, 1.0) 这条带里 —— "
+                    + "低于 0.9 就没进过旧的 crest 闸，到了 1.0 原版就会接受放置。两种情况下这一趟"
+                    + "都不是在问「被拒的点击算不算进展」，绿了也不说明账本记的是结果。");
 
         if (!sawFutile)
             ctx.fail("这本账记的是动作不是结果：连续 " + t + " tick 每一次放置都被 vanilla 拒绝（"
