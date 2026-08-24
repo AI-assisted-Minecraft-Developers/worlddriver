@@ -1725,12 +1725,20 @@ public final class JourneyRig {
         // the walker chewing through trees it is merely PASSING, and rung 3 is the one rung whose
         // whole job is to chew through a tree.
         //
-        // So the honest state is: the ladder cannot yet be measured on the configuration it ships,
-        // and that is a finding about the taxes, not a reason to keep quiet about the gap. Until the
-        // two costs are reconciled, this arms the one flag that was measured to unblock rung 3 and
-        // leaves the other 37 on the arena table — with the gap written down rather than papered over.
-        // TODO.md carries the full 38-flag delta and the bisect plan.
-        BotConfig.walkerDigAimPriority = true;
+        // ✅ AND THAT SENTENCE IS NOW OVER. The trunk tax has a scope: `pathfinderLogBreakTax` is
+        // waived while a MineProcess is working a log and charged in full on every other leg, so the
+        // rung whose whole job is to chew through a tree may plan through the four logs under the
+        // fifth, while a leg merely PASSING a forest still pays the 3× that tax was added for. That
+        // is strictly better than the bisect this comment used to promise, which was to restore the
+        // tax to 1.0 globally and throw the travel protection away with it.
+        //
+        // So this line pins what the driver SHIPS, which is what the ladder was always supposed to
+        // measure. The other tax, `pathfinderBreakCostMultiplier` (2.5 vs 1.0), is deliberately NOT
+        // touched: it pushes the same way but applies to every break, and waiving it would also make
+        // "tunnel through stone" cheap. One variable at a time — if rung 3 still comes up short with
+        // the no-approach rows collapsed, that multiplier is the named suspect and will have evidence
+        // behind it rather than a guess. TODO.md carries the 38-flag delta and the reading criteria.
+        BotConfig.applyCompiledDefaults();
         // Off by default because a journey leg is thousands of ticks and this logs per-tick, but
         // openable, because the things it prints are the only account of what the CLIENT helm is
         // doing to the body. `AutoSwim`'s shore search — the code that owns a submerged real player
