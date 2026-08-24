@@ -82,9 +82,11 @@
 | 🔴 待做 | J26 | `WorldDriverActuatorSplitScenes:201-216` 的两行还原自检写在 `ctx.cleanup` 里 ⇒ **哪儿都不出现**：`record` 排在 `teardown` 之前（结果文件已序列化），而 `SceneContext.record` 是纯 map put 不打日志，`note()` 也早拼完了。**每趟专用服闸都跑这个场景**，所以「还原成没成」从写下那天起零次生效，`⚠️ 否` 那半边无人看见。它的注释自陈「A restore nobody verified is a claim」（[[a-confluence-point-is-not-a-deadline]]） | janitor 扫出，janitor 修 |
 | ✅ 已普查 | J27 | **普查完成，见下面「J27 全表」一节。头条：无害档是空的——38 个 pin 没有一个的基线值等于它的编译默认值。** 两条原始判断被普查自己推翻：① 两个 double 不是「乘 1.0 恒等所以无害」，**恒等的是乘法不是行为**（生产 2.5／3.0）；② 「26 条从没被设过」照字面是错的——`WorldDriverBridgeScenes:310` 的 `applyCompiledDefaults()` 一次性还原全部 36 个行为旗标，整个 bridge 战役都在生产值上跑。**剩下的活是那 5 条无人覆盖的归零形状**，见下表 | janitor 已交，我判 |
 | ~~🔴 待做~~ | ~~J27 原文~~ | ~~**缺陷地图：`applyGameTestBaseline()` 有 38 条旗标与生产默认不同，其中 26 条没有任何场景设回来**~~ ⇒ 它们下面的分支**在整个套件里是死代码**，针对它们写的场景会绿得毫无道理。⚠️ 五条「提了主题却从不打开机制」最像已经恒真：`walkerFloatingBankBobFreeze`、`walkerBuoyantSearchFromSurface`、`walkerSwimAshorePillarDespiteDeepDig`、`pathfinderLogBreakTax`、`pathfinderBreakCostMultiplier`。**两条数值旗标最阴**：`pathfinderBreakCostMultiplier` 生产 2.5／套件 1.0，`pathfinderLogBreakTax` 生产 3.0／套件 1.0 ⇒ **套件里的 A\* 用的是另一套破坏定价**，任何「会不会选择挖穿」的场景量的都不是线上那张成本表——不会红，只会答对隔壁世界的问题。⚠️ 按「读它处数」排只是第一刀：`walkerPillarSurfacePlace` 只有 2 处却是 J24b 的病灶，**它的危害是两个 phase 类因它分岔，面积衡量不到**。脚本 `baselinediff.py`／`baselinemap.py`（scratchpad），**用前先跑那两个校准样本**（[[a-verification-tool-needs-verifying-too]]：第一版正则 `(?<![\w.])flag` 排掉了 `BotConfig.flag` 的写法，把 8 条已覆盖的诬告成盲区） | janitor |
+| ✅ 已修待验 | J39 | **11 级淹死，离浇筑只差一次。** `lava_bucket.atSurface=1` 而 `lava.exit#6.endedOn=脚格=water，脚下=water —— 浮在水里，脚下没有地板`，接着 `death.blow=drown −2.0→0.0@146`、`death.driving=goto`。`recordExit` 的 javadoc 早写过这个形状并把修法交给调用方（「the iron rung now ends with a walk home」）——**铁级接了，黑曜石级没接**。已在 `JourneyCast.leaveWithTheLava` 补 `standOnDryGround`（`dbb664d4`，复用 `JourneyTerrain.dryUnderfoot`，预算 600 tick）| 我 |
+| 🟠 待判 | J40 | **引擎问题，先记不修**：身体在水里被 `goto` 驱动了 146 tick、连挨 8 次窒息伤害，**没有任何一层自救**。`JourneyRig.await` 每 tick 判活，但判的是「死没死」不是「快死了」。两个问题分开：① 走行器该不该在 `getAirSupply()` 见底时自己上岸（引擎）；② 关卡层该不该在空气/血量过线时中止这条腿去补救（写死步骤）。按指令先做 ②，而 ② 现在连仪器都没有 | 我 |
 | 🔴 已复现待查 | J38 | **走到了掉落那一格、站了 30 tick，东西没进包。** j34 趟 8 级逐行：`craftingTable.broke=64,61,62，破坏后地上 1 个，身体在 64,61,63` → `pickup.walks=1` → `pickup.target=64,61,62` → **`pickup.left#2=1`** → `craftingTable=0` → `lostAfterCraft=…地上掉落 1 个，身体在 64,61,62`。走成功了、终点就是掉落格、`collectByHand` 的 `HoldStill(30)` 也跑完了，**物品还在地上**。这跟 J37 是**两条**缺陷：J37 是「看见了不去捡」，这条是「捡了没捡到」。两个待分辨的解释：① **背包满**（这一刻带着 22 圆石＋工具＋羊毛＋床＋熟肉＋熔炉，`ItemEntity.playerTouch` 装不下就是不装，[[the-hand-is-not-the-bag]]）；② 碰撞/拾取延迟。**分辨它们的仪器**：捡之前记空槽数、物品实体的精确坐标与 `pickupDelay`、身体的 double 坐标。⚠️ 别先改代码——现在两个解释都解释得通（[[one-sample-cannot-name-a-cause]]）。🔎 **同一趟的对照组已经有了**：9 级 `vein1.pickup.left=0`、`vein2.pickup.left=0`，**捡东西这一族本身是好的**，而且那是在包更满的时候。⇒ 差别不在「捡」，在**这一个物品**：`raw_iron` 能并进已有槽，`crafting_table`（包里 0）要一个**新槽**。所以①还活着，但要先数槽而不是先猜 | 我 |
 | 🔴 已查明待修 | J37 | **工作台的丢失分支数出了地上那一个，然后走人。** `JourneyStation:50-57`：包里 0 且 4 格内没立着的 ⇒ 把 32 格搜索、掉落普查、身体坐标写成一行 `craftingTable.lostAfterCraft`，然后 `then.run()`。上趟 7 级读到的正是「**地上掉落 1 个**，身体在 -46,62,99」——**它看见了**。而 `collectByHand` 就在同一族里，`PICKUP_RADIUS` 也**恰好是 32**，即它走的就是这一行数出来的那一个。⇒ `dropsNearby > 0` 时改成去捡。这就是那条 javadoc 自称的「the ladder's oldest tax」，4/4 趟每趟重买一张桌子的根。⚠️ 与 `furnace.topUp` 同形：**说得出补救、从不执行**（[[a-fix-that-cannot-reach-its-own-occasion]]）。**等本趟真梯落地再编译**（[[compiling-under-a-live-run]]）。⚠️ **次序**：J37 的补救正是走 `collectByHand`，而 J38 说的就是这条路走到了却没捡到 ⇒ **不能先修 J37 再指望它生效**。两条一趟做完，但读的是**两组不同的行**：J37 读「丢失分支到底有没有发起收集」，J38 读「收集为什么空手」。不是两个变量搅在一起 | 我 |
-| 📐 已查明待修 | J33 | **专用服身体和客户端身体给「挖穿」定的不是同一个价**：`LevelWorldView.breakCost:93-104` 只有 `COST_PER_TICK × ticks`，`ClientWorldView` 叠了四道税（浮水 ×25/×5、错工具 ×3、树干税、`pathfinderBreakCostMultiplier`）。⇒ 专用服上任何「会不会挖穿」的场景量的都是另一张表。与 J27 是两条独立机制。**证据在这个类自己的 javadoc 里**（`:79-83`：为 lily-pad 那道税专门重写过 `isBreakableObstruction`，说的就是这个问题——修了一处没修一族）。全表见下 | janitor 评估搬法 |
+| 📐 已查明待修 | J33 | **专用服身体和客户端身体给「挖穿」定的不是同一个价**：`LevelWorldView.breakCost:93-104` 只有 `COST_PER_TICK × ticks`，`ClientWorldView` 叠了四道税（浮水 ×25/×5、错工具 ×3、树干税、`pathfinderBreakCostMultiplier`）。⇒ 专用服上任何「会不会挖穿」的场景量的都是另一张表。与 J27 是两条独立机制。**证据在这个类自己的 javadoc 里**（`:79-83`：为 lily-pad 那道税专门重写过 `isBreakableObstruction`，说的就是这个问题——修了一处没修一族）。✅ **搬法评估已交（见下节）**，并**多找出第五条、方向相反**的分歧：服务端规划器按**手里正拿着的那件**定价（`LevelWorldView:100`），而它自己的执行器破坏前会从**全部 36 格**换上最优工具（`ServerPlayerAvatar.selectTool:324-343`）⇒ **规划器比执行器严**。三条承重断言我逐条核过：`selectTool` 确实扫 `inv.items.size()`、`LevelWorldView` 确实**只有 1 参 `breakCost`**（浮水税那条 2 参路径根本进不来）、`ClientWorldView` 确实只扫 `slot < 9`。搬法分两笔两闸，**不与真梯同趟** | janitor 已评估，待做 |
 | 🔴 已修待验 | J34 | **7 级把身体留在自己垒的 16 级塔顶上，8 级因此死掉。** `home.arrivedY = 78（起 62，净升 16），脚下=cobblestone`，判据只量水平距离（3 ≤ 容差 5），`Goal.XZ` 没有 y 项 ⇒ 那一级**判绿**。代价两笔：塔**就是**丢掉的圆石（8 级开场 7，石级存 20），且 y=78 让 `mineSearchVerticalRadius=8` 的扫描带整段落在地表之上，补料 1 tick 空手而回。已补 `settleOntoHomeGround`（双向、每趟都记 `*.homeElevation`；向上拆塔回收圆石，向下 `climbOut`），并把 8 级补料改成打结果、加勘测石后备（`d0de99db`）。**下一趟真梯读** | 我 |
 | 🟠 待判 | J35 | **引擎问题，先记不修**：一条 `Goal.XZ` 的回家腿为什么会净升 16？嫌疑是解卡塔按「当前高度+8」抬（[[a-retry-that-climbs-away-from-its-target]]），16 ≈ 两轮。按「先用写死步骤」的指令，J34 的关卡级守卫够用；这条留号，别蒸发 | 我 |
 | 🟠 待做 | J36 | `WorldDriverJourneyScenes.java` **2915/3000**，只剩 85 行余量。熔炉级该按 `JourneyBedRung` 的先例拆出去（[[a-file-pinned-at-its-budget]]：刮注释是拿可读性换额度，不算修） | janitor |
@@ -156,6 +158,96 @@ F 只是结局。上一趟的教训正是**趟级的数是结局不是证据**�
 
 ---
 
+## ✅ 判：j34 真梯（`results-j34-tenOfTwenty.jsonl`，`/tmp/journey-j34.log`）
+
+`BUILD SUCCESSFUL in 27m 40s`，`GRADLE_EXIT=0`。
+**10/20，`journey.height = PORTAL_KIT`，`journey.stagingCalls = 0`** —— 出厂配置上的新纪录。
+
+| 级 | 判词 | tick |
+|---|---|---|
+| 03 WOOD | 砍到 8 根原木 | 2716 |
+| 05 STONE_TOOLS | 石镐 ×1、石剑 ×1，剩余圆石 **22** | 2954 |
+| 06 FOOD | 猎到 cow，生肉 ×5 | 3475 |
+| 07 BED | 合成 white_bed ×1 | 3950 |
+| **08 FURNACE** | **熔炉 ×1 到手（出厂配置首过）** | **289** |
+| 09 IRON | 铁锭 ×6 出炉 | 4502 |
+| 10 PORTAL_KIT | 桶 ×1、打火石 ×1 到手 | 4102 |
+| **11 OBSIDIAN** | **FAIL —— 身体死了** | 10363 |
+
+### 预登记逐条判
+
+| # | 判据 | 结果 |
+|---|---|---|
+| A | `*.homeElevation` 在到达支一定写 | ✅ **已验** —— food／bed／iron **三处都写了** |
+| B | 差 ≥ +8 ⇒ `towerRecovered` | ⏸ **未触发** —— 三处分别 **−1 ／ +0 ／ +0**，这趟没垒塔 |
+| C | 6+7 级圆石净损 < 5 | 22 → 22 = **0**（上趟 16 → 7 = 9）。数达标，**但 B 未触发** |
+| C2 | 8 级 `cobblestone.before` ≥ 8 | ✅ **已验** —— 22，`furnace.topUp=不需要` |
+| D | topUp 写「差 N 块」⇒ 三行齐 | ⏸ **未触发** —— 写的是「不需要」 |
+| E | 勘测石后备 `furnace.stone.*` | ⏸ **未触发**（预登记时就写明这是正确期待） |
+| F | 8 级 PASS 且 height 越过 FOOD | ✅ **已验** |
+| G | 判词不再点名一条成功的腿 | ⏸ **未触发** —— 8 级过了 |
+| 风险 | 拆塔失败把 BED 判红 | ✅ **没发生** —— BED PASS |
+
+⇒ **J34 记「已修未验」。** 机制判据 B 一次都没被执行：`bed.homeElevation = 差 +0 格`
+说的是**这趟根本没有塔**。净损 9 → 0 是结局不是证据——上趟那 9 块里有多少是塔吃的，
+本趟答不了，因为塔没出现（[[the-ladder-is-not-reproducible]]）。
+
+⚠️ **纪律漏了一条**：跑前我删的是 `results.jsonl` 并「确认不存在」，
+而这个任务真正写的文件叫 **`stagewright-results.jsonl`** ⇒ 那次确认**确认的是一个从不存在的名字**，
+等于没做，只是因为它恰好也不存在才显得通过。这趟是靠时间戳
+（04:47 UTC = 12:47 本地 = 12:20 起跑 + 27m40s）才敢认。
+⇒ 纪律改成：**删之前先 `ls` 出这个任务上次写了哪个文件**，别凭记忆写文件名
+（[[a-verification-tool-needs-verifying-too]]：仪器本身要先校准）。
+
+### 🔴 J39：出井把身体停在水里，下一条腿开着 `goto` 看它淹死（已修 `dbb664d4`）
+
+死因仪器是好的，一行点名：
+
+```
+death.cause      = Player767 died
+death.blow       = drown −2.0→14.0@6；…；drown −2.0→0.0@146   ← 8 次窒息，20→0
+death.standingIn = 脚格/脚下/头格 全是 water[level=8]，坠落距离=0.0
+death.at         = -3, 58, 56    death.legTicks = 146    death.driving = goto
+death.food       = 4/20，饱和度 0.0
+```
+
+上游那一段早就写着结局：
+
+```
+lava.exit#6.endedOn = 脚格=water，脚下=water —— 浮在水里，脚下没有地板；
+                      上面每一级都会从一个正在下沉的身体开始
+lava.exit#6.endedIn = -3,56（起塔柱是 -7,53 —— 不是同一柱）
+lava.exit#6.gained  = 32/37 block(s)      lava.exit#6.walkerFallback = True
+lava_bucket.atSurface = 1                 cast.target = -3, 62, 54
+```
+
+⇒ 身体**带着岩浆浮上了水面**，差 5 格没到目标高度、落点还偏了 4 格到另一柱，
+然后 `goto` 在 146 tick 里把一具正在窒息的身体一路开到死。**离浇筑只差一次。**
+
+🔎 **这不是新机制，是一个已知交接点少了接手方。** `JourneyShaft.recordExit` 的 javadoc
+2026-08-22 就分析过同一形状（`toY=64, gained=20/20` 却浮在水面），并明说不在那里修：
+「Getting out of water is a horizontal problem and it belongs to the caller,
+which is why the iron rung now ends with a walk home.」**铁级接了这条，黑曜石级没接**
+（[[a-fix-that-cannot-reach-its-own-occasion]]）。
+
+修法 `dbb664d4`：`JourneyCast.leaveWithTheLava` 在 `climbOut` 之后插一步 `standOnDryGround`
+——用 `recordExit` 印的那同一条 afloat 判据（脚格与脚下都是流体），是就用既有的
+`JourneyTerrain.dryUnderfoot` 找最近的干柱走上岸，**预算只给 600 tick**（满血溺水 200 tick
+就死，给几千等于重演那条 `goto`）。两个分支都记 `lava.exit.ashore`（含血量与空气值）。
+⚠️ **没有**去改 `recordExit` 成「泡在水里就不算爬完」——它自己的注释已经算过：
+那会掉进一个**当场就已满足**的 `Goal.YLevel(surfaceY)` 后备，等于把同一个问题问两遍。
+
+### 复现计数更新
+
+- **J38**（走到掉落格没捡到）：8 级 `crafting_table.pickup.left#2=1`。仍是**一个样本**。
+  同趟对照组：`bed.r1/r2/r3.pickup.left=0`、`vein1/vein2.pickup.left=0`
+  ⇒ 捡这一族本身是好的，差别在**这一个物品要新槽**。
+- **J37**（丢失分支不去捡）：7 级与 8 级各一条 `lostAfterCraft=…地上掉落 1 个`，
+  连同 j32a 那趟共 **3 次**。
+- 新一条没登记过的：`craftingTable.remade=true` **7 级、8 级各一次** ⇒ 这趟买了**两张**桌子。
+
+---
+
 ## 📐 J33（2026-08-25，读码结案，**只读，没改任何代码**）：两套世界视图给「挖穿」定的不是同一个价
 
 三个 `WorldView` 实现，谁在用哪个是查出来的，不是猜的：
@@ -192,6 +284,77 @@ F 只是结局。上一趟的教训正是**趟级的数是结局不是证据**�
 涉及破坏的路径规划**，那是一趟双 loader 闸都未必压得住的面积；而真梯跑的是
 `ClientWorldView`，跟通关这条主线无关。修法形状（留给 janitor 评估）是把四道税抽成
 一个两边都调用的定价函数，**先加场景把现状钉住，再搬**。
+
+### 📐 J33 搬法评估（2026-08-25，janitor，**只读了码，一行产品代码都没改**）
+
+**第一件事：那张税表少了一行，而且少的这一行方向相反。**
+上表四道税都是「客户端有、服务端没有」＝服务端更松。第五条分歧不是税，是**定价用的是哪把工具**：
+
+| | 拿什么定价 | 扫哪些格 | file:line |
+|---|---|---|---|
+| `LevelWorldView` | **手里正拿着的那件** `s.getDestroyProgress(controller, level, p)` | 只有选中格 | `bot/world/LevelWorldView.java:100` |
+| `ClientWorldView` | **最优工具**（含 Efficiency、Haste/Mining-Fatigue） | 快捷栏 0..8 | `bot/ClientWorldView.java:398-427` |
+| 服务端**执行器** | 破坏前换成最优工具 | **全部 36 格**（超出快捷栏的会被换进选中格） | `bot/sim/ServerPlayerAvatar.java:324-343` |
+
+⇒ **服务端规划器比它自己的执行器严**：身体手里拿着火把去规划挖石头，`getDestroyProgress`
+按空手算，A\* 得到一个几倍高的价并绕开；而真到执行那一刻 `selectTool` 会把镐换上来。
+**这正是同一个类已经修过一次并且立了规矩的形状**——`LevelWorldView.placeableBlockCount`
+的 javadoc（`:126-130`）写着「**每个规划器数它自己那具执行器够得着的范围**」，为此把放置计数
+从快捷栏扩到整包，代价那条 javadoc 也记着（14 级四趟一死）。**破坏这一半没跟上。**
+
+**两个视图的分歧是双向的，随背包状态翻转**，所以「服务端少四道税＝更松」是半句话：
+
+| 分歧 | 服务端相对客户端 | 什么时候咬人 |
+|---|---|---|
+| 浮水破坏 ×25／×5（`ClientWorldView:297-309`，2 参 `breakCost(p,from)`，**`LevelWorldView` 根本没 override**） | **松** | 泡在水里的挖掘被定价成陆地价 |
+| 错工具 ×3 | **松** | 无镐硬啃石头会被 A\* 选中 |
+| 树干税 `pathfinderLogBreakTax` | **松** | 路过森林会穿树而不是绕树 |
+| `pathfinderBreakCostMultiplier` | **松** | 整体偏向挖而不是走 |
+| 工具基准（上表） | **严**（手里不是最优工具时） | 拿着方块/火把规划时，能挖的被判成挖不动 |
+
+**变松是危险方向**（本轮硬规则），但这里两个方向都在，且第五条把前四条部分抵消——
+**这就是为什么不能「让 `LevelWorldView` 直接调 `rawBreakCost`」**：那个函数只扫快捷栏 0..8，
+把它套在一具够得着整包的身体上，等于把 `placeableBlockCount` 刚修好的倒置装回破坏这一侧
+（[[the-hand-is-not-the-bag]] 的第三次现场）。
+
+**搬法（分两笔，分两闸，一笔一个自变量）：**
+
+1. **税是策略，抽成两边共用的纯函数。** 新一个 `BreakPricing`（`bot/world/`），签名只吃
+   已经算好的 `double cost` ＋ 判据所需的 `BlockState` / `isWater(from)` / `isWater(from+1)`，
+   返回上税后的价。四道税照原样搬，**逐字不改**；`ClientWorldView.rawBreakCost` 的尾巴和
+   `breakCost(p,from)` 改成调它，`LevelWorldView` 新增同样的调用与 2 参 override。
+   这一笔**只改服务端**（客户端逐字等价，可用 A/B 断言证），所以红了必定是这一笔。
+2. **工具基准是执行器可达性，留在各视图里，但各自对齐自己的执行器。**
+   `LevelWorldView` 那份改成扫 `controller.getInventory().items` 全部 36 格取最优
+   （`isCorrectToolForDrops` 优先、其次速度——与 `ServerPlayerAvatar.selectTool:338` 逐字同一条比较），
+   **不要**去调客户端那份。客户端保持 0..8，理由与 `placeableBlockCount` 的 javadoc 同一条。
+
+**先钉后搬，钉在哪一趟：**
+
+- 两个视图同时活着的拓扑只有**集成服**（客户端 bot ＋ 服务端身体），先例是
+  `wd.actuatorSplitOnAnAdoptedBody`（`b39d84ab`）——同一格、同一状态，**两个视图各问一次
+  `breakCost` 并把两个数都无条件记进证据**，不做断言方向的猜测。
+- 判据要**在缺陷存在时会红**：布景摆成「手里拿方块、包里有镐、脚下是石头」，
+  钉的就是第 2 笔要修的那一条；水下那一格钉第 1 笔。摆成刚好达标再断言达标 = `0==0`
+  （[[staging-for-rungs-nobody-has-climbed]]）。
+- 场景是**新注册的** ⇒ 同一笔提交必须补 `scripts/stagewright/expected-scenes-fabric.txt`
+  和 `-neoforge.txt`，否则闸以 `UNDECLARED:` 判红。
+- ⚠️ **归因规则写在跑之前**：第 1 笔会动 300 场里每一场涉及破坏的规划，**计划外的红先记它的账**；
+  第 2 笔只在「手里不是最优工具」的场景上有差，先验窄得多。
+
+**面积估计**（决定要不要做）：`LevelWorldView` 是 `ServerWorldDriver:54/:147` 唯一的构造点，
+即 `wd.*` 绝大多数场景的规划器。第 1 笔把服务端从「不上税」变成「上四道税」，
+**方向是变严**——会让原本选择挖穿的路改成绕行，`fail(optional)` 的两条之外任何行走/挖掘族
+的颜色变动都是信号。**这一笔不该和真梯的变量同趟。**
+
+---
+
+## 📌 预登记：`wd.surfacePillarPointerNeedsItsSupport` 落地之后那趟双 loader 闸（2026-08-24，写在跑之前）
+
+> ⚠️ 这个标题 2026-08-25 被我自己删掉过一次：我插入上面那节 J33 时拿它当 `old_string` 的锚点，
+> 却忘了在 `new_string` 里把它写回去，于是这一整节的正文在文件里挂到了 J33 底下，
+> 而下面「判：Fabric 闸／NeoForge 闸」两小节看起来像是 J33 的结果。已补回。
+> ⇒ 纪律：**拿标题当锚点时，`new_string` 必须原样带上那一行**；用正文首句当锚点更安全。
 
 `5f2d3ecf` 把计划从「停在 `dest`」改成「多走一格到 `crest`」，判据从
 `s != WALKING && !placed && !reachedRow`（第三项恒假 ⇒ 整条恒不可满足）
