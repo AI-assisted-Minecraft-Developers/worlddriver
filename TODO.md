@@ -519,6 +519,23 @@ ClassCastException: HashMap$Node cannot be cast to HashMap$TreeNode
 📌 **`GRADLE_EXIT=1` 有两种含义**，别混：判词说 RED 是**红**，一行判词都没有是**死**。
 先数 `VERDICT:` 行，再谈颜色（[[a-verdict-has-upstream-verdicts]] 的同一条纪律）。
 
+### ✅ 判：NeoForge 重跑 `gate-neoforge-j32a.log` —— `VERDICT: GREEN`
+
+`GRADLE_EXIT=0`、`BUILD SUCCESSFUL in 4m 59s`、`COVERAGE: 284 executed / 24 skipped`、
+无 `UNDECLARED:`。整趟零 `ClassCastException` ⇒ 那次转换器崩溃确是偶发。
+
+对 `results-j31d-neoforge.jsonl`：**312 → 315，新增正是那三条，共有集判罚零变化，
+非 PASS 恰好基线 4 条。** 三条的读数与 Fabric **逐字相同**：
+
+```
+…Engages                : 豁免开着 31 tick / 原木采掉了 True / 收尾后还在 False
+…LeavesTheWaiverOff     : 豁免开着  0 tick / 石头采掉了 True / 那根原木还立着 True
+…ReleasedOnSupersede    : 第 0 tick 武装 / 顶替之后还在 False
+```
+
+⇒ **J32-A 回测层双 loader 结案**：推导与释放已验，且两个 loader 上是同一组数。
+**定价那半仍未验**——它只在 `ClientWorldView` 上存在，归现场层（真梯对 run 8）。
+
 ### 该怎么判（现场层，对照 run 8）
 
 ⚠️ 要真的只有一个变量，本趟必须把 `JourneyRig` 钉回 `applyCompiledDefaults()`——
