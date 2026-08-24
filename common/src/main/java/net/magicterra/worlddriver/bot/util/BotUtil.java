@@ -5,7 +5,10 @@ import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.client.Minecraft;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -146,6 +149,39 @@ public final class BotUtil {
             // FLOWING_LAVA FluidTags blind spot).
             Blocks.POINTED_DRIPSTONE
     );
+
+    /**
+     * Does this block state damage a body that stands in it — the SINGLE author of that policy for
+     * every {@link net.magicterra.worlddriver.bot.pathfinder.WorldView} backed by a real level
+     * ({@code ClientWorldView}, {@code bot.world.ServerWorldView}, {@code bot.world.LevelWorldView}).
+     * All three carried their own copy; the three copies happened to agree, which is precisely the
+     * state that a fourth edit ends.
+     *
+     * <p><b>{@link FluidTags#LAVA}, never {@code Fluids.LAVA}.</b> {@code FluidState.is(Fluid)}
+     * compares the exact fluid type, and a lava lake's EDGE and its falls are {@code FLOWING_LAVA}
+     * — under the type compare every flowing cell read as「not a hazard」, so {@code canStandAt}
+     * admitted feet-in-lava nodes, {@code dangerCost} charged nothing and the walker's
+     * {@code hazardAhead} brake stayed blind (round54: the bot waded 6 s through a lava shore at
+     * full sprint, enteredLava ×2). Fixing that meant editing the same four lines in three files;
+     * that is the whole argument for this method.
+     *
+     * <p>Fire goes by {@link BlockTags#FIRE} so a datapack-added fire block is covered
+     * automatically; everything else is {@link #HAZARD_BLOCKS} by block reference. The
+     * user-configurable {@code BotConfig.extraHazardBlocks} (Baritone-style {@code blocksToAvoid})
+     * is checked LAST so the built-ins stay short-circuit cheap.
+     *
+     * <p><b>Not every {@code isHazard} belongs here.</b> {@code bot.debug.GridWorldView} answers a
+     * flat {@code false} on purpose — it is a synthetic grid for the path-debug tools with no level
+     * to ask — so it is a fourth answer to a different question, not a straggler to route in.
+     */
+    public static boolean isHazardState(BlockState s) {
+        if (s.getFluidState().is(FluidTags.LAVA)) return true;
+        if (s.is(BlockTags.FIRE)) return true;
+        if (HAZARD_BLOCKS.contains(s.getBlock())) return true;
+        Set<String> extras = BotConfig.extraHazardBlocks;
+        return !extras.isEmpty()
+                && extras.contains(BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString());
+    }
 
     /** Cheap stand finder: 4 cardinals at same Y, then Y-1, then Y+1, then on
      *  top of the block. Water counts as passable. Used by the goto block
