@@ -1434,7 +1434,16 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
-        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+        // MUD, and this scene is unstageable without it. What it needs is a click vanilla ACCEPTS
+        // while the body is inside the very cell being filled — the positive scene next door is the
+        // one that needs a refusal. isUnobstructed tests the collision shape of the state being
+        // PLACED, and mud's is 14/16 = 0.875 tall (MudBlock.SHAPE; its getBlockSupportShape is the
+        // full cube, a different shape), so a body pinned at fill.y + 0.95 clears it by 0.075 and
+        // the placement lands. With a full cube in hand — this scene held cobblestone until
+        // 2026-08-24 — NO pin height works: the crest gate wants ≥ 0.9 into the cell and vanilla
+        // wants ≥ 1.0 above it, and at 1.0 the foot cell moves up and the fill cell moves with it,
+        // so the requirement chases itself forever.
+        fp.getInventory().add(new ItemStack(Items.MUD, 64));
         fp.getInventory().selected = 0;
 
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -1447,6 +1456,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // actually filled. -1 = no fill was ever observed, which the guards below turn into a
         // staging failure rather than a pass.
         int ledgerAfterFill = -1;
+        // The counter ON the fill tick. Without it, "0 afterwards" is satisfied by a counter that
+        // was never anything else and the assertion below degenerates to 0 == 0.
+        int ledgerAtFill = -1;
+        boolean fillPending = false;
+        boolean engagedAtRead = false;
         int footLow = Integer.MAX_VALUE, footHigh = Integer.MIN_VALUE;
         java.util.Set<BlockPos> wasWater = new java.util.HashSet<>();
         Walker.Step s = Walker.Step.WALKING;
@@ -1469,14 +1483,31 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 // the landing half (a), which is what this scene is for. Held still, foot.getY()
                 // cannot refresh the high-water mark after the first tick, so (a) is the only
                 // reset left and the assertion below is about it alone.
-                fp.setPos(cx + 0.5, surface + 1.05, cz + 1.5);
+                // INSIDE the top water cell, inside the crest band. surface + 0.95 keeps colFoot a
+                // WATER cell, so fillCell stays the locked column's top cell instead of degenerating
+                // to the body's own foot cell one row higher. The old pin (surface + 1.05) lifted the
+                // feet out of the water, which made the gate ask for surface + 2.0 — a height the pin
+                // itself forbade — so the click could never fire and this scene could only ever fail.
+                fp.setPos(cx + 0.5, surface + 0.95, cz + 1.5);
                 fp.setDeltaMovement(0, 0, 0);
                 footLow = Math.min(footLow, fp.blockPosition().getY());
                 footHigh = Math.max(footHigh, fp.blockPosition().getY());
-                // Did THIS tick turn a water cell solid? Then the very next reading of the ledger
-                // is the one the fix is about.
-                if (top != null && !wasSolidBefore && w.isSolid(top) && ledgerAfterFill < 0)
+                // ONE TICK LATER, and it is not an off-by-one worth tidying away. climboutPlaceTick
+                // reads the ledger BEFORE it clicks, so on the tick a cell turns solid the counter
+                // still holds the value it was incremented to at the top of that same tick. `landed`
+                // is a world reading and the world cannot answer until the next tick — that lag IS
+                // the mechanism this scene exists to prove, so the read has to sit on the far side
+                // of it. Also record whether the takeover was still engaged at that moment: every
+                // bail path zeroes the same counter, so a bare 0 does not name its own cause.
+                if (fillPending && ledgerAfterFill < 0) {
                     ledgerAfterFill = walker.pillarNoPlaceTicks();
+                    engagedAtRead = walker.pillarEngaged();
+                    fillPending = false;
+                }
+                if (top != null && !wasSolidBefore && w.isSolid(top) && ledgerAtFill < 0) {
+                    ledgerAtFill = walker.pillarNoPlaceTicks();
+                    fillPending = true;
+                }
             }
         }
         for (BlockPos c : wasWater) if (w.isSolid(c)) filled++;
@@ -1484,7 +1515,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
         ctx.record("闸.接管次数", engages);
         ctx.record("柱.真的垫上了几格", filled + "/" + wasWater.size());
+        ctx.record("账.落地那一tick", ledgerAtFill < 0 ? "没观察到落地" : String.valueOf(ledgerAtFill));
         ctx.record("账.落地后的计数", ledgerAfterFill < 0 ? "没观察到落地" : String.valueOf(ledgerAfterFill));
+        ctx.record("账.读数时接管还在吗", engagedAtRead);
         ctx.record("脚.格高范围", footLow > footHigh ? "没钉过" : "[" + footLow + ", " + footHigh + "]");
         ctx.record("走.收尾", s + "（用了 " + t + "/60 tick）");
         ctx.record("走.探针", walker.progressProbe());
@@ -1498,8 +1531,20 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             ctx.fail("pillarLedgerReal: 整趟没有观察到任何一格从水变成实心（成了 " + filled + " 格，"
                     + "落地后读数=" + ledgerAfterFill + "）—— 这条场景要断言的是「真放成了就会清零」，"
                     + "而前提「真放成了」没有成立。这时候计数器是 0 什么也证明不了（没放成、没engage、"
-                    + "一切顺利，三种情况都会是 0）。要修的是布景：身体钉在 " + (surface + 1.05)
-                    + "，高于填充格 1.0，vanilla 本该接受。");
+                    + "一切顺利，三种情况都会是 0）。要查的是布景两件事：身体钉在 " + (surface + 0.95)
+                    + "（必须落在填充格内的 [+0.9, +1.0) 带里，且脚仍泡在水里，否则 fillCell 会退化成"
+                    + "上一格、判据变成恒假），以及手里必须是泥这类碰撞盒 ≤ 0.875 的方块——满格方块"
+                    + "在这条带里会被 vanilla 拒，永远落不了地。");
+        // The counter has to have BEEN something before the landing zeroed it. Otherwise the
+        // assertion below is 0 == 0 and passes on a run where the ledger never counted anything.
+        if (ledgerAtFill <= 0)
+            ctx.fail("pillarLedgerReal: 落地那一 tick 账本读数是 " + ledgerAtFill + " —— 它在落地之前"
+                    + "就没累加过，那么「落地之后是 0」不构成证据（0 → 0 不是清零）。");
+        // Every bail path zeroes the same counter (WalkerTickClimb 释放时 pillarNoPlaceTicks = 0),
+        // so a zero read after a bail answers this scene's question without the landing doing it.
+        if (!engagedAtRead)
+            ctx.fail("pillarLedgerReal: 读到清零的那一刻接管已经不在了 —— 每一条 bail 都会把同一个"
+                    + "计数器清零，所以这个 0 说不出自己的来历，这一趟证不了「落地清零」。");
         // (b) MUST NOT BE THE EXPLANATION. The body is held at one absolute height, so foot.getY()
         // is constant and the high-water half of the reset rule cannot refresh after the first
         // tick. If this range is wider than one cell the pin failed, and a green run below would be

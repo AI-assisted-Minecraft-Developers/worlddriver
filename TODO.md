@@ -204,6 +204,41 @@ canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader
 修法在 StageWright 那边：那行改成三个数都说出来（executed / failed / skipped），
 或把 `executed` 改成它实际的意思。⚠️ **别为这个中途切仓**，worlddriver 这边的活先做完。
 
+## 📌 预登记：J31 修法闸（写在跑之前，2026-08-24）
+
+改动：`crestClearOf`(+0.9) 回到 `climboutPlaceTick`；`feetClearOf`(+1.0) 留在另两处；
+`need=` 日志参数跟着走；反向场景改钉位（`surface+0.95`）+ 换泥 + 读数延后一 tick + 两条新守卫；
+新增只读探针 `Walker.pillarEngaged()`；三处已证伪的注释改写。**没有新增场景 ⇒ `expected-scenes-*.txt` 不动。**
+
+**该是什么颜色**：312 条，基线 4 条非 PASS（`canaryMustFail`、`canaryMustTimeout`、
+`wd.vineOverWaterClimb` fail-optional、`wd.serverEscapeSealedShelter` fail-optional）⇒ **两个 loader 都该 GREEN**。
+若实际不是，**从 `VERDICT:` 往上读**（`UNDECLARED:` / `COVERAGE:` / canary 都能单独变红）。
+
+| 场景 | 预登记判据 | 三态 |
+|---|---|---|
+| `wd.waterLowBank` | PASS，且带 BEFORE 的签名：三次 `cleared=true` 落在 `.98`、起跳弧 +0.42/+0.33/+0.25、`ARRIVED`、`bobTicks` 回到 ~38（不是 495） | 已验／未触发／证伪 |
+| `wd.pillarLedgerCountsRefusedPlaces` | PASS，且**这次点击真的开火了**：`账.计数峰值≈51`、`账.判过徒劳吗=True`、`柱.那一格实心了吗=False`（圆石在 0.95 被原版拒）、`带.身体高于填充格=[0.950, 0.950]` | 已验／未触发／证伪 |
+| `wd.pillarLedgerClearsOnARealPlace` | PASS：`柱.真的垫上了几格≥1/N`、`账.落地那一tick>0`、`账.落地后的计数=0`、`账.读数时接管还在吗=True`、`脚.格高范围` 是单格 | 已验／未触发／证伪 |
+| 其余 308 条 | 与 j31b 那趟**同名同判**，一条都不许动 | 已验／未触发／证伪 |
+
+⚠️ **最容易骗过我的两种绿**：
+1. 正向场景仍 PASS，但 `柱.那一格实心了吗=True` —— 那说明手里不是满格方块／带位算错，
+   它测的就不再是「被拒的点击不算进展」，**是变弱不是变强**；
+2. 反向场景 PASS 而 `账.落地那一tick=0` —— 被新守卫拦住才对，若没拦住说明守卫本身没跑到。
+
+### 一处**没有**照建议改的地方，连同理由（下次咨询要提）
+
+建议是「`:553` 和 `:927` 都退回 `+0.9`」。我只改了 `:553`（自柱那一处），
+`:927`（现 `:1031`）**保持 `feetClearOf` 的 `+1.0`**，依据两条：
+
+- 那一处填的是 `edge.toPlace.get(0)`，代码自己注掉是「**old feet cell**」——跳起来之后往回填，
+  不是身体当下所在的格，所以 `+1.0` 在那里**可满足**（同段注释记着浮力波峰到 63.08 ≥ fill.y+1.0）；
+- 它取的是 `holdThrowawayPlaceable()`，即满格方块，`+1.0` 正是它们的真边界；
+- 而且 `1c015469` 把它从 0.9 改到 1.0 之后，**回归面只有 `wd.waterLowBank` 一条**，
+  没有任何场景为这一处变色 ⇒ 没有证据说它需要退回。
+
+---
+
 ## ⛔⛔ J31 第三次改判（2026-08-24）：唯一的结构性分歧是**阈值**，账本清白
 
 下面整节（`b2793ba4` → `8ca35aa9` → `b3b25eeb` 三版叙事）**作废**，保留原文只为对照。

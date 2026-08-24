@@ -677,6 +677,13 @@ public final class Walker {
      *  must sample it per tick rather than read it at the end. */
     public boolean pillarPlaceFutile() { return waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS; }
 
+    /** Is the climb-out takeover still holding the body? Exposed because {@link #pillarNoPlaceTicks}
+     *  reading zero is AMBIGUOUS on its own: the ledger is zeroed both by a landing (the thing a
+     *  scene wants to prove) and by every bail path (WalkerTickClimb releases and resets). A scene
+     *  asserting "a real place cleared the counter" has to be able to say the takeover was still
+     *  engaged when it read the zero, or a bail one tick earlier answers its question for it. */
+    public boolean pillarEngaged() { return waterClimb.pillaring; }
+
     /** Read-only one-line probe of the follow state (step pointer, carrot node,
      *  best-effort/burst/churn/escalation counters) for test-scene diagnostics —
      *  the package-private fields are invisible to testmod scene classes and the

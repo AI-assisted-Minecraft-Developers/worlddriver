@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-24
+
+- **The water climb-out gets its own crest gate back, because the unified one was unsatisfiable
+  there.** Four sites asked "have the feet risen clear of this cell so vanilla will accept a block
+  in it", two with `+0.9` and two with `+1.0`, and the two constants were folded into one
+  `feetClearOf` at `+1.0` on the reading that `[+0.9, +1.0)` is a band vanilla always refuses. Both
+  halves of that reading were wrong. `isUnobstructed` tests the collision shape of the state being
+  **placed**, not the cell it goes into, and the block this takeover carries is mud —
+  `MudBlock.SHAPE = Block.box(0,0,0,16,14,16)`, 0.875 tall, as are soul sand, farmland and dirt
+  path — so a body at `cell.y + 0.95` clears it by 0.075 and the placement lands. Worse, on the
+  locked column the fill cell IS the body's own foot cell, where `p.getY() >= floor(p.getY()) + 1.0`
+  is a contradiction: the gate was not tightened, it was welded shut, for every body and every held
+  item. `crestClearOf` (`+0.9`) is back at that one site, `feetClearOf` keeps `+1.0` at the two that
+  fill the OLD feet cell after a jump — reachable at the bob crest, and the right boundary for the
+  full cubes those hold. The debug line's `need=` prints the bound it actually used.
+
+- **`wd.waterLowBank` was the whole mechanism in eight ticks, and nobody had read it.** The
+  regression surface of the unification was exactly one scene, and the two runs are line-identical
+  through it except for one field: `cleared=true(p.y=206.98 need=206.9)` against
+  `cleared=false(p.y=206.98 need=207.0)`. What follows the `true` is the climb-out working — the
+  cell turns solid, `soleOnSolid` reads a full footprint, the ground-jump gate fires `+0.42`, and
+  the body arrives one cell higher to do it again, three times, out of the water. Three successive
+  commits had explained that as「the clicks are all refused and the body walks out on the forward
+  press」and built a comment, a ledger clause and a scene assertion on top of it.
+
+- **`wd.pillarLedgerClearsOnARealPlace` can now stage what it asserts.** It pinned the body at
+  `surface + 1.05` holding cobblestone, which lifts the feet out of the water: `colFoot` stops being
+  water, the fill cell degenerates to the foot cell one row up, and the gate starts asking for
+  `surface + 2.0` — a height the pin itself forbids. It could only ever fail. Now it pins inside the
+  band (`surface + 0.95`, feet still in water) and holds mud, so the click lands legally. Two guards
+  came with it, because a bare zero does not name its own cause: the counter must have been non-zero
+  **on** the fill tick (or the assertion is `0 == 0`), and the takeover must still be engaged when
+  the zero is read (every bail path zeroes the same counter). The read itself moved one tick later,
+  which is where it always belonged — `climboutPlaceTick` reads the ledger before it clicks, so the
+  landing is only visible to the next tick. `Walker.pillarEngaged()` exists for that second guard.
+
 ## 2026-08-22
 
 - **`ServerPlayerAvatar` publishes the selected slot instead of writing it in secret.** Every place

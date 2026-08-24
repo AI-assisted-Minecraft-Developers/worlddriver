@@ -101,14 +101,49 @@ final class WalkerTickClimb {
      * "will be placed" and "will be silently refused" — there is nothing to tune, and a looser
      * number does not buy earlier placements, it buys refusals.
      *
-     * <p>Two of the four call sites used to ask for {@code 0.9}. That 0.1-block band is where every
-     * click is refused, and the climb-out's futility ledger used to zero itself on the CLICK, so a
-     * body bobbing through the band reset the counter forever and the dig fallback behind it could
-     * never take the bank. One predicate now, so a fifth site cannot invent a sixth constant.
+     * <p><b>This is the FULL-CUBE boundary, and it is only that.</b> {@code isUnobstructed} tests the
+     * collision shape of the state being PLACED, not the cell it goes in, so the number above is the
+     * boundary for a block whose collision box is a whole cube. The climb-out places a different kind
+     * of block into a different kind of cell and needs {@link #crestClearOf}; unifying the two is what
+     * regressed {@code wd.waterLowBank}, because for that call site this predicate is not merely
+     * stricter — it is unsatisfiable (see there).
      */
     static boolean feetClearOf(Player p, BlockPos cell) {
         return p.getY() >= cell.getY() + 1.0;
     }
+
+    /**
+     * The climb-out's own crest gate: may the body click NOW, into the cell it is standing in?
+     *
+     * <p><b>Why {@link #feetClearOf} cannot be used here.</b> On the locked column the fill cell IS
+     * the body's foot cell ({@code colFoot == foot}), so "feet entirely above the cell" expands to
+     * {@code p.getY() >= floor(p.getY()) + 1.0} — a contradiction. Asking it here does not place
+     * fewer blocks, it places NONE, for every body and every held item; the whole self-column family
+     * goes silent. {@code [cell.y+0.9, cell.y+1.0)} is the ONLY window in which a self-column click
+     * can exist at all.
+     *
+     * <p><b>Why a click in that window is not automatically refused.</b> Vanilla intersects the body
+     * against {@code state.getCollisionShape(...)}, and the blocks this takeover actually carries are
+     * not full cubes: {@code MudBlock.SHAPE = Block.box(0,0,0,16,14,16)} — 14/16 = 0.875 tall, as are
+     * soul sand, farmland and dirt path. (Its {@code getBlockSupportShape} IS the full cube; they are
+     * different shapes and only the collision one is asked here.) A body at {@code cell.y + 0.95}
+     * clears mud's top by 0.075 and vanilla accepts. That is not a loophole — it is the mechanism the
+     * water-bank climb-out is built on: fill the cell under your own feet, then jump off it, one cell
+     * per cycle.
+     *
+     * <p><b>What it costs when the hand holds a full cube.</b> The click fires and vanilla refuses it.
+     * That is correct and, since {@code 3160836}, free: the futility ledger counts LANDINGS, not
+     * clicks, so a refused click reads as no progress and the dig fallback still gets the bank on
+     * schedule. Before that ledger existed this gate had to be conservative to keep refusals from
+     * laundering themselves into progress; it no longer does.
+     */
+    static boolean crestClearOf(Player p, BlockPos cell) {
+        return p.getY() >= cell.getY() + CREST_CLEAR;
+    }
+
+    /** The crest gate's bound — {@link #crestClearOf}. Above mud's 0.875 collision top with 0.025 to
+     *  spare, and below the 1.0 a full cube needs, which is exactly the discrimination wanted. */
+    private static final double CREST_CLEAR = 0.9;
 
     /**
      * One tick of the climb-out's place attempt, and of the ledger that decides when to stop trying.
@@ -129,20 +164,23 @@ final class WalkerTickClimb {
                                           BlockPos fillCell, BlockPos foot, boolean dryGrounded) {
         boolean fcSolid = world.isSolid(fillCell);
         boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
-        boolean fcCleared = feetClearOf(p, fillCell);
+        boolean fcCleared = crestClearOf(p, fillCell);
         if (BotConfig.walkerDebug)
             LOG.info("[walker] climbout-place col={},{} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) dryG={} foot.y={} ceil={}",
                     wk.waterClimb.colX, wk.waterClimb.colZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
-                    String.format("%.2f", p.getY()), fillCell.getY() + 1.0,
+                    String.format("%.2f", p.getY()), fillCell.getY() + CREST_CLEAR,
                     dryGrounded, foot.getY(), wk.waterClimb.targetY);
-        // TWO ways to be making progress, because this takeover has two products. On a bank it
-        // FILLS a cell; on a low bank its whole output is「locked heading + forward press + jump」
-        // and the body walks itself up without a single block landing. wd.waterLowBank is the
-        // second kind: three clicks, all three refused (the body is dead centre in its own column,
-        // so the AABB intersects on all three axes), and it still reached the bank — on the press.
-        // A ledger that only counted landings called that futile and cut the takeover at 51 ticks,
-        // six times, each cut re-locking the column and dropping the press. It was judging the
-        // takeover by a product it does not provide.
+        // TWO ways to be making progress, and the second one is not a courtesy. The takeover's
+        // product is「fill the cell under my own feet, then jump off it」, one cell per cycle — the
+        // fill and the rise are two readings of ONE event, taken a tick apart, and either may be the
+        // one this tick can see. wd.waterLowBank is the whole cycle in eight ticks: click at X.98,
+        // the cell turns solid, soleOnSolid reads a full footprint, the ground-jump gate fires
+        // +0.42, and the body arrives at (X+1).98 to do it again — three times, out of the water.
+        // Counting only the click is what broke: Avatar#place returns void, so a refused click and a
+        // landed one were the same event, and a body bobbing in a band it could never place from
+        // pressed the button forever while the dig fallback behind it could not fire.
+        // The rise half is bounded by the pillar ceiling and monotone (high-water, never a per-tick
+        // delta), so it cannot launder buoyancy into progress the way「higher than last tick」would.
         BlockPos tried = wk.waterClimb.placeAttemptCell;
         boolean landed = tried != null && world.isSolid(tried);
         // HIGH-WATER, never a per-tick delta. The bob crosses a block boundary every cycle, so
@@ -972,13 +1010,18 @@ final class WalkerTickClimb {
             // not a flooded chimney. Floating higher is physically impossible (rig
             // 371.5,62,348.5: jump+buoyancy bob ceiling 63.08 vs the 63.9 the flooded-
             // shaft float path would need), so case (a) float-through starves forever
-            // while the ONLY ticks that could truly place (bob crest ≥ fill.y+1.0,
-            // 63.0-63.08 ≈ 1-2 ticks/bob) are spent in this branch NOT placing — and
-            // the lower-gated climbout-place takeover (0.9 threshold) clicks only in
-            // the 62.9-63.0 band where vanilla silently rejects the still-overlapping
-            // AABB. The two place paths miss each other's windows = the deterministic
-            // water-bank pillarUp deadlock. Treat the surface cell as case (b): jump
-            // and crest-place the support.
+            // while the only ticks that could place the FULL CUBE this branch carries
+            // (bob crest ≥ fill.y+1.0, 63.0-63.08 ≈ 1-2 ticks/bob) are spent in this
+            // branch NOT placing = the deterministic water-bank pillarUp deadlock.
+            // Treat the surface cell as case (b): jump and crest-place the support.
+            //
+            // The climbout-place takeover next door is gated lower (crestClearOf, 0.9)
+            // and clicks in the 62.9-63.0 band. That is NOT a dead band, which this
+            // comment used to claim: isUnobstructed tests the collision shape of the
+            // state being PLACED, and that takeover carries mud — 14/16 = 0.875 tall —
+            // so its clicks land there. The two paths are gated for different BLOCKS,
+            // not for different luck; this one holds throwaway full cubes and 1.0 is
+            // its real boundary. See crestClearOf for the whole argument.
             //
             // That carve-out now lives in floodedShaft() because WalkerTickProgress has
             // to reach the same answer; when it was written here only, Progress kept
