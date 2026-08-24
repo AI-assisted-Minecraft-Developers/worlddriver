@@ -102,6 +102,14 @@ public final class MineProcess implements BotProcess {
      * assignment sites. Dying up a tree would otherwise leave the waiver set for the rest of the
      * session — every subsequent journey silently priced at 1.0, which is the regression the tax
      * was added to fix.
+     *
+     * <p><b>Where that call actually happens</b>, because grepping {@code BotApiImpl} for
+     * {@code onCancelled} returns nothing and reads as「it never gets called」: the client funnel is
+     * {@code cancelAllProcesses → cancelCurrent → UserTaskChain.cancel}, and the call is on
+     * {@code UserTaskChain:47}. Starting a new order funnels there too — {@code setProcess} cancels
+     * the outgoing process with {@code "superseded"} before attaching the new one. The server rig's
+     * two entry points ({@code ServerWorldDriver.runProcess} / {@code mine}) did NOT, and were given
+     * the same door for this waiver's sake.
      */
     private static volatile MineProcess logWaiverOwner;
 
