@@ -119,7 +119,15 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 Scene.of("wd.deepWaterCross", 200, WorldDriverWaterBankScenes::deepWaterCross),
                 Scene.of("wd.deepWaterClimboutNoBlock", 200, WorldDriverWaterBankScenes::deepWaterClimboutNoBlock),
                 Scene.of("wd.deepWaterClimboutDrift", 200, WorldDriverWaterBankScenes::deepWaterClimboutDrift),
-                Scene.of("wd.waterFarAimBankCorner", 200, WorldDriverWaterBankScenes::waterFarAimBankCorner));
+                Scene.of("wd.waterFarAimBankCorner", 200, WorldDriverWaterBankScenes::waterFarAimBankCorner),
+                // J31, a pair. Neither is about whether the body climbs — both are about what the
+                // place-futility ledger counts. The positive one cannot pass while the counter is
+                // zeroed by the CLICK; the negative one cannot pass if the counter is made to
+                // increment unconditionally, which is the regression the positive one invites.
+                Scene.of("wd.pillarLedgerCountsRefusedPlaces", 500,
+                        WorldDriverWaterBankScenes::pillarLedgerCountsRefusedPlaces),
+                Scene.of("wd.pillarLedgerClearsOnARealPlace", 500,
+                        WorldDriverWaterBankScenes::pillarLedgerClearsOnARealPlace));
     }
 
     /** Inlined from {@code AgentGameTestSupport#buildWaterColumn}: 5x5 stone-walled tank,
@@ -1180,5 +1188,237 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             ctx.fail("waterFarAimBankCorner: bot failed to round the divider to the goal"
                     + " (far-aim rammed the wall through-LOS?): dGoal=" + dGoal + " pos=(" + fp.getX() + ","
                     + fp.getY() + "," + fp.getZ() + ") step=" + s);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+    // The place-futility LEDGER (J31). Two scenes, and neither is about whether the body climbs.
+    //
+    // WalkerTickClimb's climb-out place branch resets `pillarNoPlaceTicks` on the tick it CLICKS,
+    // not on the tick the block LANDS — and `Avatar.place` is `void`, so the click has no verdict
+    // to record. The window that makes this fatal is real: the crest gate admits the body at
+    // `cell.y + 0.9`, while vanilla's Level#isUnobstructed refuses any placement whose cell still
+    // intersects the body's AABB, i.e. until `cell.y + 1.0`. Inside that 0.1-block band every
+    // click is refused and every refusal zeroes the counter, so `placeFutile` can never become
+    // true and the dig fallback behind it can never take the bank.
+    //
+    // ⚠️ Both scenes PIN the body's Y rather than letting it bob. That is deliberate: the subject
+    // is the LEDGER, and a bob that has to land inside a 0.1-block band on its own would make the
+    // arena a coin toss. The pin is staging, not the thing under test — which is also why neither
+    // scene asserts anything about height gained.
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+
+    /** Basin + bank shared by the two ledger scenes: deep water the body floats in, a bank it wants
+     *  to climb (so the climb-out takeover engages), dry land beyond. Returns the goal. */
+    private static BlockPos buildLedgerBasin(ServerLevel level, int cx, int cz, int floorY, int surface) {
+        final int span = 3, bankTop = surface + 1;
+        for (int dx = -2; dx <= span + 4; dx++)
+            for (int dz = -3; dz <= 3; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        for (int dx = -2; dx <= span; dx++)
+            for (int y = floorY + 1; y <= surface + 3; y++) {
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz - 3), Blocks.STONE.defaultBlockState());
+                level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + 3), Blocks.STONE.defaultBlockState());
+            }
+        for (int dz = -3; dz <= 3; dz++)
+            for (int y = floorY + 1; y <= surface + 3; y++)
+                level.setBlockAndUpdate(new BlockPos(cx - 2, y, cz + dz), Blocks.STONE.defaultBlockState());
+        for (int dx = -1; dx < span; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int y = floorY + 1; y <= surface; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.WATER.defaultBlockState());
+                for (int y = surface + 1; y <= surface + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        for (int dx = span; dx <= span + 4; dx++)
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int y = floorY + 1; y <= bankTop; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.DIRT.defaultBlockState());
+                for (int y = bankTop + 1; y <= bankTop + 4; y++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.AIR.defaultBlockState());
+            }
+        return new BlockPos(cx + span + 2, bankTop + 1, cz);
+    }
+
+    /** Topmost water cell of the column the body floats in, or null once the column is filled. */
+    private static BlockPos topWater(LevelWorldView w, int cx, int cz, int floorY, int surface) {
+        for (int y = surface; y > floorY; y--) {
+            BlockPos c = new BlockPos(cx, y, cz);
+            if (w.isWater(c)) return c;
+        }
+        return null;
+    }
+
+    /**
+     * J31 POSITIVE: every place is refused, so the ledger must reach futility and hand the bank to
+     * the dig. Pins the body inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says
+     * "go", vanilla says "no" — and asserts {@code pillarNoPlaceTicks} climbs past
+     * {@link WalkerConstants#PILLAR_FUTILE_TICKS} anyway.
+     *
+     * <p>Before the fix this could not pass: the click zeroed the counter every tick, so the maximum
+     * it ever reached was 1.
+     */
+    private static void pillarLedgerCountsRefusedPlaces(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY(), surface = floorY + 8;
+        BlockPos goal = buildLedgerBasin(level, cx, cz, floorY, surface);
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = true;
+        BotConfig.allowBreak = true;
+        BotConfig.allowSwimEscapeBreak = true;        // digFallbackHere, else placeFutile hands off to nothing
+        BotConfig.walkerPillarSurfacePlace = true;    // J32: the baseline pins this OFF, and the branch is its only reader
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        SimProbes.grantWaterEffects(fp);
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));   // haveBlock, and NOT a FallingBlock
+        fp.getInventory().selected = 0;
+
+        LevelWorldView w = new LevelWorldView(level, fp);
+        if (!BotConfig.walkerPillarSurfacePlace)
+            ctx.fail("pillarLedger: walkerPillarSurfacePlace 是关的，水面爬出那条路根本走不到，断言会退化成 0==0。");
+
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+        final int engages0 = Walker.waterPillarEngages;
+        int maxNoPlace = 0;
+        // Sampled per tick, never at the end: the tick placeFutile goes true the takeover releases
+        // and zeroes the counter (WalkerTickClimb:500-502), so a post-hoc read always sees 0.
+        boolean sawFutile = false;
+        BlockPos pinnedAt = null;
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+            s = walker.tick(av, w);
+            av.step();
+            if (walker.pillarPlaceFutile()) sawFutile = true;
+            // THE BAND. Hold the feet 0.95 above the top water cell's floor: past the 0.9 crest
+            // gate, short of the 1.0 vanilla needs. Re-applied every tick because the climb-out
+            // drives forward and jumps, and one un-pinned tick is one tick of real physics.
+            BlockPos top = topWater(w, cx, cz, floorY, surface);
+            if (top != null) {
+                pinnedAt = top;
+                fp.setPos(cx + 0.5, top.getY() + 0.95, cz + 0.5);
+                fp.setDeltaMovement(0, 0, 0);
+            }
+            maxNoPlace = Math.max(maxNoPlace, walker.pillarNoPlaceTicks());
+        }
+        int engages = Walker.waterPillarEngages - engages0;
+
+        ctx.record("闸.接管次数", engages);
+        ctx.record("账.计数峰值", maxNoPlace);
+        ctx.record("账.判过徒劳吗", sawFutile);
+        ctx.record("柱.钉住格", pinnedAt == null ? "无（水柱被填满了）" : pinnedAt.toShortString()
+                + " 身体y=" + String.format("%.3f", fp.getY()));
+        ctx.record("柱.那一格实心了吗", pinnedAt != null && w.isSolid(pinnedAt));
+        ctx.record("走.收尾", s + "（用了 " + t + "/400 tick）");
+        ctx.record("走.探针", walker.progressProbe());
+
+        // VACUITY, and this one is load-bearing: with the defect present the counter is 0 because
+        // every click zeroes it, and with the takeover never engaged it is 0 because the branch
+        // never ran. Those two look identical from the counter alone, so the engage count has to
+        // be asked separately or a staging failure would read as a reproduction of the defect.
+        if (engages == 0)
+            ctx.fail("pillarLedger: 水中爬出接管一次都没 engage —— 这一趟没有走到被测的那段代码，"
+                    + "计数器是 0 说明的是布景不对，不是账本有问题。探针=" + walker.progressProbe());
+        if (pinnedAt != null && w.isSolid(pinnedAt))
+            ctx.fail("pillarLedger: 钉住的那一格 " + pinnedAt.toShortString() + " 竟然变实心了 —— "
+                    + "0.95 这个高度本该被 Level#isUnobstructed 拒绝，布景没有造出「必然被拒」的带。");
+
+        if (!sawFutile)
+            ctx.fail("这本账记的是动作不是结果：连续 " + t + " tick 每一次放置都被 vanilla 拒绝（"
+                    + "身体钉在 " + (pinnedAt == null ? "?" : String.valueOf(pinnedAt.getY() + 0.95))
+                    + "，够得着 0.9 的闸但够不着 1.0 的物理线），而 placeFutile 一次都没为真，"
+                    + "pillarNoPlaceTicks 峰值只有 " + maxNoPlace + "。"
+                    + "WalkerTickClimb 在 a.place() 之后无条件把计数器清零，而 Avatar.place 是 void、"
+                    + "根本没有成功与否可报 —— 于是 placeFutile 永远为假，它后面那条挖掘后备永远接不了管。");
+    }
+
+    /**
+     * J31 REVERSE: a place that really lands must NOT be counted as futile. Pins the body at
+     * {@code cell.y + 1.05} so vanilla accepts, and asserts the cell actually filled BEFORE
+     * asserting the ledger stayed under the futility line.
+     *
+     * <p>The order matters. "nothing was placed and nothing gave up" and "things were placed so
+     * nothing gave up" print the same verdict, so the fill has to be proven first or this scene is
+     * 0==0 — and it would then pass just as happily against a ledger that increments unconditionally,
+     * which is the exact regression the positive scene's fix could introduce.
+     */
+    private static void pillarLedgerClearsOnARealPlace(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
+        final int floorY = ctx.origin().getY(), surface = floorY + 8;
+        BlockPos goal = buildLedgerBasin(level, cx, cz, floorY, surface);
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        BotConfig.allowPlace = true;
+        BotConfig.allowBreak = true;
+        BotConfig.allowSwimEscapeBreak = true;
+        BotConfig.walkerPillarSurfacePlace = true;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(() -> fp.discard());
+        SimProbes.grantWaterEffects(fp);
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.COBBLESTONE, 64));
+        fp.getInventory().selected = 0;
+
+        LevelWorldView w = new LevelWorldView(level, fp);
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(goal));
+        final int engages0 = Walker.waterPillarEngages;
+        int maxNoPlace = 0, filled = 0;
+        boolean sawFutile = false;
+        java.util.Set<BlockPos> wasWater = new java.util.HashSet<>();
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        for (; t < 400 && s == Walker.Step.WALKING; t++) {
+            BlockPos top = topWater(w, cx, cz, floorY, surface);
+            if (top != null) wasWater.add(top);
+            s = walker.tick(av, w);
+            av.step();
+            if (walker.pillarPlaceFutile()) sawFutile = true;
+            // 1.05, not 0.95: clear of the cell by vanilla's own rule, so the click lands.
+            BlockPos nowTop = topWater(w, cx, cz, floorY, surface);
+            if (nowTop != null) {
+                fp.setPos(cx + 0.5, nowTop.getY() + 1.05, cz + 0.5);
+                fp.setDeltaMovement(0, 0, 0);
+            }
+            maxNoPlace = Math.max(maxNoPlace, walker.pillarNoPlaceTicks());
+        }
+        for (BlockPos c : wasWater) if (w.isSolid(c)) filled++;
+        int engages = Walker.waterPillarEngages - engages0;
+
+        ctx.record("闸.接管次数", engages);
+        ctx.record("账.计数峰值", maxNoPlace);
+        ctx.record("账.判过徒劳吗", sawFutile);
+        ctx.record("柱.真的垫上了几格", filled + "/" + wasWater.size());
+        ctx.record("走.收尾", s + "（用了 " + t + "/400 tick）");
+        ctx.record("走.探针", walker.progressProbe());
+
+        if (engages == 0)
+            ctx.fail("pillarLedgerReal: 接管一次都没 engage —— 布景不对，下面每一行说的都不是被测对象。"
+                    + "探针=" + walker.progressProbe());
+        // THE SELF-PROOF, and it must come first.
+        if (filled == 0)
+            ctx.fail("pillarLedgerReal: 整趟没有任何一格从水变成实心 —— 这条场景要断言的是「真放成了就不算徒劳」，"
+                    + "而前提「真放成了」没有成立。这时候 placeFutile 为假什么也证明不了（没放成也会是假），"
+                    + "断言退化成 0==0。要修的是布景。身体钉在 topWater+1.05，vanilla 本该接受。");
+
+        if (sawFutile)
+            ctx.fail("一本记结果的账把成功也记成了徒劳：这一趟真的垫上了 " + filled + " 格，"
+                    + "而 placeFutile 仍然为真过（pillarNoPlaceTicks 峰值 " + maxNoPlace
+                    + "），也就是说挖掘后备会抢走一次正在成功的攀爬。"
+                    + "计数器必须在「那一格确实变实心」时清零，只在没变实心时递增。");
     }
 }

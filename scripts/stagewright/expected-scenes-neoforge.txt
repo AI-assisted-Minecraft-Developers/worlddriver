@@ -51,6 +51,8 @@ wd.deepWaterCross
 wd.deepWaterClimboutNoBlock
 wd.deepWaterClimboutDrift
 wd.waterFarAimBankCorner
+wd.pillarLedgerCountsRefusedPlaces
+wd.pillarLedgerClearsOnARealPlace
 # P4b wave 4 — WaterCross family (10 migrated from AgentGameTestWaterCross; all deterministic)
 wd.goalSnapBuried
 wd.basin

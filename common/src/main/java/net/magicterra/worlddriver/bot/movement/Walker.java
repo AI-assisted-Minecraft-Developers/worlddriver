@@ -659,6 +659,20 @@ public final class Walker {
      *  drove at, so the two can be judged separately. */
     public boolean goalSnapped() { return goalSnapped; }
 
+    /** The water climb-out's place-futility ledger, for scenes that assert on the FALLBACK rather
+     *  than on the climb: {@code > PILLAR_FUTILE_TICKS} is what hands the bank over to the dig.
+     *  Exposed because the counter is the subject — a scene that could only watch the body would
+     *  have to distinguish "never gave up" from "gave up and the dig also failed", which look the
+     *  same from outside. */
+    public int pillarNoPlaceTicks() { return waterClimb.pillarNoPlaceTicks; }
+
+    /** The verdict that ledger feeds: has the climb-out place been futile long enough to hand this
+     *  bank to the dig? Exposed instead of the raw threshold so {@link WalkerConstants} stays
+     *  package-private — a scene needs the DECISION, not the number behind it. Transient by
+     *  nature: the tick it goes true, the takeover releases and zeroes the counter, so a scene
+     *  must sample it per tick rather than read it at the end. */
+    public boolean pillarPlaceFutile() { return waterClimb.pillarNoPlaceTicks > PILLAR_FUTILE_TICKS; }
+
     /** Read-only one-line probe of the follow state (step pointer, carrot node,
      *  best-effort/burst/churn/escalation counters) for test-scene diagnostics —
      *  the package-private fields are invisible to testmod scene classes and the
