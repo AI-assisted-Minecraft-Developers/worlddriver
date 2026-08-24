@@ -157,7 +157,23 @@ public static int[] horizontalStep(LocalPlayer p, String d) {
 
 /** Resolve a Baritone-style direction string into an absolute horizontal
  *  {@link Direction}. Player-relative (forward/back/left/right) snaps to
- *  the nearest cardinal of the current yaw. Returns null on unknown. */
+ *  the nearest cardinal of the current yaw. Returns null on unknown.
+ *
+ *  <p><b>This is the SECOND reader of that vocabulary and it accepts a different set from
+ *  {@link #applyDirection} above.</b> The difference is real, not cosmetic:
+ *  <ul>
+ *    <li>{@code applyDirection} normalises ({@code trim().toLowerCase(Locale.ROOT)}); this does
+ *        not, so {@code "North"} resolves there and returns null here;</li>
+ *    <li>{@code applyDirection} takes {@code "backward"} and {@code "ahead"} as synonyms of
+ *        {@code "back"} / {@code "forward"}; this takes neither.</li>
+ *  </ul>
+ *  Neither gap is reachable today because the schema enums are enforced
+ *  ({@code SchemaValidator} rejects an out-of-enum string before {@code DriverApi.route} runs) —
+ *  but the two enums do not agree either: {@code mc.bot.goto} declares {@code "backward"} and
+ *  {@code mc.bot.construct} declares {@code "back"} ({@code BotTools} 143 / 447). So the word an
+ *  agent must type for「the way I came」changes between two verbs of the same API, and each
+ *  resolver only understands its own half. Reconciling them means one enum, one accept-set and a
+ *  validation script — not quietly widening one side. */
 public static Direction resolveCardinalDirection(LocalPlayer pl, String dir) {
     switch (dir) {
         case "north": return Direction.NORTH;
