@@ -226,6 +226,26 @@ J34（塔）与 J39（浮水）**各自的发作条件在下一趟都没复现**
 摆的时候注意别摆成刚好达标（[[staging-for-rungs-nobody-has-climbed]]）。
 新场景 ⇒ 同一笔提交补两个 `expected-scenes-*.txt`。
 
+#### 形状已定：竞技场场景需要一个**不碰账本**的 rig 入口（2026-08-24 读码定的）
+
+写场景之前先问掉的那个问题：**`JourneyRig.enter` 在梯子没武装时干净吗？答案是不干净。**
+`enter`（`JourneyRig:240-279`）做四件事，后两件都写 `JourneyLedger`：
+
+1. `ctx.record` 三个 topology/body/steer 键 —— 无害；
+2. `stage.requires()` 没达成 ⇒ **`JourneyLedger.blocked(...)` + `ctx.skip(...)`** ——
+   一条 `wd.*` 竞技场场景会因为「上游没爬过」当场被 skip，根本跑不到断言；
+3. `ctx.cleanup` 里若 `!claimed` ⇒ **`JourneyLedger.failed(stage, …)`** ——
+   竞技场不 claim 任何一级，于是每跑一次就往账本里记一笔那一级的失败；
+4. `recordFutileGate` + `journey.stage` —— 无害。
+
+⇒ **不要在竞技场里 `enter`**。加一个并列入口 `JourneyRig.forArena(ctx)`：做 1 和 4，
+跳过 2 和 3。理由能写进 javadoc 且是真的：**账本记的是梯子，竞技场不是梯子的一级**。
+
+⚠️ 别退回「只测纯函数」。判据得是**观察到补救跑完且身体脚下是固体**；
+把 `settleOntoHomeGround` 拆成一个算高差的纯函数再断言算术，
+正是 [[a-criterion-success-cannot-satisfy]] 的邻居——验的是算式，不是那具身体最后站在哪。
+两条补救都要驱动身体，所以两条场景都要真 rig。
+
 **排期决定（2026-08-24）**：J45 排在 J44 之后，理由不是"不重要"而是可以承受——
 J34/J39 两笔补救**在每一条路径上都写证据行**（`*.homeElevation` 无条件写、
 `lava.exit.afloat` 无条件写），所以一次误伤不会是静默的，下一趟自己会点名。
