@@ -4,25 +4,28 @@ import net.minecraft.server.level.ServerLevel;
 import net.neoforged.neoforge.common.util.FakePlayer;
 
 /**
- * NeoForge shim (P1.6 Task 1) over the common
- * {@link net.magicterra.worlddriver.bot.sim.ServerWorldDriver}. Keeps this original FQN
- * and the legacy return types: the static {@link #create}/{@link #createIsolated}
- * return this shim type, {@link #avatar()} narrows back to the neoforge
- * {@link ServerPlayerAvatar}, and {@link #fakePlayer()} narrows back to
- * {@link FakePlayer} — so legacy GameTest and {@code /agentserver} callers compile
- * unchanged. All driving logic lives in the common superclass.
+ * NeoForge shim over the common {@link net.magicterra.worlddriver.bot.sim.ServerWorldDriver},
+ * keeping this FQN and narrowing the return types back to the NeoForge ones. All driving logic
+ * lives in the common superclass.
+ *
+ * <p><b>Its stated reason for existing is gone; count the callers before believing a new one.</b>
+ * This javadoc said the shim keeps「~3000 lines of legacy GameTest callers」compiling with zero
+ * source changes. That suite was retired in P4-final and the scenes that replaced it use the
+ * COMMON types directly — {@code grep -rn "import net.magicterra.worlddriver.neoforge.sim"}
+ * returns nothing, so nothing outside this package names either shim. What is actually left is
+ * {@code /agentserver}: {@link ServerAvatarCommand} calls {@link #createIsolated} and
+ * {@link #fakePlayer()} (and only for {@code getX/getY/getZ}, which the un-narrowed
+ * {@code ServerPlayer} already answers). {@link #avatar()}'s narrowing has no caller at all. The
+ * dead {@code create} twin — every-caller-shares-one-body — was deleted rather than left to read
+ * as a supported entry point.
  */
 public class ServerWorldDriver extends net.magicterra.worlddriver.bot.sim.ServerWorldDriver {
 
     public ServerWorldDriver(ServerPlayerAvatar avatar) { super(avatar); }
 
-    /** Spawn a FakePlayer at {@code (x,y,z)} in {@code level} and wrap it in a driver. */
-    public static ServerWorldDriver create(ServerLevel level, double x, double y, double z) {
-        return new ServerWorldDriver(ServerPlayerAvatar.create(level, x, y, z));
-    }
-
-    /** {@link #create} with an isolated body ({@link ServerPlayerAvatar#createUnique}) —
-     *  the production entry point: every /agentserver agent gets its own FakePlayer. */
+    /** Spawn an isolated FakePlayer ({@link ServerPlayerAvatar#createUnique}) at {@code (x,y,z)}
+     *  and wrap it in a driver — the {@code /agentserver} entry point: every agent gets its own
+     *  body. */
     public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
         return new ServerWorldDriver(ServerPlayerAvatar.createUnique(level, x, y, z));
     }
