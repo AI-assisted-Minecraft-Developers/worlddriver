@@ -27,13 +27,93 @@ import net.minecraft.world.level.block.Blocks;
 final class JourneyCast {
     private JourneyCast() {}
 
-    /** Climb back to daylight carrying the lava, then cast. */
+    /** Climb back to daylight carrying the lava, get out of the water it surfaced in, then cast. */
     static void leaveWithTheLava(SceneContext ctx, JourneyRig rig, int surfaceY) {
         rig.attempting("背着岩浆爬回地面");
         JourneyShaft.climbOut(rig, surfaceY, "lava.exit", () -> {
             rig.evidence("lava_bucket.atSurface", rig.carrying("minecraft:lava_bucket"));
-            castBesideWater(ctx, rig);
+            standOnDryGround(rig, () -> castBesideWater(ctx, rig));
         });
+    }
+
+    /** How far to look for somewhere to stand. Sixteen, because the climb that made this necessary
+     *  surfaced four columns off its own pillar — the drift is a few blocks, not a few dozen, and a
+     *  wider search only buys a longer swim to reach it. */
+    private static final int DRY_LAND_SEARCH = 16;
+
+    /**
+     * Get out of the water before doing anything else, because a body that surfaced into it is on a
+     * clock.
+     *
+     * <p><b>The run this is written from.</b> j34 reached this rung holding the lava —
+     * {@code lava_bucket.atSurface = 1}, one pour from the obsidian — and then drowned:
+     * {@code death.blow = drown −2.0→14.0@6 … drown −2.0→0.0@146}, {@code death.driving = goto},
+     * {@code death.standingIn = 脚格/脚下/头格 全是 water[level=8]}. The exit had already said so
+     * one row earlier: {@code lava.exit#6.endedOn = 脚格=water，脚下=water —— 浮在水里，脚下没有
+     * 地板；上面每一级都会从一个正在下沉的身体开始}, over {@code endedIn = -3,56（起塔柱是
+     * -7,53 —— 不是同一柱）} and {@code gained = 32/37}. The cast then walked a suffocating body
+     * for 146 ticks and the rung's verdict was a death.
+     *
+     * <p><b>This is a missing hand-off, not a new mechanism.</b> {@link JourneyShaft#recordExit}'s
+     * javadoc worked this out on 2026-08-22 and deliberately left the repair here: 「Getting out of
+     * water is a horizontal problem and it belongs to the caller, which is why the iron rung now
+     * ends with a walk home.」 The iron rung took that hand-off; this one never did. So the fix is
+     * a caller-side step, and specifically NOT 「refuse to finish the climb while wet」— that same
+     * javadoc already priced that one: it falls through to a {@code Goal.YLevel(surfaceY)} fallback
+     * which is satisfied at that very moment, i.e. the same question asked twice.
+     *
+     * <p>Both branches record, and the afloat test is the one {@code recordExit} prints — fluid at
+     * the feet AND under them, because a body standing on rock in knee-deep water is fine.
+     */
+    private static void standOnDryGround(JourneyRig rig, Runnable then) {
+        ServerLevel lvl = rig.ctx().level();
+        BlockPos at = rig.player().blockPosition();
+        boolean afloat = !lvl.getFluidState(at).isEmpty() && !lvl.getFluidState(at.below()).isEmpty();
+        rig.evidence("lava.exit.afloat", afloat
+                ? "是 —— 脚格与脚下都是流体，" + at.toShortString() + "，先上岸再浇"
+                : "否 —— " + at.toShortString() + "，脚下=" + lvl.getBlockState(at.below()).getBlock());
+        if (!afloat) { then.run(); return; }
+        BlockPos dry = nearestDryColumn(lvl, at, DRY_LAND_SEARCH);
+        rig.evidence("lava.exit.dryLand", dry == null
+                ? DRY_LAND_SEARCH + " 格内没有一柱是干的" : dry.toShortString());
+        // Nothing to walk to is not a reason to stop: the pour may still find shallow water from
+        // here, and failing the rung on the recovery would replace a pour diagnosis with a walking
+        // one. The row above is what says which happened.
+        if (dry == null) { then.run(); return; }
+        rig.attempting("背着岩浆先上岸：走不到 " + dry.getX() + "," + dry.getZ() + "（正在窒息）");
+        // Tolerance 1 and a short budget on purpose. Drowning costs 2 HP every 20 ticks, so a full
+        // health bar is 200 ticks of swimming — a leg allowed to spend thousands here would watch
+        // the body die exactly as the cast's own goto did.
+        WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ(), 1, 600,
+                () -> { ashore(rig); then.run(); },
+                () -> { ashore(rig); then.run(); });
+    }
+
+    private static void ashore(JourneyRig rig) {
+        BlockPos at = rig.player().blockPosition();
+        ServerLevel lvl = rig.ctx().level();
+        rig.evidence("lava.exit.ashore", at.toShortString() + "，脚下="
+                + lvl.getBlockState(at.below()).getBlock() + "，血 " + rig.player().getHealth()
+                + "，空气 " + rig.player().getAirSupply());
+    }
+
+    /** The nearest column with standing room at its own surface, by {@link JourneyTerrain#dryUnderfoot}
+     *  — the same predicate the descent uses to refuse a wet column, asked here for the opposite
+     *  reason. Ranked by horizontal distance only: the y is whatever that column's daylight is. */
+    private static BlockPos nearestDryColumn(ServerLevel lvl, BlockPos from, int r) {
+        BlockPos best = null;
+        long bestD2 = Long.MAX_VALUE;
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                long d2 = (long) dx * dx + (long) dz * dz;
+                if (d2 >= bestD2) continue;
+                int x = from.getX() + dx, z = from.getZ() + dz;
+                if (!JourneyTerrain.dryUnderfoot(lvl, x, z)) continue;
+                bestD2 = d2;
+                best = new BlockPos(x, JourneyTerrain.daylightAt(lvl, new BlockPos(x, 0, z)), z);
+            }
+        }
+        return best;
     }
 
     /**
