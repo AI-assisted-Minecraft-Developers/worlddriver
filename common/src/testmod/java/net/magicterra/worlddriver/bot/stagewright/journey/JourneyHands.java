@@ -418,6 +418,79 @@ final class JourneyHands {
                 describeRay(p, false), describeRay(p, true));
     }
 
+    /**
+     * How many consecutive ticks {@link #handTrace} is worth taking after a use.
+     *
+     * <p>Six, not the five the question was first phrased with, and the extra one is not slack.
+     * {@code t0} lands in the SAME server tick as the use (see {@link #handTrace}), so five rows
+     * would cover only {@code use+0 … use+4} — and the reading that says「the other author is merely
+     * slower」is a flip on {@code use+5}. A window whose last tick is the one an inconvenient answer
+     * lives on cannot return that answer.
+     */
+    static final int TRACE_TICKS = 6;
+
+    /**
+     * ONE tick's hand on BOTH bodies, written as <b>two independent rows</b>.
+     *
+     * <p><b>The question it exists to answer.</b> {@code ServerboundUseItemPacket} carries
+     * hand/sequence/yaw/pitch and <b>no item</b>: {@code handleUseItem} runs
+     * {@code this.player.getItemInHand(hand)}, i.e. whatever the SERVER's {@code inventory.selected}
+     * points at <i>when it processes the packet</i>. A second author that moves the server's
+     * selection between the send and the handling makes the server use a different object — and
+     * cobblestone is a {@code BlockItem}, whose {@code use} returns {@code PASS}: nothing consumed,
+     * nothing placed, nothing logged. Every other row this rung writes is one snapshot of one
+     * moment, so none of them can see a flip. This one asks the same question on consecutive ticks.
+     *
+     * <p><b>Two rows, never one.</b> {@link #handsAtUse} joins the halves into a single string,
+     * which permanently destroys the ability to ask whether they were read at the same instant.
+     * Each half here is its own key with its own thread name and its own {@code gameTime}, so
+     *「same moment?」stays a question the output can answer.
+     *
+     * <p><b>The sampling thread is recorded because the thread IS the finding.</b>
+     * {@link JourneyRig#avatar()}'s javadoc already required it — <i>"judge this path only with the
+     * calling thread recorded beside the numbers"</i> — and not one row in this suite had it. When
+     * driven from a {@link JourneyRig.TickWatcher} the thread is the SERVER thread, by this chain:
+     * {@code ServerTickEvents.END_SERVER_TICK} (Fabric) / {@code ServerTickEvent.Post} (NeoForge)
+     * → {@code StageWrightCommon.onServerTick} → {@code StageWrightHarness.tick} →
+     * {@code SceneContext.advance} → the step's condition → {@link JourneyRig#await} 's predicate →
+     * the watcher. So the SERVER row is a same-thread reading of the very object
+     * {@code handleUseItem} consults, and the CLIENT row is a cross-thread snapshot — which is
+     * exactly the asymmetry {@code cast.atUse} hid by concatenating them.
+     *
+     * <p><b>{@code gameTime} is printed rather than the tick index alone</b> so that「six
+     * consecutive server ticks」is measured instead of argued: two rows sharing a {@code gameTime}
+     * were sampled in one tick no matter what the index says, and that is how a caller finds out
+     * that {@code t0} coincides with the use rather than following it.
+     *
+     * <p>Read-only and total: a null half prints「没有身体」rather than throwing, because an
+     * instrument that can end the leg it is measuring is not an instrument.
+     */
+    static void handTrace(JourneyRig rig, String tag, int tick) {
+        String thread = Thread.currentThread().getName();
+        var client = rig.avatar().player();
+        var server = rig.player();
+        String key = tag + ".handTrace.t" + tick;
+        rig.evidence(key + ".client", oneHandAt(client, tick, thread,
+                client == server
+                        ? "客户端半（无客户端拓扑，与服务端是同一个对象）"
+                        : "客户端 LocalPlayer（拥有它的是客户端线程，本行由上面那个线程读 ⇒ 跨线程快照）"));
+        rig.evidence(key + ".server", oneHandAt(server, tick, thread,
+                "服务端 ServerPlayer（handleUseItem 读的就是这一份）"));
+    }
+
+    private static String oneHandAt(net.minecraft.world.entity.player.Player p, int tick,
+                                    String thread, String whose) {
+        if (p == null) {
+            return "tick=" + tick + " 取数线程=" + thread + "；" + whose + "：没有身体";
+        }
+        return String.format(java.util.Locale.ROOT,
+                "tick=%d gameTime=%d 取数线程=%s；%s：槽 %d = %s ×%d",
+                tick, p.level().getGameTime(), thread, whose,
+                p.getInventory().selected,
+                BuiltInRegistries.ITEM.getKey(p.getMainHandItem().getItem()),
+                p.getMainHandItem().getCount());
+    }
+
     private static String describeRay(net.minecraft.world.entity.player.Player p, boolean hitFluids) {
         var hit = aimedAt(p, p.blockInteractionRange(), hitFluids);
         if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {

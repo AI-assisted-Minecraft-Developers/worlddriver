@@ -288,8 +288,46 @@ final class JourneyCast {
                     "速度=(%.4f,%.4f,%.4f) |水平|=%.4f onGround=%s；goto 槽 end=%s",
                     vel.x, vel.y, vel.z, Math.hypot(vel.x, vel.z), rig.player().onGround(),
                     String.valueOf(rig.slotEnd("goto"))));
+            // THE CALIBRATION ROW, in the watcher's own format and taken BEFORE the use. It reads
+            // the same instant `cast.atUse` does — nothing between the two lines ticks the server —
+            // so if the two disagree the INSTRUMENT is broken and nothing below it may be read as a
+            // fact about the world. Comparing the watcher's t0 against `cast.atUse` would not do
+            // this job: t0 is taken after `useItemInHand` has already run.
+            JourneyHands.handTrace(rig, "cast", -1);
             rig.evidence("cast.result", String.valueOf(rig.avatar().useItemInHand()));
+            // THE HAND ON CONSECUTIVE SERVER TICKS. `cast.result` is the CLIENT's prediction and
+            // `cast.stillFull` is the SERVER ten ticks later; between them sits the moment that
+            // decides this rung — the tick on which the server processes the use packet and reads
+            // its OWN `inventory.selected`. Nothing here has ever sampled that, so a hand that was
+            // right at the send and wrong at the handling is indistinguishable from a refusal.
+            //
+            // The watcher is the sampling site rather than the scene body because the watcher runs
+            // on the SERVER thread (JourneyRig.settle → await → SceneContext.advance →
+            // StageWrightHarness, which is driven from the server tick event). Sampling from a
+            // per-tick step of this scene's own chain would read the server's inventory across the
+            // same thread boundary the defect is about, i.e. copy the bug into the instrument.
+            //
+            // A counter rather than the watcher's own tick number: TickWatcher takes no argument,
+            // and the window has to stop — 6 ticks × 2 bodies is 12 rows, and the rest of the
+            // settle would add 8 more that answer nothing.
+            int[] traced = {0};
             rig.settle(new HoldStill(10), 20, () -> {
+                if (traced[0] < JourneyHands.TRACE_TICKS) {
+                    JourneyHands.handTrace(rig, "cast", traced[0]++);
+                }
+            }, () -> {
+                // HOW MANY TICKS THE INSTRUMENT ACTUALLY SAW, so that silence can be read. Three
+                // outcomes have to look different on disk and this row is what separates them:
+                // this row missing entirely ⇒ the run never reached the pour (未触发, evidence for
+                // neither side); this row present with 0 ⇒ the settle was skipped (the body left
+                // the world) and the instrument never fired, so its silence is also not evidence;
+                // this row present with 6 ⇒ the trace rows above are the answer.
+                rig.evidence("cast.handTrace.samples", "采到 " + traced[0] + "/"
+                        + JourneyHands.TRACE_TICKS + " 个服务端 tick。t0 与 useItemInHand 落在同一个"
+                        + "服务端 tick（settle 的等待在加入它的那一次 advance() 里就被求值一次）——"
+                        + "以每行的 gameTime 为准，别以 tick 序号为准。"
+                        + "采到 0 ⇒ settle 被跳过（身体掉出世界），仪器没响，这一趟的沉默不算证据；"
+                        + "整组 cast.handTrace.* 都不存在 ⇒ 这一趟根本没走到这一浇，同样不算证据。");
                 var got = level.getBlockState(target).getBlock();
                 rig.evidence("cast.cellAfter", String.valueOf(got));
                 rig.evidence("lava_bucket.after", rig.carrying("minecraft:lava_bucket"));
@@ -310,7 +348,11 @@ final class JourneyCast {
                             "服务端读到岩浆桶还有 " + rig.carrying("minecraft:lava_bucket")
                             + " 个，而 cast.result 是客户端 MultiPlayerGameMode.useItem 的预测 —— "
                             + "两个数来自两端。要判是「服务端那只手不对」还是「两端都拿着桶但这一浇被拒」，"
-                            + "去读 cast.atUse 那一行本身（它采在 use 的前一行）。"
+                            // cast.atUse 只答得了「发包那一刻」；服务端读的是「处理包那一刻」的手，
+                            // 这两刻之间隔着几个 tick，而 cast.handTrace.* 是唯一采到了那几个 tick 的行。
+                            + "去读 cast.handTrace.t*.server 那一组（use 之后连采的服务端 tick，"
+                            + "先看 cast.handTrace.samples 确认仪器响了）；"
+                            + "cast.atUse 只是发包那一刻，答不了处理包那一刻。"
                             // ⚠️ 这一段是 settle 之后 重新读的一次活状态，不是 cast.atUse 那一行。
                             // 原文写的是「读 cast.atUse 那一行的服务端半边：」后面直接接这个值,
                             // 于是一行自称在引用另一行、实际又量了一次，而且隔了 10 tick 的 settle
