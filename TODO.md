@@ -511,8 +511,45 @@ subject.endedAt     = 241312, 216, 99999，脚下=Block{minecraft:stone}
 | 📐 **量了但没用** | J44c | **坑沿加价「每趟重算」白花了**。j48 的 12 级 15 条 `*.rimTax` **格数恒为 752**，一次都没涨 ⇒ 我当初「舀源块和清射线会让湖沿往外长」的推理**被测量否掉**：`onThePoolsLip` 要的是「脚边有个能掉下去、底下 8 格内是岩浆的洞」，而抽走源块留下的是空气、清射线敲的是岩浆层的挡土，都没造出新的**站得住**的沿格。⇒ 每趟一次全量扫描（25×25×9）是纯开销。**但先别撤**：加价本身生效了（这趟 12 级**一次岩浆死都没有**，而 j39 死在回程），撤的只该是重算，改回去程算一次的快照。判据 B 预登记时就写了「恒定 ⇒ 记下来别当红」 |
 | ✅ 已验 | J45a | 场景 `wd.journeyCraftStepsAsideForRoom` 已登记进两个 `expected-scenes`，随闸常跑 |
 | ✅ **已验** | J45b | 补齐了：`wd.journeyStepsDownOffItsOwnTower`（J34 拆塔支，**PASS**：差 +12 格 → `towerRecovered 落到 y=221，圆石 0→12`，终点 `脚下=stone`）、`wd.journeyClimbsOutOfItsOwnPit`（同一守卫的**反方向**，此前从没被任何一趟执行过，**PASS**）、`wd.journeyGetsAshoreBeforePouring`（见 J47，常驻已知红） |
-| 🔴 **挡路** | J48 | **12 级新天花板：一浇没发生，没人管，六条腿之后判词报了错的腿。** j48 逐行：`water6.spent = water_bucket 1→1，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生` ⇒ **仪器说得清清楚楚，而关卡照走不误**；下一趟 `lava6.hand = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe；桶存量 空=0 水=1 岩浆=0` ⇒ **`JourneyFill.fillFrom` 不检查 `holdForUse` 的返回值**，于是拿着石镐重瞄三次、清三次射线、`aimsAt#5 = -11,63,16 lava 源块=true 液位=8` 射线正中岩浆仍然 `miss`，`lava6.result = PASS`（空手 use 就是 PASS）。最终判词 `装不到 minecraft:lava_bucket` 说的是第七趟，真因在第六浇。⇒ 两笔修法：**(A) `*.spent` 说没浇成就当场停或重浇**（这行本来就是为此写的）；**(B) 装桶侧照浇筑侧的样子检查 `holdForUse`，拿不到就停**——浇筑侧早有 `if (!gripped) ctx.fail(...)`，装桶侧没有（[[a-precedent-nobody-ever-verified]] 的镜像：同一族两处只有一处守着） |
+| 🟡 **已修待验** | J48 | **12 级新天花板：一浇没发生，没人管，六条腿之后判词报了错的腿。** j48 逐行：`water6.spent = water_bucket 1→1，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生` ⇒ **仪器说得清清楚楚，而关卡照走不误**；下一趟 `lava6.hand = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe；桶存量 空=0 水=1 岩浆=0` ⇒ **`JourneyFill.fillFrom` 不检查 `holdForUse` 的返回值**，于是拿着石镐重瞄三次、清三次射线、`aimsAt#5 = -11,63,16 lava 源块=true 液位=8` 射线正中岩浆仍然 `miss`，`lava6.result = PASS`（空手 use 就是 PASS）。最终判词 `装不到 minecraft:lava_bucket` 说的是第七趟，真因在第六浇。⇒ 两笔修法：**(A) `*.spent` 说没浇成就当场停或重浇**（这行本来就是为此写的）；**(B) 装桶侧照浇筑侧的样子检查 `holdForUse`，拿不到就停**——浇筑侧早有 `if (!gripped) ctx.fail(...)`，装桶侧没有（[[a-precedent-nobody-ever-verified]] 的镜像：同一族两处只有一处守着） |
 | 🔴 已判待修 | J47 | **浮在水面的身体走不上齐平的岸**，而每一行读数都像成功。`wd.journeyGetsAshoreBeforePouring` 三趟逐字相同：`dryLand=242843,221` → `end=path-consumed`、`停在 242844,221`、`脚下=water`。**不是「没有那条边」**：`Move.waterEscapeContext` 对这一格返回 true（脚下 3×3 有水），`Walk.valid` 只看**目标格**、根本不查起点，而目标 `canStandAt` 成立。所以路径产得出来，是**走完了而身体没到** ⇒ 走行器的逐节点到达判定给一具浮着的身体推进了指针（[[a-pointer-that-advanced-in-mid-air]]），再由 `ARRIVED_WITHIN=5` 把差一格判成到达（[[arrived-is-not-at-the-goal]]）。⚠️ `SwimAshoreBreak` 帮不上：它是 **+1 高**的移动，专治高岸，齐平岸不归它管。修法两条路——引擎侧修指针推进（正解但是引擎改动），或写死步骤：**上岸失败就在脚下垫一块**（身体带着圆石，浇筑要的是"脚下有地板"而不是"站在岸上"）。按规矩先走后者 |
+
+## 📌 预登记：J48 两笔修法（2026-08-24，**写在编译之后、跑之前，也写在读结果之前**）
+
+改了什么，一句话两笔：
+
+- **(A) `JourneyPortalRung` 的 `*.spent`**：说「桶还满着，这一浇没有发生」之后**当场 `ctx.fail`**，
+  不再 `then.run()` 往下走。那一行本来就是为此写的，只是没人接。
+- **(B) `JourneyFill` 的四处 `holdForUse`**：返回值原本**四处全丢**。三处（`fromHere` 就近夹、
+  `stepOutOfTheFrame` 之后的 `spendTheBucket`、走过去之后那一处）改成新的
+  `bucketInHand(ctx, rig, tag)` —— 拿不到就 `ctx.fail`，理由行带上 `heldOnBoth` 与 `bucketStock`。
+  **第四处 `topUpBuckets` 故意不判红**：那整个方法是白赚的加装，它自己两支下游早写着
+  「带着已经装到的下去，不判红」，所以那里的答案是**放弃加装**而不是杀掉这一级。
+
+⚠️ 这两笔都是**判词修法，不是能力修法**。它们不会让身体多装到一桶岩浆——
+J48 那趟的身体是**带着一只装满水的桶**去装岩浆的，桶本来就不空。
+所以下面每一条判据问的都是「这一趟死在哪一腿、判词说的是不是它」，
+**不是**「12 级过不过」。把这两件事混起来读，就会拿一次仍然红的 12 级去证伪一笔已经生效的修法
+（[[a-criterion-success-cannot-satisfy]] 的反面：这里要防的是拿**失败**去否掉一笔只改归因的修法）。
+
+跑法：`./gradlew :fabric:runJourneyIntegratedServer > /tmp/journey-j49.log 2>&1`，
+结果读 `fabric/run-journey-integrated/stagewright-results.jsonl`（**不是** `results.jsonl`），
+按**插入序**读、字段是 **`outcome`** 不是 `status`。
+
+| # | 判据 | 已验 / 未触发 / 证伪 |
+|---|---|---|
+| **A1** | 若这一趟仍出现 `water*.spent = water_bucket N→N …这一浇没有发生`，那么**紧接着的下一条证据必须是这一级的判词**，而不是 `lava*`／`recover*` 开头的第七、第八条腿。即：`.spent` 与失败判词之间**不许再隔着一次装桶**。 | |
+| **A2** | 该判词里必须同时出现三样：物品 id 与 `N→N`、`客户端说 …`（`*.result`）、`这一浇的手与瞄准：…`（`*.atUse`）。少一样就是我拼错了字符串，不是修法没生效。 | |
+| **A3** | 若这一趟**没有**任何 `*.spent` 报「没有发生」（即每一浇都真的消耗了桶），A1/A2 记 **未触发**，不许当成已验。 | |
+| **B1** | 若出现 `装桶的那只手不是 minecraft:bucket`，则同一趟**不许**再出现该 tag 的 `*.aimsAt`／`*.clearedLine`／`*.miss` —— 那正是 j48 白花的三次重瞄和三次清射线。出现即修法未接上（我漏了某个调用点）。 | |
+| **B2** | 反向控制：`grep -c 'if (!bucketInHand(' ` 必须是 **3**（三个调用点），`grep -c 'JourneyHands\.holdForUse(' ` 必须是 **2**（`bucketInHand` 里一处 + `topUpBuckets` 自己那支）。**这条在跑之前就能查**。 ⚠️ **判据在读结果之前改过一次，理由记这里**：原文写的是裸词 `grep -c 'holdForUse'` = 2，**实测 4** —— 因为这个文件的 javadoc 和行内注释本身要讲 `holdForUse`（`:367` 和 `:641`）。**尺子在数散文**，不是修法没落（[[a-verification-tool-needs-verifying-too]]）。改成带括号的调用形。 | ✅ **已验**（跑之前，`if (!bucketInHand(`=3、`JourneyHands.holdForUse(`=2） |
+| **B3** | 若 12 级这一趟根本没走到装桶（死在更早的腿），B1 记 **未触发**。 | |
+| **C** | `journey.height` 与 j48 的 `OBSIDIAN`（11/20）比。**涨了是白赚，没涨不算证伪**（见上面那段 ⚠️）。 | |
+
+**这一趟真正要回答的问题只有一个**：j48 的判词说的是第七趟装桶，真因在第六浇；
+修法之后，判词说的是不是第六浇。
+
+---
 
 ### ✅ J38 结案：不是背包满，是**根本没走到**
 
