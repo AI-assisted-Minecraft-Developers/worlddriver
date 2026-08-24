@@ -920,10 +920,7 @@ public final class JourneyFill {
             for (int dy = -4; dy <= 4; dy++)
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos c = pool.offset(dx, dy, dz);
-                    var fluid = level.getFluidState(c);
-                    if (!fluid.isSource()) continue;
-                    if (fluid.is(net.minecraft.tags.FluidTags.LAVA) != lava) continue;
-                    if (lava && !level.getBlockState(c).is(Blocks.LAVA)) continue;
+                    if (!JourneyTerrain.plainSource(level, c, lava)) continue;
                     sources.add(c.immutable());
                 }
         sources.sort(java.util.Comparator.comparingDouble(a -> a.distSqr(from)));
@@ -1054,10 +1051,10 @@ public final class JourneyFill {
             for (int dy = -radius; dy <= radius; dy++)
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos c = centre.offset(dx, dy, dz);
-                    var fluid = level.getFluidState(c);
-                    if (!fluid.isSource()) continue;
-                    if (fluid.is(net.minecraft.tags.FluidTags.LAVA) != lava) continue;
-                    if (lava && !level.getBlockState(c).is(Blocks.LAVA)) continue;
+                    // Water used to skip the block test here (the guard read `if (lava && …)`), so
+                    // this could hand back a seagrass cell whose OUTLINE the ray legitimately hit —
+                    // a cell it had just PROVED was reachable and the bucket would still refuse.
+                    if (!JourneyTerrain.plainSource(level, c, lava)) continue;
                     var target = net.minecraft.world.phys.Vec3.atCenterOf(c);
                     double d = eye.distanceToSqr(target);
                     if (d >= bestD || d > BUCKET_REACH * BUCKET_REACH) continue;

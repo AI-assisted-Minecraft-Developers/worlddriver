@@ -601,6 +601,35 @@ public final class JourneyTerrain {
      * several blocks down, so the fluid lands nowhere near the cell the rung named, and the obsidian
      * it casts — if it casts any — is at the bottom of a lake.
      */
+    /**
+     * Is {@code c} a source of the fluid asked for, in a block a BUCKET can actually work with?
+     *
+     * <p><b>Three tests, and the third one is the one that keeps getting dropped.</b> A cell can
+     * answer {@code isSource()} and carry the right fluid tag and still refuse the bucket, because
+     * {@code BucketItem.use} does not ask about the fluid at all — it asks whether the BLOCK is a
+     * {@code BucketPickup}. Seagrass and kelp are not, so filling from them returns {@code FAIL};
+     * they also have a {@code Block.OUTLINE} a ray stops on, which is what lets them survive every
+     * line-of-sight test written to catch a blocked aim. This cost two runs at one coordinate, on
+     * the pouring side, before {@link #shallowWaterNear} grew the check.
+     *
+     * <p>It existed there and nowhere else. {@code JourneyFill.standToFill} and
+     * {@code JourneyFill.visibleSourceNear} both open with the same three lines and both wrote the
+     * block test as {@code if (lava && …)} — correct for lava, absent for water, in two files that
+     * had no idea they agreed. One author, so the next copy cannot drift: this is what those three
+     * lines meant.
+     *
+     * <p>Waterlogged stairs and slabs WOULD fill — they are {@code SimpleWaterloggedBlock}, hence
+     * {@code BucketPickup} — so "plain" is conservative rather than exact. That is the right
+     * direction for a chooser: a refused candidate costs one cell out of a scan, and a wrong one
+     * costs the use, which on this ladder is the rung.
+     */
+    public static boolean plainSource(ServerLevel level, BlockPos c, boolean lava) {
+        var fluid = level.getFluidState(c);
+        if (!fluid.isSource()) return false;
+        if (fluid.is(net.minecraft.tags.FluidTags.LAVA) != lava) return false;
+        return level.getBlockState(c).is(lava ? Blocks.LAVA : Blocks.WATER);
+    }
+
     public static BlockPos shallowWaterNear(JourneyRig rig, int radius) {
         ServerLevel level = rig.ctx().level();
         BlockPos from = rig.player().blockPosition();
@@ -610,16 +639,8 @@ public final class JourneyTerrain {
             for (int dz = -radius; dz <= radius; dz++) {
                 for (int dy = -4; dy <= 4; dy++) {
                     BlockPos c = from.offset(dx, dy, dz);
-                    if (!level.getFluidState(c).isSource()) continue;
-                    if (!level.getFluidState(c).is(net.minecraft.tags.FluidTags.WATER)) continue;
-                    // PLAIN water, not merely a water source. A waterlogged block — seagrass, kelp —
-                    // answers `isSource()` and the WATER tag exactly like open water does, and the
-                    // fluid test was the only test here. It picked a seagrass cell twice, at the
-                    // same coordinate both times, and the pour landed one cell short: seagrass has
-                    // no collision but it does have a Block.OUTLINE shape, and OUTLINE is what the
-                    // bucket's own clip stops at. So a cast target must be a cell a ray can enter,
-                    // and "a water source is in it" does not say that.
-                    if (level.getBlockState(c).getBlock() != Blocks.WATER) continue;
+                    // The seagrass lesson, and the two runs it cost, now live in `plainSource`.
+                    if (!plainSource(level, c, false)) continue;
                     if (!level.getBlockState(c.below()).blocksMotion()) continue;
                     double d = from.distSqr(c);
                     if (d < bestD) { bestD = d; best = c; }
