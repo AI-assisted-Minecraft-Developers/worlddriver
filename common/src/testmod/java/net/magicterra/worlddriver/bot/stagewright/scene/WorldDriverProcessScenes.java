@@ -189,6 +189,15 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 Scene.of("wd.serverCombatCollectDrops", 400, WorldDriverProcessScenes::serverCombatCollectDropsScene),
                 Scene.of("wd.serverLook", 400, WorldDriverProcessScenes::serverLookScene),
                 Scene.of("wd.serverMineCanopyRadius", 600, WorldDriverProcessScenes::serverMineCanopyRadiusScene),
+                // The trunk-tax waiver's state machine. Three scenes, none of which asks about a
+                // price — see the block above them for why the multiplication is not testable on
+                // this topology and which layer owns that half.
+                Scene.of("wd.mineLogWaiverEngages", 800,
+                        WorldDriverProcessScenes::mineLogWaiverEngagesScene),
+                Scene.of("wd.mineStoneLeavesTheWaiverOff", 800,
+                        WorldDriverProcessScenes::mineStoneLeavesTheWaiverOffScene),
+                Scene.of("wd.mineLogWaiverReleasedOnSupersede", 600,
+                        WorldDriverProcessScenes::mineLogWaiverReleasedOnSupersedeScene),
                 Scene.of("wd.serverBridgePillarStart", 400, WorldDriverProcessScenes::serverBridgePillarStartScene),
                 // Required from the day it was written, because it passed the day it was written.
                 // It exists because the journey reported the opposite — exit.fromY=54 ->
@@ -2038,5 +2047,191 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         int n = 0;
         for (ItemStack st : fp.getInventory().items) if (st.is(item)) n += st.getCount();
         return n;
+    }
+
+    // ==================================================================================
+    // The trunk-tax waiver's STATE MACHINE — three scenes, and deliberately not one of them
+    // asks about a price.
+    //
+    // `pathfinderLogBreakTax` is waived while a MineProcess is working a log, so the leg that
+    // goes to fetch the fifth log of a trunk may plan through the four under it. The waiver is
+    // DERIVED from the current target rather than latched beside it, and the two things most
+    // likely to be wrong are the derivation (does it lift when the goal stops being a log?) and
+    // the release (does a body that dies up a tree leave it set forever?).
+    //
+    // Both are testable here. The MULTIPLICATION is not, and no scene below claims it is: the
+    // tax lives in ClientWorldView, and the server body plans through LevelWorldView, which
+    // applies no break taxes at all — not this one, not the wrong-tool ×3, not the dig
+    // multiplier. On a dedicated server every one of those is inert, so a scene asserting
+    // "this cell costs 3×" would be asserting something about a cost table this topology never
+    // consults. That half belongs to the live ladder, which runs on a real client. Recorded as
+    // J33; the two-view divergence is a finding in its own right, not this fix's business.
+    //
+    // Each scene OPENS by asserting the waiver is off. A leaked owner from anything earlier
+    // then fails here, by name, instead of quietly answering the next scene's question.
+    // ==================================================================================
+
+    /** Stage one reachable log, plus the floor to walk it. Shared by all three scenes so the only
+     *  difference between them is what the process is asked to do. */
+    private static BlockPos stageOneLog(SceneContext ctx, ServerLevel level, int cx, int cz, int floorY) {
+        ctx.cleanup(() -> {
+            for (int dx = -1; dx <= 7; dx++)
+                for (int dy = 0; dy <= 3; dy++)
+                    for (int dz = -1; dz <= 1; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+        for (int x = cx - 1; x <= cx + 7; x++)
+            level.setBlockAndUpdate(new BlockPos(x, floorY, cz), Blocks.DIRT.defaultBlockState());
+        BlockPos logPos = new BlockPos(cx + 5, floorY + 1, cz);
+        level.setBlockAndUpdate(logPos, Blocks.OAK_LOG.defaultBlockState());
+        return logPos;
+    }
+
+    /** The guard every scene here opens with. Returns true when the run must stop. */
+    private static boolean waiverLeakedIn(SceneContext ctx, String scene) {
+        if (!MineProcess.miningALog()) return false;
+        ctx.fail(scene + "：进场时豁免就是开的 —— 有别的场景把 owner 漏了出来。"
+                + "这一趟读到的任何「豁免开着」都不是本场景造成的，不能当证据。");
+        return true;
+    }
+
+    // wd.mineLogWaiverEngages — the waiver is ON while a log goal is in flight, and OFF once the
+    // order is over. Both halves matter: an always-on waiver would pass the first half alone.
+    private static void mineLogWaiverEngagesScene(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        if (waiverLeakedIn(ctx, "mineLogWaiverEngages")) return;
+
+        BlockPos logPos = stageOneLog(ctx, level, cx, cz, floorY);
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
+        driver.fakePlayer().getInventory().selected = 0;
+        driver.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 16));
+        ServerAvatarManager.register(driver);
+
+        int onTicks = 0;
+        for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++) {
+            ServerAvatarManager.tickAll();
+            if (MineProcess.miningALog()) onTicks++;
+        }
+        boolean mined = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
+        boolean stillOn = MineProcess.miningALog();
+        ctx.record("闸.豁免开着的 tick 数", onTicks);
+        ctx.record("闸.原木采掉了吗", mined);
+        ctx.record("闸.收尾后豁免还在吗", stillOn);
+
+        // Order matters. "The waiver never came on" and "the body never reached a log" are the same
+        // reading, and only one of them is a defect — so ask about the log first.
+        if (!mined) {
+            ctx.fail("mineLogWaiverEngages: 这一趟根本没采到那根原木，所以「豁免没开」说明不了任何事"
+                    + "（未触发，不是证伪）。lastError=" + driver.botState().mine.lastError);
+            return;
+        }
+        if (onTicks == 0)
+            ctx.fail("mineLogWaiverEngages: 原木采掉了，但整趟没有一个 tick 读到豁免开着 —— "
+                    + "推导没接上，采原木的那一段并没有拿到它该拿的定价。");
+        if (stillOn)
+            ctx.fail("mineLogWaiverEngages: 订单结束后豁免仍然开着 —— 它会跟着身体走进下一段路，"
+                    + "而那正是这条税存在的理由。");
+    }
+
+    // wd.mineStoneLeavesTheWaiverOff — the control arm. Same rig, same log standing in the world,
+    // only the order differs: mine STONE. The waiver must never come on, and the stone must
+    // actually get mined, or "never on" is just "never ran".
+    private static void mineStoneLeavesTheWaiverOffScene(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        if (waiverLeakedIn(ctx, "mineStoneLeavesTheWaiverOff")) return;
+
+        // The log is STAGED and left standing: the point is that a log in the world is not what
+        // arms the waiver — a log GOAL is.
+        BlockPos logPos = stageOneLog(ctx, level, cx, cz, floorY);
+        BlockPos stonePos = new BlockPos(cx + 3, floorY + 1, cz);
+        level.setBlockAndUpdate(stonePos, Blocks.STONE.defaultBlockState());
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
+        driver.fakePlayer().getInventory().selected = 0;
+        driver.runProcess(new MineProcess(List.of("minecraft:stone"), 1, 16));
+        ServerAvatarManager.register(driver);
+
+        int onTicks = 0;
+        for (int t = 0; t < 600 && ServerAvatarManager.activeCount() > 0; t++) {
+            ServerAvatarManager.tickAll();
+            if (MineProcess.miningALog()) onTicks++;
+        }
+        boolean stoneGone = !level.getBlockState(stonePos).is(Blocks.STONE);
+        ctx.record("闸.豁免开着的 tick 数", onTicks);
+        ctx.record("闸.石头采掉了吗", stoneGone);
+        ctx.record("闸.那根原木还立着吗", level.getBlockState(logPos).is(Blocks.OAK_LOG));
+
+        if (!stoneGone) {
+            ctx.fail("mineStoneLeavesTheWaiverOff: 石头没被采掉，那么「豁免全程没开」只是"
+                    + "「这一趟什么都没干」，不是对照。lastError=" + driver.botState().mine.lastError);
+            return;
+        }
+        if (onTicks > 0)
+            ctx.fail("mineStoneLeavesTheWaiverOff: 采石头的订单开了 " + onTicks + " 个 tick 的木税豁免 —— "
+                    + "世界里有原木不该武装它，只有目标是原木才该。");
+    }
+
+    // wd.mineLogWaiverReleasedOnSupersede — the leak scene. It supersedes the order through the
+    // SAME door production takes (ServerWorldDriver.runProcess), not by calling onCancelled
+    // directly: a scene that pokes the method under test would go green against a funnel nothing
+    // actually uses. It also proves the waiver was ON first, because 0 -> 0 is not a release.
+    private static void mineLogWaiverReleasedOnSupersedeScene(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        if (waiverLeakedIn(ctx, "mineLogWaiverReleasedOnSupersede")) return;
+
+        stageOneLog(ctx, level, cx, cz, floorY);
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        driver.fakePlayer().getInventory().items.set(0, new ItemStack(Items.WOODEN_AXE));
+        driver.fakePlayer().getInventory().selected = 0;
+        driver.runProcess(new MineProcess(List.of("#minecraft:logs"), 1, 16));
+        ServerAvatarManager.register(driver);
+
+        // Tick only until the waiver is observed on — superseding after the log is already down
+        // would test nothing (the waiver would have lapsed on its own).
+        boolean armed = false;
+        int armedAt = -1;
+        for (int t = 0; t < 400 && ServerAvatarManager.activeCount() > 0 && !armed; t++) {
+            ServerAvatarManager.tickAll();
+            if (MineProcess.miningALog()) { armed = true; armedAt = t; }
+        }
+        ctx.record("闸.第几 tick 武装的", armedAt);
+        if (!armed) {
+            ctx.fail("mineLogWaiverReleasedOnSupersede: 400 tick 内豁免从没开过，"
+                    + "那么「取消之后它是关的」就是 0 → 0，证不了释放（未触发）。");
+            return;
+        }
+
+        driver.runProcess(new HoldStill(1));       // the production door: hand it a new order
+        boolean afterSupersede = MineProcess.miningALog();
+        ctx.record("闸.顶替之后豁免还在吗", afterSupersede);
+        if (afterSupersede)
+            ctx.fail("mineLogWaiverReleasedOnSupersede: 换了订单，豁免还开着 —— 中途被顶替的采集"
+                    + "会把 1.0 的定价永久留给这具身体之后的每一段路。");
     }
 }

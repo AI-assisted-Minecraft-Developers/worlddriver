@@ -172,6 +172,9 @@ wd.serverCombat
 wd.serverCombatCollectDrops
 wd.serverLook
 wd.serverMineCanopyRadius
+wd.mineLogWaiverEngages
+wd.mineStoneLeavesTheWaiverOff
+wd.mineLogWaiverReleasedOnSupersede
 wd.serverBridgePillarStart
 wd.serverPillarsOutOfAPit
 wd.serverTowersOutOfADeepShaft
