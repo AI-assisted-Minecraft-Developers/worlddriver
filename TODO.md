@@ -845,6 +845,32 @@ waterFill.aim#2 = 244375, 220, 100000（通视的最近水源，与按距离的�
 回归会长什么样是确定的：`Goal.Near(近塘,2)` 会把它从 6 格外一路拽回那口**围了栏、喝不到**的塘，
 然后花掉唯一那次 use。⇒ 这一条判据不是防御性的，它有明确的反面。
 
+### ✅ janitor 那轮重构的闸（2026-08-25 06:07）：Fabric 与基线**逐项相同**
+
+`VERDICT: GREEN`、`COVERAGE: 289 executed / 25 skipped`、必需失败 **0** 条、
+可选失败恰好是基线那三条、无 `MISSING-EXPECTED` / `UNDECLARED`、两条新场景都 PASS。
+⇒ 归因契约里「任何偏离先记重构的账」这一条**没有被触发**：`isHazard` 合并与两处恒假守卫的删除
+在 Fabric 上零场景差异。NeoForge 那趟还在跑（`b6807e83`+`267255d3` 删的两个 `create` 只有它判得了）。
+
+**⚠️ 两条必须记下来、免得下一轮有人「顺手清理」**：
+
+1. **`BuildProcess` / `BackfillProcess` 的私有 `canStand` 不许并进 `BotUtil.canStandHereStatic`。**
+   janitor 逐行对拉过：两个私有拷贝**彼此逐字相同**，但**比共享版更严** —— 少了两条 water 子句，
+   含水格在共享版**可站**、在它们这里**被拒**。合并＝把两条放置路径**放松**。
+   形状上像重复，方向上是危险的（[[water-is-not-a-floor]] 的反面：这里多的那点严格是**在保护**放置）。
+   要动先测量，别当成 `isHazard` 的第二例。
+2. **「Java 侧零调用者」不等于死代码。** `ScriptClassFilter` 是**默认关闭的 deny-list**，
+   而且**不 deny `net.magicterra.worlddriver.*`** ⇒ 任何 public 成员原则上都能被运行时 JS 按名字调到；
+   另有 `SettingsRegistry` / `SettingsCommand` / `BotConfig` 三处**按字段名反射** `BotConfig`。
+   死代码侦察给了 10 项「确定级」，**采用前每一项都要按这两条重验**
+   （[[repeats-mean-reflection]]、[[a-signature-loads-what-a-local-does-not]] 同族）。
+
+其余待办（janitor 报出、都需要编译器）：`prelude.js` 的 `| 0` 取整与 `Params.toInt`/`SchemaValidator`
+分叉（脚本通道吞 `2.7`/`"8"`/回绕，MCP/RPC 会拒——**行为变更，必须配闸**）；
+`neoforge.sim` 三个 shim 现在整体可删（包外零 import）；
+`bot/sim/ServerPlayerAvatar.java:58` 与 `bot/sim/ServerWorldDriver.java:31` 仍立着已被推翻的
+「~3000 行 legacy GameTest 调用方」理由 —— 那两个文件归 **parity**，不归 janitor 也不归我顺手改。
+
 ### 🔴 J55（2026-08-25，12 小时 janitor 报出，我逐条复核过）：一个游戏动词住在脚本传输层
 
 `prelude.js:194` 的 `Driver.bot.tunnel` 是**一整个动词**（挖 1×2 走廊），只有 in-JVM Rhino
