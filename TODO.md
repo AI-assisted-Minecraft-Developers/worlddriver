@@ -1072,13 +1072,35 @@ waterFill.cellAfter Block{minecraft:water}     ← 目标格**确实是水**
 `waterFill.reseat = 换不了座位：挑出来的还是脚下这一格 -4, 62, 55`。
 所以这一条**不是换座没接上**，是**候选集里没有一个能看见水的座位**。
 
-⚠️ 未定，下一趟要问的：黑曜石**顶上**那一格 `-4, 63, 54` 该是合格候选
-（在 `standToFill` 的 3×3×dy[-2,1] 范围内，脚下是黑曜石 ⇒ `blocksMotion` 成立），
-手算它的俯视射线是能落到水源上的。**那它为什么没被选中？** 三个待排查：
-（a）它压根不在候选集里；（b）脚/头格不空；（c）clip 落点判定把它否了。
-⇒ 先补一行读数把**候选集连同每个候选的否决理由**打出来，再动挑座位的逻辑
-（[[a-question-asked-backwards-still-answers]]）。注意 [[water-is-not-a-floor]]：
-水源正上方那格永远不合格，因为它脚下的「地板」就是水本身。
+**⚠️ 而这一条根本不新 —— 它是同一个失败的第五趟，且早就写在调用点的 javadoc 里。**
+`JourneyFill.java:908-912`（`standToScoop` 头上那段）逐字写着：
+
+> 那一级从 11 级把身体丢在哪儿就从哪儿开火，而它落的两个座位并不等价：
+> `y=63` 时射线越过岸、桶装上（j48、j51）；`y=62` 时它停在一格开外的地形上 ——
+> `空桶线 -5,62,55 minecraft:grass_block（1.05 格）`—— 够得着的范围里什么都看不见（j50、j52）。
+> **两个座位，四趟，各两趟。**
+
+j55 的行是 `空桶线 -5, 62, 55 minecraft:grass_block 面=up（1.08 格）`：**同一格、同一块草、同一个面**，
+只有距离从 1.05 变成 1.08。⇒ 这是**四趟已知 + 这一趟**的老毛病，不是新几何。
+[[a-seat-decides-the-run]] 说的就是它：井底落哪格定生死。
+
+**为什么没有否决直方图：`standToScoop` 把它扔了。**
+
+```java
+static BlockPos standToScoop(JourneyRig rig, BlockPos pool) {
+    FillSpot spot = standToFill(rig.ctx().level(), rig, pool, false, FILL_RESEARCH,
+            new java.util.LinkedHashMap<>());   // ← why 直方图当场丢弃
+```
+
+而 `standToFill` 是**带 `why` 的**（`JourneyFill.java:924-933`，两趟：近岸优先，再退回），
+`JourneyRamp.java:195` 就印过它（`standToFill 否决了 13 个候选，理由 脚下不实心`）。
+⇒ **仪器早就有，只是这一个调用点没接线。** 补一行读数=把这个 map 传出去，不是新写一个。
+
+⇒ 下一步（按序，且**先读数后改逻辑** [[a-question-asked-backwards-still-answers]]）：
+1. `standToScoop` 把 `why` 接出来写进 `waterFill.reseat` 那一行；
+2. 有了直方图再问真正的问题——**不是「为什么没选 y=63」，而是「12 级为什么允许自己继承 11 级的座位」**。
+   javadoc 自己说了「从 11 级把身体丢在哪儿就从哪儿开火」：座位是继承的，于是它是个抛硬币。
+注意 [[water-is-not-a-floor]]：水源正上方那格永远不合格，脚下的「地板」就是水本身。
 
 ### 🔴🔴 J59（j54 全局统计，2026-08-25 07:25）：垒台阶这一支**一级都没垒成过**，9/9 全是 `0/N`
 
