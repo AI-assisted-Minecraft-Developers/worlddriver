@@ -513,7 +513,8 @@ subject.endedAt     = 241312, 216, 99999，脚下=Block{minecraft:stone}
 | ✅ 已验 | J45a | 场景 `wd.journeyCraftStepsAsideForRoom` 已登记进两个 `expected-scenes`，随闸常跑 |
 | ✅ **已验** | J45b | 补齐了：`wd.journeyStepsDownOffItsOwnTower`（J34 拆塔支，**PASS**：差 +12 格 → `towerRecovered 落到 y=221，圆石 0→12`，终点 `脚下=stone`）、`wd.journeyClimbsOutOfItsOwnPit`（同一守卫的**反方向**，此前从没被任何一趟执行过，**PASS**）、`wd.journeyGetsAshoreBeforePouring`（见 J47，常驻已知红） |
 | 🟡 **已修待验** | J48 | **12 级新天花板：一浇没发生，没人管，六条腿之后判词报了错的腿。** j48 逐行：`water6.spent = water_bucket 1→1，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生` ⇒ **仪器说得清清楚楚，而关卡照走不误**；下一趟 `lava6.hand = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe；桶存量 空=0 水=1 岩浆=0` ⇒ **`JourneyFill.fillFrom` 不检查 `holdForUse` 的返回值**，于是拿着石镐重瞄三次、清三次射线、`aimsAt#5 = -11,63,16 lava 源块=true 液位=8` 射线正中岩浆仍然 `miss`，`lava6.result = PASS`（空手 use 就是 PASS）。最终判词 `装不到 minecraft:lava_bucket` 说的是第七趟，真因在第六浇。⇒ 两笔修法：**(A) `*.spent` 说没浇成就当场停或重浇**（这行本来就是为此写的）；**(B) 装桶侧照浇筑侧的样子检查 `holdForUse`，拿不到就停**——浇筑侧早有 `if (!gripped) ctx.fail(...)`，装桶侧没有（[[a-precedent-nobody-ever-verified]] 的镜像：同一族两处只有一处守着） |
-| 🔴 **已定死待修** | J50 | **J48 的真因：两个作者做同一次交换，而交换是对合。** `holdBoth` 对两具身体各调一次 `holdItem`：客户端 `swapFromMainInv` 本地换一次**并发一个 SWAP 点击包**，服务端 `ServerPlayerAvatar.holdItem:707` **直接换、不发包** ⇒ 服务端那对堆栈被换两次＝没换。快捷栏分支写的是 `inv.selected=s`（幂等）所以无害 —— **j48 的 12 级里成功的浇筑全是「槽 0」，唯一失败的 `water6` 是「槽 3」**，分界线就在这里。七行读数逐 tick 对得上，见下面「J50」一节。修法：客户端拓扑下服务端那一半只读不写 |
+| ✅ **已验**（j50，2026-08-25） | J50 | **J48 的真因：两个作者做同一次交换，而交换是对合。** `holdBoth` 对两具身体各调一次 `holdItem`：客户端 `swapFromMainInv` 本地换一次**并发一个 SWAP 点击包**，服务端 `ServerPlayerAvatar.holdItem:707` **直接换、不发包** ⇒ 服务端那对堆栈被换两次＝没换。快捷栏分支写的是 `inv.selected=s`（幂等）所以无害 —— **j48 的 12 级里成功的浇筑全是「槽 0」，唯一失败的 `water6` 是「槽 3」**，分界线就在这里。七行读数逐 tick 对得上，见下面「J50」一节。修法：客户端拓扑下服务端那一半只读不写 |
+| 🔴 **已定死待修** | J51 | **12 级开场那一勺水：身体舀的是它自己上一级刚浇出来的那堵墙。** j50 的 12 级 `ticks=7` 就红了，判词 `装水失败：瞄了 -5,62,54（water_bucket 0→0）`。手是对的（`waterFill.hand` 与 `hand#2` 两次读数都是 `minecraft:bucket`，槽 0，无 `.inFlight` ⇒ **不是 J50**），目标也是合法水源（`shallowWaterNear` 本来就要求 `isSource()`＋纯水方块＋脚下实心），而 `waterFill.result = **FAIL**` —— 空桶的 `use` 只有一条路会返回 FAIL：射线落到了一个**不是 `BucketPickup` 的方块**上。那块方块是谁：11 级自己的判词写着 `在 **-4,62,54** 浇出黑曜石`，而 12 级站在 `-4,62,55`、瞄 `-5,62,54` —— **新鲜黑曜石正卡在眼睛和那格水之间的斜线上**。⇒ `shallowWaterNear` 按 `distSqr` 取最近，**不查通视**；[[a-pour-down-a-blocked-line]] 的镜像（那次是浇，这次是舀）。⚠️ 与 j48 的对照证明这不是必然而是**座位决定**（[[a-seat-decides-the-run]]）：j48 同一目标、同样 1.4 格，只因身体停在 `y=63` 而不是 `62`，射线越过黑曜石顶面，`result=SUCCESS`。修法：**现成的 `JourneyFill.visibleSourceNear` 就是这个问题的答案**（"nearest source whose line from the eyes is CLEAR"，用的正是 vanilla 那条 clip），12 级从来没调过它 |
 | 🔴 已判待修 | J47 | **浮在水面的身体走不上齐平的岸**，而每一行读数都像成功。`wd.journeyGetsAshoreBeforePouring` 三趟逐字相同：`dryLand=242843,221` → `end=path-consumed`、`停在 242844,221`、`脚下=water`。**不是「没有那条边」**：`Move.waterEscapeContext` 对这一格返回 true（脚下 3×3 有水），`Walk.valid` 只看**目标格**、根本不查起点，而目标 `canStandAt` 成立。所以路径产得出来，是**走完了而身体没到** ⇒ 走行器的逐节点到达判定给一具浮着的身体推进了指针（[[a-pointer-that-advanced-in-mid-air]]），再由 `ARRIVED_WITHIN=5` 把差一格判成到达（[[arrived-is-not-at-the-goal]]）。⚠️ `SwimAshoreBreak` 帮不上：它是 **+1 高**的移动，专治高岸，齐平岸不归它管。修法两条路——引擎侧修指针推进（正解但是引擎改动），或写死步骤：**上岸失败就在脚下垫一块**（身体带着圆石，浇筑要的是"脚下有地板"而不是"站在岸上"）。按规矩先走后者 |
 
 ## 🔴 J50（2026-08-24，**读码定死，j48 逐行对得上**）：两个作者做同一次交换，而交换是对合
@@ -663,15 +664,39 @@ cast.handTrace.samples = 采到 6/6 个服务端 tick
 
 | # | 判据 | 已验 / 未触发 / 证伪 |
 |---|---|---|
-| **D1** | 走到背包交换分支时必须出现 `holdBoth.<item>.inFlight` 行。**这一行本身就是「新那一支跑到了」的正证**（[[a-fix-that-never-gets-its-turn]]：让通过自己携带反证）。全趟一条都没有 ⇒ 记 **未触发**，不许当成已验。 ⚠️ **判据在跑之前改过一次，理由记这里**：原文写的是「一趟 **12 级**里一条都没有」，而 j49 证明这一支在 **11 级**就会走到（`cast.handSlipped` → 圆石挤手 → 背包分支）。把判据钉在 12 级会让一次发生在 11 级的命中被记成「未触发」—— 那正好是这条判据要防的事。改成全趟任意一级。 | |
-| **D2** | 出现 `.inFlight` 的那一浇，其 `*.spent` 必须是「（倒出去了）」；11 级则看 `cast.handTrace.t*.server` 有没有从满桶变成**空桶**（`bucket`），而不是变成别的物品。若仍是 `N→N`／服务端那格直接跳成圆石，J50 的修法**证伪**，去读 `*.handTrace.t*.server`。 | |
-| **D3** | `*.handTrace.t-1` 必须与同 tag 的 `*.atUse` 一致（校准行）。不一致 ⇒ **仪器坏了**，这一趟 handTrace 的所有读数一律不采信（[[a-verification-tool-needs-verifying-too]]）。 | |
-| **D4** | `*.handTrace.samples` 必须是 `6/6`。0/6 ⇒ settle 被跳过，沉默不算证据。 | |
-| **D5** | 反向控制：整趟里**槽 0 的浇筑不许出现** `.inFlight`（槽 0 走快捷栏分支，本来就不该进那一支）。若槽 0 也印了 `.inFlight`，说明我的分支判据算错了边。 | |
-| **E** | `journey.height`。**涨了是白赚**；12 级仍红但判词换成了别的腿，也算这三笔各自达成了它们的目的。 | |
+| **D1** | 走到背包交换分支时必须出现 `holdBoth.<item>.inFlight` 行。**这一行本身就是「新那一支跑到了」的正证**（[[a-fix-that-never-gets-its-turn]]：让通过自己携带反证）。全趟一条都没有 ⇒ 记 **未触发**，不许当成已验。 ⚠️ **判据在跑之前改过一次，理由记这里**：原文写的是「一趟 **12 级**里一条都没有」，而 j49 证明这一支在 **11 级**就会走到（`cast.handSlipped` → 圆石挤手 → 背包分支）。把判据钉在 12 级会让一次发生在 11 级的命中被记成「未触发」—— 那正好是这条判据要防的事。改成全趟任意一级。 | ✅**已验**：3 条 —— 9 级 `holdBoth.dirt.inFlight`、9 级 `holdBoth.cobblestone.inFlight`、10 级 `holdBoth.dirt.inFlight` |
+| **D2** | 出现 `.inFlight` 的那一浇，其 `*.spent` 必须是「（倒出去了）」；11 级则看 `cast.handTrace.t*.server` 有没有从满桶变成**空桶**（`bucket`），而不是变成别的物品。若仍是 `N→N`／服务端那格直接跳成圆石，J50 的修法**证伪**，去读 `*.handTrace.t*.server`。 | ✅**已验**（11 级那一半）：`t0.server=lava_bucket ×1` → `t1.server=bucket ×1`，j49 同一格是 `cobblestone ×28`。浇筑那一半 **未触发**：三条 `.inFlight` 都不在浇筑腿上 |
+| **D3** | `*.handTrace.t-1` 必须与同 tag 的 `*.atUse` 一致（校准行）。不一致 ⇒ **仪器坏了**，这一趟 handTrace 的所有读数一律不采信（[[a-verification-tool-needs-verifying-too]]）。 | ✅**已验**：`t-1.server = lava_bucket ×1`，`cast.atUse` 服务端 `槽 0 = minecraft:lava_bucket`，一致 |
+| **D4** | `*.handTrace.samples` 必须是 `6/6`。0/6 ⇒ settle 被跳过，沉默不算证据。 | ✅**已验**：`采到 6/6 个服务端 tick` |
+| **D5** | 反向控制：整趟里**槽 0 的浇筑不许出现** `.inFlight`（槽 0 走快捷栏分支，本来就不该进那一支）。若槽 0 也印了 `.inFlight`，说明我的分支判据算错了边。 | ✅**已验**：11 级两处浇筑（`fill`/`cast`）的 `atUse` 都是槽 0，两处都没有 `.inFlight` |
+| **E** | `journey.height`。**涨了是白赚**；12 级仍红但判词换成了别的腿，也算这三笔各自达成了它们的目的。 | ✅**两条都达成**：`OBSIDIAN`（j49 `PORTAL_KIT`），且 12 级的判词换成了开场那一勺水 |
 
 ⚠️ **别拿「12 级还是红」去证伪 J50**：J50 只保证那一浇会真的发生，
 它管不了模腔剩下几格、也管不了取料腿。判据落在 D1–D5 上，不落在级数上。
+
+### 🟢 j50 判读（2026-08-25，`results-j50-castPassed.jsonl`，D1–D5 全部达成，J50 **已验**）
+
+`journey.height = OBSIDIAN`（j49 是 `PORTAL_KIT`，涨了一级）、`journey.stagingCalls = 0`、
+11 级 **PASS**（j49 正是死在这一级）、12 级 FAIL 但**换了一条腿**。
+
+**最硬的那一条是 11 级的 tick 账**，同一具服务端身体、同一个槽 0：
+
+| | j49（修法前） | j50（修法后） |
+|---|---|---|
+| `cast.handTrace.t0.server` | `lava_bucket ×1` | `lava_bucket ×1` |
+| `cast.handTrace.t1.server` | **`cobblestone ×28`** | **`bucket ×1`** |
+| 这一浇 | 岩浆没出去，11 级红 | 岩浆浇出去了，`在 -4,62,54 浇出黑曜石` |
+
+满桶→**空桶**，而不是满桶→别的物品：桶被用掉了。这正是 D2 要的那个形状。
+
+D1 的三条 `.inFlight` 全部出现在**取用**而非浇筑（9 级 `dirt`/`cobblestone`、10 级 `dirt`），
+每条都写着「客户端 ×N，服务端 ×N」——**两份背包的存量一致，分歧只在选中格**，
+这本身就是「不是背包分叉、是点击包在路上」的独立佐证。
+
+⚠️ **一条没被判据要求、但必须记下来的观察**：这三条 `.inFlight` 一条都不在浇筑腿上，
+说明 J50 那一支在真梯上主要由**垒柱/铺路**触发，不是我原以为的取桶。
+判据 D1 当初钉在 12 级、后来改成全趟，改对了；但改的理由（j49 的 11 级）和实际命中的位置（9/10 级）**并不是同一处**。
+下次预登记要记住：**「这一支会不会跑到」和「它会在哪里跑到」是两个问题**，答对第一个不等于答对第二个。
 
 ---
 
