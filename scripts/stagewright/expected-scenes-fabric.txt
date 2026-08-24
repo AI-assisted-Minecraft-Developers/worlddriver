@@ -334,6 +334,13 @@ wd.serverDrawsABow
 wd.unwedgeRefusesTheStaircaseColumn
 wd.unwedgeTowersBesideTheStaircase
 
+# A craft with nowhere to put its table. Ladder j47's furnace rung failed in three ticks holding a
+# table and sixteen cobblestone, because the bed rung's walk home stopped three blocks short and
+# left the body over deep water: `PlaceNearby` needs a candidate cell whose SUPPORT is solid, and
+# every one of its twenty-four probes had water underneath. Staged past the threshold, with a
+# control that asserts the staging really refuses a table before the recovery is asked for.
+wd.journeyCraftStepsAsideForRoom
+
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
 # back, and adopted a DIFFERENT staircase column that no chooser had ever seen. Two dirt went in,

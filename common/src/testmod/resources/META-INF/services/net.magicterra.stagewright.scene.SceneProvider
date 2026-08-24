@@ -20,6 +20,7 @@ net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverCrystalBlastScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverTowerScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverThinFootingScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyUnwedgeScenes
+net.magicterra.worlddriver.bot.stagewright.journey.JourneyWorkableSpotScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyPortalEntryScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverDescentNodeScenes
 net.magicterra.worlddriver.bot.stagewright.journey.JourneyPourLineScenes

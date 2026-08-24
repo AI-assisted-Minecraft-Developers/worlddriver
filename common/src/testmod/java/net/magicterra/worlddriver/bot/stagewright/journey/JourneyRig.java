@@ -278,6 +278,54 @@ public final class JourneyRig {
         return rig;
     }
 
+    /**
+     * A rig for an ARENA scene: a body to drive and evidence to write, and <b>nothing in the
+     * ledger</b>.
+     *
+     * <p>Exists because three fixes in a row could not be verified. Each is a recovery for a rare
+     * failure — a body left on top of the tower it built, a body that surfaced still swimming, a
+     * craft with nowhere to put its table — and a ladder run can only ever answer「did it happen
+     * this time」, not「when it happens, does the recovery work」. Three consecutive runs stopped at
+     * rungs 11, 10 and 6, each on a different cause, and not one of the fixes rode an occasion.
+     * Staging the occasion is the only way; see [[three-greens-cannot-see-a-one-in-four]].
+     *
+     * <p><b>Why not {@link #enter}.</b> Two of its four steps write {@code JourneyLedger}: a stage
+     * whose {@code requires()} is unmet records BLOCKED and {@code skip}s the scene outright — an
+     * arena scene would never reach its own assertions — and its cleanup records {@code failed} for
+     * any rig that never claims a rung, which an arena never does. The ledger is the LADDER's
+     * account; an arena scene is not a rung of it.
+     *
+     * <p>{@code label} is a name for the evidence rows and nothing more. No ledger row is written
+     * under it, so it can safely be the stage whose code is under test.
+     *
+     * <p>The body is handed in rather than spawned: arena scenes already mint one through
+     * {@code SceneBody.managed}, and {@link #spawn} is the LADDER's body policy (adopt the client's
+     * player, else mint). The previous driver is restored by a cleanup, so a scene cannot leave the
+     * static pointing at a body that belonged to it — the failure mode of
+     * [[a-scene-that-owns-a-global]], which this file would otherwise be the biggest instance of.
+     */
+    static JourneyRig forArena(SceneContext ctx, JourneyStage label, ServerWorldDriver arenaBody) {
+        ServerWorldDriver hadDriver = driver;
+        boolean hadAdopted = adoptedRealPlayer;
+        ctx.cleanup(() -> { driver = hadDriver; adoptedRealPlayer = hadAdopted; });
+        driver = arenaBody;
+        adoptedRealPlayer = false;
+        JourneyRig rig = new JourneyRig(ctx, label);
+        ctx.record("journey.stage", label.name() + "(" + label.label() + ")（竞技场，不记账本）");
+        rig.recordFutileGate("本场景还没有过等待——走行器一次都没被 await 过");
+        return rig;
+    }
+
+    /**
+     * What this rig recorded under {@code key}, or null if it never did.
+     *
+     * <p>For arena scenes, which have to assert on the rows the code under test WROTE rather than on
+     * the world it left behind: 「the recovery ran」and「the world happens to look right」are two
+     * claims, and a rung that never entered the recovery can satisfy the second. Null-vs-present is
+     * the whole point, so this returns the value rather than a formatted string.
+     */
+    Object evidenceOf(String key) { return evidence.get(key); }
+
     /** The stage this rig is climbing. */
     public JourneyStage stage() { return stage; }
 
