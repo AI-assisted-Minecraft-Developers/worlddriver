@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-25
 
+- **Nothing else may take the hand while a bucket is being emptied.** Re-gripping immediately before
+  the use was as close as a caller could get and it was still not close enough: the pour recorded
+  `cast.handSlipped`, re-took the bucket, logged `cast.atUse` with `lava_bucket` on *both* bodies —
+  and then the server ticks either side of the use read `槽4 = lava_bucket` at `gameTime=28476` and
+  `槽4 = cobblestone ×29` at `28477`. The slot index never moved, so what changed was the slot's
+  contents: `BotInteract.ensureHoldingPillarBlock` ends in a real SWAP click that pulls a pillar
+  block out of the main inventory into the selected slot and pushes the bucket back into the bag —
+  which is also why a failed pour reads `lava_bucket.after = 1` beside a cell that is still water.
+  All five sites that can take the hand that way short-circuit on `BotConfig.allowPlace` first, so
+  both pours now hold placement off for the dozen ticks they need and restore it on every exit,
+  including a scene cleanup for the one path that has no return. Guarding the *window* rather than
+  re-taking the bucket after the fact is the difference between making the swap unlikely and making
+  it unreachable.
+
+- **Every leg that walks beside the lava crater now pays for its rim, not just the first one.** The
+  tax existed, was measured, and rode exactly one of five legs — the approach that found the lake.
+  The walk to the fill station and all four flights between the stairwell and the alcove passed an
+  empty bias list, and those are the legs that run *after* the lake has been opened up. A ladder
+  died on the second of them: five blocks from the fill station to the stairwell mouth, nine blocks
+  north along the crater instead, `lava −4.0×3；onFire −1.0×2`. That the return crosses the lake's
+  own rim was already written down — in the javadoc of the recovery that fires after it goes wrong.
+  The tax is now recomputed per leg rather than snapshotted at the approach, because the rim moves
+  outward while the rung works: every fill takes a source out and every cleared aim line breaks a
+  block that was holding the lake in.
+
 - **A rung's walk home now leaves the body on the ground, not on top of what it built to get there.**
   The bed rung ended `home.arrivedY = 78（起 62，净升 16），脚下=cobblestone` and **passed**: the
   walk's goal is a column, `Goal.XZ` has no y term, and three blocks of horizontal error is inside
