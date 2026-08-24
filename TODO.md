@@ -204,7 +204,94 @@ canary 三条 `(expected)`，无 `UNDECLARED:`。⇒ **这个分歧不是 loader
 修法在 StageWright 那边：那行改成三个数都说出来（executed / failed / skipped），
 或把 `executed` 改成它实际的意思。⚠️ **别为这个中途切仓**，worlddriver 这边的活先做完。
 
-## 🔴 J31 重写（2026-08-24，读码定死）：**闸不是阈值问题，是那个「有没有进展」的计数器在数点击**
+## ⛔⛔ J31 第三次改判（2026-08-24）：唯一的结构性分歧是**阈值**，账本清白
+
+下面整节（`b2793ba4` → `8ca35aa9` → `b3b25eeb` 三版叙事）**作废**，保留原文只为对照。
+事实与叙事分开写：F 段是测出来的，任何后续故事都必须容纳它们；机制那一环**没有答案**，
+记为 Q36，**不许当结论用**。
+
+### 方法：两趟日志逐行对齐，而不是各自普查
+
+`gate-fabric-j24b.log`（PASS）与 `gate-fabric-j31b.log`（FAIL）在 `wd.waterLowBank`
+这一段是**逐行同构**的（行号偏移 1）。把两个已知会变的字段 `t=<数字>`、`need=<数字>`
+归一化后再 `diff`，整段只剩**一处**结构性差异：
+
+```
+BEFORE  climbout-place col=124064,100001 fill=206 fcSolid=false support=true cleared=true (p.y=206.98 need=206.9)
+AFTER   climbout-place col=124064,100001 fill=206 fcSolid=false support=true cleared=false(p.y=206.98 need=207.0)
+```
+
+⇒ **`1c015469` 里的阈值统一（`+0.9` → `feetClearOf` 的 `+1.0`）就是回归本身。**
+账本改动在这一趟里**从未被执行到**：点击没发生，`placeAttemptCell` 恒为 null。
+
+### 事实（逐条可复核，不含机制解释）
+
+- **F1** 归一化 diff 后整段唯一的结构性差异就是上面那一行。
+- **F2** BEFORE 紧接着那行打出
+  `[avatar] 起跳闸分歧 站着却报没站: 脚底实心=0.3600 y=206.9795 落速=-0.4016 身体=124064, 206, 100001 排y=206 [124064,100001]实0.3600 [124064,100002]实0.0000 上迭代脚底实心=0.0000 上迭代水平碰撞=true`。
+  `排y = floor(minY − 1e-7) = 206`，`实` 是脚底 0.6×0.6 与该排实心格的重叠面积，
+  0.3600 即满足迹（`ServerPlayerAvatar:1089-1091` 自己的注释）。
+  **同一迭代内**：`climboutPlaceTick` 先读到 `fcSolid=false`，中间只跑了 `a.place(world, fillCell)`。
+- **F3** BEFORE 此后身体 206.98 → 207.40 → 207.73 → 207.98 → 208.40 → 208.73 → 208.98 → 209.40，
+  增量 +0.42 / +0.33 / +0.25 —— 原版起跳弧（`0.42`、`(0.42−0.08)×0.98=0.3332`、`0.2479`），
+  **每周期净涨整一格**，三个周期，对应三次 `cleared=true`（206.98 / 207.98 / 208.98）。
+  这些 tick 里**控制权全程在接管手上**（`climbout-place` 只在接管分支里打印）。
+- **F4** AFTER 同一 tick 起是 206.98 → 206.58 → 206.15（恒定 −0.40，纯自由落体），
+  整趟 `max foot.y = 207`；全日志 9 条 `起跳闸分歧` **没有一条落在 x=124064 这个竞技场**。
+- **F5** 读法核过：`col=` 印的是锁定柱 `wk.waterClimb.colX/colZ`（`WalkerTickClimb:135`），
+  但这一 tick `fill=206 == foot.y=206` 且 `dryG=false` ⇒ `fillCell == colFoot`，与 `col=` 同柱。
+  `need=` 印的是 `fillCell.getY() + 1.0` 的字面值，BEFORE 那版印 `+0.9` —— 日志参数与谓词是一起改的。
+
+### 由 F1–F4 直接推出
+
+- 那次点击**不是空转**：`(124064,206,100001)` 在它前后由非实心变实心。
+- 接管的产物**不是**「锁定朝向前压＋跳」，而是**在身体自己脚下那一格垒方块、再从它上面跳走**，一周期一格。
+- `+1.0` 恰好掐死这条路：浮在 `X.98` 的身体永远够不到 `X+1.0`，三次点击一次都不发生。
+
+### ⚠️ Q36（未解释，禁止当结论）：原版为什么放行了贴身放置
+
+读到的原版链路是 `BlockItem.canPlace` → `CollisionGetter.isUnobstructed(state,pos,ctx)` →
+`EntityGetter.isUnobstructed(null, shape)`，放置者自己会被算进去（`Player` 构造里
+`blocksBuilding=true`），而身体 AABB 底面 206.9795 与格 `[206,207]` 相交 0.0205，
+**按代码这次点击应该被拒**。仓里 grep 不到任何 mixin 或绕过（四处提及全是注释）。
+所以现在**只知道格子确实变实心了，不知道谁填的**。`WalkerTickClimb:911-915` 那句
+「vanilla silently rejects the still-overlapping AABB」也一并落进这个问号里（原 Q35 并入本条）。
+
+下一步**只读、不跑**：
+
+1. 读 `wd.waterLowBank` 的布景（`WorldDriverWaterBankScenes.java:649-704`），拿到
+   `(124064,205,100001)`、`(124064,206,100002)` 等格的真实内容；
+2. `ServerPlayerAvatar.place` 按 `Direction.values()` = DOWN,UP,N,S,W,E **取第一个实心邻格**。
+   若选中的是 **DOWN** 且 205 已实心，则 `getClickedPos()` 落在 205 而不是 206，
+   F2 的解释要换（F1/F3/F4 不变，修法方向也不变）。
+   ⇒ **这条读完之前，不许把「原版允许贴身放置」写进任何注释或场景断言。**
+
+### 被推翻的三条已提交叙事
+
+| 提交 | 说过什么 | 判 |
+|---|---|---|
+| `b2793ba4` | 「那三次 0.98 的点击真的放下了方块」 | **结论对，证明错**（`fill=` 只印 Y，那条论证本身不成立） |
+| `8ca35aa9` | 「三轴全交 ⇒ 原版全拒，一块都没落」 | **证伪**（F2） |
+| `b3b25eeb` | 「接管什么也没干，松手才是转机；`placeFutile` 的松手语义是病灶」 | **证伪**（F3：涨高发生在接管持有控制权期间） |
+
+`WalkerTickClimb:138-145` 那段注释（"three clicks, all three refused … it still reached the
+bank — on the press"）是我把 `8ca35aa9` 的错误写进 TODO、janitor 照抄进代码的，**必须一起改**。
+
+### 修法（待落）
+
+`feetClearOf` 的统一是错的——**那是两个谓词**：
+
+| 位置 | 它真正在问 | 常数 |
+|---|---|---|
+| `WalkerTickClimb:956`、`WalkerTickDrive:246` | 身体整个高过这一格 | `+1.0` ✅ 不动 |
+| `WalkerTickClimb:553`、`:927` | 现在按下去，这一格会不会被填上 | 退回 `+0.9`（连同日志的 `need=` 参数） |
+
+账本改动（落地／高水位清零）**保留**：正向场景 `wd.pillarLedgerCountsRefusedPlaces` 已 PASS
+且 `账.判过徒劳吗=True`，那一半独立成立，不受本次改判影响。
+
+---
+
+## 🔴 J31 重写（2026-08-24，读码定死）：**闸不是阈值问题，是那个「有没有进展」的计数器在数点击** ⛔已作废，见上节
 
 原来登记的是「`+0.9` 和注释里的 `≥ +1.0` 互相矛盾」。读完之后**矛盾是真的，但它不是病灶**。
 
