@@ -351,6 +351,115 @@ non-PASS in j31d: canaryMustFail / canaryMustTimeout / wd.vineOverWaterClimb / w
 
 ---
 
+## 📌 预登记：J32-A 定域木税豁免（写在写代码之前）
+
+设计已在 `fc77f249` 定死（那一笔**只动了 TODO.md**，代码没实现）：
+**`MineProcess` 当前目标是 `BlockTags.LOGS` 时，在这一段目标存续期内把
+`pathfinderLogBreakTax` 当 1.0**；travel 的每一根树干照旧收 3.0。不改全局默认。
+
+⚠️ 它比 Q14 原定的二分**更值得先做**：Q14 是「把两条税全局恢复 1.0」，
+那会连**路过**时的树林保护一起拆掉（`REGRESSION.md` 记着 A/B：OFF 时 209 格处 90s 永卡 →
+ON 全程 ARRIVED）。定域豁免拿到同样的解锁，却不动 travel 的定价。
+
+### 三条实现路线被否，连同理由
+
+1. ❌ **进/出各一次地写 `BotConfig.pathfinderLogBreakTax`。** `currentTarget` 在
+   `MineProcess` 里有 **5 个写者**（`:257/:306/:397/:449/:667`），配一个标志等于给它配五个作者。
+2. ❌ **复用 `st.mine.target`。** 看着是现成概念，实际有 **4 个写者、两种含义**——
+   `:261/:310` 写被挖的块，`:528/:546` 写 `goal`。同一个 `ProcessSlot` 的 javadoc 自己就记着
+   `pathLen`/`pathStep`「ten writers disagreed」。复用它是复用一个已经混了作者的字段。
+3. ❌ **`ClientWorldView.breakCost` 直接读 `BotState`。** 全仓**没有** `BotState` 静态句柄。
+
+### ✅ 采用：单写者 setter + 存答案不存位置
+
+- 5 处 `currentTarget = …` 收进**一个** private setter，由它维护静态 `boolean`。
+- **存 `boolean`，不存 `BlockPos`**：在赋值那一刻用手边已扫好的 state 算一次
+  `is(BlockTags.LOGS)`。`breakCost` 跑在 A\* 每节点循环里，不许在那里解世界。
+  顺带白送语义：`:306`（清叶）`:397`（覆盖层）写的是**非**原木目标，豁免自动落下。
+- `ClientWorldView.breakCost`（税在 `:448-449`）多问一句。方向 `bot` → `bot.process` 已存在。
+- ⚠️ 已知代价：豁免期内路过**别的**树也变便宜。目标短程，可接受，但记着。
+
+### 🔴 写之前查出来的泄漏口（原来那句「泄漏不可能发生」不成立）
+
+推导只覆盖那 5 个赋值点，而**外部停用路径根本不经过它们**：
+
+- `BotProcess.onCancelled(String)` 默认实现是**空的**（`BotProcess.java:79`），
+  `MineProcess` **没有覆写**（grep 零命中）。
+- `ChainProcessLifecycle.drop()` 只调 `onCancelled` 再 `slot.reset()`，**不碰** `currentTarget`。
+- `BotApiImpl:1073` `cancelAllProcesses("player-death")` 就是一条不经 `finish()` 的真实停用路。
+
+⇒ **身体在树上死一次，豁免就永久留在静态里**，此后每次 travel 都按 1.0 定价，
+§81 的回归会**无声**回来。修法两条缺一不可：① `MineProcess` 覆写 `onCancelled` 清豁免；
+② setter 做**归属校验**（只有存的值是自己写的才允许清），否则「旧实例的 `finish()`
+跑在新实例的 `setGoal` 之后」会抹掉活目标的豁免——**一个文本写者、两个调用实例，
+仍然是** [[a-field-with-two-authors]]。
+
+### ⚠️ 回测层是空的：一趟绿闸在这一笔上**只等于编译通过**
+
+`applyGameTestBaseline()` 把 `pathfinderLogBreakTax` 钉成 **1.0**（`BotConfig:2987`），
+而豁免坐在 `!= 1.0` 这道短路后面 ⇒ **312 条全跑在豁免被短路掉的世界里**。
+另已核：真梯在闸里**默认关**（`-Dworlddriver.journey=true` 才武装），
+j31d 那 312 条里只跑了标记 `wd.journeyArmed`，`wd.journey03Wood` **不在**闸里。
+⇒ 改完变绿**既证不了豁免生效、也抓不到泄漏**。不许让绿闸读成「已回测」。
+
+**所以本笔自带三条场景**，每条自己武装 3.0 并复原（[[a-scene-that-owns-a-global]] 纪律）：
+
+| 场景 | 问的是 | 判据 |
+|---|---|---|
+| 采原木途中 | 豁免**开**了吗 | 同一格 LOG 定价 = 1× |
+| 纯赶路 | 豁免**没**开 | 同一格 LOG 定价 = 3×（travel 保护还在） |
+| **中途取消** | 豁免**收回**了吗 | 取消后再问同一格，回到 3× |
+
+第三条就是抓上面那个泄漏的那一条。**三条要在注册它们的同一个 commit 里写进
+`expected-scenes-{fabric,neoforge}.txt`**，否则 `UNDECLARED:` 变红。
+
+### 该怎么判（现场层，对照 run 8）
+
+⚠️ 要真的只有一个变量，本趟必须把 `JourneyRig` 钉回 `applyCompiledDefaults()`——
+它现在钉的是 run 7 配置。✅ 已核 `walkerDigAimPriority` **出厂就是 true**（`BotConfig:2144`），
+是基线把它关掉（`:2959`）真梯再开回来 ⇒ 它在两套里**都开着**，不是混淆变量。
+
+| 读数 | run 8（税 3.0，无豁免） | 竞技场基线（1.0） | 本趟预期 |
+|---|---|---|---|
+| `[mine] no approach to stand` 行数 | **49** | — | **塌到个位数** ← 机制直证 |
+| 首棵树产出 | 4 | 7 | 回到 ~7 |
+| 3 级原木 / tick | 6 / 13899 | 13 / 2914 | PASS（账单 8） |
+
+**主判据是 `no approach to stand` 的塌陷，不是原木数**（[[the-ladder-is-not-reproducible]]）。
+
+- **已验**：塌陷 **且** 3 级 PASS ⇒ 木税就是全部病因。
+- **半验**：塌陷了但原木仍不够。⚠️ **这一档有两个解释，不许只记一个**：
+
+  | 嫌疑 | 签名 |
+  |---|---|
+  | **J28** `pathfinderBreakCostMultiplier` 2.5 | **定价侧**：仍有路被拒/绕远，而 `no approach` 已低 |
+  | **Q13 回落** 拿原木垒柱 | **背包侧**：`pillarUp` 次数高 × 手里原木净减，而路是通的 |
+
+  没有这一行，半验会**直接把我送到 J28**，而小偷可能是脚手架。
+- **证伪/仪器坏了**：`no approach` **没塌** ⇒ 豁免没被搜索读到（接线错了）。
+  **不许**当成「木税不是病因」。
+- **未触发**：没走到 3 级 ⇒ 任何一边都不算数。
+
+### 原木数这条旁证在 3 级上是**脏的**
+
+Q13（walker 拿刚砍的原木垒柱，121 次 `pillarUp`）✅ 已查：`b9e99d5c` 修了，
+但**只修一半且是故意的**——`ensureHoldingPlaceableAny(mc)` 现在是
+`(mc,true) || (mc,false)`：先试一次性方块，**找不到就回落到贵重方块**。
+javadoc 自陈理由：硬拒会「buy one bug with another」，把只揣着原木的身体困在崖上。
+⚠️ **而 3 级的包里正是「除了原木什么都没有」** ⇒ 回落必然命中，原木照样被烧。
+所以原木数只有在「`pillarUp` 次数低」或「包里有非原木可垒之物」时才解释得通。
+
+### 载具：只能是真梯，排练台在这一级上用不了
+
+`JourneyRehearsal` 是为**上层梯级**造的（自陈「to exercise rung 12 you must replay
+rungs 1–11 … about half of runs reach it at all」），且**按定义要摆布景**——
+每个占位梯级和每件递过去的物品都记 `JourneyLedger.staged`。
+⚠️ 3 级的判据恰恰是「身体自己采到多少木头」，一摆布景就把要量的东西毁了。
+加上 3 级够早（run 8 在 13899 tick 内就判完），真梯本身可靠到达。
+⇒ 载具 = 真梯，与 run 8 **同载具**。
+
+---
+
 ## ⛔⛔ J31 第三次改判（2026-08-24）：唯一的结构性分歧是**阈值**，账本清白
 
 下面整节（`b2793ba4` → `8ca35aa9` → `b3b25eeb` 三版叙事）**作废**，保留原文只为对照。
@@ -1073,9 +1182,42 @@ watcher 每 tick 写两行（客户端一行、服务端一行，各带线程名
 
 ⚠️ 仪器必须落在 **testmod**，不要碰 `common/src/main`：
 架构上的甲案（architectury `InteractionEvent`）**根本不成立** ——
-`gradle.properties:23` 声明了 `architectury_api_version` 却**全工作区零个读者**，
+`gradle.properties` 曾声明 `architectury_api_version` 却**全工作区零个读者**，
 三个源码树零个 `dev.architectury.*` import。这个仓库只用 architectury 的构建工具，
-没引运行时 API。（`../stagewright/gradle.properties:30` 有同一条死配置。）
+没引运行时 API。（`../stagewright/gradle.properties:30` 仍有同一条死配置，那是另一个仓。）
+📌 那一行已在 `fc1799c6` 删除——**证据不变，只是别再照行号去找它**。
+
+### ✅ 仪器已造（`3d060dc8`），但**还没跑过** —— 它现在只是一把校准好的尺子
+
+`JourneyHands.handTrace(rig, tag, tick)` 一次调用写**两行独立 evidence**
+（`cast.handTrace.t<N>.client` / `.server`），每行带**取数线程名**、该身体所在 level 的
+`gameTime`、槽号、物品、数量。`JourneyCast:296` 是 `-1` 校准行（在 `useItemInHand()` 之前），
+`:314` 的四参 `settle` 让 watcher 每 tick 采一次、采满 `TRACE_TICKS=6` 停。
+
+四条预登记逐条兑现，核过（不是采信）：
+
+| # | 要求 | 核法 |
+|---|---|---|
+| 1 | 每行记取数线程名 | `JourneyHands:469` `Thread.currentThread().getName()`，逐行印出 |
+| 2 | 客户端／服务端**分两行** | `:473` 与 `:477` 各自独立 key、各自 `gameTime` |
+| 3 | 在服务端线程上采样 | `TickWatcher` 是**专门的类型**（`JourneyRig:1172`），javadoc 自陈是「the only code that runs on every tick of a leg」，由服务端 tick 事件驱动 |
+| 4 | 第 0 tick 对得上 `cast.atUse` | 用 `-1` 行而非 t0——**t0 已经在 use 之后**，拿它去比是差一 tick 的比较。这比我原先写的判据更准 |
+
+**判别式三出口在磁盘上的形状**（这条才决定它答不答得了自己的题）：
+
+| 结论 | 输出长什么样 |
+|---|---|
+| **已验** | t1–t5 某行服务端翻成 cobblestone |
+| **证伪** | 12 行 trace 全程 lava_bucket，且 `samples=6/6` |
+| **未触发** | 整组 `cast.handTrace.*` **一行都没有** |
+| **仪器自己坏了** | `samples=0`（settle 被跳过），或 `-1` 行与 `cast.atUse` 不符 |
+
+四态两两可分，靠的是**每 tick 独立 key**——`slotFor` 对同值幂等，共用一个 key 会把
+「6 tick 都没翻」塌成一行，跟「只采到 1 tick」长得一模一样（[[evidence-that-lies]] 第四种）。
+`samples=0` 写得出来是因为 `JourneyRig:1213` 的 `skipSettle(then)` 仍然跑 continuation。
+
+⚠️ **它还没上过场**：这一族只有走到 ladder-17 那一浇才会写行，而真梯在闸里默认关。
+在读到真实的 12 行之前，Q32-C 仍是**未触发**，不许当成任何一边的证据。
 
 ---
 
