@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-24
 
+- **The trunk tax is waived for the leg that goes to fetch a log, and only for that leg.**
+  `pathfinderLogBreakTax` ships at 3.0 so A* stops routing through forests it is merely passing,
+  which is right everywhere except the one job whose whole purpose is to chew through a tree:
+  reaching the fifth log of a trunk means breaking the four under it, and at 3× those paths price
+  out. Measured on the wood rung, same seed, one variable — 13 logs / 2 914 ticks at 1.0 against
+  6 logs / 13 899 ticks at 3.0, with 49 rows of `[mine] no approach to stand` naming the mechanism.
+  The waiver is derived from `MineProcess`'s current target rather than latched beside it, so it
+  lapses on the same line that aims somewhere else; the leaf-clearing and overburden sub-goals get
+  the right answer for free. Travel still pays 3×, which is what globally restoring the tax to 1.0
+  would have thrown away. The state machine is covered by three scenes; the multiplication itself is
+  not, and cannot be here — see the next entry but one.
+
+- **The server rig cancels the process it is replacing.** `ServerWorldDriver.runProcess` and
+  `mine()` dropped the outgoing process's reference and nothing else, while the client's
+  `UserTaskChain.setProcess` has always cancelled it first. That asymmetry was invisible for as long
+  as no process owned anything outside itself, and one now does: a scene handed the driver a new
+  order mid-trunk would have leaked the trunk-tax waiver into every scene after it — nothing failing,
+  prices merely changing. Both entry points now go through the same door.
+
+- **Recorded, not changed: the two world views price breaking differently, and one of them not at
+  all.** `ClientWorldView` applies the floating tax, the wrong-tool ×3, the trunk tax and the dig
+  multiplier; `LevelWorldView` — which is what the server body plans through — applies none of the
+  four, and `ServerWorldView.breakCost` returns infinity. So on a dedicated server every one of those
+  prices is inert, and a scene asking "will A* choose to dig through here" is asking about a cost
+  table that topology never consults. That is why the waiver's scenes test its state machine and
+  leave the arithmetic to the live ladder. Tracked as J33.
+
 - **The water climb-out gets its own crest gate back, because the unified one was unsatisfiable
   there.** Four sites asked "have the feet risen clear of this cell so vanilla will accept a block
   in it", two with `+0.9` and two with `+1.0`, and the two constants were folded into one
