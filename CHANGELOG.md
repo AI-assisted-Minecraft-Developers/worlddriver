@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-25
+
+- **A rung's walk home now leaves the body on the ground, not on top of what it built to get there.**
+  The bed rung ended `home.arrivedY = 78（起 62，净升 16），脚下=cobblestone` and **passed**: the
+  walk's goal is a column, `Goal.XZ` has no y term, and three blocks of horizontal error is inside
+  the tolerance at any altitude. Both halves of that cost the next rung. The tower *was* the missing
+  cobblestone — the furnace rung opened holding 7 where the stone rung banks 20 — and standing on it
+  put `MineProcess`'s `mineSearchVerticalRadius=8` scan band entirely above the terrain, so a top-up
+  that asked for one stone found no candidate and aborted in a single tick. `walkHome` already asked
+  「is the body under something」, but only on the strand branch and only downward; the arrival path
+  now reads the elevation in both directions and records it every time. Above, it mines the tower
+  back — which returns the blocks the walker spent; below, it climbs out. The reference is the home
+  column's heightmap rather than the body's own, because once a tower exists it *is* terrain and the
+  body's column reports the tower top.
+
+- **A craft that had to remake its table no longer gets blamed on the remake.** `attempting` names
+  what a rung would be failing for from here on, and `ensureCraftingTable` sets it on three of its
+  four branches — so a rung whose table came back printed 「FAILED —— 补做工作台：地上也没有，
+  只能再买一张」 over `craftingTable=1`, blaming the one leg that had worked while the terminal
+  cause sat three rows lower. `craftKeepingTheTable` restates the note before the craft, which fixes
+  it for every craft on the ladder rather than for the rung that noticed.
+
+- **The furnace top-up reports what it achieved.** Its row read 「补料 N 块」— perfect tense, written
+  before the mine ran — and printed that over `furnace.topUp.after=7` with `stagingCalls=0`: two
+  independent readings saying nothing was added. The row is now a shortfall, and what the mine did
+  is recorded after it (`.mined`, `.error`, and the miner's own reason, whose absence was why 「跑完」
+  could not be told from 「found nothing」). When the cheap surface attempt comes back short the rung
+  now runs the stone rung's proven shape on the surveyed column instead of walking into a craft that
+  must fail; its quota is the shortfall plus the shaft's depth plus a margin, because paying the
+  climb out of the furnace's share is what stranded an earlier run at the bottom of its own hole.
+
 ## 2026-08-24
 
 - **The ladder now runs on the configuration the driver ships, and the wood rung passes on it.**
