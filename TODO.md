@@ -947,6 +947,23 @@ waterFill.aim#2 = 244375, 220, 100000（通视的最近水源，与按距离的�
 ⇒ 重构进闸后**任何偏离这条基线的现象，先记这笔重构的账**，不许先去查场景。
 「行为等价」＋「编译通过」在这个仓库里对产品谓词**不构成证据**，要一趟双 loader 的闸背书。
 
+### 🟢 j54 进行中：1–11 级全绿（2026-08-25 06:40，12 级在跑）
+
+```
+wd.journeyArmed … PASS   20 rungs, floor=PORTAL_KIT, summit=DRAGON
+01Recon 02Spawn 03Wood 04WoodTools 05StoneTools 06Food 07Bed 08Furnace 09Iron 10PortalKit  全 PASS
+wd.journey11Obsidian -> PASS (4505 ticks)  在 -4, 62, 54 浇出黑曜石，桶已回到手上 ×1
+```
+
+⚠️ **11 级这一趟和 j53 起点几乎一样，结局相反**：`shaft.column = -4,56`（同一根柱）、
+`lava.arrivedY = 63，脚下=Block{minecraft:water}`（同样落在水上）—— 但**没有 `shaft.reColumn.1` 行**，
+也就是这一柱中段没见水，没换柱，也就没走上 j53 那条「爬出时被冲下柱子」的腿。
+⇒ **J54 那条腿这一趟没有复现**，`shaft.reColumn.N.upstream` 记 **未触发**，
+一条都不许记成已验或证伪。同一根柱子两种结局，正好说明它是**趟间方差**而不是必然
+（[[the-ladder-is-not-reproducible]]），也说明 J54 的修法**仍然欠一次场合**。
+
+另：5 级判词写着 `石剑 ×1` —— 用户列的七条现象里「不备石剑」那条在这一趟是**有**的。
+
 ### ⚠️ j54：任务表说 `killed`，而这一趟**根本没停**（2026-08-25 06:12）
 
 后台任务通知写的是 `status: killed`。**没有据此下判断**，先按 [[an-empty-output-is-not-a-dead-task]]
