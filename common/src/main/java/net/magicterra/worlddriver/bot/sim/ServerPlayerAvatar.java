@@ -67,11 +67,13 @@ import net.minecraft.world.phys.Vec3;
  * <ul>
  *   <li><b>Every caller is on THIS type.</b> The testmod's scenes take a bare avatar from
  *       {@code SceneBody.avatar}, or one wrapped in a {@link ServerWorldDriver} from
- *       {@code SceneBody.mint}/{@code managed}/{@code bare}; three sites instead construct one
+ *       {@code SceneBody.mint}/{@code managed}/{@code bare}; four call sites instead construct one
  *       directly over a body they already hold — {@code JourneyRig}'s adopted real player, the
  *       same wrapper rebuilt in {@code WorldDriverActuatorSplitScenes}, and both columns of
  *       {@code wd.bodyParityCensus}. None of them names the shim: no file outside
- *       {@code net.magicterra.worlddriver.neoforge.sim} imports or spells either shim class.</li>
+ *       {@code net.magicterra.worlddriver.neoforge.sim} imports either shim class. (The only
+ *       places its fully-qualified name appears at all are the MIGRATION note above and its twin
+ *       in {@link ServerWorldDriver} — provenance, not use.)</li>
  *   <li><b>The {@code non-final} is still load-bearing, but for one class rather than a caller
  *       population.</b> The NeoForge shim of the same simple name extends this one and narrows
  *       {@link #fakePlayer()} back to {@code FakePlayer}; its only live consumer is NeoForge's
@@ -185,10 +187,11 @@ public class ServerPlayerAvatar implements Avatar {
     /** Like {@link #create} but with a body of its OWN — a fresh unique GameProfile, so this
      *  avatar can never be steered/teleported through another driver's shared singleton
      *  (gap #48). <b>This is the live factory:</b> {@code /agentserver} agents use it (two agents =
-     *  two bodies), and so do the testmod's scenes, through {@code SceneBody.avatar} /
-     *  {@code SceneBody.bare} — which are also where the refusal to mint a headless body on a
-     *  topology that has a real client to drive lives. ({@code wd.bodyParityCensus} deliberately
-     *  goes round them, to hold the loader body and the joined body side by side.)
+     *  two bodies), and so do the testmod's scenes — most of them through
+     *  {@code SceneBody.avatar} / {@code SceneBody.bare}, which are also where the refusal to mint
+     *  a headless body on a topology that has a real client to drive lives.
+     *  ({@code wd.bodyParityCensus} reaches past them on purpose, to hold the loader body and the
+     *  joined body side by side; {@code JourneyRig} calls {@code createIsolated} itself.)
      *
      *  <p>This javadoc used to say the GameTest arenas stayed on the shared {@link #create} because
      *  per-arena bodies made the suite's other cross-arena couplings (shared world regions,
