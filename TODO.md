@@ -515,7 +515,7 @@ subject.endedAt     = 241312, 216, 99999，脚下=Block{minecraft:stone}
 | 🟡 **已修待验** | J48 | **12 级新天花板：一浇没发生，没人管，六条腿之后判词报了错的腿。** j48 逐行：`water6.spent = water_bucket 1→1，等过 3 tick 往返仍未消耗 —— 桶还满着，这一浇没有发生` ⇒ **仪器说得清清楚楚，而关卡照走不误**；下一趟 `lava6.hand = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe；桶存量 空=0 水=1 岩浆=0` ⇒ **`JourneyFill.fillFrom` 不检查 `holdForUse` 的返回值**，于是拿着石镐重瞄三次、清三次射线、`aimsAt#5 = -11,63,16 lava 源块=true 液位=8` 射线正中岩浆仍然 `miss`，`lava6.result = PASS`（空手 use 就是 PASS）。最终判词 `装不到 minecraft:lava_bucket` 说的是第七趟，真因在第六浇。⇒ 两笔修法：**(A) `*.spent` 说没浇成就当场停或重浇**（这行本来就是为此写的）；**(B) 装桶侧照浇筑侧的样子检查 `holdForUse`，拿不到就停**——浇筑侧早有 `if (!gripped) ctx.fail(...)`，装桶侧没有（[[a-precedent-nobody-ever-verified]] 的镜像：同一族两处只有一处守着） |
 | ✅ **已验**（j50，2026-08-25） | J50 | **J48 的真因：两个作者做同一次交换，而交换是对合。** `holdBoth` 对两具身体各调一次 `holdItem`：客户端 `swapFromMainInv` 本地换一次**并发一个 SWAP 点击包**，服务端 `ServerPlayerAvatar.holdItem:707` **直接换、不发包** ⇒ 服务端那对堆栈被换两次＝没换。快捷栏分支写的是 `inv.selected=s`（幂等）所以无害 —— **j48 的 12 级里成功的浇筑全是「槽 0」，唯一失败的 `water6` 是「槽 3」**，分界线就在这里。七行读数逐 tick 对得上，见下面「J50」一节。修法：客户端拓扑下服务端那一半只读不写 |
 | 🔴 **已定死待修** | J53 | **坏座位下没有任何水源可见，而代码照旧花掉那一次 use。** j52 的 12 级：`waterFill.aim = 没有一格水源是这只眼睛看得见的`（`visibleSourceNear` 返回 null，认对了），`waterFill.atUse` 空桶线 `-5,62,55 minecraft:grass_block 面=up（1.05 格）`，`result = FAIL`。挡路的是**原生地形**，不是 11 级浇的黑曜石（我原先的判断被这条射线推翻）。⇒ 缺的是**换座位**：`JourneyFill.standToFill` 早就是「挑一个看得见源块的落脚点」的现成答案，取岩浆一直在用它，这一勺从来没用过。⚠️ 坏座位＝身体在 `y=62`（`高差 +0`），好座位＝`y=63`；j48/j51 好、j50/j52 坏，**四趟二比二**，所以这不是偶发（[[a-seat-decides-the-run]]） |
-| 🔴 **已定死待修** | J52 | **模腔的水顺楼梯流到底，第 9 趟浇筑的返程终点是一格水。** j51 的 12 级：`cast8.returnStopped#3 = 想到 2,56,20，停在 -1,60,20，差 5.00 格 —— 要去的那格：脚下 stone，身处 water，头顶 water`。场景**自己**印了病因和办法：`cast8.stairFoot = ⚠ 楼梯底积水…（流动，没源就会自己退）—— 不能挖（挖水是 no-op），也不能垫（垫上就是把最后一级砌死），**只能等它退**`，而代码里没有一处等。⚠️ 三段返程里只有第 3 段死于这一因，另两段死于**掉进自己舀空的岩浆坑**（`returnStuck`）——两件事，别合并（[[a-segment-hides-a-stall-at-its-end]]） |
+| 🔴 **已定死待修** | J52 | **模腔的水顺楼梯流到底，第 9 趟浇筑的返程终点是一格水。** j51 的 12 级：`cast8.returnStopped#3 = 想到 2,56,20，停在 -1,60,20，差 5.00 格 —— 要去的那格：脚下 stone，身处 water，头顶 water`。场景**自己**印了病因和办法：`cast8.stairFoot = ⚠ 楼梯底积水…（流动，没源就会自己退）—— 不能挖（挖水是 no-op），也不能垫（垫上就是把最后一级砌死），**只能等它退**`。⚠️ **2026-08-25 订正：原文这里写的是「而代码里没有一处等」，这句已被 j51 自己的证据证伪** —— `drain.0`–`drain.6` 每一段都等了、也都等退了，等本身是有的、也是有效的；真正缺的是**等超时之后不问为什么**。缺的那一问已经补上（`drain.N.upstream`，见 G1–G5），**还缺的是问出来之后的动作**：被点名的水源要去收走。留着一句已经证伪的病因描述在队列里，就是 [[two-ones-that-disagree]] 那个形状。⚠️ 三段返程里只有第 3 段死于这一因，另两段死于**掉进自己舀空的岩浆坑**（`returnStuck`）——两件事，别合并（[[a-segment-hides-a-stall-at-its-end]]） |
 | ✅ **已验**（2026-08-25，Fabric 专服闸 GREEN 287/25） | J51b | **场景建好并首跑 PASS**：`wd.journeyScoopsPastItsOwnObsidian`（`JourneyLandingScenes`，两个 `expected-scenes` 都登记了）。它把陷阱**布置出来**而不是等它发生：在最近那格水源**正上方**盖一块黑曜石（盖盖子而不是砌墙——墙要算准射线经过哪一格，那样测的就成了我的算术），另给一格露天水源在稍远处。四条断言按顺序咬合：**控制组 A** 按距离的最近必须仍是被盖的那格（`subject.nearest=243359,220,99999`，否则后面全是 0==0）；**控制组 B** 先校准尺子——引擎自己的 clip 必须同意盖子挡住了它（`bucketLineLandsOn` 返回 false）；**C/D/E** 通视 finder 必须给出**另一格**且正是那格露天的（`subject.visible=243362,220,100000`）；**F** 端到端——`空桶线 243362,220,100000 minecraft:water 面=up（2.38 格）`、`waterFill.result=CONSUME`、`subject.waterBucket=0 → 1`，桶**真的装上了水**。⇒ **J51 那一支从此是被点名考过的，不再靠真梯碰座位** |
 | ✅ **已完成**（见上一行） | J51b-旧 | **通视 chooser 至今没被点名考过。** j51 那一趟座位是 y=63（好座位），`waterFill.aim` 写的是「与按距离的最近是同一格」⇒ 新分支**未触发**。而 j50 的 y=62 会挡线。⇒ 靠真梯碰运气不是验证（[[three-greens-cannot-see-a-one-in-four]]）。做法：加一条竞技场场景，把身体放在**看不见水源的那个座位**上（水源与眼睛之间摆一块黑曜石），断言这一勺**仍然**装到水 —— 让这一支的失败**必然**发生一次（[[verify-by-making-the-criterion-impossible]] 的正向用法）。这是单具身体的缺陷，`forArena` 够用 |
 | ✅ **已验**（2026-08-25，由 `wd.journeyScoopsPastItsOwnObsidian` 点名验证；真梯上仍看座位） | J51 | **12 级开场那一勺水：身体舀的是它自己上一级刚浇出来的那堵墙。** j50 的 12 级 `ticks=7` 就红了，判词 `装水失败：瞄了 -5,62,54（water_bucket 0→0）`。手是对的（`waterFill.hand` 与 `hand#2` 两次读数都是 `minecraft:bucket`，槽 0，无 `.inFlight` ⇒ **不是 J50**），目标也是合法水源（`shallowWaterNear` 本来就要求 `isSource()`＋纯水方块＋脚下实心），而 `waterFill.result = **FAIL**` —— 空桶的 `use` 只有一条路会返回 FAIL：射线落到了一个**不是 `BucketPickup` 的方块**上。那块方块是谁：⚠️ **我当时的答案是错的，j52 的射线行推翻了它** —— 我写的是「11 级刚浇的黑曜石 `-4,62,54` 卡在斜线上」，而真正挡路的是 **`-5,62,55` 的 `grass_block`（原生地形，距眼睛 1.05 格）**。当时这个点位**没有射线行**，我拿「上一级刚在旁边浇了黑曜石」补出了因果；解释得通，并且是错的。修法方向（问通视）没受影响，但病因归错了对象，见 J53。⇒ `shallowWaterNear` 按 `distSqr` 取最近，**不查通视**；[[a-pour-down-a-blocked-line]] 的镜像（那次是浇，这次是舀）。⚠️ 与 j48 的对照证明这不是必然而是**座位决定**（[[a-seat-decides-the-run]]）：j48 同一目标、同样 1.4 格，只因身体停在 `y=63` 而不是 `62`，射线越过黑曜石顶面，`result=SUCCESS`。修法：**现成的 `JourneyFill.visibleSourceNear` 就是这个问题的答案**（"nearest source whose line from the eyes is CLEAR"，用的正是 vanilla 那条 clip），12 级从来没调过它 |
@@ -734,6 +734,27 @@ REASON      站不到可下挖的柱子上：想去 -10,51，停在 -10,63,50（
 lava.arrivedY = 63（起 65，净升 -2），脚下=Block{minecraft:water}[level=0]
 ```
 
+⚠️ **第一次判读只看了 REASON，把 `shaft.*` 一族 grep 掉了**——而判词讲的正是下挖柱，
+证据全在被滤掉的那 177 行里。补读之后这条腿不再是「未定性」，它是一条**完整的链**：
+
+| # | 证据行 | 讲的是 |
+|---|---|---|
+| 1 | `shaft.column = -4,56 (岩浆柱偏 2 格)`；`shaft.stepping.1 = -6,63,54 → -4,56 (正站在岩浆柱上)` | 第 1 根柱选好、也站上去了 |
+| 2 | `shaft.0`…（63→53，每级先破碰撞盒底下 2–4 格再落） | 下挖本身是好的 |
+| 3 | `shaft.reColumn.1 = -4,53,57 这一柱中段有水，身体浮起来了（脚下 water）—— 爬回 y=63 换第 2 根柱子重挖，还剩 1 次换柱` | **代码自己诊断对了、也决策对了** |
+| 4 | `exit#6.climb.0 = -4,53,57 onGround=false` → `climb.1 = -4,50,57 onGround=true` | 起爬之前先**又沉了 3 格** |
+| 5 | `climb.1`…`climb.8`，每次 `placed=1` 然后 `washedOff = 水把身体冲下柱子了（流速²=1.00000）`，重试 3→2→1→0 | 八次起塔，**在流动水里一次都没站住** |
+| 6 | `exit#6.walkerFallback = True`、`gained = 10/10`，但 `endedIn = -5,56（起塔柱是 -4,57 —— 不是同一柱）`、`endedOn = 脚格=air，脚下=water` | 后备把它弄上去了，**落在水面上、且不是原柱**（[[water-is-not-a-floor]]） |
+| 7 | `shaft.column#2 = -10,51 (岩浆柱偏 4 格)`；`stepping.1#2 / 2 / 3` 一律「脚下柱子不合格」；`shaft.wedged.3`；`shaft.backOff.3 = -13,62,48` | 第 2 根柱也走不到 |
+| 8 | REASON：该柱「在岩浆层不是实心, 或柱子里还有岩浆」 | 第 2 根柱也被流体废掉，**换柱预算 2 用尽** |
+
+⇒ 这一趟 11 级的死因是**两根下挖柱都被流体废掉**，而不是「柱子不实心」这一句字面。
+真正吃掉这一趟的是第 5 行：**退出爬升发生在流动水里**，`流速²=1.00000` 是满速流水，
+每起一格塔就被冲下来一次。`apexFeetY=56` 说明它到过 56 又被冲回 50。
+
+⚠️ **不许从这一趟推出水是哪来的。** y=53 那格水是天然的、是上一级留下的、还是 11 级
+自己浇的，一趟看不出来（[[one-sample-cannot-name-a-cause]]）。要问就下一趟专门加一行读数。
+
 **不是这几笔修法造成的**，三条独立理由：(1) 判词落在 `JourneyShaft` 的下挖柱选择上，
 跟取水、跟 `plainSource` 都不是同一族；(2) `plainSource` 那一笔在 **j51 之前**就落了，
 而 j51、j52 的 11 级都过了；(3) `standToScoop` 只有 12 级那一个调用点。
@@ -749,7 +770,7 @@ lava.arrivedY = 63（起 65，净升 -2），脚下=Block{minecraft:water}[level
 | j50 | OBSIDIAN | 开场那一勺，坏座位（J51/J53） |
 | j51 | OBSIDIAN | 第 9 浇的返程，楼梯底积水（J52） |
 | j52 | OBSIDIAN | 开场那一勺，坏座位（同 j50） |
-| j53 | PORTAL_KIT | 11 级：下挖柱不实心（新，未定性） |
+| j53 | PORTAL_KIT | 11 级：两根下挖柱都被流体废掉，退出爬升在流动水里被冲下柱子 8 次（J54） |
 
 ⚠️ 这张表本身就是结论：**12 级不是一个缺陷，是一段还没有一次跑通过的长链**。
 每修掉一条腿就往前挪一段，然后死在下一条。拿单趟高度当进度判据会来回打脸——
