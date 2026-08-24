@@ -11,7 +11,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Inventory;
@@ -235,26 +234,10 @@ public final class ClientWorldView implements WorldView {
         if (upstream <= 0) return dc;                          // crossing or with the flow → no extra cost
         return dc + BotConfig.waterFlowPenalty * upstream;         // |flow|·cosθ scaled
     }
-    public boolean isHazard(BlockPos p) {
-        BlockState s = state(p);
-        // FluidTags.LAVA, NOT Fluids.LAVA: FluidState.is(Fluid) compares the exact
-        // fluid type, and a lava lake's EDGE/falls are FLOWING_LAVA — with the type
-        // compare every flowing cell read as "not hazard", so canStandAt admitted
-        // feet-in-lava nodes, dangerCost charged nothing, and the Walker's
-        // hazardAhead brake stayed blind (round54: bot waded 6s through a lava
-        // shore at full sprint, enteredLava ×2).
-        if (s.getFluidState().is(FluidTags.LAVA)) return true;
-        if (s.is(BlockTags.FIRE)) return true;
-        if (HAZARD_BLOCKS.contains(s.getBlock())) return true;
-        // User-configurable extras (Baritone-style blocksToAvoid). Map is
-        // checked last so the built-ins stay short-circuit cheap.
-        var extras = BotConfig.extraHazardBlocks;
-        if (!extras.isEmpty()) {
-            String id = BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString();
-            if (extras.contains(id)) return true;
-        }
-        return false;
-    }
+    /** The shared policy — this file was its author and the other two views each carried a copy
+     *  that pointed BACK here in a comment. {@code BotUtil.isHazardState} now holds both the code
+     *  and the FluidTags-not-Fluids account of why it is written that way. */
+    public boolean isHazard(BlockPos p) { return isHazardState(state(p)); }
     public boolean isWater(BlockPos p) {
         return state(p).getFluidState().is(FluidTags.WATER);
     }
