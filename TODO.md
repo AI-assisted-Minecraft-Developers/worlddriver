@@ -289,9 +289,27 @@ javadoc 里（`:869` 「the walk back crosses the lake's own rim」）。
 |---|---|---|---|---|
 | A | `cast*.rimTax` / `forge.rimTax` **每趟 flight 都写** | 12 级有 ≥4 条 `*.rimTax` | 没走到 12 级 | 走到了却一条没有 |
 | B | **计数会涨**：把 12 级所有 `*.rimTax` 按插入顺序取格数，末值 > 首值 | 涨了 ⇒ 重算是必要的 | 只有一条 | 恒定 ⇒ 快照本来就够，重算是白花的（记下来，别当成红） |
-| C | 死因不再是 `lava`/`onFire` | 12 级 PASS，或 FAIL 但 `death.blow` 不含 lava/onFire | 没到 12 级 | 又是 `lava −4.0` ⇒ 加价不够或走的不是这条腿 |
+| C | 死因不再是 `lava`/`onFire`，**且限定在被修的那两条腿上** | 12 级 PASS，或 FAIL 但 `death.blow` 不含 lava/onFire | 没到 12 级；**或**死在下面那两条 j46 还没修的腿上 | 死于 `lava` 且最后一条证据键属于 `cast*.return`／`lava*.spot` 那两条腿 ⇒ 加价不够 |
 | D | `JourneyFill` 那条腿也带上了 | 12 级有 `lava0.rimTax`/`lava1.rimTax` | — | 只有 flight 的有 |
 | E | **不误伤**：加价没把 flight 卡住 | `*.returnStopped` 不比 j39 多 | j39 本来就 0 条 | 新出现 `returnStopped` ⇒ 加价让路更贵到走不完 |
+
+### ⚠️ 判据 C 在 j46 起跑之后被收窄了，理由写在这里
+
+j46 已经在跑（载的是 `0b30962a`）之后，我接着审自己这笔修法，**又找到两条漏网的腿**，
+都在 `WorldDriverJourneyScenes` 里、都走向湖边、都传裸 `Intent`：
+
+- `walkAtTheColumn:2427` —— 走到 `pickDigColumn` 选出的下挖柱，那一柱就在湖沿上；
+- 它上面那段解卡「背对岩浆退两格」的 `Goal.XZ(rx, rz, 1)`。
+
+**证据就在这段代码自己的注释里**：`sole 0.0000 < 0.18 at -13,66,21 beside a lethal drop →
+sneak-pin`，三条腿、约 110 次搜索，身体被钉在坑沿上。当时开的药是「退一格再问」，
+而加价管的是**它一开始就不会被规划到那儿**——又一次 [[a-fix-that-cannot-reach-its-own-occasion]]，
+同一天同一族的第二例。
+
+修法已写进树里但**没有编译**（真梯在跑，[[compiling-under-a-live-run]]），进不了 j46。
+⇒ 所以判据 C 收窄成「限定在被修的那两条腿上」：**j46 若死于 lava 但最后一条证据键
+属于 `shaft.stepping.*`／`shaft.wedged.*`／`shaft.backOff.*`，那是未触发不是证伪**。
+改判据的时点在读结果之前，理由如上。
 
 ⚠️ **这一趟同时载着 J37**（工作台丢失分支去捡、`collectByHand` 给三腿）。
 两笔的读数不重叠——J37 读 `craftingTable.lostThenFetched` 与 `*.pickup.*`，
