@@ -4,7 +4,6 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Player;
@@ -53,18 +52,9 @@ public final class LevelWorldView implements WorldView {
         return !s.blocksMotion() || s.getFluidState().is(FluidTags.WATER);
     }
 
-    @Override public boolean isHazard(BlockPos p) {
-        BlockState s = state(p);
-        // FluidTags, not Fluids: the type compare misses FLOWING lava/water
-        // (lake edges, falls) — see ClientWorldView.isHazard.
-        if (s.getFluidState().is(FluidTags.LAVA)) return true;
-        if (s.is(BlockTags.FIRE)) return true;
-        if (BotUtil.HAZARD_BLOCKS.contains(s.getBlock())) return true;
-        var extras = BotConfig.extraHazardBlocks;
-        if (!extras.isEmpty()
-                && extras.contains(BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString())) return true;
-        return false;
-    }
+    /** The shared policy, not a third opinion about it — {@link BotUtil#isHazardState} carries the
+     *  FluidTags-not-Fluids reasoning and the extras list this used to restate line for line. */
+    @Override public boolean isHazard(BlockPos p) { return BotUtil.isHazardState(state(p)); }
 
     @Override public boolean isWater(BlockPos p) { return state(p).getFluidState().is(FluidTags.WATER); }
 
