@@ -758,6 +758,26 @@ waterFill.aim#2 = 243870, 220, 100000（通视的最近水源，与按距离的�
 无事可做，`Goal.Block` 那笔修法**一次都没被执行**。它今天的等级是「编译＋闸绿」，
 不是「被观察到起作用」——**不许**因为场景绿了就把它一起记成已验（[[skip-is-not-coverage]]）。
 
+### ⚠️ 新陷阱：`expected-scenes-*.txt` 是判官的一部分，不是源码（2026-08-25 05:14）
+
+第 2 闸 `VERDICT: RED`，而**必需失败 0 条**、COVERAGE 仍是 288/25、三条 `fail(optional)`
+全是已知的（`wd.vineOverWaterClimb`、`wd.serverEscapeSealedShelter`、
+`wd.journeyGetsAshoreBeforePouring`）。真正的判词在上面 324 行：
+
+```
+[stagewright:dedicatedServerFabric] MISSING-EXPECTED: wd.journeyKeepsTheSeatItMovedTo not in registered
+```
+
+⇒ **是我在闸跑着的时候改了两个 `expected-scenes-*.txt`。**「运行中可以改 `.java`、不能编译」
+这条规矩（[[compiling-under-a-live-run]]）**只覆盖 `.java`** —— 游戏在启动那一刻就从
+`build/classes` 装完了类，之后改源文件确实不影响它。但 `expected-scenes-*.txt` 是
+**判定时才从磁盘读**的运行期数据，改它等于**在比赛中途换裁判的名单**。
+
+规矩补一条：**登记一条场景和它的 manifest 行必须在同一个提交里，而且绝不能在闸跑着的时候改
+manifest。** 这一次算出来的基线是 GREEN 288/25，实到 RED 且判词只有这一条 ⇒ 那三笔提交
+（`Goal.Block` 再入、`shaft.reColumn.N.upstream`、绝对高度那行）**没有被这一闸质疑**，
+不许拿这个红去调查它们（[[a-verdict-has-upstream-verdicts]]：先算该是什么颜色，再去对）。
+
 ### 📌 预登记 I'：给 I5 造出它的场合（2026-08-25 05:10，**写在编译之前**）
 
 `wd.journeyKeepsTheSeatItMovedTo` —— 同一个陷阱，把岸**加高一层**（横跨 `dz∈[-1,1]` 三格，
