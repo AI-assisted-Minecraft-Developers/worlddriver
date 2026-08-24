@@ -281,6 +281,7 @@ public final class Walker {
         int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
         int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
         BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. Avatar.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the body's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
+        int pillarHighWaterY = Integer.MIN_VALUE;   // highest foot.getY() this takeover has reached — the OTHER half of "successful place / height gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every cycle, so "higher than last tick" is true forever and would count buoyancy as progress; "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at engagePillar so a re-locked column cannot inherit the previous segment's height.
         int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
         int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
         float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
@@ -296,6 +297,7 @@ public final class Walker {
             gaveUpTtl = 0;
             pillarNoPlaceTicks = 0;
             placeAttemptCell = null;
+            pillarHighWaterY = Integer.MIN_VALUE;
             lastDigRiser = null;
             digRiser = null;
             digCommitTicks = 0;

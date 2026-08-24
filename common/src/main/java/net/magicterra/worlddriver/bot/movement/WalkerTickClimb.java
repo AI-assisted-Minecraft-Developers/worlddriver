@@ -135,10 +135,25 @@ final class WalkerTickClimb {
                     wk.waterClimb.colX, wk.waterClimb.colZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
                     String.format("%.2f", p.getY()), fillCell.getY() + 1.0,
                     dryGrounded, foot.getY(), wk.waterClimb.targetY);
+        // TWO ways to be making progress, because this takeover has two products. On a bank it
+        // FILLS a cell; on a low bank its whole output is「locked heading + forward press + jump」
+        // and the body walks itself up without a single block landing. wd.waterLowBank is the
+        // second kind: three clicks, all three refused (the body is dead centre in its own column,
+        // so the AABB intersects on all three axes), and it still reached the bank — on the press.
+        // A ledger that only counted landings called that futile and cut the takeover at 51 ticks,
+        // six times, each cut re-locking the column and dropping the press. It was judging the
+        // takeover by a product it does not provide.
         BlockPos tried = wk.waterClimb.placeAttemptCell;
-        if (tried != null && world.isSolid(tried)) {
-            wk.waterClimb.pillarNoPlaceTicks = 0;                    // the cell really filled
-            wk.waterClimb.placeAttemptCell = null;
+        boolean landed = tried != null && world.isSolid(tried);
+        // HIGH-WATER, never a per-tick delta. The bob crosses a block boundary every cycle, so
+        // "higher than last tick" is true forever and would launder buoyancy into progress; "higher
+        // than ever" stops refreshing as soon as the bob settles between two cells, which is
+        // exactly the deadlock this ledger exists to notice.
+        boolean rose = foot.getY() > wk.waterClimb.pillarHighWaterY;
+        if (rose) wk.waterClimb.pillarHighWaterY = foot.getY();
+        if (landed || rose) {
+            wk.waterClimb.pillarNoPlaceTicks = 0;
+            if (landed) wk.waterClimb.placeAttemptCell = null;
         } else {
             wk.waterClimb.pillarNoPlaceTicks++;
         }
@@ -154,6 +169,12 @@ final class WalkerTickClimb {
         Walker.waterPillarEngages++;
         wk.waterClimb.colX = foot.getX();
         wk.waterClimb.colZ = foot.getZ();
+        // Re-base the height ledger on THIS segment. A re-locked column that inherited the previous
+        // one's high-water would start already "as high as it ever got" and could never register a
+        // rise again — the second segment would be declared futile on height no matter how well it
+        // climbed, which is the same mistake as counting the click instead of the block, one level up.
+        wk.waterClimb.pillarHighWaterY = foot.getY();
+        wk.waterClimb.placeAttemptCell = null;
         double ex = (cwp.getX() + 0.5) - p.getX();
         double ez = (cwp.getZ() + 0.5) - p.getZ();
         wk.waterClimb.yaw = (ex * ex + ez * ez > 1e-4)
