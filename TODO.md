@@ -151,7 +151,42 @@ F 只是结局。上一趟的教训正是**趟级的数是结局不是证据**�
 
 ---
 
-## 📌 预登记：`wd.surfacePillarPointerNeedsItsSupport` 落地之后那趟双 loader 闸（2026-08-24，写在跑之前）
+## 📐 J33（2026-08-25，读码结案，**只读，没改任何代码**）：两套世界视图给「挖穿」定的不是同一个价
+
+三个 `WorldView` 实现，谁在用哪个是查出来的，不是猜的：
+
+| 视图 | 构造点 | 谁的身体 |
+|---|---|---|
+| `ClientWorldView` | `BotApiImpl:74`、`PlanProbeTool:55` | **客户端 bot（线上、真梯）** |
+| `LevelWorldView` | `ServerWorldDriver:54`、`:147` | **专用服身体（`wd.*` 场景的绝大多数）** |
+| `ServerWorldView` | `ObserveApi:404`、`ServerPlayerAvatar` 五处 | 只做几何读数（`soleOnSolid`/`soleRow`），`breakCost` 恒 `+∞` |
+
+`LevelWorldView.breakCost`（`:93-104`）整条就是：不可破→∞、流体→∞、否则
+`COST_PER_TICK × ceil(1/progress)`。**没有任何一道税。**
+
+`ClientWorldView` 在同一条路上叠了四道，逐条对得上：
+
+| 税 | 位置 | 服务端视图有吗 |
+|---|---|---|
+| 浮水破坏 ×25／×5 | `breakCostFrom :299-306` | ❌ |
+| 错工具 ×3 | `rawBreakCost`（`if (!bestCorrect) cost *= 3`） | ❌ |
+| 树干税 `pathfinderLogBreakTax` | 同上（J32-A 刚给它加了 `!MineProcess.miningALog()` 豁免） | ❌ |
+| `pathfinderBreakCostMultiplier` | `return cost * …`（最后一行） | ❌ |
+
+⇒ **任何在专用服上问「走行器会不会选择挖穿这里」的场景，量的都不是线上那张成本表。**
+这跟 J27 查到的是**两条独立的机制**：J27 是基线表把旗标关掉，这一条是**即使旗标一样，
+这个视图也不读它们**。所以「把基线表换成出厂默认」修不好这一半。
+
+🔎 **最硬的一条证据是这个类自己留下的**：`LevelWorldView:79-83` 有一段 javadoc 自陈——
+它专门重写 `isBreakableObstruction`，理由是「否则 lily-pad 那两道税只在 CLIENT 视图上生效，
+没法在无头竞技场里确定性地跑」。**同一个类为一道税解决过这个问题，剩下四道没动。**
+所以这不是「设计上就该分开」，是**修了一处没修一族**（[[a-precedent-nobody-ever-verified]] 的反面：
+这次先例是对的，只是没人把它推广）。
+
+📌 **不修，先记。** 理由：改 `LevelWorldView.breakCost` 会**同时改动 300 场里每一场
+涉及破坏的路径规划**，那是一趟双 loader 闸都未必压得住的面积；而真梯跑的是
+`ClientWorldView`，跟通关这条主线无关。修法形状（留给 janitor 评估）是把四道税抽成
+一个两边都调用的定价函数，**先加场景把现状钉住，再搬**。
 
 `5f2d3ecf` 把计划从「停在 `dest`」改成「多走一格到 `crest`」，判据从
 `s != WALKING && !placed && !reachedRow`（第三项恒假 ⇒ 整条恒不可满足）
