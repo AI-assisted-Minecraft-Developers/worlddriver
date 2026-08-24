@@ -845,6 +845,32 @@ waterFill.aim#2 = 244375, 220, 100000（通视的最近水源，与按距离的�
 回归会长什么样是确定的：`Goal.Near(近塘,2)` 会把它从 6 格外一路拽回那口**围了栏、喝不到**的塘，
 然后花掉唯一那次 use。⇒ 这一条判据不是防御性的，它有明确的反面。
 
+### 🔴 J55（2026-08-25，12 小时 janitor 报出，我逐条复核过）：一个游戏动词住在脚本传输层
+
+`prelude.js:194` 的 `Driver.bot.tunnel` 是**一整个动词**（挖 1×2 走廊），只有 in-JVM Rhino
+够得着。四条都实测过：
+
+| 声称 | 复核 |
+|---|---|
+| `DriverApi` 没有 `mc.bot.tunnel` 路由 | ✅ grep 零命中 |
+| `ToolCatalog` 没有 schema | ✅ grep 零命中 ⇒ **MCP／RPC 客户端根本调不到** |
+| 手抄了一份 yaw→cardinal | ✅ 阈值与 `GoalResolver.resolveCardinalDirection`（`:177`）**逐字相同**（≥315 或 <45=south，<135=west，<225=north，else east） |
+| 读的是滞后一 tick 的 yaw | ✅ `pl.look.yaw` 来自 `mc.observe.player` 快照；`GoalResolver` 读的是 `pl.getYRot()` 实时值 |
+
+⚠️ 复核还多查出**两件 janitor 没说的**：
+
+1. **方向词表已经有三套，而且互不相同。** janitor 自己那笔 `388f1266` 记下了
+   `mc.bot.goto` 用 `"backward"`、`mc.bot.construct` 用 `"back"`（`BotTools` 143 / 447）；
+   `prelude.js` 是**第三套**，用 `"back"`，并且**多接受 `"up"`／`"down"`** —— 而
+   `resolveCardinalDirection` 对这两个词返回 `null`。所以「提升成真路由」不是搬代码，
+   得先决定这三套词表合并成什么，否则就是把分歧固化进 schema。
+2. 滞后那一 tick 是**真的会咬人**的：`lookAt` 之后紧接着 `tunnel`，挖的是**旧朝向**
+   （[[a-lagging-reading-became-the-crime-scene]]、[[an-aim-is-an-angle-not-a-target]] 同族）。
+
+**不能直接删** —— `validation/25_phase_d3.js` 在闸里跑它。按铁律要提升成真路由
+（`DriverApi.route` + `ToolCatalog` schema），并且**共用 `GoalResolver` 那一份解析**，
+而不是让脚本层再抄一遍。需要编译器 ⇒ 排在 j54 之后做。
+
 ### 📌 归因契约：janitor 那笔重构进闸之前的基线（2026-08-25 05:33，**写在它的改动进闸之前**）
 
 12 小时的 `wd-janitor` 这一轮在改 `common/src/main`（**不碰** journey 包、`bot/sim/**`、
