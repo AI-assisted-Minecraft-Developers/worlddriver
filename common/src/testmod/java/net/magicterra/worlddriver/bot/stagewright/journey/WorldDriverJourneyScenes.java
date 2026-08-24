@@ -1365,7 +1365,10 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * <p>Both directions, and the elevation is recorded on every path — a row that appears only when
      * the recovery fires cannot tell「it was level」from「nobody looked」.
      */
-    private static void settleOntoHomeGround(JourneyRig rig, String key, BlockPos home, Runnable then) {
+    // Package-visible, not private, so `wd.journeyStepsDownOffItsOwnTower` can run THIS leg without
+    // running the bed rung around it. Its occasion — a body that walked home up a tower it built —
+    // appeared once in five ladder runs, and a fix nobody can stage is a fix nobody can judge.
+    static void settleOntoHomeGround(JourneyRig rig, String key, BlockPos home, Runnable then) {
         BlockPos at = rig.player().blockPosition();
         int ground = JourneyTerrain.daylightY(rig, home);
         int off = at.getY() - ground;

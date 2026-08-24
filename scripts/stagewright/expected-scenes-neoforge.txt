@@ -338,6 +338,15 @@ wd.unwedgeTowersBesideTheStaircase
 # control that asserts the staging really refuses a table before the recovery is asked for.
 wd.journeyCraftStepsAsideForRoom
 
+# Where a leg leaves the body. Two recoveries that were landed and then could not be judged, because
+# their occasions — a walk home that ends on top of the tower it built, a climb that ends still
+# swimming — appeared in none of five ladder runs. Each asserts the recovery's own evidence row is
+# PRESENT, not that the world ended up tidy: a body that was never on a tower also ends on ground.
+# The pit arm is the other direction of the same guard, which no run had ever exercised.
+wd.journeyStepsDownOffItsOwnTower
+wd.journeyClimbsOutOfItsOwnPit
+wd.journeyGetsAshoreBeforePouring
+
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
 # back, and adopted a DIFFERENT staircase column that no chooser had ever seen. Two dirt went in,
