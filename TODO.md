@@ -323,6 +323,52 @@ J44 读 `*.rimTax` 与 `death.blow`——**归因是干净的**。
 所以**仪器永久留着**：哪一趟再出 `pickup.empty` 而**相距 < 1.5 格且有空槽**，J38 就有第二半，
 当场重开。
 
+### 📖 j46 判词：**10/20**，五条判据**全部未触发**，但仪器换来一个新根因
+
+`:fabric:runJourneyIntegratedServer`，`BUILD SUCCESSFUL in 24m 10s`，
+结果 `stagewright-results.jsonl`（16:56 本地）。`journey.height = PORTAL_KIT`、
+`stagingCalls = 0`。⚠️ 12–20 级那一排 PASS 是 `ctx.skip` 解析出来的
+（[[skip-is-not-coverage]]），**不是过了**。
+
+| # | 判据 | 结果 |
+|---|---|---|
+| A–D | 12 级的 `*.rimTax` 各行 | ⏸ **未触发** —— 没走到 12 级 |
+| E | 加价不误伤 | ✅ **强意义成立** —— **整趟 `rimTax` 行数 = 0** |
+
+**归因干净，且是零执行意义上的干净**：`:common:compileTestmodJava UP-TO-DATE`
+（提交前手动编过，树是新的），而 11 级根本不走 `JourneyFill.fillFrom` ——
+它有 `fill.hand` 却没有 `.spot`/`.stationSees`/`.aimsAt`，即**用的是另一份装桶实现**
+（正是 J15 记的两份并存）。所以修法整趟一次都没跑，**不可能是这次退级的原因**。
+
+比 j39 退了一级，但**换了一级、换了死因**（[[the-ladder-is-not-reproducible]]）：
+j39 的 11 级过了、死在 12 级；j46 的 11 级失败，而且**根本没死人**。
+
+### 🔴 Q19b（新，当前天花板）：换手发生在服务端处理 use 的那一 tick 之内
+
+11 级的失败被 `cast.handTrace` 一整条链讲清楚了——**这套仪器是上一轮为 Q24 建的，第一趟就响了**：
+
+```
+cast.handSlipped  = 动手前手上不是 lava_bucket 了：客户端 槽4=cobblestone，服务端 槽4=cobblestone
+                    —— 上一次 hold 之后隔了一次落定，重新拿一次        ← Q19 的守卫真响了
+cast.again.hand   = minecraft:lava_bucket（槽 4）                      ← 重拿成功
+cast.atUse        = 客户端 槽4 = lava_bucket；服务端 槽4 = lava_buck…   ← 发包那刻两端都对
+cast.motionAtUse  = |水平|=0.0000 onGround=true；goto 槽 end=arrived   ← 身体静止
+handTrace.t0.server = gameTime=28476 槽4 = minecraft:lava_bucket ×1
+handTrace.t1.server = gameTime=28477 槽4 = minecraft:cobblestone ×29   ← 这一 tick 之间被换掉
+cast.cellAfter = water    lava_bucket.after = 1    obsidian.anywhere = 无
+```
+
+⇒ 瞄准对、手对、姿态对、守卫响了并重拿了，**浇仍然没发生**：
+在服务端 28476→28477 这一 tick 里，槽 4 的岩浆桶被 `cobblestone ×29` 顶掉，
+桶被挤到别的槽（所以 `lava_bucket.after = 1`），`handleUseItem` 读到的是石头。
+
+**Q19 的修法（浇前重拿）在这个形状上到顶了**：守卫贴得再近也贴不进「同一 tick」。
+[[a-hold-must-be-adjacent-to-the-use]] 的下一层——相邻还不够，要**这段时间里没有第二个作者**。
+
+⚠️ **下一步不是直接关放置权**。得先**点名那个写者**：
+[[a-field-with-one-writer-is-a-proof]] 反过来说，写者集合没查清就改，改的可能是没病的那一边
+（[[a-question-asked-backwards-still-answers]]）。先查谁能往选中格塞可放置方块。
+
 ### ✅ J38 结案：不是背包满，是**根本没走到**
 
 仪器 `4eceadb2` 第一趟就点名，在 5 级：
