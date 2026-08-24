@@ -34,7 +34,9 @@ import net.minecraft.server.level.ServerPlayer;
  * still here and still narrows {@link #avatar()} and {@link #fakePlayer()}, so this class and
  * those accessors stay {@code non-final} — but what stands behind it is one command, NeoForge's
  * {@code /agentserver}, not a caller population: no file outside
- * {@code net.magicterra.worlddriver.neoforge.sim} imports or spells either shim class.
+ * {@code net.magicterra.worlddriver.neoforge.sim} imports either shim class. (The MIGRATION note
+ * above spells the old fully-qualified name, and so does its twin in {@link ServerPlayerAvatar};
+ * both are provenance, not use.)
  *
  * <p>Who holds a driver of THIS type: the testmod's scenes, via
  * {@code SceneBody.mint}/{@code managed}/{@code bare} — and {@code JourneyRig}, which wraps an
