@@ -232,7 +232,7 @@ final class JourneyRamp {
         rig.evidence(tag + ".flight", flight.size() + " 级：" + describe(flight)
                 + "（壁龛地板 y=" + floorY + "，身体 " + here.toShortString() + "）");
         approach(rig, corridor, flight, tag,
-                () -> lay(rig, corridor, flight, 0, landing, false, tag, then));
+                () -> lay(rig, corridor, flight, 0, landing, false, -1, tag, then));
     }
 
     /**
@@ -395,12 +395,51 @@ final class JourneyRamp {
         /** The next support is further than {@link JourneyStairs#MEND_REACH}. */
         OUT_OF_REACH,
         /** A placement was attempted and the world did not take it. Named by {@code .step.N}. */
-        REFUSED
+        REFUSED,
+        /**
+         * A placement was attempted and the cell is not solid <b>yet</b> — which on a client-driven
+         * body is not the same statement as {@link #REFUSED}, and until 2026-08-25 this code could
+         * not tell them apart.
+         *
+         * <p>{@code placeOn} on a {@code LocalPlayer} goes to {@code gameMode.useItemOn}, which
+         * <b>predicts locally and sends a packet</b>. The server has not run a tick yet, so a
+         * {@code ServerLevel} read in the next statement is false by construction. On a
+         * {@code JoinedBody} the same call lands server-side and the read is true — one helper, two
+         * bodies, one of them silently mis-judged since the ladder switched to a real client.
+         *
+         * <p>Measured on ladder j54, cell {@code 3, 56, 18}:
+         * <pre>
+         * [06:46:58] [place] 成功 … 点击格=3, 55, 18 面=up  邻格=3, 56, 18→cobblestone 结果=SUCCESS
+         * [06:46:58] [place] 拒绝 … 点击格=3, 56, 17 面=south 邻格=3, 56, 18→cobblestone 结果=FAIL
+         * [06:47:01] [place] 拒绝 … 点击格=3, 56, 18 面=south …
+         * </pre>
+         * The first face succeeded and the hand lost one cobblestone (×54→×53→×52, one per SUCCESS),
+         * yet {@link JourneyStairs#placeInto} walked on to faces 2 and 3 — which it only does when
+         * its own check said「not solid」. Three seconds later that same block is what
+         * {@code placeInto:448} clicks AGAINST, and that line only accepts a neighbour the
+         * <i>ServerLevel</i> calls solid. The round trip completes; the verdict was one statement early.
+         *
+         * <p>The cost of getting this wrong was total: all nine ramp attempts of j54 reported
+         * {@code 0/N}, and every one of the fourteen {@code .step.N} rows was {@code step.0} — the
+         * pass could never credit a course it had just laid, only one that was already solid.
+         */
+        PENDING
     }
 
     /** How far one pass of {@link #layWhereItStands} got and why it stopped. {@code at} is the
      *  support it stopped ON, or null when it {@link Stop#FINISHED}. */
     record Pass(int laid, Stop stop, BlockPos at) {}
+
+    /**
+     * Ticks to let a placement reach the server and come back before its absence means anything.
+     *
+     * <p>Four, held for {@code PLACE_ROUND_TRIP * 2} ticks of budget, because the scoop next door
+     * already settled this number by measurement — its failure row reads
+     * {@code water_bucket 0→0，已等过 3 tick 往返}. An integrated server's client and server share a
+     * process and the packet lands on the very next tick; the margin is for the day this body places
+     * through {@code mc.execute} instead of straight off the calling thread.
+     */
+    private static final int PLACE_ROUND_TRIP = 4;
 
     /**
      * Lay every step within arm's length of wherever the body is standing right now — one pass, no
@@ -422,6 +461,23 @@ final class JourneyRamp {
     static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Avatar av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                  BiConsumer<String, Object> evidence, String tag) {
+        return layWhereItStands(level, player, av, corridor, flight, from, evidence, tag, true);
+    }
+
+    /**
+     * The same, with the choice of whether an unconfirmed placement may be deferred.
+     *
+     * <p>{@code settled=true} is the historic behaviour and what every scene gets: judge now, and an
+     * attempted placement that did not land is {@link Stop#REFUSED}. That is correct for a body that
+     * places server-side, which is the body a scene drives.
+     *
+     * <p>{@code settled=false} is for {@link #lay}, which has a rig and can therefore let ticks pass.
+     * It reports {@link Stop#PENDING} instead — <b>without</b> writing a {@code .step.N} row, because
+     * the reason it would print is read from the same too-early world. See {@link Stop#PENDING}.
+     */
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Avatar av,
+                                 Set<BlockPos> corridor, List<BlockPos> flight, int from,
+                                 BiConsumer<String, Object> evidence, String tag, boolean settled) {
         BlockPos body = player.blockPosition();
         int laid = from;
         while (laid < flight.size()) {
@@ -450,7 +506,13 @@ final class JourneyRamp {
             // THE WORLD, not the call — the same discipline the stair mend and the backing mend
             // already run on. `placeOn` reports nothing, and a step that was never laid produces the
             // identical row to one that was.
+            //
+            // BUT THE WORLD HAS TO HAVE HEARD ABOUT IT FIRST. Asking `level` — the ServerLevel — in
+            // the placement's own tick answers a question about the past when the body places over
+            // the wire. That is Stop.PENDING's whole subject; the deferral belongs to `lay`, which
+            // owns the ticks, so all this can do is decline to call it a refusal.
             if (!level.getBlockState(support).blocksMotion()) {
+                if (held && !settled) return new Pass(laid, Stop.PENDING, support.immutable());
                 evidence.accept(tag + ".step." + laid, support.toShortString() + " 垫不上（"
                         + (held ? whyNotLaid(level, player, support) : "手上没有圆石")
                         + "），身体 " + body.toShortString());
@@ -524,10 +586,33 @@ final class JourneyRamp {
      * WALK is what fails here, only the run can say so, and until 2026-08-20 it said nothing.
      */
     private static void lay(JourneyRig rig, Set<BlockPos> corridor, List<BlockPos> flight, int from,
-                            BlockPos landing, boolean alreadyAside, String tag, Runnable then) {
+                            BlockPos landing, boolean alreadyAside, int settledAt, String tag,
+                            Runnable then) {
         ServerLevel level = rig.ctx().level();
-        Pass pass = layWhereItStands(level, rig.player(), rig.avatar(), corridor, flight,
-                from, rig::evidence, tag);
+        Pass p = layWhereItStands(level, rig.player(), rig.avatar(), corridor, flight,
+                from, rig::evidence, tag, false);
+        if (p.stop() == Stop.PENDING) {
+            // ONE WAIT PER COURSE, not one per pass. Every course places exactly once, so a latch
+            // spent on the first would leave every course after it judging as early as it did
+            // before this existed — the fix would then read as working on course 0 and nowhere else.
+            if (settledAt != p.laid()) {
+                int course = p.laid();
+                rig.settle(new HoldStill(PLACE_ROUND_TRIP), PLACE_ROUND_TRIP * 2,
+                        () -> lay(rig, corridor, flight, course, landing, alreadyAside, course,
+                                tag, then));
+                return;
+            }
+            // IT HAS HAD ITS ROUND TRIP and the cell is still not solid. Only now is the reason
+            // worth printing: whyNotLaid's「现在是 X」reads the world at the moment it is asked, so
+            // asked any earlier it names the state BEFORE the placement it is adjudicating. j54 has
+            // three rows saying「现在是 water」about cells the log shows turning to cobblestone.
+            rig.evidence(tag + ".step." + p.laid(), p.at().toShortString() + " 垫不上（"
+                    + whyNotLaid(level, rig.player(), p.at()) + "），身体 "
+                    + rig.player().blockPosition().toShortString()
+                    + "（已等过 " + (PLACE_ROUND_TRIP * 2) + " tick 往返，所以不是「还没到」）");
+            p = new Pass(p.laid(), Stop.REFUSED, p.at());
+        }
+        final Pass pass = p;
         BlockPos to = stepAsideFor(level, rig.player(), corridor, flight, pass, from, alreadyAside);
         if (to == null) {
             rig.evidence(tag + ".laid", pass.laid() + "/" + flight.size() + " 级垫好了（身体 "
@@ -542,7 +627,7 @@ final class JourneyRamp {
                     + pass.at().toShortString() + " 里（vanilla 的 isUnobstructed 会拒）—— 挪到 "
                     + to.toShortString() + " 再问一次，只问这一次");
         walkTo(rig, to, () -> lay(rig, corridor, flight, pass.laid(), landing,
-                pass.laid() == from, tag, then));
+                pass.laid() == from, -1, tag, then));
     }
 
     /**
@@ -580,12 +665,43 @@ final class JourneyRamp {
         String now = "现在是 " + level.getBlockState(cell).getBlock();
         if (!placeable(level, cell)) return now + "，六邻没有能贴的实心面（放方块要贴着一个面点）";
         boolean inTheWay = fp.getBoundingBox().intersects(new AABB(cell));
-        return now + "，贴得到实心面（"
-                + (inTheWay ? "但身体自己的碰撞箱压在这一格里 —— vanilla 的 isUnobstructed 会拒，"
-                              + "身体精确位置 " + String.format("%.2f/%.2f/%.2f",
-                                      fp.getX(), fp.getY(), fp.getZ())
-                            : "身体也不压在这一格里 —— 拒绝的原因不在这两条里，去看 placeOn 那一侧")
-                + "）";
+        if (inTheWay)
+            return now + "，贴得到实心面（但身体自己的碰撞箱压在这一格里 —— vanilla 的 isUnobstructed"
+                    + " 会拒，身体精确位置 " + String.format("%.2f/%.2f/%.2f",
+                            fp.getX(), fp.getY(), fp.getZ()) + "）";
+        // THE THIRD QUESTION, and until now there was no third question.
+        //
+        // Ladder j54 measured NINE ramp attempts and `laid = 0/N` on every one of them — the stair
+        // builder is this rung's only way of gaining height, and it never laid a single course all
+        // run. Seven of the eight refusals printed「拒绝的原因不在这两条里，去看 placeOn 那一侧」and
+        // stopped there, so a total failure of the mechanism produced no diagnosis at all. `placeOn`
+        // still reports nothing; what follows is the cheapest set of questions that can tell the
+        // remaining suspects apart WITHOUT changing any placement behaviour.
+        //
+        // Ordered by what j54 makes most likely. The hand comes first because「握着」and「服务端手上
+        // 是」have disagreed on this ladder before — `holdItem` returns true from the client's view
+        // while the SWAP click is still in flight, which is the whole of J50 — and a use that fires
+        // with the wrong stack is refused exactly like a use that is geometrically impossible.
+        StringBuilder more = new StringBuilder();
+        var hand = fp.getMainHandItem();
+        more.append("服务端手上=")
+                .append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(hand.getItem()))
+                .append(" ×").append(hand.getCount());
+        double reach = fp.getEyePosition()
+                .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(cell));
+        more.append("；眼睛到格心 ").append(String.format("%.2f", reach)).append(" 格");
+        // NOT just the player: `isUnobstructed` refuses for ANY entity in the cell, and a dropped
+        // cobblestone from the same flight is exactly the kind of thing that ends up standing in it.
+        var others = level.getEntities(fp, new AABB(cell));
+        if (!others.isEmpty())
+            more.append("；这一格里还有 ").append(others.size()).append(" 个实体（")
+                    .append(others.get(0).getType()).append("）—— isUnobstructed 同样会拒");
+        // WHICH FACES placeInto would have clicked, so「没有面可点」and「点了却被拒」stop reading alike.
+        StringBuilder faces = new StringBuilder();
+        for (Direction d : Direction.values())
+            if (level.getBlockState(cell.relative(d)).blocksMotion()) faces.append(d).append(' ');
+        more.append("；可贴的面 ").append(faces.length() == 0 ? "无" : faces.toString().trim());
+        return now + "，贴得到实心面，身体也不压在这一格里 —— " + more;
     }
 
     /** The alcove's own floor row — the one course that rests on rock rather than on the course
