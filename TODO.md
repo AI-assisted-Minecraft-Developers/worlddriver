@@ -845,6 +845,29 @@ waterFill.aim#2 = 244375, 220, 100000（通视的最近水源，与按距离的�
 回归会长什么样是确定的：`Goal.Near(近塘,2)` 会把它从 6 格外一路拽回那口**围了栏、喝不到**的塘，
 然后花掉唯一那次 use。⇒ 这一条判据不是防御性的，它有明确的反面。
 
+### 📌 归因契约：janitor 那笔重构进闸之前的基线（2026-08-25 05:33，**写在它的改动进闸之前**）
+
+12 小时的 `wd-janitor` 这一轮在改 `common/src/main`（**不碰** journey 包、`bot/sim/**`、
+两个 `expected-scenes-*.txt`，也不跑 gradle —— 编译和跑闸归主循环）：
+
+1. 新增 `BotUtil.isHazardState(BlockState)`，把 `ClientWorldView` / `world/ServerWorldView` /
+   `world/LevelWorldView` 三份**语义相同的 `isHazard` 拷贝**收成单一作者
+   （`FluidTags.LAVA` / `BlockTags.FIRE` / `HAZARD_BLOCKS` / `BotConfig.extraHazardBlocks`）。
+   ⚠️ 这正是 FluidTags-vs-Fluids 那次翻车的形状：**一份改了另两份没改**。
+2. 删 `BuildProcess` / `BackfillProcess` 里两条恒假守卫，并按代码改注释。
+3. `BotProcess` 的两条已证伪 javadoc 断言。
+
+**我独立验过第 2 条**：两个文件的方向数组都是 `{{1,0},{-1,0},{0,1},{0,-1}}`，**不含 `{0,0}`**，
+所以 `cand` 的水平偏移恒非零 ⇒ `cand.equals(block)` 恒假；
+`cand.offset(0,1,0).equals(block)` **也恒假且与 `dy` 无关**（就算 `dy=-1` 把 y 对上，x/z 仍差一格）。
+连带 `BuildProcess.java:231-236` 那段「候选格的 AABB 会和目标相交」的注释也是**描述不可能发生的事**。
+
+**基线（第 4 闸，Fabric）：`VERDICT: GREEN`、`COVERAGE: 289 executed / 25 skipped`、
+必需失败 0 条、可选失败只有 `wd.vineOverWaterClimb`、`wd.serverEscapeSealedShelter`、
+`wd.journeyGetsAshoreBeforePouring` 这三条。**
+⇒ 重构进闸后**任何偏离这条基线的现象，先记这笔重构的账**，不许先去查场景。
+「行为等价」＋「编译通过」在这个仓库里对产品谓词**不构成证据**，要一趟双 loader 的闸背书。
+
 ### ⏸ j54 要等 05:47 那个 cron 过去再起（2026-08-25 05:26 决定）
 
 12 小时一次的 `wd-janitor` 在 **05:47** 触发，它的章程是「找到问题了就立即做」——也就是
