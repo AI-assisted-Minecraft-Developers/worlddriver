@@ -233,14 +233,78 @@ final class JourneyHands {
      * make land.
      */
     static boolean holdBoth(JourneyRig rig, net.minecraft.world.item.Item item) {
+        // WHICH BRANCH THE CLIENT IS ABOUT TO TAKE, asked before it takes it. Calling both halves is
+        // right for two of `BotInteract.ensureHolding`'s three branches and wrong for the third, and
+        // the boolean it returns cannot tell them apart:
+        //
+        //   already held  → the client sends NOTHING, so only the server half can correct a server
+        //                   whose `selected` was moved by `ServerPlayerAvatar.selectTool` (which
+        //                   also sends nothing). This is the case this method was written for; the
+        //                   server half MUST still run.
+        //   hotbar        → client writes `inv.selected = s` and sends SetCarriedItem; the server
+        //                   half writes the same index. Selecting slot N twice is still slot N —
+        //                   IDEMPOTENT, so running both is harmless.
+        //   bag swap      → client swaps items[ms]↔items[hb] AND sends a ClickType.SWAP container
+        //                   click (`BotInteract.swapFromMainInv:642`); the server half swaps the
+        //                   same pair directly and deliberately sends nothing
+        //                   (`ServerPlayerAvatar.holdItem:707-712`). The server therefore performs
+        //                   that swap TWICE — once here, once when the click lands — and a swap is
+        //                   an INVOLUTION. Twice is the identity, and the hand goes back.
+        //
+        // Measured on ladder j48's rung 12: six pours and six casts all read 槽 0 and all worked;
+        // the one pour that came after a ramp (a ramp holds cobblestone, which pushes the bucket out
+        // of the hotbar) read 槽 3 and did nothing. Every row agreed at send time —
+        // `water6.again.hand` and `water6.atUse` showed the bucket on BOTH bodies — because the
+        // click had not landed. It landed before the use packet, on the same ordered connection,
+        // and `handleUseItem` then read a stone_pickaxe: PASS, nothing consumed, nothing logged.
+        // `water6.spent = water_bucket 1→1`, then `lava6.hand = 槽 3 = stone_pickaxe；桶存量 空=0 水=1`.
+        //
+        // So the bag branch gets ONE author, and it is the client: its click already fixes the
+        // server, and it arrives BEFORE the use — the very ordering that breaks this today is what
+        // makes a single author correct. The test mirrors `ensureHolding`'s own condition
+        // (`hotbarSlotOf < 0`) rather than guessing from the return value.
+        var acting = rig.avatar().player();
+        boolean oneBody = acting == rig.player();
+        boolean wouldSwapFromBag = !oneBody && acting != null
+                && acting.getMainHandItem().getItem() != item
+                && hotbarSlotOf(acting, item) < 0;
+
         boolean client = rig.avatar().holdItem(item);
-        boolean server = rig.body().avatar().holdItem(item);
+        boolean server;
+        if (client && wouldSwapFromBag) {
+            // Read, never write. False here is the click in flight, NOT a diverged bag — and saying
+            // so matters, because the old row's wording ("两份背包已经分叉") would now fire on every
+            // single bag-branch hold and read as a defect report.
+            server = rig.player().getMainHandItem().getItem() == item;
+            if (!server) {
+                rig.evidence("holdBoth." + BuiltInRegistries.ITEM.getKey(item).getPath() + ".inFlight",
+                        "客户端走的是背包交换分支（快捷栏里没有 "
+                                + BuiltInRegistries.ITEM.getKey(item) + "），服务端这一刻手上还是 "
+                                + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
+                                + " —— 这是那个 SWAP 点击包还没到，不是背包分叉。"
+                                + "服务端这一半故意不动手：交换两次等于没换，"
+                                + "而点击包排在 use 包前面，会把服务端改对。" + stockOnBoth(rig, item));
+            }
+            return client;
+        }
+        server = rig.body().avatar().holdItem(item);
         if (client != server) {
             rig.evidence("holdBoth." + BuiltInRegistries.ITEM.getKey(item).getPath(),
                     "两具身体对同一件物品给了不同答案：客户端 " + client + "，服务端 " + server
                             + " —— 两份背包已经分叉，" + stockOnBoth(rig, item));
         }
         return client;
+    }
+
+    /** {@code BotInteract.hotbarSlotOf} asked of a {@link net.minecraft.world.entity.player.Player}
+     *  rather than a {@code LocalPlayer}, so {@link #holdBoth} can ask it of the acting body without
+     *  a client-only type in a signature this common source set compiles for both sides. Same nine
+     *  slots, same order, same {@code -1}. */
+    private static int hotbarSlotOf(net.minecraft.world.entity.player.Player p,
+                                    net.minecraft.world.item.Item item) {
+        var items = p.getInventory().items;
+        for (int s = 0; s < 9; s++) if (items.get(s).getItem() == item) return s;
+        return -1;
     }
 
     /**
