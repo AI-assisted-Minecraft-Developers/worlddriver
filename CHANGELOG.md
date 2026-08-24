@@ -12,9 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measured and was worse — 6 logs / 13 899 ticks / FAIL against 13 logs / 2 914 ticks / PASS, with
   the trunk tax named as the cause. With the tax scoped (previous entry) the same pin on
   `applyCompiledDefaults()` gives **12 logs / 5 974 ticks / PASS, first tree 7 (was 4),
-  `stagingCalls=0`** — one variable against that run, same seed, same vehicle. The retire rows for
-  「never got closer, actually unreachable」 fell 49 → 19. That 19 has no floor to compare against
-  yet, so it is recorded as a number, not as a verdict on whether a second cause remains.
+  `stagingCalls=0`** — same seed, same vehicle, same configuration table. Not one variable, though:
+  the tree also gained throwaway-first spending and the swamp climb-out repair in between, and both
+  touch this rung. The attribution rests on the two readings only the tax moves — first tree 4 → 7
+  (reaching a trunk's fifth log is purely approach pricing) and the retire rows for 「never got
+  closer, actually unreachable」 falling 49 → 19 — not on the run-level delta. That 19 has no floor
+  to compare against yet, so it is recorded as a number, not as a verdict on whether a second cause
+  remains.
   `pathfinderBreakCostMultiplier` is deliberately untouched — one variable at a time.
 
 - **The bed rung is gating.** It was the only rung below `JourneyLedger.FLOOR` still shipping
@@ -27,8 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `pathfinderLogBreakTax` ships at 3.0 so A* stops routing through forests it is merely passing,
   which is right everywhere except the one job whose whole purpose is to chew through a tree:
   reaching the fifth log of a trunk means breaking the four under it, and at 3× those paths price
-  out. Measured on the wood rung, same seed, one variable — 13 logs / 2 914 ticks at 1.0 against
-  6 logs / 13 899 ticks at 3.0, with 49 rows naming the mechanism. (Those rows printed as `[mine] no
+  out. Measured on the wood rung, same seed and vehicle, with the tax as the differing setting —
+  13 logs / 2 914 ticks at 1.0 against 6 logs / 13 899 ticks at 3.0. Those are two separate runs
+  rather than a same-day A/B, so what names the tax is the 49 rows naming the mechanism, not the
+  tick counts. (Those rows printed as `[mine] no
   approach to stand`; `4501efe6` renamed them the next day, so a current run says the same thing as
   `[mine] blacklist <pos>（<why>）` — grepping the old wording now returns zero and reads as a fix.)
   The waiver is derived from `MineProcess`'s current target rather than latched beside it, so it
