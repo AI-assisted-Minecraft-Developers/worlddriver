@@ -2097,9 +2097,53 @@ public final class JourneyRig {
         if (drop == null) { leftOnTheGround(itemId, key, then); return; }
         evidence(key + ".pickup.walks", total - legs + 1);
         evidence(key + ".pickup.target", drop.toShortString());
+        int had = carrying(itemId);
         settle(new IntentProcess(new Intent(new Goal.Block(drop))), 600,
-                () -> settle(new HoldStill(30), 50,
-                        () -> collectByHand(itemId, legs - 1, total, key, then)));
+                () -> settle(new HoldStill(30), 50, () -> {
+                    if (carrying(itemId) == had) whyNothingWasPickedUp(itemId, key, drop);
+                    collectByHand(itemId, legs - 1, total, key, then);
+                }));
+    }
+
+    /**
+     * Why a walk that ended on the drop came back with nothing.
+     *
+     * <p><b>Instrument only — this changes no behaviour</b>, and it exists because one measured leg
+     * could not be explained from the rows it already wrote. j34's furnace rung:
+     * {@code craftingTable.broke=64,61,62，破坏后地上 1 个，身体在 64,61,63} →
+     * {@code pickup.walks=1} → {@code pickup.target=64,61,62} → {@code pickup.left#2=1}, with the
+     * rung ending {@code craftingTable=0} and the body standing at {@code 64,61,62} — the drop's own
+     * cell. The walk arrived, the 30-tick hold ran, and the item stayed on the ground.
+     *
+     * <p>Two explanations survive that evidence and they want opposite repairs: <b>no free slot</b>
+     * (vanilla's pickup simply does not add what will not fit, and the same run picked up raw_iron
+     * fine — which stacks into a slot that already exists, while a crafting_table with none in the
+     * bag needs a fresh one), or <b>the bodies never actually touched</b> (a {@code Goal.Block}
+     * ending one cell off, an item that drifted, a pickup delay still running). The inventory count
+     * reads 0 for both, which is why this asks the world instead of guessing.
+     *
+     * <p>Silent on the happy path on purpose: a row written on every successful collect would bury
+     * the one occasion it was written for.
+     */
+    private void whyNothingWasPickedUp(String itemId, String key, BlockPos walkedTo) {
+        ServerPlayer fp = player();
+        var inv = fp.getInventory();
+        int free = 0;
+        for (int s = 0; s < inv.items.size(); s++) if (inv.items.get(s).isEmpty()) free++;
+        var item = item(itemId);
+        String nearest = "范围内已经没有这个掉落了";
+        for (var drop : fp.level().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                fp.getBoundingBox().inflate(PICKUP_RADIUS))) {
+            if (!drop.getItem().is(item)) continue;
+            nearest = String.format("实体在 %.2f,%.2f,%.2f（相距 %.2f 格），拾取延迟未过=%s，数量 %d",
+                    drop.getX(), drop.getY(), drop.getZ(), Math.sqrt(drop.distanceToSqr(fp)),
+                    drop.hasPickUpDelay(), drop.getItem().getCount());
+            break;
+        }
+        evidence(key + ".pickup.empty", String.format(
+                "走到 %s 站满 30 tick 却什么都没拿到 —— 空槽 %d／%d，身体在 %.2f,%.2f,%.2f；%s",
+                walkedTo.toShortString(), free, inv.items.size(),
+                fp.getX(), fp.getY(), fp.getZ(), nearest));
     }
 
     /** What the collect could not get, read after it stops rather than before it starts. A drop
