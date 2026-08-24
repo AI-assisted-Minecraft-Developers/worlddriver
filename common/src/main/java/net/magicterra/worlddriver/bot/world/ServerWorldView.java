@@ -1,10 +1,8 @@
 package net.magicterra.worlddriver.bot.world;
 
-import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
@@ -43,22 +41,11 @@ public final class ServerWorldView implements WorldView {
         return !s.blocksMotion() || s.getFluidState().is(FluidTags.WATER);
     }
 
+    /** The shared policy, not a server opinion about it — {@link BotUtil#isHazardState} carries the
+     *  FluidTags-not-Fluids reasoning and the extras list this used to restate line for line. */
     @Override
     public boolean isHazard(BlockPos pos) {
-        BlockState s = level.getBlockState(pos);
-        // FluidTags, not Fluids: the type compare misses FLOWING lava/water
-        // (lake edges, falls) — see ClientWorldView.isHazard.
-        if (s.getFluidState().is(FluidTags.LAVA)) return true;
-        if (s.is(BlockTags.FIRE)) return true;
-        if (BotUtil.HAZARD_BLOCKS.contains(s.getBlock())) return true;
-        // User-configurable extras (Baritone-style blocksToAvoid). Map is
-        // checked last so the built-ins stay short-circuit cheap.
-        var extras = BotConfig.extraHazardBlocks;
-        if (!extras.isEmpty()) {
-            String id = BuiltInRegistries.BLOCK.getKey(s.getBlock()).toString();
-            if (extras.contains(id)) return true;
-        }
-        return false;
+        return BotUtil.isHazardState(level.getBlockState(pos));
     }
 
     @Override
