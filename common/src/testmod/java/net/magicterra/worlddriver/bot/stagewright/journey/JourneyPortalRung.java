@@ -130,7 +130,39 @@ public final class JourneyPortalRung {
             // stopped thirty blocks short produces exactly the same rows as one that arrived and
             // missed — so a failed fill here has read as「装水失败」whatever the real cause was.
             JourneyLeg.record(rig, "waterFill", water);
-            BlockPos aim = JourneyTerrain.shallowWaterNear(rig, 8);
+            // WHICH SOURCE — asked the way the bucket asks it, which is not by distance.
+            //
+            // THE FAILURE THIS IS WRITTEN FROM (j50, 2026-08-25, rung 12 red at tick 7):
+            // `waterFill.result = FAIL` beside a hand that was right on both readings and a target
+            // that was a genuine source. An EMPTY bucket returns FAIL from exactly one place — its
+            // clip landed on a block that is not a `BucketPickup` — and the block in question was
+            // one this ladder had just made: rung 11 finished `在 -4,62,54 浇出黑曜石`, rung 12
+            // stood at `-4,62,55` and aimed at `-5,62,54`, and the fresh obsidian sits on that
+            // diagonal. `shallowWaterNear` ranks by `distSqr` and never asks whether the line is
+            // clear, so it kept choosing the cell behind the wall.
+            //
+            // The same run pair proves it is the SEAT and not the coordinate: j48 aimed at the very
+            // same cell from the very same 1.4 blocks and filled, because it happened to stand at
+            // y=63 rather than 62 and its ray cleared the obsidian's top face. A chooser that can
+            // be right or wrong depending on which block the previous rung left the body on is not
+            // choosing.
+            //
+            // `visibleSourceNear` is that question already answered — vanilla's own clip, per
+            // candidate, at planning time — and this rung is the one caller that never asked it.
+            // Both answers go on the record even when they agree: the row is what tells the next
+            // reader whether the line was ever the issue.
+            BlockPos clear = JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH);
+            BlockPos nearest = JourneyTerrain.shallowWaterNear(rig, 8);
+            rig.evidence("waterFill.aim", clear != null
+                    ? clear.toShortString() + "（通视的最近水源"
+                        + (clear.equals(nearest) ? "，与按距离的最近是同一格" :
+                            "；按距离的最近是 " + (nearest == null ? "没有" : nearest.toShortString())
+                            + "，被否掉了 —— 中间有东西挡着射线")
+                        + "）"
+                    : "没有一格水源是这只眼睛看得见的；退回按距离的最近 "
+                        + (nearest == null ? "没有" : nearest.toShortString())
+                        + " 照瞄一次 —— 若它也失败，`waterFill.atUse` 的空桶线会写出挡路的是哪一块");
+            BlockPos aim = clear != null ? clear : nearest;
             if (aim == null) aim = water;
             JourneyHands.holdForUse(rig, Items.BUCKET, "waterFill");
             final BlockPos at = aim;
@@ -175,6 +207,12 @@ public final class JourneyPortalRung {
                 // that the first reading was stale, and its absence is the proof that it was not.
                 rig.evidence("waterFill.hand", String.valueOf(BuiltInRegistries.ITEM.getKey(
                         rig.player().getMainHandItem().getItem())));
+                // THE RAY, which this site did not print and needed. j50 died here with
+                // `result=FAIL` and no way to tell a blocked line from a refused block from a body
+                // that had drifted: the hand rows were both clean, so every remaining suspect lived
+                // on a line nobody was writing down. `handsAtUse` prints BOTH bodies and BOTH fluid
+                // modes, and the empty bucket's mode is the one that answers here.
+                JourneyHands.handsAtUse(rig, "waterFill");
                 rig.evidence("waterFill.result", String.valueOf(rig.avatar().useItemInHand()));
                 rig.settle(new HoldStill(3), 12, () -> {
                     int after = rig.carrying("minecraft:water_bucket");
@@ -184,7 +222,13 @@ public final class JourneyPortalRung {
                     if (after <= before) {
                         ctx.fail("装水失败：瞄了 " + at.toShortString() + "，这一次没装上（water_bucket "
                                 + before + "→" + after + "，已等过 3 tick 往返）—— "
-                                + "这一级底下全程靠这一桶水，装不上就没有下一步");
+                                + "这一级底下全程靠这一桶水，装不上就没有下一步。"
+                                + "怎么选的这一格：" + rig.evidenceOf("waterFill.aim")
+                                + "；那一刻的手与两条射线：" + rig.evidenceOf("waterFill.atUse")
+                                + "。⚠️ 先看 `waterFill.result`：空桶的 use 返回 **FAIL** 说明射线"
+                                + "落到了一个不是 BucketPickup 的方块上（读空桶线，它写着是哪一块，"
+                                + "上一级刚浇出来的黑曜石是头号嫌疑）；返回 PASS 才是射线根本没打中；"
+                                + "返回 SUCCESS 而存量没涨，那才是两端不同步");
                         return;
                     }
                     then.run();
