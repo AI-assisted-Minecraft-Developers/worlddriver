@@ -228,17 +228,18 @@ public final class BuildProcess implements BotProcess {
     }
 
     private BlockPos findStandableNear(Level lvl, BlockPos block) {
-        // First pass: prefer same-Y / Y-1 cells that are NOT the placement
-        // target and whose player AABB (foot + head) wouldn't intersect it.
-        // Without this guard, the build would pick (block.x, block.y, block.z)
-        // itself when previous iteration left the player in the next cell,
-        // or pick a cell whose head occupies the target — vanilla then
-        // refuses placeBlock because the new block intersects the player.
+        // First pass: prefer same-Y, then Y-1, then Y+1.
+        //
+        // The scan is CARDINAL-ONLY, and that is what makes a candidate safe rather than any
+        // check below: every {dx,dz} pair moves exactly one horizontal axis by ±1, so no
+        // candidate can be `block` itself (needs dx=dy=dz=0) and none can hold `block` in its
+        // head cell (needs dx=dz=0, dy=-1). Two guards testing exactly those two coincidences
+        // stood here, unreachable, under a comment about the vanilla placeBlock refusal they
+        // were meant to prevent — a refusal this loop cannot produce. Give this scan a {0,0}
+        // column or diagonals and both guards have to come back with it.
         for (int dy : new int[]{0, -1, 1}) {
             for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
                 BlockPos cand = block.offset(d[0], dy, d[1]);
-                if (cand.equals(block)) continue;
-                if (cand.offset(0, 1, 0).equals(block)) continue;  // head would intersect
                 if (canStand(lvl, cand)) return cand;
             }
         }
