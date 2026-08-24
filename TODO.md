@@ -1041,6 +1041,27 @@ cast8.clear3 = 要清的格里 3,60,20=water(壁龛内) 3,61,20=water(壁龛内)
 所有下游机构（塔、楼梯、选落脚点、射线）都是**在这摊水上失败的**，各自的判词都只讲了自己那一段。
 ⇒ **J52 从「一条待办」升级为 12 级的主线阻塞**；`DRAIN_UPSTREAM` 3→8 那一笔正是回答它所需的仪器。
 
+### 🟡 J61（j54 日志统计，2026-08-25 08:20）：`clientUseItemOn` 正在被服务端线程调用
+
+`BotInteract.clientUseItemOn` 的 javadoc 自己写着 **“Must be called from the client thread.”**
+而 j54 的 `[place]` 行按线程分档是：
+
+| 线程 | SUCCESS | FAIL |
+|---|---|---|
+| Render thread（客户端，合规） | 149 | 282 |
+| **Server thread（违规）** | **11** | **22** |
+
+垒台阶那一族的行**全部**落在 Server thread —— 场景跑在服务端 tick 上，
+`placeInto` → `av.placeOn` → `mc.gameMode.useItemOn` 就这么跨过去了。
+
+⚠️ **这不是 J59 的病因**，J59 是判词早一个 tick（已修）。这一条是**另一件事**：
+`useItemOn` 会在服务端线程上写 `ClientLevel` 的预测方块 —— 一次实打实的数据竞争。
+它没有当场炸，是因为集成服两端同进程且这些格子没人同时碰。
+
+⇒ 修法方向是把这一跳 marshal 到 `mc.execute(...)`，**但不要和 J59 捆在一起**：
+那会把「判词等往返」和「调用换线程」两个独立变更混进同一次测量。
+真做的时候注意：marshal 之后往返会多一跳，而 `PLACE_ROUND_TRIP` 的余量正是为这一天留的。
+
 ### ⚠️ `JourneyPortalRung.java` 距硬闸只剩 17 行（2983/3000，2026-08-25 08:20）
 
 J60 的仪器接线加在这里之后就到 2983 了。闸还是绿的，但**下一笔改动就会顶上去**。
