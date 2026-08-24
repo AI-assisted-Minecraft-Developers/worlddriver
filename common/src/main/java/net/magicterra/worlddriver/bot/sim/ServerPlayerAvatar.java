@@ -46,20 +46,44 @@ import net.minecraft.world.phys.Vec3;
  * jump branch there for the full list. If a comment here ever tells you a vanilla path is
  * unreachable, <b>check the modifier before believing it</b>.
  *
- * <p>Validated by the SimPhysicsParity GameTest before any harder use.
+ * <p>Physics parity is asserted by the {@code wd.physicsParity} and {@code wd.waterPhysicsParity}
+ * scenes in the testmod ({@code WorldDriverCoreScenes} / {@code WorldDriverWaterBankScenes}). This
+ * line used to name a {@code SimPhysicsParity} GameTest instead; that suite was retired in
+ * P4-final and the name now survives nowhere else in the tree.
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerAvatar}; the ONLY
  * substantive change is that the body type is now vanilla {@link ServerPlayer}
  * (was NeoForge {@code FakePlayer}) and the body is obtained through the
  * loader-injected {@link ServerAvatarBodies} seam instead of {@code
- * FakePlayerFactory} directly. The NeoForge shim of the same simple name keeps
- * the original {@code FakePlayer} return type covariantly, so ~3000 lines of
- * legacy GameTest callers ({@code FakePlayer fp = av.fakePlayer()}) compile
- * unchanged. This class is {@code non-final} and its covariantly-overridden
- * methods {@code non-final} for exactly that shim. See {@link ServerAvatarBodies}
- * for the seam contract (neoforge injects FakePlayerFactory, fabric injects
- * {@link AvatarFakePlayer}).
+ * FakePlayerFactory} directly.
+ *
+ * <p><b>Who calls this, and who the {@code non-final} is for, are two different questions — and
+ * this javadoc used to answer both with one sentence that is no longer true</b> («the NeoForge
+ * shim keeps the {@code FakePlayer} return type covariantly, so ~3000 lines of legacy GameTest
+ * callers compile unchanged»). That suite was retired in P4-final; nothing binds to those
+ * signatures any more. What is actually there:
+ *
+ * <ul>
+ *   <li><b>Every caller is on THIS type.</b> The testmod's scenes take a bare avatar from
+ *       {@code SceneBody.avatar}, or one wrapped in a {@link ServerWorldDriver} from
+ *       {@code SceneBody.mint}/{@code managed}/{@code bare}; three sites instead construct one
+ *       directly over a body they already hold — {@code JourneyRig}'s adopted real player, the
+ *       same wrapper rebuilt in {@code WorldDriverActuatorSplitScenes}, and both columns of
+ *       {@code wd.bodyParityCensus}. None of them names the shim: no file outside
+ *       {@code net.magicterra.worlddriver.neoforge.sim} imports or spells either shim class.</li>
+ *   <li><b>The {@code non-final} is still load-bearing, but for one class rather than a caller
+ *       population.</b> The NeoForge shim of the same simple name extends this one and narrows
+ *       {@link #fakePlayer()} back to {@code FakePlayer}; its only live consumer is NeoForge's
+ *       {@code /agentserver} command. Keep this class and its covariantly-overridden methods
+ *       {@code non-final} for as long as that shim compiles — and check the shim, not a caller
+ *       count, before concluding otherwise.</li>
+ * </ul>
+ *
+ * <p>See {@link ServerAvatarBodies} for the seam contract: neoforge installs a
+ * {@code FakePlayerFactory}-backed factory and fabric one that mints {@link AvatarFakePlayer},
+ * but an armed {@code -Dworlddriver.realPlayerBodies=true} preempts BOTH and hands back a body
+ * that has actually joined.
  */
 public class ServerPlayerAvatar implements Avatar {
 
@@ -136,14 +160,19 @@ public class ServerPlayerAvatar implements Avatar {
      * Build a body at {@code pos} in {@code level}, ready to drive.
      *
      * <p>⚠️ SHARED BODY (gap #48): {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
-     * caller of THIS factory in a level shares one body. Production no longer rides it
+     * caller of THIS factory in a level shares one body. Production never rides it
      * ({@code /agentserver} → {@link #createUnique}, one body per agent, guarded by the required
-     * {@code serverAgentDistinctBodiesArena}); the GameTest arenas deliberately still do — see
-     * {@link #createUnique}'s javadoc for the measured reason (suite-wide isolation surfaces
-     * cross-arena world/load couplings as drifting failures; that determinism problem belongs to
-     * the planned test-framework rework, not this factory). Consequence to keep in mind while the
-     * arenas share: a concurrent arena can steal/teleport this body, so a solo-RED arena can ride
-     * a neighbour's shove to a full-suite false green (proven twice: descentOvershootResync,
+     * {@code wd.serverAgentDistinctBodies} scene).
+     *
+     * <p><b>Nothing else rides it either: this factory has no caller left in the tree.</b> Its one
+     * caller is {@code ServerWorldDriver.create}, which itself has none. The GameTest arenas that
+     * used to share a body — the reason this javadoc gave for keeping it — were retired in
+     * P4-final, and the scenes that replaced them mint per-scene bodies through
+     * {@code SceneBody.avatar}/{@code bare}, i.e. {@link #createUnique}. Both halves of the dead
+     * pair are still here only because deleting them changes bytecode; the NeoForge twins are
+     * already gone. What the sharing cost while it lasted, kept as the reason not to reintroduce
+     * it: a concurrent arena could steal/teleport this body, so a solo-RED arena could ride a
+     * neighbour's shove to a full-suite false green (proven twice: descentOvershootResync,
      * descentDrift).
      */
     private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
@@ -155,16 +184,23 @@ public class ServerPlayerAvatar implements Avatar {
 
     /** Like {@link #create} but with a body of its OWN — a fresh unique GameProfile, so this
      *  avatar can never be steered/teleported through another driver's shared singleton
-     *  (gap #48). Production {@code /agentserver} agents use this: two agents = two bodies.
-     *  The GameTest arenas stay on the shared {@link #create} for now — with per-arena
-     *  bodies every arena runs its full workload concurrently and the suite's OTHER
-     *  cross-arena couplings (shared world regions, server-thread load) surface as
-     *  required-test failures (measured 2026-07-12: 3 iso runs → failure sets {leash,
-     *  descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,descentdrift,horizon,rpcsmoke},
-     *  139s vs 41s) — that determinism problem belongs to the planned custom test
-     *  framework, not to this factory. NOTE: {@code FakePlayerFactory.get} caches per
-     *  profile per level; each call mints a new entry that lives until level unload, fine
-     *  for the single-demo-agent command, revisit if agents get spawned in bulk. */
+     *  (gap #48). <b>This is the live factory:</b> {@code /agentserver} agents use it (two agents =
+     *  two bodies), and so do the testmod's scenes, through {@code SceneBody.avatar} /
+     *  {@code SceneBody.bare} — which are also where the refusal to mint a headless body on a
+     *  topology that has a real client to drive lives. ({@code wd.bodyParityCensus} deliberately
+     *  goes round them, to hold the loader body and the joined body side by side.)
+     *
+     *  <p>This javadoc used to say the GameTest arenas stayed on the shared {@link #create} because
+     *  per-arena bodies made the suite's other cross-arena couplings (shared world regions,
+     *  server-thread load) surface as drifting failures (measured 2026-07-12: 3 isolated runs →
+     *  failure sets {leash,descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,descentdrift,horizon,
+     *  rpcsmoke}, 139s vs 41s). That determinism problem was handed to the test-framework rework
+     *  and the arenas are gone; the reading is kept because it is what per-body isolation costs, not
+     *  because anything still shares.
+     *
+     *  <p>NOTE: {@code FakePlayerFactory.get} caches per profile per level; each call mints a new
+     *  entry that lives until level unload, fine for the single-demo-agent command, revisit if
+     *  agents get spawned in bulk. */
     public static ServerPlayerAvatar createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
