@@ -189,6 +189,16 @@ final class JourneyHands {
      * {@code ServerboundUseItemPacket}, so the slot change cannot arrive after the use. Write the same
      * key again after a settle if you want the reading rather than the row — StageWright's clash guard
      * keeps the second value only when it differs, which makes {@code .hand#2} a staleness instrument.
+     *
+     * <p><b>"Display only" holds for the hotbar branch and NOT for the bag branch.</b> The paragraph
+     * above reasons about {@code ServerboundSetCarriedItemPacket}, which is what {@code ensureHolding}
+     * sends when the item is already in the hotbar. When it is only in the bag it instead sends a
+     * {@code ClickType.SWAP} container click, and that click is why the two sides disagree at this
+     * instant — see {@link #holdBoth}, which stops writing the server half there because applying the
+     * same swap twice is the identity. A disagreeing row on that branch is neither a race nor display:
+     * it is one packet of latency on a swap that will land ahead of the use. Which branch ran is not
+     * guessable from this row — read {@code holdBoth.<item>.inFlight}, and read
+     * {@link #handTrace} for what the server actually held at handling time.
      */
     static boolean holdForUse(JourneyRig rig, net.minecraft.world.item.Item item, String what) {
         boolean ok = holdBoth(rig, item);
