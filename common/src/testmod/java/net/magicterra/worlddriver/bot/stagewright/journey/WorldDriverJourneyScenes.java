@@ -2297,6 +2297,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * which turns placing back on for the pillar. Recorded as {@code shaft.reColumn.N} with the cell
      * that drowned, so a run that swapped can never read as one that walked straight down.
      */
+    /** How far around the drowned cell to look for what is feeding it. Four, the width of a column
+     *  swap plus one: a source further away than the next column will be is not this column's
+     *  problem, and one closer is. */
+    private static final int WET_COLUMN_UPSTREAM = 4;
+
     private static void swapWetColumn(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY,
                                       List<BlockPos> wetColumns, int swapsLeft, BlockPos afloat) {
         int n = wetColumns.size() + 1;
@@ -2310,6 +2315,23 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                         ? "换柱次数已用完，不再换，这一级到此为止"
                         : "爬回 y=" + surfaceY + " 换第 " + (n + 1) + " 根柱子重挖，还剩 "
                                 + (swapsLeft - 1) + " 次换柱"));
+        // WHERE THE WATER CAME FROM, which no row has ever said. The line above names the cell that
+        // drowned and stops there — so a lone source trapped in the rock and a column being fed by
+        // a body of water read identically, and those two want opposite answers (take the source,
+        // or move much further away). Ladder j53 lost the rung right here: the swap decision was
+        // correct, and the body then could not climb out of this water at all — eight pillar
+        // attempts, every one `washedOff … 流速²=1.00000`. Full-speed flow is what a feeder looks
+        // like from underneath, so which it was is the first thing the next reader needs.
+        //
+        // Reuses the alcove's scan rather than growing a second one. Same question ("who is still
+        // feeding this?"), same answer shape, one place to fix when it is wrong.
+        String fed = JourneyForge.sourcesAround(rig.ctx().level(),
+                List.of(afloat, afloat.below(), afloat.above()), WET_COLUMN_UPSTREAM);
+        rig.evidence("shaft.reColumn." + n + ".upstream", fed == null
+                ? "这一柱周围 " + WET_COLUMN_UPSTREAM + " 格内没有水源块 —— 淹它的是流动水，"
+                    + "源头在更远处或已经被取走；换一根柱子是对的办法"
+                : "还在喂它的水源（最高的在前）：" + fed + " —— 这一片有源，"
+                    + "换到的下一根柱子若离得不够远会淹在同一片水里");
         if (swapsLeft <= 0) {
             ctx.fail("竖井连着 " + n + " 根柱子都在中段见水：已换掉 " + wetColumns
                     + "（岩浆 " + lava.toShortString() + "，地表 y=" + surfaceY
