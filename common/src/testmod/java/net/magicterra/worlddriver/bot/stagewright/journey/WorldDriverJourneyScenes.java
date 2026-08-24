@@ -2404,7 +2404,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             rig.evidence("shaft.wedged." + attempt, at.toShortString()
                     + " 这一腿一格没挪（上一腿从 " + lastFrom.toShortString()
                     + " 起）—— 再问一次是同一个问题；先退到 " + rx + "," + rz + "（背对岩浆）站稳再问");
-            rig.settle(new IntentProcess(new Intent(new Goal.XZ(rx, rz, 1))), 600, () -> {
+            // Taxed too. Backing off is the right DIRECTION and says nothing about the route: two
+            // blocks away from the pool can still be reached along its lip, which is where the body
+            // already is and the one place it cannot walk.
+            rig.settle(new IntentProcess(new Intent(new Goal.XZ(rx, rz, 1),
+                    JourneyTerrain.avoidTheRim(rig.ctx().level(), lava).bias())), 600, () -> {
                 BlockPos back = rig.player().blockPosition();
                 rig.evidence("shaft.backOff." + attempt, back.toShortString()
                         + (Math.hypot(back.getX() - rx, back.getZ() - rz) <= 1
@@ -2428,7 +2432,16 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                                         int left, List<BlockPos> banned,
                                         Runnable then, Runnable onStuck) {
         BlockPos from = rig.player().blockPosition();
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0))), 1_200,
+        // PRICED OFF THE RIM, like the approach that just ran. `dig` is chosen right beside the
+        // pool, so this leg walks TOWARDS the crater — and the wedge comment below is a measurement
+        // of what that costs untaxed: `sole 0.0000 < 0.18 at -13,66,21 beside a lethal drop →
+        // sneak-pin`, three legs and about 110 searches from a body the walker had put on the lip.
+        // The remedy written then was to back off and ask again; the tax is why it would not have
+        // been planned there in the first place. Recomputed here rather than passed in, for the
+        // reason JourneyTerrain#avoidTheRim gives: the lake this leg walks beside is not the one the
+        // approach measured.
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0),
+                JourneyTerrain.avoidTheRim(rig.ctx().level(), lava).bias())), 1_200,
                 () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, from,
                         then, onStuck));
     }
