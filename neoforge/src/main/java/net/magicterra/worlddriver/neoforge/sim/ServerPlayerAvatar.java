@@ -1,9 +1,14 @@
 package net.magicterra.worlddriver.neoforge.sim;
 
+import com.mojang.authlib.GameProfile;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarBodies;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.common.util.FakePlayer;
+
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * NeoForge shim over the common {@link net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar},
@@ -30,15 +35,14 @@ public class ServerPlayerAvatar extends net.magicterra.worlddriver.bot.sim.Serve
     /** Per-arena body sequence for {@link #createUnique} — the neoforge side owns this counter
      *  (the common one serves the migrated scenes on BOTH loaders), so this shim's
      *  "agent-body-N" name stream is independent of theirs. */
-    private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
-            new java.util.concurrent.atomic.AtomicInteger();
+    private static final AtomicInteger BODY_SEQ = new AtomicInteger();
 
     public ServerPlayerAvatar(FakePlayer fp) { super(fp); }
 
     public static ServerPlayerAvatar createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
-        com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
-                java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
+        GameProfile profile = new GameProfile(
+                UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8)), name);
         return init((FakePlayer) ServerAvatarBodies.unique(level, profile), x, y, z);
     }
 
