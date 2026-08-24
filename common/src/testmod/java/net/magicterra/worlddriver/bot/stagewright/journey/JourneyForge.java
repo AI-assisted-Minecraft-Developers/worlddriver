@@ -152,6 +152,51 @@ public final class JourneyForge {
         return new ArrayList<>(out);
     }
 
+    /**
+     * Every water SOURCE within {@code r} of {@code cells}, highest first — or null when there is
+     * none. The question {@link #firstFluid}'s own parenthetical assumes an answer to.
+     *
+     * <p><b>Why this exists.</b> {@code firstFluid} prints「流动，没源就会自己退」for a flowing
+     * cell. That is a claim about the cell's UPSTREAM, and the reading it comes from never looked
+     * upstream — it is a local fact carrying a global promise. Ladder j51 is where the promise came
+     * due: {@code drain.0} through {@code drain.6} cleared the stair foot every time, and then
+     * {@code drain.7 = 等了 200 tick 仍有流体：2,56,20（流动，没源就会自己退）}. Sourceless water
+     * does not survive 200 ticks; water that is still being fed survives forever, and the two are
+     * the same row.
+     *
+     * <p>Vanilla makes the feeder easy to acquire without anyone pouring it: flowing water with two
+     * or more horizontal source neighbours over a solid floor BECOMES a source. A rung that pours
+     * water a dozen times into one small room manufactures them, and the recover only ever picks up
+     * the one cell it aimed at.
+     *
+     * <p>A reading, not a repair — deliberately, and for the reason the stair foot itself is a
+     * reading: what to do about a stray source (bucket it, wall it, re-route) depends on where it
+     * is, and nothing has known where it is until now.
+     */
+    public static String sourcesAround(ServerLevel level, java.util.Collection<BlockPos> cells, int r) {
+        LinkedHashSet<BlockPos> seen = new LinkedHashSet<>();
+        List<BlockPos> found = new ArrayList<>();
+        for (BlockPos c : cells)
+            for (int dx = -r; dx <= r; dx++)
+                for (int dy = -r; dy <= r; dy++)
+                    for (int dz = -r; dz <= r; dz++) {
+                        BlockPos p = c.offset(dx, dy, dz).immutable();
+                        if (!seen.add(p)) continue;
+                        if (JourneyTerrain.plainSource(level, p, false)) found.add(p);
+                    }
+        if (found.isEmpty()) return null;
+        // Highest first: the one feeding a puddle is upstream of it, and「上游」here means y.
+        // Sorted rather than scan-ordered because the caller hands us a Set whose iteration order
+        // is unspecified — an evidence row that reshuffles between runs cannot be diffed.
+        found.sort(java.util.Comparator.<BlockPos>comparingInt(BlockPos::getY).reversed()
+                .thenComparingInt(BlockPos::getX).thenComparingInt(BlockPos::getZ));
+        StringBuilder sb = new StringBuilder();
+        int n = Math.min(found.size(), 12);
+        for (int i = 0; i < n; i++) sb.append(i == 0 ? "" : "、").append(found.get(i).toShortString());
+        if (found.size() > n) sb.append("…（共 ").append(found.size()).append(" 个，只列最高的 ").append(n).append(" 个）");
+        return sb.toString();
+    }
+
     /** The first cell holding fluid, described — or null when they are all dry. */
     public static String firstFluid(ServerLevel level, List<BlockPos> cells) {
         for (BlockPos c : cells)

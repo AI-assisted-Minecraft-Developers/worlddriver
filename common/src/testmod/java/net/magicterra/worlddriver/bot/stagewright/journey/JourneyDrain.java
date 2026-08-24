@@ -73,6 +73,23 @@ final class JourneyDrain {
     private static final int DRAIN_TICKS = 40;
     private static final int DRAIN_LEGS = 5;
 
+    /**
+     * How far around the alcove and the stair foot to look for whatever is still feeding them.
+     *
+     * <p>Three, because the sentence above already did this reasoning and stopped one step short:
+     * "sized to be long enough that <b>still wet means the SOURCE is still there</b>". It has been
+     * true and unactioned since it was written — the timeout branch printed「没源就会自己退」and
+     * never went looking for the source it had just argued must exist. j51's {@code drain.7} is
+     * that bill arriving: {@code drain.0} through {@code drain.6} cleared the stair foot every
+     * time, then one cast later {@code 等了 200 tick 仍有流体：2,56,20（流动，没源就会自己退）},
+     * and the return that followed could not reach the mould at all.
+     *
+     * <p>Three and not more: a feeder further than three cells from every corridor cell is not
+     * flooding this corridor through geometry this rung carved, and widening a scan is the classic
+     * way to turn one clear answer into twelve unusable ones.
+     */
+    private static final int DRAIN_UPSTREAM = 3;
+
     /** The legs the caller starts with. Here rather than at the call site so the wait's length and
      *  the sentences that quote it cannot drift apart. */
     static int legs() {
@@ -90,8 +107,8 @@ final class JourneyDrain {
      * as a mining failure.
      *
      * <p>Flowing water with no source disappears on its own, so this is a wait and not a repair. If
-     * it is still wet after all the legs, the source was never picked up — a different failure, and
-     * this says so rather than letting the next cell report it second-hand.
+     * it is still wet after all the legs, something is still feeding it — a different failure, and
+     * since j51 this names the feeder rather than letting the next cell report it second-hand.
      */
     static void drainTheAlcove(SceneContext ctx, JourneyRig rig, int i, int legs, Runnable then) {
         String wet = JourneyForge.firstFluid(ctx.level(), List.copyOf(JourneyPortalRung.forgeCorridor));
@@ -118,6 +135,24 @@ final class JourneyDrain {
                             : "（" + JourneyPortalRung.stairBottom.toShortString() + "）")
                     : "等了 " + (DRAIN_LEGS * DRAIN_TICKS) + " tick 楼梯底仍有流体：" + foot
                       + " —— 下一趟下楼会落进水里，塔垒不起来（见 cast*.stairFoot / climb.*.afloat）");
+            // ONLY WHEN THE WAIT RAN OUT, and only then. A drain that cleared has nothing upstream
+            // worth naming, and this scan is the expensive one. When it did NOT clear, the rows
+            // above say「流动，没源就会自己退」about water that has just failed to recede for
+            // `DRAIN_LEGS * DRAIN_TICKS` ticks — a promise the reading that makes it never checked.
+            // So the reading that checks it goes here, next to the sentence it adjudicates.
+            if (wet != null || foot != null) {
+                java.util.LinkedHashSet<BlockPos> near =
+                        new java.util.LinkedHashSet<>(JourneyPortalRung.forgeCorridor);
+                near.addAll(stairFootCells());
+                String up = JourneyForge.sourcesAround(ctx.level(), near, DRAIN_UPSTREAM);
+                rig.evidence("drain." + i + ".upstream", up == null
+                        ? "壁龛与楼梯底周围 " + DRAIN_UPSTREAM + " 格内没有水源块 —— "
+                          + "那就真的只是还没退完，下一趟要么等更久，要么这一格根本不在退路上"
+                        : "还在喂它的水源（最高的在前）：" + up
+                          + " —— 所以「没源就会自己退」这句在这一趟是假的。"
+                          + "水在密闭小屋里被浇了很多次，两个源块夹一格流水就会新生成一个源块，"
+                          + "而收水每次只收它自己瞄的那一格");
+            }
             then.run();
             return;
         }
