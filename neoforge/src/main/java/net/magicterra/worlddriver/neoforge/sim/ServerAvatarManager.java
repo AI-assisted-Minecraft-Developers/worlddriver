@@ -1,12 +1,15 @@
 package net.magicterra.worlddriver.neoforge.sim;
 
 /**
- * NeoForge shim (P1.6 Task 1): static-delegation onto the common
- * {@link net.magicterra.worlddriver.bot.sim.ServerAvatarManager}, which is now the SINGLE
- * registry. Keeping this FQN + static API means {@code WorldDriverNeoForge}'s
- * per-server-tick {@code ServerAvatarManager.tickAll()}, {@code /agentserver}'s
- * register/clear, and the dogfood scenes all land in the same common list — with
- * zero source changes at any caller.
+ * NeoForge shim: static-delegation onto the common
+ * {@link net.magicterra.worlddriver.bot.sim.ServerAvatarManager}, which is the SINGLE registry.
+ *
+ * <p><b>Two callers, both inside this loader.</b> {@code WorldDriverNeoForge}'s per-server-tick
+ * {@link #tickAll()} and {@code /agentserver}'s {@link #register}/{@link #activeCount}/
+ * {@link #clear}. This javadoc used to add「and the dogfood scenes」to that list: the scenes
+ * import {@code bot.sim.ServerAvatarManager} directly and never reach this class — which is the
+ * whole reason a reader must not treat this shim as load-bearing for the suites.
+ * {@link #unregister} has no caller at all; it is kept only so the pair stays symmetric.
  */
 public final class ServerAvatarManager {
     private ServerAvatarManager() {}
