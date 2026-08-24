@@ -463,6 +463,34 @@ j31d 那 312 条里只跑了标记 `wd.journeyArmed`，`wd.journey03Wood` **不�
 ⚠️ 这三条**证不了**「乘法被跳过」（专用服走 `LevelWorldView`，那条税在那里根本不存在）。
 它们证的是推导与释放。定价那半仍然只有现场层能答，**别把绿闸读成回测**。
 
+### ✅ 判：Fabric `gate-fabric-j32a.log` —— `VERDICT: GREEN`
+
+`GRADLE_EXIT=0`、`BUILD SUCCESSFUL in 4m 42s`。判词块上方干净：无 `UNDECLARED:`
+（三条与清单同 commit 落地，闸认得它们），`COVERAGE: 283 executed / 25 skipped`（全客户端专属）。
+
+对 `results-j31d-fabric.jsonl`：
+
+```
+j31d: 312   j32a: 315
+new  : ['wd.mineLogWaiverEngages','wd.mineLogWaiverReleasedOnSupersede','wd.mineStoneLeavesTheWaiverOff']
+gone : []
+outcome changed on the shared set: 0
+non-PASS: canaryMustFail / canaryMustTimeout / wd.vineOverWaterClimb / wd.serverEscapeSealedShelter
+```
+
+**新增三条全 PASS，共有 312 条判罚零变化，非 PASS 恰好基线 4 条，没有第四处变化。**
+
+三个⚠️陷阱一个没踩，读数是干净的对照——同一套装置、同一根原木立在世界里，只有订单不同：
+
+| 场景 | `闸.豁免开着的 tick 数` | 佐证 |
+|---|---|---|
+| `…Engages`（订单=原木） | **31** | `原木采掉了吗=True`（不是未触发）、`收尾后豁免还在吗=False` |
+| `…LeavesTheWaiverOff`（订单=石头） | **0** | `石头采掉了吗=True`（不是「什么都没干」）、`那根原木还立着吗=True` |
+| `…ReleasedOnSupersede` | 第 **0** tick 武装 | `顶替之后豁免还在吗=False`（先证明开过，再证明收得回，不是 0→0） |
+
+⇒ **回测层结案**：推导（目标是原木才武装、世界里有原木不算）与释放（顶替走生产那道门）
+都验到了。**定价那半仍未验**，归现场层。
+
 ### 该怎么判（现场层，对照 run 8）
 
 ⚠️ 要真的只有一个变量，本趟必须把 `JourneyRig` 钉回 `applyCompiledDefaults()`——
