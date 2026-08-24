@@ -280,6 +280,7 @@ public final class Walker {
         BlockPos gaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
         int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
         int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
+        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. Avatar.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the body's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
         int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
         int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
         float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
@@ -294,6 +295,7 @@ public final class Walker {
             gaveUpPos = null;
             gaveUpTtl = 0;
             pillarNoPlaceTicks = 0;
+            placeAttemptCell = null;
             lastDigRiser = null;
             digRiser = null;
             digCommitTicks = 0;

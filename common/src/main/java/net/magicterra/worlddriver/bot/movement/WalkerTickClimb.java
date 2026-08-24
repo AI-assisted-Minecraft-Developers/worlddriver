@@ -92,6 +92,64 @@ final class WalkerTickClimb {
         return !(BotConfig.walkerPillarSurfacePlace && !world.isWater(dest.above()));
     }
 
+    /**
+     * Have the feet risen clear of {@code cell}, so that vanilla can accept a block placed into it?
+     *
+     * <p><b>1.0, and it is not a tuning knob.</b> A player's AABB starts at {@code p.getY()} and the
+     * cell occupies {@code [y, y+1]}; {@code Level#isUnobstructed} refuses any placement whose cell
+     * still intersects that box. So {@code p.getY() >= cell.y + 1.0} is the exact boundary between
+     * "will be placed" and "will be silently refused" — there is nothing to tune, and a looser
+     * number does not buy earlier placements, it buys refusals.
+     *
+     * <p>Two of the four call sites used to ask for {@code 0.9}. That 0.1-block band is where every
+     * click is refused, and the climb-out's futility ledger used to zero itself on the CLICK, so a
+     * body bobbing through the band reset the counter forever and the dig fallback behind it could
+     * never take the bank. One predicate now, so a fifth site cannot invent a sixth constant.
+     */
+    static boolean feetClearOf(Player p, BlockPos cell) {
+        return p.getY() >= cell.getY() + 1.0;
+    }
+
+    /**
+     * One tick of the climb-out's place attempt, and of the ledger that decides when to stop trying.
+     *
+     * <p><b>The ledger counts RESULTS, and it has to lag a tick to do it.</b> Only the world can say
+     * whether a placement landed, and it cannot say so until the tick after the click. This used to
+     * be written as "clicked → zero the counter", which is a different event: {@link Avatar#place}
+     * returns {@code void}, so the click never had a verdict to report, and a body sitting in the
+     * band where vanilla refuses every placement pressed the button forever while gaining nothing.
+     * The counter is what hands this bank over to the dig ({@code placeFutile} at the top of
+     * {@code run}), so resetting it on an event that is compatible with total failure disabled that
+     * fallback outright — it could not fire, ever.
+     *
+     * <p>Someone else filling the cell also counts, and should: the body is no worse off for not
+     * having done it itself, and the next rung is what matters.
+     */
+    private static void climboutPlaceTick(Walker wk, Avatar a, WorldView world, Player p,
+                                          BlockPos fillCell, BlockPos foot, boolean dryGrounded) {
+        boolean fcSolid = world.isSolid(fillCell);
+        boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
+        boolean fcCleared = feetClearOf(p, fillCell);
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] climbout-place col={},{} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) dryG={} foot.y={} ceil={}",
+                    wk.waterClimb.colX, wk.waterClimb.colZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
+                    String.format("%.2f", p.getY()), fillCell.getY() + 1.0,
+                    dryGrounded, foot.getY(), wk.waterClimb.targetY);
+        BlockPos tried = wk.waterClimb.placeAttemptCell;
+        if (tried != null && world.isSolid(tried)) {
+            wk.waterClimb.pillarNoPlaceTicks = 0;                    // the cell really filled
+            wk.waterClimb.placeAttemptCell = null;
+        } else {
+            wk.waterClimb.pillarNoPlaceTicks++;
+        }
+        if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
+            a.place(world, fillCell);
+            // Remember THIS cell, overwriting any older attempt: an earlier cell that filled late
+            // must not be allowed to pay for the one being clicked now.
+            wk.waterClimb.placeAttemptCell = fillCell;
+        }
+    }
+
     private static void engagePillar(Walker wk, Player p, BlockPos foot, BlockPos cwp) {
         Walker.waterPillarEngages++;
         wk.waterClimb.colX = foot.getX();
@@ -548,20 +606,7 @@ final class WalkerTickClimb {
                     BlockPos colFoot = new BlockPos(wk.waterClimb.colX, foot.getY(), wk.waterClimb.colZ);
                     BlockPos fillCell = world.isWater(colFoot) ? colFoot : foot;
                     while (world.isWater(fillCell.above())) fillCell = fillCell.above();
-                    boolean fcSolid = world.isSolid(fillCell);
-                    boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
-                    boolean fcCleared = p.getY() >= fillCell.getY() + 0.9;
-                    if (BotConfig.walkerDebug)
-                        LOG.info("[walker] climbout-place col={},{} fill={} fcSolid={} support={} cleared={}(p.y={} need={}) dryG={} foot.y={} ceil={}",
-                                wk.waterClimb.colX, wk.waterClimb.colZ, fillCell.getY(), fcSolid, fcSupport, fcCleared,
-                                String.format("%.2f", p.getY()), fillCell.getY() + 0.9,
-                                dryGrounded, foot.getY(), wk.waterClimb.targetY);
-                    if (!fcSolid && fcSupport && fcCleared) {     // feet cleared the cell
-                        a.place(world, fillCell);
-                        wk.waterClimb.pillarNoPlaceTicks = 0;                    // made a place → progressing
-                    } else {
-                        wk.waterClimb.pillarNoPlaceTicks++;                      // bobbing, can't clear the cell
-                    }
+                    climboutPlaceTick(wk, a, world, p, fillCell, foot, dryGrounded);
                     return Walker.Step.WALKING;
                 }
             }
@@ -924,7 +969,7 @@ final class WalkerTickClimb {
                 if (!shaftFlooded && a.holdThrowawayPlaceable()) {
                     BlockPos wp = edge.toPlace.get(0);
                     p.setXRot(89.5f);                       // look down to aim the support
-                    if (p.getY() >= wp.getY() + 0.9) {      // bobbed clear of the place cell
+                    if (feetClearOf(p, wp)) {              // bobbed clear of the place cell
                         a.placeOn(wp.offset(0, -1, 0), Direction.UP);
                         wk.exAlarms.notePlace(wp);
                     }
