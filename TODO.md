@@ -3594,6 +3594,49 @@ FAIL 判词      = 门洞清不干净：4, 57, 19 —— 传送门要的是六�
 | ⑥ | 跑不出 `VERDICT:` 行（`grep -c` 为 0） | **不是红，是根本没起来** ⇒ 读日志中段，别看退出码 |
 
 **先 Fabric 后 NeoForge，串行**，两者共享工作树，且期间不排练、不编译。
+
+#### ✅ 判读：Fabric **① 命中**；NeoForge **RED，但红在表外的一格**
+
+```
+Fabric    COVERAGE: 298 执行 / 25 跳过      VERDICT: GREEN
+NeoForge  COVERAGE: 298 执行 / 24 跳过      VERDICT: RED
+两边都：UNDECLARED: —— 一行都没有        canary 三条全部 expected
+```
+
+**清单欠账已还清。** 本 session 四次改 `expected-scenes-*.txt`，两个闸的 reconciliation
+**一条 UNDECLARED 都没报**——这正是跑全量闸要买的东西，过滤跑买不到。
+
+**本 session 三个新场景，两个 loader 都 PASS，tick 数逐字相同**：
+`journeyJudgesTheLastStepAfterTheDropLands` 29/29、
+`unwedgeStopsToweringWhenASourceFeedsTheWater` 62/62、
+`journeyNamesTheCellADigCouldNotOpen` 41/41。
+
+**NeoForge 的红是一条必需项 `wd.serverEarnsAnEnderPearl`**，`pearls.total=0`（判据 ≥1）。
+三条 `fail(optional)` 两边一致，是已知基线（`vineOverWaterClimb`、`serverEscapeSealedShelter`、
+`journeyGetsAshoreBeforePouring`），不单独翻红。
+
+**不是我这一批造成的，两条独立证据：**
+
+1. **执行次序**：它在 NeoForge 日志第 25812 行，我的三个场景在 38851 / 38908 / 39064
+   —— **全都在它之后**。后面的场景改不了前面的结局。
+2. **同一份代码在 Fabric 上 6/6 全过。** 我这一批的改动**全在 `src/testmod`**，
+   一行都没碰 `src/main`，所以它碰不到引擎的战斗。
+
+**⚠️ 但真正的信号不是掉率，是四场仗打不完** —— 这一点判词自己没说：
+
+```
+Fabric    enderman.killed=6/6  每场 88,77,78,69,73,75 tick   pearls=0,0,1,1,1,1 → 4
+NeoForge  enderman.killed=2/6  每场 4000,4000,4000,66,4000,66 tick  pearls=×,×,×,0,×,0 → 0
+```
+
+打完的那两场只用了 66 tick（**比 Fabric 还快**），另外四场烧满 4000 tick 没打死。
+**45 倍的差不是噪声。** 而 `pearls.total=0` 只是下游：只杀掉 2 只，每只掉 0–1 颗，
+「两只都掉 0」本来就有约四分之一概率——判据在 2 杀这个档位上**本身就欠功率**
+（`CHANGELOG.md:390` 记着判据正是因为波动才从 4 杀降到 2 杀，
+`TODO.md:14461` 记着连着两趟 RED 只有这一条失败，1/6 和 3/6）。
+
+⇒ 已知的波动源 + 一个欠功率的判据，**但「四场打不完」这一条以前没人量过**。
+一个样本定不了因（[[one-sample-cannot-name-a-cause]]），所以补跑三趟单场取分布，见下。
 2. **一格高的窗口撑不过四 tick 的重力。** 两次实测：
    摆在 `ends+1.0` ⇒ `subject.endedAt 精确 …/217.92/…`；摆在 `ends+1.6` ⇒ `…/217.83/…`，
    两次 `settled=null`。`blockPosition()` 在脚越过格边界那一刻就翻，而一节点的腿要 4–5 tick 才
