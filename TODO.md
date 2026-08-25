@@ -3797,6 +3797,51 @@ subject.descentHolds = 3
 读 `步进` 与各守卫行，让**压住 x 方向移动的那一相自己报名**。
 ⚠️ 在它报名之前不要改走行器的任何一相。
 
+###### 🔧 J47c：写死步骤——**开腿之前先转身**（登记在跑之前，2026-08-25）
+
+走行器行把整条链量完了，每一环都有行为证：
+
+```
+path = 0:99999,218[-]  1:99998,218[walk]  2:99999,217[stepDown]
+       goalReached=true pathLen=3 expanded=3 finalCost=20.0     ← A* 找得到，我原来的预测对
+步进 序=1 因=passed 旧步=1 新步=2                                 ← 跳过节点 1（下一节点更近）
+t=1 node=99999,217 yaw=0 bear=-90 yawErr=-90 driveYaw=0 up=true cur2=0.090(gate 0.45) |dY|=1.00(gate 1.2) within=true
+t=2 p=(...,100000.60) bear=-108 hSpd=0.055
+t=3 p=(...,100000.70) bear=-124 hCol=true
+步进 序=2 因=within 旧步=2 新步=3 nx=无(末节点)                     ← 指针花掉 → path-consumed
+```
+
+**没有人压住 x 方向的移动——走行器从来没要求过它。** 两个判据合起来把身体钉在唇上：
+
+1. **`YAW_DEADZONE_SQ = 0.25`（半格）**。到节点的瞄准向量是 (0.30, 0.00)，`0.09 < 0.25`，
+   于是 `WalkerTickAim:317` 取 `targetYaw = p.getYRot()`——**保持身体当前的 yaw**，而当前是 0，
+   偏了 90°。三个 tick `up=true` 一路往 +z 推，撞墙。
+   ⚠️ **这个死区是对的，不要动它**：它的 javadoc 点名的就是这个动作
+   （「during a vertical manoeuvre … atan2 on that sub-block noise snaps the yaw ±90 every tick」）。
+2. **`within`（`WalkerTickProgress:672`）**：`cur2 0.09 < 0.45` 且 `|dyNode| 1.0 < 1.2` ⇒ 判「到了」。
+   那个 1.2 是给 **+1 攀爬**节点留的（脚在下面一格 = 迈步中途），**下降方向不对称**。
+   `unwalkedDescentConsume` 正是为此而写、也确实开了三次火，但它的末节点支要求
+   `noStepProgressTicks == 0`（只延长**正在奏效**的接近），而身体走的方向是错的，
+   一停止靠近它就释放。**保持支买时间，买不到方向。**
+
+**写死步骤（先走这条，符合「完全做不到才补引擎」）**：死区保持的是身体**当前**的 yaw
+⇒ 那就让当前的 yaw 是对的。开腿之前 `JourneyHands.aimBoth(rig, ends)`。
+用 `aimBoth` 而不是裸 `setYRot`，因为真梯的判官驱动的是客户端身体，
+服务端旋转活不过下一个包（[[a-server-side-aim-dies-at-the-next-packet]]）。
+
+**「做不到」清单**（引擎改动的手续，逐条都已死）：
+第二腿改瞄下一级（构造性瞄向水，且实测往回往上）／同目标重走（`Goal.Block.reached` 是精确格，
+不是球）／加冲量推一把（在禁单上）／**挖掉托唇的那块**（`99998,217` 是上一级的地板，
+`NoBreak` 存在的理由就是别拆自己的回程梯）／收窄 `LEG_ARRIVED`（javadoc 明确拒绝）／
+动 `YAW_DEADZONE_SQ`（它的 javadoc 点名这个动作，动它是拿一族换一格）。
+
+| | 读到什么 | 判作 |
+|---|---|---|
+| ① | 场景 **PASS**；`flightLastStepAim` 写着 `yaw 0.0° → -90.0°`；walker 行里 `yawErr` 收敛、身体落进末路点 | 写死步骤成立 ⇒ 进双闸，再进客户端排练与真梯 |
+| ② | 仍 FAIL，但 `flightLastStepAim` 显示 yaw **确实改了** | 转身发生了而身体仍没下去 ⇒ 还有第二道闸。读 `subject.movedBy` 的方向和新的 walker 行，**不要**回头再动瞄准 |
+| ③ | `flightLastStepAim` 显示 yaw **没变**（0.0 → 0.0） | `aimBoth` 在这个 helm 上没生效，去读 `ServerPlayerAvatar.aimAtBlock`，是仪器问题不是方案问题 |
+| ④ | 场景炸了 | 读异常。`aimBoth` 走 `rig.body()`，专用服上两具身体是不是同一具要先确认 |
+
 ###### 📌 J69e：双闸前登记（源码这一轮改了五笔，闸未跑，2026-08-25）
 
 **这一轮改了什么**：`d7d28819`（两条腿接 walkerEnd + 场景上 optional 架）、

@@ -418,6 +418,30 @@ public final class JourneyPortalRung {
         rig.evidence(tag + ".flightLastStep", here.toShortString() + " → " + ends.toShortString()
                 + "（容差 " + LEG_ARRIVED + " 格把这一步判成到达了，这里把它走完；"
                 + landingStory(rig) + "）");
+        // TURN THE BODY BEFORE ASKING IT TO WALK. This is the whole step, and every term of it was
+        // measured on `wd.journeyWalksOffTheLipOntoTheDryStep` with walker rows on:
+        //
+        //   path = 0:99999,218[-] 1:99998,218[walk] 2:99999,217[stepDown]   goalReached=true
+        //   t=1..3  node=99999,217  yaw=0  bear=-90  yawErr=-90  driveYaw=0  up=true
+        //           p=(99999.20,218.00,100000.50 → .60 → .70)   hCol=true
+        //
+        // A* plans it, the walker presses forward — and the body walks 90° off, into +z, until it
+        // hits a wall. The heading never turns because `WalkerTickAim` holds it: the aim vector to
+        // the node is (0.30, 0.00), and `YAW_DEADZONE_SQ = 0.25` (half a block) makes
+        // `targetYaw = p.getYRot()` — the body's CURRENT yaw, whatever it is. That dead-zone is
+        // correct and is not being fought here: its javadoc names this very manoeuvre (
+        //「during a vertical manoeuvre the bot sits almost directly over its target column, so
+        // adx/adz hover near zero and atan2 on that sub-block noise snaps the yaw ±90 every tick」).
+        // It holds the current heading — so the fix is to make the current heading the right one.
+        //
+        // `aimBoth` and not a bare `setYRot`, because the ladder's judge drives a client body and a
+        // server-side rotation does not survive the next packet — see JourneyHands' own note.
+        float yawWas = rig.player().getYRot();
+        JourneyHands.aimBoth(rig, ends);
+        rig.evidence(tag + ".flightLastStepAim", String.format(java.util.Locale.ROOT,
+                "yaw %.1f° → %.1f°（瞄向末路点 %s 的格心；死区保持的是身体当前的 yaw，"
+                + "所以转身必须发生在开腿之前，不能指望走行器在腿里自己转）",
+                yawWas, rig.player().getYRot(), ends.toShortString()));
         rig.settle(lastStep(ends), LAST_STEP_TICKS, () -> {
             BlockPos got = rig.player().blockPosition();
             // WHAT THE WALKER SAID, on both outcomes. `settle` legs carry no `end=`/`err=` of their
