@@ -509,6 +509,69 @@ public final class WorldDriverMobFightScenes {
         if (chase.noRoute())
             ctx.fail("闸误伤了一次正常追击：目标就在同一层地板上 8 格外，身体一路在走，"
                     + "却报了 no route progress：" + chase.line());
+
+        recoverArm(ctx, av, fp, w, high, cx, floorY, cz);
+    }
+
+    /**
+     * The latch must not outlive the pursuit that earned it.
+     *
+     * <p>The latch's only key is body displacement, which is right while the pursuit is the same
+     * one — "unreachable from here" stops being true when "here" changes. It is WRONG across
+     * pursuits, and {@code CombatProcess} now depends on that: a body latched on an unreachable
+     * flying blaze would carry the latch into the walk toward a zombie it could plainly reach, and
+     * never start a search again. The tick budget cannot save it either — every re-goal clears
+     * {@code totalTicks}, so it never fills. Silent freeze, no terminal, no log.
+     *
+     * <p>What holds the two apart is that {@code setGoal} means "new journey" and clears everything,
+     * while {@code retargetGoal} means "same journey, the cell moved". The caller decides which,
+     * because only the caller knows whether the quarry is the same entity. This arm asserts the
+     * engine half of that contract: latch, DON'T move the body, then set a genuinely new goal within
+     * easy reach — searches must resume and the body must go.
+     */
+    private static void recoverArm(SceneContext ctx, ServerPlayerAvatar av, ServerPlayer fp,
+                                   LevelWorldView w, BlockPos high, int cx, int floorY, int cz) {
+        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
+        Walker walker = new Walker();
+        BlockPos target = high;
+        walker.setGoal(new Goal.Near(target, 2));
+        boolean latched = false;
+        for (int t = 0; t < ARM_TICKS && !latched; t++) {
+            if (t > 0 && t % 2 == 0) {
+                target = target.below();
+                walker.retargetGoal(new Goal.Near(target, 2));
+            }
+            walker.tick(av, w);
+            if (walker.lastError != null && walker.lastError.startsWith("no route progress")) latched = true;
+            av.step();
+        }
+        BlockPos stuckAt = fp.blockPosition();
+        long[] before = futileSnapshot();
+        walker.setGoal(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
+        Walker.Step s = Walker.Step.WALKING;
+        for (int t = 0; t < ARM_TICKS; t++) {
+            s = walker.tick(av, w);
+            av.step();
+        }
+        long[] after = futileSnapshot();
+        BlockPos end = fp.blockPosition();
+        long searches = searchSum(before, after);
+        String line = "recover：第一段" + (latched ? "闩上了" : "⚠️ 没闩上") + "（身体停在 "
+                + stuckAt.toShortString() + "），身体不动改下一个 8 格外的新目标，"
+                + ARM_TICKS + " tick 后收在 " + s + "，身体停在 " + end.toShortString()
+                + "；" + futileGateLine(before, after);
+        ctx.record("gate.recover", line);
+
+        // Phase 1 not latching would make phase 2 vacuous — it would prove a latch can be cleared
+        // that was never set. Say so rather than reporting a pass.
+        if (!latched)
+            ctx.fail("这一臂的前提没成立：第一段没能闩住，于是第二段证明不了任何事：" + line);
+        else if (searches == 0)
+            ctx.fail("闩活过了它自己那趟追击：身体没挪，但换了一个 8 格外够得着的新目标之后，"
+                    + ARM_TICKS + " tick 里一次搜索都没起 —— 这是无声冻结，没有终局也没有日志：" + line);
+        else if (end.equals(stuckAt))
+            ctx.fail("搜索恢复了但身体没动：新目标就在同一层地板上 8 格外，"
+                    + ARM_TICKS + " tick 后仍停在 " + end.toShortString() + "：" + line);
     }
 
     /**

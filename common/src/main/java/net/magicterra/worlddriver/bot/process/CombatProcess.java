@@ -81,6 +81,7 @@ public final class CombatProcess implements BotProcess {
     private boolean lockWasAlive;       // last-seen liveness of the locked target
     private int lostTicks;              // consecutive ticks the locked target was unseen
     private BlockPos lastGoalBlock;
+    private int lastQuarryId = -1;      // entity the walker is currently pursuing; -1 = none
     private int ticks;
     private boolean approaching;        // currently driving the Walker
     private BlockPos lastTargetPos;     // last seen position of a locked target
@@ -272,13 +273,22 @@ public final class CombatProcess implements BotProcess {
         approaching = true;
         BlockPos tb = target.blockPosition();
         int radius = Math.max(1, (int) Math.floor(BotConfig.combatReach));
-        if (lastGoalBlock == null || !lastGoalBlock.equals(tb)) {
-            // retargetGoal, not setGoal: a flying quarry changes block every couple of ticks,
-            // and setGoal would clear the futile-search governor each time — so a body chasing
-            // something it can never reach runs one full A* per tick forever. The pursuit is
-            // the same pursuit; only the cell moved.
-            walker.retargetGoal(new Goal.Near(tb, radius));
+        // A DIFFERENT ENTITY IS A DIFFERENT PURSUIT, and this is the only place that knows it —
+        // the walker sees cells, not quarries. Getting this wrong is worse than the bug below it:
+        // a futile latch earned chasing an unreachable blaze would ride retargetGoal into the walk
+        // toward a zombie the body could plainly reach, and nothing would ever start a search
+        // again (the tick budget can't save it either — every re-goal clears totalTicks, so it
+        // never fills). Silent freeze, no terminal, no log.
+        boolean newQuarry = lastQuarryId != target.getId();
+        if (newQuarry || lastGoalBlock == null || !lastGoalBlock.equals(tb)) {
+            // Same quarry, new cell: retargetGoal, NOT setGoal. A flying quarry changes block every
+            // couple of ticks, and setGoal clears the futile-search governor each time — so a body
+            // chasing something it can never reach runs one full A* per tick forever (measured:
+            // 240 ticks, 240 searches, counter never past 1 against a cap of 5).
+            Goal.Near g = new Goal.Near(tb, radius);
+            if (newQuarry) walker.setGoal(g); else walker.retargetGoal(g);
             lastGoalBlock = tb;
+            lastQuarryId = target.getId();
         }
         walker.tick(a, w);
     }
@@ -355,6 +365,7 @@ public final class CombatProcess implements BotProcess {
         if (lastGoalBlock == null || !lastGoalBlock.equals(ib)) {
             walker.setGoal(new Goal.Near(ib, 1));
             lastGoalBlock = ib;
+            lastQuarryId = -1;          // the quarry is dead; the next approach starts a new pursuit
         }
         Walker.Step s = walker.tick(a, w);
         if (s != Walker.Step.WALKING) {
