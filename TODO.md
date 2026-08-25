@@ -313,25 +313,23 @@ water8.liftedY=64/60
 
 **执行顺序不在这里** —— 见 [`ROADMAP.md` §6](ROADMAP.md)（窗口 0–4）。
 
-### 🅶 仓库瘦身（未执行）
+### 🅶 仓库瘦身
 
-镜像副本上量过：**4399 个松散对象占 304.88 MiB**，pack 只有 26.87 MiB。
-`repack -adf --window=250 --depth=250` 后 **342 MB → 15 MB**，无损（ref 12/12、提交 2172/2172、
-`fsck` 退出 0）。⛔ `filter-repo --analyze` 报的「TODO.md 打包 291 MB」是松散对象的假象
-（各自 zlib、无 delta 链）⇒ **不删 `TODO.md` 历史**，它是 `git show <旧提交>:TODO.md` 的仲裁路径。
+✅ **已做：`git repack -adf --window=250 --depth=250` → 342 MB → 17 MB**（11.8 秒）。
+松散对象 4471→57（305.57 MiB→1.14 MiB）。无损：ref 12/12、提交 2184/2184、HEAD 不变、
+`fsck` 退出 0。备份 `../worlddriver-before-repack.bundle`（15.8 MB）。
+**没删历史、没改哈希，105 个提交引用一个都不用动。**
 
-批准的清理范围（`config/`、`__pycache__`、`*/bin/`）照做，但只值 3 MB。
-**用 `--filename-callback` 把 `REGRESSION.md` 改道到 `docs/`**——直剪会丢 59 条只改它的研究提交；
-改道后只丢 3 条，那 3 条的知识 `docs/replay-corpus-regression.md` 第 8/16/17 节记得更全。
+⛔ 病根不是历史脏，是**高频往一个大文本文件提交** + git 的 auto-gc 阈值（6700 个松散对象）没到。
+`TODO.md` 12 小时内 102 次提交 ⇒ 每次一个新 blob，攒到 4471 个。
+📌 **要么定期 `git gc`，要么调低 `gc.auto`；更要紧的是别再往 TODO 里写判读日志。**
 
-**还没做**：
-
-- [ ] 两个 cron（`:13` janitor、`:41` 决策）在改写窗口内静默；闸/真梯的游戏进程必须全部退出
-- [ ] bundle 备份 + `commit-map` 副本放 **scratchpad 之外**（会话级目录会消失）
-- [ ] `git stash list` / `git worktree list` 各查一眼（filter-repo 对这两样处理不可靠）
-- [ ] 重写 **105 个**提交引用（唯一候选串 142 个，真提交 105 个，散在 20+ 文件）。
-      ⚠️ `commit-map` 里「哈希没变」的 **0 条**，全都要改；新 8 位前缀写入前验唯一
-- [ ] **改完第一件事**：把本文件顶部的 `58ec568d` 指针换成新哈希——105 条里只有这条承重
+⬜ **剩下的 `filter-repo`（清 `config/`／`__pycache__`／`*/bin/`）暂缓** ——
+只多省约 3 MB（占现在的 17 MB 的 18%），代价却是重写 **105 个**提交引用
+（`commit-map` 里「哈希没变」的 0 条，全要改）。**收益/代价比不成立，等真要做时再说。**
+真要做：用 `--filename-callback` 把 `REGRESSION.md` 改道到 `docs/`（直剪会丢 59 条只改它的研究提交），
+先停两个 cron、确认无游戏进程、`commit-map` 存到会话目录之外、改完第一件事是换本文件顶部的
+`58ec568d` 指针。
 
 ### 🅱️ 甲之二（`JourneyPortalRung:906/942` 的早退采样）
 
