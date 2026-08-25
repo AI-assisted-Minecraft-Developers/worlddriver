@@ -840,6 +840,37 @@ public static volatile boolean autoRetreat = false;
 ⚠️ 还有一条：`hp=13.0` 那次 `lavaEscape` 之后血继续掉到 9.0，**后半段再无任何反射介入**
 （`lavaEscape` 全程 5 次，`contactEscape` **0 次**）——与 14 级那趟「反射链一条都没武装」同源。
 
+##### 🔴 12 级真因定案：**十块黑曜石浇成九块，最后一块败在身体站错了「排」**
+
+`cast0`–`cast8` 全 `SUCCESS`，只有 `cast9` 没有 `result` 键 ⇒ 它就是断点。因果链逐字：
+
+| 键 | 读到 |
+|---|---|
+| `cast9.raise` | `1, 57, 19 → y=59（去 2,20 这一柱…）：站上去射线落得进目标格，钉住这一柱` |
+| `cast9.raiseTo.arrivedY` | **`64（起 57，净升 7）`**，脚下=`grass_block` |
+| `cast9.raiseColumnMissed` | `2, 64, 21 不在指定柱 2,20 上就算到了（walkToColumn 判到达用的是 5 格）` |
+| `cast9.raisedY` | `64/59 … **射线是照 y=59 那一排验的，从这里打出去的不是验过的那条**` |
+| `cast9.picks.1/2/3` | 三次全落空，身体分别在 `4,64,19`／`2,64,19`／`1,64,22` —— **全在 y=64 的地表** |
+
+**证据自己把病名写出来了**：射线闸在 **y=59 那一排**验过一个站位，身体却被交付在 **y=64**。
+`Goal.XZ.ignoresY()` 为真（`Goal.java:106`），所以 `2,64,21` 距柱 `2,20` 的 XZ 距离 1 格 ≤ 容差 5，
+**判到达**——它答的是「那一柱，任意 Y」，而这一浇要的是「那一柱的**那一排**」。
+`raiseColumnMissed` 那行接着写「由塔的偏柱修正把身体带回这一柱」，**偏柱修正只修柱不修排**，
+缺口正落在这里（[[a-surveyed-cell-is-not-its-column]] 的镜像：那次是路点丢了 y，这次是判据忽略 y）。
+
+**净升 7 认得出来**：解卡塔按「当前高度 +8」抬（[[a-retry-that-climbs-away-from-its-target]]），
+57 起、落在 64。⇒ **与第 2 趟不是同一条**：第 2 趟 cast8 是塔被水冲掉、净升 **0**；
+这趟 cast8 也是净升 0（`washedOffUpstream: 还在喂它的水源：4, 61, 19`）**但后备腿救回来了，SUCCESS**。
+⛔ 所以我上面写的「与第 2 趟 cast8 同族、两趟重现」**判早了**——
+同样是「身体在浇筑阶段跑到地表」，但**驱动它上去的机制相反**（一个是塔垒不起来，一个是塔垒过头）。
+两趟仍是各自单样本（[[one-sample-cannot-name-a-cause]]）。
+
+📌 **修法形状（三选一，待定）**：
+(a) 这一段改用带 y 的到达判据，不用 `Goal.XZ`；
+(b) `walkToColumn` 回来后加一道**排**校验，不合格就下降后重来；
+(c) 给这一段禁掉解卡塔的垒高（形状同 `NoBreak`，即「这一腿不许自己长高」）。
+⚠️ **(c) 最像正解但最危险**：解卡塔是身体走出井底的手段，禁了可能换来走不到（[[a-fix-that-never-gets-its-turn]]）。
+
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
 拍板节好几条的判读样本就是它。⚠️ **必须是 `runRehearsalIntegratedServer`（真 `LocalPlayer`），不是
