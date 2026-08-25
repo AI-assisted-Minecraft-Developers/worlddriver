@@ -3497,6 +3497,49 @@ VERDICT: GREEN (FILTERED — not a gate result)          62 ticks
 | ⑥ | 死在 12 级之前（1–11 级某级红） | 与本批无关的回退 ⇒ 先与上一趟排练做差，别默认是这三笔造成的 |
 
 **并发禁令照旧**：排练在跑就不编译、不跑闸——共享同一棵工作树。
+
+#### ✅ 判读：**② 命中**——两笔都在真身体上成立，死因搬到了浇筑之后
+
+`wd.rehearse12PortalLit -> FAIL (17257 ticks)`，1–11 级 PASS，13–20 级是 0-tick 占位。
+**不是超时**：`rehearse.budgetCapped=40000` 而这趟只用了 17257。
+
+**甲之一 成立，而且是被观察到成立的。** `flightLastStepSettled` **11 条**，条条写着
+「落进末路点了，这一步本来就走成了」；`returnedY` 十一条里**九条是 57**（模腔地板 y=56 ⇒
+`walkHome` 的 `y > floorY+1` 不成立 ⇒ **`returnStuck` 根本不开火**）。
+对照上一趟：`cast0.returnedY=58` → 起塔 → 烧光 6503 tick 预算。
+
+唯一的 `flightLastStepMissed` 是 cast8：身体 `2,64,19`，**比末路点高七排**，
+脚下 stone、`onGround=true`——它是真的在别处，判「没到」是对的。
+⇒ 窄入口条件（`got.equals(ends.above())`）**正按设计工作**：只等站在末路点自己头顶格的身体。
+
+**乙 成立。** `.washedOff` 重试行 **0 条**；两次冲刷都有活源在喂
+（`cast8#3` 的源 `4, 61, 19`、`recover9.rise#6` 的源 `4, 61, 20`），
+两次都是「不重试（还剩 8 / 6 次没用），交给上层的后备腿」。
+⇒ 预登记的判据 D 在**真世界**里也满足了，不只在竞技场。
+
+**④ 的触发判据明确不成立，甲之二 继续缓做。** `returnStuck` 全程只开火一次（cast8），
+身体在 `2,64,19`，y=64 远高于 `floorY+1=57`——这是**真走不到楼梯**，不是「已经到家却起塔」。
+而且塔的选柱器工作正常：`driftOffTheFlight = 2,19 是楼梯那一柱，改到 2,20`。
+写死的触发判据这一趟自己判了「不做」，这正是写它的用处。
+
+**⑤ 也不成立**：两条 `washedOffUpstream` 都点到了源，半径 4 没漏。
+
+##### 🆕 新前沿：**十趟浇筑全成了，门洞里剩三块渣**
+
+```
+cast9.result   = SUCCESS      cast9.spent = minecraft:lava_bucket 1→0（倒出去了）
+portal.dam     = 门洞背后没有流体，不用堵
+portal.slag    = 3 格要清：4, 57, 19=cobblestone  4, 58, 19=cobblestone  4, 57, 20=cobblestone
+portal.doorway = 还堵着：4, 57, 19=cobblestone
+FAIL 判词      = 门洞清不干净：4, 57, 19 —— 传送门要的是六格空气
+```
+
+渣被**点名了**（`portal.slag` 三格），然后 `portal.doorway` 说还堵着，**两行之间没有任何清渣的证据行**。
+所以第一个要问的不是「为什么清不掉」，而是 **「清渣这一步到底跑没跑」**——
+一步跑了但失败，和一步压根没被调用，长得一模一样而修法完全不同
+（[[a-guard-i-assumed-absent-was-running]] 的反向：先 grep 它自己会写的那一行）。
+⚠️ **别默认渣是「岩浆碰水」结的**：判词自己是这么说的，但那是**判词的猜测**，
+`portal.slag` 只报了方块是什么、没报它是怎么来的（[[a-reading-is-not-the-quantity-it-looks-like]]）。
 2. **一格高的窗口撑不过四 tick 的重力。** 两次实测：
    摆在 `ends+1.0` ⇒ `subject.endedAt 精确 …/217.92/…`；摆在 `ends+1.6` ⇒ `…/217.83/…`，
    两次 `settled=null`。`blockPosition()` 在脚越过格边界那一刻就翻，而一节点的腿要 4–5 tick 才
