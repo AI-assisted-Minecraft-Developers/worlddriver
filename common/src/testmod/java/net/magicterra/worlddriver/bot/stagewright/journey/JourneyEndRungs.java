@@ -2807,15 +2807,14 @@ public final class JourneyEndRungs {
 
     /** What to pillar with: whichever spoil the body is actually carrying most of. A tower asked for
      *  a block the body does not hold reports "stuck (no Y gain — out of blocks?)" while the
-     *  inventory is full, which names the wrong problem convincingly enough to cost a round. */
+     *  inventory is full, which names the wrong problem convincingly enough to cost a round.
+     *
+     *  <p>The argmax is {@link JourneyShaft}'s; only {@link #PILLAR_BLOCKS} is this family's, and it
+     *  differs by exactly one entry — {@code minecraft:end_stone}, which no shaft ever yields and
+     *  which is most of what an outer island is made of. Same shape as the note below: two copies
+     *  of a loop over two lists, except this one was caught before it drifted. */
     private static String pillarBlock(JourneyRig rig) {
-        String best = "minecraft:cobblestone";
-        int most = 0;
-        for (String id : PILLAR_BLOCKS) {
-            int n = rig.carrying(id);
-            if (n > most) { most = n; best = id; }
-        }
-        return best;
+        return JourneyShaft.pillarBlock(rig, PILLAR_BLOCKS);
     }
 
     // bestWeapon / holdBestWeapon moved to JourneyRig — they existed here AND in JourneyNetherRungs,

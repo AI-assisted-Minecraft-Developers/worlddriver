@@ -963,9 +963,24 @@ public final class JourneyShaft {
      * deepslate runs out around y=0 and the stone the shaft cut above it takes over.
      */
     static String pillarBlock(JourneyRig rig) {
+        return pillarBlock(rig, PILLAR_BLOCKS);
+    }
+
+    /**
+     * {@link #pillarBlock(JourneyRig)} over a caller's own candidate list.
+     *
+     * <p>The list is the parameter and the argmax is not, because the two are not equally
+     * portable. {@code JourneyEndRungs} carried a byte-identical copy of this loop over a list
+     * that includes {@code minecraft:end_stone} — a legitimate fork, since a shaft never yields
+     * end stone and a body on the outer islands has little else. Folding the two LISTS together
+     * would have taken a block away from the end rungs; folding the two LOOPS together takes
+     * nothing from anyone. The same file's {@code bestWeapon} pair drifted apart before anyone
+     * noticed, which is what this is avoiding.
+     */
+    static String pillarBlock(JourneyRig rig, List<String> from) {
         String best = "minecraft:cobblestone";
         int most = 0;
-        for (String id : PILLAR_BLOCKS) {
+        for (String id : from) {
             int n = rig.carrying(id);
             if (n > most) { most = n; best = id; }
         }
