@@ -2237,6 +2237,19 @@ futileSearches 一到 5 ⇒ 此后每 tick：跑满一次搜索 → ++ → 6>=5 
 4. `still` 臂**不得**变坏（仍 ≤ 一二十次搜索）；`creepSetGoal` 只记不判——
    断言「旧路径依然坏」会在别人哪天把 `setGoal` 也修好的那天变成假红。
 
+📌 **这一趟的预期颜色**（[[a-verdict-has-upstream-verdicts]]：先算该是什么，再去对）：
+
+`wd.serverFutileGateUnderACreepingGoal` 是**必需**场景，判据不成立就直接红。基线应当是：
+1 条 `VERDICT:`、0 条必需失败、恰好 3 条已知可选失败（`vineOverWaterClimb` /
+`serverEscapeSealedShelter` / `journeyGetsAshoreBeforePouring`）、3 条 canary 正确、
+`COVERAGE: 290 executed / 25 skipped`、无 `UNDECLARED`（这趟没注册新场景，两份清单不动）。
+
+⚠️ **这笔修法动的是 `Walker` 和 `CombatProcess`，全套件都在用**。
+真正要盯的不是那一条新场景，而是**别处有没有被误伤**：闩住之后「身体没挪就不再起搜索」，
+如果哪个场景里身体本来就该站着等一次成功的搜索，它会被这条闸掐掉。
+`chase` 臂只守住了合成的那个场合，守不住真场景——所以**任何一条新的必需失败都算这笔修法的账**，
+不许先去怀疑它是既有的抖动。
+
 ##### ⚠️ 加了沿，这条引擎缺陷在全套件里就**再没有自然场合**了
 
 这是必须和修法同时想的一件事：场景侧的沿一旦落地，blaze 场景**永远造不出这次坠落**，
