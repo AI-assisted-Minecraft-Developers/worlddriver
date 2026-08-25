@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
@@ -311,10 +312,39 @@ public final class WorldDriverMobFightScenes {
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
 
+        // WHY THIS CENSUS IS HERE, AND WHY IT HAD TO COME FIRST.
+        //
+        // The futile-search gate (WalkerTickSearch, walkerFutileSearchCap) exists precisely to stop
+        // a body re-asking a question it cannot answer. On the 2026-08-24 J60-C run it never fired
+        // in this scene: the body chased the blaze off this 11x11 floor, fell 282 blocks to the
+        // world bottom, and then spent >=29 s of the scene's 48 s in 29 consecutive searches that
+        // each burned ~64k nodes toward a goal 267 blocks straight up — with zero "no route
+        // progress" rows to show for it.
+        //
+        // Walker.futileGateBuckets already counts which of the gate's nine doors every search left
+        // by, but it is read by the journey rig and by NOTHING else, so the one scene where the
+        // gate demonstrably fails has never been able to say which door. Reading the code turns up
+        // two candidate doors — bucket 5 (no path while stuck-penalties are live, so the gate never
+        // judged the search at all) and bucket 7 (CombatProcess re-goals on every blaze block-move,
+        // Walker.setGoal wipes searchGov, and a null futileFoot reads as "the body moved") — and
+        // code alone cannot choose between them. This census chooses.
+        //
+        // It goes in BEFORE the rim that will stop the body leaving the floor, because that rim
+        // removes the only occasion this defect has anywhere in the suite.
+        final long[] futileAtStart = futileSnapshot();
+
         // Round 1: open sky. Measured, not assumed — and it does NOT work.
         var openRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "open");
         ctx.await(openRun::pump).within(openRun.tickAllowance()).then(() -> {
             var open = openRun.finish();
+            // Split per round, and recorded here rather than in a cleanup. The open round is the
+            // one that churns; folding both rounds into one row would let the roofed round's 40
+            // tidy iterations dilute it. A cleanup could not carry either row: the harness calls
+            // record(...) — which serialises ctx.records() into the results file — BEFORE
+            // teardown(...) on every outcome, so a row written in a cleanup lands in the log and
+            // in the ledger and is absent from the file the verdict is read from.
+            final long[] futileAfterOpen = futileSnapshot();
+            ctx.record("futileGate.open", futileGateLine(futileAtStart, futileAfterOpen));
             // Round 2: the same fight in a closed room. This is the hardcoded step, and it is what a
             // player does at a spawner: not a new engine verb, a different room.
             //
@@ -332,6 +362,7 @@ public final class WorldDriverMobFightScenes {
             var roofedRun = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "roofed");
             ctx.await(roofedRun::pump).within(roofedRun.tickAllowance()).then(() -> {
                 var roofed = roofedRun.finish();
+                ctx.record("futileGate.roofed", futileGateLine(futileAfterOpen, futileSnapshot()));
 
                 ctx.record("body.invulnerable", "true —— 所以这一条只说打得赢, 不说活得下来");
                 // The open-sky round is RECORDED, not asserted, and that is a deliberate correction.
@@ -354,6 +385,38 @@ public final class WorldDriverMobFightScenes {
 
     /** One unpinned blaze fight, reported rather than asserted — the caller decides what it means. */
     private record BlazeFight(boolean dead, int ticks, float hp, double rise) {}
+
+    private static long[] futileSnapshot() {
+        long[] v = new long[Walker.FUTILE_GATE_BUCKETS.length];
+        for (int i = 0; i < v.length; i++) v[i] = Walker.futileGateBuckets.get(i);
+        return v;
+    }
+
+    /**
+     * One round's share of the futile-search gate, bucket by bucket.
+     *
+     * <p>Buckets 0-5 are searches the gate never judged; 6-8 are what it did with the ones it did.
+     * The counters are static and shared by every scene in the process, so only a DELTA between two
+     * snapshots means anything here.
+     *
+     * <p>A zero sum gets its own sentence rather than nine {@code =0}s. Nine zeros read exactly like
+     * "the gate judged nothing and let everything through", when what they actually say is that the
+     * walker never searched at all this round — the difference between an answer and a dead channel.
+     */
+    private static String futileGateLine(long[] before, long[] after) {
+        long sum = 0;
+        StringBuilder sb = new StringBuilder();
+        String[] names = Walker.FUTILE_GATE_BUCKETS;
+        for (int i = 0; i < names.length; i++) {
+            long v = after[i] - before[i];
+            sum += v;
+            if (i > 0) sb.append('，');
+            sb.append(names[i]).append('=').append(v);
+        }
+        return sum == 0
+                ? "这一轮一次搜索都没有 —— 走行器没搜过路，别把这行读成「闸放行了」"
+                : "这一轮 " + sum + " 次搜索，闸的去向：" + sb;
+    }
 
     /**
      * A blaze fight that is spread ACROSS server ticks instead of crammed into one.

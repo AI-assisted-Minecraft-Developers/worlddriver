@@ -2021,6 +2021,35 @@ if (s != Walker.Step.WALKING) {
 
 ⇒ **A、B 都要等一次能观测的运行才能选**，而下一条正说明这个观测通道要自己造。
 
+##### 📌 已接仪器 + 判据（写在跑之前）
+
+`Walker.futileGateBuckets` 把闸的**九扇门**各记一个桶，全仓**只有 `JourneyRig` 读它**
+——于是「闸明摆着失灵」的这条场景，从来没能说出自己是从哪扇门走的
+（[[an-instrument-behind-a-flag-is-not-an-instrument]] 的第八个形状：
+仪器写了、也在数，只是**没接到出事的那一处**）。
+
+已在 `WorldDriverMobFightScenes.serverFightsAFlyingBlaze` 接上，**按轮分开**记两行
+`futileGate.open` / `futileGate.roofed`（露天那轮才是churn 的那轮，合成一行会被
+罩顶轮那 40 次迭代稀释）。**没有写进 `ctx.cleanup`**——`record(...)` 在 `teardown(...)`
+之前就把 `ctx.records()` 序列化进结果文件了，写在 cleanup 里的行只进日志不进判词
+（[[a-confluence-point-is-not-a-deadline]]）。
+
+⚠️ **先决态：这条场景是双稳的**，坠落发不发生取决于这一轮 blaze 往哪飞。
+判读第一步不是看桶，是看**这一趟到底复现了没有**：日志里有没有 `STILL RUNNING`，
+`search-begin owner=combat` 的起点 y 有没有跌破 221。没复现就什么都别判。
+
+| 复现了，且读到 | 判 | 处置 |
+|---|---|---|
+| **桶 7「清零:身体挪了>2格」占大头** | `setGoal` → `futileFoot=null` 是复位者 | 现在这版解读**成立**，按 A／B 动手 |
+| **桶 5「无路且拉黑还没过期」占大头** | 闸**根本没判过**这些搜索 | A／B 全部作废，真靶子是 stuck-penalty 豁免太宽 |
+| **桶 6「清零:离目标更近了」占大头** | 我**第一版**（`gotCloser`）才对 | 改回去，`setGoal` 不是主门 |
+| **桶 8「计入」不小，却仍无 `no route progress`** | 计数在涨而终局没到 | 第四种机制，重新查 `terminalReport` 那条路 |
+| **那行写「一次搜索都没有」** | 仪器接错了地方 | combat 的搜索没走 `WalkerTickSearch`，重推调用图 |
+| 没复现（无 `STILL RUNNING`，起点 y 全 ≥221） | **未触发** | 桶数是廉价态的，**不能拿来判**；要重跑或先造负测试场景 |
+
+**预测（写在前面好被证伪）**：按当前代码读法应当是**桶 7 占大头、桶 8 约为被判搜索的一半、
+且 `futileSearches` 实际封顶在 1**。若桶 5 占大头，则这一整节的推理都要推倒重来。
+
 ##### ⚠️ 加了沿，这条引擎缺陷在全套件里就**再没有自然场合**了
 
 这是必须和修法同时想的一件事：场景侧的沿一旦落地，blaze 场景**永远造不出这次坠落**，
