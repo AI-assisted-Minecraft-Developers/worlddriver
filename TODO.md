@@ -885,6 +885,11 @@ public static volatile boolean autoRetreat = false;
 身体最终落回验过的那一排。⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
+📌 **下一趟真梯的判读，先写在这**（`3ce54dd4` 把排上界限定到了浇筑侧）：
+1. `raiseRowTooHigh`／`raiseRowRetry`／`raiseRowGaveUp` 只许出现在浇筑 tag 下；收水 tag 下出现任何一次 = 限定没生效。
+2. `scoopRowHigh` 若出现，下游必须跟着 `buildTo` 的楼梯行——没跟上就是便宜修法仍然轮不到。
+3. 两个闸重跑排在真梯**之后**：收水侧恢复的是 `36130011` 之前长期绿过的原样。
+
 🔴 **同族第三处，而且这处有场景正红着**：`JourneyCast.java:100`
 
 ```java
