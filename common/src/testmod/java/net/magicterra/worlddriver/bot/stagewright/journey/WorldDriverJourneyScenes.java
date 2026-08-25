@@ -11,6 +11,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
@@ -751,8 +752,31 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
                                      int budget, int left, List<CostModifier> bias,
                                      Runnable onArrived, Runnable onStuck) {
+        walkToColumn(rig, what, x, z, tolerance, budget, left, bias, List.of(), onArrived, onStuck);
+    }
+
+    /**
+     * The same leg again, with HARD constraints as well as soft bias.
+     *
+     * <p>{@code Goal.XZ} answers「that column, any Y」— {@link Goal.XZ#ignoresY} is true — so from
+     * above, DIGGING STRAIGHT DOWN is a legal route to it, and where the body stands above its own
+     * staircase that is the cheapest one. Measured, rung 12's rehearsal of 2026-08-25: asked for
+     * {@code XZ[x=2, z=19, radius=0]} from {@code -3,61,20}, the walker sank the column at
+     * {@code x=-1, z=20} — {@code -1,58,20}, then 57, 56, 55, 54 — and the first of those is the
+     * support of the tread at {@code -1,59,20}. One step of the descent, one step of the flight.
+     *
+     * <p>Which is why the constraint belongs at the CALL SITE and not here: the same helper carries
+     * the surface legs (prey, home, gravel, the lava approach) where digging a route is ordinary and
+     * taking it away would only make honest walking fail. A caller that walks ground the rung cut
+     * itself passes {@link NoBreak}; a caller crossing the world does not.
+     */
+    static void walkToColumn(JourneyRig rig, String what, int x, int z, int tolerance,
+                                     int budget, int left, List<CostModifier> bias,
+                                     List<net.magicterra.worlddriver.bot.pathfinder.Constraint> hard,
+                                     Runnable onArrived, Runnable onStuck) {
         BlockPos before = rig.player().blockPosition();
-        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance), bias)), budget, () -> {
+        rig.settle(new IntentProcess(new Intent(new Goal.XZ(x, z, tolerance), bias,
+                CapabilityProfile.ALL, hard)), budget, () -> {
             BlockPos at = rig.player().blockPosition();
             double away = Math.hypot(at.getX() - x, at.getZ() - z);
             int attempt = MAX_WALK_ATTEMPTS - left + 1;
@@ -792,15 +816,21 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             if (left <= 1) { onStuck.run(); return; }
             double moved = Math.hypot(at.getX() - before.getX(), at.getZ() - before.getZ());
             if (moved >= WEDGED_UNDER) {
-                walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias, onArrived, onStuck);
+                walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias, hard,
+                        onArrived, onStuck);
                 return;
             }
             int mx = (at.getX() + x) / 2;
             int mz = (at.getZ() + z) / 2;
             rig.evidence(what + ".viaMidpoint", mx + "," + mz + " (卡在 " + at.toShortString() + ")");
-            rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3), bias)),
+            // The midpoint recovery inherits `hard` for the reason the note above gives about bias:
+            // an unconstrained recovery from a constrained leg walks into exactly what the leg was
+            // forbidden, and it is the recovery — asked from a body already wedged — that is most
+            // likely to find digging the cheapest answer.
+            rig.settle(new IntentProcess(new Intent(new Goal.XZ(mx, mz, 3), bias,
+                            CapabilityProfile.ALL, hard)),
                     Math.max(600, budget / 2),
-                    () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias,
+                    () -> walkToColumn(rig, what, x, z, tolerance, budget, left - 1, bias, hard,
                             onArrived, onStuck));
         });
     }

@@ -5,6 +5,7 @@ import java.util.Map;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -117,7 +118,14 @@ final class JourneyPour {
         // pinned climb it handed over to then refused to place anything because the body was not in
         // the column. Asking for radius 0 at least makes the walker try for the cell the aim was
         // computed from; the tower's own drift correction is what finishes the job when it cannot.
+        // AND IT MAY NOT DIG ITS WAY IN. This leg runs inside the alcove, where the only thing between
+        // the body and the column is what this rung cut with its own pick — the same argument
+        // `walkTheStairs`, the water fetch, `JourneyRamp#walkTo` and the pour's own approach all make.
+        // A `Goal.XZ` makes it worse than the others: it ignores Y, so from atop the staircase the
+        // cheapest route into a column below is to sink a shaft, and the 2026-08-25 rehearsal shows it
+        // doing exactly that through `-1,58,20` — the support of the tread at `-1,59,20`.
         WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 0, 800,
+                WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, List.of(), List.of(new NoBreak()),
                 () -> {
             // SAY SO WHEN THE ARRIVAL IS NOT AN ARRIVAL. `arrivedDistance` is a number nobody reads
             // as a verdict, and without this row a raise that started out of its own column looks
