@@ -3330,6 +3330,27 @@ drain.7.upstream=壁龛与楼梯底周围 8 格内没有水源块 —— 那就�
 拿它验就是绿零证明力，与 J73 的坠落守卫同形（[[verify-by-making-the-criterion-impossible]]）。
 新臂照 `wd.serverBlazeFightStopsWhenTheBodyFallsOut` 的做法：健康臂逐字节不变，新臂由「掉落」武装。
 
+#### 📌 预登记：甲之一 已落（`f398c768`），跑之前先写死判据
+
+修法在 `JourneyPortalRung:452` 之后加窄分支（入口条件 `got.equals(ends.above())`），
+新臂 `wd.journeyJudgesTheLastStepAfterTheDropLands` 把身体摆在末路点头顶格、脚下是空气，
+`LAND_TICKS = 20`。跑法：`./gradlew stagewrightDedicatedServerFabric
+-Pstagewright.scenes=wd.journeyJudgesTheLastStepAfterTheDropLands,wd.journeyWalksOffTheLipOntoTheDryStep`
+（过滤跑，verdict 会写 `FILTERED — not a gate result`，不是闸结果）。
+
+| 态 | 读到什么 | 含义与下一步 |
+|---|---|---|
+| ① | 新臂 PASS，`subject.settled` 写着「落进末路点了」 | 修法成立且被观察到执行。去做甲之二 |
+| ② | 新臂 FAIL 在**控制组 A**（`posed != ends.above()`） | 布景没摆成，`SceneBody.managed` 或 `av.step()` 把身体放到了别处。改布景，**不改修法** |
+| ③ | 新臂 FAIL 在**控制组 B**（`onGround=true`） | 身体没在下坠。`av.step()` 一步就落地了 ⇒ 摆位要更高或少走一步。改布景，**不改修法** |
+| ④ | 新臂 FAIL 在 **A（`settled == null`）** | 分支根本没进：下坠在腿的回调之前就落完了，`down()` 已为真。**这一臂什么都没测到** —— 说明「判决那一刻仍在腾空」在竞技场里靠摆位造不出来，得换成让腿先结束（例如让 A* 找不到路）。修法本身不因此被证伪，但也不算被验证 |
+| ⑤ | 新臂 `settled != null` 但 FAIL 在 **B 或 C** | 分支进了，等完仍没落进去 ⇒ `LAND_TICKS=20` 不够，或 `HoldStill` 把重力也停了。查 `HoldStill` 的语义，别直接加大常数 |
+| ⑥ | **旧臂 `wd.journeyWalksOffTheLipOntoTheDryStep` 变红** | 抽取共用布景 `stageLipArena` 的重构伤到了它 ⇒ 先修重构，这一轮其余读数作废 |
+
+⚠️ 旧臂必须仍然 PASS 且 **不写 `flightLastStepSettled`**——它的身体是走进末路点的，
+`down()` 在回调时已为真，新分支根本不该被它碰到。旧臂若冒出 settled 行，
+说明入口条件比我以为的宽，按 ⑥ 处理。
+
 ⚠ 下游能不能从那一级干活，日志里已有正证据：`recover2.fromHere=1, 57, 20`、
 `recover6.fromHere=2, 58, 19`、`recover7.fromHere=2, 58, 21`——收水从**多个**格成功过，
 井底不是唯一座位。这不等于浇筑也行，所以 ③ 保留在表里。
