@@ -118,7 +118,7 @@ final class JourneyHands {
      *
      * <p>Consequence worth carrying: a fill/pour site with <b>no</b> server-side prediction gate
      * needs none of this, and reading a failure there as an aiming bug sends the next person to the
-     * wrong file. See {@code JourneyPortalRung.scoopWater}, whose only defect was judging early.
+     * wrong file. See {@code JourneyFill#scoopWater}, whose only defect was judging early.
      */
     static void aimBoth(JourneyRig rig, BlockPos at) {
         rig.avatar().aimAtBlock(at);

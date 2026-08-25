@@ -479,7 +479,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         }
 
         int before = fp.getInventory().countItem(Items.WATER_BUCKET);
-        JourneyPortalRung.scoopWaterOnly(ctx, rig, pond, () -> {
+        JourneyFill.scoopWaterOnly(ctx, rig, pond, () -> {
             BlockPos ended = fp.blockPosition();
             Object reseat = rig.evidenceOf("waterFill.reseat");
             int after = fp.getInventory().countItem(Items.WATER_BUCKET);
