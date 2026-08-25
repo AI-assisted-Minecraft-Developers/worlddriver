@@ -877,11 +877,6 @@ public static volatile boolean autoRetreat = false;
 修法已落 `36130011`（`POUR_ROW_SLACK=1` / `RAISE_ROW_TRIES=1`，排不对就走回模腔重来）。
 完整因果链和「为什么是加上界而不是翻 `exactRow`」在 `JourneyPour.POUR_ROW_SLACK` 的 javadoc 里。
 
-🔴 **还开着：这一笔顺手改了装水侧，而装水侧一条失败证据都没有。**
-`raiseTo` 从前没有排检查，装水高 1 排由下游 `buildTo` 的 `exactRow=true` 修一段楼梯接住
-（`recover6` 验过的便宜补救）；现在会先走一整趟 `returnToTheForge`。
-⇒ **下个编译窗口把这道检查限定在 `pouring` 一侧。**
-
 📌 **这个修法还没被检验。** 两个闸都 GREEN（Fabric 298/25、NeoForge 299/24，`UNDECLARED: 0`，
 失败集合两边一致），但三个新证据键
 `raiseRowTooHigh`／`raiseRowGaveUp`／`raiseRowRetry` **各 0 次**——排检查一次没触发。
@@ -903,9 +898,8 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
 ⚠️ 踩的是 `JourneyPour:115-117` 注释**早就写明**的坑：`walkToColumn` 判到达用自己的
 `ARRIVED_WITHIN`（5 格），**不是调用方传的 `tolerance`**。
 
-📌 **下个编译窗口两笔一起做，然后重跑两个闸**：
-1. 排检查限定 `pouring` 一侧；
-2. 给 `lava.ashore` 补到岸检查（脚下固体）+ 有界重试，形状照 `raiseRowTooHigh` 抄。
+📌 **还欠**：补一步之后仍浮着，`JourneyCast.bankRow` 只记一笔就往下走，且那行证据键叫
+`lava.exit.ashore`（上岸）却在脚下是水时照打 ⇒ 判词撒谎。写死步骤见 J47：上岸失败就垫一块。
 
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 

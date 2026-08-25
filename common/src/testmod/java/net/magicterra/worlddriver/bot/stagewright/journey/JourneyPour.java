@@ -178,11 +178,17 @@ final class JourneyPour {
             // arrive from any row at all, and an unstick tower is what actually carries the body up:
             // see POUR_ROW_SLACK for the cell this cost. Everything downstream of here reads the row
             // as correct, so the check has to be here, before the raise commits.
+            // POURS ONLY. Every reading that bought this bound is a pour — cast9's pitch=76.67°,
+            // above — and the scoop side has produced none. Running it there would not merely be
+            // unjustified, it would PRE-EMPT the remedy that already works: a scoop that arrives a
+            // row high is handled downstream by `buildTo` with exactRow=true, which lays a
+            // staircase, costs one leg, and is what recover6 verified. A full `returnToTheForge` is
+            // neither cheap nor verified, and because it runs first the working fix would never get
+            // its turn again — so the scoop would look fixed while its real remedy went dead.
             int over = landed.getY() - wantY;
-            int slack = pouring ? POUR_ROW_SLACK : 0;      // a scoop's line is verified for ONE row
-            if (over > slack && attempt < RAISE_ROW_TRIES) {
+            if (pouring && over > POUR_ROW_SLACK && attempt < RAISE_ROW_TRIES) {
                 rig.evidence(tag + ".raiseRowTooHigh", landed.toShortString() + " 比要站的排 y="
-                        + wantY + " 高 " + over + " 排（容许 " + slack + "）—— 射线是照那一排验的，"
+                        + wantY + " 高 " + over + " 排（容许 " + POUR_ROW_SLACK + "）—— 射线是照那一排验的，"
                         + "从这儿打出去的不是验过的那条；走回模腔重来一次（第 " + (attempt + 1)
                         + "/" + RAISE_ROW_TRIES + " 次）");
                 JourneyStairwell.returnToTheForge(ctx, rig,
@@ -190,12 +196,19 @@ final class JourneyPour {
                         () -> raiseTo(ctx, rig, target, away, wantY, pouring, tag, attempt + 1, then));
                 return;
             }
-            if (over > slack) {
+            if (pouring && over > POUR_ROW_SLACK) {
                 // Retries spent and still high. Say so rather than letting `raisedY` be the only
                 // trace, because that row reads as a note beside a raise that finished.
                 rig.evidence(tag + ".raiseRowGaveUp", landed.toShortString() + " 仍比 y=" + wantY
                         + " 高 " + over + " 排，重来的机会用完了（" + RAISE_ROW_TRIES
                         + " 次）—— 下面这一浇多半会被射线闸拦下，失败记在浇上而不是记在这一排上");
+            }
+            if (!pouring && over > 0) {
+                // The scoop's own row shortfall, recorded and NOT acted on here: `buildTo` owns it.
+                // Without this row the hand-off is invisible and a scoop that arrives high looks
+                // the same as one that arrives level.
+                rig.evidence(tag + ".scoopRowHigh", landed.toShortString() + " 比要站的排 y=" + wantY
+                        + " 高 " + over + " 排 —— 收水这一侧不走回程，交给下面 exactRow 的台阶处置");
             }
             raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
         },
