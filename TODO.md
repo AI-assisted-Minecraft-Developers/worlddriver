@@ -3956,7 +3956,26 @@ Fabric 那份是被一个**先于本轮存在**的长尾掐断的，不构成对
 
 ###### 📌 J73：烈焰人露天轮的坠落长尾——身体掉出竞技场之后每次重规划都是一次无界 A\*
 
-**状态**：调研✅ 策略✅ 实现⬜ 评估⬜ 回测⬜ 认证⬜
+**状态**：调研✅ 策略✅ 实现✅ 评估✅ 回测⬜（Fabric 闸补跑） 认证⬜
+
+**✅ 验收读数（`j73-fall.log`，`-Pstagewright.scenes=wd.serverBlazeFightStopsWhenTheBodyFallsOut`，
+7 ticks / 1017 ms）——状态 ① 逐项命中**：
+
+| 判据 | 要求 | 实到 |
+|---|---|---|
+| A 守卫开火 | `fellAt >= 0` | **245**（`BODY LEFT THE ARENA at iter=245 — y=21.0 is 199.0 below floor 220`） |
+| B 收轮有界 | ≤ 80 次迭代 | **恰好 60**（`fell.ticks=305`，不是打满的 3000） |
+| C 远离看门狗 | 单个 pump < 2000 ms | **89.7 ms**（无界版单次迭代 2600～3060 ms） |
+
+整轮 305 次迭代 / 312 ms / 7 个服务端 tick，对照无界版的 35～48 秒。
+`fell.worstIterMs=58.4 ms（第 15 次）`——最差那次在**坠落之前**，说明坠落后的 60 次全都便宜。
+
+**⚠️ 就地普查这一份不能拿去佐证 J74。** `fell.postFallGate` 读到的是
+「60 次迭代里只有 4 次搜索，计入=4，复位后播种(不判)=0」——bucket 9 是零。
+但这不是反证：**取证段是在翻成真预算（6 ms 分片）之后跑的**，6 ms 一片意味着一次搜索横跨很多次迭代
+而不是一次迭代跑完一次搜索，采样的是另一个 regime（[[two-sampling-rates-are-not-two-sources]] 的同族）。
+要在无界 regime 里就地取证，就得让它无界——那正是这条修法要终止的东西。
+**J74 的证据只认 `wd.serverFutileGateUnderACreepingGoal`，不认这一行。**
 
 **机制**（`WorldDriverMobFightScenes.serverFightsAFlyingBlaze` 的 `open` 轮）：
 11×11 的台子四周是空的，身体追一只自由飞的烈焰人时会走下去掉到世界底。
