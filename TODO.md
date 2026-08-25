@@ -242,10 +242,25 @@ water8.liftedY=64/60
 
 ### ⚠️ 额度与两条「别顺手清理」
 
-- `JourneyPortalRung.java` **2990/3000**（⚠️ 2026-08-26 复核，余量只剩 **10 行**；2026-08-25 晚核还是 2939）。
-  ⇒ **它已经先于 `JourneyRig` 撞线了，下一笔往这个文件里加东西之前必须先搬。**
-  该搬的那一块是现成的：
-  `waterFill.reseat` 这一整段讲的是**怎么挑座位**，而挑座位是 `JourneyFill` 的主题。⇒ 单独一笔。
+- ✅ `JourneyPortalRung.java` **2990 → 2138**（`6bf1efe3`，janitor 拆出 `JourneyStairwell.java` 912 行，
+  余量 10 → **862**）。机械搬运：七个调用计数搬前搬后相等（`rig.evidence(` 91→91、`ctx.fail(` 24→24），
+  **证据键一个字没动**。我跑过 `./gradlew build` → BUILD SUCCESSFUL，源预算闸 OK。
+- 🔴 **新头条：`common/src/main/.../bot/BotConfig.java` 2993/3000，余 7 行**——比拆之前的
+  `JourneyPortalRung` 还紧，而且是**产品代码**，要 gate 槽。
+  janitor 指的切口（`:2645` 往后自成一体的反射持久化层）方向对，但**它不知道下面这条**：
+
+  ⚠️ **拆它的第一步不是动字段，是先让 `BotConfig.persistableFields()` 走父类链。**
+  这个文件里有两个枚举器，各自的 javadoc 都写着「**the ONE enumeration**」，**各自为真**：
+  `SettingsRegistry.reflectivePrimitiveFields()` 用 `getFields()`（**跟**父类），
+  `BotConfig.persistableFields()` 用 `getDeclaredFields()`（**不跟**）。
+  于是拆法决定病征：**兄弟类拆会当场抛 `IllegalStateException`（响的，安全）；
+  父类链拆是静默的**——被搬走的字段仍在 settings 快照里（读起来一切正常），
+  却掉出持久化、掉出 `snapshotAll()`，`applyGameTestBaseline()` 的 OFF 基线泄进活着的 bot，
+  **只泄被搬走的那几个 flag**，病征长得像「某几级莫名其妙退化」。
+  ⇒ 先让 `persistableFields()` 走父类链：**今天做这一步是可证明的 no-op**（父类是 `Object`），
+  于是两步各自可验，第一步闸必须仍绿，第二步才动字段（[[two-ones-that-disagree]]）。
+- **后面依次撞线**（janitor 量的）：`Walker.java` 2960、`JourneyNetherRungs.java` 2927、
+  `JourneyEndRungs.java` 2844、`WorldDriverJourneyScenes.java` 2819、`JourneyRig.java` 2801。
   ⚠️ **到时候不要刮注释换额度**（[[a-file-pinned-at-its-budget]]）。
 - **`BuildProcess` / `BackfillProcess` 的私有 `canStand` 不许并进 `BotUtil.canStandHereStatic`。**
   两个私有拷贝彼此逐字相同，但**比共享版更严**——少了两条 water 子句，含水格在共享版**可站**、
@@ -254,7 +269,37 @@ water8.liftedY=64/60
   且**不 deny `net.magicterra.worlddriver.*`** ⇒ 任何 public 成员原则上都能被运行时 JS 按名字调到；
   另有 `SettingsRegistry` / `SettingsCommand` / `BotConfig` 三处**按字段名反射** `BotConfig`。
   死代码侦察给的「确定级」条目**采用前每一项都要按这两条重验**。
-- **janitor 报出、都需要编译器的余项**：`prelude.js` 的 `\| 0` 取整与 `Params.toInt`／`SchemaValidator`
+- **janitor 2026-08-26 那轮的余项**（都已核实，等编译窗口）：
+  - **10 处死代码**，全部排除了 `-D` 属性与 `JourneyRehearsal` 布线可达：
+    `JourneyRig` 的 `drivesRealPlayer()`／`diedOf()`／`drivingWhenLost()`（三个零调用者的访问器，
+    后两个的**字段**是活的）、`JourneyLedger.startedAtTick()`、`JourneyStage.chapter()`
+    （删访问器后字段变只写）、`JourneyRoute` 的 `spawnBiome`／`firstCoal`／`ruinedPortal`
+    （后两个看着有引用，其实是 `out.put("firstCoal", …)` 的**字符串 key**，字段读取数 0）、
+    `JourneyWorkableSpotScenes.SHORE_NEAR`（兄弟 `SHORE_FAR` 活着，所以是真孤儿）、
+    `JourneyRoute.surveyNetherFortress(SceneContext, BlockPos)`。
+    ⚠️ 最后那个 janitor 亲自核过：**不是「坐标转换被绕过」的缺陷**——唯一活着的调用点
+    （`JourneyNetherRungs:753`）的身体本来就站在下界，`…From` 的 javadoc 说的正是这种调用者。
+    它只是没人用的重载入口，三处 `{@link}` 撑着它。
+  - **`DescendProcess.done()` 与 `EscapeProcess.done()` 在同一个 slot 上收尾方式不同**：
+    Escape 走 `s.reset()` 并在失败时打 `dbg("BAIL: …")`，Descend 只写 `s.active = false`。
+    ⇒ 一趟 descend 结束后 `mc.bot.state` 的 escape 槽仍报着 `goal="descend to y=…"`、旧 `target`、
+    旧 `startedAtMs`，且 **descend 的失败一行日志都不写**（零行日志有两种解释——
+    [[an-instrument-behind-a-flag-is-not-an-instrument]] 同族）。
+    共享 slot 本身是文档化的设计（`DescendProcess:36-37`），**不是缺陷**；对齐 `done()` 会改
+    `mc.bot.state` 的可观测面 ⇒ **行为改动，要 gate 槽**。
+  - `isFalling(Level, BlockPos)` 三份逐字相同的私有拷贝（`BunkerProcess:85`／`DescendProcess:268`／
+    `EscapeProcess:379`）。⚠️ **不能合进 `WorldView.isFallingBlock`**——那条走 view，
+    可能是另一个维度的读数（`placeInto` 的前科）。合成共享静态方法安全但价值低（3 行 × 3）。
+  - `CraftProcess:414` / `SmeltProcess:512` 的 `fail(...)` 各有一个从没被用的 `BotState s` 形参。
+  - `JourneyRig.java:1070` 注释里的 `(JourneyRig:1409)` 引用已腐——1409 行现在是 walker trace 调试文案，
+    与 `BotConfig.allowBreak` 无关。janitor 点名交还（那是 topology 产权）。
+  - janitor **确认过不是问题、下轮别重查的**：`walkToColumn` 的 5 个重载是干净的「4 委托 + 1 实现」链
+    （且再加 `List` 形参会**擦除冲突**）；`JourneyFill:325` 的 rim/NoBreak 不对称有措辞写明的理由；
+    `DescendProcess.kind()` 返回 `"escape"` 是文档化的共享槽；**不做 NoBreak 工厂**
+    （工厂拦不住新调用点漏写，真要防得写断言约束的场景，接住它的地方是 `JourneyStairs.faults`）；
+    ~150 个「零调用」是假阳性，它们靠**方法引用**注册（`WorldDriverJourneyScenes::wood`），
+    任何只数 `name(` 的扫描都会误报（[[a-verification-tool-needs-verifying-too]]）。
+- **更早报出、都需要编译器的余项**：`prelude.js` 的 `\| 0` 取整与 `Params.toInt`／`SchemaValidator`
   分叉（脚本通道吞 `2.7`／`"8"`／回绕，MCP/RPC 会拒——**行为变更，必须配闸**，排在 ROADMAP §6.5 序 17）；
   `neoforge.sim` 三个 shim 整体可删（包外零 import）——⚠️ **别写成纯删**：`neoforge.sim` 里
   `ServerAvatarCommand`（`/agentserver`）还站在它们后面，删除要连命令一起判。
