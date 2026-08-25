@@ -2842,6 +2842,41 @@ support(2)=3,58,19 == stand(0).above()  ← 身体连第 0 级都站不进去
 | `waterN.lift` | `JourneyPour:608`，**直接** `buildTo` | 无后备 |
 | `*.rise.ramp` | `JourneyPour:178`，在 `raiseInColumn` 里 | **有**：够不到 `wantY` 就 `footBeforeTower` 垒塔 |
 
+###### 排练读数（`rehearse-portal-j68b.log`，2026-08-25）：落在第 ① 态，但**它不是修法的证据**
+
+```
+21 场景全 PASS，0 FAIL · BUILD SUCCESSFUL in 11m 41s
+wd.rehearse12PortalLit -> PASS (12812 ticks)  在 y=57 浇出十块黑曜石并点亮 6 格传送门
+obsidian=10/10
+wet.8.ramp.flight  = 4 级：2,56,17 → 3,57,17 → 3,58,18 → 3,59,19（垫脚）
+wet.8.ramp.laid    = 4/4 级垫好了（身体 2,56,18，停在 FINISHED）
+wet.8.ramp.rampedY = 60/60（停在 3,60,19，要的落脚格 3,60,19，同一柱）
+cast9.ramp.noFlight= 2,59,20 修不出楼梯：从地板 y=56 到 y=59 只剩折回那一条路…
+cast9#2.rise=2 block(s)   cast9#2.offTheFlight=起塔柱 2,…
+```
+
+`wet.8` 这一级方向 N,N,W，四级两两互查无一相撞——**修出了非折返的梯并且走上去了**。
+
+**折返判词恰好出现 1 次，且落在唯一带后备的那条路上**（`cast9.raiseTo.gotoEnd.1`、
+`cast9.raiseColumnMissed` 点名了 `raiseTo` → `raiseInColumn`），紧接着塔接手。
+所以新规则的「拒绝」被现成的后备吸收了，**没有波及**——这一条是这趟能定死的。
+
+⚠️ **但绿不能当证据，我差点这么读。** 两条对照都指向不能：
+
+- `TODO.md:18232` 记着修法**之前**的 `-Prehearse=PORTAL_LIT` 就是 **PASS 6723t**，
+  `frame.obsidian=10/10`、`portal.cells=6/6`。这一级的排练本来就能过。
+- `TODO.md:19526` 更写明它是 **1 趟绿 / 3 趟**，并已经附了一句「一趟不是通过率」。
+  [[three-greens-cannot-see-a-one-in-four]]：要求的是**观察到那次补救**，不是数绿。
+
+⚠️ **而且我拿来对比的基线是跨拓扑的。** 那四级折返的读数出自 `journey-n3.log`——
+`[place]` 在 Render thread、`LocalPlayer`、隔线放置，那是**真梯**不是排练。
+落点 `3,60,20`（真梯）vs `3,60,19`（排练）的差正是这么来的，不是修法改的。
+所以上面那张前后对照表**只能读作提示，不能读作同条件前后差**。
+
+**结论分两层**：折返**规则本身**已被构造性证明（`wd.rampNeverFoldsBackIntoItsOwnHeadroom`
+的 A 臂证明该几何真能自封、D 臂走通修好的梯），且这趟证明它没有波及；
+**「它让 12 级过得去」这一层仍未证**，要证只能靠 `:fabric:runJourneyIntegratedServer`。
+
 所以 `wet.8` 这一条修不出楼梯就是直接往下走，正是旧读数里
 「拿一段身体上不去的楼梯记账」的来源。**但不要顺手给 1627 补个塔后备**：
 `1625–1626` 明写「walked rather than towered」，`JourneyPour:172–174` 记着理由——
