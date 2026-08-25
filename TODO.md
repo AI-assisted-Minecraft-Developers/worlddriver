@@ -3400,6 +3400,25 @@ FAIL              = 浇不到指定格：想浇 4, 57, 18（瞄 5, 57, 18），�
 它们是确定性的、逐字相同的、有对照的（上一趟同一位置 58，这一趟 57）。
 浇筑瞄准与 `carve.stuck` 各自另开工单，**不要顺手一起改**。
 
+###### 📋 预登记：NeoForge 闸 `gate-j69-neoforge`（写在读结果之前，2026-08-25）
+
+这一笔闸只裁 **J69a + J69b + 两份 manifest**（`wd.journeyFlightEndsOnADryStep`）。
+J70／J72／J69c 的源码改动一律排在闸绿之后——先改再跑，红了就分不清是哪一笔的账。
+
+**先算出应有的颜色再去读**：Fabric 侧同一笔已 GREEN、`COVERAGE: 293 executed / 25 skipped`（较基线 +1）。
+两份 manifest 是逐字节相同的改动，新场景注册在 `:common` testmod（双端共享），
+所以 NeoForge 应当同样 **+1**。
+
+| | 读到什么 | 判作 |
+|---|---|---|
+| ① | GREEN；COVERAGE 相对 NeoForge 自己的上一趟基线 **+1**；0 条 required `FAIL:`；恰好 3 条已知 `fail(optional)`（`wd.vineOverWaterClimb`、`wd.serverEscapeSealedShelter`、`wd.journeyGetsAshoreBeforePouring`）；0 条 `UNDECLARED:`；canary 三条正常 | 这一笔收口，可以动 J69c 的源码 |
+| ② | RED 且 `UNDECLARED:` 点名新场景 | manifest 没同步到 NeoForge 侧——但两份是逐字节 diff 过的，真读到就说明我的 diff 校验方法本身有问题，先查校验不查 manifest |
+| ③ | RED 且新场景自己 `FAIL:` | 场景在专用服拓扑上的前提不成立（`JourneyStairs` 的静态状态跨拓扑），改场景不改产码 |
+| ④ | RED 且红在与 J69 无关的场景上 | 先与上一趟 NeoForge 基线做差，**不要**默认是这一笔造成的 |
+
+**读法**：`grep -cE '^\[stagewright:[^]]+\] VERDICT:'` 先数行，再从 `VERDICT:` **往上**读
+`UNDECLARED:`／`COVERAGE:`／canary 三条——它们各自都能单独把一趟染红。全程不许 `tail`。
+
 ###### ✅ 真梯 `ladder-j69` 读数：命中预登记的 ④，两条修法都生效，不回退（2026-08-25）
 
 **先算颜色再对**：`runJourneyIntegratedServer` 不是闸任务，**没有 `VERDICT:` 行**（实测 0 行），
