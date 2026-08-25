@@ -1883,7 +1883,19 @@ StageWright 的**证据转储印在完成行之后**，所以按完成行切、�
 不许写进任务书当公理（[[a-reading-is-not-the-quantity-it-looks-like]] 第五节的教训）。
 下一步要先量的是：那两格水的来源，以及自检该加的问题是「这一级能不能踩上去」而不是「在不在」。
 
-###### J67 第一笔（已编译，待闸）：只改判词，不动 `faults`
+###### J67 第一笔（✅ 已回测，`gate-j67.log` GREEN）：只改判词，不动 `faults`
+
+```
+[stagewright:dedicatedServerFabric] VERDICT: GREEN   ← 恰 1 行
+必需失败 0；可选失败 3，就是已知那三条（vineOverWaterClimb / serverEscapeSealedShelter
+                                    / journeyGetsAshoreBeforePouring）
+无 UNDECLARED；canary 三条全对；COVERAGE 289 executed / 25 skipped
+```
+
+同闸一并回测了 `scoopWater` 的搬迁（`eabfd779`）。
+预判兑现：`JourneyUnwedgeScenes` 那两条 `after.contains("级都完好")` 没被动到，
+因为干燥场景 `wet` 为空、措辞不变——但这是**闸判的**，不是我推断的。
+
 
 `JourneyStairs.report` 在有水时不再说「完好」，改说 `N 级台阶一格不缺 —— 但「在」不等于「踩得上去」`。
 
