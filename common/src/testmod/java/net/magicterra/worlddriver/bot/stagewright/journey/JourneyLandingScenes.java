@@ -671,7 +671,14 @@ public final class JourneyLandingScenes implements SceneProvider {
         // list is. `landingStory` — which every row this scene reads goes through — formats
         // `stairBottom` unconditionally, so a scene that cuts a flight without naming its ends hands
         // the production path a null. Cleared with the cells for the same reason they are.
+        // WALKER ROWS, unconditionally. `walkerDebug` is off in every gate run, so its 步进 /
+        // guard lines can never explain a run that did not set it — and this scene's whole subject is
+        // which tick-phase refuses the last tenth of a block. Five ticks of rows is not a volume
+        // worth throttling for, so it is not put behind a second flag of its own.
+        boolean debugWas = net.magicterra.worlddriver.bot.BotConfig.walkerDebug;
+        net.magicterra.worlddriver.bot.BotConfig.walkerDebug = true;
         ctx.cleanup(() -> {
+            net.magicterra.worlddriver.bot.BotConfig.walkerDebug = debugWas;
             JourneyStairs.forget();
             JourneyPortalRung.stairTop = null;
             JourneyPortalRung.stairBottom = null;
