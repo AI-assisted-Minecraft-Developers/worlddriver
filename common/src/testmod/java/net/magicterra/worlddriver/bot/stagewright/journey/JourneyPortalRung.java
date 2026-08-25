@@ -383,14 +383,34 @@ public final class JourneyPortalRung {
      * The terminal is standable — the row says so. The body is balanced on the lip of the step above:
      * exact {@code x=1.20}, a 0.6-wide box spanning {@code [0.90, 1.50]}, overlapping the previous
      * step's tread {@code [0, 1]} by a tenth of a block, which is enough for {@code onGround}. It
-     * needs three tenths more, and asking for the terminal AGAIN cannot buy them: its centre is 0.58
-     * away, well inside {@link #LEG_ARRIVED}, so the walker reports arrival without moving.
+     * needs one tenth more (box min ≥ the terminal column's edge) to lose that support and drop.
      *
-     * <p>So the second leg asks for {@link JourneyStairs#nextDown} instead — 1.98 away, outside the
-     * ball — and the body leaves the lip on its way there. <b>It cannot run when it is not needed</b>:
-     * a flight whose terminal IS the bottom step puts the lip-balanced body at {@code floorY + 1},
-     * which {@code walkHome} accepts, so the miss branch is unreachable; needing the second leg and
-     * having a step below to aim at are the same condition.
+     * <p>The second leg asks for {@link JourneyStairs#nextDown} instead, and
+     * {@code wd.journeyWalksOffTheLipOntoTheDryStep} <b>refuted that</b> on 2026-08-25: the leg fires
+     * and moves the body zero blocks, the whole scene ending in 3 ticks. Two reasons, both from that
+     * scene's own rows:
+     *
+     * <ul>
+     *   <li><b>Constructive.</b> {@code ends} is {@link JourneyStairs#lowestDryStep}, so by definition
+     *       every step below it is wet — {@code nextDown(ends)} is the very water the terminal was
+     *       raised to avoid ({@code 楼梯底 …=Block{minecraft:water}} on the same evidence row).</li>
+     *   <li><b>Mechanical.</b> {@code Goal.Block.reached} is {@code p.equals(target)}, an exact cell
+     *       and not a ball — so the earlier claim here, that re-asking for the terminal is a no-op
+     *       because 0.58 &lt; {@link #LEG_ARRIVED}, was <b>wrong about the mechanism</b>. The body's
+     *       own cell {@code 245919,218} has air for a floor: it is standing in a cell the pathfinder's
+     *       node model calls unstandable, held up by a neighbouring column. Every {@code Fall} and
+     *       {@code StepDown} in {@code Move}'s catalog carries a CARDINAL horizontal offset, so no
+     *       move expresses「drop in place」. Whether that is what actually ends the leg is what the
+     *       {@code walkerEnd} rows below were added to say; until they have spoken it stays an
+     *       assumption, not a finding.</li>
+     * </ul>
+     *
+     * <p>The legs are kept — as instrumentation. They cost about a tick each when there is no path,
+     * and they are the only rows that distinguish a step that was never needed from one that was
+     * needed and refused. <b>The second cannot run when it is not needed</b>: a flight whose terminal
+     * IS the bottom step puts the lip-balanced body at {@code floorY + 1}, which {@code walkHome}
+     * accepts, so the miss branch is unreachable; needing the second leg and having a step below to
+     * aim at are the same condition.
      */
     static void finishTheFlight(JourneyRig rig, String tag, BlockPos ends, Runnable then) {
         BlockPos here = rig.player().blockPosition();
@@ -400,6 +420,11 @@ public final class JourneyPortalRung {
                 + landingStory(rig) + "）");
         rig.settle(lastStep(ends), LAST_STEP_TICKS, () -> {
             BlockPos got = rig.player().blockPosition();
+            // WHAT THE WALKER SAID, on both outcomes. `settle` legs carry no `end=`/`err=` of their
+            // own the way `drive` legs do, so a leg that ended because A* found no path and one that
+            // ended having walked read identically — which is how「重走会原地不动」stood as a
+            // mechanism for a whole ladder without ever being asked.
+            rig.evidence(tag + ".flightLastStepEnd", JourneyLeg.walkerEnd(rig));
             if (down(got, ends)) { then.run(); return; }
             // SAY SO WHEN IT DID NOT LAND. A leg that quietly fails leaves `returnedY` to report the
             // same row it would have reported without this method, and the reader cannot tell a step
@@ -410,11 +435,14 @@ public final class JourneyPortalRung {
             BlockPos beyond = JourneyStairs.nextDown(ends);
             if (beyond == null) { then.run(); return; }
             rig.evidence(tag + ".flightLastStepAgain", got.toShortString() + " → " + beyond.toShortString()
-                    + "（改瞄下一级：末路点 " + ends.toShortString() + " 的格心离身体只有 "
+                    + "（改瞄下一级；末路点 " + ends.toShortString() + " 的格心离身体 "
                     + String.format(java.util.Locale.ROOT, "%.2f", centreGap(rig, ends))
-                    + " 格，在容差 " + LEG_ARRIVED + " 之内，同目标重走会原地不动）");
+                    + " 格。⚠️ 下一级按定义是湿的——末路点是 lowestDryStep 抬上来的，"
+                    + "它下面每一级都有水，所以这一腿多半瞄的就是要躲的那格水："
+                    + cellStory(rig.ctx().level(), beyond, false) + "）");
             rig.settle(lastStep(beyond), LAST_STEP_TICKS, () -> {
                 BlockPos end2 = rig.player().blockPosition();
+                rig.evidence(tag + ".flightLastStepAgainEnd", JourneyLeg.walkerEnd(rig));
                 // BOTH OUTCOMES, and they are not the same reading. Landing in the terminal is the
                 // leg working; sliding on into `beyond` is the tolerance failing to stop it, which
                 // this leg deliberately risks and which `walkHome` still accepts (its test is the
