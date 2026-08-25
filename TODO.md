@@ -585,6 +585,47 @@ cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满�
   顺带：`flightEnd` 也可能出现在 `lava*.`（上行段）。**按 tag 族分开数**：`cast*.flightEnd` 九行是下限，
   总行数超九不是失控。
 
+#### ✅ 闸的读数（2026-08-26 01:28 / 01:34）：**两个都 GREEN，闸债还清**
+
+```
+Fabric   : 298 执行 / 25 跳过   VERDICT: GREEN
+NeoForge : 299 执行 / 24 跳过   VERDICT: GREEN
+UNDECLARED: 两边都没有        canary: 两边三条全对（FAIL / TIMEOUT / 正确省略）
+```
+
+（数了 `VERDICT:` 行：各 2 行，其中一行是 `wd.vineClingFidelityProbe` 自己的证据行，不是闸判词——
+这正是「先数 VERDICT 行」协议要防的那种误读。）
+
+**这一批要验的是 `walkToColumn`**：核心重载加了硬约束参数，22 个调用点靠转发传 `List.of()`。
+预登记写死了**红的形状**才是判据——转发若错，会让多个 rung 的行军场景同时红。一条都没红。
+另有一条**代码级**的等价性证明：`Intent.java:31` 的两参构造器就是
+`this(target, bias, CapabilityProfile.ALL, List.of(), null)`，与我传的四参**逐字相同**。
+NeoForge 的末影人（J75）这趟没翻，是 3/4 的那一面。
+
+#### 📖 真梯第 1 趟的读数（2026-08-26 01:41→01:57，16 分钟）：**8/20，摔死在 9 级**
+
+⚠️ **10–20 级全是假绿**：印的是 `PASS (0 ticks) — skipped: BLOCKED: 上游阶段…未达成`。
+真实成绩是 9 级（IRON）**身体死了**：
+
+```
+[Minecraft] Player657 fell from a high place
+[journey] 身体死了：Player657 died（IRON 级，位置 84, 51, 76，本段第 30 tick，驱动器 goto）
+心跳 IRON builder 本段第4/300 tick 身体=83,60,75      ← 六秒前还在 y=60 垒东西
+```
+
+**这一趟对 12 级什么也没说**：`stairsBroken` 在整份日志里 **0 行**——两道禁挖闸
+**一次都没被执行到**，上面预登记里「要读的第一件事」没有数据。**该预登记仍然开着。**
+
+死因不是本批改动：唯一能碰到 9 级的是 `walkToColumn`，而它的转发已由上面那条构造器
+等价性证明排除；两闸全绿是同一结论的另一面。9 级此前过过很多次（上限曾到 11），
+所以按族判这是方差；**一个样本定不了因**（[[one-sample-cannot-name-a-cause]]），
+已开第 2 趟取第二个样本。
+
+🆕 **新线索（等第二个样本再判，不要现在修）**：9 级 `builder` 段结束、切回 `goto` 的那一瞬间
+从 y≈60 掉到 y=51 摔死。形状上像「一段可以继承一场下坠」／「补救留下的东西」那一族，
+但只有一个样本。**判据**：第 2 趟若同样死在 9 级且同样是 `fell from a high place`
+⇒ 开工单；若不复现 ⇒ 记账不修，等它第三次出现。
+
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
 拍板节好几条的判读样本就是它。⚠️ **必须是 `runRehearsalIntegratedServer`（真 `LocalPlayer`），不是
