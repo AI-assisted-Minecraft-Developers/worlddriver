@@ -2116,6 +2116,77 @@ blaze 这条场景要不要坠落，取决于这一轮 blaze 往哪飞——**�
 两害之间选哪个取决于实际用时，所以先让这一趟把数报出来
 （[[a-reading-is-not-the-quantity-it-looks-like]] 的反面用法：先量再调）。
 
+###### ✅ 读数（`gate-j66.log`，场景 `PASS (1 ticks, 896 ms)`）
+
+成本落在第一态（<2000 ms），不动。两臂：
+
+```
+still ：240 tick，下了   1 次目标，收在 WALKING，lastError=null
+        9 次搜索    桶6(离目标更近)=1   桶7(身体挪了>2格)=6   桶8(计入)=2
+creep ：240 tick，下了 120 次目标，收在 WALKING，lastError=null
+        240 次搜索  桶6(离目标更近)=120 桶7(身体挪了>2格)=0   桶8(计入)=120
+```
+
+**❌ 预测被证伪：桶 7 = 0，而我押的是桶 7 占大头。**
+
+原因在第 124 行三元式的**求值次序**——`gotCloser ? 6 : moved ? 7 : 8`，`gotCloser` 先判。
+所以桶 7 = 0 **不能**读成「`moved` 是假的」，只能读成「`gotCloser` 为真时轮不到它」。
+而 `gotCloser` 为什么恒真，藏在 `reset()` 里：
+
+```java
+futileBestDist = Double.POSITIVE_INFINITY;   // SearchGovernors.reset()
+…
+boolean gotCloser = wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0.5;
+```
+
+复位之后 `futileBestDist` 是 **+∞**，于是**复位后的第一次搜索 `gotCloser` 恒真**，
+跟目标有没有真的靠近毫无关系。⇒ **一次 `setGoal` 要吃掉两次搜索的计数进度**：
+第一次被 +∞ 判成「更近了」清零，第二次才计入。`桶6 = 120 = 重下目标次数`，一比一对上。
+
+**结论活着，门牌换了**：外层复位者仍是 `CombatProcess.approach` → `setGoal`，
+`futileSearches` 仍封顶在 1；但它是从**桶 6** 出去的，不是我上一节推的桶 7。
+⇒ [[a-field-with-one-writer-is-a-proof]] 的第三课：两个写者时，**连「哪个写者赢」都要量**，
+读代码能排出因果链，排不出求值次序在运行时的实际归属。
+
+###### ⚠️ 我预登记的判别式选错了量
+
+六行判据全部押在 `no route progress`（终局）上，而**两臂都没出现它**
+（`lastError=null`，都收在 `WALKING`）。按预登记表这该判「闸在这个布景里就不管用 ⇒ 先修布景」。
+
+但那是**判据的毛病，不是布景的毛病**：闸在这里真正起作用的机制是
+`searchBackoffTicks`（4→8→16→32），不是 `terminalReport`。我问了终局，
+而防线是退避——[[a-reading-is-not-the-quantity-it-looks-like]] 又一次，这次栽在我自己写的判据上。
+
+两臂**确实分开了**，只是分在一个我**没有**预登记的量上：
+
+```
+搜索次数  still 9   vs   creep 240        （27 倍）
+```
+
+⚠️ **这个 27 倍带一个混淆项，别当纯净读数**：`搜索到达了目标=0` 两臂皆然，
+但 still 臂 `桶7=6` 说明身体**真的挪了 6 次**——它拿到过 best-effort 的局部路径并走了出去，
+走路的那些 tick 本来就不搜索。所以 9 这个数里，退避占多少、走路占多少，**本轮分不开**。
+
+能站住的窄结论只有一句，而它恰好就是 blaze 现场的那句：
+**每两 tick 重下一次目标 ⇒ 每 tick 一次满搜索，退避和计数器双双永远不生效。**
+
+###### ⇒ 两笔修法，都不引入新常数
+
+- **A（调用侧）**：`CombatProcess.approach` 只在目标**离开当前 Goal 自己的容差**时才重下，
+  即 `lastGoalBlock.distSqr(tb) > radius*radius`；`radius` 是现成的
+  `max(1, floor(combatReach))`。目标还在容差里时旧 Goal 依然成立，没有什么要重新规划。
+- **C（闸内，新）**：`reset()` 之后的第一次判定不该拿 `+∞` 当基线。
+  复位应当把 `futileBestDist` 标成「未定」，第一次判定**只播种不判**——
+  否则每次重下目标都白送一次「更近了」。这是一行改动，且**不改变静止目标下的任何行为**
+  （静止目标只复位一次，白送的也只有一次）。
+
+**B（跨重定向保住 futile 状态）暂缓**：A+C 之后 `creep` 臂的搜索数应当显著下降，
+先量了再决定还要不要动 `searchGov` 的生命周期。
+
+📌 **下一趟的判据**：`creep` 臂搜索次数从 240 下降；桶 6 从 120 下降到接近 0；
+桶 8 累计到 `cap=5` 之后出现 `no route progress`（**这次判别式问对了量**：
+既看退避带来的搜索数下降，也看终局，两个都记）。`still` 臂**不得**变坏（仍 ≤ 一二十次搜索）。
+
 ##### ⚠️ 加了沿，这条引擎缺陷在全套件里就**再没有自然场合**了
 
 这是必须和修法同时想的一件事：场景侧的沿一旦落地，blaze 场景**永远造不出这次坠落**，
