@@ -1912,7 +1912,7 @@ STILL RUNNING 1000 ms in ONE advance() — expanded=64019
    [[a-retry-that-changes-nothing]] 的原样重现：起点固定在 y=−60，目标固定在 y≈207，
    每次都烧满 `maxNodes=100000` 然后无解，下一 tick 原封不动再问一次。
    要的是**搜索失败后的退避／失败记忆**，不是拒绝某个 `|dy|` 常量
-   （顾问提的 `|dy|>32` 不做：竖直够不着与否取决于能不能垒柱子，
+   （`|dy|>32` 这类高度闸**不做**：竖直够不着与否取决于能不能垒柱子，
    把它写成常量就是 [[the-number-that-appears-on-both-sides]]）。
    **动手前先查现成的**——查完了：**闸早就在，是它被复位掉了。**
 
@@ -2170,22 +2170,72 @@ boolean gotCloser = wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0
 能站住的窄结论只有一句，而它恰好就是 blaze 现场的那句：
 **每两 tick 重下一次目标 ⇒ 每 tick 一次满搜索，退避和计数器双双永远不生效。**
 
-###### ⇒ 两笔修法，都不引入新常数
+###### ⇒ 修法（**本节整体作废重写，见下**）
 
-- **A（调用侧）**：`CombatProcess.approach` 只在目标**离开当前 Goal 自己的容差**时才重下，
-  即 `lastGoalBlock.distSqr(tb) > radius*radius`；`radius` 是现成的
-  `max(1, floor(combatReach))`。目标还在容差里时旧 Goal 依然成立，没有什么要重新规划。
-- **C（闸内，新）**：`reset()` 之后的第一次判定不该拿 `+∞` 当基线。
-  复位应当把 `futileBestDist` 标成「未定」，第一次判定**只播种不判**——
-  否则每次重下目标都白送一次「更近了」。这是一行改动，且**不改变静止目标下的任何行为**
-  （静止目标只复位一次，白送的也只有一次）。
+> ⚠️ **作废声明**：这里原先签的是「A（调用侧迟滞）+ C（播种不判），B 暂缓」。
+> 那个方案**是错的**，而且错法正是 [[two-ones-that-disagree]]——它和下面的方案
+> 各自解释得通，一起摆着就是我自己账本上两条互相矛盾的「唯一」。
+> 保留这段是为了留下否证，不是为了留下选项。
+>
+> **A 死了**：`+∞` 遮住了「目标自己在靠近」这一效应，所以它**没有被排除**。
+> 目标每 2 tick 降一格 = 0.5 格/tick，远大于 0.5 的死区；一旦 `reset` 不再抢先清零，
+> 真实的 `gotCloser` 会立刻接管，继续每两次搜索清一次计数器。
+> 迟滞只减少重下次数，减不掉窗内那次真 `gotCloser`。
+>
+> **C 不承重**：B 落地后 `+∞` 的税**每次追击只交一次**（只有真正的 `setGoal` 才复位），
+> 它影响的是记账口径，不是 creep 臂的搜索数。留着是为了让普查读得对，不是为了省搜索。
 
-**B（跨重定向保住 futile 状态）暂缓**：A+C 之后 `creep` 臂的搜索数应当显著下降，
-先量了再决定还要不要动 `searchGov` 的生命周期。
+###### ⇒ 真正拦路的是「上限之后」，而降本全在那里
 
-📌 **下一趟的判据**：`creep` 臂搜索次数从 240 下降；桶 6 从 120 下降到接近 0；
-桶 8 累计到 `cap=5` 之后出现 `no route progress`（**这次判别式问对了量**：
-既看退避带来的搜索数下降，也看终局，两个都记）。`still` 臂**不得**变坏（仍 ≤ 一二十次搜索）。
+读代码读出来的第三件事，比前两件都重要：**`Walker.terminal()` 一个状态都不存**
+（它只发一次 sink 事件然后返回 Step）。所以**「futile 终局」的闩就是计数器本身**：
+
+```
+futileSearches 一到 5 ⇒ 此后每 tick：跑满一次搜索 → ++ → 6>=5 → 又 FAILED
+                        而 >= cap 那一支 return 在武装退避之前
+```
+
+`CombatProcess.approach` 第 279 行**根本不看返回值**（356 行那个 `lastGoalBlock = null`
+属于 `collectSweep`，不是它）。合起来，活案里那是每 2 tick 一次 1 秒级搜索——
+只修复位的话只省到 2×，**不是停下**。
+
+**设计决定**：清 futile 终局的应当是**身体位移**，不是重下目标。
+「从这里够不着」是**身体位置**的性质——「这里」不变，结论就不变；
+被击退、坠落、走出去了，它自然解锁。用闸自己现成的 `moved` 谓词（`distSqr > 4`），
+不引新常数，也不让两处对「身体挪没挪」给出不同答案。
+
+###### ⇒ 落地的四笔（`12c3d158` 先做了一笔纯移动腾额度）
+
+| # | 位置 | 改动 |
+|---|---|---|
+| ① | `SearchGovernors` + `WalkerTickRepath` | 新 `futileLatchFoot` + `futileLatched(foot)`；到 cap 时按脚格上闩，两处发起闸都加 `!futileLatched`——**身体没挪就一次搜索都不再起** |
+| B | `Walker.retargetGoal(Goal)` + `CombatProcess.approach` | `setGoal` 加保住六个「这趟追得怎么样」的字段（含 `searchBackoffTicks`——取消已武装的退避是同一个漏洞的 cap 以下版本）。`setGoal` 契约不动，`collectSweep` 靠它清终局 |
+| C2 | `WalkerTickSearch` | `gotCloser` 按**目标自身位移**折价（`futileGoalPos`，只对 `Goal.Near` 收窄——别的形状没有单一坐标，发明一个广义位移就是造一个没有指称的数） |
+| C1 | 同上 + 第 10 号桶 | 复位后第一次判定**只播种不判**，从桶 6 里拆出来单独记 |
+
+`Walker.java` 当时顶在 2966/3000（[[a-file-pinned-at-its-budget]]），
+带注释必然撞线，而刮注释换额度是不能做的——所以先把 `SearchGovernors`
+整类搬成同包顶层类（类名只在 `Walker.java` 里出现三次，零调用点改动），腾出 70 行。
+
+###### ⇒ 场景改成四臂，并翻断言
+
+⚠️ **旧场景看不见上面那个洞**：`creepArm` 的循环条件是 `s == Walker.Step.WALKING`，
+**第一个终局就退出**。修完它会打出「6 次搜索，收在 FAILED」的漂亮读数，
+而真战斗在外面每 2 tick 照烧一次。改法：**跑满 240 tick 且无视返回值**，跟 `approach` 一样。
+
+四臂：`still`（不动）/ `creepSetGoal`（**原样保留 `setGoal`**，240 的基线是从它量出来的，
+臂换了方法基线就成了苹果比橘子）/ `creepRetarget`（新）/ `chase`（够得着的反证）。
+
+📌 **下一趟的判据**（登记在读结果之前）：
+
+1. `creepRetarget` **全程总搜索数 ≤ cap+2 = 7**。——**这一条才抓得住「上限之后」那个洞**；
+   「出现 no route progress」抓不住它（终局本来就会出现，代价却还在烧）。
+   读回 ~60 或 ~120 就是 ① 没堵住。
+2. `creepRetarget` 必须**出现** `no route progress`（闸真开了火，不是被绕开了）。
+3. `chase` 臂**不得**出现 `no route progress`（[[a-fix-that-never-gets-its-turn]] 的反面：
+   误伤一次正常追击比从不开火更坏）。
+4. `still` 臂**不得**变坏（仍 ≤ 一二十次搜索）；`creepSetGoal` 只记不判——
+   断言「旧路径依然坏」会在别人哪天把 `setGoal` 也修好的那天变成假红。
 
 ##### ⚠️ 加了沿，这条引擎缺陷在全套件里就**再没有自然场合**了
 
