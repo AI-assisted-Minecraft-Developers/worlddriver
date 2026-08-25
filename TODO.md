@@ -2244,6 +2244,51 @@ futileSearches 一到 5 ⇒ 此后每 tick：跑满一次搜索 → ++ → 6>=5 
 `serverEscapeSealedShelter` / `journeyGetsAshoreBeforePouring`）、3 条 canary 正确、
 `COVERAGE: 290 executed / 25 skipped`、无 `UNDECLARED`（这趟没注册新场景，两份清单不动）。
 
+##### ⛔ 第一趟读回来了：**RED，判据 1、2 没过，而普查直接点了名**（`gate-j66b.log`）
+
+判词上游全对：1 条 `VERDICT:`、3 条 canary 正确、无 `UNDECLARED`、
+可选失败仍是那 3 条、**必需失败恰好 1 条且就是这条场景**——预登记的判据抓住了它。
+（`COVERAGE` 从 290 掉到 289 有解释且不是丢场景：两趟执行过的场景名**完全一致**，
+失败数 3→4，COVERAGE 数的是成功执行的那部分。）
+
+| 臂 | 搜索数 | 桶6 更近了 | 桶7 挪了 | 桶8 计入 | 桶9 播种 | 收在 |
+|---|---|---|---|---|---|---|
+| `still` | 9 | 0 | 6 | 2 | 1 | WALKING |
+| `creepSetGoal` | **240** | 0 | 0 | 120 | 120 | WALKING |
+| `creepRetarget` | **72** | **47** | 0 | 24 | 1 | WALKING |
+| `chase` | 46 | —（46 次全是「搜索到达了目标」） | | 0 | 0 | **ARRIVED** |
+
+- 判据 3、4 **过了**：`chase` 零误伤，`still` 9→9 没变坏。
+- 判据 1、2 **没过**：240→72 只有 3.3×，counter 从没到 5，全程没有终局。
+
+**真因：`桶6=47`——量纲错了。**
+
+```java
+// Goal.Near.estimate
+double d = Math.sqrt(p.distSqr(target)) - radius;
+return d <= 0 ? 0 : 10 * d;          // ← 每格 10，是代价单位不是格
+```
+
+`bestDistToGoal` 是「×10 每格」，我算的 `goalShift` 是**格**。目标降 1 格，
+改善量是 **10**，拿去抵扣的是 **1** ⇒ `10 > 0.5 + 1` 恒成立 ⇒ 桶 6 每次都开。
+[[a-reading-is-not-the-quantity-it-looks-like]]：**两个都长得像「距离」的数不在同一量纲上**。
+
+⇒ **改法把那个减法整个删掉**：`futileGoalPos`（BlockPos）换成 `futileGoal`（Goal 本身），
+判定改成**拿定基线时的那个目标去量今天的脚**——
+
+```java
+gotCloser = seeded && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futileBestDist - 0.5;
+```
+
+身体没动 ⇒ 这个值恒等于基线 ⇒ 不算进展，与目标怎么飘无关。
+它对**每一种** Goal 形状都成立，`goalAnchor` 那个 `instanceof` 连同它的收窄理由一起删掉。
+**发明一个跨形状的「位移」本来就是在造一个没有指称的数**——正确解法是根本不需要它。
+
+📌 **第二趟判据不变**（1–4 条照旧）。多记一条读法：
+`chase` 臂 46 次搜索**全部落在桶 1「搜索到达了目标」**，也就是说闸**根本没判过它**。
+它证明了「不误报 NO_PATH」，但**没有**证明「闸判过一次健康追击并放行」——
+[[skip-is-not-coverage]]：这条反证目前是排除性的，不是执行性的。先记着，不在这一笔里改。
+
 ⚠️ **这笔修法动的是 `Walker` 和 `CombatProcess`，全套件都在用**。
 真正要盯的不是那一条新场景，而是**别处有没有被误伤**：闩住之后「身体没挪就不再起搜索」，
 如果哪个场景里身体本来就该站着等一次成功的搜索，它会被这条闸掐掉。
