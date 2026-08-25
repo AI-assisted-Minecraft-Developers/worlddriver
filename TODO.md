@@ -3323,6 +3323,35 @@ E 那条断言不是摆设：5 级、stride=4、终点在第 3 级时，stride �
 `i < end` 那个界把它丢掉了，`wet.route` 里没有第 4 级就是证据。若写成 `i < cells.size()`，
 `wet.route` 会是 `[0, 4, 3]`，E 立刻红。
 
+###### ✅ 排练读数：④ 号形状当场命中，J69a 单独上是净回退（2026-08-25）
+
+预登记说「排练里出现 ④ 的形状 = 提前抓到，省一趟真梯」。**它出现了，而且在 cast0 就出现。**
+15 分钟拿到了本来要 40 分钟的答案。
+
+```
+wd.rehearse12PortalLit -> FAIL (2757 ticks) — 走不回模腔：停在 1, 58, 19，楼梯底 2, 56, 19 在 y=56
+    …… 每一段都走到了；11 级台阶一格不缺；1 格泡在流体里：2, 56, 19=water(流 level=7)
+cast0.flightEnd  = 末路点从楼梯底 2, 56, 19 提到 1, 57, 19 —— 楼梯底站不了：脚下 stone，身处 water，头顶 air
+cast0.returnedY  = 58（楼梯底 y=56，身体 1, 58, 19）
+cast0.landing    = 精确 1.09/58.00/19.51，onGround=true，inWater=false
+```
+
+**「每一段都走到了」+ `onGround=true`** 两条一起读才认得出这一幕：身体不是半空、不是卡住，
+是**站在上一级台阶 `0,58,19` 上**（精确 x=1.09，0.6 宽的碰撞箱跨在两柱之间，
+`blockPosition()` 取整成 1——[[the-collision-box-is-not-the-cell]]）。
+它距新终点 `1,57,19` 恰好 1.41 格，**落在 `LEG_ARRIVED=1.5` 之内**，
+于是这一段自称到达；而 y=58 过不了 `y ≤ floorY+1 = 57`。
+
+⚠ **我先猜的是「半空判到达」（[[a-pointer-that-advanced-in-mid-air]]），错了**——
+`onGround=true` 一行就否掉了。猜之前 landing 行早就写着答案。
+
+**级联**：`returnStuck` 开火 → `offTheFlight` 把塔改到 `2,18` → `driftWedged` →
+`climb.10.afloat = 浮在水里，8 次都没落地` → `walkerFallback=true` → `没垒成`，两遍，然后这一级死。
+
+⇒ **J69a 单独上是净回退**（排练修法前 PASS 12812 tick / 10 块，现在 FAIL 2757 tick / 0 块）。
+它必须与「把最后一步走完」配套，不是可选项。**但不要回退 J69a**：`flightEnd` 那行证明
+末路点选对了，楼梯底确实 `身处 water` 站不住；回退只是把死法换回 cast8 那一版。
+
 ###### 🔎 J70：排水等的时间只有它自称的一半（2026-08-25，登记，排练跑完就修）
 
 `JourneyDrain:73–74` 的 javadoc 明写「**five legs of forty ticks** is generous —
