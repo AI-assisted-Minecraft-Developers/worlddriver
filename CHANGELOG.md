@@ -61,6 +61,160 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   must fail; its quota is the shortfall plus the shaft's depth plus a margin, because paying the
   climb out of the furnace's share is what stranded an earlier run at the bottom of its own hole.
 
+- **A hold that both bodies perform is a swap performed twice, and a swap is its own inverse.**
+  `JourneyHands.holdBoth` called `holdItem` once per body. On the client that ends in
+  `swapFromMainInv`, which exchanges the two stacks locally *and* sends a `SWAP` container click; on
+  the server `ServerPlayerAvatar.holdItem` exchanges the same two stacks directly and sends nothing,
+  because "contents only, so it rides broadcastChanges". When the item was already on the hotbar both
+  halves wrote the same index and the duplication was harmless — which is why every pour that ran
+  from slot 0 succeeded and the single one that ran from slot 3 did not, 24 legs against 1. Off the
+  hotbar the server's pair was exchanged twice, once directly and once when the click packet landed,
+  so the hand went back to what it had been and `handleUseItem` read a stone pickaxe while both
+  bodies had just reported holding a bucket. `holdBoth` now branches on the same condition the client
+  itself uses (`hotbarSlotOf(acting, item) < 0`): on the inventory-swap path the client's click is
+  the only author and the server half only reads; on the hotbar path both still write, because
+  `inv.selected = s` is idempotent. The pour afterwards traces `lava_bucket ×1 → bucket ×1` where it
+  used to trace `→ cobblestone ×28` — emptied, not replaced.
+
+- **A seat that can see no water moves instead of spending its one use.** The twelfth rung's opening
+  scoop asked `shallowWaterNear`, which ranks sources by `distSqr` and never asks whether the eye can
+  see them. From the low seat the empty-bucket ray stopped on `-5,62,55 grass_block 面=up（1.05 格）`
+  — native terrain, one block short — and the rung burned its single `use` on it. Which seat the body
+  lands in is decided a rung earlier and came up two-and-two across four ladder runs (`y=63` works,
+  `y=62` does not), so this was never going to be found by running again. `visibleSourceNear` already
+  existed and already used vanilla's own clip; the scoop now calls it, and when it answers null the
+  rung relocates once (`SCOOP_RESEATS = 1`) to a stand `standToFill` picks for seeing rather than for
+  being near. Re-entry after a relocation aims at the body's current cell rather than re-approaching,
+  because `Goal.Near(water,2)` would otherwise walk the body straight back off the seat the single
+  relocation just bought. Two arena scenes hold both halves down, one for the relocation and one for
+  keeping the seat, and they had to be staged with two pools: with a single pool every stand
+  `standToFill` can return is within `distSqr 6` of it, so the re-approach has nothing to undo and
+  the assertion degenerates.
+
+- **A cell that a placer would accept must be able to hold a block, not merely fail to be air.**
+  `placerWouldFindRoom` screened candidate cells with "not air and not replaceable", which a lily pad
+  passes and whose top face holds nothing. The furnace rung then reported "no room for the table"
+  three ticks in while its own log line said `placeNearby: click failed cell=67,64,59 (air)
+  below=67,63,59 (lily_pad)` — the criterion said yes, the click could only ever fail, and the rung
+  blamed the wrong thing. Both that predicate and `groundWithRoomNear` now ask
+  `isFaceSturdy(lvl, below, UP)`, which is the question the click itself asks, moved to before the
+  walk instead of after it. The repair that had been written for the old reading was deleted rather
+  than kept: `JourneyStation.makeRoomForAStation` was already doing the same job and doing more of it.
+
+- **Whether a block landed is judged after the round trip, not in the tick that sent the packet.**
+  `JourneyStairs.placeInto` called `placeOn` and then read `ServerLevel` on the next line. For a
+  server-side body that is correct; for the `LocalPlayer` the ladder actually drives, `placeOn` is a
+  prediction plus a packet, so the read was taken before the server could possibly have processed it
+  and the answer was always "still not solid". Nine ramp attempts in one run each reported `0/N` laid
+  while the log showed the first face succeeding and the stack shrinking by one every time. A new
+  `Stop.PENDING` waits four ticks and re-asks the same step once; the old signature is kept and
+  delegates with `settled=true`, so the three scene call sites that drive a server-side body are
+  byte-identical. In the run after, the staircase reached `y=55/56/57/58` where every previous run
+  had only ever placed at `y=56`.
+
+- **A client-only call made from the server thread is now marshalled to the client thread.**
+  `BotInteract.clientUseItemOn` says "must be called from the client thread" in its own javadoc, and
+  scene-driven placement reached it from the server tick: 33 `[place]` rows in one run carried
+  `[Server thread]`, and the path from there runs `BlockItem.place → ClientLevel.playSound →
+  SoundEngine.play → HashMap.put` while the render thread iterates that same map. It cost a
+  forty-five-minute ladder run to a `ConcurrentModificationException`. The gate sits on
+  `clientUseItemOn` itself and posts to `mc.execute` without waiting — waiting would block the server
+  thread on the render thread's queue and `PLACE_ROUND_TRIP` was sized for exactly this extra hop.
+  The enqueue path prints `[placeEnqueue]` rather than a `[place]` row with a fabricated result,
+  because the verification criterion is the thread tag on `[place]` rows and a fake one would corrupt
+  the ruler. That `mc.execute` really queues was checked with `javap -c` rather than assumed: it is
+  the one assumption whose failure would make the whole change a silent no-op.
+
+- **Pathfinding is budgeted per tick, not per search.** Three ceilings all measured a single
+  `advance()` or a single search — `sliceLimit`, `HEARTBEAT_NANOS`, `CEILING_MS` — and the pathology
+  was hundreds of individually cheap searches inside one server tick, which is what the walker does
+  when it steps thousands of times per tick and re-asks each time. Sixty-seven seconds of A* passed
+  every gate and got the JVM killed by the watchdog with no verdict and no results file. A
+  cross-search, per-tick accounting now rides in `advance()`'s `finally` (every exit path, including
+  the throwing one) keyed off `WorldView.tickMarker()`, which defaults to "no clock, accounting off"
+  rather than inventing a tick. The hard ceiling is 20 s: above `CEILING_MS`'s existing 8 s promise
+  that one search may legitimately run that long, and far below the 60 s watchdog — forty times the
+  measured healthy maximum of 500 ms. The check sits beside the slice deadline rather than beside
+  `CEILING_MS`, which lives below `if (cur.closed) continue` where the pathological loop never
+  reaches it. Both directions were measured: at 200 ms it fires and the run degrades to a red scene
+  with a results file instead of a dead JVM; at the shipping 20 s it is silent.
+
+- **The futile-search gate survives a goal that is merely moving.** `Walker.setGoal` resets
+  `searchGov`, and `CombatProcess.approach` re-issues the goal every time the quarry changes cell, so
+  a slowly sinking blaze reset the counter every second search and a cap of five was never reachable
+  — measured at 240 searches against a cap that latched at one. `setGoal` could not be changed: two
+  call sites depend on it clearing everything. A `retargetGoal` keeps the six fields that describe
+  "how this chase is going" while the goal itself moves, the cap now latches on the foot cell so a
+  body that has not moved starts no further searches at all, and `CombatProcess` decides which door
+  to use by quarry identity (`lastQuarryId`) rather than by cell — otherwise a latch set on an
+  unreachable blaze would silently freeze the body against the next, reachable one. 240 → 6 searches,
+  first terminal at `t=89`, and a fifth arm asserts the latch does not outlive a real `setGoal`.
+
+- **A staircase may not fold back into its own headroom.** `JourneyRamp.walkDown` chose each step's
+  direction without asking what the cell above the previous step would become, so a N,N,S flight put
+  `support(2)` exactly on `stand(0).above()`: the body could not stand on its own first step, and A*
+  routing west out of the alcove was the only correct answer available to it. The invariant reduces
+  to one local rule — the collision is possible if and only if `d(k-1) == d(k).getOpposite()` — so
+  the direction is banned at the moment the child step chooses, which is both sufficient and
+  non-rejecting (three directions remain). Refusing after the fact would discard whole subtrees and
+  call solvable alcoves unsolvable. `whyNoFlight` now derives its "only the fold-back was left"
+  branch by re-planning with the ban lifted, rather than letting that read as "no wall to hug".
+
+- **A flight ends on the lowest dry step, and that last step is now actually walked.** The mould's
+  own pour runs down the staircase, so the bottom step is wet on every return leg; the walk's
+  terminal waypoint was unconditionally the bottom, and the acceptance test is `y <= floorY + 1`.
+  `JourneyStairs` now picks the lowest step whose own cell and headroom are both fluid-free, which on
+  a dry staircase is the bottom and costs nothing. On its own that was a net regression — the body
+  stopped one step above and `LEG_ARRIVED = 1.5` called it arrival — so `finishTheFlight` adds a
+  short `Goal.Block` leg to the new terminal, silent when the body is already on that row or below.
+  `LEG_ARRIVED` itself was left alone: its javadoc refuses the narrowing, and every caller of the
+  shared walking code would feel it.
+
+- **The body turns to face the step before the leg starts.** With the walk reduced to a 0.30-block
+  aim vector, `YAW_DEADZONE_SQ = 0.25` holds the body's *current* yaw — the deadzone is right, and
+  its javadoc names this exact manoeuvre — and the current yaw was ninety degrees off, so three ticks
+  of forward drive pushed into a wall while `within` (`|dy| 1.0 < 1.2`) spent the pointer. The fix is
+  not to touch the deadzone but to make the held yaw the correct one: `JourneyHands.aimBoth` before
+  the leg. It aims both bodies because a server-side rotation does not survive the next packet from a
+  real client. `end=path-consumed` became `end=arrived` and the 0.10 blocks of overhang the body was
+  balanced on were crossed in the first tick. It is a no-op on the client body, whose pre-leg yaw is
+  already correct — the same symptom on the two body kinds has two different mechanisms, and one
+  green does not migrate.
+
+- **The last step is judged after the drop lands.** `finishTheFlight` read `down()` in the tick the
+  leg's callback fired, and the body was still falling into the terminal cell — `onGround=true`
+  alongside `脚底实心=0.0000`, one tick short. A narrow branch (entered only when the body sits
+  exactly on the terminal's headroom cell) waits 20 ticks and re-reads before writing the verdict,
+  and records whether the wait changed the answer. Eleven consecutive `returnedY = 57` where the
+  previous run had `58` followed by a recovery tower that burned the rung's whole budget.
+
+- **Towering stops when something is feeding the water instead of retrying into it.** The washed-off
+  branch retried eight times on the premise that flowing water is transient. Measured, the flow was
+  constant across 23 samples and the source was the rung's own pour, so the retries were the same
+  question asked eight times. It now takes the evidence it always claimed to want
+  (`JourneyForge.sourcesAround`, the same instrument another scene had been printing for a while) and
+  hands the climb to the fallback leg immediately when a live source is named.
+
+- **Two more legs inside the mould may not dig their way there.** Three legs in this family already
+  carried `NoBreak` and each said why in its own comment; the pour's own approach leg
+  (`Goal.Block`, 1200-tick budget) and the tower's enter-the-column leg (`Goal.XZ`, 800) did not. The
+  first walked under the staircase to reach its foot and ate one support per cell; the second, with
+  `Goal.XZ` ignoring y, found that sinking a shaft straight down was the cheapest way to reach a
+  column and took the steps' supports with it. Staircase faults went 3/11 → 1/11 → 0/11 across the
+  two additions with the diagonal `[dig]` rows going to zero, and the cost side measured as nothing:
+  pours stayed at eight successes and the approach legs still arrived in one attempt. The constraint
+  is passed at the one call site rather than inside the 22-caller `walkToColumn` helper, because
+  digging is legitimate for the legs that march across the surface.
+
+- **A table left on the ground is fetched instead of counted.** The lost-table branch already
+  searched 32 blocks, already printed how many drops it had found, and then ran on — while
+  `collectByHand` sat in the same family with a `PICKUP_RADIUS` that is also 32. Four consecutive
+  ladder runs each bought a second table. The branch now collects when `onGround > 0`, and the pickup
+  legs went from one to `MAX_PICKUP_LEGS` because the empty-handed case had been measured as "walked
+  to the drop cell, stood 30 ticks, got nothing" with 29 free slots — a leg that had run out of
+  budget rather than a bag that was full, which the row could not previously tell apart because
+  `rig.settle` calls its callback identically either way.
+
 ## 2026-08-24
 
 - **The ladder now runs on the configuration the driver ships, and the wood rung passes on it.**
