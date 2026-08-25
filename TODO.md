@@ -3560,6 +3560,28 @@ wet.cells = …245407,217=干，头顶=干；245408,216=水(源)，头顶=水(�
 **预期形状**：`flightLastStep` 1 行、`flightLastStepMissed` 0 或 1 行、
 `flightLastStepAgain` 与 missed 同进同出、`flightLastStepEnded` 与 again 同进同出。
 
+**读数（第一趟 `gate-j69c`）：RED，命中 ③ 族——布景不全，改场景不改产码。**
+
+```
+VERDICT: RED        COVERAGE: 293 executed / 25 skipped     required FAIL: 1 条
+FAIL: 'wd.journeyWalksOffTheLipOntoTheDryStep' -> FAIL — unexpected NullPointerException:
+      Cannot invoke "BlockPos.toShortString()" because "JourneyPortalRung.stairBottom" is null
+```
+
+`fail(optional)` 仍是那 3 条，canary 三条正常，`UNDECLARED:` 0 条——**红的只有我这一条**。
+COVERAGE 停在 293（不是预期的 294），因为炸掉的场景不计入 executed，
+所以「+1 没兑现」这件事本身不是独立线索，是同一件事的第二个面。
+
+**原因**：`finishTheFlight` 每一行都过 `landingStory(rig)`，而它无条件格式化 `stairBottom`
+（`JourneyPortalRung:571`）。楼梯的**格子清单**我摆了（`JourneyStairs.reset/cut`），
+**两端坐标**没摆——那也是进程级静态。
+
+**没有顺手把产码改成空安全**：真梯上 `finishTheFlight` 只从 `walkTheFlight` 进，
+而 `forge.flightLastStep` 那一行里就带着 `楼梯底 2, 56, 19=…`，证明生产路径上它必然已被赋值。
+给它加空判会把「布景漏了」伪装成正常——[[the-test-reproduced-the-bug-in-its-own-staging]]，
+假红的方向跟真缺陷长得一模一样。修法是场景补 `stairTop`/`stairBottom`，并在 cleanup 里清掉
+（和 `JourneyStairs.forget()` 同一个理由）。commit `d1c67cbf`。
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
