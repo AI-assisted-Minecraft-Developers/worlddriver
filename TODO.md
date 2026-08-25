@@ -767,6 +767,39 @@ hp=11.0 ×10   →   hp=10.0 ×7   →   hp=1.0 ×2   →   hp=0.0
 「单次掉 ≥6 点」⇒ 是掉进岩浆那一类，修路径代价；若「每 0.5 秒掉 1 点、持续十几秒」
 ⇒ 是身上着火烧完全程，那时再谈灭火/治疗，且届时已有分布可判。
 
+###### ✅ 反射链默认关的**理由已 grep 出来，与真梯无关**
+
+`BotConfig.java:232-237` 逐字：
+
+```java
+/** … Off by default so a quiet bot stays quiet (a scripted scenario that wants
+ *  the bot to hold ground isn't overridden). */
+public static volatile boolean autoRetreat = false;
+```
+
+⇒ 这是给模组普通用户的**产品默认**，不是这套梯子的护栏。真梯恰恰是想要它开着的那种场合。
+所以修法形状定了：**只给真梯这具身体武装**（写死步骤，不是补引擎能力），
+且 **`autoHeal` 先于 `autoRetreat`**——后者会抢占 walker，爆炸半径覆盖已经在跑的 13 级；
+前者只争用 use 键，但**那也不是免费的**：12 级几乎全是桶的活，`shield > heal > eat` 的仲裁
+可能在浇筑那一刻抢走 use 键。**所以仍然不改，等曲线。**
+
+⚠️ 判词不因为「又多知道一件事」就改漂亮：一小时前判的「先补测量」在新事实下依然成立，
+新事实只是把**修法的形状**定了，没有把**缺的读数**补上（[[the-wrong-version-is-always-prettier]]）。
+
+###### 📌 预登记：`hp.trace` 这把新尺子自己的校准（写在跑之前）
+
+仪器已落（`JourneyRig.noteHurt`，逐 tick、无闸、只记掉血、回血只计数、上限 60 行）。
+**新写的尺子不校准就不能拿它的读数下结论**（[[a-verification-tool-needs-verifying-too]]）。
+这一趟不另写场景，用**免费的交叉校准**：`lavaEscape`／`contactEscape` 会在自己的触发行上
+打 `hp=`，那是一条独立来源。
+
+| 态 | 读到什么 | 判什么 |
+|---|---|---|
+| A | 14 级有 `hp.trace`，且它列出的掉血点能覆盖 `lavaEscape` 那几行 `hp=` 的取值 | 尺子可用，**按上面的判据分族** |
+| B | 有 `hp.trace` 但与 `hp=` 行**矛盾**（例如 trace 说没掉过血而 `hp=1.0` 出现过） | **尺子坏了**，先修尺子，别碰被测对象 |
+| C | 身体明明死了而 `hp.trace` 一行没有 | 装在了错的地方——`await` 不是每 tick 都过，或 `player()` 在客户端拓扑上返回的不是那具身体 |
+| D | 这趟没死在 14 级 | 那就读它死在哪；`hp.trace` 仍应在**每一级**出现（有掉血的级） |
+
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
 拍板节好几条的判读样本就是它。⚠️ **必须是 `runRehearsalIntegratedServer`（真 `LocalPlayer`），不是
