@@ -3283,6 +3283,53 @@ drain.7.upstream=壁龛与楼梯底周围 8 格内没有水源块 —— 那就�
 **那是接受条件的问题，不是路点的问题**——修法照常生效了，别回退它，
 要动的是判据（或让浇筑不再把水送下楼梯）。若读到的是这一幕，走 ② 那一栏。
 
+---
+
+### ✅ ④ 判读（2026-08-25，`runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`，真 `LocalPlayer`）
+
+**四项逐字命中，预登记 ④ 成立。** `cast0.flightEnd` 指向 `1,57,20`；身体停在
+`0,58,20`→`1,58,20`；`cast0.returnedY = 58（楼梯底 y=56，身体 1, 58, 20）`；`returnStuck` 开火两次。
+⇒ 按 ④ 的裁定：**三方互作，J69a 修法生效了，不要回退。**
+
+对策那两个候选里，**「补一段走到终点的腿」此后已经实现**（`finishTheFlight`，
+`JourneyPortalRung:415-460`）。它跑了，而且**失败原因是预登记当时看不到的第四方**：
+
+```
+日志 841 行，判据开火前一刻：
+[walker] 步进: 因=within 旧步=1 新步=2 w=1, 57, 20 nx=无(末节点)
+         身体=1, 58, 20 精确=(1.454,58.000,20.500) cur2=0.002
+         |w.y-p.y|=1.000 onGround=true 脚底实心=0.0000
+```
+
+`cur2=0.002` ⇒ 水平方向身体压在末路点格心上（差 0.045 格）；`脚底实心=0.0000` ⇒ 脚下毫无支撑；
+只差一个 y。**一秒后身体已在 `2,57,20`→`2,56,20`——它掉进去了并继续往下走。**
+`down(got, ends)`（`:466`，行判据）在身体**正下落的那一 tick** 读位置，判否。
+⇒ **身体到了，判据早问了一两个 tick。**（同一行 `onGround=true` 与 `脚底实心=0.0000` 并存，
+所以 `onGround` 不能拿来问「落地了没有」——[[the-jump-that-never-fired]]。
+`within` 腾空推进：[[a-pointer-that-advanced-in-mid-air]]。）
+
+**死因链（判官是门，水是放大器）：** 判否 → `returnedY=58` → `returnStuck` 起塔垒回 y=66 重走
+→ 塔垒在自浇的水里被冲 20+ 次（`流速²=1.00000` **恒定 23 个样本**，
+水源是 `water0` 自己浇的，`water0.spent=water_bucket 1→0`，`JourneyStairs:250` 写明收水排在下降之后）
+→ 两个恢复周期烧完 6503 tick 预算。**「走不回模腔：停在 1,58,20」是超时那一刻的位置，不是死因。**
+只让水便宜救不了这一级：周期从 2 个变 5 个，门还在。
+
+⚠️ `returnStuck` 的理由句「多半掉进了自己舀空的岩浆坑」在本趟为假——身体站在楼梯上、下行路线通畅。
+它读起来像诊断，实际是猜测句。
+
+**三笔已定，分开提交（甲=门，乙=放大器，不要记成同一笔）：**
+
+| | 落点 | 内容 |
+|---|---|---|
+| 甲之一 | `JourneyPortalRung:452` | 判否之后、写 `flightLastStepMissed` 之前，**只在实测那一种形状下**（`got` 恰为末路点头顶格：`got.getY()==ends.getY()+1` 且 x/z 同）补 `HoldStill(20)` 短等待后重读再判；另写一行 `flightLastStepSettled` 说明这次等待改没改判词。判据不用 `onGround` |
+| 甲之二 | `JourneyPortalRung:906/942` | 「已经到了」的早退（`at.getY() <= floorY+1 \|\| forgeCorridor.contains(at)`）**只在塔爬到 y=66 之后才采样**；解卡途中身体反复站在 `2,56,18/19`（y=56）一次都没人问（[[a-confluence-point-is-not-a-deadline]]、[[a-retry-that-climbs-away-from-its-target]]）。⚠️ 早退不能只看瞬时行——解卡期间身体正被水推着，要带「站住了」，否则是拿一个瞬时采样缺陷换另一个 |
+| 乙 | `JourneyShaft:920` | `washedOff` 支加 `JourneyForge.sourcesAround` 取证（该站点注释自陈要这一行，而 `WorldDriverJourneyScenes:2315` 早有同款仪器——[[a-fix-that-cannot-reach-its-own-occasion]]），并把「有源在喂」从重试 8 次改成与静水支同路：立刻交给后备腿。恒定流速否掉了「流水是暂态」这个重试前提（[[a-retry-that-changes-nothing]] 的流水孪生）。**记作恢复卫生，不是 12 级修法** |
+
+⚠️ **甲之一 需要自带布景臂。** `wd.journeyWalksOffTheLipOntoTheDryStep` 的健康臂是
+`end=arrived, body in the terminal`（身体是**走进**去的），不产生「判决那一刻正在下落」那一瞬——
+拿它验就是绿零证明力，与 J73 的坠落守卫同形（[[verify-by-making-the-criterion-impossible]]）。
+新臂照 `wd.serverBlazeFightStopsWhenTheBodyFallsOut` 的做法：健康臂逐字节不变，新臂由「掉落」武装。
+
 ⚠ 下游能不能从那一级干活，日志里已有正证据：`recover2.fromHere=1, 57, 20`、
 `recover6.fromHere=2, 58, 19`、`recover7.fromHere=2, 58, 21`——收水从**多个**格成功过，
 井底不是唯一座位。这不等于浇筑也行，所以 ③ 保留在表里。
