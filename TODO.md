@@ -3304,6 +3304,25 @@ drain.7.upstream=壁龛与楼梯底周围 8 格内没有水源块 —— 那就�
 - 若 `COVERAGE` 仍是 `292/25` ⇒ 场景注册了但没执行（`SceneProvider` 没被扫到），
   这不是绿，是 [[skip-is-not-coverage]]。
 
+**✅ Fabric 闸读数（`gate-j69.log`，逐条对上预登记）：** `VERDICT:` **1 行 GREEN**；
+`COVERAGE: 293 executed / 25 skipped`（基线 292/25，+1 正是新场景，不是 skip）；
+必需 `FAIL: '` **0** 条；可选恰好已知三条（`journeyGetsAshoreBeforePouring`、
+`serverEscapeSealedShelter`、`vineOverWaterClimb`）；三条 canary 全对
+（`caught as FAIL` / `caught as TIMEOUT` / `correctly omitted`）；无 `UNDECLARED:` 行。
+
+`wd.journeyFlightEndsOnADryStep -> PASS (1 ticks)`，两臂返回值确实相反：
+
+```
+staged.flight = 245404,220,100000 → 245408,216,100000（5 级）
+dry.route     = [245404,220,100000, 245408,216,100000]      ← 末路点 = 楼梯底
+wet.route     = [245404,220,100000, 245407,217,100000]      ← 末路点 = 上一级
+wet.cells     = …245407,217=干，头顶=干；245408,216=水(源)，头顶=水(源)
+```
+
+E 那条断言不是摆设：5 级、stride=4、终点在第 3 级时，stride 会算出第 4 级——
+`i < end` 那个界把它丢掉了，`wet.route` 里没有第 4 级就是证据。若写成 `i < cells.size()`，
+`wet.route` 会是 `[0, 4, 3]`，E 立刻红。
+
 ###### J68c（只登记，不追）：「不用修楼梯」这条捷径只比了 y，没比柱
 
 同一条腿再往下三行：
