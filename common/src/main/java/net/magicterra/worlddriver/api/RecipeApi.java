@@ -69,10 +69,10 @@ public final class RecipeApi {
             List<Map<String, Object>> out = new ArrayList<>();
             for (RecipeHolder<?> h : rm.getRecipes()) {
                 Recipe<?> r = h.value();
-                ItemStack res = safeResult(r, ra);
+                ItemStack res = RecipeResolver.safeResult(r, ra);
                 if (res == null || res.isEmpty()) continue;   // special/dynamic recipe
                 boolean match;
-                if (result != null)          match = itemId(res).equals(result);
+                if (result != null)          match = RecipeResolver.itemId(res).equals(result);
                 else if (ingredient != null) match = recipeUsesIngredient(r, ingredient);
                 else                         match = true;
                 if (!match) continue;
@@ -93,7 +93,7 @@ public final class RecipeApi {
         m.put("type", serializerId(r));
         m.put("station", RecipeResolver.station(r));
         Map<String, Object> rm = new LinkedHashMap<>();
-        rm.put("id", itemId(res));
+        rm.put("id", RecipeResolver.itemId(res));
         rm.put("count", res.getCount());
         m.put("result", rm);
         List<Map<String, Object>> ings = new ArrayList<>();
@@ -115,7 +115,7 @@ public final class RecipeApi {
     private Map<String, Object> ingredientToMap(int slot, Ingredient ing) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("slot", slot);
-        m.put("accepts", acceptedIds(ing));
+        m.put("accepts", RecipeResolver.acceptedIds(ing));
         m.put("tag", tagOf(ing));
         return m;
     }
@@ -246,23 +246,19 @@ public final class RecipeApi {
     }
 
     // === helpers =============================================================
+    //
+    // The leaf reads — accepted ids, item id, result — belong to RecipeResolver, which
+    // publishes them under its own "shared leaf helpers" heading. This file used to carry a
+    // byte-identical private copy of each. That is the arrangement RecipeResolver.station's
+    // javadoc records the cost of: the two agreed by luck, and a drift would have made
+    // mc.recipe.* describe one recipe while CraftProcess crafted another.
 
     private boolean recipeUsesIngredient(Recipe<?> r, String wantId) {
         for (Ingredient ing : r.getIngredients()) {
             if (ing.isEmpty()) continue;
-            if (acceptedIds(ing).contains(wantId)) return true;
+            if (RecipeResolver.acceptedIds(ing).contains(wantId)) return true;
         }
         return false;
-    }
-
-    private List<String> acceptedIds(Ingredient ing) {
-        List<String> ids = new ArrayList<>();
-        for (ItemStack s : ing.getItems()) {
-            if (s.isEmpty()) continue;
-            String id = itemId(s);
-            if (!ids.contains(id)) ids.add(id);
-        }
-        return ids;
     }
 
     /** The source tag of a tag-ingredient (#minecraft:planks), if it exactly
@@ -271,12 +267,12 @@ public final class RecipeApi {
      *  internal API isn't accessible from the multiloader common classpath. Only
      *  attempted for multi-item ingredients (single-item ones are never tags). */
     private String tagOf(Ingredient ing) {
-        List<String> accepts = acceptedIds(ing);
+        List<String> accepts = RecipeResolver.acceptedIds(ing);
         if (accepts.size() < 2) return null;
         Set<String> want = new LinkedHashSet<>(accepts);
         for (var entry : BuiltInRegistries.ITEM.getTags().toList()) {
             Set<String> members = new LinkedHashSet<>();
-            entry.getSecond().forEach(h -> members.add(itemId(new ItemStack(h.value()))));
+            entry.getSecond().forEach(h -> members.add(RecipeResolver.itemId(new ItemStack(h.value()))));
             if (members.equals(want)) return entry.getFirst().location().toString();
         }
         return null;
@@ -296,7 +292,7 @@ public final class RecipeApi {
                 int i = y * w + x;
                 Ingredient ing = i < ings.size() ? ings.get(i) : Ingredient.EMPTY;
                 if (ing.isEmpty()) { sb.append(' '); continue; }
-                String sig = String.join(",", acceptedIds(ing));
+                String sig = String.join(",", RecipeResolver.acceptedIds(ing));
                 Character c = keyOf.get(sig);
                 if (c == null) { c = next++; keyOf.put(sig, c); }
                 sb.append(c.charValue());
@@ -309,15 +305,6 @@ public final class RecipeApi {
     private String serializerId(Recipe<?> r) {
         ResourceLocation key = BuiltInRegistries.RECIPE_SERIALIZER.getKey(r.getSerializer());
         return key == null ? "unknown" : key.toString();
-    }
-
-    private static String itemId(ItemStack s) {
-        return BuiltInRegistries.ITEM.getKey(s.getItem()).toString();
-    }
-
-    private static ItemStack safeResult(Recipe<?> r, HolderLookup.Provider ra) {
-        try { return r.getResultItem(ra); }
-        catch (RuntimeException e) { return null; }   // some dynamic recipes throw
     }
 
     /**
