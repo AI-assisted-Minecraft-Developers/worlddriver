@@ -28,7 +28,9 @@ Artifacts land under `<platform>/build/libs/`.
 The validation suite is the source of truth — JS scripts under
 `common/src/main/resources/data/worlddriver/scripts/validation/` that
 exercise the DriverApi across all three transports (in-JVM, RPC, MCP). They are
-driven end-to-end by the stagewright orchestrators (`scripts/stagewright/`), which
+driven end-to-end by the `./gradlew stagewright<Topology><Loader>` gate tasks — the Python
+orchestrators that used to live in `scripts/stagewright/` were deleted on 2026-08-05, and all
+that remains in that directory is the per-loader `expected-scenes-*.txt` manifests. The gates
 dogfood a dedicated server with the harness and autorun the wd.* scenes + JS
 suite (the legacy `@GameTest`/GameTestServer path was retired in P4-final):
 
@@ -46,7 +48,7 @@ existing tests.
 
 ```bash
 # Pin ports so .mcp.json keeps working; otherwise random ports get written
-# to fabric/run/agent-{mcp,rpc}.port
+# to fabric/run/worlddriver-{mcp,rpc}.port
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient
 ```
@@ -100,7 +102,7 @@ never committed:
 |---|---|
 | Fabric client / server logs        | `fabric/run/logs/` |
 | NeoForge client logs               | `neoforge/run/logs/` |
-| Dogfood (T0) server logs           | `<loader>/run-dogfood/logs/` |
+| Dogfood server logs                | `<loader>/run-dogfood/logs/` |
 | Smoke-test screenshots + traces    | `fabric/run/smoke/` |
 | Gradle build output                | `<platform>/build/` |
 
