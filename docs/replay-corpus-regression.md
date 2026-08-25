@@ -1,5 +1,22 @@
 # Replay-Corpus Regression Harness (living doc)
 
+> **2026-08-26：这份文档从 `config/agent_driver/replays/REGRESSION.md` 搬到了这里，语料没有跟来。**
+>
+> **语料在哪**：15 份 JSON（8 份 corpus + 7 份 baseline 快照，共 58 MB）现在放在工作区根的
+> `replay-corpus-archive/`，**不在任何 git 仓库里**。它们逐字节保留，只是不再被版本跟踪——
+> 仓库历史里的 `config/` 已按要求整个清除，而 `.gitignore` 也补上了 `/config/`，
+> 所以运行时产物不会再被提交进来。
+>
+> **为什么它们本来就用不了了**：WorldDriver 改名时路径跟着改了，工具链读的是
+> `config/**worlddriver**/replays/`（`PathArchiveRecorder.java:50`、`ReplayTool.java:39`、
+> `DebugTools.java:51`），而语料一直躺在 `config/**agent_driver**/replays/`。
+> 两边对不上，所以这套回归**自改名起就没跑过**——不是这次搬移弄坏的。
+>
+> **要重新用起来**：把 `replay-corpus-archive/*.json` 拷进 `worlddriver/config/worlddriver/replays/`
+> （被 gitignore，不会入库），工具链和两份 spec 都还在，第 1 节的步骤原样可用。
+> 语料本身是「从 fabric/run runtime 精选、按 header.start/goal 验证」出来的，
+> **重采需要跑真游戏**，所以那份归档别删。
+
 补上 planner/executor 两世界模型间缺失的一致性校验机制。设计见
 `docs/superpowers/specs/2026-06-28-pathfinding-conformance-loop-design.md`,
 实现计划见 `docs/superpowers/plans/2026-06-28-pathfinding-conformance-loop.md`。

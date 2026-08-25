@@ -27,7 +27,14 @@ logs/
 __pycache__/
 *.py[cod]
 
-# path-debug chart output (runtime, never commit)
+# The whole run-directory config tree, not just the debug charts. This used to name only
+# `worlddriver/debug/`, so when 58 MB of replay corpora were committed under
+# `config/agent_driver/replays/` nothing stopped them, and they stayed tracked for weeks after
+# the rename orphaned them (the tools read `config/worlddriver/replays/`, the data sat under
+# `config/agent_driver/replays/`, and neither side noticed). Everything under config/ is runtime
+# output; the corpora that were worth keeping live outside the repo now and
+# docs/replay-corpus-regression.md says where.
+/config/
 **/config/worlddriver/debug/
 /.venv/
 # local tooling (jacoco jars, coverage output) — never commit
