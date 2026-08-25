@@ -47,11 +47,10 @@ import net.minecraft.world.phys.Vec3;
  * {@link SceneContext#fail}. Each world-touching scene registers {@code ctx.cleanup} to discard its
  * avatar(s) and air-scrub its footprint (#40). ⛔ No Avatar scene calls {@code level.tick()}.
  *
- * <p>The GameTest-only helpers {@code clearBox} / {@code equipMainHand} / {@code buildFloor} are
- * reproduced here as private statics (the wave-2/3 "each provider self-contains its needed helpers"
- * precedent; {@code buildFloor} stays in the Server suite too — still used by the surviving Process
- * family — while {@code clearBox} / {@code equipMainHand} are orphaned by this wave's deletions and
- * removed from the Server suite).
+ * <p>{@code equipMainHand} is reproduced here as a private static, because it is this family's
+ * alone. {@code buildFloor} and {@code clearBox} are NOT: the wave-2/3 "each provider
+ * self-contains its needed helpers" precedent produced six authors of the first and three of the
+ * second, so both now live in {@link SceneArena} and this file calls them.
  */
 public final class WorldDriverAvatarScenes implements SceneProvider {
 
@@ -63,14 +62,6 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                 Scene.of("wd.serverAttackCooldown", 200, WorldDriverAvatarScenes::serverAttackCooldownScene),
                 Scene.of("wd.serverCapability", 200, WorldDriverAvatarScenes::serverCapabilityScene),
                 Scene.of("wd.serverElytra", 200, WorldDriverAvatarScenes::serverElytraScene));
-    }
-
-    /** Inlined from {@code AgentGameTestServer#clearBox}: a {@code (2r+1)×h×(2r+1)} box of air. */
-    private static void clearBox(ServerLevel level, int cx, int baseY, int cz, int r, int h) {
-        for (int dx = -r; dx <= r; dx++)
-            for (int dy = 0; dy < h; dy++)
-                for (int dz = -r; dz <= r; dz++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, baseY + dy, cz + dz), Blocks.AIR.defaultBlockState());
     }
 
     /**
@@ -108,13 +99,13 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
-            clearBox(level, ax, floorY, az, 6, 8);
-            clearBox(level, bx, floorY, bz, 6, 8);
+            SceneArena.clearBox(level, ax, floorY, az, 6, 8);
+            SceneArena.clearBox(level, bx, floorY, bz, 6, 8);
         });
         BotConfig.walkerDebug = false;
 
-        clearBox(level, ax, floorY + 1, az, 6, 6);
-        clearBox(level, bx, floorY + 1, bz, 6, 6);
+        SceneArena.clearBox(level, ax, floorY + 1, az, 6, 6);
+        SceneArena.clearBox(level, bx, floorY + 1, bz, 6, 6);
         for (int dx = -3; dx <= 3; dx++)
             for (int dz = -3; dz <= 3; dz++) {
                 level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
@@ -158,10 +149,10 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        ctx.cleanup(() -> clearBox(level, cx, floorY, cz, 3, 5));
+        ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
         BotConfig.walkerDebug = false;
 
-        clearBox(level, cx, floorY + 1, cz, 3, 3);
+        SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
@@ -228,10 +219,10 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        ctx.cleanup(() -> clearBox(level, cx, floorY, cz, 3, 5));
+        ctx.cleanup(() -> SceneArena.clearBox(level, cx, floorY, cz, 3, 5));
         BotConfig.walkerDebug = false;
 
-        clearBox(level, cx, floorY + 1, cz, 3, 3);
+        SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());

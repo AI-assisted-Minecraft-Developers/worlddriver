@@ -40,4 +40,32 @@ public final class SceneArena {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
             }
     }
+
+    /**
+     * A {@code (2r+1) × h × (2r+1)} box of air with its bottom layer at {@code baseY}, centred on
+     * {@code cx, cz} — the scrub that keeps a reused arena from handing the next run a block the
+     * previous one left standing.
+     *
+     * <p>Absolute coordinates, deliberately: this is the sibling of {@link #buildFloor} and the two
+     * are always called together. A scene whose terrain is stated in arena-relative offsets should
+     * keep using {@code ctx.setBlock(dx, dy, dz, …)} instead — {@code check_scene_arena.py} reads a
+     * scene's footprint off those literals, and it cannot see through a shared helper. That is why
+     * the eight per-arena {@code clearBox(SceneContext)} scrubs in {@code journey/} stay where they
+     * are rather than joining this one: they are not copies of it, they are each an arena's own
+     * declared extent.
+     *
+     * <p>Three scene files carried a byte-identical copy of this, each with a javadoc saying it was
+     * "inlined rather than reached across the testmod source-set boundary". There is no such
+     * boundary — {@code SceneArena} is in this same source set and two of those three files already
+     * imported it for {@link #buildFloor} — and the class the note pointed at,
+     * {@code AgentGameTestServer}, has not existed since the GameTest path was retired. Same disease
+     * as {@code buildFloor}'s six authors, one file later.
+     */
+    public static void clearBox(ServerLevel level, int cx, int baseY, int cz, int r, int h) {
+        for (int dx = -r; dx <= r; dx++)
+            for (int dy = 0; dy < h; dy++)
+                for (int dz = -r; dz <= r; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, baseY + dy, cz + dz),
+                            Blocks.AIR.defaultBlockState());
+    }
 }

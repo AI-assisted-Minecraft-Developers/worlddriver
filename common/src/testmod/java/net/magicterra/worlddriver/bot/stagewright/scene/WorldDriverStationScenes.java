@@ -16,6 +16,7 @@ import net.magicterra.worlddriver.bot.process.RecipeResolver;
 import net.magicterra.worlddriver.bot.process.SmeltProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.model.Params;
 import net.magicterra.stagewright.scene.Scene;
@@ -104,22 +105,18 @@ public final class WorldDriverStationScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // Inlined helpers (carried from AgentGameTestServer; not imported across the testmod
-    // source-set boundary — the wave-2/3 "each provider self-contains its helpers" precedent).
+    // Helpers carried from AgentGameTestServer when the GameTest path was retired. The
+    // wave-2/3 "each provider self-contains its helpers" precedent kept them private here;
+    // whatever more than one provider needed has since moved to SceneArena / SceneBody,
+    // because that precedent is what gave buildFloor six authors and clearBox three.
     // ==================================================================================
 
-    /** Blow a {@code (2r+1) × h × (2r+1)} box of air above a site — the persistent-world scrub
-     *  {@code AgentGameTestServer.clearBox} performs (kept in the surviving Server class for its
-     *  own arenas; inlined here rather than reached across the source set). */
-    private static void clearBox(ServerLevel level, int cx, int baseY, int cz, int r, int h) {
-        for (int dx = -r; dx <= r; dx++)
-            for (int dy = 0; dy < h; dy++)
-                for (int dz = -r; dz <= r; dz++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, baseY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-    }
-
     /** Scrub a {@code (2r+1) × (2r+1)} column from {@code baseY-1 .. baseY+h} to air — the
-     *  all-exit cleanup that keeps the persistent dogfood world clean between the ×2 runs. */
+     *  all-exit cleanup that keeps the persistent dogfood world clean between the ×2 runs.
+     *
+     *  <p>Not {@link SceneArena#clearBox}, and the difference is one row at each end: this starts a
+     *  row BELOW {@code baseY} (so it takes the floor with it) and its {@code h} is inclusive. A
+     *  cleanup that left the floor behind would hand the next run a slab it never built. */
     private static void scrub(ServerLevel level, int cx, int cz, int baseY, int r, int h) {
         for (int dx = -r; dx <= r; dx++)
             for (int dy = -1; dy <= h; dy++)
@@ -327,7 +324,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // (A) PLACED table → reclaimed. Bot carries a table + pickaxe materials → places its own.
         final int ax = cx, az = cz;
         ctx.cleanup(() -> scrub(level, ax, az, floorY, 4, 4));
-        clearBox(level, ax, floorY + 1, az, 4, 3);
+        SceneArena.clearBox(level, ax, floorY + 1, az, 4, 3);
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(ax + dx, floorY, az + dz), Blocks.STONE.defaultBlockState());
@@ -374,7 +371,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         // (B) SAFETY CRUX: a table already STANDING is borrowed, never broken. Relocated +16 X.
         final int bx = cx + 16, bz = cz;
         ctx.cleanup(() -> scrub(level, bx, bz, floorY, 4, 4));
-        clearBox(level, bx, floorY + 1, bz, 4, 3);
+        SceneArena.clearBox(level, bx, floorY + 1, bz, 4, 3);
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(bx + dx, floorY, bz + dz), Blocks.STONE.defaultBlockState());
@@ -412,7 +409,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
 
-        clearBox(level, cx, floorY + 1, cz, 3, 3);
+        SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
@@ -510,7 +507,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> scrub(level, cx, cz, floorY, 3, 4));
 
-        clearBox(level, cx, floorY + 1, cz, 3, 3);
+        SceneArena.clearBox(level, cx, floorY + 1, cz, 3, 3);
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
@@ -652,7 +649,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
         });
 
-        clearBox(level, cx, floorY + 2, cz, 4, 3);
+        SceneArena.clearBox(level, cx, floorY + 2, cz, 4, 3);
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++) {
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
