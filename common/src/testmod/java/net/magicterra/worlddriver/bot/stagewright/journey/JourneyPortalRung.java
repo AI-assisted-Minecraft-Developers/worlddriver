@@ -1687,10 +1687,16 @@ public final class JourneyPortalRung {
                 // water flowed away」 from 「the water was never placed」.
                 //
                 // A spend is a state change of one object: bucket → water_bucket → bucket. Measure
-                // that and none of the three ambiguities above can survive. Recorded rather than
-                // enforced, deliberately: this rung already fails downstream on an empty-handed
-                // cast (line 1995) and on `cast.missed`, and a new hard gate here would change what
-                // the next run is measuring at the same moment as the round trip does.
+                // that and none of the three ambiguities above can survive.
+                //
+                // IT IS ENFORCED, and this paragraph used to say the opposite. It read「recorded
+                // rather than enforced, deliberately: this rung already fails downstream on an
+                // empty-handed cast (line 1995) and on `cast.missed`」— written before the `.spent`
+                // gate at the end of this same method existed, and left standing after it was added.
+                // Both halves had rotted: the gate below DOES fail the rung, and「line 1995」pointed
+                // at `tidyTheAlcove`'s javadoc rather than at `castOpenedCell`'s「开浇前手上没有
+                // 水桶」, which is the check it meant. See that gate for why limping on was the more
+                // expensive option.
                 java.util.function.Supplier<Integer> stock = () -> rig.carrying(
                         BuiltInRegistries.ITEM.getKey(held).toString());
                 int before = stock.get();
