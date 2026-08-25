@@ -220,8 +220,10 @@ worlddriver/
 
 **正门状态（2026-08-08）：六个 topology 全绿** —— 两个 loader × 三种形态：
 `stagewrightDedicatedServer`、`stagewrightIntegratedServer`、`stagewrightDedicatedServerWithClient`
-× {Fabric, Neoforge}。清单是 222 个场景（171 个 `wd.*` + 38 个 `cap.*` + 13 个 `pack.*`）；算上框架
-自带的内置场景与 canary，一次运行注册 232 个。两个 production topology 还会额外裁决其**客户端**那一半
+× {Fabric, Neoforge}。清单是每个 loader 各一份的 `scripts/stagewright/expected-scenes-*.txt` ——
+**数目请读那个文件，不要读这一行**（当前：322 = 271 个 `wd.*` + 38 个 `cap.*` + 13 个 `pack.*`，
+两个 loader 的清单按构造完全一致）。一次运行在此之上再注册 StageWright 自带的 10 个内置场景与 canary。
+两个 production topology 还会额外裁决其**客户端**那一半
 写出的结果文件——那是唯一能对进程边界下断言的地方。`./gradlew stagewrightCoverage` 让六者互相对账：
 任何一次运行注册过的场景，必须至少在其中一次里真正**执行**过，因为一个到处都 skip 的场景，
 只是在一个没人测过的主题上显示绿色。

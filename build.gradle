@@ -35,7 +35,7 @@ stagewright {
             runTask = ':fabric:runDogfoodServer'
             gameDirectory = file('fabric/run-dogfood')
             expectFile = file('scripts/stagewright/expected-scenes-fabric.txt')
-            // 165 scenes, several of which walk a bot across real terrain. The default 20 exists to
+            // 322 scenes, several of which walk a bot across real terrain. The default 20 exists to
             // cut short a game that never armed; this suite legitimately runs longer than that.
             timeoutMinutes = 45
             // Scenes written in JavaScript, installed into this run's config/stagewright/scenes.

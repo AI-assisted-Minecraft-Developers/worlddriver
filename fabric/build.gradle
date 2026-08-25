@@ -186,7 +186,7 @@ loom {
         dogfoodServer {
             server()
             property 'stagewright.autorun', 'true'
-            // THE BODY THE GATES TEST. Without this the 241 wd.* scenes run on a body that never
+            // THE BODY THE GATES TEST. Without this the 271 wd.* scenes run on a body that never
             // went through PlayerList.placeNewPlayer, and `wd.bodyParityCensus` measured what that
             // costs: on NeoForge the factory body is a real net.neoforged FakePlayer, and
             // PlayerAdvancements.award has an `instanceof FakePlayer` branch, so it earns NOTHING

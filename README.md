@@ -248,8 +248,10 @@ current surface; [`CHANGELOG.md`](CHANGELOG.md) has the per-milestone record and
 
 **Gate status (2026-08-08): all six topologies GREEN**, on both loaders and all three shapes —
 `stagewrightDedicatedServer`, `stagewrightIntegratedServer` and `stagewrightDedicatedServerWithClient`
-× {Fabric, Neoforge}. The manifest is 222 scenes (171 `wd.*` + 38 `cap.*` + 13 `pack.*`); a run
-registers 232 with the framework's own built-ins and canaries. The two production topologies also
+× {Fabric, Neoforge}. The manifest is the per-loader `scripts/stagewright/expected-scenes-*.txt` —
+**read that file for the count, not this line** (today: 322 = 271 `wd.*` + 38 `cap.*` + 13 `pack.*`,
+and the two loaders' manifests are identical by construction). A run registers those plus
+StageWright's 10 built-ins and canaries. The two production topologies also
 judge the results file their *client* half writes, which is the only place assertions about the
 process boundary can live. `./gradlew stagewrightCoverage` reconciles all six against each other:
 every scene any run registers must have executed in at least one of them, because a scene that skips
