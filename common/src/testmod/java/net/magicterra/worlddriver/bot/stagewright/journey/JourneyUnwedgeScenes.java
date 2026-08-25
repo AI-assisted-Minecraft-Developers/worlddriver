@@ -707,21 +707,38 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         // cobblestone with a count of zero, `.hand` records that it could not be held, and execution
         // falls through to the tower exactly as it does in the field.
         ServerPlayerAvatar av = driver.avatar();
-        // Enough steps for the water to spread the two cells and for the body to be flush on the
-        // floor. TowerProcess's READY phase refuses a body reporting onGround()==false, and so does
-        // the climb's own afloat branch — which would take this arm's subject away from it.
-        for (int i = 0; i < 20; i++) av.step();
-
-        ctx.record("staged.body", String.format(Locale.ROOT, "%s 精确 %.2f/%.2f/%.2f，onGround=%s，"
-                        + "inWater=%s；水源 %s", fp.blockPosition().toShortString(), fp.getX(),
-                fp.getY(), fp.getZ(), fp.onGround(), fp.isInWater(), src.toShortString()));
-        ctx.check(fp.isInWater()).as("控制组 A：身体必须真的泡在水里 —— 不在水里，"
-                + "washedOff 那一整段的入口条件就是假的，B/C/D 全是 0==0："
-                + fp.blockPosition()).isTrue();
-        ctx.check(fp.onGround()).as("控制组 A2：身体必须**站在地上** —— 浮着的身体走的是 afloat 那一支，"
-                + "那是另一个主题，这一臂就什么都没测到").isTrue();
+        // The body flush on the floor. TowerProcess's READY phase refuses a body reporting
+        // onGround()==false, and so does the climb's own afloat branch.
+        for (int i = 0; i < 3; i++) av.step();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
+        // KEPT ON PURPOSE, and it is the reading that got this arm wrong the first time: `av.step()`
+        // steps the BODY, not the world's fluid ticks, so twenty of them left the source sitting two
+        // cells away with the body's own cell still dry. The control asserted 「泡在水里」 there and
+        // went red while the subject's rows — taken two hundred ticks later, at the stall — read
+        // `inWater=true` and named the source correctly. A precondition sampled long before the
+        // branch it gates is not a precondition; it is a different measurement wearing its name.
+        ctx.record("staged.beforeFlow", "刚摆好（世界还没 tick 过流体）：inWater="
+                + fp.isInWater() + "，脚下格 " + ctx.level().getFluidState(foot).getType());
+        rig.settle(new HoldStill(WET_SPREAD), WET_SPREAD * 2, () -> {
+            ctx.record("staged.body", String.format(Locale.ROOT, "%s 精确 %.2f/%.2f/%.2f，onGround=%s，"
+                            + "inWater=%s；水源 %s", fp.blockPosition().toShortString(), fp.getX(),
+                    fp.getY(), fp.getZ(), fp.onGround(), fp.isInWater(), src.toShortString()));
+            ctx.check(fp.isInWater()).as("控制组 A：身体必须真的泡在水里 —— 不在水里，"
+                    + "washedOff 那一整段的入口条件就是假的，B/C/D 全是 0==0："
+                    + fp.blockPosition()).isTrue();
+            ctx.check(fp.onGround()).as("控制组 A2：身体必须**站在地上** —— 浮着的身体走的是 afloat 那一支，"
+                    + "那是另一个主题，这一臂就什么都没测到").isTrue();
+            climbInTheFlow(ctx, rig, fp, src, foot);
+        });
+    }
+
+    /** Ticks the world gets to carry the source the two cells to the body's own feet. Forty, which is
+     *  several times vanilla's five-ticks-per-cell spread and cheap next to the tower's own 200. */
+    private static final int WET_SPREAD = 40;
+
+    private static void climbInTheFlow(SceneContext ctx, JourneyRig rig, ServerPlayer fp,
+                                       BlockPos src, BlockPos foot) {
         JourneyShaft.ascendByTowering(rig, foot.getY() + 5, WET_COURSES, WET_COURSES, "fed", () -> {
             // BY SUFFIX, not by exact key: the climb's rows carry `climbSeq`, a run-global counter, so
             // the same arena writes a different key depending on what ran before it in the suite.
