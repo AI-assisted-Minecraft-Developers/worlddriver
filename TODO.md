@@ -1111,6 +1111,21 @@ java.util.ConcurrentModificationException
    投递时打一行带假 `结果=` 的 `[place]` 会**从构造上污染这把尺子**（[[a-verification-tool-needs-verifying-too]]）。
    两个计数还能对差：投递数 ≠ 执行数就说明队列吞了活，否则那会是一次「放置从来没发生过」的静默丢失。
 
+**`mc.execute` 真的会入队吗？——已用字节码验过，不是推测。** 这是整笔修法唯一一条
+「错了就等于什么都没做」的假设：`BlockableEventLoop.execute` 是
+`if (scheduleExecutables()) tell(wrapRunnable(r)); else r.run();`，
+要是它在别的线程上也走 `r.run()`，那这笔修法就是个空操作，而且**一路绿着骗人**。
+`javap -c` 读下来（1.21.1 named merged jar）：
+
+- `BlockableEventLoop.scheduleExecutables()` = `!isSameThread()`
+- `ReentrantBlockableEventLoop` 把它放宽成 `runningTask() || super.…`——**只会更倾向入队**
+- `Minecraft` **既没覆盖 `execute` 也没覆盖 `scheduleExecutables`**，只覆盖了
+  `getRunningThread()` → `gameThread`
+
+⇒ 服务端线程上调 ⇒ `isSameThread()` 假 ⇒ 入队到 game thread；客户端线程上调 ⇒ 我那道
+`!mc.isSameThread()` 闸直接短路，**老路径逐字节不变**。队列由 `Minecraft.runTick` 每帧排空，
+一帧的延迟远在 `PLACE_ROUND_TRIP=4`（预算 8）之内。
+
 ### 📌 预登记：j57 判据（2026-08-25，**写在跑之前，也写在读结果之前**）
 
 ⚠️ **「这趟没崩」不是证据。** 竞争是概率性的，j54 在服务端线程上放了 11 次也没崩
