@@ -3759,6 +3759,11 @@ staged.pose                = 100511, 218, 100000 精确 100511.20/218.00/100000.
 - **验收用唇场景，不用上岸场景**：10 秒、确定性、无水、`-Pstagewright.scenes=` 单跑。
   [[rehearse-one-rung-not-the-ladder]] 的同一条理由。
 
+**摘腿之后的确认跑，预期形状（写在读之前）**：判据 A 仍红、判据 B 绿（`flightLastStepEnd` 存在）、
+`subject.rowsAbove=1`（不再是 2）、`subject.walkerEnd=end=path-consumed`、
+`subject.movedBy` 是个小数、场景 tick 数回到个位（不再是 204）。
+**任何一项不符都先怀疑摘腿摘漏了**，不要当成新发现。
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
