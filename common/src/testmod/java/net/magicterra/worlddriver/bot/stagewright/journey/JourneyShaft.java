@@ -845,7 +845,9 @@ public final class JourneyShaft {
         // inWater=false y=56.00`, and
         // `climb.2.stock=minecraft:cobblestone ×137` — the server count NEVER MOVING, which is the
         // same signature the pour had as `spent 1→1`. One course with no Y gain ends the whole tower
-        // (line 850), so a wrong hand costs the entire raise: rung 12's ninth cell got
+        // (the height test after this method's own TowerProcess settle recurses on a rise, and
+        // otherwise only for a body a MOVING flow washed off — a dry stall hands back to `then`),
+        // so a wrong hand costs the entire raise: rung 12's ninth cell got
         // `pinnedShort` on dry ground with 137 cobblestone in the bag.
         //
         // Recorded only when it fails: a course that got what it asked for is already described by

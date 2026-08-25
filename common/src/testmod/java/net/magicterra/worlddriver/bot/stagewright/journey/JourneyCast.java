@@ -409,8 +409,10 @@ final class JourneyCast {
             // block out of the main inventory into the selected slot and pushes the bucket back
             // into the bag — hence `lava_bucket.after = 1` beside a cell that is still water.
             //
-            // Its three call sites (WalkerTickDrive:210, WalkerTickStallDetect:269/282) and the
-            // two `ensureHoldingPlaceableAny` ones (Walker:1771/2379) ALL short-circuit on
+            // Its three call sites (one in `WalkerTickDrive.run`, two in
+            // `WalkerTickStallDetect.run` — grep `holdPillarBlock`) and the two
+            // `ensureHoldingPlaceableAny` ones (`Walker.widenFooting`, `Walker.strideFloorGuard` —
+            // grep `holdPlaceable`) ALL short-circuit on
             // `BotConfig.allowPlace` before they touch the hand, so turning it off for these twelve
             // ticks makes the swap unreachable rather than merely unlikely. Nothing here needs to
             // place: the body is standing still, aimed, about to empty a bucket.

@@ -416,7 +416,8 @@ final class JourneyRamp {
          * The first face succeeded and the hand lost one cobblestone (×54→×53→×52, one per SUCCESS),
          * yet {@link JourneyStairs#placeInto} walked on to faces 2 and 3 — which it only does when
          * its own check said「not solid」. Three seconds later that same block is what
-         * {@code placeInto:448} clicks AGAINST, and that line only accepts a neighbour the
+         * {@code placeInto}'s own {@code blocksMotion} face test clicks AGAINST, and that test only
+         * accepts a neighbour the
          * <i>ServerLevel</i> calls solid. The round trip completes; the verdict was one statement early.
          *
          * <p>The cost of getting this wrong was total: all nine ramp attempts of j54 reported

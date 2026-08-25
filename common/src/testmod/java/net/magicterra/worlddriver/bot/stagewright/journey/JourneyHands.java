@@ -90,8 +90,9 @@ final class JourneyHands {
     /**
      * Point BOTH bodies at one cell — the client's, which acts, and the server's, which predicts.
      *
-     * <p>On the client topology {@code rig.avatar()} is the CLIENT avatar (JourneyRig:422 hands back
-     * {@code BotHooks.impl().clientAvatar()}) while {@code rig.player()} is the {@code ServerPlayer}.
+     * <p>On the client topology {@code rig.avatar()} is the CLIENT avatar ({@link JourneyRig#avatar}
+     * hands back {@code BotHooks.impl().clientAvatar()}) while {@code rig.player()} is the
+     * {@code ServerPlayer}.
      * The first version of {@link #aimThenAct} aimed one body and rayed the other, with a
      * {@code ServerboundMovePlayerPacket} in between; putting the two calls on adjacent lines bought
      * nothing, because <b>adjacency is about ticks and that gap is about objects</b>.
@@ -257,9 +258,9 @@ final class JourneyHands {
         //                   half writes the same index. Selecting slot N twice is still slot N —
         //                   IDEMPOTENT, so running both is harmless.
         //   bag swap      → client swaps items[ms]↔items[hb] AND sends a ClickType.SWAP container
-        //                   click (`BotInteract.swapFromMainInv:642`); the server half swaps the
+        //                   click (`BotInteract.swapFromMainInv`); the server half swaps the
         //                   same pair directly and deliberately sends nothing
-        //                   (`ServerPlayerAvatar.holdItem:707-712`). The server therefore performs
+        //                   (`ServerPlayerAvatar.holdItem`). The server therefore performs
         //                   that swap TWICE — once here, once when the click lands — and a swap is
         //                   an INVOLUTION. Twice is the identity, and the hand goes back.
         //
