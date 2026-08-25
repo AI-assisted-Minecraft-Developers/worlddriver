@@ -2419,7 +2419,19 @@ public final class JourneyPortalRung {
         rig.evidence(tag + ".stand." + tries, goal.toShortString() + " 瞄 " + backing.toShortString()
                 + (backing.equals(target.below()) ? "（地板顶面）" : "（背板近面）")
                 + " 否决计数 " + why);
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(goal))), 1_200, () -> {
+        // NoBreak, the fourth leg of a family whose other three already had it. {@link #walkTheStairs}
+        // (「The walk may not dig」), {@code JourneyFill}'s water fetch and {@code JourneyRamp#walkTo}
+        // all forbid it for one reason: inside the alcove there is nothing between the body and its
+        // destination that this rung did not cut itself, so a dig is never the answer and is always
+        // the rung eating its own work. This leg was missed, and the rehearsal of 2026-08-25 is what
+        // it cost: nine consecutive `stairsBroken=11 级都完好`, then `lava8` reporting three treads
+        // whose supports had become air — `-3,60,20`, `-1,58,20`, `0,57,20`, one row under the flight
+        // and one apart in x, which is the flight's own diagonal. The log names the actor: the body
+        // stood at `-1,56,21` digging `-1,57,20` then `-1,58,20`, the feet and head cells of its next
+        // step, under `goal=Block[3,60,20]` — this walk. It never arrived (`停在 -2, 61, 20`, five
+        // short), so the digging bought nothing and the rung then died on 走不上楼梯.
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(goal), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak()))), 1_200, () -> {
             JourneyHands.holdForUse(rig, held, tag);
             // RE-ASK FROM WHERE THE BODY ACTUALLY ENDED UP. The fill has done this for a while and
             // the pour never did, and it is the same bug on the other side of the trip: the stand
