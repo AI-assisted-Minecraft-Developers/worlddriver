@@ -185,7 +185,7 @@ public final class PathFinder {
      *  a suite run produced 6 trip warnings and 255 cut searches, one tick alone suppressing 1 437
      *  later searches — the many-cheap-searches shape this exists for, observed directly. The suite
      *  went RED with a verdict and a results file instead of losing the JVM, which is the whole
-     *  point: a scene can assert on a best-effort answer, and nothing can assert on a dead server. */
+     *  point: a scene can assert on a best-effort answer, and nothing can assert on a dead server.
      *
      *  <p>Why this exists when four budgets already do: all four reset on a boundary the pathology
      *  crosses freely. {@code sliceMs} and the heartbeat reset every {@code advance()};
