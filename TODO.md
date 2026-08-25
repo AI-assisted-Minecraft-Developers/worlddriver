@@ -3396,6 +3396,22 @@ subject.missed  = null                      subject.endedAt = 100511, 217, 10000
 | ③ | 两臂 PASS 但 `staged.terminal` 写着 `下一级=null` | 修法没生效——`Expect.isNotNull()` 对 `BlockPos` 的行为与我以为的不同。先读 `Expect`，别改场景 |
 | ④ | 新臂（落地臂）跟着变红 | 它不经过 `stageLipArena`，所以**不该受影响**；真变了就是这一轮编译混进了别的改动，先 `git diff` |
 | ⑤ | 编译红 | `ctx.check` 的泛型对 `BlockPos` 不适用 ⇒ 读 `SceneContext.check` 的签名再决定形状 |
+
+#### ✅ 判读：**① 命中**（`ad8626fc`）
+
+```
+唇臂 staged.terminal = 99999, 217, 100000，下一级=BlockPos{x=100000, y=216, z=100000}   PASS (4 ticks)
+落地臂 staged.terminal = 100511, 217, 100000，下一级=BlockPos{x=100512, y=216, z=100000} PASS (29 ticks)
+VERDICT: GREEN (FILTERED — not a gate result)
+```
+
+「下一级」两臂都是真坐标，**前提本来就成立**——所以这一笔没有翻出隐藏缺陷，
+它买到的是**这条前提从今天起能判红**。这正是修一条只能通过的判据的正常结局，
+不该因为「没抓到 bug」就觉得白改：一条不能红的判据的价值是 0，无论被断言的事实真假。
+
+⚠️ 但要记住这一次**结果是运气**：如果 `nextDown` 在这个布景里返 null，
+唇臂过往每一份绿都建立在一个没被抬升的末路点上，而没有任何一份读数会说出来。
+零验证的前提命中率是 50%，不是「大概没事」。
 2. **一格高的窗口撑不过四 tick 的重力。** 两次实测：
    摆在 `ends+1.0` ⇒ `subject.endedAt 精确 …/217.92/…`；摆在 `ends+1.6` ⇒ `…/217.83/…`，
    两次 `settled=null`。`blockPosition()` 在脚越过格边界那一刻就翻，而一节点的腿要 4–5 tick 才
