@@ -890,6 +890,9 @@ public static volatile boolean autoRetreat = false;
 必报一次（ladder5 前六级 30 次，第 4 级「木镐 ×1 到手」PASS 之后措辞一字未变）。而它印的是
 「pickups crowded the gear out」——归因是编的。叫 degraded 就得以「装备存在」为前提：
 判据应是**背包里有而快捷栏里没有**；两者都没有是「还没造」，不该报警。水桶同理。
+**修法验证（先写在这）**：下一趟带仪器的运行，拿到铁镐之前 `GEAR-degraded` 应为 **0 行**；
+之后出现的每一行都要能在 9–35 格找到它点名的那件东西——告警现在自带槽位就是为了让这条可查。
+ladder5 旧判据累计 108 行，其中拿到桶（第 10 级）之后只有 2 行，那 2 行大概率是真的。
 
 📌 **下一趟真梯的判读，先写在这**（`3ce54dd4` 把排上界限定到了浇筑侧）：
 1. `raiseRowTooHigh`／`raiseRowRetry`／`raiseRowGaveUp` 只许出现在浇筑 tag 下；收水 tag 下出现任何一次 = 限定没生效。
