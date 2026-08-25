@@ -90,6 +90,43 @@ final class JourneyPour {
      */
     static void raiseTo(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                 int wantY, boolean pouring, String tag, Runnable then) {
+        raiseTo(ctx, rig, target, away, wantY, pouring, tag, 0, then);
+    }
+
+    /**
+     * How many rows above {@code wantY} the body may still be standing and have the raise count as
+     * finished. <b>A pour is served from slightly high and not from arbitrarily high</b>, and until
+     * 2026-08-26 only the first half of that was written down: {@link JourneyRamp#buildTo}'s javadoc
+     * says a pour 「is genuinely served from any row high enough」, which is true of one row and false
+     * of five.
+     *
+     * <p>Cell ten of the real ladder of 2026-08-26 is what put a number on it. The raise asked for
+     * {@code y=59} in column {@code 2,20}; an unstick tower answered by lifting the body to the
+     * surface, and every gate downstream agreed it had arrived:
+     *
+     * <pre>
+     * cast9.raiseTo.arrivedY   = 64（起 57，净升 7），脚下=grass_block
+     * cast9.raiseColumnMissed  = 2, 64, 21 不在指定柱 2,20 上就算到了（walkToColumn 判到达用的是 5 格）
+     * cast9.raisedY            = 64/59 … 射线是照 y=59 那一排验的，从这里打出去的不是验过的那条
+     * cast9.picks.1            = 4, 63, 19 grass_block face=up → 落进 4, 64, 19
+     *                            （眼睛 4.46/66.42/19.56 朝 yaw=-47.70 pitch=76.67）
+     * </pre>
+     *
+     * <p><b>{@code pitch=76.67°} is the whole account.</b> From five rows up, the only line that
+     * reaches the backing is one steep enough to hit the body's own footing first, so the pour landed
+     * in the cell the body was standing in and the rung failed with nine of ten cells cast.
+     * One row up the same line clears; that is why this is a bound and not a flip to {@code exactRow}
+     * — flipping it would also kill the tolerance {@code JourneyRamp} argues for and I have no reading
+     * against.
+     */
+    private static final int POUR_ROW_SLACK = 1;
+
+    /** How many times a raise may walk back down and try for its row again. One: the descent is a
+     *  full {@code returnToTheForge}, and a second retry costs more budget than the cell is worth. */
+    private static final int RAISE_ROW_TRIES = 1;
+
+    private static void raiseTo(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
+                                int wantY, boolean pouring, String tag, int attempt, Runnable then) {
         BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY, pouring, tag);
         BlockPos col = verified != null ? verified : target.relative(away.getOpposite(), 1);
         BlockPos here = rig.player().blockPosition();
@@ -135,6 +172,30 @@ final class JourneyPour {
                 rig.evidence(tag + ".raiseColumnMissed", landed.toShortString() + " 不在指定柱 "
                         + col.getX() + "," + col.getZ() + " 上就算到了（walkToColumn 判到达用的是 5 格）"
                         + " —— 接下来由塔的偏柱修正把身体带回这一柱");
+            }
+            // AND THE ROW, which the drift correction above does NOT fix — it walks the body back to
+            // the column and has no opinion about height. `Goal.XZ.ignoresY()` is what lets the walk
+            // arrive from any row at all, and an unstick tower is what actually carries the body up:
+            // see POUR_ROW_SLACK for the cell this cost. Everything downstream of here reads the row
+            // as correct, so the check has to be here, before the raise commits.
+            int over = landed.getY() - wantY;
+            int slack = pouring ? POUR_ROW_SLACK : 0;      // a scoop's line is verified for ONE row
+            if (over > slack && attempt < RAISE_ROW_TRIES) {
+                rig.evidence(tag + ".raiseRowTooHigh", landed.toShortString() + " 比要站的排 y="
+                        + wantY + " 高 " + over + " 排（容许 " + slack + "）—— 射线是照那一排验的，"
+                        + "从这儿打出去的不是验过的那条；走回模腔重来一次（第 " + (attempt + 1)
+                        + "/" + RAISE_ROW_TRIES + " 次）");
+                JourneyStairwell.returnToTheForge(ctx, rig,
+                        JourneyRamp.floorOf(JourneyPortalRung.forgeCorridor), tag + ".raiseRowRetry",
+                        () -> raiseTo(ctx, rig, target, away, wantY, pouring, tag, attempt + 1, then));
+                return;
+            }
+            if (over > slack) {
+                // Retries spent and still high. Say so rather than letting `raisedY` be the only
+                // trace, because that row reads as a note beside a raise that finished.
+                rig.evidence(tag + ".raiseRowGaveUp", landed.toShortString() + " 仍比 y=" + wantY
+                        + " 高 " + over + " 排，重来的机会用完了（" + RAISE_ROW_TRIES
+                        + " 次）—— 下面这一浇多半会被射线闸拦下，失败记在浇上而不是记在这一排上");
             }
             raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
         },

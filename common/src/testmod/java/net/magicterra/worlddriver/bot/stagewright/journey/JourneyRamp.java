@@ -204,8 +204,15 @@ final class JourneyRamp {
             // `.ramp.*` 也没有，正是上面那段 javadoc 指认的「no .ramp.* row exists in that run at
             // all」：recover6 里门框替一个身体本就不该站的排背了黑锅。`.noFlight` 是「拒绝」的键，
             // 不能拿来记「不需要」，否则下一个读的人分不出这两件事。
+            // HOW FAR ABOVE, not just「above」. The `>=` arm is a real tolerance with a real reason
+            // (see this method's javadoc), but a row that prints the same words for「刚好到了」and
+            // 「高了五排」cannot tell the two apart — and cell ten of 2026-08-26 was the second while
+            // reading like the first. The number is free; it costs a subtraction and it is the only
+            // way this exit ever admits it let a body through that could not fire its verified ray.
+            int above = here.getY() - landing.getY();
             rig.evidence(tag + ".flightSkipped", here.toShortString() + " 已经"
                     + (exactRow ? "在落点那一排" : "到了落点那一排或更高")
+                    + (above > 0 ? "（**高 " + above + " 排**）" : "")
                     + "（落点 " + landing.toShortString() + "，exactRow=" + exactRow
                     + "）—— 不用修楼梯");
             then.run();
