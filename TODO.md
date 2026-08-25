@@ -3580,7 +3580,7 @@ COVERAGE 停在 293（不是预期的 294），因为炸掉的场景不计入 ex
 而 `forge.flightLastStep` 那一行里就带着 `楼梯底 2, 56, 19=…`，证明生产路径上它必然已被赋值。
 给它加空判会把「布景漏了」伪装成正常——[[the-test-reproduced-the-bug-in-its-own-staging]]，
 假红的方向跟真缺陷长得一模一样。修法是场景补 `stairTop`/`stairBottom`，并在 cleanup 里清掉
-（和 `JourneyStairs.forget()` 同一个理由）。commit `d1c67cbf`。
+（和 `JourneyStairs.forget()` 同一个理由）。commit `d8a090b5`。
 
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
