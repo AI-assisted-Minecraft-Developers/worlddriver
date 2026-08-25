@@ -468,8 +468,7 @@ final class JourneyPour {
      *  {@link #pourLandsFrom}, and the reason a raise has to be told which of the two it is for. */
     private static boolean scoopSeesFrom(ServerLevel level, ServerPlayer body, BlockPos foot,
                                          BlockPos target) {
-        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                foot.getY() + body.getEyeHeight(), foot.getZ() + 0.5);
+        var eye = JourneySight.eyeFor(body, foot);
         var to = net.minecraft.world.phys.Vec3.atCenterOf(target);
         if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) return false;
         var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,

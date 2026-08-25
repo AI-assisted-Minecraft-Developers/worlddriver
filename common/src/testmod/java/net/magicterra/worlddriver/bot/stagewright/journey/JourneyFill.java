@@ -221,8 +221,7 @@ public final class JourneyFill {
      *  so this counts fills and not merely neighbours. */
     private static int sourcesInReachFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
                                           List<BlockPos> sources) {
-        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+        var eye = JourneySight.eyeFor(rig.player(), foot);
         int seen = 0;
         for (BlockPos src : sources) {
             var aim = net.minecraft.world.phys.Vec3.atCenterOf(src);
@@ -1013,8 +1012,7 @@ public final class JourneyFill {
                         if (avoidCrossing && lava && acrossThePool(level, from, foot)) {
                             why.merge("过去要横穿岩浆", 1, Integer::sum); continue;
                         }
-                        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
+                        var eye = JourneySight.eyeFor(rig.player(), foot);
                         var aim = net.minecraft.world.phys.Vec3.atCenterOf(src);
                         if (eye.distanceTo(aim) > BUCKET_REACH) {
                             why.merge("够不着源块", 1, Integer::sum); continue;

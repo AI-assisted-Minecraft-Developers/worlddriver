@@ -150,6 +150,30 @@ final class JourneySight {
         return ANYWHERE;
     }
 
+    /**
+     * The eye a bucket line should be clipped from, for a body that would stand at {@code foot}.
+     *
+     * <p>Two cases, and only one of them is a guess. When {@code foot} is the cell the body is
+     * ALREADY standing in, its eye is knowable to the centimetre, so ask it. A player's box is
+     * 0.6 wide, so its centre rests anywhere in {@code [0.2, 0.8]} of its own cell, which puts the
+     * real eye up to {@code hypot(0.2, 0.2) = 0.283} away from the centre this file's other callers
+     * assume — measured {@code 0.22} on the seat that passed validation and then fired into rock,
+     * with the blocking face named ({@code -5,62,55 grass_block 面=up，1.04 格}). When {@code foot}
+     * is any OTHER cell — one the body has not walked to — no such reading exists and the centre is
+     * the only honest estimate available.
+     *
+     * <p>Note what this deliberately is NOT: an envelope. It clips exactly as many rays as before,
+     * from a better origin for one cell, so it costs nothing. {@link #pourLine}'s corner sampling is
+     * the envelope, and it answers the opposite question — whether a line survives EVERY position
+     * the body might end up in. An earlier attempt conflated the two, gave every candidate five
+     * eyes, and was reverted.
+     */
+    static Vec3 eyeFor(ServerPlayer body, BlockPos foot) {
+        return body.blockPosition().equals(foot)
+                ? body.getEyePosition()
+                : new Vec3(foot.getX() + 0.5, foot.getY() + body.getEyeHeight(), foot.getZ() + 0.5);
+    }
+
     /** Null when the line holds from this one eye; otherwise the veto that stopped it. The clip is
      *  the one a filled bucket runs — {@code Fluid.NONE}, because that is what a non-empty bucket
      *  uses — and it is the same call the chooser has always made, only from more places. */
