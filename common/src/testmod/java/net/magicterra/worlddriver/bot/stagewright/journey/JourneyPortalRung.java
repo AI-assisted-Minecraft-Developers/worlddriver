@@ -220,20 +220,43 @@ public final class JourneyPortalRung {
             // the source — and this scoop is the one fill that never asked it.
             if (clear == null && reseats > 0) {
                 BlockPos pool = nearest != null ? nearest : water;
-                BlockPos seat = JourneyFill.standToScoop(rig, pool);
+                java.util.Map<String, Integer> why = new java.util.LinkedHashMap<>();
+                BlockPos seat = JourneyFill.standToScoop(rig, pool, why);
                 BlockPos here = rig.player().blockPosition();
                 if (seat != null && !seat.equals(here)) {
                     rig.evidence("waterFill.reseat", here.toShortString() + " → " + seat.toShortString()
                             + "（从这个座位一格水源都看不见，换一个看得见 " + pool.toShortString()
-                            + " 的落脚点再问一次）");
+                            + " 的落脚点再问一次）；否决计数 " + why);
                     rig.settle(new IntentProcess(new Intent(new Goal.Block(seat))), 2_000,
                             () -> scoopWater(ctx, rig, water, reseats - 1, then));
                     return;
                 }
+                // THE HISTOGRAM IS THE POINT OF THIS ROW NOW. Until 2026-08-25 `standToScoop` built
+                // it and dropped it, so「挑出来的还是脚下这一格」named the outcome and hid the
+                // reason — and the reason turned out to be arithmetic: candidates are ranked by
+                // distance FROM THE BODY and skipped on `d >= bestD`, so once the body's own cell
+                // qualifies nothing else is even evaluated. Read「比已选中的更远，没评估」as「这一趟
+                // 根本没有比较过别的座位」, not as「别的座位都不行」.
                 rig.evidence("waterFill.reseat", seat == null
                         ? "换不了座位：附近没有一个「站得住且看得见水源」的落脚点 —— "
-                          + "那就不是座位的问题，照瞄一次把挡路的写进 atUse"
-                        : "换不了座位：挑出来的还是脚下这一格 " + here.toShortString());
+                          + "那就不是座位的问题，照瞄一次把挡路的写进 atUse；否决计数 " + why
+                        : "换不了座位：挑出来的还是脚下这一格 " + here.toShortString()
+                          + "；否决计数 " + why);
+                // THE EYE THAT VALIDATES vs THE EYE THAT FIRES. standToFill clips from the cell
+                // CENTRE (x+0.5, y+eyeHeight, z+0.5); the bucket is aimed from the body's real eye,
+                // which carries the footprint offset. j55 measured 格心 z=55.50 against 真实 z=55.70
+                // — a fifth of a block, away from the target, and enough to clip the bank corner the
+                // validating ray cleared. So a seat can pass the check and then miss.
+                if (seat != null && seat.equals(here)) {
+                    var real = rig.player().getEyePosition();
+                    var centre = new net.minecraft.world.phys.Vec3(here.getX() + 0.5,
+                            here.getY() + rig.player().getEyeHeight(), here.getZ() + 0.5);
+                    rig.evidence("waterFill.reseat.eye", String.format(java.util.Locale.ROOT,
+                            "验证用格心眼 %.2f/%.2f/%.2f，真正开火的眼 %.2f/%.2f/%.2f，"
+                            + "水平差 %.2f 格 —— 两条射线原点不同，所以「验证时看得见」不等于「开火时看得见」",
+                            centre.x, centre.y, centre.z, real.x, real.y, real.z,
+                            Math.hypot(real.x - centre.x, real.z - centre.z)));
+                }
             }
             BlockPos aim = clear != null ? clear : nearest;
             if (aim == null) aim = water;

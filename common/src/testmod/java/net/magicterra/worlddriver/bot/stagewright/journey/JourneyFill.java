@@ -916,8 +916,26 @@ public final class JourneyFill {
      * the body walks, and an aim is a fact about an eye position that has since changed.
      */
     static BlockPos standToScoop(JourneyRig rig, BlockPos pool) {
-        FillSpot spot = standToFill(rig.ctx().level(), rig, pool, false, FILL_RESEARCH,
-                new java.util.LinkedHashMap<>());
+        return standToScoop(rig, pool, new java.util.LinkedHashMap<>());
+    }
+
+    /**
+     * The same, handing back WHY each candidate was refused.
+     *
+     * <p><b>The histogram already existed and this one call site threw it away.</b> It was built
+     * inline as {@code new LinkedHashMap<>()} and dropped on the floor, which is why j55's rung 12
+     * could say {@code 换不了座位：挑出来的还是脚下这一格 -4, 62, 55} and not one word about what
+     * the alternatives were or what was wrong with them. Every other consumer of
+     * {@link #standToFill} prints it — {@code station} does, and {@code JourneyRamp} prints
+     * {@code standToFill 否决了 13 个候选，理由 脚下不实心}.
+     *
+     * <p>Note the map only sees the pass that ANSWERED. {@link #standToFill}'s near-side preference
+     * runs first with a throwaway map, and only the fallback pass fills this one — so a run where
+     * the near-side pass succeeded hands back an empty histogram, and empty means「第一趟就选中了」,
+     * not「没有候选」.
+     */
+    static BlockPos standToScoop(JourneyRig rig, BlockPos pool, Map<String, Integer> why) {
+        FillSpot spot = standToFill(rig.ctx().level(), rig, pool, false, FILL_RESEARCH, why);
         return spot == null ? null : spot.stand();
     }
 
@@ -960,7 +978,18 @@ public final class JourneyFill {
                     for (int dy = -2; dy <= 1; dy++) {
                         BlockPos foot = src.offset(dx, dy, dz);
                         double d = foot.distSqr(from);
-                        if (d >= bestD) continue;
+                        if (d >= bestD) {
+                            // COUNTED, because this is the branch that decides the answer and it was
+                            // the only one leaving no trace. `from` is the body's OWN cell, and the
+                            // body is usually standing in the source's 3×3 already — so the moment
+                            // its own cell qualifies, bestD is 0 and every remaining candidate dies
+                            // right here, unevaluated. A better seat one block up is never asked
+                            // whether it can see the water. That is j55's rung 12: the re-seat
+                            // reported「挑出来的还是脚下这一格」and the reason was arithmetic, not
+                            // visibility. Ranking is a choice; making it silent was not.
+                            why.merge("比已选中的更远，没评估", 1, Integer::sum);
+                            continue;
+                        }
                         if (!level.getBlockState(foot.below()).blocksMotion()) {
                             why.merge("脚下不实心", 1, Integer::sum); continue;
                         }
