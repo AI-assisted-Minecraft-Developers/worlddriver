@@ -3468,6 +3468,32 @@ cast0/cast1.returnedY          = 58（楼梯底 y=56，身体 1, 58, 19）
 ——[[a-retry-that-changes-nothing]]。要改的是「怎么把身体从上一级的唇上推下来」，
 方案在下面 J69c 里单独立，先跑 NeoForge 闸。
 
+###### ✅ NeoForge 闸读数：命中 ①，J69a+J69b+manifest 这一笔收口（2026-08-25）
+
+```
+canary 'canaryMustFail': caught as FAIL (expected)
+canary 'canaryMustTimeout': caught as TIMEOUT (expected)
+canary 'canaryMustSwallow': correctly omitted (swallow gate alive)
+COVERAGE: 294 scene(s) executed, 24 skipped
+VERDICT: GREEN
+```
+
+`VERDICT:` 1 行；required `FAIL:` **0 条**；`fail(optional)` 恰好那 3 条已知的
+（`wd.journeyGetsAshoreBeforePouring`、`wd.serverEscapeSealedShelter`、`wd.vineOverWaterClimb`）；
+`UNDECLARED:` 0 条。
+
+**新场景是执行的不是跳过的**（[[skip-is-not-coverage]]，这一项单独查过）：
+
+```
+scene 'wd.journeyFlightEndsOnADryStep' -> PASS (1 ticks, 4468 ms)
+dry.route = [245404,220,100000, 245408,216,100000]      ← 干：终点=楼梯底
+wet.route = [245404,220,100000, 245407,217,100000]      ← 淹：终点提前一级
+wet.cells = …245407,217=干，头顶=干；245408,216=水(源)，头顶=水(源)
+```
+
+六拓扑里这一笔已过两个（Fabric 293/25、NeoForge 294/24，两侧计数不同是拓扑跳过项不同，
+各自与自己的基线比才有意义）。**源码解锁，按次序进 J69c。**
+
 ###### 🔧 J69c：末步 miss 之后再走一腿，目标改成**下一级**——把挖梯侧的成方移植到走梯侧（2026-08-25）
 
 **修法**：`finishTheFlight` 发现 `flightLastStepMissed` 时不再直接 `then.run()`，
