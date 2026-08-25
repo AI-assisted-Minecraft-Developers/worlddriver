@@ -299,6 +299,44 @@ water8.liftedY=64/60
 `gc` 前把 `commit-map` 拷到 scratchpad 之外，改写后**第一件事**是把本文件顶部的
 `58ec568d` 指针换成新哈希——746 条引用里**只有这一条是承重的**。
 
+#### 🅶′ 拿实例看了：**直剪批准范围会顺手删掉 59 条研究记录**
+
+在硬链接镜像上跑了两次试验（真仓库未动）。`commit-map` 的形状：**被剪空的提交映射到全零**，
+而且真的会被丢弃。两个方案的差别是数量级的：
+
+| | 直剪 `--path config/ …` | `--filename-callback` 改道 |
+|---|---|---|
+| 提交数 | 2175 → **2116**（丢 **59**） | 2177 → **2174**（丢 **3**） |
+| `REGRESSION.md` 的历史 | **没了** | `--follow` 数得到 **98 条** |
+| `config/` 残留 | 0 | **0** |
+| `__pycache__`／`.pyc`／`*/bin/` 残留 | 0 | **0** |
+| 体积 | 14 M | **15 M** |
+
+**那 59 条是什么**：只改过 `config/agent_driver/replays/REGRESSION.md` 的提交，
+而它们的**提交信息本身就是研究日志**，逐字三例：
+
+```
+docs: §83 — three-lane campaign end-to-end acceptance: C96 all-green with the four §80-§82 flags on
+docs: §77 — #47 FINAL GATE PASSED: three consecutive all-green acceptance cycles C92+C93+C94
+docs(regression) §21: steep-822 wedge tick-analysis — wedges are HETEROGENEOUS per-archive …
+```
+
+⇒ **方案改为在同一次运行里用 `--filename-callback` 把这份文档改道到 `docs/`**，
+其余 `config/` 照剪。多出的 1 MB 就是这 98 条历史，值。
+
+**剩下那 3 条被剪空的查过了，零知识损失**：它们只改 10 行 baseline JSON，知识全在提交信息里
+（`FBA gate REJECT — net-NEGATIVE`、`walkerOvershootReaim = FIRST net-positive fix` 等），
+而 `docs/replay-corpus-regression.md` 第 8／16／17 节**记得更全也更准**——
+第 17 节已经推翻第 16 节（`overshootReaim` 实为 **HARMFUL**），
+而那条提交信息还停在「FIRST net-positive fix」。**这次是文档比提交信息新**
+（[[two-ones-that-disagree]] 的反向实例：新旧不看时间戳，看内容本身）。
+
+**引用改写的真实规模也量了**：不是 746 条，那是**出现次数**；
+唯一候选串 **142** 个，其中真属于本仓库的提交 **105** 个，散在 20+ 个文件里
+（`CHANGELOG.md`／`ROADMAP.md`／`TODO.md` 和十几个 `.java` 的注释）。
+⚠️ **`commit-map` 里「哈希没变」的有 0 条**——第一个提交就被改了，之后全部级联，
+所以 **105 个全都要重写**，没有一个能靠「碰巧没变」蒙混过去。
+
 ### 🅱️ 甲之二（`JourneyPortalRung:906/942` 的早退采样）
 
 **判词：不做**（维持缓做）。
