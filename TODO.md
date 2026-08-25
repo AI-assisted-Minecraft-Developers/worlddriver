@@ -3842,6 +3842,37 @@ t=3 p=(...,100000.70) bear=-124 hCol=true
 | ③ | `flightLastStepAim` 显示 yaw **没变**（0.0 → 0.0） | `aimBoth` 在这个 helm 上没生效，去读 `ServerPlayerAvatar.aimAtBlock`，是仪器问题不是方案问题 |
 | ④ | 场景炸了 | 读异常。`aimBoth` 走 `rig.body()`，专用服上两具身体是不是同一具要先确认 |
 
+**✅ 读数（`lip-aim.log`）：命中 ① —— `PASS (4 ticks, 858 ms)`，写死步骤成立。**
+
+```
+lip.flightLastStepAim = yaw 0.0° → -90.0°
+t=1  yaw=-90 bear=-90 yawErr=0  p=(99999.20, 218.00, 100000.50)
+t=2  yaw=-90 bear=-90 yawErr=0  p=(99999.30, 218.00, 100000.50)   ← 第一 tick 就走出那 0.10 格
+lip.flightLastStepEnd = end=arrived err=无          （不再是 path-consumed）
+subject.endedAt  = 99999, 217, 100000 精确 99999.56/217.77/100000.50
+subject.rowsAbove= 0     subject.missed = null     subject.movedBy = 0.36 格
+subject.descentHolds = 2
+```
+
+`yawErr` −90 → **0**，缺的那个数从证据里被直接买回来了。`descentHolds` 仍是 2——
+**保持支照旧开火买时间，只是这次方向对了**：两条守卫是互补的，不是替代关系，
+所以不要因为修法成立就去删末节点保持支。
+
+场景**收回 optional 架子，改回 required**：它通过了，并且钉住的是一笔真修法，
+以后回归就该把闸判红。⇒ 双闸基线随之改：optional 回到 **3 条**，
+executed **+1**（PASS 计入）：Fabric **294/25**、NeoForge **295/24**。
+
+**三份读数排在一起就是全部论证，没有一条是推断出来的**：
+
+| 布景 | 转身 | `flightLastStepEnd` | 身体 |
+|---|---|---|---|
+| 每级切两格 | — | `end=failed:no path (expanded=2)` | 没动（**布景自己的缺陷**） |
+| 每级切三格 | 无 | `end=path-consumed`，`descentHolds=3` | 差 0.10 格，走错方向 |
+| 每级切三格 | 有 | `end=arrived` | 落进末路点 |
+
+每趟 10 秒，`-Pstagewright.scenes=` 单跑——这些读数没有一条是从 50 分钟的真梯上买来的
+（[[rehearse-one-rung-not-the-ladder]]）。
+
 ###### 📌 J69e：双闸前登记（源码这一轮改了五笔，闸未跑，2026-08-25）
 
 **这一轮改了什么**：`d7d28819`（两条腿接 walkerEnd + 场景上 optional 架）、
@@ -3857,7 +3888,7 @@ t=3 p=(...,100000.70) bear=-124 hCol=true
 
 | | 读到什么 | 判作 |
 |---|---|---|
-| ① | Fabric **GREEN 293/25**、NeoForge **GREEN 294/24**，各 **4 条** `fail(optional)`（原 3 条 + `wd.journeyWalksOffTheLipOntoTheDryStep`），0 条 required `FAIL:`，0 条 `UNDECLARED:`，canary 三行正常 | 这一轮收口。J47 的两个证人各就位，可以进客户端排练 |
+| ① | Fabric **GREEN 294/25**、NeoForge **GREEN 295/24**，各 **3 条** `fail(optional)`（就是原来那三条），0 条 required `FAIL:`，0 条 `UNDECLARED:`，canary 三行正常 | 这一轮收口 ⇒ 进客户端排练，再进真梯 |
 | ② | 数对了但**多/少一条** optional | 先点名是哪一条，再与基线三条做差。**不要**因为总数「差不多」就放行 |
 | ③ | `UNDECLARED:` 非空 | manifest 与注册不同步。新场景两份 manifest 在 `e474f119` 就加过，**NeoForge 从没带着它跑过闸**——这一趟是它第一次被 NeoForge 对账 |
 | ④ | 别的场景红了 | 与各自 loader 的基线做差（Fabric `gate-j69`、NeoForge `gate-j69-neoforge`），**别默认是这一轮造成的**；这一轮没动主源码，任何主源码行为的变化都要另找原因 |

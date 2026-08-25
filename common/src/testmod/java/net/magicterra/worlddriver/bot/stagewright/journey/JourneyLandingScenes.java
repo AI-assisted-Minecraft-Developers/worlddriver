@@ -61,20 +61,19 @@ public final class JourneyLandingScenes implements SceneProvider {
                         JourneyLandingScenes::keepsTheSeatItMovedTo),
                 Scene.of("wd.journeyFlightEndsOnADryStep", 6_000,
                         JourneyLandingScenes::flightEndsOnADryStep),
-                // NOT REQUIRED, standing RED on purpose, and it earned that shelf on its first run by
-                // REFUTING the fix it was written to validate — aiming a second leg one step further
-                // down walked the body two cells BACK and one row UP, so that leg is gone.
+                // REQUIRED. It spent one afternoon on the optional shelf and came off it: first it
+                // REFUTED the fix it was written to validate (a second leg aimed one step further
+                // down walked the body two cells BACK and one row UP), then it named the real one.
                 //
-                // What it now pins is TODO J47, and it is the better of J47's two witnesses. The
-                // other, `wd.journeyGetsAshoreBeforePouring`, has a body floating in water, which
-                // invited「buoyancy」as the explanation. This one has a body standing on dry stone —
-                // and the reading is identical: `end=path-consumed err=无`, a path produced and
-                // walked to its end, the body never arriving. No water anywhere near it.
-                //
-                // Flips to PASS by itself when J47 lands. Softening the assertion into something
-                // today's walker can satisfy would delete the cheapest rig either defect has.
+                // What it pins now is the turn before the last step. Its three readings, in order,
+                // are the whole argument and none of them is an inference:
+                //   two-cell staircase   → `end=failed:no path (expanded=2)`   (this arena's own bug)
+                //   three-cell, no turn  → `end=path-consumed`, body 0.10 b short, `descentHolds=3`
+                //   three-cell, turned   → `end=arrived`, `yawErr` 0, body in the terminal
+                // Ten seconds a run under `-Pstagewright.scenes=`, and every one of those readings
+                // came out of this arena rather than off a 50-minute ladder.
                 Scene.of("wd.journeyWalksOffTheLipOntoTheDryStep", 6_000,
-                        JourneyLandingScenes::walksOffTheLipOntoTheDryStep).withRequired(false));
+                        JourneyLandingScenes::walksOffTheLipOntoTheDryStep));
     }
 
     /** Natural ground level inside the arena box. */
