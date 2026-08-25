@@ -2330,10 +2330,19 @@ gotCloser = seeded && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futi
 | `WalkerTickProgress:1039`（同上，第三处） | ❌ |
 | `WalkerTickSearch:268`（从脚下重搜，带 flag） | ❌ |
 
-闩上之后每漏一处就是**一次满搜索**（搜索回来 → 闸判 → `6>=5` → 又终局 → 又上闩）。
-所以 `creepRetarget` 的预期读数是 `≈6 + 漏出来的次数`；读回明显大于 6 而桶 6、桶 7 都≈0，
-就是这三处在漏。**先量，再决定是逐处加闸还是把闩挪到 `newSearch` 的唯一入口**
-（后者更像正解——[[guards-and-the-fallbacks-that-ignore-them]] 的「守卫根本没被调用」）。
+⛔ **更正：洞 A 基本不成立，是我在核实前就把它登记成了真漏点。**
+读完之后三处都站不住：
+
+- `WalkerTickSearch:268` 在 `run()` 里排在闸（161 行）**之后**。闸一上闩就 `return`，
+  它**到不了**。这一处是死路，不是漏点。
+- 另两处（`Walker:2458`、`WalkerTickProgress:1039`）从 **`commitEnd`** 起搜，不是从脚下。
+  **用脚格的闩去掐它是范畴错误**——它问的是「从提交路径的末端还能不能继续」，
+  跟「从这里够不着」不是同一个问题。而且被 `FRONTIER_WAIT_CAP = 3` 卡住，有界。
+
+⇒ **不改**。第二趟的读数正面支持这个判断：闩上之后剩下 151 tick **零次搜索**。
+这条留在账上是为了记住那个方法错误：**「grep 出 5 个调用点、只闸了 2 个」看起来像漏洞，
+但要不要闸取决于每一处在问什么，而那要读了才知道。数调用点不等于读调用点**
+（[[a-malformed-input-may-be-the-subject]] 的同一形状：判一族之前必须读调用点）。
 
 **洞 B：闩会被 `retargetGoal` 带进下一个追击，而钥匙只有身体位移。**
 
@@ -2356,9 +2365,16 @@ gotCloser = seeded && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futi
 这样既关上洞 B，又不会把 creep 场合的烧钱放回来（每 2 tick 换格的**同一只**猎物仍然走 retarget）。
 **不采用**「目标实质变了就解闩」那条——每 2 tick 换格的目标会立刻把它打穿。
 
-这两个洞**这一趟的四臂都测不到**（同一实体、同一具身体），所以要第五臂：
-先在够不着的目标上闩住，然后**身体不动**、`retargetGoal` 到 8 格外够得着的格 ⇒ 必须能恢复。
-按现在的代码它会红——那正是这条负测试存在的理由。**闸绿了再动这两笔。**
+✅ **洞 B 已修 + 第五臂已加**（闸绿之后动的手）：
+
+- `CombatProcess` 记 `lastQuarryId`：**实体变了走 `setGoal`（全量复位，闩一起清），
+  同一实体换格才走 `retargetGoal`**。`collectSweep` 那处 setGoal 顺手把它清成 `-1`
+  （猎物已经死了，下一次 approach 是新的一趟）。
+- 第五臂 `recover` 守的是**引擎侧那半份契约**，不依赖 `CombatProcess`：
+  先在够不着的目标上闩住 → **身体不动** → `setGoal` 到 8 格外够得着的格
+  ⇒ 搜索必须恢复，身体必须走到。三级判据，且**先判前提**：
+  第一段没闩上就直接红（否则第二段是在证明「一个从未设上的闩可以被清掉」，
+  [[a-criterion-success-cannot-satisfy]] 的反面——一个恒真的判据）。
 
 ⚠️ **这笔修法动的是 `Walker` 和 `CombatProcess`，全套件都在用**。
 真正要盯的不是那一条新场景，而是**别处有没有被误伤**：闩住之后「身体没挪就不再起搜索」，
