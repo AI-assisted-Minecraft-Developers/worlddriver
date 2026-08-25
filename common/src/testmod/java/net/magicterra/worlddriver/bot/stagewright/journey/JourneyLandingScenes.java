@@ -723,7 +723,10 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos ends = route.get(route.size() - 1);
         BlockPos beyond = JourneyStairs.nextDown(ends);
         ctx.record("staged.terminal", ends.toShortString() + "，下一级=" + String.valueOf(beyond));
-        ctx.check(beyond != null).as("前提：末路点被抬升过，所以它下面还有一级可以改瞄 —— "
+        // `check(beyond)`, NOT `check(beyond != null)`: the latter hands the assertion a boolean, and
+        // a boolean is never null, so `isNotNull()` on it passes no matter what the staging did. This
+        // precondition was written that way and could only ever say PASS.
+        ctx.check(beyond).as("前提：末路点被抬升过，所以它下面还有一级可以改瞄 —— "
                 + "没有下一级就说明这一臂根本没摆成，后面的判据全无意义").isNotNull();
         return ends;
     }
