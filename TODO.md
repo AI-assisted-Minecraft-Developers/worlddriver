@@ -1063,6 +1063,52 @@ cast9.picks.1 = 4, 63, 19 grass_block face=up → 落进 4, 64, 19
 **让守卫在一个它必然遇到的场合里被看见**（[[verify-by-making-the-criterion-impossible]] 的同族）。
 ⚠️ 注册新场景必须同批加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 直接判红。
 
+###### 📖 判读：Fabric 闸 **GREEN**，**298 executed / 25 skipped**，`UNDECLARED: 0`，三条 canary 全对
+
+⚠️ **`VERDICT:` 行数了 2 条，只有 1 条是判词**——另一条是 `wd.vineClingFidelityProbe`
+自己的日志恰好用了同一个词（[[never-tail-a-gate-run]] 的「先数 VERDICT 行」正是防这个）。
+
+**判据命中 B**：`raiseRowTooHigh` / `raiseRowGaveUp` / `raiseRowRetry` **各 0 次**，
+`flightSkipped` 带「高 N 排」**0 次** ⇒ **这一趟根本没触发排检查，修法未被检验**。
+按预登记，这**不算验证**，B 态的构造场景仍然要写。
+
+**但失败集合多出了一条**，预登记说「多出任何一条 = 修法碰坏了现有行为」：
+
+```
+fail(optional): 'wd.journeyGetsAshoreBeforePouring' -> FAIL
+  C 身体最后脚下是固体，不是水：244892, 221, 100000，脚下=water (false) expected to be true
+```
+
+**查了，不是我造成的**，两条独立证据：
+1. **代码级**：这条走 `JourneyCast.java:100` 的 `walkToColumn(rig, "lava.ashore", …)`，
+   而 `grep "raiseTo|JourneyRamp.buildTo|POUR_ROW" JourneyCast.java` **零命中** ⇒ 不经过我改的任何一处。
+2. **执行级**：我的三个新证据键全程 0 次开火（见上）。
+   ⚠️ 单靠第 2 条不够——「没开火」也可能是「开火了但没记」；第 1 条才是判决性的。
+
+**它是 2026-08-25 新加的场景（`9bb76f0c` 起），08-23/24 的闸日志里根本没有它** ⇒
+它从来没在闸上绿过，是一条一直红着的 `fail(optional)`，不是回归。
+
+###### 🔴 顺带查出：**同一个病的第三处，而且这处有场景正红着**
+
+```java
+// JourneyCast.java:100
+WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ(), 1, 600, …);
+```
+
+要的是「**上岸**」（脚下固体），给的是 `Goal.XZ`——「那一柱，任意 Y」。
+证据行自己把两边都写出来了：目标 `lava.exit.dryLand = 244891, 221, 100000`，
+身体停在 `244892, 220, 100000`（**x 差 1、y 低 1**），`arrivedY = 220（起 217，净升 3），脚下=water`。
+⇒ **身体还泡在水里就被判「到岸」了。**
+
+⚠️ 而且这里踩的是 `JourneyPour:115-117` 那段注释**早就写明**的坑：
+「`walkToColumn` judges arrival against its own `ARRIVED_WITHIN` and **not against the radius asked
+for**」——调用方传的 `tolerance=1` 根本不是判到达用的那个数，判到达用的是 5。
+**注释写在 A 文件，坑踩在 B 文件**（[[a-fix-that-cannot-reach-its-own-occasion]]）。
+
+📌 **下个编译窗口两笔一起做，然后重跑两个闸**：
+1. 把排检查**限定在 `pouring` 一侧**，撤掉装水那侧没有证据支撑的变化（顾问点的，见上）；
+2. 给 `lava.ashore` 补一道「脚下是不是固体」的到岸检查 + 有界重试，形状照 `raiseRowTooHigh` 抄。
+
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
 拍板节好几条的判读样本就是它。⚠️ **必须是 `runRehearsalIntegratedServer`（真 `LocalPlayer`），不是
