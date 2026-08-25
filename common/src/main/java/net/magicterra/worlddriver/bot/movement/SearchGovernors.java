@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.movement;
 
+import net.magicterra.worlddriver.bot.Goal;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -16,7 +17,17 @@ import net.minecraft.core.BlockPos;
 final class SearchGovernors {
     double futileBestDist = Double.POSITIVE_INFINITY;  // goalSpin.bestDistToGoal snapshot at last counted search
     BlockPos futileFoot;                                // foot snapshot at last counted search
-    BlockPos futileGoalPos;                             // the goal's own anchor cell when that snapshot was taken
+    /** The goal that was in force when {@link #futileBestDist} was taken — the yardstick, kept so a
+     *  MOVING goal cannot hand the body progress it did not make.
+     *
+     *  <p>A pursuit re-goals as its quarry moves, and every re-goal resets {@code bestDistToGoal},
+     *  so the quarry drifting one block closer reads as the body having earned a block. Judging
+     *  today's foot with YESTERDAY's goal removes that for free and for every goal shape. The
+     *  arithmetic alternative — subtracting the goal's own displacement — was tried and measured
+     *  wrong: {@code Goal.Near.estimate} returns {@code 10 *} blocks, so a one-block descent moves
+     *  the estimate by 10 while the displacement being subtracted was 1. Two numbers that both look
+     *  like distances, one block-valued and one cost-valued. */
+    Goal futileGoal;
     int futileSearches;                                 // consecutive futile completions
     int searchBackoffTicks;                             // no new search kickoff while >0
     /** The foot the futile cap latched on, or null when the cap has not been reached.
@@ -62,7 +73,7 @@ final class SearchGovernors {
         deadZoneNode = null;
         futileBestDist = Double.POSITIVE_INFINITY;
         futileFoot = null;
-        futileGoalPos = null;
+        futileGoal = null;
         futileLatchFoot = null;
         futileSearches = 0;
         searchBackoffTicks = 0;

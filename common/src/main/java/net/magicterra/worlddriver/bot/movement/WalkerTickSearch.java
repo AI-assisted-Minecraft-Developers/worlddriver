@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
@@ -82,27 +81,24 @@ final class WalkerTickSearch {
     private static Walker.Step futileGateJudge(PathFinder.Result res, Avatar a, Walker wk,
                                                WorldView world, BlockPos foot, Player p) {
         if (futileGateExcluded(res, a, wk, world, foot)) return null;
-        // A pursuit re-goals as its quarry moves, and setGoal resets goalSpin — so the QUARRY
-        // drifting a block closer reads as the BODY having earned a block of progress, and zeroes
-        // the counter. Charge the goal's own displacement against the improvement; what is left is
-        // what the body earned. Goal shapes with no single anchor cell keep the plain test — they
-        // cannot move.
-        BlockPos anchor = goalAnchor(wk.goal);
-        double goalShift = (anchor != null && wk.searchGov.futileGoalPos != null)
-                ? Math.sqrt(anchor.distSqr(wk.searchGov.futileGoalPos)) : 0;
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
         // trivially "got closer" — a free zeroing donated by the reset itself. The first judged
         // search has nothing to compare against: it SEEDS, it does not judge.
-        boolean seeded = wk.searchGov.futileBestDist != Double.POSITIVE_INFINITY;
+        boolean seeded = wk.searchGov.futileGoal != null
+                && wk.searchGov.futileBestDist != Double.POSITIVE_INFINITY;
+        // Judge today's foot with YESTERDAY's goal. A pursuit re-goals as its quarry moves and every
+        // re-goal resets goalSpin, so measured against the CURRENT goal the quarry drifting closer
+        // reads as the body having earned ground. Against the goal that set the baseline it does
+        // not — and this holds for every goal shape, with no per-shape arithmetic to get wrong.
         boolean gotCloser = seeded
-                && wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0.5 - goalShift;
+                && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futileBestDist - 0.5;
         boolean moved = wk.searchGov.futileFoot != null && wk.searchGov.futileFoot.distSqr(foot) > 4;
         Walker.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
         if (!seeded || gotCloser || moved) {
             if (seeded) wk.searchGov.futileSearches = 0;
             wk.searchGov.futileBestDist = wk.goalSpin.bestDistToGoal;
             wk.searchGov.futileFoot = foot;
-            wk.searchGov.futileGoalPos = anchor;
+            wk.searchGov.futileGoal = wk.goal;
             wk.searchGov.futileLatchFoot = null;
         } else if (++wk.searchGov.futileSearches >= BotConfig.walkerFutileSearchCap) {
             wk.lastError = "no route progress after " + wk.searchGov.futileSearches
@@ -120,17 +116,6 @@ final class WalkerTickSearch {
             wk.searchGov.searchBackoffTicks = Math.min(40, 4 << Math.min(wk.searchGov.futileSearches, 3));
         }
         return null;
-    }
-
-    /**
-     * The cell a goal is anchored on, or null for the shapes that have no single one (column,
-     * Y-level, composite, run-away). Only {@link Goal.Near} — the shape a pursuit re-issues as
-     * its quarry moves — can move under the futile gate, so only it needs its own displacement
-     * discounted; inventing a generalized "goal position" for the shapes that lack one would be
-     * a number with no referent.
-     */
-    private static BlockPos goalAnchor(Goal g) {
-        return g instanceof Goal.Near n ? n.target() : null;
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */

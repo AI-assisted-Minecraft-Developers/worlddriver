@@ -779,14 +779,14 @@ public final class Walker {
     public void retargetGoal(Goal g) {
         double bestDist = searchGov.futileBestDist;
         BlockPos bestFoot = searchGov.futileFoot;
-        BlockPos goalPos = searchGov.futileGoalPos;
+        Goal yardstick = searchGov.futileGoal;
         BlockPos latchFoot = searchGov.futileLatchFoot;
         int searches = searchGov.futileSearches;
         int backoff = searchGov.searchBackoffTicks;
         setGoal(g);
         searchGov.futileBestDist = bestDist;
         searchGov.futileFoot = bestFoot;
-        searchGov.futileGoalPos = goalPos;
+        searchGov.futileGoal = yardstick;
         searchGov.futileLatchFoot = latchFoot;
         searchGov.futileSearches = searches;
         searchGov.searchBackoffTicks = backoff;
