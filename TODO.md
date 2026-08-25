@@ -696,10 +696,76 @@ stairsBroken 自检 …… 21 次，报坏 **0** 次（11 次「11 级都完好�
 ```
 
 死在 `@minecraft:the_nether`，`goto` 段第 49 tick，离下界落点 `6,41,3` 已经走了一段。
-**只有一个样本**，按本文件反复付过代价的规矩：先取第二个样本再判族
-（[[one-sample-cannot-name-a-cause]]）。要分开的两支：**走进了岩浆／火**（路径代价没给火加价），
-还是**被烈焰人点着**（战斗层没有灭火/撤离反射）。`71,43,69` 那一格当时是什么，
-以及死前几十 tick 的血量曲线，是分族的读数——现在没人记，属于 J40② 那笔仪器要补的东西。
+
+##### ✅ 归档日志直接把族定了，**不用再跑一趟**
+
+原本写着「要分两支：走进岩浆/火 vs 被烈焰人点着，缺分族读数」。**读数其实已经在日志里**
+（[[the-portal-was-lit]] 那条老账：一份归档常常够回答「走的是哪条分支」）：
+
+```
+02:46:03 [contactEscape] inFire damage (hp=1.0) at 71, 43, 69 → stepping out of contact
+02:46:03 [lavaEscape]  flow front adjacent 69, 42, 71 at 70, 43, 70 (hp=1.0) → walking away
+02:46:04 [lavaEscape]  handing back (clear), 14 ticks
+02:46:05 死
+```
+
+- **不是烈焰人**：整个 14 级窗口一次 blaze 都没出现。是**地形的火与岩浆**。
+- **守卫不是缺失，它们跑了**——差点又假设成缺失（[[a-guard-i-assumed-absent-was-running]]）。
+  全程 `lavaEscape` 触发 **36 次**、`contactEscape` **4 次**。
+- **而 `lavaEscape` 判了 `clear` 交还控制权，20 tick 后身体烧死。**
+
+###### 🔴 缺陷一（代码级可证，不依赖样本数）：`clear` 说的是环境干净，不是身体不烧了
+
+`LavaProximityEscape.tick`（`common/.../bot/auto/LavaProximityEscape.java:59/78`）：
+
+```java
+boolean hot = threat != null || p.isInLava();      // 只问环境
+...
+if (hot) linger = LINGER_TICKS;
+else if (--linger <= 0) { reset("clear"); return false; }
+```
+
+`hot` **从不问 `p.isOnFire()` / `getRemainingFireTicks()`**。而在下界，**离开岩浆并不灭火**——
+实体身上的火会继续烧数秒。于是「走开了 ⇒ clear ⇒ 交还」这条链在身体仍在燃烧时成立，
+日志里那 20 tick 就是它的代价。
+
+⚠️ **但别急着把 `isOnFire()` 塞进 `hot`**：这个反射做的事是「远离岩浆」，
+而一具已经着火、且四周已无岩浆的身体，再走开也不会灭火。**让它继续激活并不等于救得回来。**
+真正该问的是下面这条。
+
+###### 🔴 缺陷二（更大的杠杆）：**整条反射链在真梯上是关着的**
+
+真梯自己的证据行，逐字：
+
+```
+反射链实测：一条都没武装（autoRetreat/autoFight/autoDodge/autoHeal/autoShield/autoEquip
+全 false，都是出厂默认；所以受到攻击不会有任何抢占）
+```
+
+配上血量曲线（全程 `hp=` 读数）：
+
+```
+hp=11.0 ×10   →   hp=10.0 ×7   →   hp=1.0 ×2   →   hp=0.0
+```
+
+身体从满血被一路磨到 1 血，**没有治疗、没有撤退、没有换装**，仅有的反应是那两条接触逃逸。
+到 `hp=1.0` 时无论哪条反射都救不回来了——**所以真正的失败发生在 hp 从 20 掉到 1 的那一段，
+不是最后那 20 tick。**
+
+**判：先补测量，不现在改。** 理由三条：
+1. 武装反射链是**影响全部 20 级**的行为改动，而窗口纪律是一次只放一笔
+   （[[one-sample-cannot-name-a-cause]]：两笔一起动，下一趟就归不了因）。
+2. **反射链默认关着可能是有意的**——它会抢占 walker 的按键，而这套梯子的
+   前 13 级正是在「没有抢占」下调通的。动它之前必须先知道它是不是护栏。
+   **先 grep 出是谁把它设成默认关、有没有写理由。**
+3. 缺的读数很具体：**血量是怎么掉下去的**（每次掉几点、间隔多久、掉的时候身体在哪一格）。
+   现在只有 4 个采样点，而且是 `lavaEscape` 顺手打的，不是按 tick 记的。
+   这正是窗口 1 里 **J40②**（`JourneyRig.await` 逐 tick 无条件记血量与 `getAirSupply()`）要补的东西——
+   它现在从「锦上添花」变成**前沿的必需项**。
+
+**重开/推进条件**：J40② 落地后跑一趟真梯，读血量曲线；若曲线显示
+「单次掉 ≥6 点」⇒ 是掉进岩浆那一类，修路径代价；若「每 0.5 秒掉 1 点、持续十几秒」
+⇒ 是身上着火烧完全程，那时再谈灭火/治疗，且届时已有分布可判。
 
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
