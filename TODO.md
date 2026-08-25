@@ -2883,6 +2883,43 @@ cast9#2.rise=2 block(s)   cast9#2.offTheFlight=起塔柱 2,…
 走不回指定柱 -9,37`），而且同一趟 `cast9.liftedY=59/59` 是**成功**的。
 「铺好梯却上不去」和「塔漂到邻柱」是两族，格号相同是巧合。链条断，本条记录不升级。
 
+###### 📌 janitor 这一轮（7 笔）的双 loader gate 判据（写在读结果之前，2026-08-25）
+
+七笔：`6bd02f82`（`RecipeApi` 三份私有 leaf → `RecipeResolver` 已 public 的同名件，8 个调用点）、
+`62bcc15a`（`underRangedFire` 两份私有拷贝 → `ThreatScanner.Scan`，5 个调用点）、
+`2a0a9976`（三份 `clearBox` → `SceneArena.clearBox`）、`8d778baf`（`pillarBlock` argmax 归
+`JourneyShaft`，**两份 `PILLAR_BLOCKS` 各留**——末地那份多 `end_stone`，合数据会少一种垫脚料）、
+`aa50872e`（flight supports 串三份→一份）、`f98a9641`（break oracle `swing` 两份→一份）、
+`0bb9e673`（岩浆源块计数两名一量→`JourneyTerrain.countLavaSources`，**谓词逐字保留**，
+没换成更严的 `plainSource`——换了就是偷偷挪一个两个调用点已同意的阈值）。
+
+**前两笔我自己复核过，不采信 agent 的自述**：`RecipeResolver.acceptedIds/itemId/safeResult`
+三件确为 `public static` 且与被删的私有拷贝逐字相同；`ThreatScanner` 第 11 行本就 import 了
+`RangedAttackMob`，`underRangedFire` 私有拷贝零残留，`Scan` 内 `threats` 可直接访问（第 55 行
+`isEmpty()` 已这么用）。**但 agent 一次 gradle 都没起，所以「编不编得过」完全没验过。**
+
+判据：**两个 loader 都 GREEN**；Fabric `COVERAGE: 292 / 25`、必需 FAIL 0、
+`fail(optional)` 恰 3 条（已知三条）、canary 三条全对、`UNDECLARED` 不出现。
+NeoForge 的 coverage 数与 Fabric 不同且本轮没有记录在案的基线——**读它，不要预测它**。
+
+红了按文件分族，不要猜：
+
+| 红在哪 | 归哪一笔 |
+|---|---|
+| 编译错 | 照报错文件定位，逐笔 revert 试，不猜 |
+| `wd.recipe*` / `mc.recipe.*` | `6bd02f82` |
+| 撤退/掩体/调度器那族 | `62bcc15a` |
+| 场景足迹闸 `check_scene_arena.py` | `2a0a9976`（Hard Rule #11 照字面量读足迹） |
+| journey 那族 | `8d778baf` / `aa50872e` / `f98a9641` / `0bb9e673` |
+| 恰好是已知三条可选失败 | 不是 janitor，本来就红 |
+
+**没做的两件（下一轮再排，别重查）**：全仓约 600 处内联全限定名违反 Hard Rule #7
+（最密 `JourneyRig` 65、`WorldDriverSchedulerScenes` 62、`JourneyFill` 51），跨 40 文件机械大改
+在并发树上必冲，要单独排一轮一次一文件；`common/src/test` 四份 `read(Path)`／三份 `strip(String)`
+收益仅 6 行且动的是判官。**已确认不是问题、下轮别再查**：`journey/` 下 8 份
+`clearBox(SceneContext)` 必须各留（足迹闸照 `ctx.setBlock` 字面量读，抽成带参 helper 会让那道闸
+**不红只瞎**）；`WorldDriverStationScenes.scrub` 从 `baseY-1` 起且 `h` 含端点，是 cleanup 本意不是拷贝。
+
 ###### 📌 真梯判据（写在跑之前，2026-08-25）
 
 ```
