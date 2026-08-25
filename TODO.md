@@ -3879,7 +3879,7 @@ executed **+1**（PASS 计入）：Fabric **294/25**、NeoForge **295/24**。
 `7803b4b9`（两处布景每级切三格）、`d609750d`（删掉第二腿）、
 `ac7f61b1`（TODO）、以及 descentHolds 计数器那一笔。**产码只动了 testmod，主源码零改动。**
 
-**计数规则先量了再登记**（顾问点的分叉在这里被排除掉）：两个 loader 的基线
+**计数规则先量了再登记**：两个 loader 的基线
 `fail(optional)` **都是 3 条**（`vineOverWaterClimb`、`serverEscapeSealedShelter`、
 `journeyGetsAshoreBeforePouring`），且 `executed + skipped` 两边都恰好 **318**
 （Fabric 293+25、NeoForge 294+24）。⇒ **FAIL（required 与 optional 同）既不进 executed 也不进 skipped**，
@@ -3893,6 +3893,66 @@ executed **+1**（PASS 计入）：Fabric **294/25**、NeoForge **295/24**。
 | ③ | `UNDECLARED:` 非空 | manifest 与注册不同步。新场景两份 manifest 在 `e474f119` 就加过，**NeoForge 从没带着它跑过闸**——这一趟是它第一次被 NeoForge 对账 |
 | ④ | 别的场景红了 | 与各自 loader 的基线做差（Fabric `gate-j69`、NeoForge `gate-j69-neoforge`），**别默认是这一轮造成的**；这一轮没动主源码，任何主源码行为的变化都要另找原因 |
 | ⑤ | COVERAGE 少于基线 | 有场景崩了（crash 不计入 executed）。去找 `unexpected` 那一行，不要从总数倒推 |
+
+###### ✅ J69e 读数（2026-08-25 20:44/20:52）：**一半命中 ①，另一半落在表外**
+
+**NeoForge = ① 逐项命中。** `VERDICT: GREEN`、`COVERAGE: 295 executed / 24 skipped`、
+`fail(optional)` 恰好那三条、required `FAIL: 0`、`UNDECLARED:` 空。唇场景
+`wd.journeyWalksOffTheLipOntoTheDryStep` **PASS (4 ticks, 351 ms)**，并且这是它第一次
+被 `expected-scenes-neoforge.txt` 对账（状态 ③ 覆盖的那件事，没有发生）。证据整段落地：
+
+```
+lip.flightLastStepAim = yaw 0.0° → -90.0°（瞄向末路点 245919,217,100000 的格心）
+lip.flightLastStepEnd = end=arrived err=无
+subject.descentHolds = 2     subject.rowsAbove = 0     subject.missed = null
+subject.endedAt = 245919, 217, 100000 精确 245919.56/217.77/100000.50
+```
+
+⇒ **J47c 的修法在 NeoForge 专用服上独立复现了一次**，不再只有 filtered 单跑那一份。
+
+**Fabric = 表外的第六态：`VERDICT:` 零行。** 退出码 1，但那不是红——
+按规矩先数判词行，只有 1 条，还是场景内部的 `[wd.vineClingFidelityProbe] VERDICT:`。
+真相在日志末尾：`Server Watchdog … A single server tick took 60.00 seconds`，
+服务端被强杀，**176/325 幕**就停了。归因如下，全部量过：
+
+| 问的问题 | 量到的 | 判 |
+|---|---|---|
+| 是我这一轮造成的吗 | 唇场景在这份日志里 `grep` **0 命中**——死在它之前 | 与本次提交无关 |
+| 是我把 `walkerDebug` 漏成全局了吗 | `[walker] 步进:` 首行在 **20:40:53 / 第 191 行**，早于任何 journey 幕；本趟 520 条，历史各趟 204～1203 条 | 否，仪器没漏 |
+| 卡在哪一幕 | 与完整趟对次序：`wd.serverDamagesTheDragon` PASS 之后就是 **`wd.serverFightsAFlyingBlaze`**，它没有结果行 | 定位 |
+| 是新问题吗 | 该幕历史读数是一条分布：常态 ~1.5 s，尾部已有 **`PASS (62 ticks, 35567 ms)`** 和 **`PASS (44 ticks, 48062 ms)`**——48 秒，贴着 60 秒看门狗 | **长尾早就够到过阈值**，今天只是抽过了线 |
+| 同一趟另一个 loader 呢 | NeoForge 上 `PASS (19 ticks, 1211 ms)` | 常态抽样，不是确定性回归 |
+
+**机制**（栈 + 日志里**早就装好的仪器**一起给全了）：
+
+```
+WorldDriverMobFightScenes$BlazeFightRun.pump → ServerAvatarManager.tickAll
+  → ServerWorldDriver.tick → CombatProcess.tick/meleeTick/approach
+    → Walker.tick → WalkerTickSearch.run → PathFinder$Search.advance → SwimAshoreBreak.eval
+
+[blazefight] open SINGLE ITERATION OVERRAN THE SLICE: iter=388 took 3060 ms > sliceMs=40
+   — bounded iterations, unbounded cost per iteration (pathfinder budgets are MAX_VALUE/2 in this scene)
+iter=200 serverTicks=2  workMs=41      worstIterMs=6      ← 每次迭代 0.2 ms
+iter=400 serverTicks=7  workMs=8402    worstIterMs=3060   ← 突变
+iter=600 serverTicks=20 workMs=42162   worstIterMs=3060
+[pathfinder] search-begin owner=combat start=189098, -60, 99999
+             goal=Near[target=BlockPos{x=189099, y=181, z=100000}, radius=3]
+             maxNodes=100000 maxMs=4611686018427387903      ← MAX_VALUE/2，无界
+[pathfinder] TICK SPEND 2583 ms across 1 advance() calls in ONE tick
+```
+
+**身体掉出了竞技场**：打斗开始在 `y=221`（日志里 `stride floor-guard: bottomless stride …
+→ sneak-pin` 反复开火，说明台子四周就是空的），崩溃时身体停在 `y=-60`，
+而目标烈焰人在 `y≈181→177→174`。于是每次重规划都是一次 **240 格纵深、无解、无界**的 A\*，
+单次 2.6～3 s。20 个服务端 tick 累计 42 秒的工，看门狗的「60 秒」是**累计滞后**不是单 tick 挂钟。
+
+**两个可修的点，闸数的那个是错的量**：`sliceMs=40` 的检查发生在**一次迭代之后**，
+所以「有界迭代 × 无界单次代价」= 无界总代价——仪器行自己就是这么写的。
+⇒ 见下方 J73。
+
+**这一轮的结论**：唇修法（J47c）在两个 loader 上都拿到了独立证据（NeoForge 闸 + filtered 单跑），
+Fabric 那份是被一个**先于本轮存在**的长尾掐断的，不构成对修法的反证。
+按次序继续：修 J73 → 客户端排练 → 真梯。Fabric 闸在 J73 落地后补跑一趟。
 
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
