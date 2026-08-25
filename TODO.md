@@ -3629,8 +3629,19 @@ forge.swung=64/67   与   forge.carved=64/67   并列
 `…→跑完` / `…→被结束：<err>`；**而 tick 预算烧穿的腿一行都不留**
 （`legEnded` 没返回 true ⇒ `endedLeg` 是 null ⇒ `noteLegEnding` 提前 return）。
 所以「有 `mineCell.` 行且 endings 里没有对应结尾」＝走没走到就被叫停，
-「有结尾却仍够不着」＝走完了但 `Goal.Near(target,2)` 没能落在挥距内——
-后者才是目标定义本身的问题。
+「有结尾却仍够不着」＝腿结束了但身体不在目标半径里。
+
+**而「目标定义不够」这一支可以当场排除，不用等读数。**
+`Goal.Near.reached(p)` 是 `p.distSqr(target) <= radius²`（`Goal.java:92`），
+radius=2 ⇒ 身体格到目标格 ≤ 2；眼到格心最多约 √(2²+1.1²)≈**2.3**，
+而上限是 **5.00**（校准臂读回的 `blockInteractionRange + 0.5`）。
+⇒ **真到了目标就一定 `canBreak=true`**（暴露面另算）。
+所以 ① 只能是**没到**，不可能是「到了还够不着」。
+
+这条收窄把 ① 的修法方向也定死了：不是放大 `Near` 的半径（它已经够小），
+是问那条腿为什么到不了。而「腿结束了」不等于「到了」——
+走行器给部分路径也报 ARRIVED（[[arrived-is-not-at-the-goal]]），
+所以 endings 里的 `→跑完` **不能**当成到达的证据。
 
 #### 📌 预登记：两个全量闸（写在跑之前，2026-08-25）
 
