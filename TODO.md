@@ -1482,6 +1482,37 @@ CombatProcess.meleeTick → approach → Walker.tick → WalkerTickSearch.run:79
 
 崩溃报告已留存为 `crash-gate-watchdog-pathfinder.txt`。
 
+### ⛔ A/B 判了：**是 J60-B 干的**，已撤回（`a191f87f`）
+
+| 臂 | 结果 |
+|---|---|
+| 带 `d321eac4`（两趟） | `BUILD FAILED in 3m 43s`，死在第 **176** 条 `wd.serverDamagesTheDragon` |
+| 只把 `JourneyFill` 回退到 `d321eac4~1`，其余保持 HEAD | **龙 PASS（1 tick，127 ms）**，一路跑到第 **260** 条 |
+
+⇒ **我的可达性推理输给了对照组。** `WorldDriverMobFightScenes.java` 对 `JourneyFill`
+的引用数确实是 0，那个推理**作为「直接调用」是对的**，但**作为「够不着」是错的**——
+代价是全局的，不跟着调用图走。
+
+⚠️ **诚实边界**：A/B 那一臂**被杀在第 260 条，没有产出 VERDICT**。
+所以已经确立的是**差分**（带它死、去掉不死），**不是**「去掉之后闸是绿的」。
+后者还得单独跑一趟完整的（[[a-verdict-has-upstream-verdicts]]）。
+
+**代价从哪来（待测，不是已证）**：严格趟**先跑**，找不到再跑**整趟回退**，
+而近岸偏好本身又是两趟。最坏是
+`2（严格/回退）× 2（近岸）× 16 源 × 8 邻格 × 4 dy × 5 只眼 ≈ 2 万次 clip`，
+全在**一个服务端 tick 里**。看门狗判的是单 tick 超时，所以它在哪个场景上炸
+取决于谁先跨过阈值——这解释了为什么两次崩溃报告的栈叶子不同、却都在寻路里：
+**栈是超时那一刻的快照，不是肇事者的名字**（[[a-lagging-reading-became-the-crime-scene]] 的近亲）。
+
+⇒ **重做时必须带预算闸**：严格趟要么限候选数、要么只对**少数几个**候选取包络、
+要么把「身体自己那一格用真眼」这一半**单独落地**（那一半才是 12 级真正需要的，
+而且它只多 1 条射线，不是 5 条）。
+
+⚠️ 过程记一笔：A/B 的后台 wrapper 被杀之后**游戏 JVM 变成孤儿还活着**
+（PID 42032 game + 34240 launcher）。`killed` 不等于进程停了
+（[[an-empty-output-is-not-a-dead-task]]）——先按命令行确认是自己的
+（`run-dogfood`／`worlddriver`，不是用户 IDE 里那个 Touhou 项目），再按 PID 杀。
+
 ### 🟡 J62（已核实，**本轮不修**）：`holdItem` 是同一族，只是还没轮到它炸
 
 `ClientPlayerAvatar.holdItem` → `BotInteract.ensureHolding`，而它**写的是客户端状态**：
