@@ -1,5 +1,8 @@
 # Feedback — GUI layout regression needs an entity-interact tool
 
+**Historical — dated 2026-07-10, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
+report as it was filed, not a description of the driver as it stands today.**
+
 > Date: 2026-07-10 · Consumer: `touhou_little_citizen` (NeoForge ModDevGradle mod, MC 1.21.1)
 > Goal: visually verify a modded button's layout inside another mod's container GUI
 > (Touhou Little Maid's 256×256 maid screen) on a headless Xvfb dev client — open the

@@ -1,5 +1,8 @@
 # 设计文档 01 —— 合成知识与执行
 
+**Historical — dated 2026-06-04, superseded by the shipped `mc.recipe.lookup` / `mc.recipe.resolve`
+reads and the `mc.plan.acquire` planner.**
+
 > 覆盖 ROADMAP Phase D（知识，只读）+ Phase E（执行）。
 > 参考：`research-clones/altoclef/` 的 `trackers/CraftingRecipeTracker.java`、`tasks/CraftInInventoryTask.java`、`tasks/container/{CraftInTableTask,SmeltInFurnaceTask}.java`、`util/{CraftingRecipe,RecipeTarget}.java`、`TaskCatalogue.java`
 

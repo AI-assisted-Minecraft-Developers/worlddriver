@@ -1,11 +1,15 @@
 # 设计文档 00 —— 执行模型与优先级链调度器
 
+**Historical — dated 2026-06-04, superseded by the shipped `bot/scheduler/` package
+(`ProcessScheduler` plus the `UserTaskChain` / `PanicChain` / `RetreatChain` / `DodgeChain` chains).**
+
 > 覆盖 ROADMAP Phase A。这是所有自治能力的承重墙，必须最先落地。
 > 参考：`research-clones/altoclef/src/main/java/adris/altoclef/tasksystem/`、`chains/`
 
 ## 1. 问题
 
-当前的执行模型分两块（见 `BotApiImpl.clientTick`，约 L744）：
+写这份文档时的执行模型分两块（见 `BotApiImpl#clientTick`）——下面描述的是**调度器落地之前**的代码，
+今天这一层已经是 `bot/scheduler/`：
 
 - **前台 process 槽**：`volatile BotProcess current`，同一时刻只跑一个，后来者覆盖前者。
 - **ambient 自动行为**：`bot/auto/` 包下的 `AutoEat`/`AutoTool`/`AutoRespawn`/`AutoSwim`，每个被 `BotConfig` 开关 + **输入通道所有权**门控（如 `processOwnsUseKey` 为真时不抢 use 键），与前台 process 并发跑。

@@ -1,5 +1,8 @@
 # 设计文档 03 —— Boss 作战剧本（末影龙 / 凋零）
 
+**Historical — dated 2026-06-04, superseded by the shipped `mc.bot.playbook` verb and the
+scripts under `playbooks/` (e.g. `playbooks/dragon-beds.js`).**
+
 > 覆盖 ROADMAP Phase G。依赖 A（调度器）、B/C（御敌+战斗）、E（合成）、F（装备）全部就位。
 > 参考：`research-clones/altoclef/` 的 `tasks/speedrun/{KillEnderDragonTask,KillEnderDragonWithBedsTask,DragonBreathTracker,WaitForDragonAndPearlTask}.java`、`tasks/construction/ProjectileProtectionWallTask.java`
 
@@ -108,9 +111,9 @@ while (boss().present) {
 
 ## 6. 验证
 
-Boss 战难做确定性 GameTest（实体 AI 有随机性），分层验证：
+Boss 战难做确定性场景测试（实体 AI 有随机性），分层验证：
 
-- **感知层**：GameTest `/summon` end_crystal / wither，断言 `mc.observe.boss`、crystal query、phase 读取正确。
+- **感知层**：StageWright 场景里 `/summon` end_crystal / wither，断言 `mc.observe.boss`、crystal query、phase 读取正确。
 - **关键不变量**：龙剧本——断言"所有水晶清零后龙 health 开始单调下降"（验证没漏水晶）；凋零——断言"召唤后剧本进入拉开距离状态"（验证防爆）。
 - **冒烟**：creative + `/effect` 给满 buff 的世界里跑全程，人工 + 截图确认能通。不强求 CI 必过（实体随机性），作为手动回归。
 

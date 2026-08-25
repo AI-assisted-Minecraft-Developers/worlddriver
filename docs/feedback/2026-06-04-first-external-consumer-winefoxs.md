@@ -1,5 +1,8 @@
 # Feedback — first external consumer (winefoxs_spellbooks)
 
+**Historical — dated 2026-06-04, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
+report as it was filed, not a description of the driver as it stands today.**
+
 > Date: 2026-06-04 · Consumer: `winefoxs_spellbooks` (NeoForge ModDevGradle mod, MC 1.21.1)
 > Goal: use WorldDriver as an automated-test harness to drive + assert another mod's
 > gameplay (a custom Iron's Spellbooks school) from an AI agent.

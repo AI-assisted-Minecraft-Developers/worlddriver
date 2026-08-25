@@ -1,5 +1,8 @@
 # 设计文档 04 —— 感知层与决策边界
 
+**Historical — dated 2026-06-04, superseded by the shipped `mc.observe.scene` / `mc.client.scene`
+reads and the `bot/scheduler/` chains that consume them.**
+
 > Agent 控制架构演进的第一个垂直切片（Perception + Decision-Boundary foundation）。
 > 前置：[00-execution-model](00-execution-model.md)（L0/L1/L2 执行模型与优先级链调度器）。
 > 配套：`docs/superpowers/specs/2026-06-04-perception-decision-boundary-design.md`（设计）、
@@ -27,7 +30,7 @@
    DuskSecureChain  读 HazardField           mc.observe.scene (server 概览)
 ```
 
-- **纯函数缝**：`HazardField` / `SurvivalFacts` / `AsciiMapRenderer` / `SurvivalMath` 只吃 `WorldView` + 标量，无 client 类型 → headless GameTest 可测（server 经 `ServerWorldView`，见 `50/51_scene_*.js`）。
+- **纯函数缝**：`HazardField` / `SurvivalFacts` / `AsciiMapRenderer` / `SurvivalMath` 只吃 `WorldView` + 标量，无 client 类型 → headless StageWright 场景可测（server 经 `ServerWorldView`，见 `50/51_scene_*.js`）。
 - **客户端权威**：`mc.client.scene` 强制读 client `WorldModel`，与反射所见同源——感知与行动物理上不可能 desync（这正是消除本切片病根的设计）。
 - **副作用归调用方**：边沿事件 `duskExposed`/`cornered` 由 `BotApiImpl.clientTick` 发，不在 `WorldModel` 里——保持黑板纯净。
 

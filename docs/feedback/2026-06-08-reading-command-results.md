@@ -1,5 +1,8 @@
 # Feedback — no first-class way to read a command result or a blockstate
 
+**Historical — dated 2026-06-08, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
+report as it was filed, not a description of the driver as it stands today.**
+
 > Date: 2026-06-08 · Consumer: `magic-server-modpack` (pakku modpack, MC 1.21.1 / NeoForge)
 > Goal: build a structure live over the RPC, then **verify** it — including reading a
 > block's *state* (e.g. is this `ars_nouveau:source_lamp` actually `lit=true`?) and the

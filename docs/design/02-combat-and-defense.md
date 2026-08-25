@@ -1,5 +1,8 @@
 # 设计文档 02 —— 御敌、战斗与装备
 
+**Historical — dated 2026-06-04, superseded by the shipped `bot/process/CombatProcess.java`,
+`bot/scheduler/CombatChain.java` and `bot/util/AttackSnap.java`.**
+
 > 覆盖 ROADMAP Phase B（御敌反射 T0）+ Phase C（战斗循环 T1）+ Phase F（装备）。
 > 依赖 Phase A 调度器（见 `00-execution-model.md`）。
 > 参考：`research-clones/altoclef/` 的 `chains/MobDefenseChain.java`、`chains/FoodChain.java`、`chains/MLGBucketFallChain.java`、`control/KillAura.java`、`tasks/entity/AbstractKillEntityTask.java`、`tasks/movement/{DodgeProjectilesTask,RunAwayFromCreepersTask}.java`、`tasks/misc/EquipArmorTask.java`
@@ -98,7 +101,7 @@ mc.bot.combat{ mode: "engage"|"defend"|"kill", target?: {type|id|nearest} }
 2. 判断武器类型：近战（剑/斧）→ 进 3 格；远程（弓/弩）→ 保持 `kiteDistance` 并面向目标。
 3. 进距用既有 `goto{entity}` / `follow`。
 4. **攻击时机（关键）**：
-   - 近战只在 `mc.player.getAttackStrengthScale(0.5f) >= 1.0` 时挥（冷却满才是满伤；Mojmap 下该方法带 partialTick 参数）。**这是当前 `attackEntity` 缺的——已核对 `BotApiImpl` 里它只有 `gameMode.attack(p,target)` + `swing()`，不查冷却，连续调用就是一直弱攻击。**
+   - 近战只在 `mc.player.getAttackStrengthScale(0.5f) >= 1.0` 时挥（冷却满才是满伤；Mojmap 下该方法带 partialTick 参数）。**写这份文档时 `attackEntity` 缺这一步——只有 `gameMode.attack(p,target)` + `swing()`，不查冷却，连续调用就是一直弱攻击。这条已经落地：`CombatProcess` 按 `getAttackStrengthScale` 决定何时出手，`bot/util/AttackSnap.java` 每 tick 读它。**
    - **暴击**：在下落过程中（非地面、非上升、未在水/梯）攻击触发暴击 1.5×。战斗循环可主动小跳后下落瞬间出手。
    - 走既有 `attackEntity` 的 `gameMode.attack()` 路径（vanilla 应用伤害/横扫/暴击）。
 5. **走位**：近战绕目标 strafe 躲正面；远程边后退边射（kite），保持 `kiteDistance`。

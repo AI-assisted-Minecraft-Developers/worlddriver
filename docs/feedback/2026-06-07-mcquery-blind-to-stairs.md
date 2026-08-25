@@ -1,5 +1,8 @@
 # Feedback — `mc.query q:"blocks"` silently omits stair blocks
 
+**Historical — dated 2026-06-07, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
+report as it was filed, not a description of the driver as it stands today.**
+
 > Date: 2026-06-07 · Consumer: `magic-server-modpack` (pakku modpack, MC 1.21.1 / NeoForge)
 > Goal: drive WorldDriver over the RPC websocket to **build a structure live** (a round
 > conical wizard tower) via `mc.action.fill` / `placeMany` / `runCommand`, then **verify**
