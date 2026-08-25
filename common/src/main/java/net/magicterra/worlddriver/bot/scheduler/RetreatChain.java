@@ -143,7 +143,7 @@ public final class RetreatChain implements Chain {
         // resumes once THREAT_MEMORY_TICKS lapses.
         ThreatScanner.Scan effScan = sealed ? seenOrConnectedOnly(scan) : scan;
         if (hostileWithin(effScan) || visibleRangedThreatWithin(effScan, RANGED_RADIUS)
-                || rangedThreatAiming(effScan) || underRangedFire(effScan)) {
+                || rangedThreatAiming(effScan) || effScan.underRangedFire()) {
             lastThreatSeenGameTime = now;
         }
         if (!retreating) {
@@ -234,7 +234,7 @@ public final class RetreatChain implements Chain {
         float effThr = Math.max(thr, maxHp * 0.4f);
         if (hp <= effThr && hostileWithin(scan)) return "lowHp";
         if (rangedThreatAiming(scan)) return "ranged-aiming";
-        if (underRangedFire(scan)) return "ranged-fire";
+        if (scan.underRangedFire()) return "ranged-fire";
         if ((!combatEngaged || hp <= effThr) && hurtByAnyone(scan)) return "hurt";
         return null;
     }
@@ -349,10 +349,10 @@ public final class RetreatChain implements Chain {
         boolean visibleRanged = visibleRangedThreatWithin(scan, RANGED_RADIUS);
         boolean recentHurt = ticksSinceHurt < HURT_RELEASE_COOLDOWN_TICKS;
         boolean recentThreatLowHp = hp < thr && ticksSinceThreat < THREAT_MEMORY_TICKS;
-        if (!hostileWithin(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
+        if (!hostileWithin(scan) && !scan.underRangedFire() && !hurtByAnyone(scan)
                 && !visibleRanged && !recentHurt && !recentThreatLowHp) return "safe";
         boolean recovered = hp >= thr + RELEASE_HP_MARGIN;
-        if (recovered && !rangedThreatAiming(scan) && !underRangedFire(scan) && !hurtByAnyone(scan)
+        if (recovered && !rangedThreatAiming(scan) && !scan.underRangedFire() && !hurtByAnyone(scan)
                 && !visibleRanged && !recentHurt) return "recovered";
         return null;
     }
@@ -453,16 +453,9 @@ public final class RetreatChain implements Chain {
         return false;
     }
 
-    /** A ranged attacker whose shot actually CONNECTED (the scan's {@code attackedMe}
-     *  = vanilla last-damager, ~2s window). The one trigger that works when both the
-     *  distance yardstick and the LoS-based aim signal fail — e.g. sniped through a
-     *  stair shaft where the eye-ray is blocked but the arrow arcs in (death #6). */
-    private static boolean underRangedFire(ThreatScanner.Scan scan) {
-        for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.attackedMe() && t.entity() instanceof RangedAttackMob) return true;
-        }
-        return false;
-    }
+    // underRangedFire is now ThreatScanner.Scan#underRangedFire — the only predicate in this
+    // block that compares against no threshold, and the one BunkerChain also needed. Its two
+    // measurements (death #6 here, death #26 there) are recorded on it.
 
     /** A {@link RangedAttackMob} within {@code radius} that the bot can currently
      *  SEE — gap#71's release guard, deliberately independent of {@code charging}

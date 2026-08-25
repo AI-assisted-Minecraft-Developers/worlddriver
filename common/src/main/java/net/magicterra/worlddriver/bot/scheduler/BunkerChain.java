@@ -9,7 +9,6 @@ import net.magicterra.worlddriver.bot.process.BunkerProcess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.monster.RangedAttackMob;
 
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
 import static net.magicterra.worlddriver.bot.util.BotInteract.continueDestroy;
@@ -94,18 +93,7 @@ public final class BunkerChain implements Chain {
      *  @param sealed block-level enclosure ground truth ({@link BunkerProcess#enclosed}). */
     public static boolean shouldRangedBunker(float hp, float retreatThr, ThreatScanner.Scan scan,
                                              boolean sealed) {
-        return !sealed && hp <= retreatThr && underRangedFire(scan);
-    }
-
-    /** death#26: a ranged attacker whose shot actually CONNECTED (scan {@code
-     *  attackedMe} = vanilla last-damager, ~2s window). Mirrors
-     *  {@code RetreatChain.underRangedFire} — being shot by a skeleton/witch is the
-     *  precise "pinned in the open" signal that a plain flee can't answer. */
-    private static boolean underRangedFire(ThreatScanner.Scan scan) {
-        for (ThreatScanner.Threat t : scan.threats()) {
-            if (t.attackedMe() && t.entity() instanceof RangedAttackMob) return true;
-        }
-        return false;
+        return !sealed && hp <= retreatThr && scan.underRangedFire();
     }
 
     @Override public void tick(Minecraft mc, WorldView w, BotState st) {

@@ -54,6 +54,31 @@ public final class ThreatScanner {
     public record Scan(List<Threat> threats, List<Incoming> projectiles) {
         public boolean isEmpty() { return threats.isEmpty() && projectiles.isEmpty(); }
         public Threat top() { return threats.isEmpty() ? null : threats.get(0); }
+
+        /**
+         * A ranged attacker whose shot actually CONNECTED — {@link Threat#attackedMe} is the
+         * vanilla last-damager over a ~2s window.
+         *
+         * <p>It lives on the scan rather than in a reflex chain because it asks nothing of the
+         * bot's policy: no radius, no HP, no line-of-sight. That is the line between this and its
+         * neighbours in {@code RetreatChain} — {@code rangedThreatAiming} compares against
+         * {@code RANGED_RADIUS}, {@code visibleRangedThreatWithin} takes a radius, and a
+         * threshold is a policy the chain owns. Both chains that read this had a private
+         * byte-identical copy, one of them under a javadoc saying it "mirrors" the other.
+         *
+         * <p>Two chains, two measurements, one predicate. {@code RetreatChain} flees on it
+         * because it is the only trigger that survives when both the distance yardstick and the
+         * LoS-based aim signal fail — sniped through a stair shaft where the eye-ray is blocked
+         * but the arrow arcs in (death #6). {@code BunkerChain} seals a roof on it because being
+         * shot by a skeleton/witch is the precise "pinned in the open" signal a plain flee cannot
+         * answer (death #26).
+         */
+        public boolean underRangedFire() {
+            for (Threat t : threats) {
+                if (t.attackedMe() && t.entity() instanceof RangedAttackMob) return true;
+            }
+            return false;
+        }
     }
 
     static final Scan EMPTY = new Scan(List.of(), List.of());
