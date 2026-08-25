@@ -228,10 +228,52 @@ public final class BotInteract {
                 lidBlocksRise, breaking, straddled);
     }
 
-    /** Internal — used by BuildProcess to drive the real placement pipeline
-     *  instead of the legacy server.setBlock bypass. Must be called from the
-     *  client thread. */
+    /**
+     * Internal — used by BuildProcess to drive the real placement pipeline instead of the legacy
+     * server.setBlock bypass.
+     *
+     * <p><b>Callable from any thread; the click itself always runs on the client thread.</b> This
+     * javadoc used to say "must be called from the client thread", and nothing enforced it, so the
+     * journey scenes — which drive a {@code ClientPlayerAvatar} from the SERVER thread — walked
+     * straight through. Everything under {@code mc.gameMode.useItemOn} is client-state mutation:
+     * {@code BlockItem.place} → {@code ClientLevel.playSound} → {@code SoundManager.play} →
+     * {@code SoundEngine.play} → {@code HashMap.put}, while the Render thread iterates that very map
+     * in {@code SoundEngine.tickNonPaused}. On 2026-08-25 the two met and threw a
+     * {@link java.util.ConcurrentModificationException} on the Render thread, killing a 45-minute
+     * ladder at rung 12 (crash-2026-08-25_08.40.53-client.txt). The race is old — j54 already ran 11
+     * placements off-thread and survived. What made it fire was the ramp's PENDING fix landing and
+     * roughly doubling placements per run: the same dice, thrown twice as often.
+     *
+     * <p><b>The off-thread path enqueues and returns; it does NOT wait.</b> Deliberate, and the two
+     * halves compose: {@code JourneyRamp}'s {@code Stop.PENDING} already made the placement verdict
+     * asynchronous — nobody reads the outcome in the calling tick, they re-read the world
+     * {@code PLACE_ROUND_TRIP} ticks later. The caller needs a delivery, not a result. Blocking the
+     * server thread on the client's queue would buy nothing and cost two things: a one-frame server
+     * stall per placement, and a shutdown/pause deadlock the moment the client thread is itself
+     * waiting on the server.
+     *
+     * <p><b>The off-thread return is {@link InteractionResult#PASS} and means "deferred", never
+     * "refused".</b> Nothing may branch on it. All three call sites discard it today
+     * ({@code ClientPlayerAvatar.placeOn} and {@code useBlock} are {@code void};
+     * {@link #walkerPlace} ignores it) — a caller wanting an outcome must read the world after the
+     * round trip, exactly as the ramp does.
+     *
+     * <p>On the client thread this is byte-identical to the old body: the guard is the only added
+     * statement, so BuildProcess / TowerProcess / BridgeProcess / SleepProcess are untouched.
+     */
     public static InteractionResult clientUseItemOn(Minecraft mc, LocalPlayer p, BlockPos clickBlock, Direction face) {
+        if (!mc.isSameThread()) {
+            // A DIFFERENT tag from the [place] row below, on purpose, for two reasons. The criterion
+            // that proves this fix is「zero [place] rows printed from the server thread」, so the
+            // deferral must not print one — a stub row with a fabricated 结果= would muddy the very
+            // instrument by construction. And counting 投递 against [place] turns a queue that
+            // silently drops work into a countable discrepancy instead of a placement that simply
+            // never happened.
+            LOG.info("[placeEnqueue] 投递到客户端线程 点击格={} 面={} 发起线程={}",
+                    clickBlock.toShortString(), face, Thread.currentThread().getName());
+            mc.execute(() -> clientUseItemOn(mc, p, clickBlock, face));
+            return InteractionResult.PASS;
+        }
         double cx = clickBlock.getX() + 0.5 + face.getStepX() * 0.5;
         double cy = clickBlock.getY() + 0.5 + face.getStepY() * 0.5;
         double cz = clickBlock.getZ() + 0.5 + face.getStepZ() * 0.5;
