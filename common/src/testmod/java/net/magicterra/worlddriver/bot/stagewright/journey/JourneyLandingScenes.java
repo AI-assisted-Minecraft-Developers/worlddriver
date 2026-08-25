@@ -750,11 +750,32 @@ public final class JourneyLandingScenes implements SceneProvider {
         // IN THE AIR OVER THE TERMINAL, dead centre — not a fifth of a cell into it like the lip arm.
         // The lip pose exists to keep the body supported by the tread above; this one exists to take
         // that support away, so the only thing between the body and the terminal is the fall.
+        //
+        // SLOW FALLING, AND IT IS A CLOCK CONTROL, NOT THE SUBJECT. `blockPosition()` flips the
+        // moment the feet cross the cell boundary, and a free fall crosses a one-block cell in about
+        // four ticks — less than the one-node leg takes to be consumed. Both measured, on this arena,
+        // before the effect went in:
+        //
+        //   posed at ends+1.0 → `subject.endedAt … 精确 …/217.92/…`, settled=null
+        //   posed at ends+1.6 → `subject.endedAt … 精确 …/217.83/…`, settled=null
+        //
+        // Both times `down()` was already true when the leg's callback ran and the branch under test
+        // was never entered — there is no height inside a one-block cell that survives four ticks of
+        // gravity. The effect slows the descent by an order of magnitude so the body is STILL in the
+        // terminal's head room, still unsupported, and still going to land, when the callback fires.
+        // That is the branch's entry condition exactly; what the effect changes is how long it lasts,
+        // and the ladder held it open by a different route — a body at `精确=(1.454,58.000,20.500)`
+        // whose support had just gone, fall distance zero, one tick from the flip.
         ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
         ServerPlayer fp = driver.fakePlayer();
         ServerPlayerAvatar av = driver.avatar();
-        fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.0, ends.getZ() + 0.5);
+        fp.addEffect(new net.minecraft.world.effect.MobEffectInstance(
+                net.minecraft.world.effect.MobEffects.SLOW_FALLING, 400, 0));
+        fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.4, ends.getZ() + 0.5);
         av.step();
+        ctx.check(fp.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING))
+                .as("控制组 C：缓降必须真的挂上了 —— 没挂上，身体四 tick 就穿过格边界，"
+                        + "判据那一刻已经在末路点里，这一臂又什么都没测到").isTrue();
 
         BlockPos posed = fp.blockPosition();
         ctx.record("staged.pose", String.format(java.util.Locale.ROOT,
@@ -783,7 +804,11 @@ public final class JourneyLandingScenes implements SceneProvider {
             // No settled row means the callback never saw the body in the head room — either the drop
             // landed before the leg ended (then this arm staged nothing) or the branch is not being
             // reached at all. Both want to be told apart from a pass.
-            ctx.check(settled != null).as("A 新分支必须真的开过火并留下判词 —— "
+            // THE OBJECT, not `settled != null`. The first version asked `ctx.check(settled != null)
+            // … isNotNull()`, and a boolean is never null — so criterion A could only ever pass, and
+            // it did, on a run whose `subject.settled` was null. A criterion success cannot fail is
+            // worth exactly as much as one success cannot satisfy.
+            ctx.check(settled).as("A 新分支必须真的开过火并留下判词 —— "
                     + "没有 flightLastStepSettled 就说明判据那一刻身体不在末路点头顶格，"
                     + "这一臂什么都没测到，B/C 是 0==0。endedAt=" + got).isNotNull();
             ctx.check(got.getY() <= ends.getY()).as("B 等过之后身体必须真的在末路点那一排或更低 —— "
