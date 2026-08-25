@@ -1255,6 +1255,49 @@ j57 会安安静静报「K1 通过」——**一把量不到东西的尺子和�
 ⚠️ 顺带一条对 j57 有用的：**12 级就算判红，它的结果行照样会写**，只有**崩掉**才会丢。
 所以 **K3 可判 ⇔ 这趟不崩**——K1 和 K3 是互相加固的，不是两条独立的判据。
 
+### 🔴 J63：崩溃这一族比 J61 宽得多，而 **K1 看不见其余的成员**
+
+CME 是从 `ClientLevel.playSound` 掀起来的，而 **`BlockItem.place` 不是唯一会放声音的客户端调用**。
+把 `ClientPlayerAvatar` 整个读了一遍，**从服务端线程调过来就会写客户端状态**的方法（逐行核实）：
+
+| 方法 | 落到哪 | 状态 |
+|---|---|---|
+| `placeOn` / `useBlock` | `clientUseItemOn` | ✅ **J61 已修**（同一个咽喉） |
+| **`useItemInHand`** | `mc.gameMode.useItem(p, MAIN_HAND)` | 🔴 **没守**，而且**这就是桶那条路** |
+| `continueDestroy` | `mc.gameMode.continueDestroyBlock` | 🔴 没守；挖方块一样出声音和粒子 |
+| `holdItem` / `holdPlaceable` / `holdPillarBlock` / `holdThrowawayPlaceable` | `ensureHolding*` | 🟡 [[#J62]] |
+| `setSelectedSlot` | 直写 `inv.selected` + 发包 | 🟡 没守 |
+| `containerClick` / `placeRecipe` | `handleInventoryMouseClick` / `handlePlaceRecipe` | 🟡 没守 |
+| `attackEntityUnchecked` | `mc.gameMode.attack` | 🟡 没守 |
+| `closeContainer` / `startFallFlying` / `breakHold` / `aimAtBlock` / `selectTool` | 各自写客户端态 | 🟡 待分类 |
+
+⚠️ **`useItemInHand` 值得单独标红**：[[a-bucket-is-aimed-not-clicked]] 说过桶是走 `Item.use` 的，
+`BucketItem.use` 装满水之后照样 `level.playSound` ⇒ **和 J61 是同一副骰子**，
+而且它就在 **12 级取水**那一步上——**正是 j57 要去的地方**。
+
+### ⚠️ K1 的适用范围（写在结果之前，免得一个干净的 K1 被读成「这一族关掉了」）
+
+**K1 干净只证明「放置那条路换了线程」，不证明整族关掉了。** 因为 K1 数的是 `[place]` 行，
+而上表里除了 `placeOn`／`useBlock`，**没有一条会打 `[place]` 行**——桶装水不打、挖方块不打。
+[[three-greens-cannot-see-a-one-in-four]] 对 j57 的「这趟没崩」同样成立。
+
+⇒ **不为这个杀掉 j57**：j55 在桶那一步是**逻辑失败**（看不见源块），**不是崩溃**，
+所以这趟大概率能走到那儿并把行写出来。真在桶上崩了也是干净的证据——
+K1=0 同时崩溃仍在，恰好点名「J61 修对了，而这一族还有别的成员」。
+
+### 📌 j57 终局形态预登记（**写在退出码到达之前**）
+
+| 若 | 则 j57 的终局 | 该读成 |
+|---|---|---|
+| J61 成、J60 仍在 | `BUILD FAILED`、退出码非零、**12 级 FAIL 行写出来了** | **红，不是死**——K3／K6 正常工作 |
+| J61 成、J60 也过了 | 继续爬 13 级往上 | 最好的情况 |
+| 又崩了、无 12 级行 | **死，不是红** | 先看 K1：K1=0 就说明是**这一族的别的成员** |
+
+⚠️ **「12 级把自己的结果行写出来了」这件事本身就是 J61 的结果文件版证据**——
+j56 那一行正是**崩掉才没写成的**。
+⚠️ **K5 未触发不等于仪器坏**：眼位那一行只在「换座位挑出来的还是脚下这一格」时才打，
+那正是 j55／j56 的失败形态。12 级换个死法 ⇒ K5 未触发说明**形态变了**，不是仪器坏了。
+
 ### 🟡 J62（已核实，**本轮不修**）：`holdItem` 是同一族，只是还没轮到它炸
 
 `ClientPlayerAvatar.holdItem` → `BotInteract.ensureHolding`，而它**写的是客户端状态**：
