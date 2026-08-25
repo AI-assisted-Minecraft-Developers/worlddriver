@@ -647,7 +647,16 @@ public final class JourneyLandingScenes implements SceneProvider {
      */
     private static void walksOffTheLipOntoTheDryStep(SceneContext ctx) {
         ServerLevel level = ctx.level();
-        ctx.cleanup(() -> { JourneyStairs.forget(); clearBox(ctx); });
+        // THE TWO ENDS OF THE FLIGHT ARE STATE TOO, and they are process-wide exactly as the cell
+        // list is. `landingStory` — which every row this scene reads goes through — formats
+        // `stairBottom` unconditionally, so a scene that cuts a flight without naming its ends hands
+        // the production path a null. Cleared with the cells for the same reason they are.
+        ctx.cleanup(() -> {
+            JourneyStairs.forget();
+            JourneyPortalRung.stairTop = null;
+            JourneyPortalRung.stairBottom = null;
+            clearBox(ctx);
+        });
         flatGround(ctx);
 
         List<BlockPos> cut = new java.util.ArrayList<>();
@@ -658,6 +667,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         }
         JourneyStairs.reset(level, cut.get(0));
         for (int i = 1; i < STEPS; i++) JourneyStairs.cut(cut.get(i));
+        JourneyPortalRung.stairTop = cut.get(0);
+        JourneyPortalRung.stairBottom = cut.get(STEPS - 1);
         // The bottom step under water, so `lowestDryStep` lifts the terminal one step — the only
         // world in which the lip pose is reachable at all. See finishTheFlight's own note.
         ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 1, 0, Blocks.WATER);
