@@ -581,10 +581,18 @@ public final class JourneyLandingScenes implements SceneProvider {
         // Cut the flight into the stone, east and down, one course a step — the shape
         // `digStairsDown` makes. Each step is its own cell plus its head room; the block under it
         // stays, because that is what holds the step up.
+        // THREE CELLS PER STEP, the same three `digStairsDown` cuts — the step, its head room, and
+        // the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
+        // lip scene paid for it on its first reading: `end=failed:no path (expanded=2)` on BOTH legs,
+        // an artifact of this staging rather than anything the ladder does. `StepDown` requires the
+        // PASSTHROUGH column's head to be clear (`moves/StepDown.java:23`), and on the way down that
+        // passthrough is exactly the cell whose head is the third cut — so omitting it breaks the
+        // descent search too, not only the climb back up that `digStairsDown`'s javadoc names.
         List<BlockPos> cut = new java.util.ArrayList<>();
         for (int i = 0; i < STEPS; i++) {
             ctx.setBlock(-4 + i, GROUND - i, 0, Blocks.AIR);
             ctx.setBlock(-4 + i, GROUND - i + 1, 0, Blocks.AIR);
+            ctx.setBlock(-4 + i, GROUND - i + 2, 0, Blocks.AIR);
             cut.add(ctx.rel(-4 + i, GROUND - i, 0));
         }
         JourneyStairs.reset(level, cut.get(0));
@@ -669,10 +677,18 @@ public final class JourneyLandingScenes implements SceneProvider {
         });
         flatGround(ctx);
 
+        // THREE CELLS PER STEP, the same three `digStairsDown` cuts — the step, its head room, and
+        // the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
+        // lip scene paid for it on its first reading: `end=failed:no path (expanded=2)` on BOTH legs,
+        // an artifact of this staging rather than anything the ladder does. `StepDown` requires the
+        // PASSTHROUGH column's head to be clear (`moves/StepDown.java:23`), and on the way down that
+        // passthrough is exactly the cell whose head is the third cut — so omitting it breaks the
+        // descent search too, not only the climb back up that `digStairsDown`'s javadoc names.
         List<BlockPos> cut = new java.util.ArrayList<>();
         for (int i = 0; i < STEPS; i++) {
             ctx.setBlock(-4 + i, GROUND - i, 0, Blocks.AIR);
             ctx.setBlock(-4 + i, GROUND - i + 1, 0, Blocks.AIR);
+            ctx.setBlock(-4 + i, GROUND - i + 2, 0, Blocks.AIR);
             cut.add(ctx.rel(-4 + i, GROUND - i, 0));
         }
         JourneyStairs.reset(level, cut.get(0));

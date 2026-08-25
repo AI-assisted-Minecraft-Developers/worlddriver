@@ -3685,6 +3685,46 @@ subject.overshot= 都不是
 要去打栈而不是照 ① 的方向动手**（[[a-signature-loads-what-a-local-does-not]]：三轮排除落空就该打栈）。
 若读到 ② 或 ③，那才是本来就该落的地方：路存在，死在执行层或到达判据上。
 
+###### ❌ 读数（`lip-filtered.log`）：命中 ①，而 ① 是**我自己布景造出来的**
+
+```
+lip.flightLastStepEnd      = end=failed:no path (expanded=2) err=no path (expanded=2)
+lip.flightLastStepAgainEnd = end=failed:no path (expanded=2) err=no path (expanded=2)
+```
+
+⑤ ✅ 场景在 `fail(optional):` 行上，`VERDICT: GREEN (FILTERED — not a gate result)`，
+架子挂对了；⑥ ✅ `flightLastStepAgain` 印出「身处 Block{minecraft:water}」，构造性证明落进证据。
+
+**但 ① 不是真梯的读数。** 写在读之前的那条预测（`Walk` 只查目的地 ⇒ 「退一格再迈下来」合法）
+落空了，落空的原因不在寻路，在我漏读了 `StepDown.valid` 的最后一行：
+
+```java
+return w.isPassable(passthrough) && !w.isHazard(passthrough)
+    && w.isPassable(passthrough.offset(0, 1, 0));      // ← 穿行柱的头顶
+```
+
+下行时穿行柱正是身体自己那一柱，它的头顶 `99999, 219` 在我的场景里是**石头**——
+因为场景每级只切两格（脚+头），而真梯的 `digStairsDown` 每级切**三格**
+（`f`、`f.above()`、`f.above(2)`），javadoc 还专门写了第三格不是余量：
+「going back UP, the body jumps from a step to the one behind it, and a jump needs clearance two
+above the feet it starts from. Leaving it out gives a staircase that descends perfectly and cannot
+be climbed」。**这句只说了爬不上去，没说下行的 `StepDown` 也一起断**——现在量到了。
+
+**这是 [[the-test-reproduced-the-bug-in-its-own-staging]] 的第二例**：假红的方向
+（「身体下不去」）跟真缺陷长得一模一样，差点让我照着 ① 去动寻路的起点解析。
+真梯上第一腿是**走动了**的（`0,58,19 → 1,58,19`），本来就该让我起疑「无路」这个读数。
+
+**修法**：两个场景（`walksOffTheLipOntoTheDryStep` 和 `flightEndsOnADryStep`，同一份楼梯）
+都改成每级切三格。**重跑判据**（登记在读之前）：
+
+| | 读到什么 | 判作 |
+|---|---|---|
+| Ⓐ | 两条 `…End` 不再是 `no path`，且 `subject.legs=两腿`、判据 A 仍红 | 布景修正生效，**这才是真梯那一族的第一份真读数**——按新的 `end=` 分流 |
+| Ⓑ | 判据 A 变绿（身体下去了） | 少切那一格**就是**真梯这一族的病因之一？不能这么读——真梯切的是三格。要判成「隔离场里这条腿本来就能成」，回去核真梯的第三格是不是真被切开了（读 `forge.*` 的挖梯行） |
+| Ⓒ | 仍 `no path (expanded=2)` | 第三格没解决它，去打栈看 A\* 从起点展开了哪两个节点，不要再推 |
+| Ⓓ | 控制组 A/B 红 | 多切一格让身体自己掉下去了或姿势没摆成，先修姿势 |
+| Ⓔ | `flightEndsOnADryStep` 由 PASS 变 FAIL | 它测的是 `lowestDryStep`（纯查询），第三格不该影响它。真变了就是布景把水的流向改了，去读它自己的证据行，别并进这一笔 |
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
