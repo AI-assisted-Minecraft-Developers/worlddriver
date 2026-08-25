@@ -3764,6 +3764,27 @@ staged.pose                = 100511, 218, 100000 精确 100511.20/218.00/100000.
 `subject.movedBy` 是个小数、场景 tick 数回到个位（不再是 204）。
 **任何一项不符都先怀疑摘腿摘漏了**，不要当成新发现。
 
+###### 📌 J69e：双闸前登记（源码这一轮改了五笔，闸未跑，2026-08-25）
+
+**这一轮改了什么**：`d7d28819`（两条腿接 walkerEnd + 场景上 optional 架）、
+`7803b4b9`（两处布景每级切三格）、`d609750d`（删掉第二腿）、
+`ac7f61b1`（TODO）、以及 descentHolds 计数器那一笔。**产码只动了 testmod，主源码零改动。**
+
+**计数规则先量了再登记**（顾问点的分叉在这里被排除掉）：两个 loader 的基线
+`fail(optional)` **都是 3 条**（`vineOverWaterClimb`、`serverEscapeSealedShelter`、
+`journeyGetsAshoreBeforePouring`），且 `executed + skipped` 两边都恰好 **318**
+（Fabric 293+25、NeoForge 294+24）。⇒ **FAIL（required 与 optional 同）既不进 executed 也不进 skipped**，
+这条规则在 `gate-j69c2` 上已被验过一次（场景在场且 required FAIL，仍是 293/25）。
+所以不需要分叉，登记成一个数：
+
+| | 读到什么 | 判作 |
+|---|---|---|
+| ① | Fabric **GREEN 293/25**、NeoForge **GREEN 294/24**，各 **4 条** `fail(optional)`（原 3 条 + `wd.journeyWalksOffTheLipOntoTheDryStep`），0 条 required `FAIL:`，0 条 `UNDECLARED:`，canary 三行正常 | 这一轮收口。J47 的两个证人各就位，可以进客户端排练 |
+| ② | 数对了但**多/少一条** optional | 先点名是哪一条，再与基线三条做差。**不要**因为总数「差不多」就放行 |
+| ③ | `UNDECLARED:` 非空 | manifest 与注册不同步。新场景两份 manifest 在 `e474f119` 就加过，**NeoForge 从没带着它跑过闸**——这一趟是它第一次被 NeoForge 对账 |
+| ④ | 别的场景红了 | 与各自 loader 的基线做差（Fabric `gate-j69`、NeoForge `gate-j69-neoforge`），**别默认是这一轮造成的**；这一轮没动主源码，任何主源码行为的变化都要另找原因 |
+| ⑤ | COVERAGE 少于基线 | 有场景崩了（crash 不计入 executed）。去找 `unexpected` 那一行，不要从总数倒推 |
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
