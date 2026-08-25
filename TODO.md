@@ -1489,22 +1489,85 @@ CombatProcess.meleeTick → approach → Walker.tick → WalkerTickSearch.run:79
 | 带 `d321eac4`（两趟） | `BUILD FAILED in 3m 43s`，死在第 **176** 条 `wd.serverDamagesTheDragon` |
 | 只把 `JourneyFill` 回退到 `d321eac4~1`，其余保持 HEAD | **龙 PASS（1 tick，127 ms）**，一路跑到第 **260** 条 |
 
-⇒ **我的可达性推理输给了对照组。** `WorldDriverMobFightScenes.java` 对 `JourneyFill`
-的引用数确实是 0，那个推理**作为「直接调用」是对的**，但**作为「够不着」是错的**——
-代价是全局的，不跟着调用图走。
+> ### ~~⇒ 我的可达性推理输给了对照组~~ ——**上面这张表读错了，下一节是更正**
+>
+> `WorldDriverMobFightScenes.java` 对 `JourneyFill` 的引用数是 0，我据此说「够不着」，
+> 又被 A/B 推翻，于是改口说「代价是全局的，不跟着调用图走」。**两句都建立在
+> 「死在龙上」这个错读之上**，见下。
+
+### ⛔ 更正：龙不是案发现场，**三个臂里它都 PASS**
+
+场景名是**完成时**才打的，所以「最后一条」永远不是肇事者
+（[[a-lagging-reading-became-the-crime-scene]]、[[the-audit-that-did-not-ask]]）。
+**今天第三次踩它**，而且这条记忆是我今早自己写的。
+
+| 臂 | 第 176 条（龙） | 第 177 条 |
+|---|---|---|
+| fail | **PASS**（1 tick，186 ms） | `wd.serverFightsAFlyingBlaze`，名字从没打出来 |
+| A/B | **PASS**（1 tick，127 ms） | `wd.serverFightsAFlyingBlaze` **PASS**（32 tick） |
+| 绿参照 | **PASS**（1 tick，182 ms） | `wd.serverFightsAFlyingBlaze` **PASS**（30 tick） |
+
+**卡死的是第 177 条 `wd.serverFightsAFlyingBlaze`**，与崩溃栈里的
+`CombatProcess.meleeTick` 一致。
+
+**代价假说被算术否掉了。** 1..176 逐条比对：**176 条结果全部相同**，总时长差
+`fail − ab = 5777 ms`，其中 4000 ms 全在一条 `#169 wd.serverCastsObsidian`
+（4221 ms vs 221 ms），差 >100 ms 的只有 6 条。**5.8 秒产生不了 67 秒的看门狗。**
+A/B 那一臂的节奏也是健康的（282 条 / 4m30s，比绿参照的 322 条 / 5m42s 还快），
+所以差分本身不是「那一臂也病了」。
+
+⇒ **J60-B 与这次崩溃的因果关系并未确立。** 已确立的只有差分现象本身，
+机制是下面这条，而它**跟 J60-B 无关**。
 
 ⚠️ **诚实边界**：A/B 那一臂**被杀在第 260 条，没有产出 VERDICT**。
 所以已经确立的是**差分**（带它死、去掉不死），**不是**「去掉之后闸是绿的」。
 后者还得单独跑一趟完整的（[[a-verdict-has-upstream-verdicts]]）。
 
-**代价从哪来（待测，不是已证）**：严格趟**先跑**，找不到再跑**整趟回退**，
-而近岸偏好本身又是两趟。最坏是
-`2（严格/回退）× 2（近岸）× 16 源 × 8 邻格 × 4 dy × 5 只眼 ≈ 2 万次 clip`，
-全在**一个服务端 tick 里**。看门狗判的是单 tick 超时，所以它在哪个场景上炸
-取决于谁先跨过阈值——这解释了为什么两次崩溃报告的栈叶子不同、却都在寻路里：
-**栈是超时那一刻的快照，不是肇事者的名字**（[[a-lagging-reading-became-the-crime-scene]] 的近亲）。
+~~**代价从哪来（待测，不是已证）**：`2 × 2 × 16 源 × 8 邻格 × 4 dy × 5 只眼 ≈ 2 万次 clip`~~
+——**算术不成立，已废**：2 万次 clip 是亚秒级，而看门狗要的是单 tick 跨 60 秒。
+实测总差也只有 5.8 秒。真机制见下节。
 
-⇒ **重做时必须带预算闸**：严格趟要么限候选数、要么只对**少数几个**候选取包络、
+### 🔴 J65（真机制，**主代码缺陷，与 J60-B 无关**）：三道闸全按单次搜索算，病理是**单 tick 内跨搜索的总和**
+
+第 177 条区段的读数，两臂对照：
+
+| | fail | ab |
+|---|---|---|
+| 区段耗时 | 10:00:50 → 10:01:57 = **67 秒** | 10:07:30 → 10:07:32 = **2 秒** |
+| `search-begin owner=combat` | 519 次 | 646 次 |
+| `ENTER unbounded-slice` / `EXIT` | 470 / **0** | 545 / **0** |
+| `expanded` 最大 | **65147** | **0** |
+
+**健康臂里每一次搜索都 `expanded=0`** ——起点当场满足 `goal.reached`，立刻返回，
+646 次几乎不要钱。失败臂里搜索真的在展开，单次最多 65147 个节点。
+
+**为什么三道闸一道都没响**（失败日志里 `SAFETY CEILING` **0 行**、`HEARTBEAT` **0 行**）：
+
+| 闸 | 位置 | 判的量 |
+|---|---|---|
+| `sliceLimit` | `PathFinder.java:930` | 单次 `advance()` 的墙钟 |
+| `HEARTBEAT_NANOS`（1 s） | `PathFinder.java:936` | 单次 `advance()` 的墙钟 |
+| `CEILING_MS`（8 s） | `PathFinder.java:1124` | `totalMs(sliceStart)`，**同一次** `advance()` |
+| `maxMs` | `PathFinder.java:1102` | 同上，且场景故意设成 `Long.MAX_VALUE/2` |
+
+**全部以 `sliceStart` 为原点，而 `sliceStart` 每次 `advance()` 重置**
+（[[a-clock-that-resets-every-segment]] 的同一形状）。519 次搜索各自都很短——
+没到 1 秒心跳、没到 8 秒上限——**但它们在同一个服务端 tick 里**
+（[[a-whole-fight-in-one-server-tick]]：走行器一个 tick 里步进几千次，每步重开一次寻路）。
+67 秒是**总和**，而没有任何一个仪器在数总和。
+
+`PathFinder.java:938-947` 那段注释已经预判了「排 closed 重复」这条路径、还点了
+`wd.serverFightsAFlyingBlaze` 的名，并装了 HEARTBEAT 去抓。**它抓不到**——
+因为它自己也挂在 `sliceStart` 上。[[an-instrument-behind-a-flag-is-not-an-instrument]]
+的变体：仪器在，但它量的原点跟病理的原点不是同一个。
+
+📌 **修法方向（未实现，先登记）**：预算要有一个**跨搜索、按 tick 归零**的账
+——`owner=combat` 在同一 tick 内的累计墙钟，越线就让后续搜索直接返回 best-effort。
+这**不是**测试布景问题：通关链路上的战斗走同一条 `CombatProcess.meleeTick`，
+所以真梯也在这个悬崖边上。
+
+⇒ **J60-B 重做时仍应带预算闸**（谨慎起见，代价没被证明是这次的死因但也没被证明无害）：
+严格趟要么限候选数、要么只对**少数几个**候选取包络、
 要么把「身体自己那一格用真眼」这一半**单独落地**（那一半才是 12 级真正需要的，
 而且它只多 1 条射线，不是 5 条）。
 
