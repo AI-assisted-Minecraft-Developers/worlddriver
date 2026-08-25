@@ -187,6 +187,7 @@ wd.serverBreaksAnEndCrystal
 wd.serverEarnsAnEnderPearl
 wd.serverFightsAFlyingBlaze
 wd.serverFutileGateUnderACreepingGoal
+wd.serverBlazeFightStopsWhenTheBodyFallsOut
 wd.serverEarnsABlazeRod
 wd.serverOpensTheEndPortal
 wd.serverSmeltDeliversTheIngot

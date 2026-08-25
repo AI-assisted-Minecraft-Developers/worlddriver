@@ -65,7 +65,12 @@ public final class WorldDriverMobFightScenes {
                 // This stages the same reset loop on purpose, without a blaze, so the futile-search
                 // gate's census can be read EVERY run instead of whenever the dice agree.
                 Scene.of("wd.serverFutileGateUnderACreepingGoal", 4_000,
-                        WorldDriverMobFightScenes::serverFutileGateUnderACreepingGoal)));
+                        WorldDriverMobFightScenes::serverFutileGateUnderACreepingGoal),
+                // The other half of the same argument: wd.serverFightsAFlyingBlaze's fall guard
+                // exists precisely so that a healthy run never runs it, which leaves it unverifiable
+                // by any green suite. This stages the fall.
+                Scene.of("wd.serverBlazeFightStopsWhenTheBodyFallsOut", 4_000,
+                        WorldDriverMobFightScenes::serverBlazeFightStopsWhenTheBodyFallsOut)));
     }
 
     /**
@@ -339,8 +344,25 @@ public final class WorldDriverMobFightScenes {
         // Walker.setGoal wipes searchGov, and a null futileFoot reads as "the body moved") — and
         // code alone cannot choose between them. This census chooses.
         //
-        // It goes in BEFORE the rim that will stop the body leaving the floor, because that rim
-        // removes the only occasion this defect has anywhere in the suite.
+        // ANSWERED 2026-08-25, AND BY NEITHER CANDIDATE — the door is bucket 9, "seeded after a
+        // reset, not judged". The answer did not come from this row: fourteen of them exist and all
+        // fourteen are healthy runs, because the fall is rare and the runs that had it died before
+        // finish(). It came from wd.serverFutileGateUnderACreepingGoal, which stages the same reset
+        // loop deliberately and so reports every run. Same unreachable goal, one variable:
+        //   creepRetarget (no setGoal)  6 searches, counted 5  -> gate FIRES at t=89
+        //   creepSetGoal  (setGoal)   240 searches, counted 120, SEEDED-AFTER-RESET 120 -> never fires
+        // setGoal wipes searchGov, the next search is a seed, a seed is not judged, and a target
+        // that moves every tick means every other search is a seed. The gate's criterion (five
+        // CONSECUTIVE searches without progress) and the case it exists for (a moving target, so a
+        // reset every tick) are mutually exclusive. Filed as J74; the fix is engine-side and queued.
+        //
+        // This row stays anyway: it is the in-situ reading, and the creeping-goal scene is a proxy.
+        //
+        // It was written to go in BEFORE a rim that would stop the body leaving the floor, on the
+        // grounds that such a rim "removes the only occasion this defect has anywhere in the suite".
+        // That premise is no longer true — the creeping-goal scene is now that occasion, every run —
+        // but the rim is still not the fix here, because it would alter the fight being measured.
+        // noteTheFall() bounds the cost without touching the healthy arm; see the BlazeFightRun note.
         final long[] futileAtStart = futileSnapshot();
 
         // Round 1: open sky. Measured, not assumed — and it does NOT work.
@@ -755,8 +777,20 @@ public final class WorldDriverMobFightScenes {
      * is a rare single iteration, and <b>it is intermittent: one green run does not retire it.</b>
      * Any overrun is logged the instant it happens rather than only in {@link #finish()}, because a
      * tick that kills the server never reaches {@code finish()} and takes every {@code ctx.record}
-     * with it. Actually capping it means giving the search back a real budget, which changes the
-     * fight being measured — an A/B, not a tidy-up, and not yet done.
+     * with it.
+     *
+     * <p><b>2026-08-25: it was not retired, and it collected.</b> A Fabric gate died here at
+     * 176/325 scenes — watchdog, no verdict line at all — after two earlier runs came within 12 s
+     * of the same edge and still reported PASS (48062 ms and 35567 ms; healthy draws are 1-4 s).
+     * That is three samples of one tail against a 60 s wall, so it was never dice.
+     *
+     * <p>What closed it is {@link #noteTheFall()}, and the shape matters: capping the search
+     * outright was rejected here on the grounds that it "changes the fight being measured", and
+     * that objection is right — but it only applies while a fight is being measured. Every one of
+     * these overruns happens after the body has walked off the floor and is re-planning from the
+     * world bottom toward a goal 250 blocks up, which is not the fight. So the cap is armed by
+     * the fall, not by the clock: the healthy arm never executes a byte of it, and the pathological
+     * arm gets a real budget, sixty bounded iterations of census, and an ending.
      *
      * <p>The {@code blaze.tick()} / {@code tickAll()} interleaving is preserved exactly, because it
      * is a real requirement rather than an artifact: the mob and the body must advance in lockstep
@@ -777,8 +811,31 @@ public final class WorldDriverMobFightScenes {
          */
         private static final long SLICE_MS = 40;
 
+        /**
+         * How far under the floor counts as "no longer in this arena". Six blocks is well past any
+         * step-down or knockback on an 11x11 slab and well short of the ~280-block drop the body
+         * actually takes, so the reading is not sensitive to the number.
+         *
+         * <p>The floor, not the body's own start height: a body that walks off is measured against
+         * the thing it walked off, and that is what makes this a staging predicate rather than a
+         * physics one.
+         */
+        private static final int FALL_MARGIN = 6;
+
+        /**
+         * Iterations to keep feeding the futile-gate census AFTER the body has left the floor,
+         * under a real pathfinder budget.
+         *
+         * <p>The pathological phase is the only interesting one — a search from the world bottom
+         * toward a goal 250 blocks up is what the gate is supposed to stop — so ending the round
+         * the instant the body falls would throw away the evidence along with the cost. Sixty
+         * iterations at a 6 ms slice is ~0.4 s, three orders under the watchdog.
+         */
+        private static final int FALL_PROBE_ITERS = 60;
+
         private final SceneContext ctx;
         private final ServerLevel level;
+        private final ServerPlayer fp;
         private final int cx, cz, floorY, budget;
         private final String tag;
         private final net.minecraft.world.entity.monster.Blaze blaze;
@@ -788,9 +845,17 @@ public final class WorldDriverMobFightScenes {
         private long worstIter, workNanos, worstPump;
         private int worstAt = -1, serverTicks;
 
+        /** Census + budgets at the moment the body left, so the probe's share can be differenced. */
+        private long[] futileAtFall;
+        private long sliceWas, maxWas;
+        private int fellAt = -1;
+        private double fellY;
+        private boolean fallReported;
+        private String postFallCensus;
+
         BlazeFightRun(SceneContext ctx, ServerLevel level, ServerWorldDriver driver, ServerPlayer fp,
                       int cx, int cz, int floorY, int budget, String tag) {
-            this.ctx = ctx; this.level = level;
+            this.ctx = ctx; this.level = level; this.fp = fp;
             this.cx = cx; this.cz = cz; this.floorY = floorY; this.budget = budget; this.tag = tag;
 
             blaze = new net.minecraft.world.entity.monster.Blaze(
@@ -810,7 +875,71 @@ public final class WorldDriverMobFightScenes {
          *  allowance has to cover the whole iteration budget or a slow run fails as a timeout. */
         int tickAllowance() { return budget + 200; }
 
-        private boolean done() { return t >= budget || !blaze.isAlive(); }
+        private boolean done() {
+            return t >= budget || !blaze.isAlive()
+                    || (fellAt >= 0 && t - fellAt >= FALL_PROBE_ITERS);
+        }
+
+        /**
+         * The body walked off the floor — end this round, but take evidence on the way out.
+         *
+         * <p>This is the whole of J73. Until it existed the open round had no upper bound at all:
+         * once the body is at the world bottom every re-plan is a search toward a goal 250 blocks
+         * straight up, and with {@code pathfinderSliceMs/MaxMs} at {@code MAX_VALUE / 2} a single
+         * one of those costs seconds. Bounded iterations times unbounded cost per iteration is
+         * unbounded, and it killed a Fabric gate at 176/325 scenes on 2026-08-25 after twice
+         * getting within 12 s of the watchdog (48062 ms and 35567 ms runs, both PASS).
+         *
+         * <p><b>The healthy arm is untouched by construction.</b> Nothing here runs until the body
+         * is six blocks under the floor, which on a healthy run never happens — so this cannot be
+         * the reason a future open round reads differently. That is the answer to the objection
+         * the class note raises against simply capping the search ("changes the fight being
+         * measured"): by the time these budgets change there is no fight left to measure.
+         *
+         * <p>LOGGED, not merely recorded, for the reason the pump's own comment gives: the tick
+         * that kills the server never reaches {@link #finish()}.
+         */
+        private void noteTheFall() {
+            fellAt = t;
+            fellY = fp.getY();
+            futileAtFall = futileSnapshot();
+            sliceWas = BotConfig.pathfinderSliceMs;
+            maxWas = BotConfig.pathfinderMaxMs;
+            // Production values, not this scene's MAX_VALUE/2. The probe below wants a bounded
+            // search far more than it wants an untruncated one.
+            BotConfig.pathfinderSliceMs = 6;
+            BotConfig.pathfinderMaxMs = 500;
+            net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+                    "[blazefight] {} BODY LEFT THE ARENA at iter={} — y={} is {} below floor {};"
+                            + " blaze at y={}. Ending the round after {} probe iterations under a"
+                            + " REAL pathfinder budget (slice {}->6 ms, max {}->500 ms).",
+                    tag, fellAt, String.format(java.util.Locale.ROOT, "%.1f", fellY),
+                    String.format(java.util.Locale.ROOT, "%.1f", floorY - fellY), floorY,
+                    String.format(java.util.Locale.ROOT, "%.1f", blaze.getY()),
+                    FALL_PROBE_ITERS, sliceWas, maxWas);
+        }
+
+        /** Log the probe's census share and hand the budgets back. Idempotent: the probe may end
+         *  either by running out of iterations or by the round's own budget expiring first. */
+        private void reportTheFall() {
+            if (fallReported || fellAt < 0) return;
+            fallReported = true;
+            BotConfig.pathfinderSliceMs = sliceWas;
+            BotConfig.pathfinderMaxMs = maxWas;
+            postFallCensus = futileGateLine(futileAtFall, futileSnapshot());
+            net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
+                    "[blazefight] {} POST-FALL CENSUS over {} iterations — {}", tag, t - fellAt,
+                    postFallCensus);
+        }
+
+        /** Iterations completed so far — the clock a staging step schedules itself against. */
+        int iterations() { return t; }
+
+        /** The iteration the body left the floor on, or -1 if it never did. */
+        int fellAt() { return fellAt; }
+
+        /** Worst single {@link #pump()}, in ms. The quantity the hang watchdog actually measures. */
+        double worstPumpMs() { return worstPump / 1_000_000.0; }
 
         /** Advance the fight for at most {@link #SLICE_MS}; true when the fight is over. */
         boolean pump() {
@@ -835,6 +964,10 @@ public final class WorldDriverMobFightScenes {
                     blaze.tick();
                     highest = Math.max(highest, blaze.getY());
                 }
+                // AFTER tickAll, so the y read is the one the iteration just produced rather than
+                // the one the previous iteration left behind — the lag that made a stale reading
+                // look like the crime scene once before.
+                if (fellAt < 0 && fp.getY() < floorY - FALL_MARGIN) noteTheFall();
                 long spent = System.nanoTime() - iter;
                 if (spent > worstIter) { worstIter = spent; worstAt = t; }
                 // THE MOMENT IT HAPPENS, not in finish(). One iteration costing more than the whole
@@ -859,6 +992,7 @@ public final class WorldDriverMobFightScenes {
                             "[blazefight] {} iter={} serverTicks={} workMs={} worstIterMs={}", tag, t,
                             serverTicks, workNanos / 1_000_000L, worstIter / 1_000_000L);
             } while (System.nanoTime() < deadline);
+            if (fellAt >= 0 && done()) reportTheFall();
             long pump = System.nanoTime() - pumpBegan;
             workNanos += pump;
             if (pump > worstPump) worstPump = pump;
@@ -867,7 +1001,20 @@ public final class WorldDriverMobFightScenes {
 
         /** Record the evidence, clear the arena, and hand back the outcome. */
         BlazeFight finish() {
+            // Belt and braces: the probe can also be cut short by the round's own tick budget
+            // running out, in which case pump() never saw done() flip on the fall's account.
+            reportTheFall();
             long workMs = workNanos / 1_000_000L;
+            // Recorded on EVERY run, including the ones where it did not happen. A row that only
+            // appears on the bad runs cannot be differenced against a good one, and "no row" reads
+            // the same as "instrument absent".
+            ctx.record(tag + ".leftTheArena", fellAt < 0
+                    ? "否 —— 整轮都在台子上（这是健康形状；守卫在这一趟一个字节都没执行）"
+                    : String.format(java.util.Locale.ROOT,
+                            "是 —— 第 %d 次迭代掉到 y=%.1f（台面 %d，低了 %.1f 格），"
+                                    + "此后 %d 次有界迭代取证后收轮。露天轮的 ticks 因此不是打满的 %d",
+                            fellAt, fellY, floorY, floorY - fellY, t - fellAt, budget));
+            if (postFallCensus != null) ctx.record(tag + ".postFallGate", postFallCensus);
             ctx.record(tag + ".workMs", workMs + " ms（" + t + " 次迭代，摊在 " + serverTicks
                     + " 个服务器 tick 上）");
             // The number the hang watchdog actually measures. It is the one that must stay small;
@@ -890,6 +1037,110 @@ public final class WorldDriverMobFightScenes {
                     WorldDriverProcessScenes.entityBox(cx, floorY, cz))) d.discard();
             return out;
         }
+    }
+
+    /**
+     * The guard from {@code BlazeFightRun.noteTheFall()}, on the one occasion that fires it.
+     *
+     * <p><b>Why this scene has to exist at all.</b> The guard's whole design property is that a
+     * healthy run never executes a byte of it — so a green suite says exactly nothing about
+     * whether it works. Worse, the occasion it guards against happens roughly once in three runs
+     * of {@code wd.serverFightsAFlyingBlaze} and each of those runs is forty minutes, so waiting
+     * for the dice is not a test plan. The same reasoning already produced
+     * {@code wd.serverFutileGateUnderACreepingGoal}; this is its sibling for the other half.
+     *
+     * <p><b>The fall is staged, not simulated.</b> The body is dropped onto a real pad 200 blocks
+     * under the arena AFTER the fight has been running for a while, so the combat process is
+     * carrying the same live re-planning state it carries in the field — a body posed at the
+     * bottom from tick zero would be a different subject, and a fight that never started would
+     * make the assertions read 0 == 0. The pad is built rather than trusting the terrain: 200
+     * blocks under an arena that itself floats is not a place with a documented floor, and a body
+     * still falling is not the geometry the tail was measured in (it sat at y=-60.00, steady).
+     *
+     * <p>What is asserted is the BOUND, not the outcome of the fight: that the guard fired, that
+     * the round then ended within the probe's own iteration budget instead of running to 3000, and
+     * that no single pump got anywhere near the 60 s the watchdog kills at. The census the probe
+     * collects is recorded, not asserted — it is J74's evidence, and J74 is an engine defect that
+     * this scene is not entitled to have an opinion about.
+     */
+    private static void serverBlazeFightStopsWhenTheBodyFallsOut(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+        final int padY = floorY - 200;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        SceneArena.buildFloor(level, cx, cz, floorY);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 1; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, padY, cz + dz),
+                        Blocks.STONE.defaultBlockState());
+        ctx.cleanup(() -> {
+            for (int dx = -6; dx <= 6; dx++)
+                for (int dy = 1; dy <= 8; dy++)
+                    for (int dz = -6; dz <= 6; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dz = -1; dz <= 1; dz++)
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, padY, cz + dz),
+                            Blocks.AIR.defaultBlockState());
+        });
+
+        BotConfig.walkerDebug = false;
+        // The same MAX_VALUE/2 the real scene uses. Staging the fall under a budget the real scene
+        // does not have would test a guard nobody ships.
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        var fp = driver.fakePlayer();
+        fp.getInventory().clearContent();
+        fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
+
+        final int pushAfter = 200;
+        var run = new BlazeFightRun(ctx, level, driver, fp, cx, cz, floorY, 3_000, "fell");
+        final int[] pushedAt = { -1 };
+        ctx.await(() -> {
+            if (pushedAt[0] < 0 && run.iterations() >= pushAfter) {
+                pushedAt[0] = run.iterations();
+                fp.moveTo(cx + 0.5, padY + 1, cz + 0.5);
+            }
+            return run.pump();
+        }).within(run.tickAllowance()).then(() -> {
+            var out = run.finish();
+            ctx.record("staged.pushedAt", pushedAt[0] + " 次迭代后把身体挪到 " + (cx) + ", "
+                    + (padY + 1) + ", " + cz + "（台面 " + floorY + "，低 200 格）");
+            ctx.record("subject.fellAt", String.valueOf(run.fellAt()));
+            ctx.record("subject.iterationsAfterFall",
+                    run.fellAt() < 0 ? "不适用（守卫没开火）" : String.valueOf(out.ticks() - run.fellAt()));
+            ctx.record("subject.worstPumpMs", String.format(java.util.Locale.ROOT,
+                    "%.1f ms（看门狗砍在 60000 ms）", run.worstPumpMs()));
+
+            ctx.check(run.fellAt() >= 0)
+                    .as("A 守卫必须开火：身体被挪到台下 200 格，noteTheFall 应当记下 fellAt。"
+                            + "没开火说明判据问错了量（fp.getY() 未必是 combat 读的那具身体），"
+                            + "先打一行 y 再改阈值，不要直接调 FALL_MARGIN。fellAt=" + run.fellAt())
+                    .isTrue();
+            // Deliberately NOT `== FALL_PROBE_ITERS`. The pump completes whole iterations, so the
+            // round can overshoot by one; an exact-equality check here would go red for a reason
+            // that has nothing to do with the bound holding.
+            ctx.check(run.fellAt() >= 0 && out.ticks() - run.fellAt() <= 80)
+                    .as("B 收轮必须有界：坠落之后只该再跑 60 次取证迭代，而不是把 3000 跑满。"
+                            + "跑满说明预算翻转没生效或 done() 没认这一支。实到 "
+                            + (run.fellAt() < 0 ? "不适用" : String.valueOf(out.ticks() - run.fellAt())))
+                    .isTrue();
+            ctx.check(run.worstPumpMs() < 2_000)
+                    .as("C 单个 pump 必须远离看门狗：坠落后每次搜索在 MAX_VALUE/2 下要 2.6~3 s，"
+                            + "翻成真预算后不该有任何一个 pump 接近这个量级。实到 "
+                            + String.format(java.util.Locale.ROOT, "%.1f ms", run.worstPumpMs()))
+                    .isTrue();
+            ctx.passNote("第 " + run.fellAt() + " 次迭代认出身体离场，再取证 "
+                    + (out.ticks() - run.fellAt()) + " 次后收轮，最差 pump "
+                    + String.format(java.util.Locale.ROOT, "%.1f", run.worstPumpMs()) + " ms");
+        });
     }
 
     /**
