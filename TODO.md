@@ -3538,7 +3538,22 @@ wet.cells = …245407,217=干，头顶=干；245408,216=水(源)，头顶=水(�
 是同一个病（按容差判到达、差一格没人查）。第二腿抽成一个小函数，J72 的修法直接调它——
 **一份实现两个调用点**，不写两遍。
 
-**次序**：闸绿 → J69c 场景+修法 → `rehearse12` → 真梯。J70 单独一笔，排在这之后。
+**次序**：闸绿 → J69c 场景+修法 → 排练 → 真梯。J70 单独一笔，排在这之后。
+
+⚠️ **排练要用 `runRehearsalIntegratedServer`，不是 `runRehearsalServer`。**
+这一级的输面**假玩家复现不了**：
+
+| 跑法 | 身体 | `cast*.returnedY` |
+|---|---|---|
+| `rehearse-j69b`（`runRehearsalServer`，专用服 + 假玩家） | `JoinedBody` / 服务端 tick | **57 ×3，全部落进末路点** |
+| `ladder-j69`（`runJourneyIntegratedServer`，真客户端） | `LocalPlayer` / 客户端 tick | **58 ×2，全部骑在唇上** |
+
+同一段代码、同一几何，两具身体的**亚格走位**不一样，于是一个掉得下去一个掉不下去。
+拿假玩家排练去验 J69c 会得到一个**本来就绿**的绿——它证明不了任何事（[[three-greens-cannot-see-a-one-in-four]]）。
+命令：`./gradlew :fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`。
+
+这也是新场景为什么必须留在闸上：它摆的是**坐标级的姿势**，与身体种类无关，
+所以它是唯一一个在两种身体上都能确定性判这一支的判官。
 
 **已落地**（commit `e474f119`）：`JourneyStairs.nextDown`、`finishTheFlight` 的第二腿、
 场景 `wd.journeyWalksOffTheLipOntoTheDryStep`、两份 manifest（新增段逐字节相同，已 diff 验过）。
