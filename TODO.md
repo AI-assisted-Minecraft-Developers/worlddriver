@@ -1147,6 +1147,48 @@ java.util.ConcurrentModificationException
 现在两者都在 Render 线程上了。要恢复这个区分得给行加一个 origin 字段 ——
 **可选，上面六条判据都不依赖它**，别顺手加。
 
+### ✅ NeoForge 专用服闸（2026-08-25，J59+J60+J61 落地之后）：**GREEN，颜色和预算的一致**
+
+`BUILD SUCCESSFUL in 5m 58s`，逐条对上预登记的基线：
+
+- `VERDICT:` 行**只有 1 行**（先数行再报颜色）：`[stagewright:dedicatedServerNeoforge] VERDICT: GREEN`
+- **required 失败 0 个**（大小写敏感地数 `FAIL: '`）
+- optional 失败 **3 个，正是那条基线**：`wd.vineOverWaterClimb`、`wd.serverEscapeSealedShelter`、
+  `wd.journeyGetsAshoreBeforePouring`
+- **没有 `UNDECLARED:` 行**；三只 canary 全部各就各位（FAIL／TIMEOUT／correctly omitted）
+- `COVERAGE: 290 executed, 24 skipped`
+
+⇒ **J59 现在两个 loader 都绿过了**，J60 的仪器接线没有带出回归。
+
+⚠️ **但这一趟对 J61 是零覆盖，必须说清楚**：专用服上根本没有 `Minecraft` 客户端，
+`clientUseItemOn` 一次都不会被调用——那 24 个 skip 里就有
+`wd.actuatorSplitThroughTheClientAvatar`、`wd.drownEscapeClient*` 这些客户端专属的。
+[[skip-is-not-coverage]]。**J61 的离线程分支只有 j57 能验**，内联分支要靠 Fabric 的
+integrated／withClient 拓扑。
+
+### 🔧 K1 那把尺子先校准过了，而且第一版是坏的
+
+[[a-verification-tool-needs-verifying-too]]。判 K1 要数 `[place]` 行的线程标签，
+所以先拿 **j56（已知有病的那趟）** 试尺子——尺子必须在它身上响。
+
+**第一版正则一行都没匹配上**，因为两个日志格式不一样：
+
+- 游戏日志 `logs/latest.log`：`[07:58:17] [Render thread/INFO] (WorldDriver) [place] …` ← **圆括号**
+- gradle 控制台：`[08:56:22] [Server thread/INFO] [WorldDriver/]: [place] …` ← 方括号
+
+我按控制台那版写的，而脚本读的是**游戏日志**。要不是拿已知的坏样本试了一下，
+j57 会安安静静报「K1 通过」——**一把量不到东西的尺子和一个修好的缺陷，输出一模一样**。
+
+改完之后 j56 的基线（311 行全部匹配，0 行漏网）：
+
+| 线程 | 成功 | 拒绝 | 合计 |
+|---|---|---|---|
+| Render thread | 131 | 132 | 263 |
+| **Server thread** | **20** | **28** | **48** |
+
+其中 `Server thread` 成功 20 —— 和之前从日志数出来的 20 级台阶对得上。
+⇒ **j57 若报 Server thread = 0，那是有意义的 0**，不是尺子没量到。
+
 ### 🟡 J62（已核实，**本轮不修**）：`holdItem` 是同一族，只是还没轮到它炸
 
 `ClientPlayerAvatar.holdItem` → `BotInteract.ensureHolding`，而它**写的是客户端状态**：
