@@ -313,74 +313,25 @@ water8.liftedY=64/60
 
 **执行顺序不在这里** —— 见 [`ROADMAP.md` §6](ROADMAP.md)（窗口 0–4）。
 
-### 🅶 仓库 342 MB：**305 MB 是没打包的松散对象，不是历史脏东西**
+### 🅶 仓库瘦身（未执行）
 
-**判词：先无损重打包，`TODO.md` 的历史一个字节都不删。** 批准的 `filter-repo` 范围
-（`config/`、`__pycache__`、`*/bin/`）照原样执行，但要知道它只值 3 MB。
+镜像副本上量过：**4399 个松散对象占 304.88 MiB**，pack 只有 26.87 MiB。
+`repack -adf --window=250 --depth=250` 后 **342 MB → 15 MB**，无损（ref 12/12、提交 2172/2172、
+`fsck` 退出 0）。⛔ `filter-repo --analyze` 报的「TODO.md 打包 291 MB」是松散对象的假象
+（各自 zlib、无 delta 链）⇒ **不删 `TODO.md` 历史**，它是 `git show <旧提交>:TODO.md` 的仲裁路径。
 
-**凭什么**（在硬链接镜像副本上量的，真仓库未动）：
+批准的清理范围（`config/`、`__pycache__`、`*/bin/`）照做，但只值 3 MB。
+**用 `--filename-callback` 把 `REGRESSION.md` 改道到 `docs/`**——直剪会丢 59 条只改它的研究提交；
+改道后只丢 3 条，那 3 条的知识 `docs/replay-corpus-regression.md` 第 8/16/17 节记得更全。
 
-| | 松散对象 | pack | `du` 合计 |
-|---|---|---|---|
-| 真仓库 | **4399 个 / 304.88 MiB** | 26.87 MiB（8 个 pack） | 342 MB |
-| 副本 `git repack -adf --window=250 --depth=250` 后 | 58 个 / 1.14 MiB | 12.31 MiB（1 个） | **15 MB** |
+**还没做**：
 
-无损：ref **12/12**、提交 **2172/2172**、`fsck --connectivity-only` 退出 0
-（dangling 是 mirror 不带 reflog 的正常现象）。⇒ **−95.6%，一次 `gc` 的事。**
-
-⛔ **`filter-repo --analyze` 报的「`TODO.md` 打包 291 MB」是松散对象造成的假象。**
-那份报告量的是**当前存储**里每个 blob 的大小，而松散对象是各自 zlib、**没有 delta 链**；
-一旦打包，2000 次修订被 delta 压掉。**于是「要不要删主源换体积」这个问题根本不存在**——
-它一直是个伪选择题（[[a-reading-is-not-the-quantity-it-looks-like]]：读数不是它看起来的那个量）。
-而 `TODO.md` 的历史是仲裁路径本身：`git show <旧提交>:TODO.md` 三天内已经翻过一次假「新纪录」。
-
-**重开条件**：真仓库上 `gc` 之后 `count-objects -vH` 的 `size-pack` 若 **> 50 MiB**，
-说明副本的测量不代表真仓库（例如 8 个 pack 里有互相无法 delta 的重复），那时再谈别的。
-
-**代价**：判错的形式是「gc 完还是很大」——立刻可见，且不可逆的操作一个都还没做。
-
-**执行窗口的三个坑**（顾问点的，都还没验）：两个 cron（`:13` janitor、`:41` 决策）必须先静默；
-`commit-map` 对**被剪空的提交**是映射到祖先还是零哈希**要拿实例看，不许假设**；
-`gc` 前把 `commit-map` 拷到 scratchpad 之外，改写后**第一件事**是把本文件顶部的
-`58ec568d` 指针换成新哈希——746 条引用里**只有这一条是承重的**。
-
-#### 🅶′ 拿实例看了：**直剪批准范围会顺手删掉 59 条研究记录**
-
-在硬链接镜像上跑了两次试验（真仓库未动）。`commit-map` 的形状：**被剪空的提交映射到全零**，
-而且真的会被丢弃。两个方案的差别是数量级的：
-
-| | 直剪 `--path config/ …` | `--filename-callback` 改道 |
-|---|---|---|
-| 提交数 | 2175 → **2116**（丢 **59**） | 2177 → **2174**（丢 **3**） |
-| `REGRESSION.md` 的历史 | **没了** | `--follow` 数得到 **98 条** |
-| `config/` 残留 | 0 | **0** |
-| `__pycache__`／`.pyc`／`*/bin/` 残留 | 0 | **0** |
-| 体积 | 14 M | **15 M** |
-
-**那 59 条是什么**：只改过 `config/agent_driver/replays/REGRESSION.md` 的提交，
-而它们的**提交信息本身就是研究日志**，逐字三例：
-
-```
-docs: §83 — three-lane campaign end-to-end acceptance: C96 all-green with the four §80-§82 flags on
-docs: §77 — #47 FINAL GATE PASSED: three consecutive all-green acceptance cycles C92+C93+C94
-docs(regression) §21: steep-822 wedge tick-analysis — wedges are HETEROGENEOUS per-archive …
-```
-
-⇒ **方案改为在同一次运行里用 `--filename-callback` 把这份文档改道到 `docs/`**，
-其余 `config/` 照剪。多出的 1 MB 就是这 98 条历史，值。
-
-**剩下那 3 条被剪空的查过了，零知识损失**：它们只改 10 行 baseline JSON，知识全在提交信息里
-（`FBA gate REJECT — net-NEGATIVE`、`walkerOvershootReaim = FIRST net-positive fix` 等），
-而 `docs/replay-corpus-regression.md` 第 8／16／17 节**记得更全也更准**——
-第 17 节已经推翻第 16 节（`overshootReaim` 实为 **HARMFUL**），
-而那条提交信息还停在「FIRST net-positive fix」。**这次是文档比提交信息新**
-（[[two-ones-that-disagree]] 的反向实例：新旧不看时间戳，看内容本身）。
-
-**引用改写的真实规模也量了**：不是 746 条，那是**出现次数**；
-唯一候选串 **142** 个，其中真属于本仓库的提交 **105** 个，散在 20+ 个文件里
-（`CHANGELOG.md`／`ROADMAP.md`／`TODO.md` 和十几个 `.java` 的注释）。
-⚠️ **`commit-map` 里「哈希没变」的有 0 条**——第一个提交就被改了，之后全部级联，
-所以 **105 个全都要重写**，没有一个能靠「碰巧没变」蒙混过去。
+- [ ] 两个 cron（`:13` janitor、`:41` 决策）在改写窗口内静默；闸/真梯的游戏进程必须全部退出
+- [ ] bundle 备份 + `commit-map` 副本放 **scratchpad 之外**（会话级目录会消失）
+- [ ] `git stash list` / `git worktree list` 各查一眼（filter-repo 对这两样处理不可靠）
+- [ ] 重写 **105 个**提交引用（唯一候选串 142 个，真提交 105 个，散在 20+ 文件）。
+      ⚠️ `commit-map` 里「哈希没变」的 **0 条**，全都要改；新 8 位前缀写入前验唯一
+- [ ] **改完第一件事**：把本文件顶部的 `58ec568d` 指针换成新哈希——105 条里只有这条承重
 
 ### 🅱️ 甲之二（`JourneyPortalRung:906/942` 的早退采样）
 
@@ -914,200 +865,49 @@ public static volatile boolean autoRetreat = false;
 | C | 身体明明死了而 `hp.trace` 一行没有 | 装在了错的地方——`await` 不是每 tick 都过，或 `player()` 在客户端拓扑上返回的不是那具身体 |
 | D | 这趟没死在 14 级 | 那就读它死在哪；`hp.trace` 仍应在**每一级**出现（有掉血的级） |
 
-#### 📖 真梯第 3 趟（2026-08-26 03:52 落盘）：**11/20，12 级失败——而且不是死掉的**
+#### 真梯第 3 趟（03:52）：11/20，12 级浇不到格（不是死）
 
-判读命中 **D 态**，且 A 态那条交叉校准在 12 级上**免费做成了**：
+`hp.trace` 校准通过（预登记 D 态），可以用。**还开着的**：
 
-| 来源 | 读到 | 对不对得上 |
-|---|---|---|
-| `lavaEscape` 自己打的 `hp=` | `20.0` ×4，然后 `13.0` @`-9, 64, 16` | — |
-| `hp.trace` | 进 12 级满血 20，首次掉血 `t106 −1.0→19.0`；`t53 −1.0→13.0` @`-7, 64, 16` | ✅ 血量分毫不差，位置同 y 同 z |
+- 📌 `hp.trace` **不记 food、不记伤害源**，所以 12 级那 11 次恒定 −1.0、零回血判不了
+  「摔落」还是「饥饿」。要加这两个字段。
+- 📌 `drain` 7/9（第 2 趟 8/8）：`drain.7`/`drain.8` 等满 200 tick 仍有流体，
+  而 `upstream` 证明周围 8 格无水源块 ⇒ **是预算不够，不是机制坏**。等待时长要重定。
 
-⇒ **尺子可用**（排除 B：无矛盾）。**排除 C** 也做了：`settle` 在 `JourneyRig:1352` 走 `await`，
-`await` 每 tick 调 `noteHurt`，所以「其余 11 级没有 `hp.trace` 键」是**事实不是盲区**——
-那 11 级（含 11048 tick 的挖黑曜石级）真的一次净掉血都没有，没掉血就不写键是设计如此。
+##### 12 级真因：浇筑落在验过的排之上（修法已落 `fbede5f0`，理由见 `JourneyPour.POUR_ROW_SLACK` 的 javadoc）
 
-**本趟真因不是死亡，是浇不到格**，`reason` 逐字：
+修法已落 `fbede5f0`（`POUR_ROW_SLACK=1` / `RAISE_ROW_TRIES=1`，排不对就走回模腔重来）。
+完整因果链和「为什么是加上界而不是翻 `exactRow`」在 `JourneyPour.POUR_ROW_SLACK` 的 javadoc 里。
 
-```
-浇不到指定格：想浇 4, 60, 20（瞄 5, 60, 20），射线会把流体放进 4, 64, 19，身体在 4, 64, 19
-浇线上是 … 1, 59, 20=dirt(壁龛外) 1, 60, 20=dirt(壁龛外) 1, 61, 20=dirt(壁龛外) 1, 62, 20=dirt(壁龛外)
-```
+🔴 **还开着：这一笔顺手改了装水侧，而装水侧一条失败证据都没有。**
+`raiseTo` 从前没有排检查，装水高 1 排由下游 `buildTo` 的 `exactRow=true` 修一段楼梯接住
+（`recover6` 验过的便宜补救）；现在会先走一整趟 `returnToTheForge`。
+⇒ **下个编译窗口把这道检查限定在 `pouring` 一侧。**
 
-**身体在 y=64 的地表，目标在 y=60 的壁龛内，中间隔着四格土**，射线当然穿不过，
-命中点回落到身体自己站的那一格。⇒ **与第 2 趟 cast8 是同一族：身体在浇筑阶段跑到了地表。**
-两趟独立重现，这条不再是单样本（[[one-sample-cannot-name-a-cause]] 的门槛过了）。
+📌 **这个修法还没被检验。** 两个闸都 GREEN（Fabric 298/25、NeoForge 299/24，`UNDECLARED: 0`，
+失败集合两边一致），但三个新证据键
+`raiseRowTooHigh`／`raiseRowGaveUp`／`raiseRowRetry` **各 0 次**——排检查一次没触发。
+触发率约 1/10（`cast0`–`cast8` 九次没过头），一趟真梯很可能也碰不到。
+⇒ **要写构造场景**：身体摆到高出 `wantY` 五排再调 `raiseTo`，断言 `raiseRowTooHigh` 开火、
+身体最终落回验过的那一排。⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
+⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
-**两把 `NoBreak` 守卫在真梯上第二次确认闭合**：`lava0`–`lava9` 全部「11 级都完好」，
-`cast0`–`cast9` 全部「11 级台阶一格不缺」，**零破坏**。
-
-**`drain` 这趟 7/9**（第 2 趟是 8/8）：`drain.7`/`drain.8` 等满 200 tick 仍有流体，
-但两条 `upstream` 都写「周围 8 格内没有水源块」⇒ **排水机制没坏，是预算不够**，
-病征是「还没退完」而不是「有新水在灌」。
-
-**12 级的血曲线还剩一个没问的量**：11 次掉血**全是恒定 −1.0、零回血**，
-落点集中在 `-6..-9, 63-66, 13-16`，其中三行 `脚下=cave_air`／`脚下=air`——
-那一带正是 `lava.landmark=lavaLake -9, 63, 19` 的取岩浆往返路。
-形状像**反复踩空小坠落**（4 格摔落恰好 1 点），但 `hp.trace` **不记 food、不记伤害源**，
-判不了「摔落」还是「饥饿」。📌 **这是尺子的下一格刻度，不是结论。**
-
-⚠️ 还有一条：`hp=13.0` 那次 `lavaEscape` 之后血继续掉到 9.0，**后半段再无任何反射介入**
-（`lavaEscape` 全程 5 次，`contactEscape` **0 次**）——与 14 级那趟「反射链一条都没武装」同源。
-
-##### 🔴 12 级真因定案：**十块黑曜石浇成九块，最后一块败在身体站错了「排」**
-
-`cast0`–`cast8` 全 `SUCCESS`，只有 `cast9` 没有 `result` 键 ⇒ 它就是断点。因果链逐字：
-
-| 键 | 读到 |
-|---|---|
-| `cast9.raise` | `1, 57, 19 → y=59（去 2,20 这一柱…）：站上去射线落得进目标格，钉住这一柱` |
-| `cast9.raiseTo.arrivedY` | **`64（起 57，净升 7）`**，脚下=`grass_block` |
-| `cast9.raiseColumnMissed` | `2, 64, 21 不在指定柱 2,20 上就算到了（walkToColumn 判到达用的是 5 格）` |
-| `cast9.raisedY` | `64/59 … **射线是照 y=59 那一排验的，从这里打出去的不是验过的那条**` |
-| `cast9.picks.1/2/3` | 三次全落空，身体分别在 `4,64,19`／`2,64,19`／`1,64,22` —— **全在 y=64 的地表** |
-
-**证据自己把病名写出来了**：射线闸在 **y=59 那一排**验过一个站位，身体却被交付在 **y=64**。
-`Goal.XZ.ignoresY()` 为真（`Goal.java:106`），所以 `2,64,21` 距柱 `2,20` 的 XZ 距离 1 格 ≤ 容差 5，
-**判到达**——它答的是「那一柱，任意 Y」，而这一浇要的是「那一柱的**那一排**」。
-`raiseColumnMissed` 那行接着写「由塔的偏柱修正把身体带回这一柱」，**偏柱修正只修柱不修排**，
-缺口正落在这里（[[a-surveyed-cell-is-not-its-column]] 的镜像：那次是路点丢了 y，这次是判据忽略 y）。
-
-**净升 7 认得出来**：解卡塔按「当前高度 +8」抬（[[a-retry-that-climbs-away-from-its-target]]），
-57 起、落在 64。⇒ **与第 2 趟不是同一条**：第 2 趟 cast8 是塔被水冲掉、净升 **0**；
-这趟 cast8 也是净升 0（`washedOffUpstream: 还在喂它的水源：4, 61, 19`）**但后备腿救回来了，SUCCESS**。
-⛔ 所以我上面写的「与第 2 趟 cast8 同族、两趟重现」**判早了**——
-同样是「身体在浇筑阶段跑到地表」，但**驱动它上去的机制相反**（一个是塔垒不起来，一个是塔垒过头）。
-两趟仍是各自单样本（[[one-sample-cannot-name-a-cause]]）。
-
-📌 **修法形状（三选一，待定）**：
-(a) 这一段改用带 y 的到达判据，不用 `Goal.XZ`；
-(b) `walkToColumn` 回来后加一道**排**校验，不合格就下降后重来；
-(c) 给这一段禁掉解卡塔的垒高（形状同 `NoBreak`，即「这一腿不许自己长高」）。
-⚠️ **(c) 最像正解但最危险**：解卡塔是身体走出井底的手段，禁了可能换来走不到（[[a-fix-that-never-gets-its-turn]]）。
-
-###### 🔬 读了产码之后：**修法既不是 (a)(b)(c)，是给一条有理由的宽松补上界**
-
-`JourneyRamp.java:179-183` 的 javadoc **明写了浇筑保留 `>=` 的理由**，逐字：
-
-> **A POUR aims at the target's backing and is genuinely served from any row high enough**,
-> so it keeps the `>=`. A SCOOP is not: its column is verified … for ONE row — the eye is placed
-> at exactly that row's foot — so a body one row up fires a line nobody checked.
-
-⇒ 这不是疏忽，是**当初拿 `recover6` 那一趟量出来的、写清楚了的决策**：装水要精确排，浇筑够高就行。
-`JourneyPour.java:186` 传的 `exactRow = !pouring` 就是它。
-
-**而 `cast9` 证伪的正是「any row high enough」这半句**：
-
-```
-cast9.picks.1 = 4, 63, 19 grass_block face=up → 落进 4, 64, 19
-                （身体 4, 64, 19，眼睛 4.46/66.42/19.56 朝 yaw=-47.70 pitch=76.67）
-```
-
-**`pitch=76.67°`——几乎垂直向下。** 高出 5 排之后，射线要够到 y=60 的背板就得这么俯，
-于是**先撞上身体自己脚下的草方块**，命中点落回身体那一格。
-⇒ 「够高就行」在**高 1 排**时讲得通（略微下俯仍打得到背板），在**高 5 排**时不成立。
-**这条宽松是对的，只是没有上界**（[[a-guard-that-did-not-fire-may-be-right]] 的反面：
-守卫在它被写下的场合成立，出了那个场合就不成立了）。
-
-**所以修法 = 给宽松加上界，不是翻转 `exactRow`。** 翻转会连「高 1 排也能浇」一起杀掉，
-而那一条有 javadoc 的理由撑着、我手上没有反证。
-
-⚠️ **有两处 `>=`，只修一处等于没修**（[[a-fix-that-cannot-reach-its-own-occasion]]）：
-
-| 出处 | 代码 |
-|---|---|
-| `JourneyRamp.java:202` | `exactRow ? here.getY() == landing.getY() : here.getY() >= landing.getY()` |
-| `JourneyPour.java:191` | `if (rig.player().blockPosition().getY() >= wantY) { done.run(); return; }` |
-
-后者的注释写的是「**A flight that reached the row has nothing left for it to do**」——
-本意是「到了排就别再垒塔」，被一个高 5 排的身体满足了。
-📌 **上界取多少要先有证据**：高 1 排放行是 javadoc 的声称，我没量过；高 5 排失败是量到的。
-⇒ 先按「高出 ≥2 排就不算到达」落，**并让这一判据自己写证据行**，下一趟就能看见它开没开火
-（[[an-instrument-behind-a-flag-is-not-an-instrument]]）。
-
-✅ **已落地**（`fbede5f0`，编译绿 + 源预算绿）：`JourneyPour.POUR_ROW_SLACK = 1`、
-`RAISE_ROW_TRIES = 1`，排不对就 `JourneyStairwell.returnToTheForge` 走回模腔重来一次；
-`JourneyRamp` 的 `flightSkipped` 行加印「**高 N 排**」（纯测量）。
-
-⛔ **这里原本写着「装水一侧 `slack = 0` …… 没有改动它的行为」——假的，同一轮内核出并改。**
-`raiseTo` 从前**根本没有排检查**：装水高 1 排的处理者是下游 `buildTo` 的 `exactRow=true`，
-即**修一段楼梯**——那正是 `recover6` 那一趟验过的、便宜的补救。
-改动之后装水高 1 排会先走一整趟 `returnToTheForge`，
-**等于把一个验证过的便宜补救换成了没验证过的贵补救**，而装水一侧**一条失败证据都没有**。
-📌 **下个编译窗口二选一**：把这道检查限定在 `pouring` 一侧（贴着证据走），
-或者保留但把它当成装水的**有意变更**写清理由。
-⚠️ 记这一条的原因不是它有多严重，是**「无行为变化」这种话写进永久日志的成本不对称**——
-它会被后来者当既成事实继承，而它恰好出现在一段自称在讲清楚行为的文字里
-（[[two-ones-that-disagree]] 同族：每句在自己范围内都像真的）。
-
-###### 📌 预登记：这个修法自己的判据（写在跑之前）
-
-⚠️ **最可能的结果是 B，而 B 不是「验过了」**：这一趟 `cast0`–`cast8` 九次都没过头，
-只有 `cast9` 过头 ⇒ **触发率约 1/10**，一趟真梯很可能一次都碰不到
-（[[three-greens-cannot-see-a-one-in-four]]：要观察到恢复本身，不是数通过次数）。
-
-| 态 | 读到什么 | 判什么 |
-|---|---|---|
-| A | `raiseRowTooHigh` 出现 ≥1 次，**且其后的 `raisedY` 变成同排**（`59/59`） | 修法生效**且被观察到**——这才是验过 |
-| B | `raiseRowTooHigh` 一次没出现 | **没被检验**，不管 12 级过没过都不能记成验证；改用构造场景去撞（见下） |
-| C | `raiseRowTooHigh` 出现，但接着是 `raiseRowGaveUp` | 下降腿没能把身体带回那一排——问题在 `returnToTheForge` 或 `wantY` 本身，不在这道闸 |
-| D | 12 级败在别处 | 读新死因；这个修法仍按 A／B／C 判，**不因为「这趟没死在这儿」就算过** |
-
-**两道闸的预期颜色（先算再读）**：正常路径一行没动，重试路径只在过头时才走 ⇒
-**两个 topology 都应 GREEN，且失败集合不变**（`wd.vineOverWaterClimb` +
-`wd.serverEscapeSealedShelter` 两条 `fail(optional)`）。
-**多出任何一条失败 = 修法碰坏了现有行为**；`UNDECLARED` 应为 0（没注册新场景）。
-
-📌 **B 态的对策已经想好**：写一个场景把身体直接摆到高出 `wantY` 五排的位置再调 `raiseTo`，
-断言 `raiseRowTooHigh` 开火且身体最终落回验过的那一排——
-**让守卫在一个它必然遇到的场合里被看见**（[[verify-by-making-the-criterion-impossible]] 的同族）。
-⚠️ 注册新场景必须同批加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 直接判红。
-
-###### 📖 判读：Fabric 闸 **GREEN**，**298 executed / 25 skipped**，`UNDECLARED: 0`，三条 canary 全对
-
-⚠️ **`VERDICT:` 行数了 2 条，只有 1 条是判词**——另一条是 `wd.vineClingFidelityProbe`
-自己的日志恰好用了同一个词（[[never-tail-a-gate-run]] 的「先数 VERDICT 行」正是防这个）。
-
-**判据命中 B**：`raiseRowTooHigh` / `raiseRowGaveUp` / `raiseRowRetry` **各 0 次**，
-`flightSkipped` 带「高 N 排」**0 次** ⇒ **这一趟根本没触发排检查，修法未被检验**。
-按预登记，这**不算验证**，B 态的构造场景仍然要写。
-
-**但失败集合多出了一条**，预登记说「多出任何一条 = 修法碰坏了现有行为」：
-
-```
-fail(optional): 'wd.journeyGetsAshoreBeforePouring' -> FAIL
-  C 身体最后脚下是固体，不是水：244892, 221, 100000，脚下=water (false) expected to be true
-```
-
-**查了，不是我造成的**，两条独立证据：
-1. **代码级**：这条走 `JourneyCast.java:100` 的 `walkToColumn(rig, "lava.ashore", …)`，
-   而 `grep "raiseTo|JourneyRamp.buildTo|POUR_ROW" JourneyCast.java` **零命中** ⇒ 不经过我改的任何一处。
-2. **执行级**：我的三个新证据键全程 0 次开火（见上）。
-   ⚠️ 单靠第 2 条不够——「没开火」也可能是「开火了但没记」；第 1 条才是判决性的。
-
-**它是 2026-08-25 新加的场景（`9bb76f0c` 起），08-23/24 的闸日志里根本没有它** ⇒
-它从来没在闸上绿过，是一条一直红着的 `fail(optional)`，不是回归。
-
-###### 🔴 顺带查出：**同一个病的第三处，而且这处有场景正红着**
+🔴 **同族第三处，而且这处有场景正红着**：`JourneyCast.java:100`
 
 ```java
-// JourneyCast.java:100
 WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ(), 1, 600, …);
 ```
 
-要的是「**上岸**」（脚下固体），给的是 `Goal.XZ`——「那一柱，任意 Y」。
-证据行自己把两边都写出来了：目标 `lava.exit.dryLand = 244891, 221, 100000`，
-身体停在 `244892, 220, 100000`（**x 差 1、y 低 1**），`arrivedY = 220（起 217，净升 3），脚下=water`。
-⇒ **身体还泡在水里就被判「到岸」了。**
-
-⚠️ 而且这里踩的是 `JourneyPour:115-117` 那段注释**早就写明**的坑：
-「`walkToColumn` judges arrival against its own `ARRIVED_WITHIN` and **not against the radius asked
-for**」——调用方传的 `tolerance=1` 根本不是判到达用的那个数，判到达用的是 5。
-**注释写在 A 文件，坑踩在 B 文件**（[[a-fix-that-cannot-reach-its-own-occasion]]）。
+要的是「上岸」（脚下固体），给的是 `Goal.XZ`（那一柱、任意 Y）⇒ 身体还泡在水里就被判到岸
+（`dryLand=244891,221,100000`，实际停 `244892,220,100000`，`arrivedY=220 脚下=water`）。
+`wd.journeyGetsAshoreBeforePouring` 因此一直红着——**不是回归**：2026-08-25 才加（`9bb76f0c`），
+且 `JourneyCast.java` 不经过 `fbede5f0` 改的任何一处（grep 零命中）。
+⚠️ 踩的是 `JourneyPour:115-117` 注释**早就写明**的坑：`walkToColumn` 判到达用自己的
+`ARRIVED_WITHIN`（5 格），**不是调用方传的 `tolerance`**。
 
 📌 **下个编译窗口两笔一起做，然后重跑两个闸**：
-1. 把排检查**限定在 `pouring` 一侧**，撤掉装水那侧没有证据支撑的变化（顾问点的，见上）；
-2. 给 `lava.ashore` 补一道「脚下是不是固体」的到岸检查 + 有界重试，形状照 `raiseRowTooHigh` 抄。
+1. 排检查限定 `pouring` 一侧；
+2. 给 `lava.ashore` 补到岸检查（脚下固体）+ 有界重试，形状照 `raiseRowTooHigh` 抄。
 
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
