@@ -1745,6 +1745,36 @@ owner=walker.unnamed thread=Server thread`。⇒ 上一趟那 0 行**确实**是
 这**不是**测试布景问题：通关链路上的战斗走同一条 `CombatProcess.meleeTick`，
 所以真梯也在这个悬崖边上。
 
+#### 🔴 J66：`wd.serverFightsAFlyingBlaze` 有两个态，而**改 `JourneyFill` 好像会把它推进昂贵态**
+
+J60-C 那趟闸 **GREEN**（N1 字面已验），但 J65 的仪器打出 13 行 `TICK SPEND`，
+**全部落在 `wd.serverFightsAFlyingBlaze`**：连续 14 个 tick（gameTime 2924–2937），
+每 tick 2 次 `advance()`、约 **3.2 秒**。之前三趟在同样的 2000 ms 下限下都是 **0 行**。
+
+十趟闸的对照，`expanded` 最大值把两个态分得干干净净：
+
+| 趟 | blaze | `expanded` 最大 |
+|---|---|---|
+| fail1（J60-B） | **楔死** | 66957 |
+| fail2（J60-B） | **楔死** | 65147 |
+| **J60-C（`946a77c2`）** | **PASS 44t / 48062 ms** | **64715** |
+| ab／green／instr／calib／trip600／trip200／restore | PASS 1351–3180 ms | **0**（七趟全部） |
+
+**没有中间态**：要么 0，要么 6.4 万。昂贵态出现 3 次，**三次都带 `JourneyFill` 改动**；
+不带的七趟（其中五趟是本轮我自己的仪器代码）一次都没有。
+
+⇒ **48 秒离 60 秒看门狗只有 1.25 倍**。J60-C 这趟活下来只是因为把开销摊到了多个 tick 上，
+楔死那两趟是挤进了**一个** tick。所以这**不是**「绿了就没事」，
+而是 [[three-greens-cannot-see-a-one-in-four]] 那条：要的是**观测到**，不是数绿。
+
+⚠️ **机制完全不清楚**：`JourneySight.eyeFor` 是纯静态函数，不碰状态；
+`JourneyFill`／`JourneyPour` 是真梯场景代码，而 blaze 是刷怪战斗场景，
+竞技场也不在一处。**调用图上够不着**——而我今天已经因为「够不着」判错过一次，
+所以这次不推理，先用**同代码重跑**做对照（fail1 vs fail2 那次对照就是这么救回来的）。
+
+⚠️ **在这条settle 之前不跑 45 分钟的真梯**：带着一条 48 秒的场景去跑，
+拿回来的红分不清是 12 级的问题还是这个。
+
 #### ✅ J60-C 已落地（`946a77c2`）＋ 📌 判据（写在跑之前）
 
 助手落在 `JourneySight.eyeFor(body, foot)`——那个文件本来就是管「身体在这一格里
