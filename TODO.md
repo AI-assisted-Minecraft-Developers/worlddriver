@@ -2638,6 +2638,75 @@ StageWright 的**证据转储印在完成行之后**，所以按完成行切、�
 族名 **J68｜瞄点在壁龛外，射线落点与目标格差两格**——
 [[a-pour-down-a-blocked-line]]／[[an-aim-is-an-angle-not-a-target]] 一族，另开条目。
 
+###### 🔻 收回：J68 的承重环节不是「垫不上」，梯子铺好了而身体走开了（2026-08-25）
+
+先前从证据行读出的结论是「`3,59,20` 垫不上，仪器的面枚举分不出没有面和点了被拒」。
+**这条收回。** `whyNotLaid` 的面枚举确实只问 `blocksMotion()` 而不问射得到射不到
+（那是一笔独立的仪器债，见下），但它**不是**这一级的死因。
+
+把 `journey-n3.log` 13:18:00 那一秒排成一条线（`[place]` 全在 Render thread）：
+
+```
+[placeEnqueue] 点击格=3, 55, 19 面=up      → [place] 成功 邻格=3, 56, 19→cobblestone  ×50
+[placeEnqueue] 点击格=3, 57, 17 面=south   → [place] 成功 邻格=3, 57, 18→cobblestone  ×49
+[placeEnqueue] 点击格=4, 58, 19 面=west    → [place] 成功 邻格=3, 58, 19→cobblestone  ×48
+[placeEnqueue] 点击格=3, 58, 19 面=south   → [place] 成功 邻格=3, 58, 20→cobblestone  ×47   ← shoulder
+[placeEnqueue] 点击格=3, 58, 20 面=up      → [place] 成功 邻格=3, 59, 20→cobblestone  ×46   ← 第 3 级
+[pathfinder] search-begin owner=goto start=3, 56, 20 goal=BlockPos{x=3, y=60, z=20}
+[walker] 步进: w=2, 56, 20 nx=1, 57, 20 …      ← 往西
+[walker] 步进: w=1, 57, 20 nx=0, 58, 20 …
+```
+
+这五条和 `JourneyRamp.layWhereItStands` 第 484–521 行**逐行对得上**：
+`support = flight.get(laid).below()`，印出来的 `.step.N` 就是 `support`；
+第 495 行 `shoulder = support.below()`，第 3 级的 shoulder 正是 `3,58,20`，
+先垫它、再点它的 `up` 面造 `3,59,20`。所以 13:18:00 这一串就是 `wet.8` 的 ramp，
+`wet.8.ramp.flight` 的四级**加上一块 shoulder，客户端侧全部 SUCCESS**。
+
+能定死的四条：
+
+1. **PENDING 的等待机制跑了。** `wet.8.ramp.step.3` 带着「已等过 8 tick 往返」，
+   而这句话只有 `lay` 第 612 行印得出来 —— 即走的是
+   `PENDING → settle(4) → 重入 → 同一级又 PENDING → settledAt==laid` 那条路。
+   **`9aadc0b7`（本地 07:46）早于 n3（本地 13:18），修法在树上，没救到这一级。**
+2. **前三级在服务端落地了**：循环推进到了 `laid=3`，而第 485 行读的是 `ServerLevel`。
+3. **第 3 级过了 8 tick 服务端仍不是实心**，客户端却已经预测成 cobblestone。
+   `placeOn` 在 `LocalPlayer` 上只做本地预测＋发包，`结果=SUCCESS` 是本地 `InteractionResult`，
+   **不是服务端的判词**（[[evidence-that-lies]]）。
+4. **后来服务端有了**：`wet.8.standMissed` 与 `tidy.8` 都把 `3,59,20` 读成 cobblestone。
+   `tidy.8` 还把它连同另外 6 格记成「挖门框时 MineProcess 自己垒的」——**这条归因是错的**，
+   那 7 格正是 ramp 的四级＋shoulder＋楼梯格。
+
+**手数这条线索不成立，记下来免得下次再捡**：`[place]` 的 `×N` 是**扣后**读数
+（第 1 行 SUCCESS 印 ×50、紧接的 FAIL 也印 ×50，只有扣后才自洽），客户端收在 46；
+`whyNotLaid` 的服务端读数是 47，差 1。看着像「服务端只收了 4 笔」，但
+`6de9abef` 之后 `holdItem` 动的就是客户端那份，**服务端手数按定义滞后**，
+所以这个 1 既可能是一次拒绝、也可能就是同一个往返延迟。
+[[a-reading-is-not-the-quantity-it-looks-like]]：两条通道的数相减不能当证据。
+
+**而真正杀死 wet.8 的是下一步。** 梯子铺完（服务端最终四级俱在），
+`goto 3,60,20` 从 `3,56,20` 出发——目标就在正上方四格、脚下就是刚铺的梯子——
+寻路却一路往西出壁龛、爬到地表，收在 `-5,65,20`，距 `4,61,20` 还有 9.85 格；
+其后三次重试分别停在 `-4,66,20`、`1,64,22`、`2,64,25`，**没有一次回到那一柱**。
+`water8.stand.*` 的否决计数里 `脚下不实心=49`、`落脚格被占=75` 就是这么来的：
+身体从来没站到 `3,60,20`，于是每一次浇筑都是从错的柱子上瞄的。
+
+⇒ J68 拆成两笔，**承重的是第二笔**：
+
+| | 名 | 性质 |
+|---|---|---|
+| J68a | ramp 判「垫上没有」读的是刚发过包的 ServerLevel，8 tick 不够 | 仪器/时序，会少记一级 |
+| **J68b** | **梯子铺好后 `goto` 同柱正上方，寻路走出壁龛上了地表** | **真缺陷，这一级实际死因** |
+
+J68b 与 [[pathfinding-is-not-the-first-answer]]、[[a-coordinate-is-not-a-plan]] 同族：
+目标在正上方，3D 直线距离近，但**能不能站上去要走的是刚铺的那段楼梯**。
+
+另有一笔独立的仪器债（不是死因，但它一直在误导读者）：`whyNotLaid` 的面枚举
+只问 `level.getBlockState(cell.relative(d)).blocksMotion()`，不问**这具身体射不射得到那个面**——
+它自己的注释说存在的意义就是让「没有面可点」和「点了却被拒」不再长得一样，而它做不到。
+修法：**列两张表不要合并成一张**（存在的面／从 `eyeFor` 射得到的面），
+合成一张会抹掉「根本没支撑（要换路线）」和「有支撑但从这里够不着（要挪身体）」的分别。
+
 ###### 两趟并排：12 级的死因分布现在是 2 个样本、2 个族
 
 | 趟 | 12 级用时 | 死因族 | 楼梯湿格 |
