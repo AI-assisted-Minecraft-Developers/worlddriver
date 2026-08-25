@@ -327,10 +327,72 @@ public final class JourneyPortalRung {
             rig.evidence(tag + ".flightEnd", "末路点从楼梯底 " + bottom.toShortString() + " 提到 "
                     + ends.toShortString() + " —— 楼梯底站不了："
                     + cellStory(rig.ctx().level(), bottom, false));
-        if (faults.isEmpty()) { walkTheStairs(rig, route, 0, down, tax, then); return; }
+        // THE LAST STEP IS WALKED, not tolerated — going down only. See finishTheFlight.
+        Runnable done = down ? () -> finishTheFlight(rig, tag, ends, then) : then;
+        if (faults.isEmpty()) { walkTheStairs(rig, route, 0, down, tax, done); return; }
         JourneyStairs.mend(rig, tag, faults, 0,
-                () -> walkTheStairs(rig, route, 0, down, tax, then));
+                () -> walkTheStairs(rig, route, 0, down, tax, done));
     }
+
+    /**
+     * Stand ON the cell the flight ends at, rather than within {@link #LEG_ARRIVED} of it.
+     *
+     * <p><b>The arrival tolerance and the height test disagree about the last step, and moving the
+     * terminal up one row is what made them disagree fatally.</b> While the flight ended at
+     * {@link #stairBottom} the disagreement was harmless: the tolerance ball around a terminal on the
+     * floor row holds only cells at {@code floorY} and {@code floorY+1}, and {@link #walkHome}
+     * accepts both. Ending one step early moves that ball up a row, and now HALF of it — the
+     * terminal's own head room, and the step above it at 1.41 — is {@code floorY+2}, which
+     * {@code walkHome} rejects as「走不回模腔」.
+     *
+     * <p>Measured on the rung-12 rehearsal of 2026-08-25, first cast, which is where the flight first
+     * shortens (the mould's runoff wets the bottom step on every return — the reclaim happens after
+     * the descent, so the pour is live for the whole trip):
+     *
+     * <pre>
+     * cast0.flightEnd  = 末路点从楼梯底 2, 56, 19 提到 1, 57, 19 —— 楼梯底站不了：… 身处 water …
+     * cast0.returnedY  = 58（楼梯底 y=56，身体 1, 58, 19）      ← rejected
+     * cast0.landing    = 精确 1.09/58.00/19.51，onGround=true   ← standing, not falling
+     *                    每一段都走到了                          ← and the flight reported success
+     * </pre>
+     *
+     * The body was on the step ABOVE the terminal — {@code x=1.09}, a 0.6-wide box straddling two
+     * columns, so {@code blockPosition()} rounds into the terminal's column while the feet rest on
+     * {@code 0,58,19}. Three readings that each look like an all-clear on their own; only together do
+     * they say「walked the whole flight and stopped one step short」.
+     *
+     * <p><b>Not solved by narrowing {@link #LEG_ARRIVED}</b>, whose own javadoc refuses that: it is
+     * shared walking code and every caller would feel it. Solved by walking the one step, which is
+     * the same leg {@link #landOnFloor} stages for the rehearsal — that lever exists precisely
+     * because this coin was already known to be flipping, and it aims at {@code stairBottom} rather
+     * than at wherever the flight actually ends.
+     *
+     * <p>Silent when the body is already at or below the terminal's row: on a dry flight this is the
+     * step the tolerance let it skip, and skipping it was never wrong there.
+     */
+    private static void finishTheFlight(JourneyRig rig, String tag, BlockPos ends, Runnable then) {
+        BlockPos here = rig.player().blockPosition();
+        if (here.equals(ends) || here.getY() <= ends.getY()) { then.run(); return; }
+        rig.evidence(tag + ".flightLastStep", here.toShortString() + " → " + ends.toShortString()
+                + "（容差 " + LEG_ARRIVED + " 格把这一步判成到达了，这里把它走完；"
+                + landingStory(rig) + "）");
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(ends), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak()))), LAST_STEP_TICKS, () -> {
+            BlockPos got = rig.player().blockPosition();
+            // SAY SO WHEN IT DID NOT LAND. A leg that quietly fails leaves `returnedY` to report the
+            // same row it would have reported without this method, and the reader cannot tell a step
+            // that was never needed from one that was needed and refused.
+            if (!got.equals(ends))
+                rig.evidence(tag + ".flightLastStepMissed", got.toShortString()
+                        + " 仍不在末路点 " + ends.toShortString() + " 上 —— "
+                        + cellStory(rig.ctx().level(), ends, false));
+            then.run();
+        });
+    }
+
+    /** How long the last step-down gets. One ordinary +(-1) step inside a flight the body has just
+     *  walked the whole of — the same reasoning, and the same number, as {@link #FLOOR_LEG_TICKS}. */
+    private static final int LAST_STEP_TICKS = 200;
 
     /**
      * Rehearsal only: finish the last step-down the flight's arrival tolerance let it skip.
