@@ -3609,8 +3609,14 @@ COVERAGE 停在 293（不是预期的 294），因为炸掉的场景不计入 ex
 | `gate-j69c2`（本趟） | RED | 293 / 25 | 1 |
 
 3 条 optional 一条不多不少、canary 三行正确、`UNDECLARED:` 0 条、25 条 skip 名单逐字相同。
-COVERAGE 停在 293 也**不是**独立线索：上一趟已经量出「不计入 executed」，而 NeoForge 那趟
-+1 是因为它在那边 **PASS**——`executed` 数的是通过，FAIL 与 crash 一样不进这个计数。
+COVERAGE 停在 293 也**不是**独立线索。⚠️ 但**别用 NeoForge 那趟去佐证**：
+`gate-j69-neoforge.log` 里 `journeyWalksOffTheLip` **0 次**——它 11:29:44 UTC 跑完，
+场景 11:35 UTC 才由 `e474f119` 注册。`7add3011` 那句「dry-step 场景已执行」说的是 J69b 的
+`wd.journeyFlightEndsOnADryStep`（NeoForge 日志里确有 2 行），提交信息没错，
+错的是「新场景在 NeoForge 上 PASS 所以 +1」这个推论。**294/24 是 loader 基线**
+（两边合计都是 318，NeoForge 多执行一条、少 skip 一条），跟这一笔无关。
+于是「FAIL 与 crash 一样不计入 `executed`」只有 Fabric 单边一个数据点
+（同 loader、同形状：293/25 无场景 → 293/25 场景 FAIL），够用但不要当定论引。
 
 ```
 scene 'wd.journeyWalksOffTheLipOntoTheDryStep' -> FAIL (3 ticks, 317 ms)
@@ -3639,6 +3645,32 @@ subject.overshot= 都不是
 这不是「走不到」，是[[the-collision-box-is-not-the-cell]] 那一族：
 **走行器的到达判据是个球，而支撑判据是个盒**，0.10 格的差落在两者之间，
 任何以「换一个更远的目标」为形状的修法都只能绕开它，不能解决它。
+
+###### 📌 J69d：单场景过滤跑，问「是什么结束了这两条腿」（登记在读之前，2026-08-25）
+
+**为什么要问**：`settle` 的腿不像 `drive` 的腿那样带 `end=`/`err=`，所以「无路」和「走完了」
+在日志里长得一模一样。「同目标重走会原地不动」这句在真梯上站了一整轮，靠的是
+`LEG_ARRIVED` 这个球——而 `Goal.Block.reached` 是 `p.equals(target)` **精确格**，
+球的解释从一开始就是错的。补的仪器：两条腿各接一行 `JourneyLeg.walkerEnd(rig)`
+（`flightLastStepEnd` / `flightLastStepAgainEnd`），`d7d28819`。
+
+**怎么跑**（不是闸，任务自己会打 `FILTERED to … — this run is NOT a gate result`）：
+
+```bash
+./gradlew stagewrightDedicatedServerFabric \
+  -Pstagewright.scenes=wd.journeyWalksOffTheLipOntoTheDryStep > full.log 2>&1
+```
+
+| | 读到什么 | 判作 |
+|---|---|---|
+| ① | `flightLastStepEnd` = `end=failed:…no path…`（或同义） | **「无路」证实**。题目转成 A\* 的**起点节点**：身体那一格地板是空气，节点模型说它站不住，而支撑来自邻柱 0.10 格。这才是引擎侧要改的东西，且要先量再改 |
+| ② | `end=arrived` | 「无路」被否。走行器认为**已到达**而身体一格没动 ⇒ 到达判据不是 `Goal.Block.reached`，执行层另有一道闸，去读它 |
+| ③ | `end=path-consumed` | 有路、走完了、身体没挪 ⇒ 执行层的账（[[a-segment-hides-a-stall-at-its-end]]），不是寻路的 |
+| ④ | 两条腿的 `end` **不同** | 分开读。尤其第一腿 no-path 而第二腿另有说法时，说明**水目标**是第二种死法，两笔账别并 |
+| ⑤ | 场景出现在 `fail(optional):` 行而不是 `FAIL:` 行 | 架子挂对了，闸不再被这一笔挡住。**已知 optional 从 3 条变 4 条**，后面每一趟闸的基线按 4 条读 |
+| ⑥ | `flightLastStepAgain` 里 `cellStory(beyond)` 印着「身处 …water」 | 构造性证明落进证据行：`lowestDryStep` 之下按定义全湿 |
+
+**不做的事**：在 ① 出来之前不碰寻路的起点解析，也不在 `finishTheFlight` 里再加第三条腿。
 
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
