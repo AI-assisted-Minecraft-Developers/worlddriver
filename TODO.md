@@ -1447,14 +1447,40 @@ CombatProcess.meleeTick → approach → Walker.tick → WalkerTickSearch.run:79
 `Move.eval → valid → canStandAt/isHazard` 那个内层循环，
 和 [[a-whole-fight-in-one-server-tick]] 记的是同一件事。
 
-⇒ **既有的间歇性卡死，不是这次改动的回归。** 但它有两个后果要记住：
+~~⇒ **既有的间歇性卡死，不是这次改动的回归。**~~
 
-1. **闸是 flaky 的**：跨了好几天，期间的闸报过绿，说明它只杀掉一部分运行；
-2. **退出码分不出「红」和「死」**——所以每次都必须**先数 VERDICT 行**再报颜色。
+### ⛔ 上面这句判词**是错的，当场撤销**（同一小时内）
+
+我拿六份崩溃报告里**栈的形状**相同，就判成「既有的一族、间歇性」。**形状相同不等于同一件事**，
+而真正能分辨的证据我当时没去取。取了之后：
+
+| 证据 | 读数 |
+|---|---|
+| 今天两趟 Fabric 闸 | 都 `BUILD FAILED in **3m 43s**`，都死在**第 176 条**、都是 `wd.serverDamagesTheDragon` |
+| `gate-j59-fabric.log`（今天，本改动之前） | **322 条场景，龙 PASS，GREEN** |
+| `gate6-fabric.log` / `gate5-fabric.log` | 同上：322 条，龙 PASS，GREEN |
+| 今早 `gate-neoforge-j61.log` | 龙 **PASS**，GREEN |
+
+⇒ **两趟同样时长、同一场景 ⇒ 确定性，不是间歇性。**
+⇒ **改动之前的 Fabric 闸跑满 322 条且绿 ⇒ 这是回归，不是既有。**
+
+**两条都推翻了我上面写的判词。** 教训：我用「栈形状相似」当了证据，
+而能分辨的量是「闸有没有绿过」——[[one-sample-cannot-name-a-cause]]、
+[[a-question-asked-backwards-still-answers]]：一个方向反了的假设不会因为解释得通而暴露。
+
+⚠️ 顺带，那五份旧报告仍然是真的：寻路搜索**确实**会在战斗里吃满一个 tick
+（[[a-whole-fight-in-one-server-tick]]）。它们只是**回答不了这一次**。
+
+窗口内的代码改动只有三笔：`207a2229`（J60 仪器）、`16c58d5c`（J61 marshal）、
+`d321eac4`（J60-B）。NeoForge 闸在**前两笔之后**跑过且龙 PASS ⇒ 那两笔在 NeoForge 上清白，
+但 **Fabric 上这三笔都没单独验过**。
+
+⚠️ 可达性分析说 `WorldDriverMobFightScenes.java` 对 `JourneyFill` 的引用数是 **0**，
+按理够不着 `d321eac4`。**但对照组比推理硬**（[[the-collision-box-is-not-the-cell]]：
+有对照组就先做差再解释），所以正在跑 A/B：只把 `JourneyFill` 回退到 `d321eac4~1`，
+其余保持 HEAD。绿 ⇒ 是我这笔；红 ⇒ 我这笔清白，继续往前二分。
 
 崩溃报告已留存为 `crash-gate-watchdog-pathfinder.txt`。
-⇒ 下一步：这一族值得单独立项修（战斗里的寻路搜索没有 tick 预算闸），
-**但不要塞进 J60／J61 这条线**。
 
 ### 🟡 J62（已核实，**本轮不修**）：`holdItem` 是同一族，只是还没轮到它炸
 
