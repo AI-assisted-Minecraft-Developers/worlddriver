@@ -1275,6 +1275,26 @@ CME 是从 `ClientLevel.playSound` 掀起来的，而 **`BlockItem.place` 不是
 `BucketItem.use` 装满水之后照样 `level.playSound` ⇒ **和 J61 是同一副骰子**，
 而且它就在 **12 级取水**那一步上——**正是 j57 要去的地方**。
 
+⚠️⚠️ **但它不能照抄 J61 的「投递完就返回」，原因已经查实。** 把调用点全读了一遍：
+
+- 绝大多数只是 `rig.evidence(tag + ".result", String.valueOf(...))`——**只记不判**，随便延后；
+- `ElytraProcess:306/337` 在**客户端线程**上，走内联支，不受影响；
+- **`JourneyFill:786-789` 是例外，而它正是取水那条路**：
+
+```java
+int before = rig.carrying("minecraft:lava_bucket");
+var result = rig.avatar().useItemInHand();
+int after  = rig.carrying("minecraft:lava_bucket");
+if (after <= before) { …「第 N 桶没装上」… }
+```
+
+它**不判 `result`，判的是紧接着一行读出来的存量差**。一旦这一 use 被延后到客户端线程，
+`after` 还没变 ⇒ 恒等于「没装上」。**这和 J59 那个「判词早一个 tick」是同一个形状**
+（[[a-lagging-reading-became-the-crime-scene]]、[[trips-are-decided-by-bucket-count]]）。
+
+⇒ **J63 的修法必须连调用点一起改**：要么像 ramp 那样引入一次 settle 再读存量，
+要么让这一步也进入 PENDING 那套。**所以它绝不能和 J61 捆在一起**，也不是五分钟能改完的。
+
 ### ⚠️ K1 的适用范围（写在结果之前，免得一个干净的 K1 被读成「这一族关掉了」）
 
 **K1 干净只证明「放置那条路换了线程」，不证明整族关掉了。** 因为 K1 数的是 `[place]` 行，
