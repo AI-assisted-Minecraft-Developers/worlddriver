@@ -709,13 +709,10 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 .isEqualTo(at(ctx).getY());
     }
 
-    /** A flight as the blocks it lays, which is how {@code ramp.flight} prints it: each entry is a
-     *  cell the body STANDS in, and the cobblestone goes under it. */
+    /** A flight as the blocks it lays — {@link JourneyRamp#supports}, so these rows and the rung's
+     *  own {@code ramp.flight} row are printed by one formatter rather than by two that agree. */
     private static String supports(List<BlockPos> flight) {
-        StringBuilder out = new StringBuilder();
-        for (BlockPos s : flight)
-            out.append(out.isEmpty() ? "" : " → ").append(s.below().toShortString());
-        return out.toString();
+        return JourneyRamp.supports(flight);
     }
 
     // ------------------------------------------ the ring's own shadow, enumerated ----

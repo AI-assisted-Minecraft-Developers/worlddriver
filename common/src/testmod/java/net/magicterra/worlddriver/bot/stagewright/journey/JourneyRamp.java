@@ -229,7 +229,7 @@ final class JourneyRamp {
             then.run();
             return;
         }
-        rig.evidence(tag + ".flight", flight.size() + " 级：" + describe(flight)
+        rig.evidence(tag + ".flight", flight.size() + " 级：" + supports(flight)
                 + "（壁龛地板 y=" + floorY + "，身体 " + here.toShortString() + "）");
         approach(rig, corridor, flight, tag,
                 () -> lay(rig, corridor, flight, 0, landing, false, -1, tag, then));
@@ -1025,8 +1025,14 @@ final class JourneyRamp {
      * {@code 3,60,20}. Reading the row as stands puts every headroom question one row off, which is
      * exactly the reasoning that has to be right for {@link #walkDown}'s fold rule to be checkable
      * from a log.
+     *
+     * <p>Package-private, and named for what it returns rather than for what it does, because the
+     * two scene files that assert against {@code ramp.flight} each carried a byte-identical copy
+     * under exactly that name. Nothing here is a judgment — it only formats — so the scenes reading
+     * one printer instead of three cannot make an assertion looser: it makes their evidence rows and
+     * this rung's evidence rows the same rows.
      */
-    private static String describe(List<BlockPos> flight) {
+    static String supports(List<BlockPos> flight) {
         StringBuilder out = new StringBuilder();
         for (BlockPos s : flight)
             out.append(out.isEmpty() ? "" : " → ").append(s.below().toShortString());
