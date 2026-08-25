@@ -2,11 +2,14 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;
@@ -55,7 +58,13 @@ public final class WorldDriverMobFightScenes {
                 Scene.of("wd.serverEarnsAnEnderPearl", 8_000,
                         WorldDriverMobFightScenes::serverEarnsAnEnderPearl),
                 Scene.of("wd.serverBreaksAnEndCrystal", 4_000,
-                        WorldDriverMobFightScenes::serverBreaksAnEndCrystal)));
+                        WorldDriverMobFightScenes::serverBreaksAnEndCrystal),
+                // wd.serverFightsAFlyingBlaze produces this situation only when the blaze happens to
+                // fly the body off its floor — once in three runs, and each run is forty minutes.
+                // This stages the same reset loop on purpose, without a blaze, so the futile-search
+                // gate's census can be read EVERY run instead of whenever the dice agree.
+                Scene.of("wd.serverFutileGateUnderACreepingGoal", 4_000,
+                        WorldDriverMobFightScenes::serverFutileGateUnderACreepingGoal)));
     }
 
     /**
@@ -385,6 +394,125 @@ public final class WorldDriverMobFightScenes {
 
     /** One unpinned blaze fight, reported rather than asserted — the caller decides what it means. */
     private record BlazeFight(boolean dead, int ticks, float hp, double rise) {}
+
+    /**
+     * The futile-search gate, read on a goal that creeps — the loop {@code wd.serverFightsAFlyingBlaze}
+     * only produces by accident.
+     *
+     * <p><b>What this reproduces.</b> On the 2026-08-24 run that fight chased its blaze off an 11x11
+     * floor; the body fell 282 blocks to the world bottom and then spent 29 consecutive searches,
+     * each ~64k nodes and over a second, on a goal 267 blocks straight up. The gate that exists to
+     * stop exactly that ({@code BotConfig.walkerFutileSearchCap}) never fired, and the log carried no
+     * "no route progress" row to explain why. Two candidate doors survive a code read and cannot be
+     * told apart by one: the gate may never have judged those searches at all (bucket 5), or the
+     * counter may have been wiped from OUTSIDE — {@code CombatProcess.approach} re-goals whenever the
+     * target changes block, {@code Walker.setGoal} is the only caller of {@code searchGov.reset()},
+     * and a reset leaves {@code futileFoot} null, which the next judged search reads as "the body
+     * moved" (bucket 7).
+     *
+     * <p><b>Why a scene rather than another run of the fight.</b> Whether the blaze flies the body
+     * off the floor is a coin toss taken once per forty-minute gate. The situation itself is three
+     * facts — a body that cannot move, a goal it cannot reach, and a goal that creeps a block closer
+     * every other tick — and all three can simply be staged. That is the hardcoded-steps rule
+     * applied to a defect instead of to a rung: do not add an engine capability to observe something
+     * a room can be built for.
+     *
+     * <p><b>Two arms, because the interesting reading is a difference.</b> Arm A holds the goal
+     * still; nothing outside the gate touches the counter, so this is what the gate does when left
+     * alone. Arm B moves the goal down one block every second tick and re-goals on each change —
+     * {@code CombatProcess.approach}'s exact idiom, and the blaze's exact descent rate. Same body,
+     * same floor, same unreachable target: the only difference is who calls {@code setGoal}.
+     *
+     * <p><b>This scene asserts almost nothing on purpose, and that is not laziness.</b> It is a
+     * measurement, and the thing it measures is which of two readings of the code is true — so an
+     * assertion written now would encode the guess it exists to test. The one thing it does assert
+     * is that the census channel is live in both arms: nine zeros and "the gate let everything
+     * through" look identical, and a dead instrument that reads as an answer is worse than no
+     * instrument. The behavioural assertion arrives with the fix, when there is something to
+     * assert that is not a guess.
+     */
+    private static void serverFutileGateUnderACreepingGoal(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        WorldDriverProcessScenes.buildFloor(level, cx, cz, floorY);
+        ctx.cleanup(() -> {
+            for (int dx = -6; dx <= 6; dx++)
+                for (int dy = 1; dy <= 8; dy++)
+                    for (int dz = -6; dz <= 6; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                                Blocks.AIR.defaultBlockState());
+        });
+
+        BotConfig.walkerDebug = false;
+        // The goal has to be UNREACHABLE, not merely far. With either of these left on, the body
+        // pillars up to it or digs its way somewhere, the search succeeds, and the gate is never
+        // asked the question this scene exists to ask.
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        // Small on purpose. Whether the gate counts a search does not depend on how many nodes that
+        // search burned, and the live case burned ~64k of them per tick — reproducing the COST here
+        // would buy nothing and spend a minute of every gate run.
+        BotConfig.pathfinderMaxNodes = 2_000;
+
+        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayer fp = av.fakePlayer();
+        ctx.cleanup(fp::discard);
+        fp.getInventory().clearContent();          // nothing to pillar with even if allowPlace flips
+        LevelWorldView w = new LevelWorldView(level, fp);
+
+        // 200 up, dead centre: no staircase, no wall, nothing to climb. Near(…, 2) rather than
+        // Block so the goal has the same tolerance the combat approach gives it.
+        final BlockPos high = new BlockPos(cx, floorY + 200, cz);
+
+        var still = creepArm(av, fp, w, "still", high, cx, floorY, cz, 0);
+        var creep = creepArm(av, fp, w, "creep", high, cx, floorY, cz, 2);
+
+        ctx.record("gate.still", still);
+        ctx.record("gate.creep", creep);
+        ctx.passNote("目标不动 vs 每 2 tick 降一格，同一具身体同一个够不着的目标；"
+                + "闸的去向见 gate.still / gate.creep");
+
+        // The only claim worth making before the reading is read: the channel spoke. A census that
+        // silently counts nothing reads exactly like a gate that judged everything and let it pass.
+        if (still.contains("一次搜索都没有") || creep.contains("一次搜索都没有"))
+            ctx.fail("闸的普查通道是哑的，两臂至少有一臂一次搜索都没发生 —— "
+                    + "这行读数不能用来判任何事：still=" + still + "；creep=" + creep);
+    }
+
+    /**
+     * One arm: re-seat the body, hand the walker an unreachable goal, and tick.
+     *
+     * <p>{@code regoalEvery} is the whole experiment. Zero means the goal is set once and never
+     * touched, so {@code searchGov} is reset exactly once, at the start. Two means the goal drops a
+     * block every second tick and is re-issued each time it changes — {@code CombatProcess.approach}
+     * verbatim, at the rate the blaze actually sank. Everything else is identical between the arms,
+     * which is what makes the difference between their two census rows readable.
+     */
+    private static String creepArm(ServerPlayerAvatar av, ServerPlayer fp, LevelWorldView w, String tag,
+                                   BlockPos high, int cx, int floorY, int cz, int regoalEvery) {
+        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);     // both arms start from the same cell
+        long[] before = futileSnapshot();
+        Walker walker = new Walker();
+        BlockPos target = high;
+        walker.setGoal(new Goal.Near(target, 2));
+        int regoals = 1;
+        Walker.Step s = Walker.Step.WALKING;
+        int t = 0;
+        for (; t < 240 && s == Walker.Step.WALKING; t++) {
+            if (regoalEvery > 0 && t > 0 && t % regoalEvery == 0) {
+                target = target.below();
+                walker.setGoal(new Goal.Near(target, 2));
+                regoals++;
+            }
+            s = walker.tick(av, w);
+            av.step();
+        }
+        return tag + "：" + t + " tick，下了 " + regoals + " 次目标，收在 " + s
+                + "，lastError=" + walker.lastError + "；" + futileGateLine(before, futileSnapshot());
+    }
 
     private static long[] futileSnapshot() {
         long[] v = new long[Walker.FUTILE_GATE_BUCKETS.length];

@@ -183,6 +183,7 @@ wd.serverDamagesTheDragon
 wd.serverBreaksAnEndCrystal
 wd.serverEarnsAnEnderPearl
 wd.serverFightsAFlyingBlaze
+wd.serverFutileGateUnderACreepingGoal
 wd.serverEarnsABlazeRod
 wd.serverOpensTheEndPortal
 wd.serverSmeltDeliversTheIngot
