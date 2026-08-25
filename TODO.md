@@ -1817,6 +1817,12 @@ trip200 那个 `gameTime=3064`、138 次记账 + 1437 次被抑制（≈1575 次
 | **N2 真梯 12 级** | `:fabric:runJourneyIntegratedServer` 过 12 级 | 仍死在 12 级，且死因还是「验证时看得见、开火时看不见」 | 死在 12 级之前 ⇒ 这一改没轮到，不能记账 |
 | **N3 J61 场合** | 出现 `[placeEnqueue]` 行（12 级建梯阶段真的跑到了） | 服务端线程上出现 `[place]` 行 | 0 条投递 ⇒ J61 至今**仍未回测**，等级停在「已编译」 |
 
+📌 **N3 的「0 行」在开跑前就已经证明是可信的未触发**（不是哑仪器）：
+`placeEnqueue` 这个串在 `common/build/classes/.../BotInteract.class` 的**常量池里**，
+且该 class（02:32:46）**新于**源码（00:54:29）——即这一趟跑的正是含 J61 的那份构建。
+不先钉这一条，0 行就同时能读成「场合没到」和「仪器没进构建」两件事
+（[[an-instrument-behind-a-flag-is-not-an-instrument]]、[[evidence-that-lies]] 第七节）。
+
 ⚠️ **N2 的「未触发」必须当成未触发**：真梯天花板现在是 11 级，
 死在 12 级**之前**的话，这一笔修法根本没被执行到，那趟的绿或红都记不到它头上
 （[[a-fix-that-never-gets-its-turn]]）。
