@@ -3352,6 +3352,25 @@ cast0.landing    = 精确 1.09/58.00/19.51，onGround=true，inWater=false
 它必须与「把最后一步走完」配套，不是可选项。**但不要回退 J69a**：`flightEnd` 那行证明
 末路点选对了，楼梯底确实 `身处 water` 站不住；回退只是把死法换回 cast8 那一版。
 
+###### 📌 J69b 修法与判据：把最后一步走完（写在跑之前，2026-08-25）
+
+`32cdfcfb`：`walkTheFlight` 走完 `walkTheStairs` 之后、**只在下行方向**，
+若身体还高于末路点就补一段 `Goal.Block(末路点)`（`NoBreak`，200 tick）。
+身体已在末路点那一排或更低时**静默**——干燥楼梯上这一步本来就该被跳过。
+**不narrow `LEG_ARRIVED`**：它自己的 javadoc 拒绝过，那是共用行走代码，每个调用方都会感觉到。
+
+**下一趟排练的三态（`-Prehearse=PORTAL_LIT`，读结果前不改这段）：**
+
+| | 读到什么 | 判作 |
+|---|---|---|
+| ① | 出现 `cast*.flightLastStep` 行，`returnedY=57`，`rehearse12PortalLit -> PASS`、10 块黑曜石 | J69a+b 配套成立，回归修复且末路点真的被站上了 |
+| ② | 出现 `cast*.flightLastStepMissed` | 这一步**被拒绝**了——那是新发现，指向「从上一级走不进末路点」，此时才需要 walkerDebug |
+| ③ | 一行 `flightLastStep` 都没有，却仍 `returnedY=58` | 补腿的前置判断写反了（`here.getY() <= ends.getY()` 那一支），是我的 bug 不是世界的 |
+
+⚠ **`flightLastStep` 出现是预期，不是异常**——楼梯底每趟回程都湿，所以末路点每趟都提一级，
+补腿每趟都要跑。**零行 `flightLastStep` + `returnedY=57`** 也可以接受（说明容差那一面翻到了好的一侧），
+但那是运气不是修法，要看 `flightEnd` 是否照样每趟都在。
+
 ###### 🔎 J70：排水等的时间只有它自称的一半（2026-08-25，登记，排练跑完就修）
 
 `JourneyDrain:73–74` 的 javadoc 明写「**five legs of forty ticks** is generous —
