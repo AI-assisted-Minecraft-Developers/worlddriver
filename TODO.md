@@ -3400,6 +3400,55 @@ FAIL              = 浇不到指定格：想浇 4, 57, 18（瞄 5, 57, 18），�
 它们是确定性的、逐字相同的、有对照的（上一趟同一位置 58，这一趟 57）。
 浇筑瞄准与 `carve.stuck` 各自另开工单，**不要顺手一起改**。
 
+###### ✅ 真梯 `ladder-j69` 读数：命中预登记的 ④，两条修法都生效，不回退（2026-08-25）
+
+**先算颜色再对**：`runJourneyIntegratedServer` 不是闸任务，**没有 `VERDICT:` 行**（实测 0 行），
+所以「数 VERDICT 行」这条协议在这里的正确读法是「0 行 = 符合预期」，不是「死在半路」。
+跑完的证据是 `wd.journey99Verdict` 出了行。
+
+| 级 | 结果 |
+|---|---|
+| Armed / 01–11 | **全 PASS**。11 级 `OBSIDIAN` 10571 tick，「在 -3, 62, 54 浇出黑曜石，桶已回到手上 ×1」 |
+| **12 `PORTAL_LIT`** | **FAIL**（11579 tick）：`走不回模腔：停在 1, 58, 19，楼梯底 2, 56, 19 在 y=56 —— 带着一桶岩浆停在半路` |
+| 13–20 | `BLOCKED`，秒过（12 级没达成，上面不予尝试） |
+| 99Verdict | 爬到 `OBSIDIAN`，**布景调用 0 次** |
+
+**判作 ④，逐条对上了**（预登记写的是 z=20 那一列，这趟模腔在 z=19，列号每趟不同，形状一致）：
+
+```
+cast0/cast1.flightEnd          = 末路点从楼梯底 2, 56, 19 提到 1, 57, 19 —— 楼梯底站不了：… 身处 water
+cast0/cast1.flightLastStep     = 0, 58, 19 → 1, 57, 19（容差 1.5 格把这一步判成到达了，这里把它走完）
+cast0/cast1.flightLastStepMissed = 1, 58, 19 仍不在末路点 1, 57, 19 上 —— 脚下 stone，身处 air，头顶 air
+cast0/cast1.returnedY          = 58（楼梯底 y=56，身体 1, 58, 19）
+```
+
+- **J69a 生效**：`flightEnd` 出了 2 行（不是九行——这趟只浇到第 2 趟就死了，
+  预登记那句「九行是下限」按 tag 族分开数依然成立）。末路点确实从泡水的楼梯底提到了干台阶。
+- **J69b 生效但没走完**：`flightLastStep` 3 行、`flightLastStepMissed` **也是 3 行**。
+  末步腿把身体从 `0,58,19` 挪到了 `1,58,19`——**横着挪了一格，就是没掉下那一排**。
+- **结论：两条修法都不回退。** ④ 写死的就是这一句。
+
+**为什么差这 0.3 格**（几何算得出来，不用再跑）：身体停在精确 `1.20/58.00/19.49`，
+碰撞盒 0.6 宽 ⇒ x∈[0.90, 1.50]，而上一级台阶的垫块 `0,57,19` 占 x∈[0,1]，
+**还剩 0.10 格搭在上面**，于是 `onGround=true`，掉不下去。
+再往东 0.3 格就会落进 `1,57,19`。对照排练那趟成功的（`rehearse-j69b`）：
+起点是 `1,58,19`（x=1.09）而不是 `0,58,19`（x=0.84），少走一格，落点 x=1.53 ⇒ 掉进去了。
+**同一段代码，起点差一格就是生死。**——[[the-collision-box-is-not-the-cell]]、[[a-scan-narrower-than-the-body]]。
+
+**`finishTheFlight` 自己报了这个失败然后照旧往下走。** `flightLastStepMissed` 是它自己写的行，
+写完就 `then.run()`。这是 `drain.7` 那个形状的第二例：**仪器预告了死因，没有人消费它**。
+
+**顺带一个没设计到的战果**：`forge` 那一段（开凿模腔前的第一次下楼）
+`walkTheStairs` 整条路线跑完，身体还在 `-0.84/66.18/15.11`——**楼梯顶，且 z 差了 4 列**，
+`onGround=false`。`finishTheFlight` 把它救到了 `-4,63,19`（对上了 z，下了 3 排），
+`forge.returnedY=63`。这一段后来开凿成功了。也就是说末步腿在一个我没为它设计的场合里干了活，
+但同样只干一次就放行——[[a-segment-hides-a-stall-at-its-end]]。
+
+**下一步（J69c）不是「再走一次」。** 走第二次的目标格还是 `1,57,19`，
+身体在 `(1.20, 58.00, 19.49)` 离它格心只有 0.58 格，**walker 会立刻判 ARRIVED 原地不动**
+——[[a-retry-that-changes-nothing]]。要改的是「怎么把身体从上一级的唇上推下来」，
+方案在下面 J69c 里单独立，先跑 NeoForge 闸。
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
@@ -3455,6 +3504,24 @@ cast2.picks.2 = 4, 58, 18 Block{minecraft:dirt} face=west → 落进 3, 58, 18
 对照组很硬：同一趟的 `water0/water1/water2/cast0/cast1` **五次 `stand.N` 与 `picks.N` 的身体格完全一致**，
 只有 `cast2` 的两次不一致。
 
+**先说结论：(A)(B) 是同一条线的两个入口，而那条线只有一行代码。**
+`JourneyPortalRung:2317`：
+
+```java
+BlockPos planned = aimNow != null ? aimNow : backing;
+```
+
+`aimNow` 是**走完之后、从身体真正所在的位置**重问的那一次（`:2312`，
+`aimThatLandsIn`，而且它不是线段预测——`:756` 会真的把角度存下去开一枪再看落点）。
+它返回 `null` 的意思是「**从这里打不到目标**」，是一个**肯定的否定答案**。
+`:2317` 把这个答案丢掉，改用走之前算的 `backing` 开火。
+
+而 `aimThatLandsIn` 的 `null` 分支**一行证据都不写**（`:743..751` 五个 `continue` 全是静默，
+只有 `aimForked` 那一支会留行）。所以「重问过、被拒了、然后照旧开火」这件事在日志里
+**完全没有痕迹**——我前两轮读这条失败时看到的全是几何，正因为如此。
+
+**下面 (A)(B) 是这一行的两个入口，读数照录。**
+
 **(A) 预测取自一具腾空的身体。** 决定「不走了、就地开火」的是这一行：
 
 ```
@@ -3468,6 +3535,16 @@ cast2.picks.3    = 4, 56, 18 stone face=west → 落进 3, 56, 18（…… 眼�
 判据（`lands.equals(target)`）是对的，喂给它的输入取自身体还在下落的那一 tick。
 同族：[[a-pointer-that-advanced-in-mid-air]]、[[a-lagging-reading-became-the-crime-scene]]、
 [[the-jump-that-never-fired]]（`onGround` 讲的是上一次 `move()`）。
+
+⚠️ **我原本要给 (A) 补的东西已经在跑，这是同一个错误的第四次。**
+`:2322` 就是 `clearPlantOnLine(… () -> rig.settle(new HoldStill(2), 10, …))`，
+注释头一行写着 `SETTLE FIRST, THEN AIM, THEN PREDICT AND USE`；
+`:2301..2316` 整段叫 `RE-ASK FROM WHERE THE BODY ACTUALLY ENDED UP`，
+连 `.walked` / `.reaimed` 两个证据 key 都备好了。
+**缺的从来不是 settle，也不是重问——是重问说「不行」之后没人听。**
+见 [[a-guard-i-assumed-absent-was-running]]：补守卫之前先 grep 它自己会写的那一行。
+这次那一行**不存在**（null 分支静默），所以 grep 落空并不能证明守卫不在——
+**grep 落空之后还要读产码**，这是那条记忆要补的一句。
 
 **(B) 选定了落脚格，却从别的格开火。** tries=2 和 tries=1 完全一致：
 
