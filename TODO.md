@@ -1914,9 +1914,58 @@ STILL RUNNING 1000 ms in ONE advance() — expanded=64019
    要的是**搜索失败后的退避／失败记忆**，不是拒绝某个 `|dy|` 常量
    （顾问提的 `|dy|>32` 不做：竖直够不着与否取决于能不能垒柱子，
    把它写成常量就是 [[the-number-that-appears-on-both-sides]]）。
-   **动手前先查现成的**：`WalkerTickSearch` 一族可能已经有退避而这一趟没触发——
-   [[a-guard-that-did-not-fire-may-be-right]]／[[guards-and-the-fallbacks-that-ignore-them]]，
-   先读调用图再决定是加闸还是修闸。
+   **动手前先查现成的**——查完了：**闸早就在，是它被复位掉了。**
+
+##### 闸在，没响：会飞的目标每两 tick 复位一次 futile 计数
+
+`WalkerTickSearch:121-138` 的 futile gate（`walkerFutileSearchCap`，4→8→16→32 tick 退避）
+本来就是为这一族写的。它这一趟一次都没走到失败路径：
+
+```
+本场 [walker] 行 307 条
+  含 “futile”           0
+  含 “no route progress” 0
+  含 “NO_PATH” / “FAILED” 0
+```
+
+复位条件是第 122 行的 `gotCloser`：
+
+```java
+boolean gotCloser = wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0.5;
+boolean moved     = wk.searchGov.futileFoot == null || wk.searchGov.futileFoot.distSqr(foot) > 4;
+if (gotCloser || moved) { wk.searchGov.futileSearches = 0; … }
+```
+
+`moved` 是假的（身体钉在 y=−60 一动不动）。而 `gotCloser` ——把触底后 27 次搜索的
+目标打出来，答案就在那里：
+
+```
+(189097, 207, 100000) ×1
+(189097, 206, 100000) ×2   ← 每两 tick 下沉一格
+(189097, 205, 100000) ×2
+…单调降到…
+(189097, 194, 100000) ×2
+相邻两次目标位移：0.0 或 1.0 格，为 0 的 13/26
+```
+
+**blaze 在缓缓下沉**，于是每隔一次搜索目标就靠近 1 格，`gotCloser` 为真，
+`futileSearches` 归零。计数器永远到不了上限，退避永远不武装。
+
+⇒ 这不是 [[a-retry-that-changes-nothing]]（那条是「什么都没变还重问」），
+是**它的孪生**：重问确实有东西变了——目标挪了 1 格——**而这个变化在这个尺度上毫无意义**。
+身体离目标 250 格且物理上够不着，目标以 0.5 格/tick 逼近意味着还要再烧 500 tick 的满预算搜索。
+闸问的是「有没有变好」，该问的是「变好得**够不够**」。
+
+**修法（引擎侧，待写）**：`gotCloser` 的复位应当要求进展**由身体挣来**，
+或者至少要求改善量相对于剩余距离不可忽略；一次**烧穿 `maxNodes` 且没够到目标**的搜索，
+不该仅因为目标自己飘近了 1 格就被判为「有进展」。
+`moved` 那一支照旧——身体真挪了就是真进展。
+
+📌 **负测试是这条的硬要求**：一次合法的追击（目标在跑、身体在追、双方都在动）
+不能被误伤成 NO_PATH。测的形状应当是**身体不动 + 目标缓慢逼近 + 搜索烧穿预算**
+三者同时成立，而不是只测「目标在动」。
+[[verify-by-making-the-criterion-impossible]]：把目标放到物理上够不着的高度，
+健康的追击永远走不到这条闸。
 
 **双稳仍然成立，但掷骰子的不是入场时序**，是**这一轮 blaze 往哪飞**：
 飞出台沿身体就跟出去，飞不出就全程 `expanded=0`。跟改了哪份代码无关，
