@@ -307,12 +307,23 @@ final class JourneyStairs {
      */
     private static String flooding(ServerLevel level) {
         List<String> wet = new ArrayList<>();
+        int sources = 0;
         for (BlockPos step : cells)
-            for (BlockPos c : List.of(step, step.above()))
-                if (!level.getFluidState(c).isEmpty())
-                    wet.add(c.toShortString() + "=" + level.getBlockState(c).getBlock());
+            for (BlockPos c : List.of(step, step.above())) {
+                var fs = level.getFluidState(c);
+                if (fs.isEmpty()) continue;
+                if (fs.isSource()) sources++;
+                // SOURCE vs FLOWING IS THE WHOLE QUESTION, and until 2026-08-24 this row printed
+                // only the block name — which is `minecraft:water` either way. The 2026-08-24 ladder
+                // died with two wet treads and no way to tell one spilled bucket (ONE source, the
+                // rest flowing, and the fix is upstream: don't pour there, or reclaim it) from a
+                // pond the shaft was cut into (MANY sources, and the fix is to cut the shaft
+                // somewhere else). Those two want opposite work, so the audit has to say which.
+                wet.add(c.toShortString() + "=" + level.getBlockState(c).getBlock()
+                        + (fs.isSource() ? "(源)" : "(流 level=" + fs.getAmount() + ")"));
+            }
         if (wet.isEmpty()) return "";
-        return "；" + wet.size() + " 格泡在流体里："
+        return "；" + wet.size() + " 格泡在流体里（其中源块 " + sources + " 格）："
                 + String.join("，", wet.subList(0, Math.min(wet.size(), 4)))
                 + (wet.size() > 4 ? " …" : "");
     }
