@@ -1041,7 +1041,34 @@ cast8.clear3 = 要清的格里 3,60,20=water(壁龛内) 3,61,20=water(壁龛内)
 所有下游机构（塔、楼梯、选落脚点、射线）都是**在这摊水上失败的**，各自的判词都只讲了自己那一段。
 ⇒ **J52 从「一条待办」升级为 12 级的主线阻塞**；`DRAIN_UPSTREAM` 3→8 那一笔正是回答它所需的仪器。
 
-### 🟡 J61（j54 日志统计，2026-08-25 08:20）：`clientUseItemOn` 正在被服务端线程调用
+### 🔴🔴 J61（**已升级：它把 j56 崩掉了**，2026-08-25 08:45）：`clientUseItemOn` 被服务端线程调用
+
+j56 跑到 45 分钟、11 级已过、12 级正在垒台阶时，**客户端崩了**
+（`fabric/run-journey-integrated/crash-reports/crash-2026-08-25_08.40.53-client.txt`）：
+
+```
+java.util.ConcurrentModificationException
+    at java.util.HashMap$HashIterator.nextNode(HashMap.java:1605)
+    at net.minecraft.client.sounds.SoundEngine.tickNonPaused(SoundEngine.java:285)
+    at net.minecraft.client.sounds.SoundManager.tick(SoundManager.java:283)
+    at net.minecraft.client.Minecraft.tick(Minecraft.java:1966)      [Render thread]
+```
+
+**因果链是闭合的**：`SoundEngine.tickNonPaused` 在 Render 线程上遍历自己的 HashMap；
+要抛 CME，必须有**另一条线程**在遍历期间结构性地改它。而
+`placeInto` → `av.placeOn` → `clientUseItemOn` → `mc.gameMode.useItemOn` → `BlockItem.place`
+→ `ClientLevel.playSound` → `SoundManager.play` → `SoundEngine.play` → `HashMap.put` ——
+**整条链跑在 Server thread 上**。放置最密集的 12 级，正是它崩的地方。
+
+⇒ **这不再是「理论上的竞争」，是「它已经吃掉了一趟 45 分钟的梯子」。** 从 🟡 升到 🔴🔴，
+并且**它现在是 12 级往上的头号障碍**：J59 修好之后台阶能垒了，放置次数翻倍，摇骰子的次数也翻倍。
+
+⇒ 修法：把这一跳 marshal 到客户端线程（`mc.execute(...)`）后再等它完成。
+**`PLACE_ROUND_TRIP` 当初留的余量正是为这一天**——marshal 之后往返多一跳，
+4 tick（预算 8）够用；那段 javadoc 已经写明了这个理由，不用重新论证。
+⚠️ 仍然**不要和 J59 捆在一起改**：J59 已经用 j56 的 y 分布验过了，这是**独立的第二笔**。
+
+#### 原始读数（j54 日志统计，2026-08-25 08:20）
 
 `BotInteract.clientUseItemOn` 的 javadoc 自己写着 **“Must be called from the client thread.”**
 而 j54 的 `[place]` 行按线程分档是：
@@ -1070,6 +1097,32 @@ J60 的仪器接线加在这里之后就到 2983 了。闸还是绿的，但**�
 该搬的那一块是现成的：`waterFill.reseat` 这一整段**讲的是怎么挑座位**，而挑座位是
 `JourneyFill` 的主题，不是这个 rung 的。把这段证据连同它的判断搬进 `JourneyFill`，
 既松了额度，又让读数和它量的东西待在一起。⇒ 单独一笔，别和 J60 的测量混在一起。
+
+### ✅ j56 判据结算（2026-08-25 08:45）：**P1 已验 —— 楼梯第一次涨起来了**，但这一趟是**崩的**
+
+j56 **`BUILD FAILED`，退出码 −1，只有 13 行结果、没有 12 级的行、没有 verdict** ⇒ 按
+[[never-tail-a-gate-run]] 的规矩：**这是一趟死掉的运行，不是一趟红的运行**。
+所以结果文件回答不了任何判据。**但日志能**，而且回答得很干净：
+
+| 日志 | 趟次 | 服务端线程放置成功数 | 落到过哪些 y |
+|---|---|---|---|
+| `debug-5.log.gz` | 更早一趟 | 10 | **只有 56** |
+| `debug-2.log.gz` | j54 | 11 | **只有 56** |
+| `debug-1.log.gz` | j55 | 0 | —（死在装水，从没起过台阶）|
+| `latest.log` | **j56** | **20** | **55、56、57、58** |
+
+**在此之前每一趟都只落在 y=56 —— 也就是第一级 —— 一级都没上去过**（j54 的 14 条 `.step.N`
+全是 `step.0`，九条 `laid` 全是 `0/N`）。j56 落到了 y=57、y=58。
+⇒ **P1 已验**：`layWhereItStands:429` 那句「已经实心就 laid++」终于记到了本趟自己垫的那一级，
+楼梯真的往上长了。这条证据不依赖结果文件，正因为结果文件这趟根本没写成。
+
+- **P1 = 已验**（靠日志，非结果文件）
+- **P2 = 未触发**：12 级没写出结果行，`.step.N` 一条都没有
+- **P3 = 未触发**：12 级没有判词
+
+⚠️ **而且很可能是修法自己把崩溃招出来的**，这一点必须写下来而不是绕过：修好之后台阶垒得更高、
+放置次数更多（11→20 次服务端线程放置），**而每一次都是 J61 那个数据竞争的一次摇骰子**。
+不是修法有错，是修法**把一个一直都在的缺陷推过了触发阈值**。
 
 ### 📋 j56 判据预登记（2026-08-25 08:10，**结果文件尚不存在时写下**）
 
