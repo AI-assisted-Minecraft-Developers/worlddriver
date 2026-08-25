@@ -8,10 +8,10 @@
 **还没落地的预登记**。
 
 - **删掉的东西一条都没丢，全在 git 里。** 重写前那一版的完整内容在提交
-  `d325d0607fca9c152afcc702d1a3ba02b08a9692` 里，一条命令就能翻回全部历史读数：
+  `fb94af03d59f4bc16639f102ab184ac5c037ac9f` 里，一条命令就能翻回全部历史读数：
 
   ```bash
-  git show d325d0607fca9c152afcc702d1a3ba02b08a9692:TODO.md
+  git show fb94af03d59f4bc16639f102ab184ac5c037ac9f:TODO.md
   ```
 
 - **执行排期搬走了。** 「窗口 0–4」那一节现在是 [`ROADMAP.md` §6](ROADMAP.md)。
@@ -40,14 +40,14 @@
 | 🔴 判：做（触发改具体：下一个 knob 之前） | J7 | **`BotConfig.java` 2993/3000，零死 import**——顶着上限，**要拆不要刮**（[[a-file-pinned-at-its-budget]]）。触发词从「梯子稳后」改成「**任何要新增 `BotConfig` knob 的修法之前，先拆**」；Q7c 已被迫复用 `walkerFutileSearchCap` 就是这条上限在收税 | 我（下一个 knob 之前） |
 | 🟠 判：做（排练退出后的编译窗口） | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom`（今在 `:2671`，10 级隧道用，一次瞄准一次 use，没有重瞄／换源／装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。已咬两口：Q25 是 scenes 份缺 `BUCKET_REACH` 那半格；j46 判词证明 11 级走的仍是 scenes 份（有 `fill.hand` 无 `.spot`／`.aimsAt`）。且 J48-(B) 的 `bucketInHand` 守卫只落在 `JourneyFill`，scenes 侧 `:2673` 的 `holdForUse(rig, Items.BUCKET, "fill")` **返回值仍丢**、拿不到桶就白花一次 use、红挂在「没装到」名下。**第一步只补同款守卫点名「拿不到桶」；合并成单份留给证据键允许变的那一轮** | 我 |
 | 🟠 判：做（先离线回放；Java 等排练退出后的编译窗口） | Q7c | 形状已定：**加宽现有那道闸，不造第二个调速器**——`WalkerTickSearch:85` 自己写着「two governors on one loop would race」。规格＝已量出的**两条盲区**：`!res.goalReached()` 让「搜得到、走不了」永不计数，`distSqr(foot) > 4` 让 5 格 ping-pong 每次清零。**不加新 `BotConfig` 开关**，复用 `walkerFutileSearchCap`。**落 Java 之前先离线回放**：拿 ladder-14 已录的 **174 案／816 案**回放新计数规则，必须抓住那两案且**不误伤正常绕行**（`journey03Wood` 绕树那段是现成阴性样本）。Q22 那 42 次岩浆重搜正是这道闸该数而没数的案 | 我 |
-| 🟠 判：排到 J47 之后（验收随 ashore 翻绿） | J39 | 修法 `30d68001`（`JourneyCast.leaveWithTheLava` 在 `climbOut` 之后补 `standOnDryGround`，复用 `JourneyTerrain.dryUnderfoot`，预算 **600 tick**）**在 HEAD 但至今未验**——真梯发作条件没复现。验收已移交 `wd.journeyGetsAshoreBeforePouring`（J45b），而它常驻已知红，红的不是 `standOnDryGround` 而是**浮体走不上齐平岸**（J47）⇒ **本行下一步就是 J47 已判的写死步骤；J47 绿则此行随之验** | 我 |
+| 🟠 判：排到 J47 之后（验收随 ashore 翻绿） | J39 | 修法 `bdece564`（`JourneyCast.leaveWithTheLava` 在 `climbOut` 之后补 `standOnDryGround`，复用 `JourneyTerrain.dryUnderfoot`，预算 **600 tick**）**在 HEAD 但至今未验**——真梯发作条件没复现。验收已移交 `wd.journeyGetsAshoreBeforePouring`（J45b），而它常驻已知红，红的不是 `standOnDryGround` 而是**浮体走不上齐平岸**（J47）⇒ **本行下一步就是 J47 已判的写死步骤；J47 绿则此行随之验** | 我 |
 | 🟠 判：先补测量 | J40 | ② 的仪器一句话：`JourneyRig.await` 的逐 tick 判活顺手读 `getAirSupply()`（和血量），**无条件按腿落行**（量级＝每腿一行，不用节流，[[an-instrument-behind-a-flag-is-not-an-instrument]]）。j39 只有终点（`drown −2.0→0.0@146`、`death.driving=goto`）没有过程，「过线中止去补救」的线画在哪要分布。① 引擎自救维持**不做**（先用写死步骤） | 我 |
 | 🟠 判：做（引擎批，双闸，不与真梯同趟） | J33 | **专用服身体和客户端身体给「挖穿」定的不是同一个价**：`LevelWorldView.breakCost:93-104` 只有 `COST_PER_TICK × ticks`，`ClientWorldView` 叠了四道税（浮水 ×25／×5、错工具 ×3、树干税、`pathfinderBreakCostMultiplier`）⇒ 专用服上任何「会不会挖穿」的场景量的都是另一张表。**第五条分歧方向相反**：服务端规划器按**手里正拿着的那件**定价（`LevelWorldView:100`），而它的执行器破坏前会从**全部 36 格**换上最优工具（`ServerPlayerAvatar.selectTool:324-343`）⇒ **规划器比执行器严**。三条承重断言逐条核过：`selectTool` 确实扫 `inv.items.size()`、`LevelWorldView` 确实**只有 1 参 `breakCost`**（浮水税那条 2 参路径根本进不来）、`ClientWorldView` 确实只扫 `slot < 9`。证据在这个类自己的 javadoc 里（`:79-83`）。搬法分两笔两闸。**Q14 的残余记在这里** | janitor 已评估，我判做 |
 | 🟠 判：头条做（窗口 1 仪器批），其余 12 个不做 | J41 | 头条＝`WorldDriverJourneyScenes:2521` 的 `tunnel.fell`，走 `ascendByTowering` 的 `String tag` 入口，**根本不进 `recordExit`**（`toY`／`endedIn`／`endedOn`／`gained`／`lost`／`pillarStock` **六行一行都没有**，只有 `tunnel.climbedBackTo`），而它爬的是**岩浆廊道**。全表比例：afloat **1/13**、`endedIn` **1/13**、`gained/lost` 在调用点判 **2/13**（#4 #5），另 **4 处**靠下游或下一级守卫兜（#3 #7 #9 #10），**完全没接 5 处**（#2 #6 #8 #11 #13）。**尾巴那 12 个**：重开条件＝判词把红记在一次爬升的结局上而那一段三行皆无，届时只补那一个入口——展开说就是：任一趟的判词把红记在一次爬升的结局上，而那一段找不到 `*.afloat`／`*.endedIn`／`*.gained` 任何一行 ⇒ 给**那一个**入口补，**不批量补** | janitor 查，我排 |
-| 🟠 判：做（排练退出后的编译窗口，机械） | J43 | 同一句天光高度（`getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, …).getY()`）在 journey 包里手写 **12 次**，`JourneyTerrain` 自己那 3 处已收进 `daylightAt`（`6b468909`）。**剩 9 处（今日重核）**：`JourneyEndRungs:889`、`JourneyRehearsal:983`／`:2028`、`JourneyRoute:456`／`:526`／`:572`／`:639`、`WorldDriverJourneyScenes:255`、`JourneyRig:381`（⚠️ 从本行原写的 `:333` 挪到了 `:381`——**行号照核不照抄**）；`JourneyTerrain.daylightAt:280` 现成。不改证据键，`:common:compileTestmodJava` 即闸。⚠️ 动手前逐个确认 9 处 `level` 的**声明类型**（`daylightAt` 形参是 `ServerLevel`），`JourneyRehearsal:983` 要的是 `BlockPos` 不是 `int`；顺手清掉 4 处内联 FQN（硬规则 7） | janitor |
+| 🟠 判：做（排练退出后的编译窗口，机械） | J43 | 同一句天光高度（`getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, …).getY()`）在 journey 包里手写 **12 次**，`JourneyTerrain` 自己那 3 处已收进 `daylightAt`（`f1cf067d`）。**剩 9 处（今日重核）**：`JourneyEndRungs:889`、`JourneyRehearsal:983`／`:2028`、`JourneyRoute:456`／`:526`／`:572`／`:639`、`WorldDriverJourneyScenes:255`、`JourneyRig:381`（⚠️ 从本行原写的 `:333` 挪到了 `:381`——**行号照核不照抄**）；`JourneyTerrain.daylightAt:280` 现成。不改证据键，`:common:compileTestmodJava` 即闸。⚠️ 动手前逐个确认 9 处 `level` 的**声明类型**（`daylightAt` 形参是 `ServerLevel`），`JourneyRehearsal:983` 要的是 `BlockPos` 不是 `int`；顺手清掉 4 处内联 FQN（硬规则 7） | janitor |
 | 🟠 判：先补测量（工程窗口仪器批） | J75 | **末影人有些仗根本不结束**：`wd.serverEarnsAnEnderPearl` 在 NeoForge 上约 **1/4** 翻红。四趟 24 场，每场要么 **66–150 tick** 打完、要么**恰好烧满 4000**，**中间值一个都没有** ⇒ 是**卡死**不是慢。补一行 `enderman.stall.<场次>`，详见「拍板」节 | 我 |
-| 🟠 判：先补测量（补判，`ffdfcad7` 推翻了「排到 J72 之后」） | 丙 | **水源的存活窗口**（`JourneyStairs.java:385` 点名的「reclaim it」）。18011 tick 那趟把水读成了死因，原判第一条理由当场作废；但命中的是「淹」不是「丙 是解」⇒ 先把 38 条 `*.stairsBroken` 按 `lava*`／`cast*` 拆开读，零代码。详见「拍板」节 | 我 |
-| 🟠 判：做（引擎批，双 loader 闸） | J46 | **引擎侧那份孪生没修**：`PlaceNearby.place`（`PlaceNearby.java:52`，今日重核）用的还是「非空气且不可替换」，而 testmod 侧 `0d964a41` 之后问的是 `isFaceSturdy(lvl, below, UP)` ⇒ [[two-ones-that-disagree]] 从风险变成**现状**（它仍会对着睡莲白点一次）。谓词照抄 `0d964a41` 那句；**两份必须一起改**。走独立双 loader 专用服闸，不与真梯同趟 | 我 |
+| 🟠 判：先补测量（补判，`304373fc` 推翻了「排到 J72 之后」） | 丙 | **水源的存活窗口**（`JourneyStairs.java:385` 点名的「reclaim it」）。18011 tick 那趟把水读成了死因，原判第一条理由当场作废；但命中的是「淹」不是「丙 是解」⇒ 先把 38 条 `*.stairsBroken` 按 `lava*`／`cast*` 拆开读，零代码。详见「拍板」节 | 我 |
+| 🟠 判：做（引擎批，双 loader 闸） | J46 | **引擎侧那份孪生没修**：`PlaceNearby.place`（`PlaceNearby.java:52`，今日重核）用的还是「非空气且不可替换」，而 testmod 侧 `54e4bc14` 之后问的是 `isFaceSturdy(lvl, below, UP)` ⇒ [[two-ones-that-disagree]] 从风险变成**现状**（它仍会对着睡莲白点一次）。谓词照抄 `54e4bc14` 那句；**两份必须一起改**。走独立双 loader 专用服闸，不与真梯同趟 | 我 |
 | 🟠 判：做（排练退出后的编译窗口） | J44c | **坑沿加价「每趟重算」白花了**：j48 的 12 级 15 条 `*.rimTax` **格数恒为 752**，一次都没涨——`onThePoolsLip` 要的是「脚边有个能掉下去、底下 8 格内是岩浆的洞」，而抽走源块留下的是空气、清射线敲的是岩浆层的挡土，都没造出新的**站得住**的沿格。⇒ 每趟一次 **25×25×9** 全量扫描是纯开销。**修法一句：重算撤回去程算一次的快照，加价本身一字不动**（j48 的 12 级零岩浆死是它买的） | 我 |
 | 🟠 判：先补测量（2026-08-25） | J54 | **11 级两根下挖柱都被流体废掉，退出爬升在流动水里被冲下柱子 8 次。** 代码自己诊断对了也决策对了（`shaft.reColumn.1 = 这一柱中段有水，身体浮起来了…爬回 y=63 换第 2 根柱子重挖`）；吃掉这趟的是退出爬升：`climb.1`…`climb.8` 每次 `placed=1` 就 `washedOff = 水把身体冲下柱子了（流速²=1.00000）`，重试 3→2→1→0 用尽。**要补的读数**：给撞上的水落「天然／上级留／自浇」一行出处，**照 12 级 `water0.spent=water_bucket 1→0` 的问法**；在它有分布之前**两条腿都不修**。⚠️ 别把「起塔在流动水里」和「换柱预算不够」合并成一条修法——它们是两条腿 | 我 |
 | 🟠 判：先补测量（收源那笔等点名，2026-08-25） | J52 | **模腔的水顺楼梯流到底。** 仪器半已在 HEAD（`DRAIN_UPSTREAM=8`，`JourneyDrain:102`），但半径 8 的 `drain.N.upstream` **至今零读数**（j57 的 12 级死在取水，没走到排水），「收走被点名的源」没有对象就没有形状 ⇒ **下一趟 12 级先读它**。⚠️ 别把 J70 排进这条因果（实测趟内的水是 `water0` 自浇、`JourneyStairs:250` 收水排在下降之后）。⚠️ 12 级现在**同时**挡在浇筑那一族和这摊水上：`cast8#10` 里它一口气做了五件事——淹掉楼梯底（`stairFoot`）、用 `wouldOpenFluid` 掐断**两次**起塔、让垫台阶的 `placeOn` 拒绝、占住要清的那几格、最后把身体泡在水里 | 我 |
@@ -56,23 +56,23 @@
 | 🟠 判：做（排练退出后的编译窗口，三笔照定稿次序） | J72 | **验证过的几何和开火的几何不是同一个。** 今核 HEAD 三笔都没落：`aimThatLandsIn` 五个 `continue` 仍静默（`JourneyPour:744-752`）、`planned = aimNow != null ? aimNow : backing` 仍在（`JourneyPortalRung:2401`，settle 后那问也同样 `settled != null ? settled : planned` 回退）、`standToPour`（`:2369`）没有排除集。**先 1/2（零风险仪器与判词），再 3（唯一的行为改动）**，判据三态见「拍板」节 | 我 |
 | 🟠 判：做（排练退出后的编译窗口，一行） | J70 | **排水等的时间只有它自称的一半**：`JourneyDrain:73–74` 的 javadoc 写「five legs of forty ticks」，而 `:170` 是 `HoldStill(DRAIN_TICKS / 2)`——五段共 **100 tick**，而 `:140`／`:147` 两行判词印的是 `DRAIN_LEGS * DRAIN_TICKS` = **200 tick**。今核 HEAD 仍是 `/ 2`。**修法**：`HoldStill(DRAIN_TICKS)`，settle 预算给 `DRAIN_TICKS * 2` 留余量。⚠️ 定位收窄：它与 12 级回程死因链**无关**，买回的只是**趟间**残水判读的诚实度 | 我 |
 | 🟠 判：先补测量 | J71 | **`forge.carved` 在同一份布景上不是确定性的**，这是「1 绿 / 3 趟」那枚硬币的候选。四份日志里没挖动的每次都是同一格同一层：`carve.firstStuck=2, 62, 17=dirt：身体 4, 64, 17，距 2.8 格，canBreak=true，六邻实心 4/6，手上 stone_pickaxe`。**下一步是量不是修**：连跑 N 趟 **`runRehearsalIntegratedServer`**（⚠️ 必须固定这一种身体，混拓扑的方差有一半来自身体种类）列 `forge.carved` × 结局表。67/67 全绿、66/67 全红 ⇒ 它就是硬币；66/67 也能绿 ⇒ 只是噪声。**表出来之前不动开凿代码** | 我 |
-| ❌ 判：不做（仪器已武装，首现即判读） | Q16e | 6 级**间歇**失败（3 趟里 1 趟）。`0d265c05` 的 `kill.kills`／`kill.swings`／`kill.preyVitals`（`WorldDriverJourneyScenes:1232-1245`，results-ladder14 起成行）已把「谁按了 keyAttack、打了几下、打死没有」按交战归因；此后 6 级连续 PASS。**重开条件**：6 级再次 FAIL **且** `kill.*` 三键在那一趟有行 ⇒ 当场按行归因；**再次 FAIL 而三键零行则是另一件事**（仪器没跑到），先查为什么，别改战斗 | 我 |
+| ❌ 判：不做（仪器已武装，首现即判读） | Q16e | 6 级**间歇**失败（3 趟里 1 趟）。`5d81dee5` 的 `kill.kills`／`kill.swings`／`kill.preyVitals`（`WorldDriverJourneyScenes:1232-1245`，results-ladder14 起成行）已把「谁按了 keyAttack、打了几下、打死没有」按交战归因；此后 6 级连续 PASS。**重开条件**：6 级再次 FAIL **且** `kill.*` 三键在那一趟有行 ⇒ 当场按行归因；**再次 FAIL 而三键零行则是另一件事**（仪器没跑到），先查为什么，别改战斗 | 我 |
 | ❌ 判：不做（复发即重开） | Q13 | **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗。代价已量到零：6+7 级圆石净损 22→22=**0**（上趟 16→7=9），`furnace.topUp=不需要` 两趟同句。**重开条件**：哪趟判词再把红记在取料/补料上即重开 | 我 |
 | ❌ 判：不做（动机已消失） | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分。动机（3 级砍树被破坏税劝退）已被 J32-A 的定域木税豁免直接解决且带出厂配置真梯验过。**两个乘数照旧全局生效那部分属「两套 WorldView 两张价目表」的账，在 J33 名下** | 我 |
 | ❌ 判：不做 | J2 | 到达半径统一成眼→格心，抽进 `BotUtil`，五处指过去。纯预防：五处至今零已量分歧，没有一笔失败记在到达半径不一致名下；且同族旁证 J60-(B)（`JourneyFill:987-988`）说明「格心」这个基准自己还在动。**重开条件**：射线族定型后 janitor 可重提 | janitor |
 | ❌ 判：不做 | J3 | `ContactDamageEscape` / `LavaProximityEscape` 升级成 `commandMove`。Q23 读码收窄已写明：反射前五次发作全部成功，败因是进了源块 40 tick 挪不满 1 格（物理上没救），换驱动改不了这个。**重开条件**：哪趟 `death.blow` 把逃生失败归到转向/驱动延迟上再重开 | janitor |
-| ❌ 判：不做（关闭） | J4 | `keyAttack` 五取用者协议——只做诊断表，**不要发明全局仲裁器**。诊断表已被 `0d265c05` 的三键仪器替代，6 级此后连续 PASS。**重开条件**：Q16e 下次发作且归因不清再重开 | janitor |
-| ❌ 判：不做（闸已武装，首现即判读） | Q21 | 三次进近逐字相同：`liftInPlace` 的闸是 `y >= wantY`，而失败的是**柱**。闸已拆三支（`8d1e88c4` 的 `.liftSkipped.N`／`.liftSideways.N`／`.liftIsHere.N`），在 j48 以来全部归档 results 与 j57 已写部分里 **0 行**。零样本上改重试逻辑没有判据可言。**三键常驻，首现即判** | 我 |
+| ❌ 判：不做（关闭） | J4 | `keyAttack` 五取用者协议——只做诊断表，**不要发明全局仲裁器**。诊断表已被 `5d81dee5` 的三键仪器替代，6 级此后连续 PASS。**重开条件**：Q16e 下次发作且归因不清再重开 | janitor |
+| ❌ 判：不做（闸已武装，首现即判读） | Q21 | 三次进近逐字相同：`liftInPlace` 的闸是 `y >= wantY`，而失败的是**柱**。闸已拆三支（`b825a2a1` 的 `.liftSkipped.N`／`.liftSideways.N`／`.liftIsHere.N`），在 j48 以来全部归档 results 与 j57 已写部分里 **0 行**。零样本上改重试逻辑没有判据可言。**三键常驻，首现即判** | 我 |
 | ✅ 判：结案（不再挡路，**复发即重开**，2026-08-25） | Q22 | 12 级下楼那一段在地表打转 → 落进岩浆湖 `-10,63,19` → 在岩浆里重搜 42 次烧死。代价已被 J44 的三腿坑沿加价买断（j48 真梯 12 级整趟零岩浆死），`death.strideGuard` 常驻。「在岩浆里重搜 42 次」那半账在 Q7c。**重开条件**：哪趟 `death.blow` 再写 lava 即重开 | 我 |
 | ❌ 判：不做 | Q27 | 放置前不问目标格是不是空的：整趟 ladder-14 **101 成功／67 拒绝**，其中 63 条（94%）的邻格不是 air。代价本行已量：**0.66 拒绝/成功**，拒绝不消耗物品不写方块，只是簇状重复（单点 ≤12 次）。**重开条件**：等哪趟把失败或预算烧尽归到「重复拒绝」名下再重开 | 我 |
 | ❌ 判：不做（闸已武装，首现即判读） | Q26c | `cast.rePickBlocked`（`JourneyCast:250`）在全部归档 results 里 **0 行**，预言的第四态从没出现。**修法方向已写死**：退路要**换问题**（`viaMidpoint`／改走 `walkToColumn`），**不加次数**（[[a-retry-that-changes-nothing]]）。**首现即照此执行** | 我 |
 | ❌ 判：不做 | J23 | `ElytraProcess:170`（`!p.isFallFlying()` 中途退出）不戳 `lastError`，而这一个出口同时是「落地了」和「翅膀在半空断了正在下坠」。代价已量：`ElytraProcess` 全工作区唯一消费者是 `wd.serverElytra`（`WorldDriverAvatarScenes:391`），journey 零调用、13–20 级不用鞘翅。**重开条件**：鞘翅进主线时再判 | 我 |
 | ❌ 判：不做（重开＝13–20 级开工第一步） | J24 | `JourneyShaft.supportUnder` 用 `rig.ctx().level()`，**latent**：所有调用点现在都在主世界。⚠️ 它和 `JourneyEndRungs.supportUnder` **方法体逐字相同而读的 level 不同**（后者用 `levelOf(rig)`＝身体所在世界，19 级之后不是 `ctx.level()`）——**合并会弄坏末地的级，别顺手合**。重开条件写死为「`JourneyShaft` 的任何方法第一次出现在下界／末地 rung 的调用图里」，那就是 13–20 级开工的第一步（先 grep 调用图），**不是 J33 之后**；详见「拍板」节。⚠️ **这一族不会自己报错**，重开条件必须由人在开工时执行 | janitor |
 | ✅ 已判**不是缺陷** | J44b | 12 级 `forge.carved = 66/67`。`carve.firstStuck = 2,62,17=dirt：距 8.5 格，canBreak=false，六邻实心 4/6`——那条走行腿挂 `NoBreak`，因为不挂时它会打穿自己刚挖的楼梯（实测 `forge.stairsBroken=4/11`）；禁掉挖掘的代价也量过：`forge.swung=64/67` 与 `forge.carved=64/67` **相等——走行腿开的格数是零**。⇒ 够不着的格变成 `carve.stuck` 是**明写的兑价**。**重开条件**：只有当某趟因为**这一格**而铸不成模腔时才重开 | 我 |
-| ✅ 已修（2026-08-25 核 HEAD；发作场合未再现，首现复读） | J38 | **走到了掉落那一格、站了 30 tick，东西没进包。** 修法已在 HEAD：捡拾空手行带 `walkerEnd`（`JourneyRig:2200`，「走完」和「烧完预算」分得开）且 `MAX_PICKUP_LEGS=3`（`:2214`），`JourneyStation.takeTableWhereItStands:106` 从 1 腿升到 `MAX_PICKUP_LEGS`（`762e73b5`）。只写「已修」不写「已验」。**首现条件**：哪一趟再出 `pickup.empty` 而**相距 < 1.5 格且有空槽**，J38 就有第二半，当场重开（背包满 vs 拾取延迟）；**仪器永久留着** | 我 |
-| ✅ 已修（`762e73b5`，队列行过期，2026-08-25 核 HEAD） | J37 | 工作台丢失分支改成 `onGround > 0` ⇒ `collectByHand(…, MAX_PICKUP_LEGS, "craftingTable.lost", …)` 并写 `craftingTable.lostThenFetched`。j47 起 8 级 `keptInBag=1` 走的是健康支，**`lostThenFetched` 零样本——首现即读** | 我 |
+| ✅ 已修（2026-08-25 核 HEAD；发作场合未再现，首现复读） | J38 | **走到了掉落那一格、站了 30 tick，东西没进包。** 修法已在 HEAD：捡拾空手行带 `walkerEnd`（`JourneyRig:2200`，「走完」和「烧完预算」分得开）且 `MAX_PICKUP_LEGS=3`（`:2214`），`JourneyStation.takeTableWhereItStands:106` 从 1 腿升到 `MAX_PICKUP_LEGS`（`c24608b0`）。只写「已修」不写「已验」。**首现条件**：哪一趟再出 `pickup.empty` 而**相距 < 1.5 格且有空槽**，J38 就有第二半，当场重开（背包满 vs 拾取延迟）；**仪器永久留着** | 我 |
+| ✅ 已修（`c24608b0`，队列行过期，2026-08-25 核 HEAD） | J37 | 工作台丢失分支改成 `onGround > 0` ⇒ `collectByHand(…, MAX_PICKUP_LEGS, "craftingTable.lost", …)` 并写 `craftingTable.lostThenFetched`。j47 起 8 级 `keptInBag=1` 走的是健康支，**`lostThenFetched` 零样本——首现即读** | 我 |
 | ❌ 判：不做（仪器常驻，复发即重开） | J35 | 一条 `Goal.XZ` 的回家腿为什么会净升 16？嫌疑是解卡塔按「当前高度+8」抬（16 ≈ 两轮）。J34 的关卡级守卫已验，`*.homeElevation` 无条件逐趟落行且 j34/j39/j47 读数 **−1／+0／+0**。**重开条件**：哪趟再读出 \|差\|≥8 当场重开去查解卡塔 | 我 |
-| ❌ 判：不做（前提已过期） | Q30 | 追猎全程零行日志。前提已不成立：`0d265c05` 后有 `kill.swings`／`kill.kills`／`kill.preyVitals`／`kill.onGround`／`kill.combatError`。只剩死亡时刻 tick 戳没有，而 6 级此后连续 PASS。**重开条件**：等归因真卡在时刻上再补 | 我 |
+| ❌ 判：不做（前提已过期） | Q30 | 追猎全程零行日志。前提已不成立：`5d81dee5` 后有 `kill.swings`／`kill.kills`／`kill.preyVitals`／`kill.onGround`／`kill.combatError`。只剩死亡时刻 tick 戳没有，而 6 级此后连续 PASS。**重开条件**：等归因真卡在时刻上再补 | 我 |
 | ❌ 判：不做（重开＝`JourneyRig` ≥ 2900 行） | J42 | `JourneyRig` 的门面缝是真的且干净：`1856–2410` 这一带 27 个方法里 **20 个是纯查询**，不纯的 7 个还**连续**（收集那一族 `2024–2178`）。代价 **192 个调用点、13 个文件**，收益 **0**。重开条件从「逼近 3000」改成数字：`JourneyRig.java` 行数 **≥ 2900**（今 2606/3000）。⚠️ **2026-08-26 复核已经是 2745**，离触发只剩 **155 行**。到那一刻 `1856–2023` + `2179–2410` 这约 400 行就是现成的搬运单，而 `2024–2178` **必须留下**（它要 `settle`）。顺带记着 `JourneyRig:1297-1312` 那处孤儿 javadoc（写的是 `heartbeat`，挂在 `sinceHeartbeat` 上），切缝那一笔顺手改 | janitor 查，topology 决定 |
 | ✅ 已落（队列行过期，2026-08-25 核 HEAD） | Q8 | V2 不低头：瞄准从此**经过** `LookController`（`ClientPlayerAvatar.aimAtBlock:52` → `BotInteract.aimAtBlockSnap:365` → `LookController.requestSnap:47`，`apply()` 是 tick 末唯一的回拉写者）。**未兑现的那一半**：V2 那个 **90° 俯角分布没人复量过**，拟真复量归 parity | 我 |
 
@@ -148,17 +148,17 @@ settle 再读存量，要么让这一步也进入 `Stop.PENDING` 那套。**所�
 
 ### 🔴 J60-B：座位按「会开火的那只眼」判——**已落地又被撤回，撤回保留**
 
-`c45e6eff`（`JourneyFill.eyesFor` / `eyeBlocked`：身体已经站着的那一格问**真眼**，要走过去的格要求
-**四角＋中心全都看得见**，外套严格→回退）曾落地，随后在一次 A/B 里被判为看门狗死因而撤回（`fde05607`）。
+`d2f261f2`（`JourneyFill.eyesFor` / `eyeBlocked`：身体已经站着的那一格问**真眼**，要走过去的格要求
+**四角＋中心全都看得见**，外套严格→回退）曾落地，随后在一次 A/B 里被判为看门狗死因而撤回（`db6ecbce`）。
 后来那个 A/B 结论**自己也被撤回**（对照臂不等价于绿参照，差分没有解释力，真机制是 J65），
-但原文写死：**`fde05607` 的撤回照旧保留**（撤回一个没验证过的改动不需要理由）。
+但原文写死：**`db6ecbce` 的撤回照旧保留**（撤回一个没验证过的改动不需要理由）。
 
 ⇒ **现状：座位判据仍是格心眼**，而缺陷本身是实测过的：真眼 `(-3.60, 63.62, 55.70)` 被 `(-5,62,55)` 挡住
 （进入 t=0.5536，**面=up，距离 1.04 格**），格心眼 `(-3.50, 63.62, 55.50)` **视线通畅**；日志实测
 `空桶线 -5, 62, 55 minecraft:grass_block 面=up（1.04 格）`——**格、面、距离三个数全中**。
 仪器那半（`waterFill.reseat.eye`，j57 读到 `水平差 0.22 格`，预测值 ≤ hypot(0.2,0.2)=0.283）还在。
 
-⚠️ 最小版**不需要预算闸**：`J60-C`（`101abac2`）已经证明这一族可以「**换原点，不是加射线**」——
+⚠️ 最小版**不需要预算闸**：`J60-C`（`f1802c47`）已经证明这一族可以「**换原点，不是加射线**」——
 射线条数不变，只把原点换成真眼，四个同形调用点（`JourneyFill:352`／`:1017`、`JourneyPortalRung:253`、
 `JourneyPour:472`）共用一个取眼助手。`JourneySight:158` **不属于这一族**（它带 `x`／`lift` 参数，
 是**故意**的偏移采样器）。
@@ -242,7 +242,7 @@ water8.liftedY=64/60
 
 ### ⚠️ 额度与两条「别顺手清理」
 
-- ✅ `JourneyPortalRung.java` **2990 → 2138**（`08cddd14`，janitor 拆出 `JourneyStairwell.java` 912 行，
+- ✅ `JourneyPortalRung.java` **2990 → 2138**（`821d811e`，janitor 拆出 `JourneyStairwell.java` 912 行，
   余量 10 → **862**）。机械搬运：七个调用计数搬前搬后相等（`rig.evidence(` 91→91、`ctx.fail(` 24→24），
   **证据键一个字没动**。我跑过 `./gradlew build` → BUILD SUCCESSFUL，源预算闸 OK。
 - 🔴 **新头条：`common/src/main/.../bot/BotConfig.java` 2993/3000，余 7 行**——比拆之前的
@@ -329,7 +329,7 @@ water8.liftedY=64/60
 （`commit-map` 里「哈希没变」的 0 条，全要改）。**收益/代价比不成立，等真要做时再说。**
 真要做：用 `--filename-callback` 把 `REGRESSION.md` 改道到 `docs/`（直剪会丢 59 条只改它的研究提交），
 先停两个 cron、确认无游戏进程、`commit-map` 存到会话目录之外、改完第一件事是换本文件顶部的
-`d325d060` 指针。
+`fb94af03` 指针。
 
 ### 🅱️ 甲之二（`JourneyPortalRung:906/942` 的早退采样）
 
@@ -360,7 +360,7 @@ water8.liftedY=64/60
 ⚠️ **实现有一个现成的坑**：`loadBuckets` 会把包里每一只桶灌满岩浆，水留在桶里过这一段会不会被它当空桶吃掉，
 **动手前必须先查**。
 
-**凭什么改判**：`ffdfcad7` 那趟（两道禁挖闸都关掉之后，18011 tick FAIL）把水直接读成了死因：
+**凭什么改判**：`304373fc` 那趟（两道禁挖闸都关掉之后，18011 tick FAIL）把水直接读成了死因：
 
 ```
 stairsBroken 自检 38 次，报坏 0 次（20 次「11 级都完好」，18 次「一格不缺但泡着水」）
@@ -698,7 +698,7 @@ NeoForge 的末影人（J75）这趟没翻，是 3/4 的那一面。
 #### 📖 真梯第 2 趟（2026-08-26 02:0x→02:46）：**13/20，零布景——不是新纪录，比历史最好低一级**
 
 ⛔ **这一节最初写的是「13/20 新纪录，12 级首次在真梯上通过」。两句都是假的，已改。**
-主源是重写前的 `TODO.md`（`d325d060`，第 21318–21321 行）：
+主源是重写前的 `TODO.md`（`fb94af03`，第 21318–21321 行）：
 
 ```
 ## ⬜ 上一轮的接手点 —— 真 ladder 爬到 14 级（BLAZE_ROD）；12 级 2/2，13/14 级第一次执行
@@ -872,9 +872,9 @@ public static volatile boolean autoRetreat = false;
 - 📌 `drain` 7/9（第 2 趟 8/8）：`drain.7`/`drain.8` 等满 200 tick 仍有流体，
   而 `upstream` 证明周围 8 格无水源块 ⇒ **是预算不够，不是机制坏**。等待时长要重定。
 
-##### 12 级真因：浇筑落在验过的排之上（修法已落 `5e94ebd8`，理由见 `JourneyPour.POUR_ROW_SLACK` 的 javadoc）
+##### 12 级真因：浇筑落在验过的排之上（修法已落 `36130011`，理由见 `JourneyPour.POUR_ROW_SLACK` 的 javadoc）
 
-修法已落 `5e94ebd8`（`POUR_ROW_SLACK=1` / `RAISE_ROW_TRIES=1`，排不对就走回模腔重来）。
+修法已落 `36130011`（`POUR_ROW_SLACK=1` / `RAISE_ROW_TRIES=1`，排不对就走回模腔重来）。
 完整因果链和「为什么是加上界而不是翻 `exactRow`」在 `JourneyPour.POUR_ROW_SLACK` 的 javadoc 里。
 
 🔴 **还开着：这一笔顺手改了装水侧，而装水侧一条失败证据都没有。**
@@ -898,8 +898,8 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
 
 要的是「上岸」（脚下固体），给的是 `Goal.XZ`（那一柱、任意 Y）⇒ 身体还泡在水里就被判到岸
 （`dryLand=244891,221,100000`，实际停 `244892,220,100000`，`arrivedY=220 脚下=water`）。
-`wd.journeyGetsAshoreBeforePouring` 因此一直红着——**不是回归**：2026-08-25 才加（`95a79a3e`），
-且 `JourneyCast.java` 不经过 `5e94ebd8` 改的任何一处（grep 零命中）。
+`wd.journeyGetsAshoreBeforePouring` 因此一直红着——**不是回归**：2026-08-25 才加（`d76be87f`），
+且 `JourneyCast.java` 不经过 `36130011` 改的任何一处（grep 零命中）。
 ⚠️ 踩的是 `JourneyPour:115-117` 注释**早就写明**的坑：`walkToColumn` 判到达用自己的
 `ARRIVED_WITHIN`（5 格），**不是调用方传的 `tolerance`**。
 
@@ -964,7 +964,7 @@ radius=2 ⇒ 眼到格心最多约 **2.3**，而上限是 **5.00** ⇒ **真到�
 2. 所以**动手之前先对 HEAD**：`grep` 它自己会写的那一行、读产码、量文件行数。
    已经这样撞掉过一条：`WorldDriverJourneyScenes.java` 那条「超 3000 行硬闸」在归档里是 🔴，
    今日一量是 **2819 行**，早就不超了。
-3. 行号一律相对 `git show d325d0607fca9c152afcc702d1a3ba02b08a9692:TODO.md`，
+3. 行号一律相对 `git show fb94af03d59f4bc16639f102ab184ac5c037ac9f:TODO.md`，
    **对当前文件无效**。
 
 ### 引擎/产品侧（`src/main`）
@@ -1035,7 +1035,7 @@ radius=2 ⇒ 眼到格心最多约 **2.3**，而上限是 **5.00** ⇒ **真到�
 - `WorldDriverJourneyScenes.java` 「超 3000 行硬闸」（归档里是 🔴）：**今日复核 2819 行，不超了。**
 - **J26**（写在 `ctx.cleanup` 里的自检行哪儿都不出现，[9119–9128]，＝[[a-confluence-point-is-not-a-deadline]]）
   和 **J27**（竞技场基线 38 个 pin 的普查，[9425–9499]）在归档段里都没结案，
-  但**旧队列表上它们分别是 `✅ 已落（2026-08-24 核 HEAD）`（`a2117040`）和 `✅ 已普查`**
+  但**旧队列表上它们分别是 `✅ 已落（2026-08-24 核 HEAD）`（`42ae16b5`）和 `✅ 已普查`**
   ——结案就写在归档**上方**、本文件保留下来的那一侧。这正是第 1 条注意事项说的那种误判。
 - **归档 24001–25670 整段作废**（2026-06-16 → 2026-08-10）。那是 `gap#` / `task#` 那套旧账本，
   写在 Python 编排器退役（2026-08-05）与 StageWright 分仓之前，条目的载体本身已经不存在

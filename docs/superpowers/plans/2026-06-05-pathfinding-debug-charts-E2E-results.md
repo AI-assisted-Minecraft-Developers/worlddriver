@@ -16,8 +16,8 @@ Live fabric client (Xvfb headless), fresh seeded world, bot buffed (resistance/r
 - `mc.debug.pathChart` available + correct across the MCP transport; `mc.bot.setting{pathDebug:...}` round-trips. ✅
 
 ## Bugs found by the E2E (fixed, committed)
-1. **Renderer NPE** (`ebfb189`) — `plotYaw` used `actual ? (double)x : targetBearing(...)`; the mixed primitive/`Double` ternary auto-unboxed a null `targetBearing()` (no-target sample) → NPE *before* the null guard. No chart rendered until fixed. Split into separate statements.
-2. **`mc.bot.setting` schema gap** (`058d5e7`) — the 4 new keys existed in `BotConfig`/`SettingsCommand` but were not declared in the `mc.bot.setting` MCP input schema in `BotTools.java`, so the MCP transport silently dropped them (worked via direct route/script only). Added keys + docs.
+1. **Renderer NPE** (`418835b`) — `plotYaw` used `actual ? (double)x : targetBearing(...)`; the mixed primitive/`Double` ternary auto-unboxed a null `targetBearing()` (no-target sample) → NPE *before* the null guard. No chart rendered until fixed. Split into separate statements.
+2. **`mc.bot.setting` schema gap** (`107de31`) — the 4 new keys existed in `BotConfig`/`SettingsCommand` but were not declared in the `mc.bot.setting` MCP input schema in `BotTools.java`, so the MCP transport silently dropped them (worked via direct route/script only). Added keys + docs.
 
 ## Pathfinding observations surfaced by the charts (NOT feature bugs — these are what the tool is *for*; candidate follow-ups)
 - **Heading oscillation** — actual-yaw trace shows a pronounced square-wave swing mid-walk; `maxYawErr` 120–180° on both runs. The body swings rather than holding the (stable) target bearing. Likely the diagonal/strafe re-centre wiggle or a yaw-hysteresis interaction. Worth a focused Walker look.

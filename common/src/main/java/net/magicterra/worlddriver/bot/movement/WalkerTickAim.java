@@ -253,7 +253,7 @@ final class WalkerTickAim {
         //  (a) a water bank-climb node OVERHEAD — the floating bot can't translate onto it, so
         //      without this it orbits the column and the bearing sweeps 360° (the deep-water
         //      spin-in-place stall); holding the approach heading presses the bank for the
-        //      climb-out actuator. (Original 611e0b1 behaviour — kept verbatim.)
+        //      climb-out actuator. (Original 2a587d2 behaviour — kept verbatim.)
         //  (b) any in-water aim once the bot is WEDGED/oscillating (noStepProgressTicks past a
         //      threshold). A buoyant bot can't stop precisely on a water carrot/node; within
         //      ~1 block the aim vector rotates fast as it drifts and the bearing sweeps —

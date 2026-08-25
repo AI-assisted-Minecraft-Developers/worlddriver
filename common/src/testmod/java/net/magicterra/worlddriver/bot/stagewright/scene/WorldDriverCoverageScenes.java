@@ -63,7 +63,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 // read one shared answer (WalkerTickClimb.floodedShaft), so Progress's arrival gate
                 // demands onGround() on a water-SURFACE cell and the pointer waits for the support.
                 //
-                // It was RED, on purpose, and briefly optional. Off 5a486311 both loaders reported
+                // It was RED, on purpose, and briefly optional. Off 1d1d7b3e both loaders reported
                 // 走.指针高水位=2/3, 柱.分档=指针越过未垫 — the pointer had left the first pillarUp
                 // edge while the support was water. That is the row this scene exists to catch, and
                 // it caught it before any human noticed the divergence. Required again as of the

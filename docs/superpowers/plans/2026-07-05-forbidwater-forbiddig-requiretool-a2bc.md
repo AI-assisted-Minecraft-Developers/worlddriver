@@ -6,7 +6,7 @@
 
 **Architecture:** `forbidWater`/`forbidDig` are `Constraint` records riding the A2a channel (edge-predicate prune in the neighbor loop; `NoBreak` keys off `edge.toBreak.isEmpty()` which is EXACT — a conditional digger like PillarUp stays allowed when its plan doesn't dig). `requireTool` is a verb-level precondition in the goto resolve path (the executor already auto-equips via `Avatar.selectTool`, so presence is the only missing semantic). NO new `Capability` values — the constraint approach obsoletes the spec's SWIM/DIG move tags (more precise, zero move-file edits).
 
-**Tech Stack:** Java 21 multi-loader (`common` + `neoforge` GameTests), the A2a `SearchProfile`/`Constraint`/`resolveConstraints` seams (all landed on master `6251dc6`+).
+**Tech Stack:** Java 21 multi-loader (`common` + `neoforge` GameTests), the A2a `SearchProfile`/`Constraint`/`resolveConstraints` seams (all landed on master `af48633`+).
 
 ## Global Constraints
 

@@ -132,7 +132,7 @@ final class WalkerTickClimb {
      * per cycle.
      *
      * <p><b>What it costs when the hand holds a full cube.</b> The click fires and vanilla refuses it.
-     * That is correct and, since {@code 0d767ca}, free: the futility ledger counts LANDINGS, not
+     * That is correct and, since {@code faa3189}, free: the futility ledger counts LANDINGS, not
      * clicks, so a refused click reads as no progress and the dig fallback still gets the bank on
      * schedule. Before that ledger existed this gate had to be conservative to keep refusals from
      * laundering themselves into progress; it no longer does.
@@ -635,7 +635,7 @@ final class WalkerTickClimb {
                     // it false lets the pillar RE-ENGAGE next tick, re-locking the column to the
                     // bot's current foot — which the locked-heading forward press has nudged
                     // toward the bank — so the column RATCHETS to the supported bank-adjacent
-                    // cell and the foothold-place finally lands (the pre-0d767ca behavior the
+                    // cell and the foothold-place finally lands (the pre-faa3189 behavior the
                     // self-correcting latch regressed: waterLowBankArena went red for ~5 days).
                     boolean digFallbackHere = wk.mayBreak() && BotConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
                     if ((drifted || placeFutile || tooHigh) && digFallbackHere) {

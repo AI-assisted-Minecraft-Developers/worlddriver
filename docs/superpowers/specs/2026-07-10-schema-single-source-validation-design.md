@@ -127,7 +127,7 @@ out.put("tutorial", "NONE");
 
 feedback 文档尾部追加 "Disposition (2026-07-10)" 段:
 
-- §1 主体已由 `mc.bot.useItem entityId` 模式关闭(master 3cfa167)。
+- §1 主体已由 `mc.bot.useItem entityId` 模式关闭(master f1bacc8)。
 - `uuid` 参数 WONTFIX:`mc.query` 的 int `id` 是全工具面统一实体句柄(attackEntity 同源),
   不开第二套句柄体系。
 - `mc.bot.useKey` WONTFIX:三模式 useItem 已覆盖其场景,参数式优于准星式(不依赖镜头状态);

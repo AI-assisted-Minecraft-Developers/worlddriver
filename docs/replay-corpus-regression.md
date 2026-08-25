@@ -735,7 +735,7 @@ replay-0008 慢区(171,67,254→195,64,266,长途中磨 ~100s)restore 后短途�
 
 ## 94. STUCK_PROGRESS_EPS 0.05 水域误伤=waterFarAim 拐角钉死(git-bisect 定罪+介质拆分修复)
 2026-07-06 全量 gametest 发现 waterFarAimBankCornerArena(required)确定性失败(五轮同点
-dGoal=6.3256、pos=(565.7,204.5,563.0)=分隔墙缺口北角)。**git-bisect 定罪 c7a1f4a(07-03)**:
+dGoal=6.3256、pos=(565.7,204.5,563.0)=分隔墙缺口北角)。**git-bisect 定罪 1de8da4(07-03)**:
 STUCK_PROGRESS_EPS 0.02→0.05(C40-J1 干地贴墙爬行饿死 stall clock 的修复)。机制:水中绕障的
 横向速度天然只有 ~0.02-0.05 blk/tick,0.05 阈值让每个水下节点的接近尾段都读作"无进展"→stall
 clock 中途触发 reCentre/wiggle 恢复→打断绕角机动→恢复/重瞄把 bot 钉回拐角吸引子。单变量证明:

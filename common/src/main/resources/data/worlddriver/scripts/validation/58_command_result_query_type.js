@@ -1,8 +1,8 @@
 // Regression guard for two feedback-driven fixes (docs/feedback/):
-//  - e59441e: mc.action.runCommand returns the command's own outcome
+//  - 912dda9: mc.action.runCommand returns the command's own outcome
 //    (success/value via CommandResultCallback, feedback[] collected)
 //    instead of suppressing output.
-//  - d02bc38: mc.query q:"entities" honors filter.type (exact id).
+//  - ae37904: mc.query q:"entities" honors filter.type (exact id).
 // Both were shipped without tests; this script is their guard.
 
 ScriptTest.run("58_cmd_result: seed returns success + feedback text", function(t) {

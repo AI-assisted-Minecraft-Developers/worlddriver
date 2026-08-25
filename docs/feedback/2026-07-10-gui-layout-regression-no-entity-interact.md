@@ -89,7 +89,7 @@ would have saved a tools/list round-trip.
 
 ## Disposition (2026-07-10)
 
-- **§1 (no entity interact)** — CLOSED by `mc.bot.useItem {entityId}` (master `3cfa167`,
+- **§1 (no entity interact)** — CLOSED by `mc.bot.useItem {entityId}` (master `f1bacc8`,
   same day): right-click an entity with vanilla `interactAt→interact→swing` parity;
   mount/trade/shear/milk/feed/leash covered; `riding`/`screen` echoed back in the result.
   - `uuid` param: WONTFIX — `mc.query`'s int `id` is the tool-surface-wide entity handle

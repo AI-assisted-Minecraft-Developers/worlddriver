@@ -6,7 +6,7 @@
 
 ## 读法与证据规则
 
-- 每一条断言都带 `file:line`。worlddriver 的行号锚在 **`dbf3fa72`**（`bot/sim/` 自 `2f3f1e21` 未动）；stagewright 的锚在 **`7646d84`**。
+- 每一条断言都带 `file:line`。worlddriver 的行号锚在 **`4b21f09a`**（`bot/sim/` 自 `bceeb8fc` 未动）；stagewright 的锚在 **`7646d84`**。
 - vanilla 行号来自两份反编译产物，二者**必须分开引用**，因为它们在关键处不一样：
   - **vanilla**：`minecraft-merged-1.21.1-loom.mappings.1_21_1.layered+hash.652182843-v2.jar`
   - **neoforge 21.1.230 merged**：`neoforge-21.1.230-minecraft-merged-mojang`
@@ -20,7 +20,7 @@
   并把关键代码整块抄进文档，让读者不必信任任何一个行号就能复核。
 - 写「已核对否定」的条目，是我怀疑过、查了、发现**没有**差异的。留着它们，因为一个诚实的「行」和一个诚实的「不行」一样贵。
 - **⚠️ 先读 §10 再读任何一条基于日志的断言——尤其是 2026-08-22 之前写下的。**
-  **该缺陷已于 2026-08-22 修复**（commit `8c9e7d58`），但**它污染的是历史读数，不是当前代码**，
+  **该缺陷已于 2026-08-22 修复**（commit `e5355abb`），但**它污染的是历史读数，不是当前代码**，
   所以这条警告不能随修复一起删。症状：专用服闸跑到第 106 条场景（`wd.serverCraftFailTelemetry`）时，
   `WorldDriver` 这个 logger 被**永久静默**——三趟独立的闸在同一处截断，之后 `debug.log` 和
   `latest.log` 里一行 `(WorldDriver)` 都不再有。**只伤闸**：真梯／排练不跑那条场景，日志是完整的。
@@ -105,7 +105,7 @@
 
 **这个开关装在哪里** —— 这是本节最重要的一行事实：
 
-> **⚠️ 本小节的下面这段已被 `a2b13da8` 翻掉，2026-08-22 更正。** 原文写的是「全仓库只有四处，
+> **⚠️ 本小节的下面这段已被 `92d4500c` 翻掉，2026-08-22 更正。** 原文写的是「全仓库只有四处，
 > 六条闸一处都不设，NeoForge 一处都不设」。**今天是反的**：`grep -rn realPlayerBodies --include=*.gradle`
 > 命中 **11 处**——`fabric/build.gradle` 的 `:198`（`runDogfoodServer`）、`:233`、`:254`、`:290`、
 > `:334`（注释）、`:354`、`:371`、`:513`，`neoforge/build.gradle` 的 `:226`、`:258`、`:276`。
@@ -191,7 +191,7 @@ fabric/build.gradle:481   runRehearsalServer
 | 21 | **`handleMovePlayer:868-988`** | `ServerPlayerAvatar.step()` 自己 `fp.travel(...)`（`:1079`） | **近似，最贵的一条**。丢掉：`doCheckFallDamage`、`checkMovementStatistics`、`setKnownMovement`、`tryResetCurrentImpulseContext`、`getChunkSource().move(player)`（只有开关开时由 `:1116-1125` 补）、`jumpFromGround()`（换成硬编码 0.42，`:1032`） |
 | 22a | `handlePlayerAction:1048` **SWAP_ITEM_WITH_OFFHAND** | — | 无动词（vanilla 这里还会 `stopUsingItem()`） |
 | 22b | 同上 **DROP_ITEM / DROP_ALL_ITEMS** | — | 无动词 → `Player.drop` 从不被调用，丢物、`Stats.DROP` 全测不到 |
-| 22c | 同上 **RELEASE_USE_ITEM** | `commandUseItem` → `fp.releaseUsingItem()`（`:188`） | **等价**（`2f3f1e21` 修好的那一条） |
+| 22c | 同上 **RELEASE_USE_ITEM** | `commandUseItem` → `fp.releaseUsingItem()`（`:188`） | **等价**（`bceeb8fc` 修好的那一条） |
 | 22d | 同上 **START/ABORT/STOP_DESTROY_BLOCK** | `destroyAimed()` → `fp.level().destroyBlock(pos, true, fp)`（`:426-439`） | **近似，第二贵**。走的不是 `gameMode.handleBlockBreakAction`：没有工具要求、没有精准采集/时运、不掉耐久、不触发 `CommonHooks.fireBlockBreak`、不走 `block.playerDestroy` 的统计。**分段挖掘这一条要更正**，见下面的方框 |
 | 23 | `handleUseItemOn:1108` | `place`/`placeOn`/`useBlock` → `fp.gameMode.useItemOn(...)`（`:349-375`、`:535-545`） | 近似：跳过 `canInteractWithBlock(pos,1.0)`（vanilla `:1118`）、跳过命中向量合理性检查、跳过 `CriteriaTriggers.ANY_BLOCK_USE`（`:1129`）、跳过 `swing(hand,true)`（`:1139`）、跳过 `awaitingPositionFromClient` 闸（`:1126`） |
 | 24 | `handleUseItem:1160` | `useItemInHand()` → `fp.gameMode.useItem(...)`（`:622-624`） | 近似：内核等价，丢掉 `absRotateTo` 与 `swing` |
@@ -233,7 +233,7 @@ fabric/build.gradle:481   runRehearsalServer
 
 **这张表最该被记住的一行**：真玩家的 51 个动作入口里，**22 个驱动器一个动词都没有**，另有 2 个只覆盖了一半；其中「交互实体」（`interactOn`/`interactAt`）、「丢物」、「容器按钮」、「自定义 payload」四族，是驱动器作为**模组包测试工具**时最贵的四个洞。
 
-> **更正 #22d 的「没有分段挖掘」（2026-08-22，行号锚 `01c0282b`）。** 分段挖掘**是有的**，
+> **更正 #22d 的「没有分段挖掘」（2026-08-22，行号锚 `af040f1b`）。** 分段挖掘**是有的**，
 > 藏在一个开关后面，而**那个开关默认关着，梯子和六条闸一处都不开**：
 >
 > ```java
@@ -277,11 +277,11 @@ fabric/build.gradle:481   runRehearsalServer
 | T14 | `changeDimension` 目的地丢失 | 已修：`AvatarNetHandler.java:81-88` 让 `teleport(...)` 真的 `absMoveTo`（neoforge 的 `FakePlayerNetHandler.teleport` 在 `:254` 是 no-op，这就是 87501 格的来源） | 换维后断言坐标等于期望坐标（±1）。**但这条只覆盖 A/B**：C 穿的是 vanilla 的真 listener，走的是另一条路，必须**单独**验证一遍 |
 | T15 | 传送不重算流体标志 | 补一次 `updateInWaterStateAndDoFluidPushing()` | 在水里传送到干黑曜石上，断言 `isInWater() == false`。缺陷存在时为 `true` → 红 |
 | T16 | 装备属性同步 | 已有：`EQUIP_MEMO` + `syncEquipmentAttributes()`（`:668-711`，gap #46） | 换上钻石靴断言 `Attributes.ARMOR` 变化；脱下断言回落。两条臂 |
-| **T17** | **水底起跳：闸问错了量（新发现 N21，行号锚 `01c0282b`）** | 跳跃闸是 `soleOnSolid(...) > 0`（`ServerPlayerAvatar.java:1054-1055`）→ `fp.jumpFromGround()`（`:1087`），**只问脚底贴没贴住实心，从不问水有多深**。vanilla 的判据是流体高度：`LivingEntity.aiStep` 的 jump 分支里 `bl && (!onGround() \|\| g > h)` → `jumpInLiquid`（+0.04），只有 `onGround() \|\| (bl && g <= h)` 才 `jumpFromGround()`，其中 `h = getFluidJumpThreshold()`（`Entity`：`eyeHeight < 0.4 ? 0.0 : 0.4`，玩家 = 0.4）。补法：把 `footed` 改成 vanilla 那个复合谓词，`getFluidHeight(WATER)` 在 `step()` 里是活的（`fp.baseTick()` 每 tick 跑） | **实测已在手**（§6.8）：同一格 `64,61,60`、同一 tick、同一 `支=stepUp`，服务端首 tick **+0.420**、客户端 **+0.035**。验收臂见 §6.8 末尾的 `bottomedDeep` 预登记：踩池底、按住跳，断言**没有**单 tick 抬升 > 0.3。今天红，修好转绿。**注意 `wd.buoyantJumpStaysABob` 现有的 `bottomed` 臂断言的是 vanilla 没有的行为，必须一起改，否则 T17 一修它就红** |
+| **T17** | **水底起跳：闸问错了量（新发现 N21，行号锚 `af040f1b`）** | 跳跃闸是 `soleOnSolid(...) > 0`（`ServerPlayerAvatar.java:1054-1055`）→ `fp.jumpFromGround()`（`:1087`），**只问脚底贴没贴住实心，从不问水有多深**。vanilla 的判据是流体高度：`LivingEntity.aiStep` 的 jump 分支里 `bl && (!onGround() \|\| g > h)` → `jumpInLiquid`（+0.04），只有 `onGround() \|\| (bl && g <= h)` 才 `jumpFromGround()`，其中 `h = getFluidJumpThreshold()`（`Entity`：`eyeHeight < 0.4 ? 0.0 : 0.4`，玩家 = 0.4）。补法：把 `footed` 改成 vanilla 那个复合谓词，`getFluidHeight(WATER)` 在 `step()` 里是活的（`fp.baseTick()` 每 tick 跑） | **实测已在手**（§6.8）：同一格 `64,61,60`、同一 tick、同一 `支=stepUp`，服务端首 tick **+0.420**、客户端 **+0.035**。验收臂见 §6.8 末尾的 `bottomedDeep` 预登记：踩池底、按住跳，断言**没有**单 tick 抬升 > 0.3。今天红，修好转绿。**注意 `wd.buoyantJumpStaysABob` 现有的 `bottomed` 臂断言的是 vanilla 没有的行为，必须一起改，否则 T17 一修它就红** |
 | **T18** | **起跳没有冷却（新发现 N22）** | vanilla 每次 `jumpFromGround()` 后置 `noJumpDelay = 10`，并以 `noJumpDelay == 0` 为闸；`ServerPlayerAvatar` 写了 `lastJumpTick`（`:884` 声明、`:1058` 写入）却**只被一个调试读数读**（`:881` `dbgLastJumpTick`），**从来不是闸**。补法：加 10 tick 冷却 | 按住跳 30 tick，断言 `jumpFromGround` 触发次数 ≤ 3。缺陷存在时每 tick 一次 → 红。**必须和 T17 分开验收**：T17 的臂在水里，这条的臂在干地上，否则两个自变量混在一起 |
 | **T19** | **客户端身体没有 `canBreak`（新发现 N20）——这一条是「客户端缺能力」** | `Avatar.canBreak` 的默认实现是 `default boolean canBreak(BlockPos pos) { return true; }`（`bot/movement/Avatar.java:120`），`ClientPlayerAvatar` 不覆盖它；只有 `ServerPlayerAvatar.canBreak`（`:471` 起 → `canBreakFromHere`：exposed + `blockInteractionRange() + 0.5`）是真的。后果：`MineProcess.java:424` 那条「exposed 却仍然 break 不了 ⇒ 退掉树冠、去砍齐眼高的树干」的退路在客户端是**死代码**，而它的注释写着不走这条退路「cost the journey's wood rung all six logs」。补法：在 `ClientPlayerAvatar` 覆盖 `canBreak`，用客户端自己的 `blockInteractionRange`。**⚠️ 这个文件在 `bot/movement/`，不是 parity 的产权** | 站在 8 格外对一根暴露的原木问 `canBreak`，断言 `false`；站在 3 格内问，断言 `true`。缺陷存在时前者也是 `true` → 红。**两条臂缺一不可**，只测近的那条就是 `0==0` |
 
-| **T20** | **`Inventory.selected` 有两个作者，而它们互相看不见（新发现 N24）——只在被 adopt 的真玩家（身体 D）上有后果** | `ServerPlayerAvatar` 三处直接写 `inv.selected`（`selectTool` `:289`/`:294-296`、`setSelectedSlot` `:299`、`holdItem` `:641`/`:646-648`，行号锚 `9bf9f62e`），注释写着「this body's connection swallows them anyway」——**那句话对身体 A/B/C 为真，对 D 是假的**（§6.9 更正了 §1 的「三具身体」）。对面客户端的 `BotInteract.ensureHolding`（`:465`、`:484`）和 **vanilla 自己的 `MultiPlayerGameMode.ensureHasSentCarriedItem`** 都键在**自己那份拷贝**上，所以分歧**不可能自愈**。补法：镜像 `ServerGamePacketListenerImpl.handlePickItem` 的包三连——写完 `selected` 补发 `ClientboundSetCarriedItemPacket`，背包→手那两处再补两个 `ClientboundContainerSetSlotPacket`。**不需要判别拓扑**：A/B 的 `AvatarNetHandler.send`（`:69`/`:71`）和 C 的 `SilentConnection.send`（`JoinedPlayerBodies.java:307-308`）都是空方法 | 四步臂：①客户端 `ensureHolding(X)`（会发包，两边一致）②`ServerPlayerAvatar` 把服务端的手挪到 Y ③再叫客户端 `ensureHolding(X)` ④**断言服务端手上是 X**。缺陷存在时第 3 步 fast path 返回 true 且不发包，第 4 步读到 Y → 红。**第 1 步不能省**，省了这条臂永远绿。零成本的替代读数：`wd.actuatorSplitOnAnAdoptedBody` 的 `slot.最终一致` 今天逐字是 `⚠️ 不一致：服务端 4，客户端 0` |
+| **T20** | **`Inventory.selected` 有两个作者，而它们互相看不见（新发现 N24）——只在被 adopt 的真玩家（身体 D）上有后果** | `ServerPlayerAvatar` 三处直接写 `inv.selected`（`selectTool` `:289`/`:294-296`、`setSelectedSlot` `:299`、`holdItem` `:641`/`:646-648`，行号锚 `e4dd2b5a`），注释写着「this body's connection swallows them anyway」——**那句话对身体 A/B/C 为真，对 D 是假的**（§6.9 更正了 §1 的「三具身体」）。对面客户端的 `BotInteract.ensureHolding`（`:465`、`:484`）和 **vanilla 自己的 `MultiPlayerGameMode.ensureHasSentCarriedItem`** 都键在**自己那份拷贝**上，所以分歧**不可能自愈**。补法：镜像 `ServerGamePacketListenerImpl.handlePickItem` 的包三连——写完 `selected` 补发 `ClientboundSetCarriedItemPacket`，背包→手那两处再补两个 `ClientboundContainerSetSlotPacket`。**不需要判别拓扑**：A/B 的 `AvatarNetHandler.send`（`:69`/`:71`）和 C 的 `SilentConnection.send`（`JoinedPlayerBodies.java:307-308`）都是空方法 | 四步臂：①客户端 `ensureHolding(X)`（会发包，两边一致）②`ServerPlayerAvatar` 把服务端的手挪到 Y ③再叫客户端 `ensureHolding(X)` ④**断言服务端手上是 X**。缺陷存在时第 3 步 fast path 返回 true 且不发包，第 4 步读到 Y → 红。**第 1 步不能省**，省了这条臂永远绿。零成本的替代读数：`wd.actuatorSplitOnAnAdoptedBody` 的 `slot.最终一致` 今天逐字是 `⚠️ 不一致：服务端 4，客户端 0` |
 
 ### 4.2 只能近似（10 条）
 
@@ -322,7 +322,7 @@ fabric/build.gradle:481   runRehearsalServer
 |---|---|---|---|
 | X2-3 | **不死**：`isInvulnerableTo → true` | `JoinedPlayerBodies.java:221` **是我们自己写的一行**，`JoinedBody` 也照样不死。但删掉它是一行的事（§6.5 乙档），配套要 N4（`invulnerableTime--`）和 A10（饥饿）一起，否则得到一具「半死不活」的身体 | **(a)** 做一个可关的开关，配套补 T6 + A10 + 重生；**(b)** 让断言诚实地只说「打得赢」不说「活得下来」——今天 `WorldDriverMobFightScenes.java:338` 就是这么写的：`ctx.record("body.invulnerable", "true —— 所以这一条只说打得赢, 不说活得下来")` |
 | X2-4 | `fallDistance ≡ 0` | **换身体完全不管用**：`ServerPlayer.checkFallDamage` 是空覆盖（vanilla `:1012-1014`），对任何 `ServerPlayer` 都一样。这是 §6.5 丙档的典型 | 它**真等价可达**（T1），所以正确归属是 T1；这里只记「今天它让每一条落差断言撒谎」。`JourneyNetherRungs.java:1762-1770` 记着一条 `fallDistance > 2.0f` 的分支**永远不可能触发**（已改判） |
-| ~~X2-5~~ | ~~`ChunkMap` 刷怪窗口~~ **已出表（2026-08-22）** | **对 `JoinedBody` 其实已经是好的**（`tellTheChunkMapWeMoved()` 的早退条件是 `level.players().contains(fp)`，而它在表里）。原文说「留在这一类只因为六条闸一处都不设 `realPlayerBodies`」——**那个前提已经被 `a2b13da8` 翻掉了**，闸和 NeoForge 现在都设（见 §1 顶部的更正框，11 处）。**所以这一条既不是「不可能」也不再欠什么，它只是好了。** | ~~翻闸的配置~~ 已完成。**下一个人不要再为它写代码**；要确认就读成绩单里 `census.armProperty` 那一行 |
+| ~~X2-5~~ | ~~`ChunkMap` 刷怪窗口~~ **已出表（2026-08-22）** | **对 `JoinedBody` 其实已经是好的**（`tellTheChunkMapWeMoved()` 的早退条件是 `level.players().contains(fp)`，而它在表里）。原文说「留在这一类只因为六条闸一处都不设 `realPlayerBodies`」——**那个前提已经被 `92d4500c` 翻掉了**，闸和 NeoForge 现在都设（见 §1 顶部的更正框，11 处）。**所以这一条既不是「不可能」也不再欠什么，它只是好了。** | ~~翻闸的配置~~ 已完成。**下一个人不要再为它写代码**；要确认就读成绩单里 `census.armProperty` 那一行 |
 | X2-6 | **驱动器自身就是被测对象的那些场景** | `wd.serverCapability`、`wd.serverAgentDistinctBodies`、`wd.serverAvatarTickFidelity`、`wd.serverAttackCooldown`、`wd.serverElytra`（`WorldDriverAvatarScenes.java:59-63`）、`wd.serverObservePlayerInventory`（`WorldDriverStationScenes.java:93`） | **迁走就把被测对象删掉了。** 拿真玩家测这些，等于测 vanilla 有没有实现 vanilla |
 
 **X1-0a / X1-0b 的机制（原 X2-1/X2-2），以及为什么它们降级了**：
@@ -355,7 +355,7 @@ fabric/build.gradle:481   runRehearsalServer
 
 | 用户给的条目 | 归类 | 状态与依据 |
 |---|---|---|
-| 1. `stopUsingItem()` 不放箭 | **真等价 T2**，已修 | `ServerPlayerAvatar.java:188`（`2f3f1e21`）。而「还有多少个『客户端包走 A、假人调 B』的动作族没查过」这个问题的答案在 §3：**近似 12 条 + 无动词 21 条**，其中最贵的是 #22d（挖掘）、#23（放置/使用）、#35a-c（实体交互）、#27（换槽） |
+| 1. `stopUsingItem()` 不放箭 | **真等价 T2**，已修 | `ServerPlayerAvatar.java:188`（`bceeb8fc`）。而「还有多少个『客户端包走 A、假人调 B』的动作族没查过」这个问题的答案在 §3：**近似 12 条 + 无动词 21 条**，其中最贵的是 #22d（挖掘）、#23（放置/使用）、#35a-c（实体交互）、#27（换槽） |
 | 2. `fallDistance` 恒为 0 | **真等价 T1**（可达），今天在 X2-4 撒谎 | 机制是 `ServerPlayer.checkFallDamage` 空覆盖（vanilla `:1012-1014`），这一阶段才查清 |
 | 3. `isInvulnerableTo → true`，永不死、永不重生 | **不可能但仍需要 X2-3** | 三具身体全有。掉出世界变成无限下坠：`JourneyRig.java:196`（`lostTheWorld` 字段 `:205`）记录了 y=−55767，每条腿跑满 2999 tick |
 | 4. 屠龙拿不到 `kill_dragon` | **X1-1（有真玩家时）/ X2-1（专用服上）** | NeoForge 上是 `award` 直接 return false；Fabric 上是「没进玩家表 → 龙战不启动」。两个不同的病，同一个症状 |
@@ -481,7 +481,7 @@ fabric/build.gradle:481   runRehearsalServer
 | N14 | 21 个动作族没有动词 | 驱动器根本没写这些动词。给它换一具更真的身体，也没有人去调 |
 | N15b | 视距**不可配** | `JoinedBody` 拿到 `ClientInformation.createDefault()`，是一份真的默认值；但没有 `handleClientInformation` 的入口去改它。从「缺失」降级为「不可配」——**降级了，没消失** |
 | N16 | 区块批次从不 ack | `SilentConnection` 吞掉一切，且没有客户端会 ack |
-| **N19** | **avatar 从不调 `Player.jumpFromGround()`** | **驱动器自己写的**，见下。换身体不动它。**已修（`0188e766`）**，但修法把 N21/N22 露了出来：现在调的是真方法，闸却还是驱动器自己那个 |
+| **N19** | **avatar 从不调 `Player.jumpFromGround()`** | **驱动器自己写的**，见下。换身体不动它。**已修（`077b1cbf`）**，但修法把 N21/N22 露了出来：现在调的是真方法，闸却还是驱动器自己那个 |
 | **N20** | 客户端身体没有触及闸 | `Avatar.canBreak` 的默认实现，与身体类型无关；换 `JoinedBody` 只会换掉服务端那一侧 |
 | **N21** | 水底起跳给了 0.42 | `ServerPlayerAvatar.java:1054-1055` 的闸是**驱动器自己写的**。`JoinedBody` 走同一个 `step()`，同一个闸 |
 | **N22** | 起跳没有 10 tick 冷却 | 同上，同一个闸 |
@@ -490,7 +490,7 @@ fabric/build.gradle:481   runRehearsalServer
 
 ### 乙档落地前**必须先解决**的前置：跳跃现在会扣饥饿，而这具身体不会吃饭
 
-**这不是注意事项，是前置条件。** 从 `0188e766` 起，avatar 调真的 `jumpFromGround()`，
+**这不是注意事项，是前置条件。** 从 `077b1cbf` 起，avatar 调真的 `jumpFromGround()`，
 于是每次起跳都会走 `causeFoodExhaustion`（冲刺 `0.2F` / 不冲刺 `0.05F`）。
 
 今天**看不出任何区别**，因为 `ServerPlayerAvatar.java:765-769` 明确**故意不镜像
@@ -523,7 +523,7 @@ fabric/build.gradle:481   runRehearsalServer
 （**两支都有**：冲刺 `0.2F`，不冲刺 `0.05F`。本文档第一版只写了冲刺那支，是错的）。
 所以这具身体**跳一辈子也不饿、跳一辈子也不计数**。
 
-> **已修（`0188e766`）**：手抄换成 `fp.jumpFromGround()`。平地无药水时
+> **已修（`077b1cbf`）**：手抄换成 `fp.jumpFromGround()`。平地无药水时
 > `getJumpPower()` = `JUMP_STRENGTH(0.42) × getBlockJumpFactor()(1.0) + 跳跃提升(0)` = `0.42`，
 > **与手抄逐位相同**，所以普通场景行为不变；变的恰是手抄搞错的两处——
 > **蜂蜜/黏液块**（`getBlockJumpFactor` 会压低跳跃，手抄永远跳 0.42）和**跳跃提升药水**。
@@ -600,7 +600,7 @@ if (real != null) return real;      // armed: a body that JOINS, not one that pr
 > `neoforge/run-dogfood/stagewright-results.jsonl` 写于本地时间 2026-08-21 23:52:38，
 > 302 条 scene 行，非 PASS 恰为基线的 5 条（2 条框架 canary + 3 条 `withRequired(false)` 传感器），
 > **没有多出任何红**。场景本身 `PASS (1 ticks, 201 ms)`，28 个读数一个不缺。
-> 起跑时树上是 `437258fb`；**普查场景本身的版本是 `aa6ea7fb`**（该文件此后未再被改动，
+> 起跑时树上是 `95fd6197`；**普查场景本身的版本是 `f9af6a91`**（该文件此后未再被改动，
 > 两趟一致）。仓库 HEAD 在两趟之间被别的 agent 推进过，范围见 §6.7 末尾那条注。
 
 | 量 | `factory`（**真 neoforge `FakePlayer`**） | `joined`（`JoinedBody`） | 两列一样？ |
@@ -726,11 +726,11 @@ Dimension `stagewright:generated` at 1124512,100000」。
 
 > **「两趟同码」到底同到哪一层（这句话我第一版写过头了，在此更正）。**
 > 这棵树上同时有别的 agent 在提交，两趟**并不是同一个仓库 HEAD**：
-> NeoForge 起跑时树上是 `437258fb`，Fabric 起跑时是 `33c1bcb8`，中间落了
-> `ca140864` 和 `52916bc6` 两个别人的提交。
+> NeoForge 起跑时树上是 `95fd6197`，Fabric 起跑时是 `bc17136c`，中间落了
+> `6a158c8d` 和 `cbcaf342` 两个别人的提交。
 > **真正成立、也是这条论证需要的，是下面这三条：**
 >
-> 1. **普查场景本身两趟同码**——`WorldDriverBodyCensusScenes.java` 最后一次被改是 `aa6ea7fb`，
+> 1. **普查场景本身两趟同码**——`WorldDriverBodyCensusScenes.java` 最后一次被改是 `f9af6a91`，
 >    早于两次起跑（`git log -- <该文件>` 可核）。
 > 2. **中间那两个提交只碰了 `JourneyNetherRungs.java` / `JourneyStairs.java`**，
 >    是 journey 排练台的场景，**dogfood 闸根本不跑它们**；`common/src/main` 一行没动。
@@ -746,8 +746,8 @@ Dimension `stagewright:generated` at 1124512,100000」。
 
 ## 6.8 一次受控对照：同一棵树，专用服 12 根，集成服 0 根（2026-08-22）
 
-> **本节的行号锚在 `01c0282b`**，不是文首那个 `dbf3fa72`。`bot/sim/` 在两者之间被改过
-> （`0188e766` 起 avatar 调真的 `jumpFromGround()`），**不要拿本节的行号去对 §1–§6 的行号**。
+> **本节的行号锚在 `af040f1b`**，不是文首那个 `4b21f09a`。`bot/sim/` 在两者之间被改过
+> （`077b1cbf` 起 avatar 调真的 `jumpFromGround()`），**不要拿本节的行号去对 §1–§6 的行号**。
 
 这是这份文档第一次有**一对真正可比的臂**：同种子（5471）、同一批 `wd.journey*` 场景、
 前后脚跑的两趟真梯，唯一的自变量是拓扑（因而是身体 + 舵）。
@@ -1119,7 +1119,7 @@ else if (footed || (buoyant && fluid <= jumpThreshold)) → 0.42   // jumpFromGr
 **那句话对 A/B/C 逐字为真，对 D 是假的。** 这是本文档第一条这种形状的差异：机制不在
 「这具身体缺了什么」，而在**「一句只对三具身体成立的前提，被写进了四具身体共用的代码里」**。
 
-### 三处写入点（行号锚 HEAD `9bf9f62e`，`common/src/main/java/net/magicterra/worlddriver/bot/sim/ServerPlayerAvatar.java`）
+### 三处写入点（行号锚 HEAD `e4dd2b5a`，`common/src/main/java/net/magicterra/worlddriver/bot/sim/ServerPlayerAvatar.java`）
 
 | 方法 | 写 `selected` 的行 | 还顺带写了什么 |
 |---|---|---|
@@ -1575,7 +1575,7 @@ A0 之后这条差异确实不会再被触发（`ClientPlayerAvatar.setSelectedS
 ### 己：**更正 §6.9 那张「三处写入点」表——它两个方向都错了**
 
 §6.9 说「三处写入点，五行」，并把 `selectTool:294-296` 和 `holdItem:646-648` 列成写 `selected` 的行。
-**重读同一个锚点（`git show 9bf9f62e:…/ServerPlayerAvatar.java`）逐行核对，那张表两个方向都错**：
+**重读同一个锚点（`git show e4dd2b5a:…/ServerPlayerAvatar.java`）逐行核对，那张表两个方向都错**：
 
 | §6.9 说 | 实际 | 依据 |
 |---|---|---|
@@ -1607,7 +1607,7 @@ A0 之后这条差异确实不会再被触发（`ClientPlayerAvatar.setSelectedS
 > 没有重新 grep 一遍。**继承一张表比重新数一遍便宜，代价是继承了它当时的边界**——
 > N8 关心的是「换槽时该不该 `stopUsingItem`」，那条差异确实只在那三个方法上被讨论过。
 
-### 庚：最小改动——**已落地（`af56c656`，2026-08-22）**
+### 庚：最小改动——**已落地（`bb8c75a2`，2026-08-22）**
 
 **形状：一个私有 helper + 五个调用点替换，全部在 `ServerPlayerAvatar.java` 内，全部在 parity 的产权内。**
 
@@ -1665,7 +1665,7 @@ private void carryTo(int slot) {
 > **注意修好它的不是服务端自己放对了东西，是客户端终于知道自己需要重新取手。**
 > 缺陷存在时 `stock` 一个不少、`stalled=null`；修好后 `stock` 应当逐格递减。
 
-#### 落地记录（`af56c656`，`:common:compileJava` BUILD SUCCESSFUL，`1 actionable task: 1 executed`）
+#### 落地记录（`bb8c75a2`，`:common:compileJava` BUILD SUCCESSFUL，`1 actionable task: 1 executed`）
 
 `private void carryTo(int slot)` 落在 `ServerPlayerAvatar.java:249`，五个调用点
 `:263`（`holdPlaceable` 热键栏）、`:283`（`holdPlaceable` 背包→手）、`:346`（`selectTool`）、
@@ -1796,7 +1796,7 @@ private void carryTo(int slot) {
 
 ---
 
-## 10. 这份文档引用的每一条日志证据都有一条保质期：专用服闸跑到第 106 条场景，`WorldDriver` 这个 logger 就永久哑了（2026-08-22 发现并修复，`8c9e7d58`）
+## 10. 这份文档引用的每一条日志证据都有一条保质期：专用服闸跑到第 106 条场景，`WorldDriver` 这个 logger 就永久哑了（2026-08-22 发现并修复，`e5355abb`）
 
 **先说为什么这一节在这份文档里。** 上面九节里几乎每一条断言的形式都是「日志里有这一行」或
 「日志里零行，所以这条分支没进过」。`AGENT_TEAM.md` §3 的第二条规矩写着「零行日志有两种解释：

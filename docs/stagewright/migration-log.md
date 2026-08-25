@@ -14,7 +14,7 @@ back to the scene that replaced it and the commit that migrated it.
 
 A migrated scene and its legacy twin are kept side by side (a *dual-gate A/B*)
 until the scene is proven a byte-faithful replacement. The deletion precondition
-(established P1c, TODO/`dfd9815`) is: **three consecutive dual-gate greens AND an
+(established P1c, TODO/`4535295`) is: **three consecutive dual-gate greens AND an
 external `wd.*` expectation gate** (`--expect-file` canonical manifest) must both
 hold before any twin is retired — otherwise a ServiceLoader break could drop the
 `wd.*` scenes from *registered* and *executed* simultaneously, a self-consistent
@@ -47,14 +47,14 @@ gearScope call site went away).
 
 | deleted legacy test method | legacy class | wd.* scene | migration commit | this deletion | notes (failure-set member?) |
 |---|---|---|---|---|---|
-| `ascendMovementNoopArena` | AgentGameTestTerrain | `wd.ascendMovementNoop` | `b6155b3` (P1c wave 1, swallowed trio) | `6835429` | not a failure-set member (passed) |
-| `ascendDeadZoneWatchdogArena` | AgentGameTestTerrain | `wd.ascendDeadZoneWatchdog` | `b6155b3` (P1c wave 1, swallowed trio) | `6835429` | not a failure-set member (passed) |
-| `diagonalAscentSpeedArena` | AgentGameTestTerrain | `wd.diagonalAscentSpeed` | `b6155b3` (P1c wave 1, swallowed trio) | `6835429` | not a failure-set member (passed) |
-| `selfShaftDigUpArena` | AgentGameTestTerrain | `wd.selfShaftDigUp` | `76dd5ce` (P1.5a wave 2a) | `6835429` | **lottery-family** `selfshaftdiguparena` — deterministic solo-RED (worstBackslide 20.252203415101263); guards **task#86** (gap #53) |
-| `descentYawArena` | AgentGameTestTerrain | `wd.descentYaw` | `45e001f` (P1.5a wave 2a) | `6835429` | **lottery-family** `descentyawarena` — byte-determinism-sensitive (P0 probe-accident victim) |
-| `serverAvatarGearScopeProbeArena` | AgentGameTestServer | `wd.gearScope` | `565ca4d` (P1.5b wave 2b) | `6835429` | **lottery-family** `serveravatargearscopeprobearena` (gap #46 gear-scope probe) |
-| `serverMineBuriedOreArena` | AgentGameTestServer | `wd.buriedOre` | `d61e654` (P1.5b wave 2b) | `6835429` | **lottery-family** `buriedore*` (gap #60 buried-ore reachability) |
-| `entityLeashRepathArena` | AgentGameTestServer | `wd.entityLeash` | `c245b3b` (P1.5b wave 2b) | `6835429` | **lottery-family** `entityleashrepatharena` — master-inherited solo-RED (phase 2 y≈−60 void-fall); guards **task#87** |
+| `ascendMovementNoopArena` | AgentGameTestTerrain | `wd.ascendMovementNoop` | `79fbf99` (P1c wave 1, swallowed trio) | `9d5be41` | not a failure-set member (passed) |
+| `ascendDeadZoneWatchdogArena` | AgentGameTestTerrain | `wd.ascendDeadZoneWatchdog` | `79fbf99` (P1c wave 1, swallowed trio) | `9d5be41` | not a failure-set member (passed) |
+| `diagonalAscentSpeedArena` | AgentGameTestTerrain | `wd.diagonalAscentSpeed` | `79fbf99` (P1c wave 1, swallowed trio) | `9d5be41` | not a failure-set member (passed) |
+| `selfShaftDigUpArena` | AgentGameTestTerrain | `wd.selfShaftDigUp` | `5c469d5` (P1.5a wave 2a) | `9d5be41` | **lottery-family** `selfshaftdiguparena` — deterministic solo-RED (worstBackslide 20.252203415101263); guards **task#86** (gap #53) |
+| `descentYawArena` | AgentGameTestTerrain | `wd.descentYaw` | `9a80bf8` (P1.5a wave 2a) | `9d5be41` | **lottery-family** `descentyawarena` — byte-determinism-sensitive (P0 probe-accident victim) |
+| `serverAvatarGearScopeProbeArena` | AgentGameTestServer | `wd.gearScope` | `6bca166` (P1.5b wave 2b) | `9d5be41` | **lottery-family** `serveravatargearscopeprobearena` (gap #46 gear-scope probe) |
+| `serverMineBuriedOreArena` | AgentGameTestServer | `wd.buriedOre` | `18a7842` (P1.5b wave 2b) | `9d5be41` | **lottery-family** `buriedore*` (gap #60 buried-ore reachability) |
+| `entityLeashRepathArena` | AgentGameTestServer | `wd.entityLeash` | `9aac05c` (P1.5b wave 2b) | `9d5be41` | **lottery-family** `entityleashrepatharena` — master-inherited solo-RED (phase 2 y≈−60 void-fall); guards **task#87** |
 
 Orphaned helpers deleted in the same commit (no registered-count effect):
 
@@ -66,7 +66,7 @@ Orphaned helpers deleted in the same commit (no registered-count effect):
 
 ### `wd.settingRegistryClosed` — new scene, zero twins (recorded honestly)
 
-`wd.settingRegistryClosed` (P2a, `1f78df6`) is a **new** dogfood scene, not a
+`wd.settingRegistryClosed` (P2a, `c61902e`) is a **new** dogfood scene, not a
 migration of any legacy `@GameTest`. It has **no legacy twin**, so nothing is
 deleted for it this wave. Recorded here so the wave's provenance is complete: 9
 migrated scenes total, 8 with legacy twins (retired above), 1 net-new (0 twins).
@@ -476,11 +476,11 @@ carries its own arithmetic. Reading the chain end to end:
 
 | wave | family | migrated → scenes | retired-without-scene | legacy count | commit(s) |
 |---|---|---|---|---|---|
-| — (P4a wave 1) | 8 already-migrated twins | 8 | 0 | 130 → 122 | `6835429` |
-| P4b wave 2 | Terrain (`AgentGameTestTerrain`) | 12 | 1 (`descentDrift`) | 122 → 110 → **109** | `c040388` + `7497e72` |
-| P4b wave 3 | Bias (`AgentGameTestBias`) | 13 | 0 | 109 → **96** | `3a4faf1` |
-| P4b wave 4 | WaterBank (11) + WaterCross (10) | 21 | 0 | 96 → **75** | `febe02b` |
-| P4b wave 5 | Core (12) + CombatSense (2) + BuildBlock (2) | 16 | 0 | 75 → **59** | `98fdd27` |
+| — (P4a wave 1) | 8 already-migrated twins | 8 | 0 | 130 → 122 | `9d5be41` |
+| P4b wave 2 | Terrain (`AgentGameTestTerrain`) | 12 | 1 (`descentDrift`) | 122 → 110 → **109** | `0ee64b1` + `749542d` |
+| P4b wave 3 | Bias (`AgentGameTestBias`) | 13 | 0 | 109 → **96** | `8490954` |
+| P4b wave 4 | WaterBank (11) + WaterCross (10) | 21 | 0 | 96 → **75** | `9cb37cb` |
+| P4b wave 5 | Core (12) + CombatSense (2) + BuildBlock (2) | 16 | 0 | 75 → **59** | `36247b8` |
 
 **Chain: 122 → 109 → 96 → 75 → 59.** Every arrow above matches the `Count
 arithmetic` line of its wave section and the `feat/chore(testkit): … (X→Y)` subject
@@ -1009,20 +1009,20 @@ git and states the final arithmetic; every wave above carries its own row-level 
 
 | phase | wave(s) | legacy `@GameTest` methods | migrated → scenes | retired-without-scene |
 |---|---|---|---|---|
-| P4a | wave 1 (`6835429`) | 130 → **122** | 8 (already-migrated seed twins) | 0 |
-| P4b | waves 2–5 (`c040388`…`98fdd27`) | 122 → **59** | 62 | 1 (`descentDrift`, `7497e72`) |
-| P4c | waves 6–9 (`81d50bc`…`bb28d7b`) | 59 → **0** | 59 | 0 |
+| P4a | wave 1 (`9d5be41`) | 130 → **122** | 8 (already-migrated seed twins) | 0 |
+| P4b | waves 2–5 (`0ee64b1`…`36247b8`) | 122 → **59** | 62 | 1 (`descentDrift`, `749542d`) |
+| P4c | waves 6–9 (`369ef5d`…`a44f661`) | 59 → **0** | 59 | 0 |
 
 **Chain: 130 → 122 → 59 → 0.** The tracked drift chain begins at 130 — the `@GameTest`-**method**
 count that held from before the first `wd.*` scene existed through the P4a source-set relocation
-(git-verified: `git grep -c "@GameTest(" 1caff42` over the neoforge testmod sums to **130**). Across
+(git-verified: `git grep -c "@GameTest(" 293fa4b` over the neoforge testmod sums to **130**). Across
 P4a–P4c, **129** legacy methods migrated 1:1 to `wd.*` scenes and exactly **1** (`descentDrift`)
 retired without a scene (controller-adjudicated, P4b wave 2), so 129 + 1 = 130.
 
 **The "144" campaign framing (reconciled).** The P4a Task-1 record moved "144 legacy tests" into the
 neoforge testmod source set by pure `git mv`. That 144 is the total count of **`@GameTest`-family
 annotations** grep'd across the 9 legacy source files at that commit (`git grep -c "@GameTest"
-2b041ad~1` over the neoforge legacy files sums to 15+14+3+3+64+2+20+12+11 = **144**) — it includes the
+892d59e~1` over the neoforge legacy files sums to 15+14+3+3+64+2+20+12+11 = **144**) — it includes the
 class-level `@GameTestHolder` / generator / batch annotations, not just the `@GameTest(` **test
 methods**. The test-**method** count — the number this drift log tracks retirement-by-retirement — is
 **130**. Both numbers are correct for what they count; the campaign is stated as **130 legacy
@@ -1095,12 +1095,12 @@ in-tree would only be a false signpost to a run path that no longer exists.
 
 | item | kind | disposition | commit |
 |---|---|---|---|
-| `neoforge/.../GameTestManifest.java` | production main (task#85 suite-integrity manifest: async enter-writer + JSONL reconcile feed) | **deleted** | `14b5cad` |
-| `scripts/run_gametests.sh` | canonical `runGameTestServer` run wrapper | **deleted** | `14b5cad` |
-| `scripts/gt_reconcile.py` | manifest `registered==entered` reconciler | **deleted** | `14b5cad` |
-| `gameTestServer { … }` loom run config (neoforge `build.gradle`; fabric never had one) | run configuration | **deleted** | `14b5cad` |
-| `.gitignore` `run-gametest/` line | ignore rule for the deleted run's world dir | **removed** | `14b5cad` |
-| `WorldDriverNeoForge` `onServerStarting` gametest hook + `GameTestManifest.reset()` | production wiring | **removed** (the server-listener is kept; `applyGameTestBaseline()` survives, now gated on `-Dstagewright.autorun` at server start) | `14b5cad` |
+| `neoforge/.../GameTestManifest.java` | production main (task#85 suite-integrity manifest: async enter-writer + JSONL reconcile feed) | **deleted** | `4c08d43` |
+| `scripts/run_gametests.sh` | canonical `runGameTestServer` run wrapper | **deleted** | `4c08d43` |
+| `scripts/gt_reconcile.py` | manifest `registered==entered` reconciler | **deleted** | `4c08d43` |
+| `gameTestServer { … }` loom run config (neoforge `build.gradle`; fabric never had one) | run configuration | **deleted** | `4c08d43` |
+| `.gitignore` `run-gametest/` line | ignore rule for the deleted run's world dir | **removed** | `4c08d43` |
+| `WorldDriverNeoForge` `onServerStarting` gametest hook + `GameTestManifest.reset()` | production wiring | **removed** (the server-listener is kept; `applyGameTestBaseline()` survives, now gated on `-Dstagewright.autorun` at server start) | `4c08d43` |
 | `BotConfig.java:2533` `applyGameTestBaseline` javadoc ("GameTestServer startup calls this…") | doc | **rewritten** to the post-retirement truth (stagewright dogfood server calls it under `-Dstagewright.autorun`) | *this docs close* |
 | `stagewright/README.md` "Realized wiring" / "Migrate-then-delete" sections | doc | **retirement notes added** (history kept; neoforge/fabric testmod sets flagged as empty-source bridges) | *this docs close* |
 
@@ -1330,7 +1330,7 @@ own hollow column — a fall the `strideFloorGuard` structurally cannot arrest (
 adjacent face to place a floor against). The defect was in the planner *admitting* a runway-less
 parkour, not in the fall recovery.
 
-**Fix = `BotConfig.pathfinderParkourAscendNeedRunway` flipped default ON** (commit `e2bb94d`).
+**Fix = `BotConfig.pathfinderParkourAscendNeedRunway` flipped default ON** (commit `49f25ed`).
 `ParkourAscend.valid` now requires the cell BEHIND the launch (`from.offset(-sx,0,-sz)`, opposite the
 leap, same Y) to be `canStandAt` — a real flat run-up. With the flag ON, A* rejects the runway-less
 pillar-top leap and substitutes a straight-up pillar that tops out clean. `WalkerConstants` /
@@ -1362,7 +1362,7 @@ over-forbid failure mode (thrash at a makeable gap) did **not** reproduce.
 Files: `BotConfig.java` (`pathfinderParkourAscendNeedRunway=true` default; the `ParkourAscend.java`
 runway gate itself pre-existed unchanged), `WorldDriverScenes.java` (`wd.selfShaftDigUp` strict-gate
 flip + closure javadoc), `expected-scenes-{neoforge,fabric}.txt` (comment). [Correction, D2 final
-review: this line originally over-claimed `ParkourAscend.java`/`BotTools.java` edits in `e2bb94d`;
+review: this line originally over-claimed `ParkourAscend.java`/`BotTools.java` edits in `49f25ed`;
 the `BotTools.java` setting-description update ("Off by default"→"On by default") actually landed in
 the D2 final-review fix commit.]
 

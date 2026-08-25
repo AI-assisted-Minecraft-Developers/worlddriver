@@ -91,7 +91,7 @@ wd.descentYaw
 
 - [ ] **Step 3: verdict.py docstring 限定句**
 
-parse 的 docstring「no escape path to GREEN」后补一句：对第三方 harness（footer 无 `scenes` 字段的合法 v0 实现），「坏行丢弃+重复记录」的复合边缘可能同时丢失 DUPLICATE 与 TRUNCATED 信号——本仓库 harness 自 c593c23 起恒写 `scenes`，不受此影响。
+parse 的 docstring「no escape path to GREEN」后补一句：对第三方 harness（footer 无 `scenes` 字段的合法 v0 实现），「坏行丢弃+重复记录」的复合边缘可能同时丢失 DUPLICATE 与 TRUNCATED 信号——本仓库 harness 自 dd88c5d 起恒写 `scenes`，不受此影响。
 
 - [ ] **Step 4: self-test 加 2 条 + 真跑**
 
