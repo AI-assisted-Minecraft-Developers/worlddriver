@@ -939,19 +939,47 @@ public final class JourneyFill {
         return spot == null ? null : spot.stand();
     }
 
+    /**
+     * STRICT first, then the old criterion as a fallback.
+     *
+     * <p>Strict means the seat is judged from the eye that will actually FIRE, not from the cell's
+     * centre. j57 rung 12 measured why that matters, and the two readings sit one line apart in the
+     * same evidence: {@code waterFill.aim = 没有一格水源是这只眼睛看得见的} (the aim step, real eye —
+     * correct) against {@code waterFill.reseat = 换不了座位：挑出来的还是脚下这一格} (this method,
+     * centre eye — endorsing the seat the aim step had just declared blind). The body then stayed put
+     * and fired into a grass block: {@code 空桶线 -5, 62, 55 minecraft:grass_block 面=up（1.04 格）},
+     * {@code waterFill.result=FAIL}. Traced by hand, the real eye is blocked by that cell at t=0.5536
+     * → face up → 1.04 blocks, reproducing all three logged numbers, while the centre eye is clear.
+     * {@code waterFill.reseat.eye} put a number on the gap: {@code 水平差 0.22 格}.
+     *
+     * <p>The fallback is not politeness — it is the same lesson as the near-side preference below.
+     * Asked as a RULE, a stricter question removes the only seats there are, and "more correct"
+     * surfaces as「没找到能看见源块的落脚点」, which is worse than a seat that works from where the
+     * walker happens to park. So: strict if one exists, old criterion otherwise.
+     */
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
                                         int radius, Map<String, Integer> why) {
+        FillSpot strict = nearSideFirst(level, rig, pool, lava, radius,
+                new java.util.LinkedHashMap<>(), true);
+        if (strict != null) return strict;
+        return nearSideFirst(level, rig, pool, lava, radius, why, false);
+    }
+
+    private static FillSpot nearSideFirst(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
+                                          int radius, Map<String, Integer> why, boolean strictEye) {
         // PREFERENCE, not a rule. Asked as a rule it removed the only stands there were — run 37
         // measured `没找到能看见源块的落脚点` on every cast with `过去要横穿岩浆=4..6`, and the fill
         // then fell back to `Near(src,2)`, which is the arithmetic guess this whole method replaced.
         // A worse route beats no route; a nearer-bank route beats both.
-        FillSpot nearSide = standToFill(level, rig, pool, lava, radius, new java.util.LinkedHashMap<>(), true);
+        FillSpot nearSide = standToFill(level, rig, pool, lava, radius,
+                new java.util.LinkedHashMap<>(), true, strictEye);
         if (nearSide != null) return nearSide;
-        return standToFill(level, rig, pool, lava, radius, why, false);
+        return standToFill(level, rig, pool, lava, radius, why, false, strictEye);
     }
 
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
-                                        int radius, Map<String, Integer> why, boolean avoidCrossing) {
+                                        int radius, Map<String, Integer> why, boolean avoidCrossing,
+                                        boolean strictEye) {
         BlockPos from = rig.player().blockPosition();
         List<BlockPos> sources = new ArrayList<>();
         for (int dx = -radius; dx <= radius; dx++)
@@ -1013,29 +1041,65 @@ public final class JourneyFill {
                         if (avoidCrossing && lava && acrossThePool(level, from, foot)) {
                             why.merge("过去要横穿岩浆", 1, Integer::sum); continue;
                         }
-                        var eye = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5,
-                                foot.getY() + rig.player().getEyeHeight(), foot.getZ() + 0.5);
-                        var aim = net.minecraft.world.phys.Vec3.atCenterOf(src);
-                        if (eye.distanceTo(aim) > BUCKET_REACH) {
-                            why.merge("够不着源块", 1, Integer::sum); continue;
-                        }
-                        var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
-                                net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                                net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
-                        if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
-                            why.merge("射线没打到方块", 1, Integer::sum); continue;
-                        }
-                        if (!hit.getBlockPos().equals(src)) {
-                            why.merge("射线停在 " + level.getBlockState(hit.getBlockPos()).getBlock(),
-                                    1, Integer::sum);
-                            continue;
-                        }
+                        String blind = eyeBlocked(level, rig, foot, src, strictEye);
+                        if (blind != null) { why.merge(blind, 1, Integer::sum); continue; }
                         bestD = d;
                         best = new FillSpot(foot, src);
                     }
                 }
         }
         return best;
+    }
+
+    /** Half the player collision box (0.6 wide). A body inside a cell has its centre anywhere in
+     *  ±0.2 of the cell centre, so this is how far the firing eye can sit from where the old check
+     *  assumed it was. j57 measured {@code 水平差 0.22 格} — inside that bound, as it must be. */
+    private static final double BODY_HALF_WIDTH = 0.3;
+
+    /**
+     * The eye positions a seat has to be judged from.
+     *
+     * <p>Two cases, and conflating them is the defect this replaces. For the cell the body is
+     * ALREADY STANDING IN we know exactly where the eye is, so we ask that one — no envelope, no
+     * guessing, and it is the reading that decides whether a re-seat is needed at all. For a cell
+     * the body would have to WALK to we do not know where it will park, so every corner of the
+     * footprint must see the source: a seat that only works from one corner is a seat the walker
+     * can park wrong, and it would fail exactly the way this whole family already failed.
+     */
+    private static java.util.List<net.minecraft.world.phys.Vec3> eyesFor(JourneyRig rig, BlockPos foot,
+                                                                        boolean strictEye) {
+        double h = rig.player().getEyeHeight();
+        if (foot.equals(rig.player().blockPosition()))
+            return java.util.List.of(rig.player().getEyePosition());
+        var centre = new net.minecraft.world.phys.Vec3(foot.getX() + 0.5, foot.getY() + h, foot.getZ() + 0.5);
+        if (!strictEye) return java.util.List.of(centre);          // the old criterion, kept as the fallback
+        var eyes = new ArrayList<net.minecraft.world.phys.Vec3>(5);
+        eyes.add(centre);
+        for (double dx : new double[]{-BODY_HALF_WIDTH, BODY_HALF_WIDTH})
+            for (double dz : new double[]{-BODY_HALF_WIDTH, BODY_HALF_WIDTH})
+                eyes.add(new net.minecraft.world.phys.Vec3(
+                        foot.getX() + 0.5 + dx, foot.getY() + h, foot.getZ() + 0.5 + dz));
+        return eyes;
+    }
+
+    /** Why {@code foot} cannot take {@code src}, or null if every eye in its envelope can see it.
+     *  The engine's own clip, so it cannot disagree with what the bucket actually traces. */
+    private static String eyeBlocked(ServerLevel level, JourneyRig rig, BlockPos foot, BlockPos src,
+                                     boolean strictEye) {
+        var aim = net.minecraft.world.phys.Vec3.atCenterOf(src);
+        boolean here = foot.equals(rig.player().blockPosition());
+        for (var eye : eyesFor(rig, foot, strictEye)) {
+            if (eye.distanceTo(aim) > BUCKET_REACH) return "够不着源块";
+            var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
+                    net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                    net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
+            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK)
+                return "射线没打到方块";
+            if (!hit.getBlockPos().equals(src))
+                return (here ? "站着这一格，真眼的射线停在 " : "包络里有一角的射线停在 ")
+                        + level.getBlockState(hit.getBlockPos()).getBlock();
+        }
+        return null;
     }
 
     /** A survival player's block reach, which is what {@code Item.getPlayerPOVHitResult} traces with.
