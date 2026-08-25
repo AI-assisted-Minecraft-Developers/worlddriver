@@ -46,6 +46,32 @@ public final class JourneyTerrain {
     }
 
     /**
+     * How many lava SOURCE cells sit in a {@code (2r+1) × (2h+1) × (2r+1)} box around
+     * {@code centre} — the count that decides whether a pool is a lake or a pocket.
+     *
+     * <p>Not {@link #lavaSourcesNear}, whose vertical band is fixed at {@code [-6,4]} and whose
+     * order is a walking cost: this one takes its own {@code h} and answers a question about the
+     * pool rather than about the next cell to spend. Not {@link #plainSource} either — that adds a
+     * {@code FluidTags.LAVA} check and is therefore strictly stricter, so swapping it in here would
+     * quietly move a threshold that two callers already agree on.
+     *
+     * <p>The survey and the rehearsal each had a copy of this loop under a different name
+     * ({@code countSourcesAround}, {@code lavaSourcesAround}), both called with the same
+     * {@code (8, 4)}. One quantity computed twice is how the two get to disagree about what counts
+     * as a lake while both keep reporting a number.
+     */
+    public static int countLavaSources(ServerLevel level, BlockPos centre, int r, int h) {
+        int n = 0;
+        for (int dx = -r; dx <= r; dx++)
+            for (int dy = -h; dy <= h; dy++)
+                for (int dz = -r; dz <= r; dz++) {
+                    BlockPos c = centre.offset(dx, dy, dz);
+                    if (level.getFluidState(c).isSource() && level.getBlockState(c).is(Blocks.LAVA)) n++;
+                }
+        return n;
+    }
+
+    /**
      * Where the lava is down the WHOLE column, in 8-block bands.
      *
      * <p>Every probe above scans {@code dy ∈ [-6,4]} — eleven blocks around the body. So their

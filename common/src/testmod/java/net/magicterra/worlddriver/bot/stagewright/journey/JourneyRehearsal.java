@@ -370,7 +370,7 @@ public final class JourneyRehearsal {
         // place where it can be seen.
         loadAround(level, BAKED_LAVA_LAKE, 2);
         BlockPos lake = BAKED_LAVA_LAKE;
-        int sources = lavaSourcesAround(level, lake, 8, 4);
+        int sources = JourneyTerrain.countLavaSources(level, lake, 8, 4);
         if (sources < PORTAL_FRAME_CELLS) {
             // The baked answer no longer describes the world. Look in its immediate neighbourhood
             // before giving up — a lake that shifted a few blocks is a different finding from a lake
@@ -1821,16 +1821,6 @@ public final class JourneyRehearsal {
             for (int z = cz - chunkRadius; z <= cz + chunkRadius; z++) level.getChunk(x, z);
     }
 
-    private static int lavaSourcesAround(ServerLevel level, BlockPos centre, int r, int h) {
-        int n = 0;
-        for (int dx = -r; dx <= r; dx++)
-            for (int dy = -h; dy <= h; dy++)
-                for (int dz = -r; dz <= r; dz++) {
-                    BlockPos c = centre.offset(dx, dy, dz);
-                    if (level.getFluidState(c).isSource() && level.getBlockState(c).is(Blocks.LAVA)) n++;
-                }
-        return n;
-    }
 
     /**
      * Somewhere beside the lake a body can be set down: solid floor, two cells of air, no fluid.
