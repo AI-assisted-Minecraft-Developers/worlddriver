@@ -326,6 +326,28 @@ public final class JourneyRig {
      */
     Object evidenceOf(String key) { return evidence.get(key); }
 
+    /**
+     * Every value this rig recorded under a key ending in {@code suffix}, in write order.
+     *
+     * <p>Because some keys carry a RUN-GLOBAL counter that a scene cannot predict: the climb rows are
+     * {@code <tag>#<seq>.climb.<course><what>}, and {@code seq} keeps counting across every scene in
+     * the suite, so the same arena writes a different key depending on what ran before it. An
+     * assertion spelled with an exact key would pass under a filter and go silent in a full gate —
+     * which is the [[an-instrument-behind-a-flag-is-not-an-instrument]] shape with the run order
+     * playing the part of the flag.
+     *
+     * <p>A List, not the first hit, because the interesting question is often HOW MANY: one row means
+     * a branch fired once, and the difference between「handed off immediately」and「burned eight
+     * retries first」is a count, not a value. Each rig owns its own map, so a scene's own rows are
+     * the only ones here.
+     */
+    java.util.List<Object> evidenceEndingWith(String suffix) {
+        java.util.List<Object> hits = new java.util.ArrayList<>();
+        for (Map.Entry<String, Object> e : evidence.entrySet())
+            if (e.getKey().endsWith(suffix)) hits.add(e.getValue());
+        return hits;
+    }
+
     /** The stage this rig is climbing. */
     public JourneyStage stage() { return stage; }
 

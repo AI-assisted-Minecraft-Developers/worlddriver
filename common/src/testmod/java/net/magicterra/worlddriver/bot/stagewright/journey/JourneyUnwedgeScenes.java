@@ -123,7 +123,10 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                 Scene.of("wd.unwedgePinnedDriftRefusesTheStaircase", 200,
                         JourneyUnwedgeScenes::pinnedDriftRefusesTheStaircase),
                 Scene.of("wd.unwedgePinnedDriftTowersBesideTheStaircase", 200,
-                        JourneyUnwedgeScenes::pinnedDriftTowersBesideTheStaircase));
+                        JourneyUnwedgeScenes::pinnedDriftTowersBesideTheStaircase),
+                // The other reason a tower gives up: not the staircase under it, the water around it.
+                Scene.of("wd.unwedgeStopsToweringWhenASourceFeedsTheWater", 3_000,
+                        JourneyUnwedgeScenes::stopsToweringWhenASourceFeedsTheWater));
     }
 
     // ---------------------------------------------------------------- rig ----
@@ -629,5 +632,121 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                 .isEqualTo(0);
         ctx.check(after.contains("级都完好")).as("F 自检自己的判词要是「都完好」而不是「修好了」: »"
                 + after + "«").isTrue();
+    }
+
+    // ------------------------------------------------- the wash-off's upstream ----
+
+    /** The channel's floor, its walls, and the body's cell, as dy offsets from {@link #BASE}. */
+    private static final int WET_FLOOR = 0, WET_FEET = 1;
+
+    /** Where the body stands and where the source sits, as dx. Two apart, so the source is inside
+     *  {@code JourneyShaft.WASHED_OFF_UPSTREAM} (4) from the body's cell AND stays inside it after the
+     *  flow has pushed the body as far west as the channel's end wall allows. A source further off
+     *  would make the reading answer 「没有水源块」 for a puddle that visibly has one, which is state ④
+     *  of this arm's registration and a staging bug rather than a finding. */
+    private static final int WET_STAND_X = 1, WET_SOURCE_X = 3;
+
+    /** Courses the climb is allowed. Eight, matching {@code WASHED_OFF_RETRIES}, so a fix that did
+     *  NOT hand off has room to burn every retry and be seen doing it — an allowance of one would
+     *  make criterion D pass by arithmetic instead of by behaviour. */
+    private static final int WET_COURSES = 8;
+
+    /**
+     * A tower that stalls in water a live source keeps feeding hands off at once — it does not retry.
+     *
+     * <p><b>Why this has to be staged at all.</b> The branch under test is reached only from the
+     * climb's STALL path, and rung 12's own healthy run now walks its last step correctly, so a
+     * rehearsal may never enter a wash-off again. A branch a healthy run never executes is the runtime
+     * form of a criterion that cannot fail: it reports nothing, forever, and reads like agreement.
+     *
+     * <p><b>What the arena reproduces and what it does not.</b> The subject is the QUESTION the stall
+     * asks —「the water is moving; is anything feeding it?」— and the answer it acts on. The stall's
+     * own cause is upstream of that and deliberately different here: the field's body was pushed off
+     * its pillar, this one simply has no block to place, so {@code TowerProcess} gains nothing and the
+     * course ends in the same place. Do not read this arm as evidence about WHY towers stall in water.
+     *
+     * <p><b>The order the climb checks things in decides the staging</b>, and two of its branches
+     * would swallow this one:
+     *
+     * <ul>
+     *   <li>{@code pillarRiseBlockers} non-empty ⇒ the ceiling is mined or {@code wouldOpenFluid}
+     *       stops the climb, both before the tower runs. So the body's own column is left open.</li>
+     *   <li>{@code !onGround} ⇒ the {@code afloat} branch, which is the FLOATING case and a different
+     *       subject. So the water is one block deep over stone and the body stands in it.</li>
+     * </ul>
+     *
+     * <p>A dry control arm is deliberately absent: sourceless flowing water drains in a few dozen
+     * ticks, so the staging would die before the assertion — the control would be measuring its own
+     * decay. The 「有源」 arm alone separates the two mechanisms, because the row it asserts on names
+     * the source it found.
+     */
+    private static void stopsToweringWhenASourceFeedsTheWater(SceneContext ctx) {
+        config(ctx);
+        // The channel: stone floor, stone walls on all four sides of a three-cell run, open above.
+        for (int dx = -1; dx <= 6; dx++)
+            for (int dz = -2; dz <= 2; dz++)
+                ctx.setBlock(dx, BASE + WET_FLOOR, dz, Blocks.STONE);
+        for (int dx = 0; dx <= WET_SOURCE_X + 1; dx++)
+            for (int dy = 1; dy <= 2; dy++) {
+                ctx.setBlock(dx, BASE + dy, -1, Blocks.STONE);
+                ctx.setBlock(dx, BASE + dy, 1, Blocks.STONE);
+            }
+        // The two end walls. The west one is what keeps the body inside the source's radius no matter
+        // how long the flow pushes it — see WET_STAND_X.
+        for (int dy = 1; dy <= 2; dy++) {
+            ctx.setBlock(WET_STAND_X - 1, BASE + dy, 0, Blocks.STONE);
+            ctx.setBlock(WET_SOURCE_X + 1, BASE + dy, 0, Blocks.STONE);
+        }
+        BlockPos src = ctx.rel(WET_SOURCE_X, BASE + WET_FEET, 0);
+        ctx.setBlock(WET_SOURCE_X, BASE + WET_FEET, 0, Blocks.WATER);
+
+        BlockPos foot = ctx.rel(WET_STAND_X, BASE + WET_FEET, 0);
+        ServerWorldDriver driver = SceneBody.managed(ctx, foot);
+        ServerPlayer fp = driver.fakePlayer();
+        // NO PLACEABLE BLOCK, on purpose — see the class note above. `pillarBlock` falls back to
+        // cobblestone with a count of zero, `.hand` records that it could not be held, and execution
+        // falls through to the tower exactly as it does in the field.
+        ServerPlayerAvatar av = driver.avatar();
+        // Enough steps for the water to spread the two cells and for the body to be flush on the
+        // floor. TowerProcess's READY phase refuses a body reporting onGround()==false, and so does
+        // the climb's own afloat branch — which would take this arm's subject away from it.
+        for (int i = 0; i < 20; i++) av.step();
+
+        ctx.record("staged.body", String.format(Locale.ROOT, "%s 精确 %.2f/%.2f/%.2f，onGround=%s，"
+                        + "inWater=%s；水源 %s", fp.blockPosition().toShortString(), fp.getX(),
+                fp.getY(), fp.getZ(), fp.onGround(), fp.isInWater(), src.toShortString()));
+        ctx.check(fp.isInWater()).as("控制组 A：身体必须真的泡在水里 —— 不在水里，"
+                + "washedOff 那一整段的入口条件就是假的，B/C/D 全是 0==0："
+                + fp.blockPosition()).isTrue();
+        ctx.check(fp.onGround()).as("控制组 A2：身体必须**站在地上** —— 浮着的身体走的是 afloat 那一支，"
+                + "那是另一个主题，这一臂就什么都没测到").isTrue();
+
+        JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
+        JourneyShaft.ascendByTowering(rig, foot.getY() + 5, WET_COURSES, WET_COURSES, "fed", () -> {
+            // BY SUFFIX, not by exact key: the climb's rows carry `climbSeq`, a run-global counter, so
+            // the same arena writes a different key depending on what ran before it in the suite.
+            List<Object> upstream = rig.evidenceEndingWith(".washedOffUpstream");
+            List<Object> handedOff = rig.evidenceEndingWith(".washedOffFed");
+            List<Object> retried = rig.evidenceEndingWith(".washedOff");
+            List<Object> afloat = rig.evidenceEndingWith(".afloat");
+            ctx.record("subject.upstream", String.valueOf(upstream));
+            ctx.record("subject.handedOff", String.valueOf(handedOff));
+            ctx.record("subject.retried", retried.size() + " 条：" + retried);
+            ctx.record("subject.afloat", afloat.size() + " 条：" + afloat);
+            ctx.record("subject.endedAt", fp.blockPosition().toShortString() + "，inWater="
+                    + fp.isInWater() + "，onGround=" + fp.onGround());
+
+            // B FIRST, because C and D are 0==0 without it: no upstream row means the stall never
+            // reached the flow check at all (a floating body, or a course that never stalled).
+            ctx.check(upstream).as("B 停下之前必须真的问过上游 —— 没有 washedOffUpstream 行，"
+                    + "说明这一课根本没走到流速判据那一步（afloat " + afloat.size() + " 条）").isNotEmpty();
+            ctx.check(String.valueOf(upstream.get(0))).as("B2 上游读数必须点名我摆的那个源 " + src
+                    + " —— 点不到就是仪器够不着它（半径 4），不是「没有源」").contains(src.toShortString());
+            ctx.check(handedOff).as("C 有源就必须走「不重试，交给上层后备腿」那一支 —— "
+                    + "没有 washedOffFed 行，说明修法没生效，照旧当暂态重试了").isNotEmpty();
+            ctx.check(retried).as("D 交腿必须是**立刻**的，不是烧完 " + WET_COURSES
+                    + " 次重试才交 —— 出现 washedOff 重试行就说明早停排在了重试后面："
+                    + retried).isEmpty();
+        });
     }
 }
