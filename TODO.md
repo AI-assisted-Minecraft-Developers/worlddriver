@@ -3598,6 +3598,48 @@ COVERAGE 停在 293（不是预期的 294），因为炸掉的场景不计入 ex
 假红的方向跟真缺陷长得一模一样。修法是场景补 `stairTop`/`stairBottom`，并在 cleanup 里清掉
 （和 `JourneyStairs.forget()` 同一个理由）。commit `d8a090b5`。
 
+###### ❌ 读数（第二趟 `gate-j69c2`）：命中 ④ —— **场景把我自己的修法否掉了**
+
+先对基线，确认红只出在这一条上：
+
+| 日志 | VERDICT | COVERAGE | required `FAIL:` |
+|---|---|---|---|
+| `gate-j69`（加场景前） | GREEN | 293 / 25 | 0 |
+| `gate-j69c`（场景 NPE） | RED | 293 / 25 | 1 |
+| `gate-j69c2`（本趟） | RED | 293 / 25 | 1 |
+
+3 条 optional 一条不多不少、canary 三行正确、`UNDECLARED:` 0 条、25 条 skip 名单逐字相同。
+COVERAGE 停在 293 也**不是**独立线索：上一趟已经量出「不计入 executed」，而 NeoForge 那趟
++1 是因为它在那边 **PASS**——`executed` 数的是通过，FAIL 与 crash 一样不进这个计数。
+
+```
+scene 'wd.journeyWalksOffTheLipOntoTheDryStep' -> FAIL (3 ticks, 317 ms)
+staged.terminal = 245919, 217, 100000，下一级=245920, 216, 100000
+staged.pose     = 245919, 218, 100000 精确 245919.20/218.00/100000.50，onGround=true
+subject.legs    = 两腿
+subject.again   = … → 245920, 216, 100000（改瞄下一级：末路点格心离身体只有 0.58 格）
+subject.ended   = 245919, 218, 100000（仍在末路点上方 1 排）
+subject.overshot= 都不是
+判据 A 红：终点 y=218，末路点 y=217
+```
+
+`staged.terminal` 的「下一级」非 null ⇒ **不是 ④'**。姿势也复现成了：x 偏移 0.20、`onGround=true`，
+和真梯 `(1.20, 58, 19.48)` 同一个几何。**两腿都开了火，第二腿零位移。**
+
+**修法被否的原因写在同一行证据里**：`楼梯底 245920, 216, 100000=Block{minecraft:water}`。
+`beyond = nextDown(ends)`，而 `ends` 是 `lowestDryStep` 挑出来的**最低的干台阶**——
+按定义它下面的每一级都是湿的。所以在洪水这一族里，「改瞄下一级」**必然瞄向水**，
+这正是 `lowestDryStep` 当初把末路点抬上来要躲开的那一格。整场 3 tick，
+两次 200-tick 预算的 `settle` 都被 `JourneyRig:1269` 的 `legEnded(d)` 立刻收掉。
+
+**几何重述（这才是题目的真形状）**：身体 `blockPos` 是 `245919, 218, 100000`，
+末路点是 `245919, 217, 100000`——**同一柱，正下方一排**，中间是空气。
+托住它的是碰撞盒 `[245918.90, 245919.50]` 与邻柱 `245918` 那 **0.10 格**的搭接。
+需要的位移是 **+x 0.10 格**（到 x ≥ 245919.30 就悬空自落）。
+这不是「走不到」，是[[the-collision-box-is-not-the-cell]] 那一族：
+**走行器的到达判据是个球，而支撑判据是个盒**，0.10 格的差落在两者之间，
+任何以「换一个更远的目标」为形状的修法都只能绕开它，不能解决它。
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
