@@ -980,8 +980,33 @@ cast9.picks.1 = 4, 63, 19 grass_block face=up → 落进 4, 64, 19
 ⇒ 先按「高出 ≥2 排就不算到达」落，**并让这一判据自己写证据行**，下一趟就能看见它开没开火
 （[[an-instrument-behind-a-flag-is-not-an-instrument]]）。
 
-⛔ **现在不能改**：janitor 正在改 `journey/` 下的文件（`JourneyHands.java` 已 dirty，
-`JourneyStairwell.java` 新建中），共享同一棵工作树（[[the-shared-tree-is-the-real-boundary]]）。
+✅ **已落地**（`fbede5f0`，编译绿 + 源预算绿）：`JourneyPour.POUR_ROW_SLACK = 1`、
+`RAISE_ROW_TRIES = 1`，排不对就 `JourneyStairwell.returnToTheForge` 走回模腔重来一次；
+`JourneyRamp` 的 `flightSkipped` 行加印「**高 N 排**」（纯测量）。
+装水一侧 `slack = 0`，与它既有的 `exactRow=true` 一致，**没有改动它的行为**。
+
+###### 📌 预登记：这个修法自己的判据（写在跑之前）
+
+⚠️ **最可能的结果是 B，而 B 不是「验过了」**：这一趟 `cast0`–`cast8` 九次都没过头，
+只有 `cast9` 过头 ⇒ **触发率约 1/10**，一趟真梯很可能一次都碰不到
+（[[three-greens-cannot-see-a-one-in-four]]：要观察到恢复本身，不是数通过次数）。
+
+| 态 | 读到什么 | 判什么 |
+|---|---|---|
+| A | `raiseRowTooHigh` 出现 ≥1 次，**且其后的 `raisedY` 变成同排**（`59/59`） | 修法生效**且被观察到**——这才是验过 |
+| B | `raiseRowTooHigh` 一次没出现 | **没被检验**，不管 12 级过没过都不能记成验证；改用构造场景去撞（见下） |
+| C | `raiseRowTooHigh` 出现，但接着是 `raiseRowGaveUp` | 下降腿没能把身体带回那一排——问题在 `returnToTheForge` 或 `wantY` 本身，不在这道闸 |
+| D | 12 级败在别处 | 读新死因；这个修法仍按 A／B／C 判，**不因为「这趟没死在这儿」就算过** |
+
+**两道闸的预期颜色（先算再读）**：正常路径一行没动，重试路径只在过头时才走 ⇒
+**两个 topology 都应 GREEN，且失败集合不变**（`wd.vineOverWaterClimb` +
+`wd.serverEscapeSealedShelter` 两条 `fail(optional)`）。
+**多出任何一条失败 = 修法碰坏了现有行为**；`UNDECLARED` 应为 0（没注册新场景）。
+
+📌 **B 态的对策已经想好**：写一个场景把身体直接摆到高出 `wantY` 五排的位置再调 `raiseTo`，
+断言 `raiseRowTooHigh` 开火且身体最终落回验过的那一排——
+**让守卫在一个它必然遇到的场合里被看见**（[[verify-by-making-the-criterion-impossible]] 的同族）。
+⚠️ 注册新场景必须同批加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 直接判红。
 
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
