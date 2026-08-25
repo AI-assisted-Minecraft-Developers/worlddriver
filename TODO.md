@@ -3540,6 +3540,26 @@ wet.cells = …245407,217=干，头顶=干；245408,216=水(源)，头顶=水(�
 
 **次序**：闸绿 → J69c 场景+修法 → `rehearse12` → 真梯。J70 单独一笔，排在这之后。
 
+**已落地**（commit `e474f119`）：`JourneyStairs.nextDown`、`finishTheFlight` 的第二腿、
+场景 `wd.journeyWalksOffTheLipOntoTheDryStep`、两份 manifest（新增段逐字节相同，已 diff 验过）。
+`check_source_budget` 通过（`JourneyPortalRung` 2916/3000），`:common:compileTestmodJava` exit=0。
+
+**预登记：Fabric 闸 `gate-j69c`（写在读结果之前）**
+
+新场景摆的是**唇平衡姿势**，两条控制组先判「这一臂真的摆成了输面」，
+然后 A 判结局（下到末路点那一排或更低）、B 判蕴含（第一腿没落地 ⇒ 第二腿必须开火）。
+
+| | 读到什么 | 判作 |
+|---|---|---|
+| ① | GREEN；COVERAGE 相对上一趟 Fabric（293/25）**+1 = 294/25**；新场景 `PASS`；`subject.legs` 写着「两腿」 | 修法成立，且**是第二腿买来的**——进 `rehearse12` |
+| ② | GREEN，新场景 `PASS`，但 `subject.legs`=「一腿」 | 隔离场里走行器一腿就到了 ⇒ **这一臂没能复现真梯的输面**，判据 A 变成 0==0。不算证据，要回去调姿势（x 偏移、`av.step()` 次数），**不许拿它当修法生效的证明** |
+| ③ | 新场景 `FAIL` 在控制组 A/B | 姿势没摆成（身体自己掉下去了或还在下坠），改场景不改产码 |
+| ④ | 新场景 `FAIL` 在判据 A，且 `subject.again` 非空 | **第二腿开火了但没把身体弄下去** —— 这时才轮到重新审「换目标」这个方案本身，读 `subject.ended`／`subject.overshot` 定去向 |
+| ⑤ | 红在别的场景上 | 与上一趟 Fabric（GREEN 293/25）做差，不默认是这一笔造成的 |
+
+**预期形状**：`flightLastStep` 1 行、`flightLastStepMissed` 0 或 1 行、
+`flightLastStepAgain` 与 missed 同进同出、`flightLastStepEnded` 与 again 同进同出。
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
