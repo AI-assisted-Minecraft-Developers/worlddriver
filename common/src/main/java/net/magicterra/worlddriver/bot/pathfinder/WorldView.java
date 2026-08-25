@@ -181,6 +181,21 @@ public interface WorldView {
     default void cacheActive(boolean on) {}
 
     /**
+     * The game tick this view is currently reading, used only to group searches that
+     * share one tick. Every budget {@link PathFinder} has is charged per <em>search</em>
+     * or per <em>slice</em>, so none of them can see the shape that actually kills the
+     * server: hundreds of individually-cheap searches inside a single tick, because the
+     * scene pump steps the Walker thousands of times before the tick ends. Summing them
+     * needs an origin that survives across searches, and the tick is that origin.
+     *
+     * <p>Default {@link Long#MIN_VALUE} = "this view has no clock". A view that cannot
+     * answer disables the accounting rather than guessing, so a static or synthetic view
+     * never invents a tick boundary — an instrument that reports on a made-up origin is
+     * worse than one that stays quiet.
+     */
+    default long tickMarker() { return Long.MIN_VALUE; }
+
+    /**
      * Soft danger penalty (in 1/10-tick cost units) for <em>standing at</em>
      * {@code foot} — Baritone's avoidance heuristic. Unlike {@link #isHazard}
      * (a hard reject that makes a cell impassable), this is added to the A* cost

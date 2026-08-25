@@ -118,6 +118,13 @@ public final class ClientWorldView implements WorldView {
      *  otherwise (Walker per-tick reads). When false, {@link #state} bypasses the
      *  cache entirely so live reads stay fresh. */
     @Override public void cacheActive(boolean on) { this.cacheActive = on; }
+    /** No level yet (title screen, or a world being torn down) means no tick to group by,
+     *  and the default sentinel disables the accounting rather than folding every search
+     *  into one imaginary tick. */
+    @Override public long tickMarker() {
+        Level lvl = Minecraft.getInstance().level;
+        return lvl == null ? Long.MIN_VALUE : lvl.getGameTime();
+    }
     /** Single funnel for every world blockstate read in this class. Cached only
      *  while {@link #cacheActive} (a search slice) AND {@link BotConfig#pathfinderCacheEnabled};
      *  otherwise reads straight through. Returns AIR when the level is gone so callers

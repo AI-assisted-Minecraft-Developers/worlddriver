@@ -41,6 +41,9 @@ public final class LevelWorldView implements WorldView {
         this.controller = controller;
     }
 
+    @Override
+    public long tickMarker() { return level.getGameTime(); }
+
     private BlockState state(BlockPos p) { return level.getBlockState(p); }
 
     @Override public boolean isSolid(BlockPos p) { return state(p).blocksMotion(); }

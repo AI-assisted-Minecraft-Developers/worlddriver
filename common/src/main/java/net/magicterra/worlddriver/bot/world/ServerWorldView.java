@@ -26,6 +26,9 @@ public final class ServerWorldView implements WorldView {
     }
 
     @Override
+    public long tickMarker() { return level.getGameTime(); }
+
+    @Override
     public boolean isSolid(BlockPos pos) {
         return level.getBlockState(pos).blocksMotion();
     }

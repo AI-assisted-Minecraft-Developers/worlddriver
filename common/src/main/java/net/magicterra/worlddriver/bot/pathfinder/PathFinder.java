@@ -123,6 +123,40 @@ public final class PathFinder {
      *  arithmetic gap is why this exists; it is not yet closed. */
     private static final long HEARTBEAT_NANOS = 1_000L * 1_000_000L;
 
+    /** Closes the arithmetic gap named just above: how much wall-clock EVERY search on this thread
+     *  has spent inside the current game tick.
+     *
+     *  <p>The gate that keeps wedging dies with all four existing budgets silent — zero
+     *  {@code SAFETY CEILING} lines, zero HEARTBEAT lines — while the server sits 67 s without a
+     *  tick. That is only consistent with many individually-cheap searches: {@code sliceLimit} and
+     *  the heartbeat reset every {@code advance()}, {@code maxMs} and {@link #CEILING_MS} reset
+     *  every search, so 519 searches of 130 ms each are invisible to all of them and fatal
+     *  together. The measured shape in one wedged scene was 519 {@code search-begin owner=combat}
+     *  lines inside one tick against 646 in the healthy arm that finished in 2 s — the count is not
+     *  the pathology, the per-search work is (max {@code expanded} 65 147 vs 0).
+     *
+     *  <p>Per THREAD, not global: the hang watchdog kills a thread that stopped ticking, so the
+     *  server thread's own total is the quantity that matters, and a client-side search must not
+     *  charge the server's account. Per-thread also means no lock on a hot path and no interleaving
+     *  between the two.
+     *
+     *  <p>This round REPORTS ONLY — it must be calibrated against a healthy run before anything is
+     *  allowed to fire on it. A cap picked from intuition could trip a scene that works today (one
+     *  1-tick scene, {@code wd.serverCastsObsidian}, legitimately spends ~4.2 s), which is exactly
+     *  the contract {@link #CEILING_MS} promises not to break. */
+    private static final ThreadLocal<long[]> TICK_SPEND = ThreadLocal.withInitial(
+            () -> new long[]{Long.MIN_VALUE, 0L, 0L, 0L});
+    private static final int TS_MARKER = 0, TS_NANOS = 1, TS_SEARCHES = 2, TS_NEXT_REPORT = 3;
+
+    /** First per-tick report, and the gap between reports after it. One second: below it there is
+     *  nothing to see (a whole healthy fight tick is single-digit ms) and above it every line is a
+     *  reading worth having. */
+    private static final long TICK_REPORT_NANOS = 1_000L * 1_000_000L;
+
+    /** Stops a wedged tick from writing a line per search for a whole minute. The series is the
+     *  evidence, not any single line, and twenty beats already spans the interesting range. */
+    private static final long TICK_REPORT_LIMIT = 20;
+
     private final WorldView world;
     private final int maxNodes;
     private final long maxMs;
@@ -1235,8 +1269,46 @@ public final class PathFinder {
                 return true;
             } finally {
                 world.cacheActive(false);
-                elapsedNanos += System.nanoTime() - sliceStart;
+                long spent = System.nanoTime() - sliceStart;
+                elapsedNanos += spent;
+                chargeTick(spent);
             }
+        }
+
+        /**
+         * Adds this slice's wall-clock to the current tick's account and reports when the total
+         * crosses each {@link #TICK_REPORT_NANOS} boundary. See {@link #TICK_SPEND}.
+         *
+         * <p>Charged in the {@code finally} beside {@code elapsedNanos} deliberately: that is the
+         * one place every exit from {@code advance()} passes through — the yield return, the
+         * goal-reached return, the best-effort return and any throw alike. An instrument attached
+         * to a normal-return path would under-report exactly the pathological searches, which is
+         * the mistake the HEARTBEAT note above was written about.
+         */
+        private void chargeTick(long spentNanos) {
+            long marker = world.tickMarker();
+            if (marker == Long.MIN_VALUE) return;      // view has no clock; do not invent one
+            long[] ts = TICK_SPEND.get();
+            if (ts[TS_MARKER] != marker) {             // a real tick boundary: start a fresh account
+                ts[TS_MARKER] = marker;
+                ts[TS_NANOS] = 0L;
+                ts[TS_SEARCHES] = 0L;
+                ts[TS_NEXT_REPORT] = TICK_REPORT_NANOS;
+            }
+            ts[TS_NANOS] += spentNanos;
+            ts[TS_SEARCHES]++;
+            if (ts[TS_NANOS] < ts[TS_NEXT_REPORT]
+                    || ts[TS_NEXT_REPORT] > TICK_REPORT_LIMIT * TICK_REPORT_NANOS) {
+                return;
+            }
+            ts[TS_NEXT_REPORT] += TICK_REPORT_NANOS;
+            LOG.warn("[pathfinder] TICK SPEND {} ms across {} advance() calls in ONE tick"
+                    + " (gameTime={}) — owner={} thread={}. No existing budget can see this:"
+                    + " sliceMs and the heartbeat reset every advance(), maxMs and the {} ms"
+                    + " ceiling reset every search. If this series reaches the 60 s watchdog the"
+                    + " server dies with every one of those budgets silent.",
+                    ts[TS_NANOS] / 1_000_000L, ts[TS_SEARCHES], marker, owner,
+                    Thread.currentThread().getName(), CEILING_MS);
         }
 
         /** True if any cardinal-horizontal neighbour of {@code p} sits in an
