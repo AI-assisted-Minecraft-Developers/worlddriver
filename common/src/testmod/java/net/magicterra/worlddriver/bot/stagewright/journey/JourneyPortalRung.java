@@ -165,13 +165,26 @@ public final class JourneyPortalRung {
      * seconds, until the leg ran out. Naming the mouth fixed the first half and the second half did
      * it again from the mouth. These are what make the staircase the route and not merely a hole
      * that happens to connect two places.
+     *
+     * <p><b>The flight ends on the lowest step a body can stand on, which is not always its bottom.</b>
+     * See {@link JourneyStairs#lowestDryStep} for the nine casts that bought this: the mould's own
+     * runoff floods the bottom step from the row the pour is aimed at, the pour climbs, and a waypoint
+     * whose cell and head room are both water cannot be walked to at all — the leg stops four cells
+     * short and the rung reads that as「走不回模腔」. Ending one step early costs nothing when the
+     * bottom is dry, because then it IS the bottom.
+     *
+     * <p>Waypoints below the chosen end are dropped rather than kept: the stride can step past it
+     * ({@code cells[8]} is below a terminal at {@code cells[7]}), and a route that visits a cell after
+     * its own destination is a route back down into the water.
      */
-    private static List<BlockPos> stairRoute(boolean down) {
+    static List<BlockPos> stairRoute(ServerLevel level, boolean down) {
         List<BlockPos> cells = JourneyStairs.cells;
+        int end = JourneyStairs.lowestDryStep(level);
+        if (end < 0) end = cells.size() - 1;
         List<BlockPos> out = new ArrayList<>();
-        for (int i = 0; i < cells.size(); i += STAIR_WAYPOINT_STRIDE) out.add(cells.get(i));
-        BlockPos last = cells.get(cells.size() - 1);
-        if (!out.get(out.size() - 1).equals(last)) out.add(last);
+        for (int i = 0; i < end; i += STAIR_WAYPOINT_STRIDE) out.add(cells.get(i));
+        BlockPos last = cells.get(end);
+        if (out.isEmpty() || !out.get(out.size() - 1).equals(last)) out.add(last);
         if (!down) java.util.Collections.reverse(out);
         return out;
     }
@@ -304,7 +317,16 @@ public final class JourneyPortalRung {
         // expected to CLIMB across a rung's returns, and a flat one is the finding.
         JourneyTerrain.RimTax tax = JourneyTerrain.avoidTheRim(rig.ctx().level(), lavaPool);
         rig.evidence(tag + ".rimTax", tax.story());
-        List<BlockPos> route = stairRoute(down);
+        List<BlockPos> route = stairRoute(rig.ctx().level(), down);
+        // SAY IT WHEN THE FLIGHT IS SHORTENED, and only then. The route ending one step high is the
+        // difference between a leg that comes home and a leg that stops four cells short of a
+        // waypoint made of water, and without this row the two produce identical logs.
+        BlockPos bottom = JourneyStairs.cells.get(JourneyStairs.cells.size() - 1);
+        BlockPos ends = down ? route.get(route.size() - 1) : route.get(0);
+        if (!ends.equals(bottom))
+            rig.evidence(tag + ".flightEnd", "末路点从楼梯底 " + bottom.toShortString() + " 提到 "
+                    + ends.toShortString() + " —— 楼梯底站不了："
+                    + cellStory(rig.ctx().level(), bottom, false));
         if (faults.isEmpty()) { walkTheStairs(rig, route, 0, down, tax, then); return; }
         JourneyStairs.mend(rig, tag, faults, 0,
                 () -> walkTheStairs(rig, route, 0, down, tax, then));

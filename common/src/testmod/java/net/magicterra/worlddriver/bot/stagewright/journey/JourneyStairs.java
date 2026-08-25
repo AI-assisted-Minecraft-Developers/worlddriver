@@ -240,6 +240,50 @@ final class JourneyStairs {
     /** How many steps the flight has, so a row can say「楼梯 0 级」rather than fall silent. */
     static int steps() { return cells.size(); }
 
+    /**
+     * The INDEX of the lowest step the flight can actually end on — counting up from the bottom, the
+     * first whose own cell and head room are both free of fluid — or -1 when every step is wet.
+     *
+     * <p><b>The flight's last waypoint used to be the bottom step, unconditionally, and the alcove's
+     * own runoff is what makes that wrong.</b> The mould's floor row IS the flight's bottom row (see
+     * {@link JourneyDrain}'s class note), the pour target climbs a row every couple of casts, and the
+     * water is live for the WHOLE return leg — the reclaim is scheduled after the descent, so every
+     * {@code recover*.fromHere} reads from down in the alcove, long after the walk home is over.
+     *
+     * <p>Measured on the ladder of 2026-08-24, rung 12, nine casts. The first eight poured at
+     * {@code y<=59}, wet exactly one cell, and every one of them came home — eight identical pairs of
+     * {@code cast*.stairsBroken = 1 格泡在流体里：2,56,20} and
+     * {@code cast*.returnedY=57（身体 2, 57, 20）}. The ninth poured at {@code 4,61,20}, the highest of
+     * the run, and the runoff reached a second cell:
+     *
+     * <pre>
+     * cast8.stairsBroken   = … 2 格泡在流体里：2,56,20=water(流 level=8)，2,57,20=water(流 level=6)
+     * cast8.returnStopped#2 = 第 3/3 段：想到 2, 56, 20，停在 -1, 59, 20，差 4.24 格
+     *                        —— 要去的那格：脚下 stone，身处 water，头顶 water
+     * </pre>
+     *
+     * The leg stopped four cells short of a waypoint no body can stand in, the rung read the height it
+     * finished at as「走不回模腔」, and the run spent its last 13158 ticks in the return's unwedge —
+     * which, checked afterwards, had done its own job correctly every time. <b>Waiting it out is not
+     * the alternative</b>: the pours only go higher from here, so once the bottom step starts taking
+     * runoff it stays wet, and the flight has to be able to end one step early instead.
+     *
+     * <p>Asks the FLUID state, not {@code blocksMotion}: water is invisible to every question
+     * {@link #faults} asks, which is the blind spot {@link #flooding} exists for — and the two cells
+     * asked about here are exactly the two that one prints.
+     *
+     * <p>Not dimension-gated, unlike {@link #stepInColumn}: the only caller is the flight's own walk,
+     * which cannot be anywhere but in the world the flight was cut in.
+     */
+    static int lowestDryStep(ServerLevel level) {
+        for (int s = cells.size() - 1; s >= 0; s--) {
+            BlockPos step = cells.get(s);
+            if (level.getFluidState(step).isEmpty() && level.getFluidState(step.above()).isEmpty())
+                return s;
+        }
+        return -1;
+    }
+
     /** One step that has stopped being a step, and which of the four ways it can stop being one. */
     record StairFault(BlockPos step, BlockPos cell, boolean missingSupport, String saw) {
         String describe() {
