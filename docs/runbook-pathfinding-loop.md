@@ -9,9 +9,10 @@
 - Client GL hang(shader render 线程):需系统重启(fresh Xvfb 无效)。
 
 ## 设 flag(新 flag 必须走 RPC)
-- MCP 工具 schema 在 session 启动冻结 → 新加的 BotConfig key 被 strip(`BotTools.java` 的 `.prop` 白名单)。
-- 用 RPC(port 39801,见 worlddriver-rpc skill 的 rpc.py)或 `mc.script_eval` 里 `Driver.invoke('mc.bot.setting', {...})`。
-- 注意:script_eval 里 `Java.type` 不可用;读设置用 `Driver.invoke('mc.bot.setting', {}).settings`。
+- MCP 工具 schema 在 session 启动冻结 → 新加的 BotConfig key 被 strip。冻结的是**客户端手里那份拷贝**;
+  mod 这侧的 schema 由 `SettingsRegistry.schemaProps()` 现算,永远不会陈旧。
+- 用 RPC(port 39801,见 worlddriver-rpc skill 的 rpc.py)或 `mc.script.eval` 里 `Driver.invoke('mc.bot.setting', {...})`。
+- 注意:script.eval 里 `Java.type` 不可用;读设置用 `Driver.invoke('mc.bot.setting', {}).settings`。
 
 ## 三件套分层判别器(定 class A vs B)
 1. `mc.observe.map` / `mc.client.blocks` — 真几何(非假设)。
@@ -21,14 +22,22 @@
   planner 发不可实现 move = **class A**(收紧 planner 谓词)。
 
 ## maxStuck 读取
-- `grep '[walker] t=' fabric/run/logs/latest.log | <parse totStuck 峰值>`,或 `scripts/pmcs/run_case.py`,或 `scripts/wjourney.py`。
+- `grep '[walker] t=' fabric/run/logs/latest.log | <parse totStuck 峰值>`,或 `scripts/pmcs/run_case.py`,或 `wjourney.py`(仓库根)。
 
-## 五处 flag 接线(新增 default-OFF walker flag)
-1. `BotConfig.java`:`public static volatile boolean walkerX = false;`(autoSwim@206, FBA@1429, apw@1417)。
-2. `SettingsCommand.java` setter(~276):`if (params.get("walkerX") instanceof Boolean b) { BotConfig.walkerX=b; applied.add("walkerX"); }`。
-3. `SettingsCommand.java` snapshot(~866):`snap.put("walkerX", BotConfig.walkerX);`。
-4. `BotTools.java` schema(~380):`.prop("walkerX", bool())`。
-5. `Walker.java` gate:`if (BotConfig.walkerX && <cond>) {...}`。
+## flag 接线(新增 default-OFF walker flag):两步必需 + 一步可选
+1. **声明** —— `BotConfig.java`:`public static volatile boolean walkerX = false;`。
+   **这是唯一的注册步骤**:`SettingsRegistry.reflectivePrimitiveFields()` 自动收它,而这一个方法同时喂
+   key 集合、`SettingsSnapshot.build` 的读取路径、以及 `BotTools` 生成的 schema,所以 setter / 快照 /
+   schema 三者自动跟随且**不可能漂移**。
+   ⚠️ 早先那份「五处手工接线」的配方已整个失效,而且照做会**重新引入一个已修好的缺陷**:
+   schema 或 apply 分支没跟上新声明时,apply 路径会**静默丢弃**该 key(见 `SettingsRegistry` 的 javadoc)。
+2. **读取点** —— 如 `Walker.java`:`if (BotConfig.walkerX && <cond>) {...}`。**不是可选的**:
+   `common/src/test/.../SettingsConsumerTest.java` 从 `reflectivePrimitiveFields()` 取同一份 key 集合,
+   任何 key 若在设置管线之外从没被读过就**判构建失败**——否则 `mc.bot.setting` 报成功、快照把 true 回显给你、
+   而行为一点没变。
+3. **可选** —— `SettingsDocs.java` 里加一行说明,会渲染成该属性的 schema description。没有说明的 key 是明确
+   允许的(116 个没有),但**孤儿行**(说明指向已改名或已删除的 key)会在类加载时经
+   `SettingsRegistry.assertDocsResolve()` 抛异常。
 
 ## 终验协议(#47)
 - 3 随机起终点 × 各 3 replay = 9 clean + live-screen-watch video 零卡点(见 live-screen-watch skill;
