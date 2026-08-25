@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.moves.PillarUp;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -115,18 +116,6 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
                 Scene.of("wd.bareHandDigCadence", 200, WorldDriverTerrainScenes::bareHandDigCadence));
     }
 
-    /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at
-     *  {@code floorY}, cleared air +1..+18 above. The generous clear is legacy residue
-     *  hygiene for the shared world; harmless (and rebuilt over) under grid isolation. */
-    private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
-        for (int dx = -5; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++) {
-                for (int dy = 1; dy <= 18; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-    }
-
     /** Ported from {@code AgentGameTestTerrain#summitArena}: the REAL {@link Walker} pillars
      *  a {@link ServerPlayerAvatar} up through an oak-leaf canopy (cardinal-neighbour leaf at
      *  each rung ceiling). Break+place ON; the {@code walkerPillarReachGoalNoSnap} flag keeps
@@ -136,7 +125,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;   // legacy floorY 220 = origin.y(200)+20
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         for (int y = standY + 1; y <= standY + 4; y++)
             level.setBlockAndUpdate(new BlockPos(cx - 1, y, cz), Blocks.OAK_LEAVES.defaultBlockState());
         BlockPos goal = new BlockPos(cx, standY + 3, cz);   // 3 pillars up
@@ -185,7 +174,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;   // legacy floorY 220 = origin.y+20
         final int wallH = 5;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         int wallZ = cz + 2;
         int topY = floorY + wallH;                 // wall-top block; plateau surface = topY (stand topY+1)
         for (int dx = -5; dx <= 5; dx++) {

@@ -7,6 +7,7 @@ import com.mojang.authlib.GameProfile;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -17,7 +18,6 @@ import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 /**
@@ -74,17 +74,6 @@ public final class WorldDriverCombatScenes implements SceneProvider {
         return new AABB(cx - 24, floorY - 24, cz - 24, cx + 24, floorY + 24, cz + 24);
     }
 
-    /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
-     *  cleared air +1..+18 above. */
-    private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
-        for (int dx = -5; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++) {
-                for (int dy = 1; dy <= 18; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-    }
-
     /** Ported from {@code AgentGameTestCombatSense#threatScanZombieArena}: control — an adjacent
      *  zombie (a true {@code Enemy}) must be visible to {@link ThreatScanner#compute}. Documents the
      *  scan has NO light/LOS drop-filter for Enemy mobs (the "blind in dark tunnels" hypothesis is
@@ -93,7 +82,7 @@ public final class WorldDriverCombatScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y(200)+20
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         Player p = makeMockPlayer(level, GameType.SURVIVAL);
         Zombie z = EntityType.ZOMBIE.create(level);
@@ -135,7 +124,7 @@ public final class WorldDriverCombatScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         Player p = makeMockPlayer(level, GameType.SURVIVAL);
         Wolf w = EntityType.WOLF.create(level);

@@ -20,6 +20,7 @@ import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.process.RunAwayProcess;
 import net.magicterra.worlddriver.bot.process.Schematic;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
@@ -220,17 +221,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         return List.copyOf(out);
     }
 
-    /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
-     *  cleared air +1..+18 above — a clean test slab. */
-    static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
-        for (int dx = -5; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++) {
-                for (int dy = 1; dy <= 18; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-    }
-
     /**
      * Can a server-driven body earn an advancement at all?
      *
@@ -384,7 +374,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
         });
 
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         BlockPos target = new BlockPos(cx + 3, floorY + 1, cz);   // a block on the floor, away from the bot
         level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
 

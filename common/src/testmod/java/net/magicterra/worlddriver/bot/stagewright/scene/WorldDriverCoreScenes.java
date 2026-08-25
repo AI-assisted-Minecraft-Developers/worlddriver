@@ -31,6 +31,7 @@ import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
@@ -125,17 +126,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys),
                 Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource),
                 Scene.of("wd.clientPlayerInWorld", 200, WorldDriverCoreScenes::clientPlayerInWorld));
-    }
-
-    /** Inlined from {@code AgentGameTestSupport#buildFloor}: 11×11 stone floor at {@code floorY},
-     *  cleared air +1..+18 above. */
-    private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
-        for (int dx = -5; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++) {
-                for (int dy = 1; dy <= 18; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
     }
 
     // ==================================================================================
@@ -595,7 +585,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;   // legacy floorY 220 = origin.y+20
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         // 1) Flat sprint travel (+z) for 20 ticks → meaningful forward distance, stays grounded.
         ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
@@ -665,7 +655,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -754,7 +744,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         // ADJACENT: wall at dx+2, ladder at dx+1 facing away from it; the body's own cell stays air.
         level.setBlockAndUpdate(new BlockPos(cx + 2, standY, cz - 3), Blocks.STONE.defaultBlockState());
@@ -887,7 +877,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         // AFLOAT: a 5-deep pool. The body is released near the surface, far above the rock.
         for (int dx = -2; dx <= 2; dx++)
@@ -1151,7 +1141,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1179,7 +1169,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20;   // legacy floorY 220 = origin.y+20
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         Set<String> savedWl = BotConfig.buildBlockWhitelist;
         ctx.cleanup(() -> BotConfig.buildBlockWhitelist = savedWl);

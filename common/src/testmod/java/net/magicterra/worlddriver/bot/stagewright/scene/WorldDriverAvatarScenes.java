@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.bot.process.ElytraProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -70,16 +71,6 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
             for (int dy = 0; dy < h; dy++)
                 for (int dz = -r; dz <= r; dz++)
                     level.setBlockAndUpdate(new BlockPos(cx + dx, baseY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-    }
-
-    /** Inlined from {@code AgentGameTestServer#buildFloor}: 11×11 stone floor, air +1..+18 above. */
-    private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
-        for (int dx = -5; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++) {
-                for (int dy = 1; dy <= 18; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
     }
 
     /**
@@ -324,7 +315,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
                         level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
         });
 
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         BlockPos breakTarget = new BlockPos(cx + 2, floorY, cz);     // a floor block to mine
         BlockPos placeCell = new BlockPos(cx - 2, floorY + 1, cz);   // empty cell (its floor neighbour is solid)
 

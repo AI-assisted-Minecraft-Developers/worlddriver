@@ -9,6 +9,7 @@ import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerExpectAlarms;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -72,17 +73,6 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                         WorldDriverCoverageScenes::surfacePillarPointerNeedsItsSupport));
     }
 
-    /** 11×11 stone floor at {@code floorY}, cleared air +1..+18 above (the standard
-     *  arena base, same as the other families' inlined helper). */
-    private static void buildFloor(ServerLevel level, int cx, int cz, int floorY) {
-        for (int dx = -5; dx <= 5; dx++)
-            for (int dz = -5; dz <= 5; dz++) {
-                for (int dy = 1; dy <= 18; dy++)
-                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
-                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
-            }
-    }
-
     /** Walk (+x) → step-up onto a +1 plateau → dig through a 2-tall dirt wall → goal,
      *  all with {@code walkerDebug=true}: the per-tick trace and the walk/step/dig debug
      *  branches execute on a course whose outcome is still asserted (ARRIVED at the
@@ -91,7 +81,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         // +1 plateau over the east half: floor blocks one higher for x >= cx.
         for (int dx = 0; dx <= 5; dx++)
             for (int dz = -5; dz <= 5; dz++)
@@ -148,7 +138,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         // +1 plateau over the east half (same shape as wd.debugSweepCourse, no wall).
         for (int dx = 1; dx <= 5; dx++)
             for (int dz = -5; dz <= 5; dz++)
@@ -218,7 +208,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         // RAMPED pool (deep end west, walk-out ramp east): the first flat-bottom pool
         // was a sealed 100-cell water graph — A* exhausted it with NO exit edge
         // ("no path (expanded=100)", instant FAILED, drowning override never engaged
@@ -339,7 +329,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         // staircase: floor height +1 per column from x=cx+0..cx+3, landing at +4.
         for (int i = 0; i <= 3; i++)
             for (int dx = i; dx <= 5; dx++)
@@ -583,7 +573,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         // FULL-WIDTH main staircase dz -5..5 (v2-v4 postmortem: any partial-width stair
         // set left a floor gutter lane the drive's z drift slid the bot into, where it
         // corner-rammed stair side faces for the rest of the run; and a merely SEALED
@@ -781,7 +771,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         for (int dx = 1; dx <= 5; dx++)
             for (int dz = -5; dz <= 5; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + 1, cz + dz), Blocks.STONE.defaultBlockState());
@@ -883,7 +873,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
-        buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         // Two-deep column whose TOP cell is the surface: water at standY and standY+1, air above.
         // The pillarUp's destination is that top water cell — what makes this the SURFACE case

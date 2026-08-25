@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
+import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -93,7 +94,7 @@ public final class WorldDriverMobFightScenes {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        WorldDriverProcessScenes.buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         // The gamerule first, because it is the one explanation for "nothing dropped" that has
         // nothing to do with the body — and it is cheaper to read than to infer from eight kills.
@@ -192,7 +193,7 @@ public final class WorldDriverMobFightScenes {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        WorldDriverProcessScenes.buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         var dragon = new net.minecraft.world.entity.boss.enderdragon.EnderDragon(
                 net.minecraft.world.entity.EntityType.ENDER_DRAGON, level);
@@ -303,7 +304,7 @@ public final class WorldDriverMobFightScenes {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        WorldDriverProcessScenes.buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         ctx.cleanup(() -> {
             for (int dx = -6; dx <= 6; dx++)
                 for (int dy = 1; dy <= 8; dy++)
@@ -444,7 +445,7 @@ public final class WorldDriverMobFightScenes {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        WorldDriverProcessScenes.buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         ctx.cleanup(() -> {
             for (int dx = -6; dx <= 6; dx++)
                 for (int dy = 1; dy <= 8; dy++)
@@ -916,7 +917,7 @@ public final class WorldDriverMobFightScenes {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        WorldDriverProcessScenes.buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
 
         // A lid and four walls, five high — tall enough for an enderman, closed enough that a
         // teleport lands back inside.
@@ -1038,7 +1039,7 @@ public final class WorldDriverMobFightScenes {
         ctx.cleanup(pin::close);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
-        WorldDriverProcessScenes.buildFloor(level, cx, cz, floorY);
+        SceneArena.buildFloor(level, cx, cz, floorY);
         level.setBlockAndUpdate(new BlockPos(cx + 3, floorY, cz), Blocks.OBSIDIAN.defaultBlockState());
 
         var crystal = new net.minecraft.world.entity.boss.enderdragon.EndCrystal(
