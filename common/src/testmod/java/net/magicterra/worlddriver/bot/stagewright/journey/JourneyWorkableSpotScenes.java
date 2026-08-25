@@ -160,7 +160,13 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
                     + saidNo).contains("stone");
             ctx.check(String.valueOf(saidNo)).as("A3 那一行还要说得出身体离它多远 —— "
                     + "「够不着」和「够得着但挥空了」要的修法相反，而两者的方块名一模一样："
-                    + saidNo).contains("中心距");
+                    + saidNo).contains("格心距");
+            ctx.check(String.valueOf(saidNo)).as("A4 那一行要带上闸自己的答案，而不是一个长得像它的距离 —— "
+                    + "权威量的是眼睛到格心，读者手算的是格到格，差着一个眼高，"
+                    + "所以贴着上限的那一段读数单独看没有意义：" + saidNo).contains("canBreak=false");
+            ctx.check(String.valueOf(saidNo)).as("A5 而且要说得出是闸的哪一半没过。这一臂摆的是**距离**不够，"
+                    + "暴露面是有的；如果这里读到 false，说明拒绝来自封闭而不是距离，"
+                    + "那这一臂就没在测它以为在测的东西：" + saidNo).contains("有暴露面=true");
             ctx.check(level.getBlockState(willOpen).isAir()).as("B 控制组：挖得开的那格必须真的开了 —— "
                     + "没开的话 C 的沉默是「也没挖开」，不是「挖开了所以不写」："
                     + level.getBlockState(willOpen).getBlock()).isTrue();

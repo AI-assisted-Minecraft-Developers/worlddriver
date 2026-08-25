@@ -1166,16 +1166,44 @@ public final class JourneyRig {
      *
      * <p>The BODY's level, not the scene's: after rung 19 the two are different worlds, and a block
      * read from the scene's level would answer about overworld stone at nether coordinates.
+     *
+     * <p><b>The gate's own answer, not a distance that resembles it.</b> The row carries
+     * {@code a.canBreak(target)} — the single condition {@link #breakItWhereItStands} consults — and
+     * only then the two halves that decide it. A distance alone cannot be read: the authority
+     * measures EYE to block CENTRE against {@code blockInteractionRange + 0.5}, which sits about
+     * 1.1 blocks of eye height away from the body-cell-to-target-cell number a reader would compute,
+     * so a band of readings near the limit means nothing on its own. Worse, the authority also
+     * demands an EXPOSED face, so an entombed cell is refused at zero distance and「距离很近却没开」
+     * would have looked like a broken swing. Splitting it means a {@code false} names its own half.
+     *
+     * <p>The halves are re-derived here rather than read from the avatar, which keeps them private.
+     * That is deliberate and it is also the check: they are printed NEXT TO the authority, so a run
+     * where they disagree with it has caught this row drifting away from the rule it describes.
      */
     private void sayIfStillThere(BlockPos target, String how) {
         ServerLevel lvl = (ServerLevel) player().level();
         boolean fluid = !lvl.getFluidState(target).isEmpty();
         if (lvl.getBlockState(target).isAir() && !fluid) return;
-        BlockPos at = player().blockPosition();
+        ServerPlayer p = player();
+        BlockPos at = p.blockPosition();
+        Avatar a = body().avatar();
+        boolean exposed = false;
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
+            BlockPos n = target.relative(d);
+            if (!lvl.getBlockState(n).isSolidRender(lvl, n)) { exposed = true; break; }
+        }
+        double reach = p.blockInteractionRange() + 0.5;
+        double eyeDist = p.getEyePosition().distanceTo(
+                net.minecraft.world.phys.Vec3.atCenterOf(target));
         evidence("mineCell." + target.toShortString(), "没开：仍是 "
                 + lvl.getBlockState(target).getBlock()
                 + (fluid ? "（还有流体 " + (lvl.getFluidState(target).isSource() ? "源块" : "流动") + "）" : "")
-                + "；身体 " + at.toShortString() + "，中心距 "
+                + "；身体 " + at.toShortString()
+                + "，canBreak=" + a.canBreak(target)
+                + "（有暴露面=" + exposed + "，眼距 "
+                + String.format(java.util.Locale.ROOT, "%.2f", eyeDist) + " / 上限 "
+                + String.format(java.util.Locale.ROOT, "%.2f", reach) + "）"
+                + "，格心距 "
                 + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(target.distSqr(at)))
                 + " 格；" + how);
     }
