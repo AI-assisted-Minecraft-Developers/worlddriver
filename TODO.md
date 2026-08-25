@@ -2920,6 +2920,20 @@ NeoForge 的 coverage 数与 Fabric 不同且本轮没有记录在案的基线�
 `clearBox(SceneContext)` 必须各留（足迹闸照 `ctx.setBlock` 字面量读，抽成带参 helper 会让那道闸
 **不红只瞎**）；`WorldDriverStationScenes.scrub` 从 `baseY-1` 起且 `h` 含端点，是 cleanup 本意不是拷贝。
 
+**已回测（2026-08-25）**，判据逐条命中，七笔全部保留：
+
+```
+Fabric   VERDICT: GREEN  COVERAGE: 292 / 25  必需 FAIL 0  fail(optional) 3（已知三条）  BUILD SUCCESSFUL 7m 2s
+NeoForge VERDICT: GREEN  COVERAGE: 293 / 24  必需 FAIL 0  fail(optional) 3（同三条）    BUILD SUCCESSFUL 6m 55s
+两边 canary 三条全对；UNDECLARED 两边都 0 次
+```
+
+NeoForge 的 293/24 是**读到的**，不是预测的。两边跳过名单做差，差**恰好一条**：
+`cap.blockItemHandlerReadsAVanillaChest` 只在 Fabric 侧跳（NeoForge 的 capability 接口，
+Fabric 无对应），NeoForge 侧没有任何 Fabric 不跳的。所以 292/25 与 293/24 是同一份清单的
+两种正当读数，不是覆盖面变了。（第一版这里我按印象写成 `wd.drownEscapeClient*` 一族，
+做差之后是错的——已改。**不要凭印象解释两个数的差，做差只要一条命令。**）
+
 ###### 📌 真梯判据（写在跑之前，2026-08-25）
 
 ```
