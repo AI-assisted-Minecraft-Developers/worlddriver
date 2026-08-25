@@ -3569,7 +3569,8 @@ wet.cells = …245407,217=干，头顶=干；245408,216=水(源)，头顶=水(�
 | ① | GREEN；COVERAGE 相对上一趟 Fabric（293/25）**+1 = 294/25**；新场景 `PASS`；`subject.legs` 写着「两腿」 | 修法成立，且**是第二腿买来的**——进 `rehearse12` |
 | ② | GREEN，新场景 `PASS`，但 `subject.legs`=「一腿」 | 隔离场里走行器一腿就到了 ⇒ **这一臂没能复现真梯的输面**，判据 A 变成 0==0。不算证据，要回去调姿势（x 偏移、`av.step()` 次数），**不许拿它当修法生效的证明** |
 | ③ | 新场景 `FAIL` 在控制组 A/B | 姿势没摆成（身体自己掉下去了或还在下坠），改场景不改产码 |
-| ④ | 新场景 `FAIL` 在判据 A，且 `subject.again` 非空 | **第二腿开火了但没把身体弄下去** —— 这时才轮到重新审「换目标」这个方案本身，读 `subject.ended`／`subject.overshot` 定去向 |
+| ④ | 新场景 `FAIL` 在判据 A，且 `subject.again` **非空** | **第二腿开火了但没把身体弄下去** —— 这时才轮到重新审「换目标」这个方案本身，读 `subject.ended`／`subject.overshot` 定去向 |
+| ④' | 新场景 `FAIL` 在判据 A，`subject.missed` 非空而 `subject.again` **为空** | **不是方案被否，是布景又漏了。** `finishTheFlight` 有 `beyond == null` 就放行的一支；不变式（miss ⟺ 末路点被提升 ⟹ `nextDown` 非空）成立的前提是 `JourneyStairs.cells` 与 `stairBottom` 在场景里喂得完全一致，而这个场景刚在「布景不全」上摔过一次。**先读 `staged.terminal` 那行的「下一级=」**，是 null 就改场景。不单列这一态，这个形状会被读进 ④ 去重审一个没错的方案 |
 | ⑤ | 红在别的场景上 | 与上一趟 Fabric（GREEN 293/25）做差，不默认是这一笔造成的 |
 
 **预期形状**：`flightLastStep` 1 行、`flightLastStepMissed` 0 或 1 行、
@@ -3741,8 +3742,6 @@ cast2.picks.2 = 4, 58, 18 dirt face=west → 落进 3, 58, 18（…… 身体 2,
 
 ###### 🔎 J71：`forge.carved` 在同一份布景上不是确定性的——这是「1 绿 / 3 趟」的候选（2026-08-25）
 
-###### 🔎 J71：`forge.carved` 在同一份布景上不是确定性的——这是「1 绿 / 3 趟」的候选（2026-08-25）
-
 四份日志做差，`forge.carved` 与结局完全同向：
 
 | 运行 | `forge.carved` | 结局 |
@@ -3765,6 +3764,13 @@ cast2.picks.2 = 4, 58, 18 dirt face=west → 落进 3, 58, 18（…… 身体 2,
 **下一步是量，不是修**（[[one-sample-cannot-name-a-cause]]）：连跑 N 次排练，
 把 `forge.carved` 与结局列成表。若 67/67 全绿、66/67 全红，那它就是硬币本身；
 若 66/67 也能绿，它只是噪声，真硬币在别处。**在这张表出来之前不要动开凿代码。**
+
+⚠️ **这张表必须固定一种身体。** 上面那四行本身就是混拓扑的：`ladder-j68b` 是真客户端
+（`LocalPlayer`），三份 rehearse 是假玩家（`JoinedBody`）。而 J69c 已经量出同一段代码在
+两具身体上走出不同的亚格轨迹（真梯 `returnedY=58` ×2 骑唇，假玩家排练 `returnedY=57` ×3
+全落地）——**身体种类是自变量，不是背景**。混着跑出来的方差有一半来自拓扑而不是抖动，
+表会指向一个不存在的结论（[[two-sampling-rates-are-not-two-sources]]）。
+量 J71 用 `runRehearsalIntegratedServer`（真客户端），它才和真梯的判官同一具身体。
 
 ###### 🔎 J70：排水等的时间只有它自称的一半（2026-08-25，登记，排练跑完就修）
 
