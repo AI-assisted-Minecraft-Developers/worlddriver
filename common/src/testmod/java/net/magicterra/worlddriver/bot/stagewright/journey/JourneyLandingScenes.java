@@ -60,7 +60,9 @@ public final class JourneyLandingScenes implements SceneProvider {
                 Scene.of("wd.journeyKeepsTheSeatItMovedTo", 6_000,
                         JourneyLandingScenes::keepsTheSeatItMovedTo),
                 Scene.of("wd.journeyFlightEndsOnADryStep", 6_000,
-                        JourneyLandingScenes::flightEndsOnADryStep));
+                        JourneyLandingScenes::flightEndsOnADryStep),
+                Scene.of("wd.journeyWalksOffTheLipOntoTheDryStep", 6_000,
+                        JourneyLandingScenes::walksOffTheLipOntoTheDryStep));
     }
 
     /** Natural ground level inside the arena box. */
@@ -617,6 +619,94 @@ public final class JourneyLandingScenes implements SceneProvider {
             ctx.check(cut.indexOf(w) <= end)
                     .as("E 没有路点落在终点下方（stride 会跨过终点，跨过去就是又走回水里）：" + w
                             + " 在第 " + cut.indexOf(w) + " 级，终点在第 " + end + " 级").isTrue();
+    }
+
+    /**
+     * The body balanced on the lip above the terminal, and whether the last-step leg gets it off.
+     *
+     * <p><b>The pose is the whole scene.</b> The ladder of 2026-08-25 died twice in it and both
+     * readings agree to the centimetre: {@code cast0.landing = 精确 1.20/58.00/19.49，onGround=true}
+     * with the terminal at {@code 1,57,19}. A 0.6-wide box centred a fifth of a cell past the
+     * boundary overlaps the previous step's tread by a tenth of a block — enough to stand on, three
+     * tenths short of falling in. {@code blockPosition()} rounds into the terminal's column, so every
+     * cell-granular row in the run says the body is where it needs to be.
+     *
+     * <p>That pose turns up about one return in three on the ladder and costs forty minutes to reach.
+     * Staged here it is deterministic, which is the only reason the second leg can be judged at all —
+     * see {@code landOnFloor}, the rehearsal lever written when this coin was first noticed.
+     *
+     * <p><b>Staged to the losing side, and checked that it IS the losing side before anything else.</b>
+     * A body that simply falls into the terminal on its own would satisfy the outcome check while
+     * testing nothing, so the control asserts the pose held: above the terminal's row, on the ground,
+     * in the terminal's column.
+     *
+     * <p><b>The outcome is asserted; which leg bought it is recorded.</b> An isolated arena is not the
+     * ladder and the walker may well land it in one leg here — demanding two would be a red that says
+     * nothing about the production path. What IS asserted is the implication: if the first leg missed,
+     * the second must have fired. That is the branch the ladder never had.
+     */
+    private static void walksOffTheLipOntoTheDryStep(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        ctx.cleanup(() -> { JourneyStairs.forget(); clearBox(ctx); });
+        flatGround(ctx);
+
+        List<BlockPos> cut = new java.util.ArrayList<>();
+        for (int i = 0; i < STEPS; i++) {
+            ctx.setBlock(-4 + i, GROUND - i, 0, Blocks.AIR);
+            ctx.setBlock(-4 + i, GROUND - i + 1, 0, Blocks.AIR);
+            cut.add(ctx.rel(-4 + i, GROUND - i, 0));
+        }
+        JourneyStairs.reset(level, cut.get(0));
+        for (int i = 1; i < STEPS; i++) JourneyStairs.cut(cut.get(i));
+        // The bottom step under water, so `lowestDryStep` lifts the terminal one step — the only
+        // world in which the lip pose is reachable at all. See finishTheFlight's own note.
+        ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 1, 0, Blocks.WATER);
+        ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 2, 0, Blocks.WATER);
+
+        List<BlockPos> route = JourneyPortalRung.stairRoute(level, true);
+        BlockPos ends = route.get(route.size() - 1);
+        BlockPos beyond = JourneyStairs.nextDown(ends);
+        ctx.record("staged.terminal", ends.toShortString() + "，下一级=" + String.valueOf(beyond));
+        ctx.check(beyond != null).as("前提：末路点被抬升过，所以它下面还有一级可以改瞄 —— "
+                + "没有下一级就说明这一臂根本没摆成，后面的判据全无意义").isNotNull();
+
+        // ON THE LIP: a fifth of a cell into the terminal's column, one row up. The number is the
+        // ladder's, not a guess — see the javadoc.
+        ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
+        ServerPlayer fp = driver.fakePlayer();
+        ServerPlayerAvatar av = driver.avatar();
+        fp.moveTo(ends.getX() + 0.20, ends.getY() + 1, ends.getZ() + 0.5);
+        for (int i = 0; i < 3; i++) av.step();
+
+        BlockPos posed = fp.blockPosition();
+        ctx.record("staged.pose", String.format(java.util.Locale.ROOT, "%s 精确 %.2f/%.2f/%.2f，onGround=%s",
+                posed.toShortString(), fp.getX(), fp.getY(), fp.getZ(), fp.onGround()));
+        ctx.check(posed.getY() > ends.getY()).as("控制组 A：身体必须真的还在末路点上方一排 —— "
+                + "自己掉下去的身体会让下面的判据变成 0==0：身体 " + posed + "，末路点 " + ends).isTrue();
+        ctx.check(fp.onGround()).as("控制组 B：身体必须是**站着**的，不是正在下坠 —— "
+                + "下坠中的身体过一会儿自己就落进去了，那测的不是修法：" + fp.onGround()).isTrue();
+
+        JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
+        JourneyPortalRung.finishTheFlight(rig, "lip", ends, () -> {
+            BlockPos got = fp.blockPosition();
+            Object missed = rig.evidenceOf("lip.flightLastStepMissed");
+            Object again = rig.evidenceOf("lip.flightLastStepAgain");
+            ctx.record("subject.endedAt", String.format(java.util.Locale.ROOT,
+                    "%s 精确 %.2f/%.2f/%.2f", got.toShortString(), fp.getX(), fp.getY(), fp.getZ()));
+            ctx.record("subject.missed", String.valueOf(missed));
+            ctx.record("subject.again", String.valueOf(again));
+            ctx.record("subject.ended", String.valueOf(rig.evidenceOf("lip.flightLastStepEnded")));
+            ctx.record("subject.legs", again != null ? "两腿" : missed != null ? "一腿，第二腿没开火" : "一腿");
+            ctx.record("subject.overshot", got.equals(beyond) ? "滑到了下一级 " + beyond.toShortString()
+                    : got.equals(ends) ? "停在末路点上" : "都不是：" + got.toShortString());
+
+            ctx.check(got.getY() <= ends.getY()).as("A 身体最后必须下到末路点那一排或更低 —— "
+                    + "这就是 walkHome 判的那个量（`here.getY() > floorY + 1` 才算走不回）："
+                    + "终点 " + got + "，末路点 " + ends).isTrue();
+            ctx.check(missed == null || again != null).as("B 第一腿没落地时，第二腿**必须**开火。"
+                    + "这是真梯上缺的那一支：它写完 flightLastStepMissed 就放行了。"
+                    + "missed=" + missed + "，again=" + again).isTrue();
+        });
     }
 
     /** Each step's own cell and head room, fluid named — the reading every check above quotes. */

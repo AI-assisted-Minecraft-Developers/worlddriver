@@ -358,6 +358,11 @@ wd.journeyKeepsTheSeatItMovedTo
 # stops four cells short and the rung reads that as「走不回模腔」. Two arms, asserting opposite
 # values, because the flight's cell list is process-wide.
 wd.journeyFlightEndsOnADryStep
+# And whether the body actually gets down onto it. Ending one step early puts the arrival tolerance's
+# ball half a row above what walkHome accepts, so the body stops balanced on the lip of the step above
+# — a tenth of a block of tread under a 0.6-wide box — and every cell-granular row says it arrived.
+# Staged to that exact pose, which the ladder only reaches about one return in three.
+wd.journeyWalksOffTheLipOntoTheDryStep
 
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk

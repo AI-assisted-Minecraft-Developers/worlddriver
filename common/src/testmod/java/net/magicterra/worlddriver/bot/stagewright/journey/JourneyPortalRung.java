@@ -369,25 +369,86 @@ public final class JourneyPortalRung {
      *
      * <p>Silent when the body is already at or below the terminal's row: on a dry flight this is the
      * step the tolerance let it skip, and skipping it was never wrong there.
+     *
+     * <p><b>The first leg is not enough, and the ladder of 2026-08-25 is why.</b> It moved the body
+     * from {@code 0,58,19} to {@code 1,58,19} — into the terminal's column, still a row above it —
+     * on both casts, and printed {@code flightLastStepMissed} both times before walking on:
+     *
+     * <pre>
+     * cast0/1.flightLastStep       = 0, 58, 19 → 1, 57, 19
+     * cast0/1.flightLastStepMissed = 1, 58, 19 仍不在末路点 1, 57, 19 上 —— 脚下 stone，身处 air，头顶 air
+     * cast0/1.returnedY            = 58                                    ← rejected, rung dead
+     * </pre>
+     *
+     * The terminal is standable — the row says so. The body is balanced on the lip of the step above:
+     * exact {@code x=1.20}, a 0.6-wide box spanning {@code [0.90, 1.50]}, overlapping the previous
+     * step's tread {@code [0, 1]} by a tenth of a block, which is enough for {@code onGround}. It
+     * needs three tenths more, and asking for the terminal AGAIN cannot buy them: its centre is 0.58
+     * away, well inside {@link #LEG_ARRIVED}, so the walker reports arrival without moving.
+     *
+     * <p>So the second leg asks for {@link JourneyStairs#nextDown} instead — 1.98 away, outside the
+     * ball — and the body leaves the lip on its way there. <b>It cannot run when it is not needed</b>:
+     * a flight whose terminal IS the bottom step puts the lip-balanced body at {@code floorY + 1},
+     * which {@code walkHome} accepts, so the miss branch is unreachable; needing the second leg and
+     * having a step below to aim at are the same condition.
      */
-    private static void finishTheFlight(JourneyRig rig, String tag, BlockPos ends, Runnable then) {
+    static void finishTheFlight(JourneyRig rig, String tag, BlockPos ends, Runnable then) {
         BlockPos here = rig.player().blockPosition();
-        if (here.equals(ends) || here.getY() <= ends.getY()) { then.run(); return; }
+        if (down(here, ends)) { then.run(); return; }
         rig.evidence(tag + ".flightLastStep", here.toShortString() + " → " + ends.toShortString()
                 + "（容差 " + LEG_ARRIVED + " 格把这一步判成到达了，这里把它走完；"
                 + landingStory(rig) + "）");
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(ends), List.of(),
-                CapabilityProfile.ALL, List.of(new NoBreak()))), LAST_STEP_TICKS, () -> {
+        rig.settle(lastStep(ends), LAST_STEP_TICKS, () -> {
             BlockPos got = rig.player().blockPosition();
+            if (down(got, ends)) { then.run(); return; }
             // SAY SO WHEN IT DID NOT LAND. A leg that quietly fails leaves `returnedY` to report the
             // same row it would have reported without this method, and the reader cannot tell a step
             // that was never needed from one that was needed and refused.
-            if (!got.equals(ends))
-                rig.evidence(tag + ".flightLastStepMissed", got.toShortString()
-                        + " 仍不在末路点 " + ends.toShortString() + " 上 —— "
-                        + cellStory(rig.ctx().level(), ends, false));
-            then.run();
+            rig.evidence(tag + ".flightLastStepMissed", got.toShortString()
+                    + " 仍不在末路点 " + ends.toShortString() + " 上 —— "
+                    + cellStory(rig.ctx().level(), ends, false));
+            BlockPos beyond = JourneyStairs.nextDown(ends);
+            if (beyond == null) { then.run(); return; }
+            rig.evidence(tag + ".flightLastStepAgain", got.toShortString() + " → " + beyond.toShortString()
+                    + "（改瞄下一级：末路点 " + ends.toShortString() + " 的格心离身体只有 "
+                    + String.format(java.util.Locale.ROOT, "%.2f", centreGap(rig, ends))
+                    + " 格，在容差 " + LEG_ARRIVED + " 之内，同目标重走会原地不动）");
+            rig.settle(lastStep(beyond), LAST_STEP_TICKS, () -> {
+                BlockPos end2 = rig.player().blockPosition();
+                // BOTH OUTCOMES, and they are not the same reading. Landing in the terminal is the
+                // leg working; sliding on into `beyond` is the tolerance failing to stop it, which
+                // this leg deliberately risks and which `walkHome` still accepts (its test is the
+                // row, not the cell). A row that only printed the failure would leave the reader
+                // unable to tell the second from a leg that never fired.
+                rig.evidence(tag + ".flightLastStepEnded", end2.toShortString()
+                        + (end2.equals(ends) ? "（落进末路点）"
+                            : end2.equals(beyond) ? "（滑过了末路点，停在下一级 " + beyond.toShortString() + "）"
+                            : down(end2, ends) ? "（在末路点那一排或更低）"
+                            : "（仍在末路点上方 " + (end2.getY() - ends.getY()) + " 排）")
+                        + "；" + landingStory(rig));
+                then.run();
+            });
         });
+    }
+
+    /** Is the body at the terminal, or already past it downward? The flight only ever needs to get
+     *  DOWN to a row — {@link #walkHome} judges the row and not the cell — so a body that fell past
+     *  the terminal has nothing left to walk. */
+    private static boolean down(BlockPos here, BlockPos ends) {
+        return here.equals(ends) || here.getY() <= ends.getY();
+    }
+
+    /** One step of the flight, walked rather than pathed around: no breaking, because the cells are
+     *  the rung's own staircase and a leg that mines its way down destroys the way back up. */
+    private static IntentProcess lastStep(BlockPos to) {
+        return new IntentProcess(new Intent(new Goal.Block(to), List.of(),
+                CapabilityProfile.ALL, List.of(new NoBreak())));
+    }
+
+    /** How far the body's feet are from the centre of {@code cell}. Printed rather than asserted:
+     *  it is the number that explains why asking for {@code cell} again would do nothing. */
+    private static double centreGap(JourneyRig rig, BlockPos cell) {
+        return rig.player().position().distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(cell));
     }
 
     /** How long the last step-down gets. One ordinary +(-1) step inside a flight the body has just

@@ -284,6 +284,25 @@ final class JourneyStairs {
         return -1;
     }
 
+    /**
+     * The step one below {@code cell} in the flight, or null when {@code cell} is the bottom one (or
+     * is not a step at all).
+     *
+     * <p><b>What it is for is a goal the walker will actually move towards.</b> A body stopped on the
+     * lip above the terminal is already well inside {@code LEG_ARRIVED} of it — measured at 0.58 —
+     * so asking for the terminal again is a retry that changes nothing. The next step down is 1.98
+     * away, outside the ball, and reaching for it takes the body off the lip. Same answer
+     * {@code digStairsDown} reaches when a step refuses three times and it starts cutting two at a
+     * time: keep the shape, move the goal.
+     *
+     * <p>Bare coordinates like {@link #cells}, so it inherits that list's lifetime — a flight that
+     * has been {@link #forget}ten has no next step and this says so.
+     */
+    static BlockPos nextDown(BlockPos cell) {
+        int i = cells.indexOf(cell);
+        return i < 0 || i + 1 >= cells.size() ? null : cells.get(i + 1);
+    }
+
     /** One step that has stopped being a step, and which of the four ways it can stop being one. */
     record StairFault(BlockPos step, BlockPos cell, boolean missingSupport, String saw) {
         String describe() {
