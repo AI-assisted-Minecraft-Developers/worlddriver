@@ -2382,6 +2382,41 @@ gotCloser = seeded && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futi
 `chase` 臂只守住了合成的那个场合，守不住真场景——所以**任何一条新的必需失败都算这笔修法的账**，
 不许先去怀疑它是既有的抖动。
 
+##### ✅ J66 收案（第三趟闸 GREEN，`gate-j66d.log`，2026-08-24）
+
+1 条 `VERDICT: GREEN`、0 必需失败、3 条已知可选失败、3 canary 正确、`COVERAGE: 290 / 25`、
+`BUILD SUCCESSFUL in 6m 44s`。
+
+`creepRetarget` **逐位复现**：6 次搜索、首个终局 `t=89`、
+`no route progress after 5 consecutive searches (best dist=1530)`——不是抖动，是确定性读数。
+
+第五臂 `recover` 的证据，**前提是被证明的而不是被假设的**：
+
+```
+第一段闩上了（身体停在 190624, 221, 100000）   ← 前提成立，否则这一臂直接红
+身体不动，改下一个 8 格外的新目标
+240 tick 后收在 ARRIVED，身体停在 190629, 221, 100000   ← 走了 5 格，正落在目标上
+这一轮 1 次搜索：搜索到达了目标=1              ← 搜索恢复，一次就找到路
+```
+
+⇒ 闩**没有**活过 `setGoal`。洞 B 关上，且有一条会在它复发时变红的负测试守着。
+
+##### ⛔ 「加沿」这一笔**取消**，理由变了
+
+原计划是给 blaze 场景的 `open` 轮加一圈沿，让身体不再被追下平台。当时的理由是那次坠落
+**又贵又两态**（29 秒 A\*、每趟抛一次硬币）。**那个理由已经不成立了**：
+这一趟 `wd.serverFightsAFlyingBlaze` 是 `PASS (16 ticks, 986 ms)`——代价被修法本身封住了。
+
+而**留着它有一条新理由**：合成场景是直接驱动 `Walker` 的（五臂都自己 `new Walker()`），
+**`serverFightsAFlyingBlaze` 是全套件里唯一端到端走 `CombatProcess.approach` 的场合**，
+也就是唯一覆盖 `lastQuarryId` / `retargetGoal` 那个调用点的地方。
+加沿等于拿一条真集成信号去换一个已经不存在的代价。
+
+⇒ **不加**。原本担心的「修法失去唯一观测通道」也反过来了：现在观测通道是那条确定性场景，
+自然场合反而成了它够不到的那一半覆盖。
+
+<details><summary>原条目（保留否证，不保留选项）</summary>
+
 ##### ⚠️ 加了沿，这条引擎缺陷在全套件里就**再没有自然场合**了
 
 这是必须和修法同时想的一件事：场景侧的沿一旦落地，blaze 场景**永远造不出这次坠落**，
@@ -2485,6 +2520,8 @@ waterFill.reseat: 0 条      ← 一次成功，没用到重新落座
 命中了**注册行**而不是完成行，于是「12 级里 waterFill 一条都没有」。
 StageWright 的**证据转储印在完成行之后**，所以按完成行切、并且把「行尾之后」
 也算进该级，才是对的。同 [[a-lagging-reading-became-the-crime-scene]] 一族。
+
+</details>
 
 ##### 🔴 J67：身体用自己浇的水淹了自己要走的楼梯，而自检不问这件事
 
