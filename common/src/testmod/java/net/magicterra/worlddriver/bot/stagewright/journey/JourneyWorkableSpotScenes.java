@@ -57,7 +57,116 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.journeyCraftStepsAsideForRoom", 4_000,
-                        JourneyWorkableSpotScenes::craftStepsAsideForRoom));
+                        JourneyWorkableSpotScenes::craftStepsAsideForRoom),
+                // The same complaint one layer down: a dig that gives up and says nothing.
+                Scene.of("wd.journeyNamesTheCellADigCouldNotOpen", 1_200,
+                        JourneyWorkableSpotScenes::namesTheCellADigCouldNotOpen));
+    }
+
+    /** Ticks one give-up dig gets here. Small on purpose — the positive control is a cell that can
+     *  never open, so every tick past the first is spent proving the same thing twice. */
+    private static final int DIG_TICKS = 40;
+
+    /** How far along z this arm's ground sits from the pool the other arm floods. */
+    private static final int DIG_Z = 24;
+
+    /** How far the positive control sits from the body, in cells. Twenty-four: well outside
+     *  {@code Avatar.canBreak}'s reach — which is the ONLY gate {@code breakItWhereItStands} has, as
+     *  the bedrock version of this arm proved by removing bedrock — and about three times what
+     *  {@link #DIG_TICKS} buys a walking body, so the budget cannot expire「nearly」in reach and make
+     *  this control depend on pathfinding luck. Not further: a cell several chunks out is one whose
+     *  staging depends on what the arena's ticket keeps loaded, and that is a different bug to debug. */
+    private static final int DIG_FAR = 24;
+
+    /**
+     * A dig that gives up names the cell it left behind — and a dig that succeeds stays quiet.
+     *
+     * <p><b>Calibrating the instrument, on a known positive AND a known negative in one arm.</b>
+     * {@code mineCellOrGiveUp} records only the cells that did NOT open, which makes the ABSENCE of a
+     * row meaningful — and an absence is only meaningful if something would have written one. Until
+     * this arm, nothing had ever seen that row: rung 12's rehearsal asked for three doorway cells, got
+     * two, and the run contained no line at all between「要清三格」and「还堵着一格」. A silence I have
+     * not seen speak is not evidence of success; it is evidence of nothing.
+     *
+     * <p><b>The positive is DISTANCE, and the first version got that wrong in a way worth keeping.</b>
+     * It staged bedrock, on the reasoning that unbreakable-by-construction beats unbreakable-by-
+     * circumstance. The arm went red and {@code subject.after} said why: {@code …100024=air} — the
+     * bedrock was gone. {@code breakItWhereItStands} goes through {@code destroyBlock}, which honours
+     * neither hardness nor reach for this body, so「can never be mined」is not a property this arena
+     * can buy with a block id.
+     *
+     * <p>That failure is also a reading about the case this instrument was added for: a body whose
+     * dig removes BEDROCK did not leave rung 12's doorway cobblestone standing because it was too
+     * hard. It never got within reach of it. So the positive here is a cell far enough away that the
+     * give-up budget expires first — which is the real failure mode rather than a substitute for it.
+     *
+     * <p>Plain stone at the body's elbow is the negative, and the two assertions take opposite
+     * values, so a scene-global leaking between them could not satisfy both
+     * ([[a-scene-that-owns-a-global]]).
+     */
+    private static void namesTheCellADigCouldNotOpen(SceneContext ctx) {
+        // Its own patch of ground, clear of the lily-pad pool this file's other arm digs out — the two
+        // share an origin, and an arena that overlaps another arm's is a scene that owns a global by
+        // accident rather than by declaration.
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = DIG_Z - 3; dz <= DIG_Z + 3; dz++) {
+                for (int dy = 0; dy <= 4; dy++) ctx.setBlock(dx, SURFACE + dy, dz, Blocks.AIR);
+                ctx.setBlock(dx, SURFACE - 1, dz, Blocks.STONE);
+            }
+        ctx.cleanup(() -> {
+            for (int dx = -3; dx <= 3; dx++)
+                for (int dz = DIG_Z - 3; dz <= DIG_Z + 3; dz++)
+                    for (int dy = -1; dy <= 4; dy++) ctx.setBlock(dx, SURFACE + dy, dz, Blocks.AIR);
+        });
+        BlockPos wontOpen = ctx.rel(DIG_FAR, SURFACE, DIG_Z);
+        BlockPos willOpen = ctx.rel(-1, SURFACE, DIG_Z);
+        ctx.setBlock(DIG_FAR, SURFACE, DIG_Z, Blocks.STONE);
+        ctx.setBlock(DIG_FAR, SURFACE - 1, DIG_Z, Blocks.STONE);
+        ctx.setBlock(-1, SURFACE, DIG_Z, Blocks.STONE);
+        ctx.cleanup(() -> {
+            ctx.setBlock(DIG_FAR, SURFACE, DIG_Z, Blocks.AIR);
+            ctx.setBlock(DIG_FAR, SURFACE - 1, DIG_Z, Blocks.AIR);
+        });
+
+        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, SURFACE, DIG_Z));
+        ServerPlayer fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.DIAMOND_PICKAXE));
+        fp.getInventory().selected = 0;
+        ServerPlayerAvatar av = driver.avatar();
+        for (int i = 0; i < 3; i++) av.step();
+        ServerLevel level = ctx.level();
+        ctx.record("staged.cells", "够不着的 " + wontOpen.toShortString() + "="
+                + level.getBlockState(wontOpen).getBlock() + "（距身体 " + DIG_FAR + " 格，预算 "
+                + DIG_TICKS + " tick）；够得着的 " + willOpen.toShortString()
+                + "=" + level.getBlockState(willOpen).getBlock() + "；身体 "
+                + fp.blockPosition().toShortString());
+        ctx.check(level.getBlockState(wontOpen).isAir()).as("控制组：阳性那格开跑前必须**有东西**，"
+                + "空的格子谁挖都「开」，那样这一臂测的是 0==0").isFalse();
+
+        JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
+        rig.mineCellOrGiveUp(wontOpen, DIG_TICKS, () -> rig.mineCellOrGiveUp(willOpen, DIG_TICKS, () -> {
+            Object saidNo = rig.evidenceOf("mineCell." + wontOpen.toShortString());
+            Object saidYes = rig.evidenceOf("mineCell." + willOpen.toShortString());
+            ctx.record("subject.wontOpen", String.valueOf(saidNo));
+            ctx.record("subject.willOpen", String.valueOf(saidYes));
+            ctx.record("subject.after", wontOpen.toShortString() + "="
+                    + level.getBlockState(wontOpen).getBlock() + "，" + willOpen.toShortString()
+                    + "=" + level.getBlockState(willOpen).getBlock());
+
+            ctx.check(saidNo).as("A 挖不开的那格必须留下一行 —— 没有它，"
+                    + "「没有 mineCell 行」就同时意味着「都挖开了」和「这行根本不写」，"
+                    + "而下游正是靠这个沉默下结论的").isNotNull();
+            ctx.check(String.valueOf(saidNo)).as("A2 那一行要说得出仍是什么方块："
+                    + saidNo).contains("stone");
+            ctx.check(String.valueOf(saidNo)).as("A3 那一行还要说得出身体离它多远 —— "
+                    + "「够不着」和「够得着但挥空了」要的修法相反，而两者的方块名一模一样："
+                    + saidNo).contains("中心距");
+            ctx.check(level.getBlockState(willOpen).isAir()).as("B 控制组：挖得开的那格必须真的开了 —— "
+                    + "没开的话 C 的沉默是「也没挖开」，不是「挖开了所以不写」："
+                    + level.getBlockState(willOpen).getBlock()).isTrue();
+            ctx.check(saidYes).as("C 挖开了的那格必须**不留行** —— 每格都写会把真正要看的那一条埋掉，"
+                    + "而缺席能有意义正是因为 A 证明了它会出声：" + saidYes).isNull();
+        }));
     }
 
     /** The water surface, as a dy offset inside the arena box. */

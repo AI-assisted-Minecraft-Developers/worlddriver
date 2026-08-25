@@ -343,6 +343,14 @@ wd.unwedgeTowersBesideTheStaircase
 # control that asserts the staging really refuses a table before the recovery is asked for.
 wd.journeyCraftStepsAsideForRoom
 
+# The same complaint one layer down: a dig that gives up and says nothing. mineCellOrGiveUp had
+# three exits and none of them recorded whether the cell opened, so rung 12's rehearsal asked for
+# three doorway cells, got two, and carried no row at all between「要清三格」and「还堵着一格」. This
+# arm calibrates the new row on a known positive (bedrock, unbreakable by construction) AND a known
+# negative (plain stone, which must leave NO row) in one scene — an absence only means something
+# once something has been seen to speak.
+wd.journeyNamesTheCellADigCouldNotOpen
+
 # Where a leg leaves the body. Two recoveries that were landed and then could not be judged, because
 # their occasions — a walk home that ends on top of the tower it built, a climb that ends still
 # swimming — appeared in none of five ladder runs. Each asserts the recovery's own evidence row is
