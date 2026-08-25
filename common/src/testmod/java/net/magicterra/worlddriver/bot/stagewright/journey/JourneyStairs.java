@@ -317,12 +317,27 @@ final class JourneyStairs {
                 + (wet.size() > 4 ? " …" : "");
     }
 
-    /** The audit as one line, for a failure message that would otherwise have to guess. */
+    /**
+     * The audit as one line, for a failure message that would otherwise have to guess.
+     *
+     * <p>THE WORD「完好」IS PART OF THE JUDGEMENT, not decoration. {@link #flooding} has printed the
+     * wet cells since 2026-08-15 and the 2026-08-24 ladder still died quoting
+     * {@code 11 级都完好；2 格泡在流体里：2,56,20=water，2,57,20=water} — the clause was right there,
+     * beside a word that says the staircase is fine. Eighteen audits over eleven minutes read that
+     * line and mended nothing, because nothing was reported broken.
+     *
+     * <p>So a flooded run no longer gets to say「完好」. It still does not get a FAULT: a fault is an
+     * instruction to {@link #mend}, and mend places and digs, neither of which removes water — the
+     * cell needs its upstream source plugged, a different verb entirely. Widening {@code faults} to
+     * cover wet cells would hand mend a job it cannot do and turn a walkable tread into a solid one
+     * on the way. What changes here is only what the audit CLAIMS; who fixes it is still open.
+     */
     static String report(ServerLevel level) {
         if (cells.isEmpty()) return "还没挖楼梯";
         List<StairFault> faults = faults(level);
         String wet = flooding(level);
-        if (faults.isEmpty()) return cells.size() + " 级都完好" + wet;
+        if (faults.isEmpty())
+            return cells.size() + (wet.isEmpty() ? " 级都完好" : " 级台阶一格不缺 —— 但「在」不等于「踩得上去」") + wet;
         StringBuilder sb = new StringBuilder(faults.size() + "/" + cells.size() + " 级坏了：");
         for (int i = 0; i < Math.min(faults.size(), 5); i++)
             sb.append(i == 0 ? "" : "，").append(faults.get(i).describe());
