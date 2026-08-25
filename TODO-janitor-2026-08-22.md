@@ -11,7 +11,7 @@ janitor 的 12 小时 review 工作记录。**每改一处记一行**：改了�
 
 ---
 
-## 0. 参考通道（照 `70efd89d` 的 AutoSwim）
+## 0. 参考通道（照 `ecace583` 的 AutoSwim）
 
 | 旧写法（共享全局键位） | 新写法（这具身体自己的输入） |
 |---|---|
@@ -54,8 +54,8 @@ private static AvatarInput in(Minecraft mc, LocalPlayer p) {
 | # | 做什么 | 实际状态 |
 |---|---|---|
 | ~~Q1~~ | 给两条只按 `keyAttack` 的反射补 `continueDestroy` | ✅ **早已落，且形状更好**（抽成 `BotInteract.continueDestroy` 而不是两处各抄两行）。照队列做只会把它抄回去 |
-| ~~Q2~~ | 两条逃生反射的 `forward` 升级成 `commandMove` | ✅ **已落，`1e717c47`**。`ContactDamageEscape:111` / `LavaProximityEscape:105` 都是 `BotInput.driveForward(mc)` |
-| ~~Q3~~ | prelude 脚基判据改眼→格心，抽进 `BotUtil` | ✅ **已落，`49ee48f0`**。`WalkerTickPrelude:105,296` 是 `eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))`，`BotUtil` 里五站点表也在 |
+| ~~Q2~~ | 两条逃生反射的 `forward` 升级成 `commandMove` | ✅ **已落，`de2d36dc`**。`ContactDamageEscape:111` / `LavaProximityEscape:105` 都是 `BotInput.driveForward(mc)` |
+| ~~Q3~~ | prelude 脚基判据改眼→格心，抽进 `BotUtil` | ✅ **已落，`0ddf8264`**。`WalkerTickPrelude:105,296` 是 `eyeWithin(p, wk.stickyDig.pos, blockReachToCentre(p))`，`BotUtil` 里五站点表也在 |
 | Q4（待判） | `BotInteract.releaseKeys()` 收敛（见 §1b 注 3） | 我提的，未拍板 |
 | ~~Q5~~ | 死 import 清理，见 F5 | ✅ **已落，J5 五笔，全仓 724 → 0** |
 
@@ -67,7 +67,7 @@ private static AvatarInput in(Minecraft mc, LocalPlayer p) {
 
 同族的还有一条**方向相反**的（08-23 撞到）：我向 coordinator 报告
 「`BotInput.driveToward` 在仓里不存在」，**是错的**——
-`bot/movement/BotInput.java:117` 就有，`9d9f344b` 今天刚加的。
+`bot/movement/BotInput.java:117` 就有，`d502c612` 今天刚加的。
 我只 grep 了两个调用方文件，没 grep 定义方。
 选 `driveForward` 这个决定本身是对的（逃生链要的是「全速沿本身朝向 + 压过 walker」，
 不是 `driveToward` 的「小幅修正不甩视角」），**但理由记错了**：
@@ -119,7 +119,7 @@ if (mc.gameMode.continueDestroyBlock(pos, pickFaceTowardsPlayer(pos, p)))
 - `DrownEscapeChain` 还需要 `import net.minecraft.world.InteractionHand;`（现在没有）；
   `BunkerChain` 也没有。
 
-### ~~Q3 的确切改法~~ —— 已落（`49ee48f0`），以下留档不执行
+### ~~Q3 的确切改法~~ —— 已落（`0ddf8264`），以下留档不执行
 
 > 落地形状与这里设计的一致（`eyeWithin` + `blockReachToCentre` 进 `BotUtil`，
 > prelude 两处指过去，另外三处半径原样保留）。留着是因为那张「半径取谁」的推理
@@ -159,9 +159,9 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
 
 | hash | 一句话 | 节 | 状态 |
 |---|---|---|---|
-| `e1cdc1b0` | 背包枚举只写一遍，传输层两侧不可能再分叉 | K1 | **待编译** |
-| `838e3e80` | 「朝向眼睛的那个面」搬进 processes 够得着的那个家 | K2 | **待编译** |
-| `4a7ff6c2` | 工作台/熔炉的「找」也合并，「放」那半边晚了两个 gap 才合 | K4 | **待编译** |
+| `fc079f84` | 背包枚举只写一遍，传输层两侧不可能再分叉 | K1 | **待编译** |
+| `3a625dfb` | 「朝向眼睛的那个面」搬进 processes 够得着的那个家 | K2 | **待编译** |
+| `f4142d30` | 工作台/熔炉的「找」也合并，「放」那半边晚了两个 gap 才合 | K4 | **待编译** |
 
 ### K1 `ItemSnap.inventoryRows` —— 一个为「两侧分叉」而生的类，只收敛了一半
 
@@ -205,7 +205,7 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
 「Inlined (was BotInteract.pickFaceTowardsPlayer) so this process stays free of the
 **client-only** BotInteract and loads on a **dedicated server**」——
 **这个理由为真且现在仍然为真**（`BotInteract` 点名 `Minecraft` / `LocalPlayer` /
-`KeyMapping` / `MultiPlayerGameMode`，专用服一个都没有；`a1de83a4` 那次弄红双 loader 闸
+`KeyMapping` / `MultiPlayerGameMode`，专用服一个都没有；`2a078b07` 那次弄红双 loader 闸
 就是这条）。所以**「让两个 process 指回 `BotInteract`」是错的方向**，
 它会把 J7 那次事故原样重演。
 
@@ -243,7 +243,7 @@ public static boolean eyeWithin(Player p, BlockPos block, double reach) {
    coordinator 手上能确认的那份 neoforge mine 读数是**集成服**的（7 执行 / 0 skip）。
 
 **所以正确的说法是**：搬进 `BotUtil` 的方向是对的（`BotInteract` 那条 client-only 的约束
-是真的，指回去会重演 `a1de83a4`），**但「已经验过了」这个结论当时不成立** ——
+是真的，指回去会重演 `2a078b07`），**但「已经验过了」这个结论当时不成立** ——
 证据链有两个环，我关掉了零个，却按关掉了两个来写。
 **这正是 `skip-is-not-coverage` 和「一个读数不是它看起来的那个量」的合体。**
 
@@ -306,33 +306,33 @@ K2 合完之后重扫，`CraftProcess` / `SmeltProcess` 还剩一块 7 行重复
 
 | hash | 一句话 | 节 | 验证状态 |
 |---|---|---|---|
-| `34fe1ee8` | 逃生反射改走 walker 会覆盖的冲量通道，不走共享键位 | A-1/A-2/A-3 | 闸绿 |
-| `1e717c47` | 伤害反射真正压过它一直号称能压过的 walker 命令 | A-3 | 闸绿 |
-| `a1de83a4` | 破坏管线开到只按键的两条反射上 | J1 | **弄红过闸**，已由 coordinator 修 |
-| `52c7657f` | 给「站位格的假想眼」一个定义，并写下五个不一致的触及半径 | B-1 | 闸绿 |
-| `49ee48f0` | 每条触及判据改成眼→格心 vs 游戏给的 range | J2 | 闸绿 |
-| `13925ee5` | 竞技场基线必须申报它悄悄改写的每个默认 ON 开关 | J6 | 6/6 |
-| `9aa0c7a9` | 只按 attack 键不驱动破坏管线的位点直接编译失败 | J1-verify | 3/3 |
-| `c303548a` | 那条守卫的失败信息不再推荐弄红闸的写法 | J1-verify | 3/3 |
-| `ce945f78` | 钉住 scheduler 链能调的客户端类 | J7 | 4/4 |
-| `03c46e3c` | 删掉九个进程从没调过的 `BotInput` import | A-4 | 闸绿 |
-| `2f0d2f10` `234be7ce` `908eedb7` `fe3c50e8` `83bbe22b` | 死 import 724 → 0，纯删除 | J5 | 末笔编译过 |
-| `4005f860` | 跨枚举器断言从 boolean 扩到全部字段 | J8 | 6/6 |
-| `e95f4e72` | 说清 `pathLen`/`pathStep` 到底装什么（十写入者五单位） | J9 | 仅注释 |
-| `7a723ddb` | `dayTime` 折叠收敛到一处 + `DayTimeFoldingTest` | J10/F12 | **过编译器** |
-| `0c046d3d` | 三份 `yawFor` 合一，并写明为什么不是 `toYRot()` | J10 | **过编译器** |
-| `f03fbe92` | 改正黄昏相位那段注释：四条边界只有一条承重 | F13 | 仅注释 |
-| `d0e4dde3` | recipe 的 station 只留 resolver 那一份 | J10 | **过编译器** |
-| `4a259ffa` | `clearColumn` 提到 `Move`，三个对角线继承 | J10 | **过编译器** |
-| `09b1cfad` | 下坠柱净空只问 `Move` 一次 | J10 | **过编译器**（唯一碰 A* 热路径的一笔） |
+| `9781acef` | 逃生反射改走 walker 会覆盖的冲量通道，不走共享键位 | A-1/A-2/A-3 | 闸绿 |
+| `de2d36dc` | 伤害反射真正压过它一直号称能压过的 walker 命令 | A-3 | 闸绿 |
+| `2a078b07` | 破坏管线开到只按键的两条反射上 | J1 | **弄红过闸**，已由 coordinator 修 |
+| `e6e97a2b` | 给「站位格的假想眼」一个定义，并写下五个不一致的触及半径 | B-1 | 闸绿 |
+| `0ddf8264` | 每条触及判据改成眼→格心 vs 游戏给的 range | J2 | 闸绿 |
+| `ad82900b` | 竞技场基线必须申报它悄悄改写的每个默认 ON 开关 | J6 | 6/6 |
+| `4f4b17f1` | 只按 attack 键不驱动破坏管线的位点直接编译失败 | J1-verify | 3/3 |
+| `5f9321bf` | 那条守卫的失败信息不再推荐弄红闸的写法 | J1-verify | 3/3 |
+| `cc1b6981` | 钉住 scheduler 链能调的客户端类 | J7 | 4/4 |
+| `238137a7` | 删掉九个进程从没调过的 `BotInput` import | A-4 | 闸绿 |
+| `7137e4f8` `27a93919` `3eb676a7` `7ada6533` `fa89872a` | 死 import 724 → 0，纯删除 | J5 | 末笔编译过 |
+| `9b45badf` | 跨枚举器断言从 boolean 扩到全部字段 | J8 | 6/6 |
+| `8f1e5a3e` | 说清 `pathLen`/`pathStep` 到底装什么（十写入者五单位） | J9 | 仅注释 |
+| `0fba0709` | `dayTime` 折叠收敛到一处 + `DayTimeFoldingTest` | J10/F12 | **过编译器** |
+| `b7711d81` | 三份 `yawFor` 合一，并写明为什么不是 `toYRot()` | J10 | **过编译器** |
+| `b02ce5ad` | 改正黄昏相位那段注释：四条边界只有一条承重 | F13 | 仅注释 |
+| `f6342563` | recipe 的 station 只留 resolver 那一份 | J10 | **过编译器** |
+| `da158e99` | `clearColumn` 提到 `Move`，三个对角线继承 | J10 | **过编译器** |
+| `2d1df995` | 下坠柱净空只问 `Move` 一次 | J10 | **过编译器**（唯一碰 A* 热路径的一笔） |
 
 **「过编译器」的证据**（coordinator 08-22）：一次 `:common:compileTestmodJava`，
 `:common:compileJava` 与 `:common:compileTestmodJava` **两个 task 都是 executed（不是 UP-TO-DATE）**，
 `BUILD SUCCESSFUL`。六笔全在 main 源集里，所以 `compileJava` executed 就是它们的答案。
-同一次还带了 coordinator 三笔 journey 修复（`fcbbd66b` / `c83e7d76` / `371cb137`），
+同一次还带了 coordinator 三笔 journey 修复（`3bdbe3f8` / `b5139a70` / `28207c12`），
 **是两边改动的合并验证，不是只验了一边。**
 我把这批的风险自定级在编译期（见 §J10 与下面的等价性论证），**该风险已清零**；
-剩下的运行期风险只有 `7a723ddb` 在 `dayTime < 0` 时的行为变化，其余逐位相同。
+剩下的运行期风险只有 `0fba0709` 在 `dayTime < 0` 时的行为变化，其余逐位相同。
 
 ### 提出但没做的（交 coordinator 排期，按值排序）
 
@@ -565,7 +565,7 @@ PRE-J1  BunkerChain.java      continueDestroy 出现次数: 0
 PRE-J1  DrownEscapeChain.java continueDestroy 出现次数: 0
 ```
 
-**这条断言在 `a1de83a4` 之前会红，点名那两个文件。** 现在绿。
+**这条断言在 `2a078b07` 之前会红，点名那两个文件。** 现在绿。
 而且它对**未来每一个新站点**继续红 —— 这比一条只覆盖一个实例的场景强得多，
 和 J6 是同一个形状（让这一类问题在下次发生时自己说话）。
 
@@ -595,11 +595,11 @@ unpaired 为空 → **TEST GREEN**；反向对照三条全部符合预期
 
 | 提交 | 范围 | 删除行 |
 |---|---|---|
-| `2f0d2f10` | `bot/movement/` 的 7 个 `WalkerTick*` + `ClutchController` | 157 |
-| `234be7ce` | `bot/process/` 前 8 个 | 291 |
-| `908eedb7` | `bot/process/` 余下 10 个 | 219 |
-| `fe3c50e8` | `api/` `debug/` `auto/` `scheduler/` `BotApiImpl` `ClientWorldView` 等 9 个 | 20 |
-| `83bbe22b` | `Walker.java` / `WalkerTickClimb` / `WalkerTickPrelude`（coordinator 收工后） | 53 |
+| `7137e4f8` | `bot/movement/` 的 7 个 `WalkerTick*` + `ClutchController` | 157 |
+| `27a93919` | `bot/process/` 前 8 个 | 291 |
+| `3eb676a7` | `bot/process/` 余下 10 个 | 219 |
+| `7ada6533` | `api/` `debug/` `auto/` `scheduler/` `BotApiImpl` `ClientWorldView` 等 9 个 | 20 |
+| `fa89872a` | `Walker.java` / `WalkerTickClimb` / `WalkerTickPrelude`（coordinator 收工后） | 53 |
 
 **每一笔都是纯删除，0 处新增**（`git diff` 的 `+` 行只有文件头）。
 全仓复扫 **724 → 0**。族 A 那 17 条全部保留。静态 import 一条没碰。
@@ -661,7 +661,7 @@ unpaired 为空 → **TEST GREEN**；反向对照三条全部符合预期
 
 **没跑**（coordinator 的 run 10 / 11 级排练在跑，我不编译）。
 
-### J9 `ProcessSlot.pathLen` / `pathStep` —— 一个字段，十个写入者，**五种单位**（`e95f4e72`）
+### J9 `ProcessSlot.pathLen` / `pathStep` —— 一个字段，十个写入者，**五种单位**（`8f1e5a3e`）
 
 原来的注释逐字是：
 
@@ -712,11 +712,11 @@ descend/escape 上它是一个**分母永远不变的分数**：看起来在动�
 
 | 提交 | 概念 | 原来几份 | 判据 |
 |---|---|---|---|
-| `7a723ddb` | `dayTime` → 相位 | **4**（`ObserveApi` / `ClientObserve` / `ClientEventDetector` / `WorldModel`） | **不一致**：两份防负数、两份不防。见 F12 |
-| `0c046d3d` | `yawFor(Direction)` | 3（`BunkerProcess` / `DescendProcess` / `EscapeProcess`） | **逐字相同** → 无条件可合 |
-| `d0e4dde3` | recipe → station | 2（`RecipeApi` / `RecipeResolver`） | **逐字相同**（只差修饰符），且 `RecipeApi` 已 import 对方并在注释里称对方是 single source of truth |
-| `4a259ffa` | `clearColumn`（对角线的两个角柱） | 3（`Diagonal` / `DiagonalAscend` / `DiagonalDescend`） | **逐字相同**；三者都是 `Move` 的子类，**调用点一个字符没改** |
-| `09b1cfad` | `clearFallColumn`（下坠柱全程净空） | 3（`Fall` / `FallIntoWater` / `WaterBucketFall`） | **逐字相同**（只差局部变量名 `f`/`h` 与 `foot`/`head`）；三者只在**落点**判据上不同，那部分留在各自文件里 |
+| `0fba0709` | `dayTime` → 相位 | **4**（`ObserveApi` / `ClientObserve` / `ClientEventDetector` / `WorldModel`） | **不一致**：两份防负数、两份不防。见 F12 |
+| `b7711d81` | `yawFor(Direction)` | 3（`BunkerProcess` / `DescendProcess` / `EscapeProcess`） | **逐字相同** → 无条件可合 |
+| `f6342563` | recipe → station | 2（`RecipeApi` / `RecipeResolver`） | **逐字相同**（只差修饰符），且 `RecipeApi` 已 import 对方并在注释里称对方是 single source of truth |
+| `da158e99` | `clearColumn`（对角线的两个角柱） | 3（`Diagonal` / `DiagonalAscend` / `DiagonalDescend`） | **逐字相同**；三者都是 `Move` 的子类，**调用点一个字符没改** |
+| `2d1df995` | `clearFallColumn`（下坠柱全程净空） | 3（`Fall` / `FallIntoWater` / `WaterBucketFall`） | **逐字相同**（只差局部变量名 `f`/`h` 与 `foot`/`head`）；三者只在**落点**判据上不同，那部分留在各自文件里 |
 
 **两条贯穿所有合并的纪律：**
 
@@ -730,7 +730,7 @@ descend/escape 上它是一个**分母永远不变的分数**：看起来在动�
    否则下一个人看到「四个下坠 move 里三个用了共同 helper」，
    会以为第四个是漏网的，然后把它一起改掉 —— **那才是这次合并会造出来的新缺陷。**
 
-### J7 字节码守卫 —— `SchedulerClientCallSurfaceTest`（`ce945f78`）
+### J7 字节码守卫 —— `SchedulerClientCallSurfaceTest`（`cc1b6981`）
 
 **新文件**：`common/src/test/java/net/magicterra/worlddriver/bot/SchedulerClientCallSurfaceTest.java`
 （233 行，4 条断言）。纯测试代码，零依赖（自己解析 class 文件常量池，**不用 ASM**）。
@@ -773,7 +773,7 @@ Fabric 自己的 dist 剥离？**我不知道，而且我没有在测试里假�
 
 #### 正面对照（你的第 5 条）——**我拿到了实证的，不是合成的**
 
-我做不出 `a1de83a4` 的字节码（不能编译，`run 10` 在跑）。但有更好的：
+我做不出 `2a078b07` 的字节码（不能编译，`run 10` 在跑）。但有更好的：
 
 > **`BotInteract.class` 里就有 `MultiPlayerGameMode.continueDestroyBlock`** ——
 > **正是杀掉闸的那个 class + member**，在今天的真字节码里，而且它在守卫范围**之外**（合法）。
@@ -1198,7 +1198,7 @@ tick n+1 : AntiSuffocate 不再触发；MineProcess aim→X …                 
 （`RunAwayProcess` 是 107 行代码配 48 行 import；`TowerProcess` 里
 `Minecraft` / `KeyMapping` / `ItemEntity` / `Comparator` / `ElytraPhysics` / `PathFinder` / `Blocks`
 在全文各只出现 **1** 次 —— 就是 import 行自己）。
-本轮删掉的那 9 个 `BotInput` import（`03c46e3c`）是这块粘贴的一角。
+本轮删掉的那 9 个 `BotInput` import（`238137a7`）是这块粘贴的一角。
 
 **没做全量清理，理由是「不能编译」**：726 处机械删除里藏一个错，我没有编译器能发现它，
 而这正是用户点名的那类风险。**建议放行且你有一趟编译富余时再做**，做法：
@@ -1245,7 +1245,7 @@ v1 的正则 `[\w.<>\[\],? ]+\s NAME \s*[(;=]` 把**调用点**当成了声明�
 
 **这三族之外还有一族，不是判据问题而是并发问题，今晚真的发生了一次**：
 coordinator 用 `git add -u` 提交自己的改动，把我当时还没提交的三个文件（53 行删除）
-裹进了他的提交。已 `reset --soft` 拆开重提（我的那批成了 `83bbe22b`）。
+裹进了他的提交。已 `reset --soft` 拆开重提（我的那批成了 `fa89872a`）。
 **一揽子暂存和一揽子的 `-A` 是同一类东西**；在多个 agent 共用一棵工作树时，
 唯一安全的形式是逐文件 `git add <path>`。我这五笔都是逐文件 add 的。
 
@@ -1347,7 +1347,7 @@ public static boolean hasRunway(WorldView w, BlockPos from, int dx, int dz) {   
 `Parkour2` / `Parkour2Diagonal` / `Parkour3Diagonal` / `Parkour4` / `ParkourAscend` /
 `ParkourDescend` / `ParkourPlace` 全部用两参数那个。
 
-**先查了这是不是故意的 —— 一半是。** `982785ce`（2026-08-19）的 CHANGELOG 逐字写着：
+**先查了这是不是故意的 —— 一半是。** `8303c11b`（2026-08-19）的 CHANGELOG 逐字写着：
 
 > Only the 3-block leap asks the new direction-aware form — **a 2-block gap is inside a standing jump**,
 > and a guard that refuses what works replaces a route with a worse one rather than a safer one.
@@ -1709,7 +1709,7 @@ coordinator 先怀疑我加的 `p.swing(...)`，**用字节码把这个假设否
 **「链里出现 LocalPlayer 调用」不是新事。**
 
 新事是 `git log -S` 指出来的：**`gameMode.continueDestroyBlock` 在 `scheduler` 包里
-只由 `a1de83a4`（我）一笔引入。** 那一行把一个
+只由 `2a078b07`（我）一笔引入。** 那一行把一个
 `invokevirtual MultiPlayerGameMode` 放进了链自己的字节码，链接那个类会把 `LocalPlayer`
 一起拽进来，服务端加载器拒了。
 
@@ -1734,7 +1734,7 @@ javadoc 把规则写死：**scheduler 里的类可以「传递」客户端类型
    原来的失败信息逐字建议
    「`or mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p)) if the site
    has no Avatar`」——**那正是炸掉双 loader 的那一行**。
-   已改（`9aa0c7a9` 之后的一笔）：改成指向 `BotInteract.continueDestroy`，
+   已改（`4f4b17f1` 之后的一笔）：改成指向 `BotInteract.continueDestroy`，
    并把分层规则和这次的病征写进失败信息与类 javadoc。
    **改的只是失败时才求值的字符串 + javadoc，绿路径逐字节不变**，coordinator 那份 3/3 依然成立。
 
@@ -1816,7 +1816,7 @@ javadoc 把规则写死：**scheduler 里的类可以「传递」客户端类型
   **角度等价 ≠ 数值等价，这个仓库已经吃过这个亏。要合就原样搬进 `BotUtil`，一个字符不改。**
   （等排练收工再动，见「待办」。）
 - **`Parkour2` / `Parkour2Diagonal` 不用四参数 `hasRunway` 是故意的，理由成立**
-  （`982785ce` 的 CHANGELOG 逐字：2 格在起跳范围内，
+  （`8303c11b` 的 CHANGELOG 逐字：2 格在起跳范围内，
   「a guard that refuses what works replaces a route with a worse one rather than a safer one」）。
   **F9 只针对比 3 更远的那四个**，不要把这两个一起改。
 

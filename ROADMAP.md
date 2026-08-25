@@ -65,7 +65,7 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 - **避险逃跑下沉 L0**：`HazardField.lethalPenalty` 注入 `ClientWorldView.dangerCost`（不改 RetreatChain）。
 - **黄昏自保反射** `DuskSecureChain`（prio **40**，低于 USER）：空闲 + 暴露 + 无威胁 + 去抖才触发，驱动
   `BunkerProcess`；上报 `duskExposed`/`cornered` 边沿事件让 L2 可抢先。**LIVE-CERTIFIED**：clean idle →
-  挖坑 → cornered → **latch 守住通道** → 封顶（skyExposed→false）→ 满血过夜（latch 修复 d6aa99e）。
+  挖坑 → cornered → **latch 守住通道** → 封顶（skyExposed→false）→ 满血过夜（latch 修复 744d1e3）。
 - **决策归层规则 + 分类表 + 错位清单**：见 doc 04。
 
 ---
@@ -139,7 +139,7 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 | 笔 | 内容 |
 |---|---|
 | **Q7c 的离线回放** | 拿 ladder-14 已录的 174 案／816 案回放新计数规则。必须抓住那两案且不误伤正常绕行（`journey03Wood` 绕树那段是现成阴性样本） |
-| **丙 的分族读数** | 把 `de3a4311` 那趟 18011 tick 的 38 条 `*.stairsBroken` 按 `lava*`（上行腿）／`cast*`（下行腿）拆开读；它决定窗口 1／2 里要不要给「淹」留一笔 |
+| **丙 的分族读数** | 把 `ffdfcad7` 那趟 18011 tick 的 38 条 `*.stairsBroken` 按 `lava*`（上行腿）／`cast*`（下行腿）拆开读；它决定窗口 1／2 里要不要给「淹」留一笔 |
 
 ### 6.2 ⬜ 窗口 1（排练退出后的第一个编译窗口）—— 仪器批，零行为改动，一次编译一并落
 
@@ -167,7 +167,7 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 
 ⇒ 排练 → **双 loader 全量闸** → 真梯。
 
-> 序号 **11 空缺**是有原因的，别当漏排：它原来是 **丙**（水源的存活窗口）。`de3a4311` 那趟把水
+> 序号 **11 空缺**是有原因的，别当漏排：它原来是 **丙**（水源的存活窗口）。`ffdfcad7` 那趟把水
 > 读成了死因，丙 改判「先补测量」，而那一步是**读日志**，所以它挪到了窗口 0。读出族之后再插队。
 
 ### 6.4 ⬜ 窗口 3 —— 13–20 级

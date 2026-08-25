@@ -464,7 +464,7 @@ wd.drownEscapeGateMatrix -> FAIL (0 ticks)
 | 我的第一版：「本类的方法签名里点名了客户端类」 | 上一个绿版本的描述符里**早就有** `LocalPlayer` |
 | 我的第二版：「调用了客户端类型上的方法」 | 上一个绿版本里有 `KeyMapping.setDown`、`ClientLevel.getBlockState`、`Minecraft.getInstance`、写 `yHeadRot` |
 
-按第一版改的那一笔（`78c97615`）把参数从 `LocalPlayer` 放宽成 `Player`，
+按第一版改的那一笔（`9df49b94`）把参数从 `LocalPlayer` 放宽成 `Player`，
 **等于亲手造了一个真正的病灶**——闸照红。修错的方向和真缺陷长得一模一样。
 
 ### 5.2 判别子是「加宽」
@@ -503,7 +503,7 @@ wd.drownEscapeGateMatrix -> FAIL (0 ticks)
 
 ### 5.5 结案读数
 
-`80a8ce28` 之后三闸，全部**读结果文件**判的，不是读退出码：
+`a9c5d227` 之后三闸，全部**读结果文件**判的，不是读退出码：
 
 | 闸 | 判词 | `drownEscape` 六条 |
 |---|---|---|

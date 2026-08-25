@@ -14,7 +14,7 @@
 - **Bias is appended AFTER the eight legacy taxes** in `Search.costModifiers`. Order among the appended (empty in A4a) modifiers is irrelevant to correctness; never reorder or interleave with the legacy taxes.
 - **Admissibility:** bias modifiers are `CostModifier`s and MUST return `>= 0` (already the interface contract from A0).
 - **Do not change any tax logic, the two inline `world.*` costs, or Walker navigation logic** — only add the bias field/param and the six uniform `, bias` additions.
-- **Baseline was invalidated by the master sync.** §87 flipped 7 executor flags default-ON; the old failing-set reference (measured @80073d5) is stale. Task 4 RE-MEASURES the baseline on the current tip before asserting parity.
+- **Baseline was invalidated by the master sync.** §87 flipped 7 executor flags default-ON; the old failing-set reference (measured @e014def) is stale. Task 4 RE-MEASURES the baseline on the current tip before asserting parity.
 - **Acceptance = live/replay truth; trust only `required tests passed`/`BUILD SUCCESSFUL`; the `TOTAL:` line masks required failures** (project memory). Alternate ports for any run: `JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39810 -Dworlddriver.rpcPort=39811"`.
 
 ## File Structure
@@ -187,7 +187,7 @@ with (add the field near the other final fields, e.g. beside `world`):
 
 **Files:** none modified except CHANGELOG.
 
-- [ ] **Step 1: Re-measure the baseline failing-set on the current tip's PARENT.** The old @80073d5 reference is stale (master §87 flag-flips). Establish the fresh reference from the commit just before A4a (the A1 tip = the branch HEAD before Task 1 of this plan; record it as `A4A_BASE`). From a clean worktree at `A4A_BASE`:
+- [ ] **Step 1: Re-measure the baseline failing-set on the current tip's PARENT.** The old @e014def reference is stale (master §87 flag-flips). Establish the fresh reference from the commit just before A4a (the A1 tip = the branch HEAD before Task 1 of this plan; record it as `A4A_BASE`). From a clean worktree at `A4A_BASE`:
 ```bash
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39820 -Dworlddriver.rpcPort=39821" \
   ./gradlew :neoforge:runGameTestServer --console=plain 2>&1 | tee /tmp/a4a-baseline.log

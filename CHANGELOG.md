@@ -245,7 +245,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   13 logs / 2 914 ticks at 1.0 against 6 logs / 13 899 ticks at 3.0. Those are two separate runs
   rather than a same-day A/B, so what names the tax is the 49 rows naming the mechanism, not the
   tick counts. (Those rows printed as `[mine] no
-  approach to stand`; `4501efe6` renamed them the next day, so a current run says the same thing as
+  approach to stand`; `908c31c1` renamed them the next day, so a current run says the same thing as
   `[mine] blacklist <pos>（<why>）` — grepping the old wording now returns zero and reads as a fix.)
   The waiver is derived from `MineProcess`'s current target rather than latched beside it, so it
   lapses on the same line that aims somewhere else; the leaf-clearing and overburden sub-goals get
@@ -5516,7 +5516,7 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   approach's slow rounding manoeuvre (~0.02-0.05 blk/tick lateral) read as "no
   progress"; the tripped reCentre/wiggle recovery pinned the bot on obstacle
   corners (waterFarAimBankCornerArena deterministic dGoal=6.33 pin, convicted by
-  git-bisect → 31bdb5c, single-variable verified). Fix: medium split — dry keeps
+  git-bisect → c7a1f4a, single-variable verified). Fix: medium split — dry keeps
   0.05, water uses new `STUCK_PROGRESS_EPS_WATER=0.02`.
 - **`mc.query` select rejects unknown keys** (`isError` naming the bad key and the
   allowed set) instead of silently dropping them — callers were misled into

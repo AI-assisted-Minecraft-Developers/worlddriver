@@ -58,7 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * What decides "will a dedicated server load this class" is not the call; it is the
  * <b>widening</b>. Handing a client type to a parameter declared {@code Player}/{@code Entity}
  * makes the verifier load {@code LocalPlayer} to prove the subtype relation, and that is what
- * actually took the gate down in {@code 78c97615} (AGENTS.md hard rule 12,
+ * actually took the gate down in {@code 9df49b94} (AGENTS.md hard rule 12,
  * {@code docs/drown-escape-design.md} §5, and {@code BotInteract#riseBlockedCell}, which exists
  * solely to host one). The owner scan reads Methodref/Fieldref OWNERS and cannot see a widening by
  * construction, so a second scan reads the invoked <b>descriptors</b> and asserts that no call
@@ -99,7 +99,7 @@ class SchedulerClientCallSurfaceTest {
             "net/minecraft/client/player/LocalPlayer",
             "the body: blockPosition/getHealth/getAirSupply/position/setYRot/setSprinting/…",
             "net/minecraft/client/KeyMapping",
-            "setDown, for the attack/use keybinds the reflexes still latch (movement left in 34fe1ee8)",
+            "setDown, for the attack/use keybinds the reflexes still latch (movement left in 9781acef)",
             "net/minecraft/client/Options",
             "the keyAttack/keyUse fields those setDown calls reach through",
             "net/minecraft/client/multiplayer/ClientLevel",
@@ -171,7 +171,7 @@ class SchedulerClientCallSurfaceTest {
                 + "server, and if the argument is the client body, the widening makes the verifier "
                 + "load LocalPlayer to prove the subtype relation — a class that does not exist "
                 + "there. That is AGENTS.md hard rule 12, and it is what actually killed the gate "
-                + "in 78c97615: the FIX that changed a parameter from LocalPlayer to Player is what "
+                + "in 9df49b94: the FIX that changed a parameter from LocalPlayer to Player is what "
                 + "created it, so 'I removed the client type from the signature' is the wrong "
                 + "instinct here. The shape that survives is to move the widening into a "
                 + "client-only class and reach it with invokestatic (BotInteract#riseBlockedCell "

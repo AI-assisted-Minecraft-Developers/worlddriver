@@ -8,7 +8,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development or executing-plans.
 > Supersedes the Units-2..6 of `2026-07-15-executor-permove-statemachine-ascend.md` for path A.
-> Unit 1 (scaffolding, commit 05afb27) STANDS. This plan replaces the "migrate stepUp" units.
+> Unit 1 (scaffolding, commit f713ac7) STANDS. This plan replaces the "migrate stepUp" units.
 
 **Goal:** Make the per-move ascent machine (AscendMovement) drive `stepUp`/`stairUpBreak`/`diagUp`
 through the SAME code the legacy executor uses — by extracting Walker.tickInner's travel-actuation
@@ -36,7 +36,7 @@ lifecycle is stepUp-specific. So "single source" (Option A) = extract that whole
   (underwaterBase), kill by PID, `rm -rf neoforge/run-gametest/world`, re-run (fresh world clears it).
 - **No new @GameTest file** — fold new arenas into the existing AgentGameTestTerrain/AgentGameTestServer.
 - **Feature branch** `feature/executor-permove-ascend`; FF-merge is pre-authorized; commit per slice.
-- Reference line numbers are as of commit 05afb27 and DRIFT after each slice — always grep current.
+- Reference line numbers are as of commit f713ac7 and DRIFT after each slice — always grep current.
 
 ## Architecture
 

@@ -2,7 +2,7 @@
 
 > 暂停原因:user 决定转向**测试框架重构**(task#52 自造测试框架 / task#85 吞测试漏洞)。
 > 本文档是完整交接账:本会话做了什么、证据在哪、恢复时从哪继续。
-> 分支:`feature/executor-permove-ascend`,tip = `6418855`。**未合 master**(B1 未过 live 验证,flag 默认 OFF)。
+> 分支:`feature/executor-permove-ascend`,tip = `39c13f2`。**未合 master**(B1 未过 live 验证,flag 默认 OFF)。
 
 ---
 
@@ -21,14 +21,14 @@
 - 计划文档:`docs/superpowers/plans/2026-07-16-executor-b1-thin-machine.md`(active);
   `2026-07-15-executor-travel-actuator-extract-A.md` 已标 SUPERSEDED(其 Slice 0 特征化笔记对 task#84 仍有用)。
 
-### 2. B1-1 已提交 `6fbc4cd`(结构改动,行为 no-op)
+### 2. B1-1 已提交 `3d22ad7`(结构改动,行为 no-op)
 - 委托分支(Walker ~4292)去掉 `PREP/RUNNING → return Step.WALKING` 提前返回(那是逼第一个
   实现者重实现驱动的原罪);`PREP/RUNNING/SUCCESS` 全部 fall-through 进 legacy jump/drive。
 - **step 推进权不动**,仍归 legacy advance 循环(Walker 2265-2288),防双推进竞态。
 - AscendMovement 变成真 episode 跟踪器(node+move 边界、episodeTicks、bestY),看门狗未武装。
 - flag OFF 构造上 byte-identical(全部改动在 flag 门控分支内部)。
 
-### 3. B1-2 已提交 `a3f9c13`(task#82 dead-zone 修,核心交付)
+### 3. B1-2 已提交 `ffd8a42`(task#82 dead-zone 修,核心交付)
 - **看门狗语义**:episode 内 `ASCEND_DEADZONE_GIVEUP = 3×STEPUP_FREEZE_TICKS = 72t(≈3.6s)`
   零进展 → `UNREACHABLE` → `forceFellOffPath` → 既有 re-route/blacklist/futile 骨干。
   这给 spec §2.2 的死区姿态(`cur2∈(0.45,4.0)`、无 hCol、+1 节点——所有 legacy recovery 门全 miss)
@@ -75,7 +75,7 @@
 - 记忆:`project_engine_executor_permove_drive_not_separable_54.md`(终裁+进度)、
   `reference_gametest_suite_silent_test_omission.md`(新,#85)、MEMORY.md 索引。
 - 任务:**#84**(A″ 相位化)、**#85**(套件完整性)已立案;#54/#82 仍 in_progress。
-- 提交链:`05afb27`(Unit1,上会话)→ `6fbc4cd`(B1-1)→ `a3f9c13`(B1-2)→ `6418855`(docs)。
+- 提交链:`f713ac7`(Unit1,上会话)→ `3d22ad7`(B1-1)→ `ffd8a42`(B1-2)→ `39c13f2`(docs)。
 
 ---
 
@@ -99,7 +99,7 @@
 
 - **世界/bot**:integrated 单机 SurvivalTest,`/tick freeze` 冻结中(coding 模式);live bot 客户端
   JVM 带 `-Dworlddriver.mcpPort=39800`,**勿杀**。恢复 live 实验前解冻 + 开 live-screen-watch。
-- **git**:分支 `feature/executor-permove-ascend` tip `6418855`;master 在 `5cea9f1`(gap#81)。
+- **git**:分支 `feature/executor-permove-ascend` tip `39c13f2`;master 在 `f904070`(gap#81)。
   stash 里有被否决的 Unit2 重实现("unit2-implementer-UNFAITHFUL-drive-reimpl",仅参考勿 apply)。
 - **验证纪律(本会话再校准)**:
   - 全量套件按名对账仍是门,但**加一条**:关键新 arena 必须先证"真的执行了"(ENTER 埋点/坐标 grep),

@@ -17,7 +17,7 @@
 - ⛔ 禁 `pkill`；杀进程 = `ps` 列候选 → 显式 PID `kill`。testkit 专服 JVM 的 sweep 模式 = `[t]estkit.autorun`。
 - 运行时输出不进 git：`stagewright/*/run-stagewright/` 需加 .gitignore；结果文件 `stagewright-results.jsonl` 落在 runDir。
 - 无命名冲突不用 FQN（AGENTS.md 规则 7）。
-- ⭐**探针教训（P0 事故 926396d）内建为契约**：harness 的 JSONL 写盘只发生在**场景边界**（场景 start 前/结束后），绝不在场景 RUN 期间的 tick 内做文件 IO；P1c 迁入确定性 dogfood arena 前必须复核此约束（必要时改异步 writer，先例 `GameTestManifest`）。
+- ⭐**探针教训（P0 事故 175c4ca）内建为契约**：harness 的 JSONL 写盘只发生在**场景边界**（场景 start 前/结束后），绝不在场景 RUN 期间的 tick 内做文件 IO；P1c 迁入确定性 dogfood arena 前必须复核此约束（必要时改异步 writer，先例 `GameTestManifest`）。
 - **编排契约 v0 冻结**（Task 4 落文档，此后 gradle-plugin 复用）：JSONL schema、退出码 0/1/2/3、启动协议、文件位置——见 Task 4 契约文件全文。
 - 专服 `server-port=25599`（避让 live 会话与默认 25565）；`level-type=minecraft\:flat`。
 - mod id `mc_testkit`，包 `net.magicterra.stagewright`；testkit 代码 P1a 禁 import `net.magicterra.worlddriver.*`。
@@ -664,7 +664,7 @@ import net.magicterra.stagewright.scene.SceneOutcome;
  * Orchestration-contract-v0 results stream, one JSON object per line, written into
  * the server's working directory (the loom runDir).
  *
- * TIMING CONTRACT (P0 probe incident, worlddriver commit 926396d): file IO here
+ * TIMING CONTRACT (P0 probe incident, worlddriver commit 175c4ca): file IO here
  * happens ONLY at scene boundaries — suite start, after a scene completes, suite
  * end. Never write during a scene's RUN ticks: synchronous server-thread IO
  * measurably broke a byte-deterministic arena once already. Boundary writes still
@@ -1238,7 +1238,7 @@ harness 之间的接口。**变更需升 v1 并保持 v0 解析兼容。**
 | 3 | ENV：起不来 / 缺结果文件 / 缺头 |
 
 ## 游戏内时序契约
-结果写盘只在场景边界（P0 探针事故教训，worlddriver 926396d）；
+结果写盘只在场景边界（P0 探针事故教训，worlddriver 175c4ca）；
 确定性敏感场景入驻（P1c）前须复核，必要时改异步 writer。
 ```
 

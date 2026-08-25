@@ -440,7 +440,7 @@ public final class ClientWorldView implements WorldView {
         // of a trunk means breaking the four under it, so at 3× those paths price out — measured on
         // the ladder's wood rung, same seed, one variable: 13 logs / 2 914 ticks at 1.0 against
         // 6 logs / 13 899 ticks at 3.0, with 49 rows of `[mine] no approach to stand` (that wording
-        // is HISTORICAL — `4501efe6` renamed it; today the same event prints as `[mine] blacklist
+        // is HISTORICAL — `908c31c1` renamed it; today the same event prints as `[mine] blacklist
         // <pos>（<why>）`, see MineProcess#logWaiverOwner). The waiver is
         // scoped to a log mine goal rather than turned off globally, so a leg that is merely
         // PASSING a forest still pays 3× and keeps what this tax was added for.
