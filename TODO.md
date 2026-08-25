@@ -1063,7 +1063,15 @@ java.util.ConcurrentModificationException
 ⇒ **这不再是「理论上的竞争」，是「它已经吃掉了一趟 45 分钟的梯子」。** 从 🟡 升到 🔴🔴，
 并且**它现在是 12 级往上的头号障碍**：J59 修好之后台阶能垒了，放置次数翻倍，摇骰子的次数也翻倍。
 
-⇒ 修法：把这一跳 marshal 到客户端线程（`mc.execute(...)`）后再等它完成。
+⇒ 修法：把这一跳 marshal 到客户端线程（`mc.execute(...)`），**投递完就返回，不等它完成**。
+
+⚠️ 这里我第一版写的是「marshal 之后再等它完成」，**是错的，改过来**：
+
+1. **按 J59 自己的设计就不需要等。** `Stop.PENDING` 的全部意义就是「没人需要在调用那一 tick
+   知道放置结果」——判词是 `PLACE_ROUND_TRIP` 之后从世界里读的。J59 把判定改成异步，
+   正好让这一笔可以只是一次投递。**一等，两者就不再复合了。**
+2. **等会出事。** 服务端线程阻塞在渲染线程的队列上，轻则每次放置停一帧（开发态客户端上是真实时间），
+   重则在关服/暂停时和反向等待撞成死锁。
 **`PLACE_ROUND_TRIP` 当初留的余量正是为这一天**——marshal 之后往返多一跳，
 4 tick（预算 8）够用；那段 javadoc 已经写明了这个理由，不用重新论证。
 ⚠️ 仍然**不要和 J59 捆在一起改**：J59 已经用 j56 的 y 分布验过了，这是**独立的第二笔**。
@@ -1088,6 +1096,56 @@ java.util.ConcurrentModificationException
 ⇒ 修法方向是把这一跳 marshal 到 `mc.execute(...)`，**但不要和 J59 捆在一起**：
 那会把「判词等往返」和「调用换线程」两个独立变更混进同一次测量。
 真做的时候注意：marshal 之后往返会多一跳，而 `PLACE_ROUND_TRIP` 的余量正是为这一天留的。
+
+### ✅ J61 修法已落地（`16c58d5c`，2026-08-25）：闸设在 `clientUseItemOn` 自己身上
+
+`if (!mc.isSameThread()) { LOG…; mc.execute(() -> clientUseItemOn(…)); return PASS; }`
+
+三件事值得记下来：
+
+1. **投递完就返回，不等。** 理由见上面那段改正。
+2. **返回的 `PASS` 意思是「已投递」，不是「被拒」。** 已 grep 核实**三个调用点全都丢弃返回值**
+   （`ClientPlayerAvatar.placeOn`／`useBlock` 是 `void`，`BotInteract.walkerPlace` 忽略它），
+   所以现在没人会误读；javadoc 把这条写成了硬约束，防的是以后有人去 branch 它。
+3. **投递那一支不打 `[place]` 行**，改打 `[placeEnqueue]`。因为判据就是数 `[place]` 的线程标签，
+   投递时打一行带假 `结果=` 的 `[place]` 会**从构造上污染这把尺子**（[[a-verification-tool-needs-verifying-too]]）。
+   两个计数还能对差：投递数 ≠ 执行数就说明队列吞了活，否则那会是一次「放置从来没发生过」的静默丢失。
+
+### 📌 预登记：j57 判据（2026-08-25，**写在跑之前，也写在读结果之前**）
+
+⚠️ **「这趟没崩」不是证据。** 竞争是概率性的，j54 在服务端线程上放了 11 次也没崩
+（[[three-greens-cannot-see-a-one-in-four]]）。所以 J61 的判据必须是**机械的**：
+
+| # | 判据 | 判什么 |
+|---|---|---|
+| **K1** | 全日志里 `[place]` 行**没有任何一行**来自 `[Server thread]` | **J61 的确定性判据**。线程标签本来就在日志里，它自己就是尺子 |
+| **K2** | `[placeEnqueue]` 行数 == 来自 Render thread 的 `[place]` 行数 | 队列没吞掉投递 |
+| **K3** | 台阶放置仍出现在 y>56（j56 是 55/56/57/58） | **J59 回归守卫** |
+| **K4** | `waterFill.reseat` 证据带「否决计数」，且其中出现「比已选中的更远，没评估」 | J60 仪器活着 |
+| **K5** | `waterFill.reseat.eye` 行出现，给出格心眼与真眼的水平差 | J60 缺陷 (B) 的读数 |
+| **K6** | SUCCESS-FAIL-FAIL 三连现在出现在 **Render** 线程上 | 预期，**不是回归** |
+
+⚠️ **12 级仍然可能死在浇筑**——那是 J60 的回合，**不构成对 J59/J61 的怀疑**。
+先把这趟该是什么颜色算出来再去对（[[a-verdict-has-upstream-verdicts]]）。
+
+⚠️ **顺带丢了一样取证便利**：线程标签过去兼作「场景驱动 vs bot 进程」的出处标记，
+现在两者都在 Render 线程上了。要恢复这个区分得给行加一个 origin 字段 ——
+**可选，上面六条判据都不依赖它**，别顺手加。
+
+### 🟡 J62（已核实，**本轮不修**）：`holdItem` 是同一族，只是还没轮到它炸
+
+`ClientPlayerAvatar.holdItem` → `BotInteract.ensureHolding`，而它**写的是客户端状态**：
+`inv.selected = s`（裸字段写），以及 `swapFromMainInv` 里的
+`mc.gameMode.handleInventoryMouseClick(...)`。场景在**服务端线程**上调它
+（`JourneyRamp:500,504`、`JourneyHands:282`）。
+
+⇒ 但**不能照抄 J61 的修法**：`holdItem` 的返回值是**承重的**——`boolean held = av.holdItem(…)`
+决定后面垫不垫，`ctx.expect(...holdItem(...))` 直接拿它当断言。fire-and-forget 会把它变成谎话，
+而阻塞等待正是上面否掉的那条路。所以这一笔要么改调用方的契约，要么让**拿和用坐同一次投递**
+（[[a-hold-must-be-adjacent-to-the-use]]：现在拿是同步的、用是延后的，中间隔了一帧）。
+
+⚠️ 危害等级低于 J61：写裸 int 字段不会像 `HashMap.put` 那样掀 CME，最坏是读到旧值。
+**先记下来，等它有了自己的场合再动**——现在动就是没有测量的改动。
 
 ### ⚠️ `JourneyPortalRung.java` 距硬闸只剩 17 行（2983/3000，2026-08-25 08:20）
 
