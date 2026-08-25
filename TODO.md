@@ -1516,8 +1516,39 @@ CombatProcess.meleeTick → approach → Walker.tick → WalkerTickSearch.run:79
 A/B 那一臂的节奏也是健康的（282 条 / 4m30s，比绿参照的 322 条 / 5m42s 还快），
 所以差分本身不是「那一臂也病了」。
 
-⇒ **J60-B 与这次崩溃的因果关系并未确立。** 已确立的只有差分现象本身，
-机制是下面这条，而它**跟 J60-B 无关**。
+### ⛔ 再更正：「**是 J60-B 干的**」这个结论**撤回**，A/B 不可解读
+
+两条独立证据，都是**对照组**给的，不是推理给的：
+
+**一、177 之前没有系统性分叉。** 把 tick 数（不只是 ms）纳入逐条比对，
+再把**两趟同代码的 fail 互比**当对照：
+
+| 比较 | 前 176 条里 tick 不同的场景 |
+|---|---|
+| **fail1 vs fail2（同一份代码）** | **3 条**：#68 `agentRpcSmoke`、#146 `serverMineHarvest`、#147 `serverMineHarvestBuried` |
+| fail1 vs ab | 3 条（同上三条） |
+| fail2 vs green | 2 条（#146、#147） |
+| ab vs green | 3 条（#146、#147，外加 **#177 本身 32 vs 30**） |
+
+同代码两趟也在那几条上抖 ⇒ **那是天然抖动，不是 J60-B 的分叉**。
+176 条 outcome 全同，没有任何一条是失败臂系统性偏离的
+（[[one-sample-cannot-name-a-cause]]：先把样本拉宽再命名原因）。
+
+**二、唯一的大时长差，绿参照站在失败臂那边。**
+
+| #169 `wd.serverCastsObsidian` | fail1 | fail2 | green（无 J60-B） | ab（我造的对照臂） |
+|---|---|---|---|---|
+| | 4168 ms | 4221 ms | **4216 ms** | **221 ms** |
+
+4 秒是**基线**，不是 J60-B 加的。异常的是 **ab 那一臂**——也就是我手工回退
+`JourneyFill` 造出来的树，它在这条场景上跟绿参照差了 19 倍，而这个差异
+J60-B 解释不了。**对照臂本身不等价于绿参照，差分就没有解释力**
+（[[a-verification-tool-needs-verifying-too.md]]：尺子要先校准）。
+
+⇒ 现状诚实描述：**2 比 2 的未解释现象**。J60-B 的嫌疑既没坐实也没洗清，
+`a191f87f` 的撤回**照旧保留**（撤回一个没验证过的改动不需要理由）。
+下面这条 J65 是**独立成立**的主代码缺陷，它跟 J60-B 谁对谁错无关，
+而且它一旦落地，177 再卡也会变成「一条红场景 + 一份 results」而不是死掉的 JVM。
 
 ⚠️ **诚实边界**：A/B 那一臂**被杀在第 260 条，没有产出 VERDICT**。
 所以已经确立的是**差分**（带它死、去掉不死），**不是**「去掉之后闸是绿的」。
@@ -1547,10 +1578,10 @@ A/B 那一臂的节奏也是健康的（282 条 / 4m30s，比绿参照的 322 �
 |---|---|---|
 | `sliceLimit` | `PathFinder.java:930` | 单次 `advance()` 的墙钟 |
 | `HEARTBEAT_NANOS`（1 s） | `PathFinder.java:936` | 单次 `advance()` 的墙钟 |
-| `CEILING_MS`（8 s） | `PathFinder.java:1124` | `totalMs(sliceStart)`，**同一次** `advance()` |
+| `CEILING_MS`（8 s） | `PathFinder.java:1124` | `totalMs()` = `elapsedNanos + (now − sliceStart)`，**单次搜索累计**（跨 slice） |
 | `maxMs` | `PathFinder.java:1102` | 同上，且场景故意设成 `Long.MAX_VALUE/2` |
 
-**全部以 `sliceStart` 为原点，而 `sliceStart` 每次 `advance()` 重置**
+**没有一道以「tick」为原点**——前两道每次 `advance()` 重置，后两道每次**搜索**重置
 （[[a-clock-that-resets-every-segment]] 的同一形状）。519 次搜索各自都很短——
 没到 1 秒心跳、没到 8 秒上限——**但它们在同一个服务端 tick 里**
 （[[a-whole-fight-in-one-server-tick]]：走行器一个 tick 里步进几千次，每步重开一次寻路）。
