@@ -885,6 +885,12 @@ public static volatile boolean autoRetreat = false;
 身体最终落回验过的那一排。⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
+📌 **`[expect] GEAR-degraded` 是恒假阳性，判据要改。** `WalkerExpectAlarms.ClientGearCheck.missing`
+的 `pick` 只认 `DIAMOND_PICKAXE`/`IRON_PICKAXE`，木镐石镐都不算，所以梯子拿到铁镐之前每 100 tick
+必报一次（ladder5 前六级 30 次，第 4 级「木镐 ×1 到手」PASS 之后措辞一字未变）。而它印的是
+「pickups crowded the gear out」——归因是编的。叫 degraded 就得以「装备存在」为前提：
+判据应是**背包里有而快捷栏里没有**；两者都没有是「还没造」，不该报警。水桶同理。
+
 📌 **下一趟真梯的判读，先写在这**（`3ce54dd4` 把排上界限定到了浇筑侧）：
 1. `raiseRowTooHigh`／`raiseRowRetry`／`raiseRowGaveUp` 只许出现在浇筑 tag 下；收水 tag 下出现任何一次 = 限定没生效。
 2. `scoopRowHigh` 若出现，下游必须跟着 `buildTo` 的楼梯行——没跟上就是便宜修法仍然轮不到。
