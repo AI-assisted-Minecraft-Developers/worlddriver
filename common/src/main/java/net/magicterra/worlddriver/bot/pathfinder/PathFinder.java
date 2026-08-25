@@ -148,10 +148,26 @@ public final class PathFinder {
             () -> new long[]{Long.MIN_VALUE, 0L, 0L, 0L});
     private static final int TS_MARKER = 0, TS_NANOS = 1, TS_SEARCHES = 2, TS_NEXT_REPORT = 3;
 
-    /** First per-tick report, and the gap between reports after it. One second: below it there is
-     *  nothing to see (a whole healthy fight tick is single-digit ms) and above it every line is a
-     *  reading worth having. */
-    private static final long TICK_REPORT_NANOS = 1_000L * 1_000_000L;
+    /** First per-tick report, and the gap between reports after it.
+     *
+     *  <p>CALIBRATION VALUE — 50 ms, deliberately below anything interesting, so this run produces
+     *  the distribution the permanent number has to be chosen from. The first value tried was one
+     *  second and it printed NOTHING across a full 322-scene green gate: silence that says only
+     *  "no healthy tick reaches 1 s" and cannot tell a working instrument from a broken one. An
+     *  instrument that has never spoken is not an instrument, so this run is its positive control —
+     *  it must produce lines, with plausible owners and monotonically growing totals, before any
+     *  budget is allowed to fire on the same accounting. Raise it once the healthy spread is known. */
+    private static final long TICK_REPORT_NANOS = 100L * 1_000_000L;
+
+    /** One line per JVM, the first time a slice is charged against a real clock.
+     *
+     *  <p>Exists to split an ambiguous zero. A run with no {@code TICK SPEND} rows can mean "no tick
+     *  was expensive" — the healthy reading — or "{@link WorldView#tickMarker()} never resolved, so
+     *  the accounting disabled itself and would stay silent through the very wedge it was written
+     *  for". Those two are indistinguishable from the absence of rows alone, and the second is a
+     *  live risk: the sentinel is a silent opt-out and the server, the client and the debug arenas
+     *  each supply a different view. This line names the view that actually answered. */
+    private static volatile boolean tickAccountingAnnounced;
 
     /** Stops a wedged tick from writing a line per search for a whole minute. The series is the
      *  evidence, not any single line, and twenty beats already spans the interesting range. */
@@ -1288,6 +1304,15 @@ public final class PathFinder {
         private void chargeTick(long spentNanos) {
             long marker = world.tickMarker();
             if (marker == Long.MIN_VALUE) return;      // view has no clock; do not invent one
+            if (!tickAccountingAnnounced) {
+                tickAccountingAnnounced = true;
+                LOG.info("[pathfinder] tick accounting LIVE — view={} gameTime={} owner={} thread={}."
+                        + " Without this line a run with no TICK SPEND rows would be unreadable:"
+                        + " 'no tick was expensive' and 'no view ever supplied a clock' both look"
+                        + " like silence.",
+                        world.getClass().getSimpleName(), marker, owner,
+                        Thread.currentThread().getName());
+            }
             long[] ts = TICK_SPEND.get();
             if (ts[TS_MARKER] != marker) {             // a real tick boundary: start a fresh account
                 ts[TS_MARKER] = marker;
