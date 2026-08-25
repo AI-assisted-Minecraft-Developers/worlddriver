@@ -902,6 +902,49 @@ public static volatile boolean autoRetreat = false;
 (c) 给这一段禁掉解卡塔的垒高（形状同 `NoBreak`，即「这一腿不许自己长高」）。
 ⚠️ **(c) 最像正解但最危险**：解卡塔是身体走出井底的手段，禁了可能换来走不到（[[a-fix-that-never-gets-its-turn]]）。
 
+###### 🔬 读了产码之后：**修法既不是 (a)(b)(c)，是给一条有理由的宽松补上界**
+
+`JourneyRamp.java:179-183` 的 javadoc **明写了浇筑保留 `>=` 的理由**，逐字：
+
+> **A POUR aims at the target's backing and is genuinely served from any row high enough**,
+> so it keeps the `>=`. A SCOOP is not: its column is verified … for ONE row — the eye is placed
+> at exactly that row's foot — so a body one row up fires a line nobody checked.
+
+⇒ 这不是疏忽，是**当初拿 `recover6` 那一趟量出来的、写清楚了的决策**：装水要精确排，浇筑够高就行。
+`JourneyPour.java:186` 传的 `exactRow = !pouring` 就是它。
+
+**而 `cast9` 证伪的正是「any row high enough」这半句**：
+
+```
+cast9.picks.1 = 4, 63, 19 grass_block face=up → 落进 4, 64, 19
+                （身体 4, 64, 19，眼睛 4.46/66.42/19.56 朝 yaw=-47.70 pitch=76.67）
+```
+
+**`pitch=76.67°`——几乎垂直向下。** 高出 5 排之后，射线要够到 y=60 的背板就得这么俯，
+于是**先撞上身体自己脚下的草方块**，命中点落回身体那一格。
+⇒ 「够高就行」在**高 1 排**时讲得通（略微下俯仍打得到背板），在**高 5 排**时不成立。
+**这条宽松是对的，只是没有上界**（[[a-guard-that-did-not-fire-may-be-right]] 的反面：
+守卫在它被写下的场合成立，出了那个场合就不成立了）。
+
+**所以修法 = 给宽松加上界，不是翻转 `exactRow`。** 翻转会连「高 1 排也能浇」一起杀掉，
+而那一条有 javadoc 的理由撑着、我手上没有反证。
+
+⚠️ **有两处 `>=`，只修一处等于没修**（[[a-fix-that-cannot-reach-its-own-occasion]]）：
+
+| 出处 | 代码 |
+|---|---|
+| `JourneyRamp.java:202` | `exactRow ? here.getY() == landing.getY() : here.getY() >= landing.getY()` |
+| `JourneyPour.java:191` | `if (rig.player().blockPosition().getY() >= wantY) { done.run(); return; }` |
+
+后者的注释写的是「**A flight that reached the row has nothing left for it to do**」——
+本意是「到了排就别再垒塔」，被一个高 5 排的身体满足了。
+📌 **上界取多少要先有证据**：高 1 排放行是 javadoc 的声称，我没量过；高 5 排失败是量到的。
+⇒ 先按「高出 ≥2 排就不算到达」落，**并让这一判据自己写证据行**，下一趟就能看见它开没开火
+（[[an-instrument-behind-a-flag-is-not-an-instrument]]）。
+
+⛔ **现在不能改**：janitor 正在改 `journey/` 下的文件（`JourneyHands.java` 已 dirty，
+`JourneyStairwell.java` 新建中），共享同一棵工作树（[[the-shared-tree-is-the-real-boundary]]）。
+
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
 拍板节好几条的判读样本就是它。⚠️ **必须是 `runRehearsalIntegratedServer`（真 `LocalPlayer`），不是
