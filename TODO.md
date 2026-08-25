@@ -3481,6 +3481,22 @@ VERDICT: GREEN (FILTERED — not a gate result)          62 ticks
 与 [[a-lagging-reading-became-the-crime-scene]] 同族，方向相反：那条是判词读了滞后的数，
 这条是前提读了**超前**的数。两边的规矩是同一条——**判某一刻，就用紧挨那一刻的读数**。
 `staged.beforeFlow` 那一行被**留在场景里**，就是为了让下一个读者看见这个差。
+
+#### 📌 预登记：甲之一 + 乙 的合效排练（`:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`）
+
+真客户端身体（`LocalPlayer`），不是 `runRehearsalServer`——两笔修法都只在竞技场假玩家上验过，
+而 J47c 那一轮刚证明**身体种类是自变量，一份绿不能迁移**。
+
+| 态 | 读到什么 | 含义与下一步 |
+|---|---|---|
+| ① | 12 级 PASS | 两笔在客户端身体上合效成立 ⇒ 跑两个全量闸，然后进真梯 |
+| ② | 12 级 FAIL，但 `flightLastStepSettled` 存在且写「落进末路点了」 | **甲之一 生效，死因搬到了更后面** ⇒ 新前沿，**不是回退**，按新死因开工单 |
+| ③ | 12 级 FAIL，`flightLastStepMissed` 仍在，且那一刻身体腾空 | 甲之一 的入口条件 `got.equals(ends.above())` 在真身体上没覆盖到 ⇒ **先读 `got` 的实际值**再决定收窄还是放宽，别凭空加宽 |
+| ④ | `returnStuck` 再次开火，且身体在楼梯柱上（`climb.*.driftOntoTheFlight` 或 y≤57 的 drift 行） | **甲之二 的触发判据命中** ⇒ 按上面写死的形状去做 |
+| ⑤ | `washedOff` 重试行 >0，且同课 `washedOffUpstream` 写着「没有水源块」 | 半径 4 漏判了一个 5–7 格外的源 ⇒ **读那一行再决定**，这正是留旁注的用途 |
+| ⑥ | 死在 12 级之前（1–11 级某级红） | 与本批无关的回退 ⇒ 先与上一趟排练做差，别默认是这三笔造成的 |
+
+**并发禁令照旧**：排练在跑就不编译、不跑闸——共享同一棵工作树。
 2. **一格高的窗口撑不过四 tick 的重力。** 两次实测：
    摆在 `ends+1.0` ⇒ `subject.endedAt 精确 …/217.92/…`；摆在 `ends+1.6` ⇒ `…/217.83/…`，
    两次 `settled=null`。`blockPosition()` 在脚越过格边界那一刻就翻，而一节点的腿要 4–5 tick 才
