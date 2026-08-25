@@ -155,9 +155,14 @@ public final class PathFinder {
      *  it printed NOTHING across a full 322-scene green gate — silence that says only "no healthy
      *  tick reaches 1 s" and cannot tell a working instrument from a broken one. A calibration run
      *  at 100 ms then measured the healthy spread directly: 13 rows over the whole suite, worst
-     *  500 ms ({@code owner=combat}), next 346 ms ({@code owner=walker.unnamed}). Two seconds sits
-     *  4x above that worst healthy tick, so it stays silent in a run that works, and 30x below the
-     *  watchdog, so a wedge prints a growing series for half a minute before anything dies. */
+     *  row 500 ms ({@code owner=combat}), next 346 ms ({@code owner=walker.unnamed}).
+     *
+     *  <p>Read that worst row as an INTERVAL, not a point: rows print when the running total crosses
+     *  a 100 ms boundary, so "500" plus the absence of a "600" row means the true worst tick lies in
+     *  [500, 600) ms. A later run with the cap at 600 ms confirmed the upper end by never firing.
+     *  Two seconds therefore sits >3.3x above the worst healthy tick, so it stays silent in a run
+     *  that works, and 30x below the watchdog, so a wedge prints a growing series for half a minute
+     *  before anything dies. */
     private static final long TICK_REPORT_NANOS = 2_000L * 1_000_000L;
 
     /** Hard per-tick, per-thread ceiling: once every search on this thread has burned this much
@@ -172,8 +177,15 @@ public final class PathFinder {
      *        added to prevent.</li>
      *    <li>It must sit FAR below the 60 s {@code max-tick-time} watchdog, or it protects nothing.</li>
      *  </ul>
-     *  Against the measured healthy worst of 500 ms this is a 40x margin, so it cannot fire in a run
-     *  that works today — the same contract CEILING_MS is written to.
+     *  Against the measured healthy worst — under 600 ms, see {@link #TICK_REPORT_NANOS} for why
+     *  that reading is an interval — this is a margin over 33x, so it cannot fire in a run that
+     *  works today, the same contract CEILING_MS is written to.
+     *
+     *  <p>It does fire when it must: dropped to 200 ms, i.e. deliberately BELOW the healthy worst,
+     *  a suite run produced 6 trip warnings and 255 cut searches, one tick alone suppressing 1 437
+     *  later searches — the many-cheap-searches shape this exists for, observed directly. The suite
+     *  went RED with a verdict and a results file instead of losing the JVM, which is the whole
+     *  point: a scene can assert on a best-effort answer, and nothing can assert on a dead server. */
      *
      *  <p>Why this exists when four budgets already do: all four reset on a boundary the pathology
      *  crosses freely. {@code sliceMs} and the heartbeat reset every {@code advance()};
