@@ -1057,7 +1057,7 @@ public final class JourneyRig {
             // cell is judged. Not zero: opening a whole alcove inside a single server tick would
             // queue every block update behind the carve and is the shape of「a whole fight in one
             // server tick」this repo has already paid for.
-            settle(new HoldStill(1), 4, then);
+            settle(new HoldStill(1), 4, () -> { sayIfStillThere(target, "就地一挥"); then.run(); });
             return;
         }
         ServerWorldDriver d = body();
@@ -1113,6 +1113,7 @@ public final class JourneyRig {
             }, ticks + 100, () -> {
                 endLeg(d);
                 breakItWhereItStands(target);
+                sayIfStillThere(target, "客户端：走到 2 格内再挥（NoBreak）");
                 then.run();
             });
             return;
@@ -1141,8 +1142,42 @@ public final class JourneyRig {
             return ++waited[0] >= ticks;
         }, ticks + 100, () -> {
             endLeg(d);
+            sayIfStillThere(target, "服务端：引擎自己的 MineProcess");
             then.run();
         });
+    }
+
+    /**
+     * Say so when a give-up dig left the cell exactly as it found it.
+     *
+     * <p>{@link #mineCellOrGiveUp}'s contract is that a cell it cannot open is the caller's problem,
+     * and until now it kept that contract SILENTLY — three exits, none of them recording whether the
+     * cell opened. So a caller's own after-the-fact survey could name a cell that was still there and
+     * nothing in the run could say why: the rung-12 rehearsal of 2026-08-25 asked for three doorway
+     * cells, got two, and reported {@code portal.doorway = 还堵着：4, 57, 19} with no row anywhere
+     * between「要清三格」and「还堵着一格」. Two failures that want opposite remedies — the body never
+     * got within reach, or it was in reach and the swing did nothing — are the same absence of
+     * evidence.
+     *
+     * <p><b>Only when it did not open.</b> The common case is a cell that opened, an alcove sweep is
+     * twenty of them, and twenty rows of「开了」would bury the one that matters — the same asymmetry
+     * {@code climb.*.hand} already uses. The caller knows how many cells it handed over, so no row
+     * means it opened; this is the one reading whose absence is not ambiguous.
+     *
+     * <p>The BODY's level, not the scene's: after rung 19 the two are different worlds, and a block
+     * read from the scene's level would answer about overworld stone at nether coordinates.
+     */
+    private void sayIfStillThere(BlockPos target, String how) {
+        ServerLevel lvl = (ServerLevel) player().level();
+        boolean fluid = !lvl.getFluidState(target).isEmpty();
+        if (lvl.getBlockState(target).isAir() && !fluid) return;
+        BlockPos at = player().blockPosition();
+        evidence("mineCell." + target.toShortString(), "没开：仍是 "
+                + lvl.getBlockState(target).getBlock()
+                + (fluid ? "（还有流体 " + (lvl.getFluidState(target).isSource() ? "源块" : "流动") + "）" : "")
+                + "；身体 " + at.toShortString() + "，中心距 "
+                + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(target.distSqr(at)))
+                + " 格；" + how);
     }
 
     /** Cells opened by {@link #breakItWhereItStands} rather than by a walk, this stage. */
