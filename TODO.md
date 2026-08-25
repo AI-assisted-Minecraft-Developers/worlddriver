@@ -3743,6 +3743,53 @@ mineCell.2, 62, 18 = 没开：仍是 dirt；身体 -4, 62, 20，
 它本来就不该为了赶路拆东西。`Constraint.allows` 已经看得到 `edge.toBreak`，
 现成的 `NoBreak` 就是干这个的——**给这条腿加上它**，和 `mineCellOrGiveUp` 那笔同款。
 
+##### ✅ 定位到具体那一行：`JourneyPortalRung:2422`，浇筑自己的走近腿
+
+三处独立对上，不是猜：
+
+| 证据 | 日志 | 代码 |
+|---|---|---|
+| 段预算 | `本段第312/**1300** tick` | `rig.settle(…, **1_200**, …)`（框架 +100） |
+| 目标形状 | `goal=**Block**[target=BlockPos{x=3,y=60,z=20}]` | `new **Goal.Block**(goal)` |
+| 闸 | 在挖 | `new Intent(new Goal.Block(goal))` —— **没有 `NoBreak`** |
+
+而**同一族的另外三条腿都带闸**，各自的注释还写着一模一样的理由：
+`JourneyPortalRung:196`「The walk may not dig」（走楼梯）、
+`JourneyFill:316`「THE WATER RECOVER MAY NOT DIG ITS WAY THERE」（收水）、
+`JourneyRamp:352`「NoBreak throughout」（坡道）。**第四条被漏了。**
+这不是新规则，是一条已经写了三遍的规则少覆盖了一个调用点
+（[[a-precedent-nobody-ever-verified]] 的反面：先例是对的，只是没铺满）。
+
+修法：给它加上 `NoBreak`，与另外三条同款。**不补引擎能力**，`Constraint`/`NoBreak`
+早就存在，`Walker.mayBreak()` 也早就把执行层的兜底挖掘一并关掉。
+
+**顺带记下没有证据支持、因此这次不动的**：全包 65 条 `new Intent(`，**53 条没有闸**。
+绝大多数在地表/下界/末地行军，那里挖是正当的。模腔内还有五条同样没闸——
+`JourneyPortalRung:798 / 1007 / 2951`、`JourneyFill:1180 / 1239`。
+**这趟的证据只定了 2422 一条的罪**，其余按「哪条腿的死因再指向楼梯就给哪条加闸」处理，
+不做无证据的批量加固（`JourneyPortalRung` 也只剩 10 行预算）。
+
+#### 📌 预登记：加闸之后的排练（写在跑之前，2026-08-25）
+
+读两组量，**代价面和收益面各一组**：
+
+**收益面（闸起作用了吗）**
+| 态 | 读到什么 | 判什么 |
+|---|---|---|
+| A | 全程 `*.stairsBroken` 都是「11 级都完好」，且日志里**没有** `[dig] cell=` 落在梯级支撑那条对角线（`0,57,20 / -1,58,20 / -2,59,20 / -3,60,20 / -4,61,20`） | 修法**被观察到**起作用 |
+| B | 仍有 `stairsBroken`，但挖那几格的段不再是 `Goal.Block` + 1300 | 还有第二个凿子，按上面那五条腿的名单继续定罪 |
+| C | 仍有 `stairsBroken`，段仍是 `Goal.Block`+1300 | 闸装了没生效 —— 去查 `setSearchProfile` 有没有真的被调用 |
+
+**代价面（不让挖之后它还走得到吗）**
+| 态 | 读到什么 | 判什么 |
+|---|---|---|
+| D | `*.stand.*` 之后照旧出 `.picks`/`result=SUCCESS`，浇筑数不降 | 挖本来就没买到东西，代价为零 |
+| E | 浇筑数下降，或 `tries` 用光 / `fromHere` 明显变多 | 代价是真的：那就不是「加闸」而是「这条腿需要一条不用挖的路」，要给它脚本化站位 |
+
+⚠️ **只数「绿了几次」不算数**（[[three-greens-cannot-see-a-one-in-four]]）：
+A 要求的是**没有那几行 `[dig]`**，即修法被**观察到**在它该开火的场合闭合，
+而不是「这趟碰巧没坏」。真梯不可复现，所以判的是族，不是这一趟的结局。
+
 #### 📌 预登记：两个全量闸（写在跑之前，2026-08-25）
 
 **为什么现在必须跑**：本 session 改了**四次**两份 `expected-scenes-*.txt`
