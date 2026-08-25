@@ -697,11 +697,58 @@ final class JourneyRamp {
             more.append("；这一格里还有 ").append(others.size()).append(" 个实体（")
                     .append(others.get(0).getType()).append("）—— isUnobstructed 同样会拒");
         // WHICH FACES placeInto would have clicked, so「没有面可点」and「点了却被拒」stop reading alike.
-        StringBuilder faces = new StringBuilder();
-        for (Direction d : Direction.values())
-            if (level.getBlockState(cell.relative(d)).blocksMotion()) faces.append(d).append(' ');
-        more.append("；可贴的面 ").append(faces.length() == 0 ? "无" : faces.toString().trim());
-        return now + "，贴得到实心面，身体也不压在这一格里 —— " + more;
+        //
+        // TWO TABLES, NEVER ONE. A face that exists and a face this body can hit are different
+        // findings wanting opposite work — no face at all means take another route, a face the eye
+        // cannot reach means move the body — and folding them into one row is what let
+        // `wet.8.ramp.step.3 = … 可贴的面 down` read as「there was a face」about a support whose only
+        // solid neighbour was the block directly BELOW it, whose top face is invisible from
+        // underneath. The old row asked `blocksMotion()` on the neighbour and nothing else, so it
+        // could not make the very distinction the line above says it exists to make.
+        StringBuilder solid = new StringBuilder();
+        StringBuilder hittable = new StringBuilder();
+        var eye = JourneySight.eyeFor(fp, fp.blockPosition());
+        for (Direction d : Direction.values()) {
+            if (!level.getBlockState(cell.relative(d)).blocksMotion()) continue;
+            solid.append(d).append(' ');
+            if (canClick(level, fp, eye, cell, d)) hittable.append(d).append(' ');
+        }
+        more.append("；有实心面 ").append(solid.length() == 0 ? "无" : solid.toString().trim())
+                .append("；这具身体射得到的 ")
+                .append(hittable.length() == 0 ? "无" : hittable.toString().trim());
+        return now + "，身体也不压在这一格里 —— " + more;
+    }
+
+    /**
+     * Would a click at the face between {@code cell} and its neighbour toward {@code d} actually land
+     * on that neighbour, from where this body's eye is right now?
+     *
+     * <p>The same clip a placement runs — {@code OUTLINE}/{@code Fluid.NONE} — and it accepts only a
+     * hit on THAT block and THAT face. Anything else means the ray stopped somewhere first, which is
+     * a placement the world never sees.
+     *
+     * <p><b>Aimed at the neighbour's CENTRE, not at the shared face.</b> The face is a boundary
+     * plane, so a segment ending exactly on it leaves which block the traversal reports to rounding —
+     * a knife edge in the one call whose answer this row is built on. A centre lands well inside, and
+     * the ray still has to cross a face to get there, so {@code hit.getDirection()} names it just the
+     * same. The predicate is therefore coarse in one known way: it says a face is reachable when the
+     * ray reaches ANY point of it, where a real click aims at one point. That is the right side to be
+     * coarse on for a post-mortem, and it is stated rather than left to be discovered.
+     *
+     * <p>Asked of the body's CURRENT eye, because this is a post-mortem on the placement that just
+     * failed and not a search for somewhere better to stand. {@link JourneyStairs#standToPour} and
+     * friends do the second job; a row that quietly answered it instead would say a face is reachable
+     * from a cell the body is not in.
+     */
+    static boolean canClick(ServerLevel level, ServerPlayer body,
+                            net.minecraft.world.phys.Vec3 eye, BlockPos cell, Direction d) {
+        var aim = net.minecraft.world.phys.Vec3.atCenterOf(cell.relative(d));
+        var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
+                net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, body));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                && hit.getBlockPos().equals(cell.relative(d))
+                && hit.getDirection() == d.getOpposite();
     }
 
     /** The alcove's own floor row — the one course that rests on rock rather than on the course

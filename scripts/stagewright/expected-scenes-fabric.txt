@@ -456,6 +456,7 @@ wd.guardRepathSeparatesARimWalkFromALivelock
 wd.rampStepsAsideWhenTheBodyIsInItsOwnStep
 wd.rampFootholdRisesWithTheFlightItLaid
 wd.rampNeverFoldsBackIntoItsOwnHeadroom
+wd.rampSeparatesAFaceThatExistsFromOneItCanHit
 # A ruler, not a test: zero assertions, only ctx.record. Permanently optional — it has no
 # verdict to give. Its readings compare the loader's factory body against a JoinedBody in the
 # same run, which is the only way to tell a FakePlayer-specific difference (retiring that body

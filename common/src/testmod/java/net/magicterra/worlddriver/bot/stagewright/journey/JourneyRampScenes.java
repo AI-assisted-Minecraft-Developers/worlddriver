@@ -114,7 +114,9 @@ public final class JourneyRampScenes implements SceneProvider {
                 Scene.of("wd.rampFootholdRisesWithTheFlightItLaid", 200,
                         JourneyRampScenes::footholdRisesWithTheFlightItLaid),
                 Scene.of("wd.rampNeverFoldsBackIntoItsOwnHeadroom", 400,
-                        JourneyRampScenes::neverFoldsBackIntoItsOwnHeadroom));
+                        JourneyRampScenes::neverFoldsBackIntoItsOwnHeadroom),
+                Scene.of("wd.rampSeparatesAFaceThatExistsFromOneItCanHit", 200,
+                        JourneyRampScenes::separatesAFaceThatExistsFromOneItCanHit));
     }
 
     // ---------------------------------------------------------------------- arena ----
@@ -644,4 +646,97 @@ public final class JourneyRampScenes implements SceneProvider {
     /** How long the climb gets. Four courses at one cell each; the budget is loose enough that a
      *  failure here is「cannot」and not「not yet」. */
     private static final int WALK_TICKS = 300;
+
+    // ------------------------------------------ the face that exists and cannot be hit ----
+
+    /**
+     * A solid neighbour is not a face this body can click, and {@code whyNotLaid} must say both.
+     *
+     * <h2>The row that could not make its own distinction</h2>
+     *
+     * <p>Ladder {@code journey-n3}, rung 12: {@code wet.8.ramp.step.3 = 3, 59, 20 垫不上（…可贴的面
+     * down），身体 3, 56, 20}. The comment above that code says it exists so that「没有面可点」and
+     * 「点了却被拒」stop reading alike — and it asked {@code blocksMotion()} on the neighbour and
+     * nothing else. The support's only solid neighbour was the block directly BELOW it, whose top
+     * face cannot be seen from underneath, so the row reported a face the body could never click and
+     * a reader ruled out the one cause that was live.
+     *
+     * <h2>Why this arm drives the predicate and not the row</h2>
+     *
+     * <p>{@code whyNotLaid} runs only on {@link JourneyRamp.Stop#REFUSED}, and a server-side body in
+     * a staged alcove places successfully — the suite emits the row <b>zero</b> times, measured on
+     * {@code gate-j68.log}. So the row's wiring stays read-by-diff and what is driven here is
+     * {@link JourneyRamp#canClick}, the part that can be wrong: the face-normal convention. A ruler
+     * nobody calibrated is how a false positive gets to break working code.
+     *
+     * <h2>判据</h2>
+     *
+     * <ol>
+     *   <li><b>A</b> the face EXISTS from both stands — {@code cell.below()} is solid either way.
+     *       Without it B is satisfied by an alcove with no face at all;</li>
+     *   <li><b>B</b> from directly underneath, the body cannot click it: a ray up the column stops
+     *       on that block's BOTTOM face, which is a different face of the same block;</li>
+     *   <li><b>C the control</b> — the same cell, the same face, a stand level with it: clickable.
+     *       This is what stops B being satisfied by a predicate that answers no to everything, and
+     *       it is the whole claim in one line: <b>the answer is a property of the body, not of the
+     *       world</b>.</li>
+     * </ol>
+     */
+    private static void separatesAFaceThatExistsFromOneItCanHit(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+
+        Set<BlockPos> corridor = new LinkedHashSet<>();
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -1; dz <= 2; dz++)
+                for (int dy = BASE; dy <= BASE + 5; dy++)
+                    corridor.add(ctx.rel(dx, dy, dz));
+        stage(ctx, corridor);
+
+        // The cell a step would go into, and the ONE solid neighbour it has: the block under it.
+        BlockPos cell = ctx.rel(0, BASE + 3, 0);
+        BlockPos under = cell.below();
+        ctx.setBlock(0, BASE + 2, 0, Blocks.STONE);
+        // Floor for the level stand, two cells along and out of `cell`'s six neighbours.
+        ctx.setBlock(0, BASE + 2, 2, Blocks.STONE);
+
+        BlockPos below = ctx.rel(0, BASE, 0);          // directly under the cell, as on the ladder
+        BlockPos alongside = ctx.rel(0, BASE + 3, 2);  // level with it, two cells away
+
+        int solidFaces = 0;
+        for (Direction d : Direction.values())
+            if (level.getBlockState(cell.relative(d)).blocksMotion()) solidFaces++;
+        ctx.record("rig", cell.toShortString() + " 的六邻里 " + solidFaces + " 个是实心的，唯一那个是 "
+                + under.toShortString() + "（要点的是它的顶面）");
+        ctx.check(solidFaces).as("THE RIG: 这一格必须恰好只有一个实心邻居，否则 B/C 说的是别的面")
+                .isEqualTo(1);
+
+        ServerWorldDriver driver = body(ctx, below);
+        ServerPlayer fp = driver.fakePlayer();
+        boolean solidFromBelow = level.getBlockState(under).blocksMotion();
+        boolean hitFromBelow = JourneyRamp.canClick(level, fp,
+                JourneySight.eyeFor(fp, fp.blockPosition()), cell, Direction.DOWN);
+        ctx.record("below", "身体 " + fp.blockPosition().toShortString() + "（眼睛 "
+                + fp.getEyePosition() + "）：有实心面 " + solidFromBelow
+                + "，射得到 " + hitFromBelow);
+
+        placeAt(driver, alongside);
+        if (!fp.blockPosition().equals(alongside))
+            ctx.fail("THE RIG, not the subject: 身体没落在齐平站位 " + alongside.toShortString()
+                    + "，落在 " + fp.blockPosition().toShortString());
+        boolean solidAlongside = level.getBlockState(under).blocksMotion();
+        boolean hitAlongside = JourneyRamp.canClick(level, fp,
+                JourneySight.eyeFor(fp, fp.blockPosition()), cell, Direction.DOWN);
+        ctx.record("alongside", "身体 " + fp.blockPosition().toShortString() + "（眼睛 "
+                + fp.getEyePosition() + "）：有实心面 " + solidAlongside
+                + "，射得到 " + hitAlongside);
+
+        ctx.check(solidFromBelow && solidAlongside)
+                .as("A 两个站位都看得见这个实心面 —— 面是存在的，两张表的左边一栏一样").isTrue();
+        ctx.check(hitFromBelow).as("B 但正下方那具身体点不到它：射线上去先撞的是同一块的底面，"
+                + "这就是 wet.8.ramp.step.3 里那句「可贴的面 down」瞒住的事").isFalse();
+        ctx.check(hitAlongside).as("C 齐平站位点得到 —— 同一格、同一个面，答案却相反，"
+                + "所以这条谓词问的是身体，不是世界；没有这一条，B 可以靠一个永远说不的谓词满足")
+                .isTrue();
+    }
 }
