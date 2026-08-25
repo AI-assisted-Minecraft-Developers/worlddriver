@@ -3371,6 +3371,31 @@ subject.missed  = null                      subject.endedAt = 100511, 217, 10000
    `ctx.check(missed == null).isNull()` 断的是布尔为 null），第三条还是漏了。
    ⇒ **`ctx.check(x)` 的参数必须是要断言的那个东西本身，不是关于它的布尔表达式。**
    [[a-criterion-success-cannot-satisfy]] 的镜像：判据失败不了跟判据成功不了一样坏。
+
+   **⚡ 顺手全扫 testmod（2026-08-25）——第四条，而且是我搬过去的。**
+   正则跨行找 `ctx.check(<含 ==/!=/!>).isNull()/isNotNull()`，全树只两处命中：
+   一处是上面已修的，另一处是 `JourneyLandingScenes:726`
+   `ctx.check(beyond != null).as("前提：末路点被抬升过…").isNotNull()`——
+   **唇臂的布景前提**，同一形状，从写下那天起只能通过。
+   它是我这一轮把 `stageLipArena` 从 `walksOffTheLipOntoTheDryStep` 里提取出来时**原样搬运**的：
+   重构不看断言语义，所以搬运不会暴露它，反而给了它第二个调用点。
+   ⇒ 这一族的自检不能靠「改的时候顺便看看」，得是一次**结构化扫描**；
+   两处命中都在同一个文件，说明手写判据的坏习惯是按文件聚集的，不是均匀撒开的。
+
+#### 📌 预登记：把 `stageLipArena` 那条前提改成能红（跑之前先写死判据）
+
+改动一行：`ctx.check(beyond != null)` → `ctx.check(beyond)`。跑法同上（两臂过滤跑）。
+**风险是实打实的**：这条前提**从来没有真正判过**，所以它断言的事实至今零验证——
+`JourneyStairs.nextDown(ends)` 在这个布景里到底返不返 null，日志里只有
+`staged.terminal` 那行的 `下一级=` 字样能说话。
+
+| 态 | 读到什么 | 含义与下一步 |
+|---|---|---|
+| ① | 两臂仍 PASS，`staged.terminal` 的「下一级=」是个坐标 | 前提本来就成立，这一笔只是让它**具备了判红的能力**。继续甲之二 |
+| ② | 唇臂 FAIL，失败行就是这条前提，`下一级=null` | **布景一直没摆成**，唇臂过往每一份绿都要重估（它的后续判据在一个没抬升的末路点上跑）。停下来先读唇臂历史，别急着改布景 |
+| ③ | 两臂 PASS 但 `staged.terminal` 写着 `下一级=null` | 修法没生效——`Expect.isNotNull()` 对 `BlockPos` 的行为与我以为的不同。先读 `Expect`，别改场景 |
+| ④ | 新臂（落地臂）跟着变红 | 它不经过 `stageLipArena`，所以**不该受影响**；真变了就是这一轮编译混进了别的改动，先 `git diff` |
+| ⑤ | 编译红 | `ctx.check` 的泛型对 `BlockPos` 不适用 ⇒ 读 `SceneContext.check` 的签名再决定形状 |
 2. **一格高的窗口撑不过四 tick 的重力。** 两次实测：
    摆在 `ends+1.0` ⇒ `subject.endedAt 精确 …/217.92/…`；摆在 `ends+1.6` ⇒ `…/217.83/…`，
    两次 `settled=null`。`blockPosition()` 在脚越过格边界那一刻就翻，而一节点的腿要 4–5 tick 才
