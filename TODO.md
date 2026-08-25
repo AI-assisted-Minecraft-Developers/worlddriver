@@ -3351,6 +3351,35 @@ drain.7.upstream=壁龛与楼梯底周围 8 格内没有水源块 —— 那就�
 `down()` 在回调时已为真，新分支根本不该被它碰到。旧臂若冒出 settled 行，
 说明入口条件比我以为的宽，按 ⑥ 处理。
 
+#### ✅ 判读：**① 命中**（`d0b2299c`，过滤跑第三次）
+
+```
+drop.flightLastStepSettled = 100511, 218, 100000 → 100511, 217, 100000（等 20 tick 让下坠落地）
+                             —— 落进末路点了，这一步本来就走成了
+subject.missed  = null                      subject.endedAt = 100511, 217, 100000
+旧臂 lip.flightLastStepSettled 出现次数 = 0   ← 预登记要求的静默，成立
+```
+
+分支只在腾空那一族开火，把判词从「没到」翻成「到了」，健康臂逐字节不变（4 ticks，PASS 不变）。
+
+**但 ① 是第三次才拿到的，前两次都是 ④，而第一次的 ④ 被一条只能通过的判据盖住了。**
+两条都值得单独记：
+
+1. **判据写反了第三次。** `ctx.check(settled != null).as(…).isNotNull()` —— 传进去的是布尔，
+   布尔永远不为 null，所以判据 A **只能通过**。它在一趟 `subject.settled=null` 的运行上报了 PASS。
+   同一天同一文件我已经改掉两条同形的（`ctx.check(!fp.onGround()).isFalse()` 断的是「站着」、
+   `ctx.check(missed == null).isNull()` 断的是布尔为 null），第三条还是漏了。
+   ⇒ **`ctx.check(x)` 的参数必须是要断言的那个东西本身，不是关于它的布尔表达式。**
+   [[a-criterion-success-cannot-satisfy]] 的镜像：判据失败不了跟判据成功不了一样坏。
+2. **一格高的窗口撑不过四 tick 的重力。** 两次实测：
+   摆在 `ends+1.0` ⇒ `subject.endedAt 精确 …/217.92/…`；摆在 `ends+1.6` ⇒ `…/217.83/…`，
+   两次 `settled=null`。`blockPosition()` 在脚越过格边界那一刻就翻，而一节点的腿要 4–5 tick 才
+   consumed —— **格内没有任何高度能撑住这段时间**。真梯是靠另一条路撑开的：身体在
+   `精确=(1.454,58.000,20.500)`、下坠距离为 0、支撑刚失去，离翻格还有一 tick。
+   竞技场里改用香草缓降当**时钟控制**（被测对象仍是判据分支，不是坠落动力学），
+   并加控制组 C 断言缓降真的挂上了——没挂上就又回到 ④，而 ④ 长得像 PASS。
+   [[the-collision-box-is-not-the-cell]] 同族：格坐标不是几何。
+
 ⚠ 下游能不能从那一级干活，日志里已有正证据：`recover2.fromHere=1, 57, 20`、
 `recover6.fromHere=2, 58, 19`、`recover7.fromHere=2, 58, 21`——收水从**多个**格成功过，
 井底不是唯一座位。这不等于浇筑也行，所以 ③ 保留在表里。
