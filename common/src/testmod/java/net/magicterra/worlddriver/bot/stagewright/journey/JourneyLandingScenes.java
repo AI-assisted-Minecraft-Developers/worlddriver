@@ -58,7 +58,9 @@ public final class JourneyLandingScenes implements SceneProvider {
                 Scene.of("wd.journeyReseatsWhenItCanSeeNoWater", 6_000,
                         JourneyLandingScenes::reseatsWhenItCanSeeNoWater),
                 Scene.of("wd.journeyKeepsTheSeatItMovedTo", 6_000,
-                        JourneyLandingScenes::keepsTheSeatItMovedTo));
+                        JourneyLandingScenes::keepsTheSeatItMovedTo),
+                Scene.of("wd.journeyFlightEndsOnADryStep", 6_000,
+                        JourneyLandingScenes::flightEndsOnADryStep));
     }
 
     /** Natural ground level inside the arena box. */
@@ -527,6 +529,110 @@ public final class JourneyLandingScenes implements SceneProvider {
             ctx.check(after > before).as("H 桶真的装上了水（判存量，不是判 use 的返回值）："
                     + before + " → " + after).isTrue();
         });
+    }
+
+    // ------------------------------------------- where the flight itself ends ----
+
+    /** Steps in the staged flight. Five, so that the stride (4) and the terminal are different
+     *  indices — a three-step flight would end at the stride's own last waypoint and the scene would
+     *  pass without the terminal ever being chosen. */
+    private static final int STEPS = 5;
+
+    /**
+     * The flight stops on the lowest step a body can stand on, and that is the bottom only while the
+     * bottom is dry.
+     *
+     * <p>Staged rather than waited for, because the occasion arrives exactly once per ladder run and
+     * costs forty minutes to reach: rung 12's ninth cast, when the mould's own pour has climbed high
+     * enough that the runoff reaches the bottom step's HEAD ROOM as well as the step. See
+     * {@link JourneyStairs#lowestDryStep} for the nine casts that measured it.
+     *
+     * <p><b>Two arms, and they must assert different values.</b> {@link JourneyStairs#cells} is static
+     * — one flight per process — so a scene that ran both arms against one assertion would pass on a
+     * leaked list without ever re-reading the world. Here the dry arm demands the terminal BE the
+     * bottom and the wet arm demands it NOT be, so one returned value cannot satisfy both.
+     *
+     * <p><b>The wet arm asserts the specification, not a named cell.</b> Water placed in the bottom
+     * step's head room is free to flow sideways into the step above it, so which step ends up lowest
+     * and dry is not fixed — what is fixed is that the terminal is dry in both its cells and that
+     * every step below it is not. Pinning a coordinate here would make the scene fail on the fluid
+     * tick rather than on the behaviour.
+     */
+    private static void flightEndsOnADryStep(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        // FORGET THE FLIGHT, always. `JourneyStairs.cells` is process-wide, and a ladder run sharing
+        // this process would otherwise start rung 12 with this scene's five-step staircase already
+        // cut — the class javadoc asks for exactly this.
+        ctx.cleanup(() -> { JourneyStairs.forget(); clearBox(ctx); });
+        flatGround(ctx);
+
+        // Cut the flight into the stone, east and down, one course a step — the shape
+        // `digStairsDown` makes. Each step is its own cell plus its head room; the block under it
+        // stays, because that is what holds the step up.
+        List<BlockPos> cut = new java.util.ArrayList<>();
+        for (int i = 0; i < STEPS; i++) {
+            ctx.setBlock(-4 + i, GROUND - i, 0, Blocks.AIR);
+            ctx.setBlock(-4 + i, GROUND - i + 1, 0, Blocks.AIR);
+            cut.add(ctx.rel(-4 + i, GROUND - i, 0));
+        }
+        JourneyStairs.reset(level, cut.get(0));
+        for (int i = 1; i < STEPS; i++) JourneyStairs.cut(cut.get(i));
+        BlockPos bottom = cut.get(STEPS - 1);
+        ctx.record("staged.flight", cut.get(0).toShortString() + " → " + bottom.toShortString()
+                + "（" + JourneyStairs.steps() + " 级）");
+
+        // ---- arm A: dry. The terminal must be the bottom, i.e. nothing changed for a healthy run.
+        List<BlockPos> dry = JourneyPortalRung.stairRoute(level, true);
+        ctx.record("dry.route", dry.toString());
+        ctx.check(dry.get(dry.size() - 1).equals(bottom))
+                .as("A 楼梯底是干的时候，末路点仍然是楼梯底 " + bottom.toShortString()
+                        + " —— 实到 " + dry.get(dry.size() - 1)
+                        + "；这一臂是控制组，它一红就说明修法改了健康路线").isTrue();
+        ctx.check(dry.size() >= 2)
+                .as("A2 路线必须真的有中间路点（不然测的是「只有一个终点」而不是「终点选对了」）："
+                        + dry.size() + " 个").isTrue();
+
+        // ---- arm B: the bottom step and its head room under water, as cast8 found them.
+        ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 1, 0, Blocks.WATER);
+        ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 2, 0, Blocks.WATER);
+        List<BlockPos> wet = JourneyPortalRung.stairRoute(level, true);
+        BlockPos ends = wet.get(wet.size() - 1);
+        ctx.record("wet.route", wet.toString());
+        ctx.record("wet.cells", story(level, cut));
+        ctx.check(!ends.equals(bottom))
+                .as("B 楼梯底泡在水里时，末路点不能还是它：" + ends.toShortString()
+                        + "（楼梯底 " + bottom.toShortString() + "）").isTrue();
+        ctx.check(level.getFluidState(ends).isEmpty() && level.getFluidState(ends.above()).isEmpty())
+                .as("C 选中的那一级自身格与头顶格都必须没有流体 —— 站不住的落点跟没换一样："
+                        + story(level, List.of(ends))).isTrue();
+        int end = cut.indexOf(ends);
+        boolean allBelowWet = true;
+        for (int s = end + 1; s < STEPS; s++)
+            if (level.getFluidState(cut.get(s)).isEmpty()
+                    && level.getFluidState(cut.get(s).above()).isEmpty()) allBelowWet = false;
+        ctx.check(allBelowWet)
+                .as("D 选中的是最低的干台阶，不是随便一级更高的：它下面每一级都必须有流体 —— "
+                        + story(level, cut)).isTrue();
+        for (BlockPos w : wet)
+            ctx.check(cut.indexOf(w) <= end)
+                    .as("E 没有路点落在终点下方（stride 会跨过终点，跨过去就是又走回水里）：" + w
+                            + " 在第 " + cut.indexOf(w) + " 级，终点在第 " + end + " 级").isTrue();
+    }
+
+    /** Each step's own cell and head room, fluid named — the reading every check above quotes. */
+    private static String story(ServerLevel level, List<BlockPos> steps) {
+        StringBuilder sb = new StringBuilder();
+        for (BlockPos s : steps) {
+            if (sb.length() > 0) sb.append("；");
+            sb.append(s.toShortString()).append("=").append(fluid(level, s))
+              .append("，头顶=").append(fluid(level, s.above()));
+        }
+        return sb.toString();
+    }
+
+    private static String fluid(ServerLevel level, BlockPos c) {
+        var fs = level.getFluidState(c);
+        return fs.isEmpty() ? "干" : (fs.isSource() ? "水(源)" : "水(流 level=" + fs.getAmount() + ")");
     }
 
     // ------------------------------------------------------------- plumbing ----

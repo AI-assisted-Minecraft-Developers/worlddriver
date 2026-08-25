@@ -356,6 +356,11 @@ wd.journeyReseatsWhenItCanSeeNoWater
 # Same trap, bank stacked out of reach, so the seat lands past the approach's radius and the guard
 # that stops the re-entry undoing the move has an occasion.
 wd.journeyKeepsTheSeatItMovedTo
+# Where the flight itself stops. The mould's own runoff floods the bottom step from the row the pour
+# is aimed at, and a waypoint whose cell and head room are both water cannot be walked to — the leg
+# stops four cells short and the rung reads that as「走不回模腔」. Two arms, asserting opposite
+# values, because the flight's cell list is process-wide.
+wd.journeyFlightEndsOnADryStep
 
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
