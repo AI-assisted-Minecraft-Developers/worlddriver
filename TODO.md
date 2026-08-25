@@ -3244,6 +3244,24 @@ drain.7.upstream=壁龛与楼梯底周围 8 格内没有水源块 —— 那就�
 否则串味会一起通过——[[a-scene-that-owns-a-global]]）：** 干臂断言末路点 == 楼梯底；
 湿臂把楼梯底与其头顶格灌上水，断言末路点 == 上一级。同一个返回值不可能同时满足两臂。
 
+**已落地（`00f1ca2e` 修法、`d236f83f` 场景+双清单）。** 场景名
+`wd.journeyFlightEndsOnADryStep`，五级楼梯（stride=4，所以终点与 stride 末点是不同下标——
+三级楼梯会让终点从来没被选过而照样绿）。湿臂**不钉坐标**：灌在楼梯底头顶格的水可以横着流进
+上一级，哪一级最低且干不是定值，所以断言的是**规格**——终点两格都无流体、且它下面每一级都有流体、
+且没有路点落在终点下方。钉坐标会让它按流体 tick 红，而不是按行为红。
+
+**闸的预登记（`stagewrightDedicatedServerFabric`，写在读结果之前）：**
+基线是 GREEN / `COVERAGE: 292/25` / 必需 FAIL 0 / 可选 3（`wd.vineOverWaterClimb`、
+`wd.serverEscapeSealedShelter`、`wd.journeyGetsAshoreBeforePouring`）/ UNDECLARED 0。
+我加了一条会执行的场景 ⇒ **应当是 GREEN、`293/25`、必需 0、可选 3、UNDECLARED 0、
+`wd.journeyFlightEndsOnADryStep` PASS**。
+
+- 若 UNDECLARED ≥ 1 ⇒ 双清单没同步（`d236f83f` 里两份都改了，所以这一条红等于我改错了文件）。
+- 若新场景红在 A 臂 ⇒ **修法改了健康路线**，这是控制组，必须立刻回退。
+- 若新场景红在 B/C/D/E ⇒ 修法或布景的问题，按断言编号定位，不要先怪流体。
+- 若 `COVERAGE` 仍是 `292/25` ⇒ 场景注册了但没执行（`SceneProvider` 没被扫到），
+  这不是绿，是 [[skip-is-not-coverage]]。
+
 ###### J68c（只登记，不追）：「不用修楼梯」这条捷径只比了 y，没比柱
 
 同一条腿再往下三行：
