@@ -61,16 +61,18 @@ public final class JourneyLandingScenes implements SceneProvider {
                         JourneyLandingScenes::keepsTheSeatItMovedTo),
                 Scene.of("wd.journeyFlightEndsOnADryStep", 6_000,
                         JourneyLandingScenes::flightEndsOnADryStep),
-                // NOT REQUIRED, standing RED on purpose, and it earned that shelf on its first run:
-                // it REFUTED the fix it was written to validate. Aiming the second leg at
-                // `JourneyStairs.nextDown` moves the body zero blocks, because the terminal is
-                // `lowestDryStep` and therefore every step below it is water — the water the terminal
-                // was raised to avoid. What it is waiting on is a way to move a body a tenth of a
-                // block sideways when it stands, unsupported by its own cell, on the lip of the one
-                // above: `Goal.Block.reached` is exact-cell, and every Fall/StepDown in the move
-                // catalog carries a cardinal horizontal offset, so nothing in the walker expresses
-                // 「drop in place」. Softening the assertion into something today's walker can satisfy
-                // would delete the only rig that reproduces the losing pose in 317 ms.
+                // NOT REQUIRED, standing RED on purpose, and it earned that shelf on its first run by
+                // REFUTING the fix it was written to validate — aiming a second leg one step further
+                // down walked the body two cells BACK and one row UP, so that leg is gone.
+                //
+                // What it now pins is TODO J47, and it is the better of J47's two witnesses. The
+                // other, `wd.journeyGetsAshoreBeforePouring`, has a body floating in water, which
+                // invited「buoyancy」as the explanation. This one has a body standing on dry stone —
+                // and the reading is identical: `end=path-consumed err=无`, a path produced and
+                // walked to its end, the body never arriving. No water anywhere near it.
+                //
+                // Flips to PASS by itself when J47 lands. Softening the assertion into something
+                // today's walker can satisfy would delete the cheapest rig either defect has.
                 Scene.of("wd.journeyWalksOffTheLipOntoTheDryStep", 6_000,
                         JourneyLandingScenes::walksOffTheLipOntoTheDryStep).withRequired(false));
     }
@@ -727,22 +729,26 @@ public final class JourneyLandingScenes implements SceneProvider {
         JourneyPortalRung.finishTheFlight(rig, "lip", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
-            Object again = rig.evidenceOf("lip.flightLastStepAgain");
+            Object end = rig.evidenceOf("lip.flightLastStepEnd");
             ctx.record("subject.endedAt", String.format(java.util.Locale.ROOT,
                     "%s 精确 %.2f/%.2f/%.2f", got.toShortString(), fp.getX(), fp.getY(), fp.getZ()));
             ctx.record("subject.missed", String.valueOf(missed));
-            ctx.record("subject.again", String.valueOf(again));
-            ctx.record("subject.ended", String.valueOf(rig.evidenceOf("lip.flightLastStepEnded")));
-            ctx.record("subject.legs", again != null ? "两腿" : missed != null ? "一腿，第二腿没开火" : "一腿");
-            ctx.record("subject.overshot", got.equals(beyond) ? "滑到了下一级 " + beyond.toShortString()
-                    : got.equals(ends) ? "停在末路点上" : "都不是：" + got.toShortString());
+            ctx.record("subject.walkerEnd", String.valueOf(end));
+            ctx.record("subject.rowsAbove", String.valueOf(got.getY() - ends.getY()));
+            ctx.record("subject.movedBy", String.format(java.util.Locale.ROOT, "%.2f 格（起 %.2f/%.2f，止 %.2f/%.2f）",
+                    Math.hypot(fp.getX() - (ends.getX() + 0.20), fp.getZ() - (ends.getZ() + 0.5)),
+                    ends.getX() + 0.20, ends.getZ() + 0.5, fp.getX(), fp.getZ()));
 
             ctx.check(got.getY() <= ends.getY()).as("A 身体最后必须下到末路点那一排或更低 —— "
                     + "这就是 walkHome 判的那个量（`here.getY() > floorY + 1` 才算走不回）："
                     + "终点 " + got + "，末路点 " + ends).isTrue();
-            ctx.check(missed == null || again != null).as("B 第一腿没落地时，第二腿**必须**开火。"
-                    + "这是真梯上缺的那一支：它写完 flightLastStepMissed 就放行了。"
-                    + "missed=" + missed + "，again=" + again).isTrue();
+            // B IS NOT「did the leg fire」ANY MORE. It fires; what it does not do is arrive. The leg
+            // must at least have been asked and answered — a run where `flightLastStepEnd` is absent
+            // means `finishTheFlight` returned down the「already low enough」branch and criterion A
+            // above is 0==0, which is the one way this scene can go green while testing nothing.
+            ctx.check(end != null).as("B 这一腿必须真的开过火并留下判词 —— "
+                    + "没有 flightLastStepEnd 就说明 finishTheFlight 走的是「本来就够低」那一支，"
+                    + "判据 A 于是变成 0==0。walkerEnd=" + end).isTrue();
         });
     }
 

@@ -288,12 +288,15 @@ final class JourneyStairs {
      * The step one below {@code cell} in the flight, or null when {@code cell} is the bottom one (or
      * is not a step at all).
      *
-     * <p><b>What it is for is a goal the walker will actually move towards.</b> A body stopped on the
-     * lip above the terminal is already well inside {@code LEG_ARRIVED} of it — measured at 0.58 —
-     * so asking for the terminal again is a retry that changes nothing. The next step down is 1.98
-     * away, outside the ball, and reaching for it takes the body off the lip. Same answer
-     * {@code digStairsDown} reaches when a step refuses three times and it starts cutting two at a
-     * time: keep the shape, move the goal.
+     * <p><b>It was written as a walking goal and is no longer used as one.</b> Aiming the last step
+     * at it was measured on {@code wd.journeyWalksOffTheLipOntoTheDryStep} and removed: whenever the
+     * terminal was raised by {@link #lowestDryStep} — the only case where the lip pose happens — the
+     * step below is by definition under water, and the leg spent its whole budget walking the body
+     * two cells back and one row UP the flight. See {@code JourneyPortalRung#finishTheFlight}.
+     *
+     * <p>What it is still for is <b>staging</b>: a scene that means to reproduce the raised-terminal
+     * world asserts this is non-null, because「the terminal was raised」and「there is a step below it」
+     * are the same fact. That is a precondition check, not a goal.
      *
      * <p>Bare coordinates like {@link #cells}, so it inherits that list's lifetime — a flight that
      * has been {@link #forget}ten has no next step and this says so.
