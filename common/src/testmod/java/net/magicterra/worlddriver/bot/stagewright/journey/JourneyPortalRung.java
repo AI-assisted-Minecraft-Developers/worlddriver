@@ -450,14 +450,53 @@ public final class JourneyPortalRung {
             // mechanism for a whole ladder without ever being asked.
             rig.evidence(tag + ".flightLastStepEnd", JourneyLeg.walkerEnd(rig));
             if (down(got, ends)) { then.run(); return; }
-            // SAY SO WHEN IT DID NOT LAND. A leg that quietly fails leaves `returnedY` to report the
-            // same row it would have reported without this method, and the reader cannot tell a step
-            // that was never needed from one that was needed and refused.
+            // A BODY ONE ROW ABOVE THE TERMINAL MAY BE FALLING INTO IT, and this callback is the
+            // wrong tick to ask. Measured on the rung-12 rehearsal of 2026-08-25, whose last walker
+            // row before this judgment was `身体=1,58,20 精确=(1.454,58.000,20.500) cur2=0.002
+            // 脚底实心=0.0000 因=within` — horizontally on the terminal's centre with nothing under
+            // the feet — and one second later the body was two rows lower and walking on. The step
+            // HAD been walked. Judging it a miss cost `returnedY=58`, which bought a `returnStuck`
+            // tower that then ate the rung's whole 6503-tick budget in the pour's own water.
+            //
+            // Narrow on purpose: only the body standing in the terminal's OWN head room waits. Any
+            // other cell is a body that is somewhere else, and giving it time would be widening the
+            // criterion rather than reading it at the right moment.
+            //
+            // Not `onGround`: that same row read `onGround=true` beside `脚底实心=0.0000`, because
+            // it describes the previous `move()` and not what is under the body now.
+            if (got.equals(ends.above())) {
+                rig.settle(new HoldStill(LAND_TICKS), LAND_TICKS * 2, () -> {
+                    BlockPos after = rig.player().blockPosition();
+                    // WHETHER THE WAIT CHANGED THE ANSWER, always. A step that was already walked
+                    // and one where the body is genuinely balanced on the lip above must not leave
+                    // the same log — that is the whole reason this branch is allowed to exist.
+                    rig.evidence(tag + ".flightLastStepSettled", got.toShortString() + " → "
+                            + after.toShortString() + "（等 " + LAND_TICKS + " tick 让下坠落地）—— "
+                            + (down(after, ends) ? "落进末路点了，这一步本来就走成了"
+                                                 : "没动，身体是真骑在上一级的唇上"));
+                    sayMissedUnlessLanded(rig, tag, after, ends, then);
+                });
+                return;
+            }
+            sayMissedUnlessLanded(rig, tag, got, ends, then);
+        });
+    }
+
+    /** How long a body falling INTO the terminal gets to land before {@link #finishTheFlight} asks
+     *  again. Three times the fall of one block from rest, and the leg it follows has already spent
+     *  its own budget — so this cannot pass off a walk that never happened as one that did. */
+    private static final int LAND_TICKS = 20;
+
+    /** SAY SO WHEN IT DID NOT LAND. A leg that quietly fails leaves {@code returnedY} to report the
+     *  same row it would have reported without {@link #finishTheFlight}, and the reader cannot tell a
+     *  step that was never needed from one that was needed and refused. */
+    private static void sayMissedUnlessLanded(JourneyRig rig, String tag, BlockPos got, BlockPos ends,
+                                              Runnable then) {
+        if (!down(got, ends))
             rig.evidence(tag + ".flightLastStepMissed", got.toShortString()
                     + " 仍不在末路点 " + ends.toShortString() + " 上 —— "
                     + cellStory(rig.ctx().level(), ends, false) + "；" + landingStory(rig));
-            then.run();
-        });
+        then.run();
     }
 
     /** Is the body at the terminal, or already past it downward? The flight only ever needs to get

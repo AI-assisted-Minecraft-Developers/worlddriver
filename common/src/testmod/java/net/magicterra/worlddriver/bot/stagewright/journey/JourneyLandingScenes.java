@@ -73,7 +73,11 @@ public final class JourneyLandingScenes implements SceneProvider {
                 // Ten seconds a run under `-Pstagewright.scenes=`, and every one of those readings
                 // came out of this arena rather than off a 50-minute ladder.
                 Scene.of("wd.journeyWalksOffTheLipOntoTheDryStep", 6_000,
-                        JourneyLandingScenes::walksOffTheLipOntoTheDryStep));
+                        JourneyLandingScenes::walksOffTheLipOntoTheDryStep),
+                // The airborne half of the same argument. The arm above asserts `onGround`, so the
+                // family the rung-12 ladder actually died in is outside it by construction.
+                Scene.of("wd.journeyJudgesTheLastStepAfterTheDropLands", 4_000,
+                        JourneyLandingScenes::judgesTheLastStepAfterTheDropLands));
     }
 
     /** Natural ground level inside the arena box. */
@@ -664,16 +668,30 @@ public final class JourneyLandingScenes implements SceneProvider {
      * nothing about the production path. What IS asserted is the implication: if the first leg missed,
      * the second must have fired. That is the branch the ladder never had.
      */
-    private static void walksOffTheLipOntoTheDryStep(SceneContext ctx) {
+    /**
+     * The flooded flight both lip arms are read against, and the raised terminal it produces.
+     *
+     * <p>THREE CELLS PER STEP, the same three {@code digStairsDown} cuts — the step, its head room,
+     * and the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
+     * lip scene paid for it on its first reading: {@code end=failed:no path (expanded=2)} on BOTH
+     * legs, an artifact of this staging rather than anything the ladder does. {@code StepDown}
+     * requires the PASSTHROUGH column's head to be clear ({@code moves/StepDown.java:23}), and on the
+     * way down that passthrough is exactly the cell whose head is the third cut — so omitting it
+     * breaks the descent search too, not only the climb back up that {@code digStairsDown}'s javadoc
+     * names.
+     *
+     * <p>THE TWO ENDS OF THE FLIGHT ARE STATE TOO, and they are process-wide exactly as the cell list
+     * is. {@code landingStory} — which every row these scenes read goes through — formats
+     * {@code stairBottom} unconditionally, so a scene that cuts a flight without naming its ends hands
+     * the production path a null. Cleared with the cells for the same reason they are.
+     *
+     * <p>WALKER ROWS, unconditionally. {@code walkerDebug} is off in every gate run, so its 步进 /
+     * guard lines can never explain a run that did not set it — and these scenes' whole subject is
+     * which tick-phase refuses the last tenth of a block. Five ticks of rows is not a volume worth
+     * throttling for, so it is not put behind a second flag of its own.
+     */
+    private static BlockPos stageLipArena(SceneContext ctx) {
         ServerLevel level = ctx.level();
-        // THE TWO ENDS OF THE FLIGHT ARE STATE TOO, and they are process-wide exactly as the cell
-        // list is. `landingStory` — which every row this scene reads goes through — formats
-        // `stairBottom` unconditionally, so a scene that cuts a flight without naming its ends hands
-        // the production path a null. Cleared with the cells for the same reason they are.
-        // WALKER ROWS, unconditionally. `walkerDebug` is off in every gate run, so its 步进 /
-        // guard lines can never explain a run that did not set it — and this scene's whole subject is
-        // which tick-phase refuses the last tenth of a block. Five ticks of rows is not a volume
-        // worth throttling for, so it is not put behind a second flag of its own.
         boolean debugWas = net.magicterra.worlddriver.bot.BotConfig.walkerDebug;
         net.magicterra.worlddriver.bot.BotConfig.walkerDebug = true;
         ctx.cleanup(() -> {
@@ -685,13 +703,6 @@ public final class JourneyLandingScenes implements SceneProvider {
         });
         flatGround(ctx);
 
-        // THREE CELLS PER STEP, the same three `digStairsDown` cuts — the step, its head room, and
-        // the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
-        // lip scene paid for it on its first reading: `end=failed:no path (expanded=2)` on BOTH legs,
-        // an artifact of this staging rather than anything the ladder does. `StepDown` requires the
-        // PASSTHROUGH column's head to be clear (`moves/StepDown.java:23`), and on the way down that
-        // passthrough is exactly the cell whose head is the third cut — so omitting it breaks the
-        // descent search too, not only the climb back up that `digStairsDown`'s javadoc names.
         List<BlockPos> cut = new java.util.ArrayList<>();
         for (int i = 0; i < STEPS; i++) {
             ctx.setBlock(-4 + i, GROUND - i, 0, Blocks.AIR);
@@ -714,6 +725,77 @@ public final class JourneyLandingScenes implements SceneProvider {
         ctx.record("staged.terminal", ends.toShortString() + "，下一级=" + String.valueOf(beyond));
         ctx.check(beyond != null).as("前提：末路点被抬升过，所以它下面还有一级可以改瞄 —— "
                 + "没有下一级就说明这一臂根本没摆成，后面的判据全无意义").isNotNull();
+        return ends;
+    }
+
+    /**
+     * The other half of {@link #walksOffTheLipOntoTheDryStep}: the body is FALLING into the terminal
+     * when the last step is judged.
+     *
+     * <p>That arm's control B asserts {@code onGround} — 「身体必须是**站着**的，不是正在下坠」 —
+     * so the whole airborne family is deliberately outside it, and no green run of it can say anything
+     * about the branch that family reaches. The rung-12 rehearsal of 2026-08-25 is what that family
+     * looks like: the walker's last row was {@code 精确=(1.454,58.000,20.500) cur2=0.002
+     * 脚底实心=0.0000}, horizontally on the terminal's centre with nothing under the feet, and the
+     * judgment fired a tick or two before the drop landed. Same shape as the blaze fight's fall guard
+     * — a branch a healthy arm never executes has to be staged, or its green is worth nothing.
+     *
+     * <p>Staged by POSE, not by clock: the body is put in the terminal's own head room with air below
+     * it, so it is falling from the first tick, and the one-node leg is consumed long before the drop
+     * lands. Nothing about the healthy arm changes.
+     */
+    private static void judgesTheLastStepAfterTheDropLands(SceneContext ctx) {
+        BlockPos ends = stageLipArena(ctx);
+
+        // IN THE AIR OVER THE TERMINAL, dead centre — not a fifth of a cell into it like the lip arm.
+        // The lip pose exists to keep the body supported by the tread above; this one exists to take
+        // that support away, so the only thing between the body and the terminal is the fall.
+        ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
+        ServerPlayer fp = driver.fakePlayer();
+        ServerPlayerAvatar av = driver.avatar();
+        fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.0, ends.getZ() + 0.5);
+        av.step();
+
+        BlockPos posed = fp.blockPosition();
+        ctx.record("staged.pose", String.format(java.util.Locale.ROOT,
+                "%s 精确 %.2f/%.2f/%.2f，onGround=%s", posed.toShortString(),
+                fp.getX(), fp.getY(), fp.getZ(), fp.onGround()));
+        ctx.check(posed.equals(ends.above())).as("控制组 A：身体必须正在末路点的头顶格里 —— "
+                + "这是新分支唯一的入口条件，不在这一格就根本没测到它："
+                + posed + "，末路点头顶 " + ends.above()).isTrue();
+        ctx.check(fp.onGround()).as("控制组 B：身体必须**正在下坠**，不是站着 —— "
+                + "站着的身体等多久都不会落进去，那是另一条臂测的东西：onGround="
+                + fp.onGround()).isFalse();
+
+        JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
+        JourneyPortalRung.finishTheFlight(rig, "drop", ends, () -> {
+            BlockPos got = fp.blockPosition();
+            Object settled = rig.evidenceOf("drop.flightLastStepSettled");
+            Object missed = rig.evidenceOf("drop.flightLastStepMissed");
+            ctx.record("subject.endedAt", String.format(java.util.Locale.ROOT,
+                    "%s 精确 %.2f/%.2f/%.2f，onGround=%s", got.toShortString(),
+                    fp.getX(), fp.getY(), fp.getZ(), fp.onGround()));
+            ctx.record("subject.settled", String.valueOf(settled));
+            ctx.record("subject.missed", String.valueOf(missed));
+            ctx.record("subject.walkerEnd", String.valueOf(rig.evidenceOf("drop.flightLastStepEnd")));
+
+            // A IS THE WHOLE POINT, and it is asked first because the other two are 0==0 without it.
+            // No settled row means the callback never saw the body in the head room — either the drop
+            // landed before the leg ended (then this arm staged nothing) or the branch is not being
+            // reached at all. Both want to be told apart from a pass.
+            ctx.check(settled != null).as("A 新分支必须真的开过火并留下判词 —— "
+                    + "没有 flightLastStepSettled 就说明判据那一刻身体不在末路点头顶格，"
+                    + "这一臂什么都没测到，B/C 是 0==0。endedAt=" + got).isNotNull();
+            ctx.check(got.getY() <= ends.getY()).as("B 等过之后身体必须真的在末路点那一排或更低 —— "
+                    + "这就是 walkHome 判的那个量：终点 " + got + "，末路点 " + ends).isTrue();
+            ctx.check(missed).as("C 判词不能还写着「没到」 —— "
+                    + "身体已经落进末路点了却仍留下 flightLastStepMissed，"
+                    + "就是这条链拿去买 returnStuck 的那一行：" + missed).isNull();
+        });
+    }
+
+    private static void walksOffTheLipOntoTheDryStep(SceneContext ctx) {
+        BlockPos ends = stageLipArena(ctx);
 
         // ON THE LIP: a fifth of a cell into the terminal's column, one row up. The number is the
         // ladder's, not a guess — see the javadoc.

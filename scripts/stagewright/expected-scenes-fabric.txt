@@ -367,6 +367,10 @@ wd.journeyFlightEndsOnADryStep
 # — a tenth of a block of tread under a 0.6-wide box — and every cell-granular row says it arrived.
 # Staged to that exact pose, which the ladder only reaches about one return in three.
 wd.journeyWalksOffTheLipOntoTheDryStep
+# The airborne half. That arm asserts onGround, so the family rung 12 actually dies in — judged while
+# the body is still falling into the terminal — is outside it by construction, and its green can say
+# nothing about the branch that family reaches. Staged by pose: air under the body from tick one.
+wd.journeyJudgesTheLastStepAfterTheDropLands
 
 # The same flight, and the column NOBODY asked for. A pinned climb's column is left alone on the
 # flight on purpose — it came out of the pour's ray — and rung 12 then drifted, could not walk
