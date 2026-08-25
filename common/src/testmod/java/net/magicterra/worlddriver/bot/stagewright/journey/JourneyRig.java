@@ -1516,6 +1516,7 @@ public final class JourneyRig {
             pinAroundBody();
             legTicks++;
             heartbeat(withinTicks);
+            noteHurt();
             // THE BODY MUST BE ALIVE — checked here and only here, because this is the one place
             // this rig ever waits. A per-rung check would be a check each rung has to remember;
             // this one is total by construction. See bodyDied() for what it cost to learn that.
@@ -1525,6 +1526,61 @@ public final class JourneyRig {
             then.run();
         });
     }
+
+    /**
+     * Every DROP in health, with what the body was standing in when it took it.
+     *
+     * <h2>Why only drops, and why unconditional</h2>
+     *
+     * The rung-14 death of 2026-08-26 was readable down to「地形的火，不是烈焰人」and no further,
+     * because the only health readings in the whole run were four numbers {@code lavaEscape} happened
+     * to print on its own trigger lines: {@code hp=11.0 ×10, hp=10.0 ×7, hp=1.0 ×2, hp=0.0}. Four
+     * samples cannot tell「一次掉进岩浆掉 6 点」from「身上着火每半秒掉 1 点烧了十几秒」, and those two
+     * want opposite fixes — the first is a path-cost problem, the second is a heal/extinguish problem.
+     *
+     * <p><b>Drops only.</b> A full ladder is an hour, and natural regeneration ticks a heal every few
+     * seconds — thousands of rows that say nothing. Damage events are tens. Heals are counted, not
+     * listed, which keeps the row readable while still showing whether anything was healing at all.
+     *
+     * <p><b>No flag.</b> The gate that never gets switched on is the failure mode this repo has paid
+     * for repeatedly, so this writes every time, and {@link #put} rather than {@code evidence} because
+     * the row is rewritten in place — an evidence key rewritten a hundred times would arrive as a
+     * hundred {@code #N} clashes instead of one trace.
+     *
+     * <p>Capped: past {@link #HURT_ROWS} drops the trace stops growing and says so. A run that takes
+     * two hundred separate hits has already answered the question the trace was asked.
+     */
+    private void noteHurt() {
+        ServerPlayer p = player();
+        if (p == null) return;
+        float now = p.getHealth();
+        if (hpLast < 0) { hpLast = now; return; }
+        if (now > hpLast) { hpHeals++; hpLast = now; return; }
+        if (now == hpLast) return;
+        float lost = hpLast - now;
+        hpLast = now;
+        hpDrops++;
+        if (hurt.size() < HURT_ROWS) {
+            ServerLevel lvl = (ServerLevel) p.level();
+            BlockPos at = p.blockPosition();
+            hurt.add(String.format(java.util.Locale.ROOT, "t%d −%.1f→%.1f @%s 脚下=%s 身处=%s%s%s",
+                    legTicks, lost, now, at.toShortString(),
+                    lvl.getBlockState(at.below()).getBlock().toString().replace("Block{minecraft:", "").replace("}", ""),
+                    lvl.getBlockState(at).getBlock().toString().replace("Block{minecraft:", "").replace("}", ""),
+                    p.getRemainingFireTicks() > 0 ? " 着火" + p.getRemainingFireTicks() + "t" : "",
+                    p.isInLava() ? " 泡岩浆" : ""));
+        }
+        put("hp.trace", (hurt.size() >= HURT_ROWS ? "（只列前 " + HURT_ROWS + " 次）" : "")
+                + "掉血 " + hpDrops + " 次、回血 " + hpHeals + " 次；" + String.join(" | ", hurt));
+    }
+
+    /** How many separate drops the trace lists before it stops growing. */
+    private static final int HURT_ROWS = 60;
+
+    private float hpLast = -1;
+    private int hpDrops;
+    private int hpHeals;
+    private final List<String> hurt = new ArrayList<>();
 
     /** Set the first time the body is found dead, and never cleared: a rung does not recover from it. */
     private String diedOf;
