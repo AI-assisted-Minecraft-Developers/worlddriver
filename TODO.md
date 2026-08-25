@@ -3764,6 +3764,39 @@ staged.pose                = 100511, 218, 100000 精确 100511.20/218.00/100000.
 `subject.movedBy` 是个小数、场景 tick 数回到个位（不再是 204）。
 **任何一项不符都先怀疑摘腿摘漏了**，不要当成新发现。
 
+###### 🔎 J47b：守卫**开了火**——三次——而身体还是没下去（2026-08-25）
+
+摘腿后的确认跑逐项对上预登记（A 红、B 绿、`rowsAbove=1`、`walkerEnd=end=path-consumed`、
+**5 tick**），并多给了一个精确数字：
+
+```
+subject.movedBy      = 0.20 格（起 100511.20/100000.50，止 100511.23/100000.70）
+subject.descentHolds = 3
+```
+
+**身体挪了 0.03 格 x、0.20 格 z，而需要的是 +0.10 格 x。** 方向都不对。
+
+**「指针推进没人拦」这个假设被否掉了。** `WalkerTickProgress.unwalkedDescentConsume`
+就是为这个形状写的（真梯 13 级，末节点低一排、走行器在采纳它那一 tick 就花掉），
+它每次保持都 `Walker.descentHolds++`，这一趟**开了三次火**。所以：
+
+- 不是 [[an-instrument-behind-a-flag-is-not-an-instrument]]——`walkerDescentNodeHold` 默认 `true`；
+- 不是 [[a-scan-narrower-than-the-body]]——`soleOnSolid` 走 `eachSoleCell`，是盒感知的；
+- 也**不是** [[a-guard-i-assumed-absent-was-running]] 的第五例——这次是先量后判，守卫找到了才没白改。
+
+**保持买到的是时间，买不到那 0.10 格。** 末节点那一支要求 `noStepProgressTicks == 0`
+（设计原话：保持只能延长一个**正在奏效**的接近，不能让一个已经停下的接近续命），
+所以身体一停止靠近，保持就释放、指针花掉、`path-consumed`。
+⇒ **问题不在指针，在于身体在这 3 tick 里为什么走不出 0.10 格 x。**
+
+落脚守卫**读代码就排除了**：`Walker.java:1672` 对「计划中的下降」豁免
+（`path.get(step).getY() < foot.getY()`，这里 217 < 218），它在这一族上根本不 pin，
+而且注释写明这条豁免是 DEATH #8 买来的——`wd.descent` 的 crouch-deadlock 就是漏了它。
+
+**下一步**：场景本地无条件打开 `walkerDebug`（5 tick 的行，量级不值得再加一道闸），
+读 `步进` 与各守卫行，让**压住 x 方向移动的那一相自己报名**。
+⚠️ 在它报名之前不要改走行器的任何一相。
+
 ###### 📌 J69e：双闸前登记（源码这一轮改了五笔，闸未跑，2026-08-25）
 
 **这一轮改了什么**：`d7d28819`（两条腿接 walkerEnd + 场景上 optional 架）、
