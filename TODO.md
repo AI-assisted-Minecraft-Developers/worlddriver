@@ -898,8 +898,10 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
 ⚠️ 踩的是 `JourneyPour:115-117` 注释**早就写明**的坑：`walkToColumn` 判到达用自己的
 `ARRIVED_WITHIN`（5 格），**不是调用方传的 `tolerance`**。
 
-📌 **还欠**：补一步之后仍浮着，`JourneyCast.bankRow` 只记一笔就往下走，且那行证据键叫
-`lava.exit.ashore`（上岸）却在脚下是水时照打 ⇒ 判词撒谎。写死步骤见 J47：上岸失败就垫一块。
+📌 **还欠两件，都不是「补到岸检查」**（那件 `ccaf6861` 已落：`stepOntoTheBank` 重问 afloat + 容差 0 补一步）：
+1. 补一步之后仍浮着，`bankRow` 只记一笔就往下走，而那行键叫 `lava.exit.ashore`（上岸）在脚下是水时照打 ⇒ 判词撒谎。
+2. ⚠️ **「脚下垫一块」这个写死步骤的几何不成立**：浮体在 y=220、岸在 221，`at.below()` 是 219，
+   垫上去身体仍低岸一格。真几何要先读 `JourneyLandingScenes` 的布景再定，别照 J47 那句原文抄。
 
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
