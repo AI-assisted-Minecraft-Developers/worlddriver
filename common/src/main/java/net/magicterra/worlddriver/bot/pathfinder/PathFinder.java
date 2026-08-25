@@ -145,19 +145,42 @@ public final class PathFinder {
      *  1-tick scene, {@code wd.serverCastsObsidian}, legitimately spends ~4.2 s), which is exactly
      *  the contract {@link #CEILING_MS} promises not to break. */
     private static final ThreadLocal<long[]> TICK_SPEND = ThreadLocal.withInitial(
-            () -> new long[]{Long.MIN_VALUE, 0L, 0L, 0L});
-    private static final int TS_MARKER = 0, TS_NANOS = 1, TS_SEARCHES = 2, TS_NEXT_REPORT = 3;
+            () -> new long[]{Long.MIN_VALUE, 0L, 0L, 0L, 0L, 0L});
+    private static final int TS_MARKER = 0, TS_NANOS = 1, TS_SEARCHES = 2, TS_NEXT_REPORT = 3,
+            TS_TRIPPED = 4, TS_SUPPRESSED = 5;
 
     /** First per-tick report, and the gap between reports after it.
      *
-     *  <p>CALIBRATION VALUE — 50 ms, deliberately below anything interesting, so this run produces
-     *  the distribution the permanent number has to be chosen from. The first value tried was one
-     *  second and it printed NOTHING across a full 322-scene green gate: silence that says only
-     *  "no healthy tick reaches 1 s" and cannot tell a working instrument from a broken one. An
-     *  instrument that has never spoken is not an instrument, so this run is its positive control —
-     *  it must produce lines, with plausible owners and monotonically growing totals, before any
-     *  budget is allowed to fire on the same accounting. Raise it once the healthy spread is known. */
-    private static final long TICK_REPORT_NANOS = 100L * 1_000_000L;
+     *  <p>Two seconds, chosen from data rather than taste. The first value tried was one second and
+     *  it printed NOTHING across a full 322-scene green gate — silence that says only "no healthy
+     *  tick reaches 1 s" and cannot tell a working instrument from a broken one. A calibration run
+     *  at 100 ms then measured the healthy spread directly: 13 rows over the whole suite, worst
+     *  500 ms ({@code owner=combat}), next 346 ms ({@code owner=walker.unnamed}). Two seconds sits
+     *  4x above that worst healthy tick, so it stays silent in a run that works, and 30x below the
+     *  watchdog, so a wedge prints a growing series for half a minute before anything dies. */
+    private static final long TICK_REPORT_NANOS = 2_000L * 1_000_000L;
+
+    /** Hard per-tick, per-thread ceiling: once every search on this thread has burned this much
+     *  wall-clock inside one game tick, the search running when it is crossed stops with a
+     *  best-effort result and so does every later search in that tick.
+     *
+     *  <p>Twenty seconds, bounded from BOTH sides by things that already exist:
+     *  <ul>
+     *    <li>It must sit ABOVE {@link #CEILING_MS}. That 8 s is a standing promise that ONE search
+     *        may legitimately run that long; a tick cap below it would quietly revoke a contract
+     *        this class makes elsewhere, which is exactly the invisible-knob failure CEILING_MS was
+     *        added to prevent.</li>
+     *    <li>It must sit FAR below the 60 s {@code max-tick-time} watchdog, or it protects nothing.</li>
+     *  </ul>
+     *  Against the measured healthy worst of 500 ms this is a 40x margin, so it cannot fire in a run
+     *  that works today — the same contract CEILING_MS is written to.
+     *
+     *  <p>Why this exists when four budgets already do: all four reset on a boundary the pathology
+     *  crosses freely. {@code sliceMs} and the heartbeat reset every {@code advance()};
+     *  {@code maxMs} and {@link #CEILING_MS} reset every search. A tick holding hundreds of
+     *  individually-cheap searches is invisible to every one of them, which is how a gate died at
+     *  67 s in one tick with zero SAFETY CEILING and zero HEARTBEAT lines in the log. */
+    private static final long TICK_BUDGET_NANOS = 20_000L * 1_000_000L;
 
     /** One line per JVM, the first time a slice is charged against a real clock.
      *
@@ -929,7 +952,11 @@ public final class PathFinder {
             // measured 8-9 ms worst healthy expansion this only fires on something pathological.
             long runawayLimit = Math.max(100L * 1_000_000L,
                     sliceLimit == Long.MAX_VALUE ? 1_000L * 1_000_000L : sliceLimit * 10L);
-            int sinceCheck = 0;
+            // Primed so the FIRST expansion checks the clock. Every later search in a tick that has
+            // already blown its budget must stop at once rather than spend another
+            // TIME_CHECK_INTERVAL expansions discovering it; with hundreds of searches in the tick
+            // those otherwise add up to the very cost being capped.
+            int sinceCheck = TIME_CHECK_INTERVAL;
             // ENTRY BREADCRUMB — written BEFORE the work, which is the whole point.
             //
             // Every instrument this class had was computed AFTER the thing it measures: RUNAWAY
@@ -1009,6 +1036,18 @@ public final class PathFinder {
                                     CEILING_MS);
                             beatExpanded = expanded;
                             beatPolled = polled;
+                        }
+                        // TICK BUDGET — deliberately HERE, beside the slice deadline, and NOT beside
+                        // the maxNodes / maxMs / CEILING_MS checks further down. Those sit below the
+                        // `if (cur.closed) continue` a few lines on, so a loop draining re-queued
+                        // duplicates never reaches any of them; that placement is why an 8 000 ms
+                        // ceiling watched a tick run for 67 seconds. This one runs before the poll,
+                        // so it fires whatever the loop is doing.
+                        long tickSpent = tickSpentNanos(sliceNanos);
+                        if (tickSpent > TICK_BUDGET_NANOS) {
+                            stopCause = "tickBudget(" + TICK_BUDGET_NANOS / 1_000_000L + "ms)";
+                            noteTickTrip(tickSpent);
+                            break;
                         }
                     }
                     Node cur = open.poll();
@@ -1301,6 +1340,41 @@ public final class PathFinder {
          * to a normal-return path would under-report exactly the pathological searches, which is
          * the mistake the HEARTBEAT note above was written about.
          */
+        /**
+         * What this tick has already been charged, plus the slice currently in flight.
+         *
+         * <p>The in-flight term is not a refinement — it is the point. A slice is charged in the
+         * {@code finally}, so the one search that never returns is exactly the one the charged
+         * total cannot see; leaving it out would make the budget blind to the runaway it exists to
+         * stop. Returns 0 when the view has no clock, which switches the budget off rather than
+         * letting it fire on an invented origin.
+         */
+        private long tickSpentNanos(long sliceNanos) {
+            long marker = world.tickMarker();
+            if (marker == Long.MIN_VALUE) return 0L;
+            long[] ts = TICK_SPEND.get();
+            return ts[TS_MARKER] == marker ? ts[TS_NANOS] + sliceNanos : sliceNanos;
+        }
+
+        /** First trip in a tick speaks; the rest are counted and summarised when the tick rolls
+         *  over, so a wedged tick produces a readable pair of lines instead of hundreds. */
+        private void noteTickTrip(long spentNanos) {
+            long marker = world.tickMarker();
+            long[] ts = TICK_SPEND.get();
+            boolean sameTick = ts[TS_MARKER] == marker;
+            if (sameTick && ts[TS_TRIPPED] != 0L) {
+                ts[TS_SUPPRESSED]++;
+                return;
+            }
+            if (sameTick) ts[TS_TRIPPED] = 1L;
+            LOG.warn("[pathfinder] TICK BUDGET {} ms exceeded in ONE tick (gameTime={}) after {}"
+                    + " advance() call(s) — owner={} thread={}. This search and every later one in"
+                    + " this tick are cut to best-effort. Each of them stayed inside its own {} ms"
+                    + " ceiling; the SUM is the quantity no other budget in this class can see.",
+                    spentNanos / 1_000_000L, marker, ts[TS_SEARCHES], owner,
+                    Thread.currentThread().getName(), CEILING_MS);
+        }
+
         private void chargeTick(long spentNanos) {
             long marker = world.tickMarker();
             if (marker == Long.MIN_VALUE) return;      // view has no clock; do not invent one
@@ -1315,10 +1389,22 @@ public final class PathFinder {
             }
             long[] ts = TICK_SPEND.get();
             if (ts[TS_MARKER] != marker) {             // a real tick boundary: start a fresh account
+                // Say what the outgoing tick cut, BEFORE the counters are cleared. A tick that
+                // tripped the budget refuses work silently otherwise, and a scene downstream would
+                // report "no path" for a search that was never allowed to run — a verdict about the
+                // world for what is really a verdict about the clock.
+                if (ts[TS_SUPPRESSED] > 0) {
+                    LOG.warn("[pathfinder] tick {} ended over budget: {} later search(es) returned"
+                            + " best-effort without expanding. Any 'no path' from that tick is a"
+                            + " budget decision, not a terrain one.",
+                            ts[TS_MARKER], ts[TS_SUPPRESSED]);
+                }
                 ts[TS_MARKER] = marker;
                 ts[TS_NANOS] = 0L;
                 ts[TS_SEARCHES] = 0L;
                 ts[TS_NEXT_REPORT] = TICK_REPORT_NANOS;
+                ts[TS_TRIPPED] = 0L;
+                ts[TS_SUPPRESSED] = 0L;
             }
             ts[TS_NANOS] += spentNanos;
             ts[TS_SEARCHES]++;
