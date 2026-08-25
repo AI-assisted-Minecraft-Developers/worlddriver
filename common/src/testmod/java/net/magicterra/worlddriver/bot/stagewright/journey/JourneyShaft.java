@@ -918,9 +918,39 @@ public final class JourneyShaft {
             BlockPos foot = rig.player().blockPosition();
             double flow = bodyLvl.getFluidState(foot).getFlow(bodyLvl, foot).lengthSqr();
             if (rig.player().isInWater() && washedOff > 0 && flow > 1.0E-6) {
-                rig.evidence(climbKey(step, ".washedOff"),
-                        "水把身体冲下柱子了（流速²=" + String.format(java.util.Locale.ROOT, "%.5f", flow)
-                                + "），还剩 " + (washedOff - 1) + " 次重试");
+                // MOVING WATER IS TRANSIENT ONLY IF NOTHING IS FEEDING IT — and this branch never
+                // asked. The retry's whole premise is that the flow will drain and the next course
+                // starts from a different world; water with a live source upstream never drains, so
+                // against one the eight retries are the same question eight times
+                // ([[a-retry-that-changes-nothing]], the flowing-water twin of the still-water case
+                // the branch below already learned).
+                //
+                // The rung-12 rehearsal of 2026-08-25 is the measurement: 20+ `washedOff` rows, every
+                // one `流速²=1.00000` — a flow CONSTANT across 23 samples is a fed flow, not a
+                // draining one. Its source was the rung's own pour, still sitting there.
+                //
+                // The instrument already exists and this site's own comment asked for it: the same
+                // `sourcesAround` reading the re-column leg takes. Asking it here is what turns
+                // 「在动」 into 「在动，而且有人在喂」.
+                String fed = JourneyForge.sourcesAround(bodyLvl,
+                        List.of(foot, foot.below(), foot.above()), WASHED_OFF_UPSTREAM);
+                String flowNote = "流速²=" + String.format(java.util.Locale.ROOT, "%.5f", flow);
+                // BOTH ANSWERS GET A ROW. A retry that survives has to carry the reading that let it
+                // survive, so a climb that only got up because nothing was feeding the water cannot
+                // read as one that simply out-waited a flood.
+                rig.evidence(climbKey(step, ".washedOffUpstream"), fed == null
+                        ? "这一柱周围 " + WASHED_OFF_UPSTREAM + " 格内没有水源块 —— 这股水没人喂，"
+                                + "会自己退，重试的前提成立"
+                        : "还在喂它的水源（最高的在前）：" + fed);
+                if (fed != null) {
+                    rig.evidence(climbKey(step, ".washedOffFed"), "水在动（" + flowNote
+                            + "），但上游有源在喂 —— 它不会自己退，重试等不到那一刻。"
+                            + "不重试（还剩 " + washedOff + " 次没用），交给上层的后备腿");
+                    then.run();
+                    return;
+                }
+                rig.evidence(climbKey(step, ".washedOff"), "水把身体冲下柱子了（" + flowNote
+                        + "），还剩 " + (washedOff - 1) + " 次重试");
                 rig.settle(new HoldStill(20), 40, () -> ascendByTowering(rig, surfaceY, budget - 1,
                         cap, washedOff - 1, then));
                 return;
@@ -935,6 +965,13 @@ public final class JourneyShaft {
             then.run();
         }));
     }
+
+    /** How far around the body's own column to look for a source that could be feeding the water it
+     *  is standing in. Four, matching the re-column leg that asks the same question of the same kind
+     *  of puddle — a pour reaches about that far, and a source further off than this is feeding some
+     *  other cell. Deliberately its own constant and not a reach across into the scene file: the two
+     *  sites answer for different columns and are entitled to disagree later. */
+    private static final int WASHED_OFF_UPSTREAM = 4;
 
     /** The cells a one-block rise is blocked by, named, or {@code air} when it is clear — the
      *  {@code above=} half of every course row. Plural because a straddling body has more than one,
