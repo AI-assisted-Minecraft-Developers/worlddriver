@@ -2833,6 +2833,22 @@ support(2)=3,58,19 == stand(0).above()  ← 身体连第 0 级都站不进去
 排练可能根本走不到 `wet.8`（它是第 9 格）。**若在更早的格上就断，先判那一格**，
 不要把「没读到 wet.8」当成上面任何一态——[[a-criterion-success-cannot-satisfy]]。
 
+**②「转去 raise-with-body」这条退路先别当现成的**（读代码所得，不是猜）。
+12 级里有三处要把身体抬上去，`buildTo` 的调用现场决定了有没有后备：
+
+| 证据键 | 调用现场 | 楼梯修不出来时 |
+|---|---|---|
+| `wet.N.ramp` | `JourneyPortalRung:1627`，**直接** `buildTo` | 无后备：`then.run()` 直接往下走 |
+| `waterN.lift` | `JourneyPour:608`，**直接** `buildTo` | 无后备 |
+| `*.rise.ramp` | `JourneyPour:178`，在 `raiseInColumn` 里 | **有**：够不到 `wantY` 就 `footBeforeTower` 垒塔 |
+
+所以 `wet.8` 这一条修不出楼梯就是直接往下走，正是旧读数里
+「拿一段身体上不去的楼梯记账」的来源。**但不要顺手给 1627 补个塔后备**：
+`1625–1626` 明写「walked rather than towered」，`JourneyPour:172–174` 记着理由——
+楼梯**按构造**把身体放进指定柱，塔只是「一直走回那一柱」的意义上被钉住；
+且干燥壁龛地板上塔拿着 130 块只垒起两级中的一级。[[a-precedent-nobody-ever-verified]]
+反过来也适用：这两条注释是**有测量的**先例，推翻它要拿新的测量，不是拿方便。
+
 ###### J68c（只登记，不追）：「不用修楼梯」这条捷径只比了 y，没比柱
 
 同一条腿再往下三行：
