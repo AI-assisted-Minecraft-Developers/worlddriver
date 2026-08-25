@@ -1136,12 +1136,43 @@ java.util.ConcurrentModificationException
 | **K1** | 全日志里 `[place]` 行**没有任何一行**来自 `[Server thread]` | **J61 的确定性判据**。线程标签本来就在日志里，它自己就是尺子 |
 | **K2** | 每一行 `[placeEnqueue]`（点击格,面）都能在其后配到一行 `[place]`（点击格,面）；**未配对数 = 0**，且 `[placeEnqueue]` > 0 | 队列没吞掉投递 |
 | **K3** | 结果文件里出现**非零的 `.laid`** 且有 `.step.N`（N≥1） | **J59 回归守卫** |
-| **K4** | `waterFill.reseat` 证据带「否决计数」，且其中出现「比已选中的更远，没评估」 | J60 仪器活着 |
+| **K4** | ~~`waterFill.reseat` 证据带「否决计数」，且其中出现「比已选中的更远，没评估」~~ **已知会 未触发，理由见下** | ~~J60 仪器活着~~ **仪器自己坏了** |
 | **K5** | `waterFill.reseat.eye` 行出现，给出格心眼与真眼的水平差 | J60 缺陷 (B) 的读数 |
 | **K6** | SUCCESS-FAIL-FAIL 三连现在出现在 **Render** 线程上 | 预期，**不是回归** |
 
 ⚠️ **12 级仍然可能死在浇筑**——那是 J60 的回合，**不构成对 J59/J61 的怀疑**。
 先把这趟该是什么颜色算出来再去对（[[a-verdict-has-upstream-verdicts]]）。
+
+### 🔴 K4 判不了，而且是**我这笔仪器自己接错了**（发现于 j57 跑到 12 级之前）
+
+`standToFill` 是两趟：
+
+```java
+FillSpot nearSide = standToFill(…, new LinkedHashMap<>(), true);   // 948：丢掉的 map
+if (nearSide != null) return nearSide;                              // 949
+return standToFill(…, why, false);                                  // 950：真 map
+```
+
+而 `avoidCrossing` **全文件只用在一处**，第 1013 行，且被 `&& lava` 挡着：
+
+```java
+if (avoidCrossing && lava && acrossThePool(level, from, foot)) { … }
+```
+
+⇒ **对「水」来说两趟逐字节等价**。既然第一趟必定给出和第二趟一样的答案，
+只要存在任何落脚点，**第 949 行就返回了，真 `why` 永远是空的**。
+而 12 级的失败形态恰恰是「找到了，就是脚下这一格」——**属于找到了**。
+
+⇒ **我把计数器加在了一张在这个场合下必然被丢弃的 map 上。**
+[[an-instrument-behind-a-flag-is-not-an-instrument]]：闸后面的仪器不算仪器。
+那段 javadoc（932-935 行）**早就写着这件事**，是我加计数器时没读到它。
+
+⚠️ **不为这个杀掉 j57。** j57 的头号任务是 K1（J61 那条确定性判据），
+K1／K2／K3／K5 都不依赖这张 map（K5 的眼位差是在 `JourneyPortalRung` 里另算的）。
+为一条次要仪器牺牲主判据的进度是划不来的 —— **K4 记为「证伪：仪器缺陷」，j58 再取这个读数**。
+
+⇒ 修法（**等 j57 跑完再编译**）：让第一趟也用一张真 map，谁答的就把谁的并进 `why`，
+并在证据里点名**是哪一趟答的**。改完那段 javadoc 的警告也就不用留了。
 
 ⚠️ **K2／K3 的措辞是改过的，改在 j57 跑完之前、看结果之前，理由写在这里。**
 第一版 K2 写的是「`[placeEnqueue]` 行数 == Render thread 的 `[place]` 行数」，**这是错的**：
