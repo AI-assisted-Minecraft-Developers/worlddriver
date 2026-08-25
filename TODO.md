@@ -4069,6 +4069,27 @@ J73 那三个长尾（35 s / 48 s / 看门狗）是这条恒假式**唯一一次
 J73 治的是「烈焰人场景会不会砍掉整趟闸」，J74 治的是「闸本身是不是恒假」——
 两件事，[[a-verdict-has-upstream-verdicts]]。
 
+###### 📌 J47c 客户端排练前登记（`:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`，2026-08-25）
+
+**为什么必须在真客户端上再排一遍**：J47c 的修法是 `JourneyHands.aimBoth(rig, ends)`，
+它同时瞄两具身体——`rig.avatar()` 与 `rig.body().avatar()`——因为**服务端的旋转活不过下一个包**
+（[[a-server-side-aim-dies-at-the-next-packet]]）。到目前为止它的两份证据
+（NeoForge 专用服闸 + Fabric filtered 单跑）**都是假玩家**（`JoinedBody`）。
+假玩家没有客户端那一半，所以这两份绿**不能迁移**：身体种类是自变量，
+唇姿势本身在两种身体上就不一样（`returnedY=57`×3 对 `58`×2）。
+用 `runRehearsalIntegratedServer`（真 `LocalPlayer`），**不是** `runRehearsalServer`。
+
+| | 读到什么 | 判 |
+|---|---|---|
+| ① | 12 级绿，`flightLastStepAim` 那行显示 yaw 真的变了，且 `flightLastStepEnd=end=arrived`、`flightLastStepMissed` 不存在 | 修法在客户端身体上成立 ⇒ **进真梯** |
+| ② | 仍旧骑在唇上，但 `flightLastStepAim` 显示 yaw 变了 | **那行读的是 `rig.player()`（服务端视图）**——客户端那一半可能根本没落地。去查 `rig.avatar().aimAtBlock` 在真客户端上写的是谁的角度，别从「yaw 打印出来变了」推断「身体转了」 |
+| ③ | `flightLastStep` 这一族的行**一条都没有** | 这趟飞行没复现唇姿势，**绿证明不了任何事**（判据变成 0==0，[[staging-for-rungs-nobody-has-climbed]]）。不许当验证用，重排或改布景 |
+| ④ | 死在别的地方 | 与上一趟真梯 `ladder-j69` 做差再解释，别默认是这一笔造成的 |
+
+**并发禁令**：排练任务启动时会编译，Fabric 闸补跑与它**共享同一棵工作树**
+（[[the-shared-tree-is-the-real-boundary]]、[[compiling-under-a-live-run]]）。
+补跑排在真梯之后，或另开窗口，**不与排练/真梯并行**。
+
 ###### 📌 真梯读数表的三条补丁（写在读结果之前，2026-08-25）
 
 **⑤ 判 J69 的只有 `wd.journey12PortalLit` 那一行，不是这趟真梯的总结局。**
