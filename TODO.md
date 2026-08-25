@@ -2795,6 +2795,29 @@ J68b 修好之后这个场合可能根本不出现。修完再看它还在不在
 | ② 新场景自己红 | 看它红在 A 还是 B/C/D：**A 红＝布景没复现折返**（规则可能对，尺子错了，[[a-verification-tool-needs-verifying-too]]）；**B 红＝规则误拒了有解壁龛**（推导错了）；**C/D 红＝楼梯合法但铺不上或走不上去**（另立族，不算这一笔的账） | 按分支各走各的 |
 | ③ `wd.pourLineHasNoOtherWayUp` 红 | 它断言 `loose != null` 且顶级支撑 == 被借的那一格。**它的落点 `borrowed.above()` 与 wet.8 同一个壁龛只差一个 z**，唯一那条 loose 解**很可能含折返**。红在 C/D 就是这个 | 不是「修法坏了」：它说的是那个壁龛里通往收水落脚点的楼梯**本来就不可爬**，即那条腿一直在靠一段身体上不去的楼梯记账。要么把顶排两格改走 `cast6/7` 已验证的 raise-with-body，要么重述那条场景的主张 |
 
+**结果（`gate-j68.log`，2026-08-25）：第 ① 态。** `bd360fb9` 从「已编译」升到 **「已回测」**。
+
+```
+VERDICT 行数 1 · VERDICT: GREEN · BUILD SUCCESSFUL in 6m 40s
+UNDECLARED: 0 行 · 必需 FAIL: 0 条 · fail(optional): 3 条（正是已知的三条）
+canary: MustFail=FAIL(expected) MustTimeout=TIMEOUT(expected) MustSwallow=correctly omitted
+COVERAGE: 291 scene(s) executed, 25 skipped      ← 此前 290，新场景 +1
+wd.pourLineHasNoOtherWayUp -> PASS               ← 第 ③ 态没有出现
+```
+
+新场景的读数逐格命中跑前算好的预测（相对坐标，B=BASE，印的是**支撑格**）：
+
+```
+folded      = (0,B,-1) (0,B+1,-2) (0,B+2,-1) (0,B+3,0)      ← N,N,S 那条折返
+folded.seal = (0,B+2,-1) ＝ stand(0).above()                 ← 自封复现，负对照成立
+flight      = (-1,B,-2) (0,B+1,-2) (0,B+2,-1) (0,B+3,0)      ← 第 2 级改走 WEST
+lay         = 一趟 4/4，FINISHED（身体 (-1,B,-1)，够到距离 3.32 < MEND_REACH 5.0）
+walk.end    = 顶级落脚格 (0,B+4,0)                            ← 身体自己走上去了
+```
+
+**注意负对照这一半才是这条场景的价值。** `folded.seal` 非空证明这个布景真能复现 wet.8 的几何；
+没有它，`flight` 那一半对任何规划器都成立（[[staging-for-rungs-nobody-has-climbed]]）。
+
 **③ 出现时禁止把它当噪声划掉。** 它若红，等于免费多量到一处同族缺陷；
 [[a-verdict-has-upstream-verdicts]]：先算这趟该是什么颜色（我算的是①或③），
 颜色不符就从 `VERDICT:` 往上读 `UNDECLARED:`／`COVERAGE:`／canary，别先去读失败行。
