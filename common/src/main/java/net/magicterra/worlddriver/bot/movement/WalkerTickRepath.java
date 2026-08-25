@@ -133,7 +133,7 @@ final class WalkerTickRepath {
         // A* every tick from the same foot toward the same unreachable goal.
         if (wk.searchGov.searchBackoffTicks > 0) wk.searchGov.searchBackoffTicks--;
         if (!wk.replayMode && (safetyRepath || fullPeriodic) && wk.seg.activeSearch == null
-                && wk.searchGov.searchBackoffTicks == 0) {
+                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)) {
             // Stuck too long on a move the Walker can't execute (a steep stepUp it
             // slides off, a pillar it can't ground)? Blacklist that node so this
             // re-search routes AROUND the wedge instead of re-planning into it —
@@ -185,7 +185,7 @@ final class WalkerTickRepath {
             wk.ticksSinceRepath = 0;
         } else if (!wk.replayMode && wk.seg.pathBestEffort && wk.seg.commitEnd != null
                 && wk.seg.activeSearch == null && wk.seg.pendingSegment == null
-                && wk.searchGov.searchBackoffTicks == 0) {
+                && wk.searchGov.searchBackoffTicks == 0 && !wk.searchGov.futileLatched(foot)) {
             // Eagerly precompute the next best-effort segment from the committed end.
             wk.seg.activeSearch = wk.newPathFinder(world).newSearch(wk.seg.commitEnd, wk.goal);
             wk.seg.searchFromEnd = true;

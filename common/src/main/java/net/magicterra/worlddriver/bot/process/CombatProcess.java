@@ -273,7 +273,11 @@ public final class CombatProcess implements BotProcess {
         BlockPos tb = target.blockPosition();
         int radius = Math.max(1, (int) Math.floor(BotConfig.combatReach));
         if (lastGoalBlock == null || !lastGoalBlock.equals(tb)) {
-            walker.setGoal(new Goal.Near(tb, radius));
+            // retargetGoal, not setGoal: a flying quarry changes block every couple of ticks,
+            // and setGoal would clear the futile-search governor each time — so a body chasing
+            // something it can never reach runs one full A* per tick forever. The pursuit is
+            // the same pursuit; only the cell moved.
+            walker.retargetGoal(new Goal.Near(tb, radius));
             lastGoalBlock = tb;
         }
         walker.tick(a, w);

@@ -764,6 +764,34 @@ public final class Walker {
         sb.append(label).append(st.blocksMotion() ? "实" : "空").append(st.getBlock());
     }
 
+    /**
+     * Re-aim an in-progress pursuit at a quarry that moved, WITHOUT telling the walker this is
+     * a new journey. {@link #setGoal} clears the futile-search governor, which is right for a
+     * fresh goto and wrong for a chase: a caller that re-goals every time its quarry changes
+     * block zeroes the counter faster than the counter can reach its cap, so the guard that
+     * exists to stop a body burning a full A* per tick toward something it cannot reach never
+     * fires. Measured on a chase of a descending goal: 240 ticks produced 240 full searches and
+     * a counter that never passed 1. Everything else about the goal genuinely IS new, so this
+     * is {@code setGoal} plus the six fields that describe "how this pursuit has been going"
+     * rather than "which cell we want" — including the backoff, since taking away an armed
+     * cooldown is the same leak one cap below.
+     */
+    public void retargetGoal(Goal g) {
+        double bestDist = searchGov.futileBestDist;
+        BlockPos bestFoot = searchGov.futileFoot;
+        BlockPos goalPos = searchGov.futileGoalPos;
+        BlockPos latchFoot = searchGov.futileLatchFoot;
+        int searches = searchGov.futileSearches;
+        int backoff = searchGov.searchBackoffTicks;
+        setGoal(g);
+        searchGov.futileBestDist = bestDist;
+        searchGov.futileFoot = bestFoot;
+        searchGov.futileGoalPos = goalPos;
+        searchGov.futileLatchFoot = latchFoot;
+        searchGov.futileSearches = searches;
+        searchGov.searchBackoffTicks = backoff;
+    }
+
     public void setGoal(Goal g) {
         this.goal = g;
         this.goalSnapChecked = false;
@@ -2111,13 +2139,15 @@ public final class Walker {
      * Nothing here changes behaviour; the gate is unchanged and this only says what it did.
      */
     public static final java.util.concurrent.atomic.AtomicLongArray futileGateBuckets =
-            new java.util.concurrent.atomic.AtomicLongArray(9);
+            new java.util.concurrent.atomic.AtomicLongArray(10);
     /** Names for {@link #futileGateBuckets}, in bucket order — buckets 0-5 are exclusions (the gate
-     *  never ran), 6-8 are what it did when it did run. */
+     *  never ran), 6-9 are what it did when it did run. Bucket 9 is split OUT of 6 rather than
+     *  folded into it: a first search after a reset has no baseline to beat, so counting it as
+     *  "got closer" made a reset look like progress the body had earned. */
     public static final String[] FUTILE_GATE_BUCKETS = {
             "闸关着(cap<=0)", "搜索到达了目标", "正在挖(breakHeld)", "水中攀爬正在挖",
             "脚格是水(让给水里的反转圈)", "无路且拉黑还没过期",
-            "清零:离目标更近了", "清零:身体挪了>2格", "计入"};
+            "清零:离目标更近了", "清零:身体挪了>2格", "计入", "复位后播种(不判)"};
 
 
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */

@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
@@ -55,6 +56,83 @@ final class WalkerTickSearch {
         return true;
     }
 
+    /**
+     * Unreachable-goal churn guard (gap #49-③): a best-effort result landing while the bot has
+     * neither moved nor gotten any closer to the goal is a FUTILE cycle — repath → reject/no
+     * progress → identical repath — and each cycle burns a full A* budget. The total-tick budget
+     * does bound this, but it counts ticks while the cost is per-SEARCH (live probe: 129 searches,
+     * ~36 s of A* CPU inside the 62 s wait). Count the searches themselves: after
+     * {@code walkerFutileSearchCap} consecutive futile completions, end the journey with a reason
+     * the agent can act on ("no route progress" = the goal is unreachable from here, re-plan; the
+     * tick-budget's "no progress for N ticks" keeps meaning a transient stall).
+     *
+     * <p>Actively mining exempts (goal distance is legitimately flat mid-break), same as the tick
+     * budget's breakHeld hold. Water is exempt: an afloat bot legitimately repaths many times while
+     * stationary (bank climb-outs, bobbing), and that churn is owned by the existing in-water
+     * anti-spin (repathsNoProgress) — two governors on one loop would race. This guard owns the DRY
+     * unreachable churn. gap#66 leg C: a COMPLETELY empty result while stuck-penalties are live is
+     * (likely) SELF-INFLICTED blindness — the wedge penalties walled the pocket, not the terrain
+     * (live pit 2026-07-14: "waiting out decay (1/900)" then the 5th futile search fail-stopped the
+     * goto 6 s in, 39 s before the penalties would have cleared). Don't count those; penalties decay
+     * in 15-90 s and the counter resumes on the first clean-view failure. Partial results still
+     * count — the penalties didn't blind the search enough to matter.
+     *
+     * @return non-null Step to end the tick, or null to fall through.
+     */
+    private static Walker.Step futileGateJudge(PathFinder.Result res, Avatar a, Walker wk,
+                                               WorldView world, BlockPos foot, Player p) {
+        if (futileGateExcluded(res, a, wk, world, foot)) return null;
+        // A pursuit re-goals as its quarry moves, and setGoal resets goalSpin — so the QUARRY
+        // drifting a block closer reads as the BODY having earned a block of progress, and zeroes
+        // the counter. Charge the goal's own displacement against the improvement; what is left is
+        // what the body earned. Goal shapes with no single anchor cell keep the plain test — they
+        // cannot move.
+        BlockPos anchor = goalAnchor(wk.goal);
+        double goalShift = (anchor != null && wk.searchGov.futileGoalPos != null)
+                ? Math.sqrt(anchor.distSqr(wk.searchGov.futileGoalPos)) : 0;
+        // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
+        // trivially "got closer" — a free zeroing donated by the reset itself. The first judged
+        // search has nothing to compare against: it SEEDS, it does not judge.
+        boolean seeded = wk.searchGov.futileBestDist != Double.POSITIVE_INFINITY;
+        boolean gotCloser = seeded
+                && wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0.5 - goalShift;
+        boolean moved = wk.searchGov.futileFoot != null && wk.searchGov.futileFoot.distSqr(foot) > 4;
+        Walker.futileGateBuckets.incrementAndGet(!seeded ? 9 : gotCloser ? 6 : moved ? 7 : 8);
+        if (!seeded || gotCloser || moved) {
+            if (seeded) wk.searchGov.futileSearches = 0;
+            wk.searchGov.futileBestDist = wk.goalSpin.bestDistToGoal;
+            wk.searchGov.futileFoot = foot;
+            wk.searchGov.futileGoalPos = anchor;
+            wk.searchGov.futileLatchFoot = null;
+        } else if (++wk.searchGov.futileSearches >= BotConfig.walkerFutileSearchCap) {
+            wk.lastError = "no route progress after " + wk.searchGov.futileSearches
+                    + " consecutive searches — goal unreachable from here (best dist="
+                    + Math.round(wk.goalSpin.bestDistToGoal) + ")";
+            // Latch on the foot, not on the goal: this terminal costs a full A* every tick it is
+            // re-reported, and a caller that ignores the return value (or re-goals at a moving
+            // quarry) would otherwise pay it forever.
+            wk.searchGov.futileLatchFoot = foot;
+            return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.lastError,
+                    "failed:" + wk.lastError, p.blockPosition());
+        } else {
+            // Cool down before the next kickoff so the wait between futile cycles stops burning
+            // full search budgets (4→8→16→32-tick backoff).
+            wk.searchGov.searchBackoffTicks = Math.min(40, 4 << Math.min(wk.searchGov.futileSearches, 3));
+        }
+        return null;
+    }
+
+    /**
+     * The cell a goal is anchored on, or null for the shapes that have no single one (column,
+     * Y-level, composite, run-away). Only {@link Goal.Near} — the shape a pursuit re-issues as
+     * its quarry moves — can move under the futile gate, so only it needs its own displacement
+     * discounted; inventing a generalized "goal position" for the shapes that lack one would be
+     * a number with no referent.
+     */
+    private static BlockPos goalAnchor(Goal g) {
+        return g instanceof Goal.Near n ? n.target() : null;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -95,48 +173,8 @@ final class WalkerTickSearch {
                 LOG.info(
                         "[walker] repath from {} → goalReached={} pathLen={} expanded={} ms={}",
                         wasFromEnd ? wk.seg.commitEnd : foot, res.goalReached(), res.path().size(), res.expanded(), res.ms());
-            // Unreachable-goal churn guard (gap #49-③): a best-effort result landing while
-            // the bot has neither moved nor gotten any closer to the goal is a FUTILE cycle
-            // — repath → reject/no progress → identical repath — and each cycle burns a full
-            // A* budget. The total-tick budget below does bound this, but it counts ticks
-            // while the cost is per-SEARCH (live probe: 129 searches, ~36 s of A* CPU inside
-            // the 62 s wait). Count the searches themselves: after walkerFutileSearchCap
-            // consecutive futile completions, end the journey with a reason the agent can
-            // act on ("no route progress" = the goal is unreachable from here, re-plan; the
-            // tick-budget's "no progress for N ticks" keeps meaning a transient stall).
-            // Actively mining exempts (goal distance is legitimately flat mid-break), same
-            // as the tick budget's breakHeld hold below.
-            // Water is exempt: an afloat bot legitimately repaths many times while
-            // stationary (bank climb-outs, bobbing), and that churn is owned by the
-            // existing in-water anti-spin (repathsNoProgress) — two governors on one
-            // loop would race. This guard owns the DRY unreachable churn.
-            // gap#66 leg C: a COMPLETELY empty result while stuck-penalties are live is
-            // (likely) SELF-INFLICTED blindness — the wedge penalties walled the pocket, not
-            // the terrain (same rationale as the path==null decay-wait below, which this cap
-            // was racing: live pit 2026-07-14, "waiting out decay (1/900)" then the 5th
-            // futile search fail-stopped the goto 6 s in, 39 s before the penalties would
-            // have cleared). Don't count those; penalties decay in 15-90 s and the counter
-            // resumes on the first clean-view failure. Partial results still count — the
-            // penalties didn't blind the search enough to matter.
-            if (!futileGateExcluded(res, a, wk, world, foot)) {
-                boolean gotCloser = wk.goalSpin.bestDistToGoal < wk.searchGov.futileBestDist - 0.5;
-                boolean moved = wk.searchGov.futileFoot == null || wk.searchGov.futileFoot.distSqr(foot) > 4;
-                Walker.futileGateBuckets.incrementAndGet(gotCloser ? 6 : moved ? 7 : 8);
-                if (gotCloser || moved) {
-                    wk.searchGov.futileSearches = 0;
-                    wk.searchGov.futileBestDist = wk.goalSpin.bestDistToGoal;
-                    wk.searchGov.futileFoot = foot;
-                } else if (++wk.searchGov.futileSearches >= BotConfig.walkerFutileSearchCap) {
-                    wk.lastError = "no route progress after " + wk.searchGov.futileSearches
-                            + " consecutive searches — goal unreachable from here (best dist="
-                            + Math.round(wk.goalSpin.bestDistToGoal) + ")";
-                    return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.NO_PATH, wk.lastError, "failed:" + wk.lastError, p.blockPosition());
-                } else {
-                    // Cool down before the next kickoff so the wait between futile cycles
-                    // stops burning full search budgets (4→8→16→32-tick backoff).
-                    wk.searchGov.searchBackoffTicks = Math.min(40, 4 << Math.min(wk.searchGov.futileSearches, 3));
-                }
-            }
+            Walker.Step futile = futileGateJudge(res, a, wk, world, foot, p);
+            if (futile != null) return futile;
             // FROM-END continuation that makes NO goal progress beyond the committed end
             // (walkerFromEndNoProgressDiscard): with the goal SEALED, the continuation's
             // best-effort degenerates to the escape-farthest fallback — a path walking

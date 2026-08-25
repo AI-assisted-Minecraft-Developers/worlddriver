@@ -417,19 +417,26 @@ public final class WorldDriverMobFightScenes {
      * applied to a defect instead of to a rung: do not add an engine capability to observe something
      * a room can be built for.
      *
-     * <p><b>Two arms, because the interesting reading is a difference.</b> Arm A holds the goal
-     * still; nothing outside the gate touches the counter, so this is what the gate does when left
-     * alone. Arm B moves the goal down one block every second tick and re-goals on each change —
-     * {@code CombatProcess.approach}'s exact idiom, and the blaze's exact descent rate. Same body,
-     * same floor, same unreachable target: the only difference is who calls {@code setGoal}.
+     * <p><b>What it measured, before the fix.</b> {@code still} took 9 searches in 240 ticks;
+     * {@code creep} took 240 — one full search every tick — with bucket 6 ("got closer") reading
+     * exactly 120, the re-goal count, 1:1. Neither door in the paragraph above was the one: the
+     * counter was wiped by {@code setGoal}, whose {@code reset()} leaves the baseline at
+     * {@code +INFINITY}, so the next judged search was trivially "closer" than infinity. Under the
+     * measurement the counter never passed 1 against a cap of 5.
      *
-     * <p><b>This scene asserts almost nothing on purpose, and that is not laziness.</b> It is a
-     * measurement, and the thing it measures is which of two readings of the code is true — so an
-     * assertion written now would encode the guess it exists to test. The one thing it does assert
-     * is that the census channel is live in both arms: nine zeros and "the gate let everything
-     * through" look identical, and a dead instrument that reads as an answer is worse than no
-     * instrument. The behavioural assertion arrives with the fix, when there is something to
-     * assert that is not a guess.
+     * <p><b>Four arms.</b> {@code still} holds the goal fixed — the gate left alone. {@code creepSetGoal}
+     * is the recorded baseline, still calling {@code setGoal} on each change, because that contract is
+     * still live for callers that need a terminal cleared. {@code creepRetarget} calls
+     * {@code retargetGoal} — {@code CombatProcess.approach}'s idiom after the fix, at the blaze's exact
+     * descent rate. {@code chase} is the reverse: a quarry the body CAN reach, re-goaled at the same
+     * rate, where the guard must stay silent.
+     *
+     * <p><b>Every arm runs its full 240 ticks and ignores the walker's verdict</b>, exactly as
+     * {@code approach} does. An arm that stopped at the first terminal would report a tidy
+     * "6 searches, FAILED" and miss the expensive half: {@code terminal()} stores nothing, so a
+     * latched cap re-reports itself by running another full search every tick until something moves
+     * the body. That is why the assertion counts searches over the whole arm rather than looking for
+     * the failure row.
      */
     private static void serverFutileGateUnderACreepingGoal(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -467,20 +474,95 @@ public final class WorldDriverMobFightScenes {
         // Block so the goal has the same tolerance the combat approach gives it.
         final BlockPos high = new BlockPos(cx, floorY + 200, cz);
 
-        var still = creepArm(av, fp, w, "still", high, cx, floorY, cz, 0);
-        var creep = creepArm(av, fp, w, "creep", high, cx, floorY, cz, 2);
+        var still = creepArm(av, fp, w, "still", high, cx, floorY, cz, 0, false);
+        var setGoalArm = creepArm(av, fp, w, "creepSetGoal", high, cx, floorY, cz, 2, false);
+        var retargetArm = creepArm(av, fp, w, "creepRetarget", high, cx, floorY, cz, 2, true);
+        var chase = chaseArm(av, fp, w, cx, floorY, cz);
 
-        ctx.record("gate.still", still);
-        ctx.record("gate.creep", creep);
-        ctx.passNote("目标不动 vs 每 2 tick 降一格，同一具身体同一个够不着的目标；"
-                + "闸的去向见 gate.still / gate.creep");
+        ctx.record("gate.still", still.line());
+        ctx.record("gate.creepSetGoal", setGoalArm.line());
+        ctx.record("gate.creepRetarget", retargetArm.line());
+        ctx.record("gate.chase", chase.line());
+        ctx.passNote("够不着的目标：不动 / 每 2 tick 降一格（setGoal 基线 vs retargetGoal）；"
+                + "外加一条够得着的追击反证。闸的去向见 gate.*");
 
-        // The only claim worth making before the reading is read: the channel spoke. A census that
-        // silently counts nothing reads exactly like a gate that judged everything and let it pass.
-        if (still.contains("一次搜索都没有") || creep.contains("一次搜索都没有"))
-            ctx.fail("闸的普查通道是哑的，两臂至少有一臂一次搜索都没发生 —— "
-                    + "这行读数不能用来判任何事：still=" + still + "；creep=" + creep);
+        // A census that silently counts nothing reads exactly like a gate that judged everything and
+        // let it pass, so prove the channel spoke before reading anything else out of it.
+        for (var arm : java.util.List.of(still, setGoalArm, retargetArm, chase))
+            if (arm.searches() == 0)
+                ctx.fail("闸的普查通道是哑的，有一臂一次搜索都没发生 —— 这行读数不能用来判任何事：" + arm.line());
+
+        // The claim the fix makes, stated as a number the arm can miss. A cap of 5 admits one
+        // unjudged seeding search plus the five it counts; anything past that means the body is
+        // still paying for a goal it cannot reach — either the counter is being wiped from outside
+        // again, or the latched terminal is re-searching every tick.
+        int cap = BotConfig.walkerFutileSearchCap;
+        if (retargetArm.searches() > cap + 2)
+            ctx.fail("追一个够不着的目标，240 tick 里搜了 " + retargetArm.searches()
+                    + " 次（上限 " + cap + "，允许 " + (cap + 2) + "）：" + retargetArm.line());
+        if (!retargetArm.noRoute())
+            ctx.fail("闸压根没开火：追一个 200 格头顶、既不能挖也不能垒的目标，"
+                    + "240 tick 里没有出现 no route progress：" + retargetArm.line());
+
+        // The reverse. A guard that fires on a healthy pursuit is worse than one that never fires,
+        // and "the body stayed put" is exactly what a body walking toward a moving quarry does NOT do.
+        if (chase.noRoute())
+            ctx.fail("闸误伤了一次正常追击：目标就在同一层地板上 8 格外，身体一路在走，"
+                    + "却报了 no route progress：" + chase.line());
     }
+
+    /**
+     * The reverse arm: a quarry the body CAN reach, re-goaled at the same rate as the creeping one.
+     *
+     * <p>The futile guard's whole job is to distinguish "unreachable from here" from "still walking",
+     * and the fix hands it two new ways to be wrong — a counter that survives a re-goal, and a latch
+     * that suppresses searches until the body moves. Both would show up here as a {@code no route
+     * progress} on a body that is plainly making progress. Same floor, same re-goal call, same tick
+     * budget; the only thing that changed is that the goal is eight blocks away instead of two
+     * hundred straight up.
+     */
+    private static ArmReading chaseArm(ServerPlayerAvatar av, ServerPlayer fp, LevelWorldView w,
+                                       int cx, int floorY, int cz) {
+        fp.setPos(cx - 4.5, floorY + 1, cz + 0.5);
+        long[] before = futileSnapshot();
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Near(new BlockPos(cx + 4, floorY + 1, cz), 1));
+        int regoals = 1;
+        boolean noRoute = false;
+        Walker.Step s = Walker.Step.WALKING;
+        for (int t = 0; t < ARM_TICKS; t++) {
+            if (t > 0 && t % 20 == 0) {                 // the quarry strolls back along the floor
+                walker.retargetGoal(new Goal.Near(new BlockPos(cx + 4 - (t / 20) % 9, floorY + 1, cz), 1));
+                regoals++;
+            }
+            s = walker.tick(av, w);
+            if (walker.lastError != null && walker.lastError.startsWith("no route progress")) noRoute = true;
+            av.step();
+        }
+        BlockPos end = fp.blockPosition();
+        long[] after = futileSnapshot();
+        return new ArmReading("chase：" + ARM_TICKS + " tick 跑满，下了 " + regoals + " 次目标，收在 " + s
+                + "，身体停在 " + end.getX() + "," + end.getY() + "," + end.getZ()
+                + "；" + futileGateLine(before, after), searchSum(before, after), noRoute);
+    }
+
+    /**
+     * One arm's reading. The line is for a human; the two numbers are what the scene judges on.
+     *
+     * <p>{@code searches} is the arm's whole share of the gate, terminals included — the count is the
+     * cost, and a terminal that keeps searching costs exactly as much as one that never fired.
+     * {@code noRoute} says whether the guard ever spoke, which is a different question from whether
+     * it should have: one arm asserts it fired, another asserts it did not.
+     */
+    private record ArmReading(String line, long searches, boolean noRoute) {}
+
+    private static long searchSum(long[] before, long[] after) {
+        long sum = 0;
+        for (int i = 0; i < after.length; i++) sum += after[i] - before[i];
+        return sum;
+    }
+
+    private static final int ARM_TICKS = 240;
 
     /**
      * One arm: re-seat the body, hand the walker an unreachable goal, and tick.
@@ -489,29 +571,52 @@ public final class WorldDriverMobFightScenes {
      * touched, so {@code searchGov} is reset exactly once, at the start. Two means the goal drops a
      * block every second tick and is re-issued each time it changes — {@code CombatProcess.approach}
      * verbatim, at the rate the blaze actually sank. Everything else is identical between the arms,
-     * which is what makes the difference between their two census rows readable.
+     * which is what makes the difference between their census rows readable.
+     *
+     * <p>{@code retarget} picks WHICH re-goal call the arm makes. Both shapes stay measured: the
+     * {@code setGoal} arm is the recorded baseline (240 searches out of 240 ticks) and its contract
+     * is still live elsewhere — {@code CombatProcess.collectSweep} relies on {@code setGoal} clearing
+     * a terminal — so it is a control arm, not a defect left in place.
+     *
+     * <p><b>The loop deliberately ignores the walker's return value</b>, exactly as {@code approach}
+     * does. An arm that stopped at the first terminal could not see the expensive half of this bug:
+     * {@code terminal()} stores nothing, so a latched cap re-reports itself by running another full
+     * search every single tick. Stopping at the terminal turns that into a tidy "6 searches, FAILED"
+     * while the real fight keeps burning one A* per tick behind it.
      */
-    private static String creepArm(ServerPlayerAvatar av, ServerPlayer fp, LevelWorldView w, String tag,
-                                   BlockPos high, int cx, int floorY, int cz, int regoalEvery) {
-        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);     // both arms start from the same cell
+    private static ArmReading creepArm(ServerPlayerAvatar av, ServerPlayer fp, LevelWorldView w, String tag,
+                                       BlockPos high, int cx, int floorY, int cz,
+                                       int regoalEvery, boolean retarget) {
+        fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);     // every arm starts from the same cell
         long[] before = futileSnapshot();
         Walker walker = new Walker();
         BlockPos target = high;
-        walker.setGoal(new Goal.Near(target, 2));
+        walker.setGoal(new Goal.Near(target, 2));      // the first order is a new journey in every arm
         int regoals = 1;
+        int firstTerminal = -1;
+        String firstError = null;
+        boolean noRoute = false;
         Walker.Step s = Walker.Step.WALKING;
-        int t = 0;
-        for (; t < 240 && s == Walker.Step.WALKING; t++) {
+        for (int t = 0; t < ARM_TICKS; t++) {
             if (regoalEvery > 0 && t > 0 && t % regoalEvery == 0) {
                 target = target.below();
-                walker.setGoal(new Goal.Near(target, 2));
+                Goal.Near g = new Goal.Near(target, 2);
+                if (retarget) walker.retargetGoal(g); else walker.setGoal(g);
                 regoals++;
             }
             s = walker.tick(av, w);
+            if (walker.lastError != null && walker.lastError.startsWith("no route progress")) noRoute = true;
+            if (s != Walker.Step.WALKING && firstTerminal < 0) {
+                firstTerminal = t;
+                firstError = walker.lastError;
+            }
             av.step();
         }
-        return tag + "：" + t + " tick，下了 " + regoals + " 次目标，收在 " + s
-                + "，lastError=" + walker.lastError + "；" + futileGateLine(before, futileSnapshot());
+        long[] after = futileSnapshot();
+        return new ArmReading(tag + "：" + ARM_TICKS + " tick 跑满，下了 " + regoals + " 次目标，"
+                + (firstTerminal < 0 ? "全程没有终局" : "首个终局在 t=" + firstTerminal + "（" + firstError + "）")
+                + "，收在 " + s + "；" + futileGateLine(before, after),
+                searchSum(before, after), noRoute);
     }
 
     private static long[] futileSnapshot() {
