@@ -3456,6 +3456,31 @@ VERDICT: GREEN (FILTERED — not a gate result)
 
 旁注（不阻塞）：`WASHED_OFF_UPSTREAM=4` 而香草水平流距可达 7，源在 5–7 格时 `fed==null` 会漏判。
 **漏判退化成旧行为（照旧重试），不是新回归——不预防性加宽**，真漏了让排练的 `washedOffUpstream` 行自己说。
+
+#### ✅ 判读：**① 命中**（`e1045abc` 场景+双清单，`82942df6` 控制组择时）
+
+```
+staged.body              = 100001, 221, 100000 …，onGround=true，inWater=true；水源 100003, 221, 100000
+climb.0.washedOffUpstream= 还在喂它的水源（最高的在前）：100003, 221, 100000      ← B、B2
+climb.0.washedOffFed     = 水在动（流速²=1.00000），但上游有源在喂 …
+                           不重试（还剩 8 次没用），交给上层的后备腿                ← C
+subject.retried = 0 条：[]      subject.afloat = 0 条：[]                          ← D
+VERDICT: GREEN (FILTERED — not a gate result)          62 ticks
+```
+
+四条判据全绿，**并且这一臂在同一天证明过自己能红**——第一次跑就是红的，红在控制组 A。
+那次红是真错误，值得单记：
+
+**⚡ 前提采样点离它守的那一刻差了 200 tick。** 第一版用 `for (i<20) av.step()` 之后就断言
+`fp.isInWater()`，读到 `false` 判红；而同一趟里被测的行写着 `climb.0.state=inWater=true`。
+原因是 **`av.step()` 推的是身体，不是世界的流体 tick** —— 水源还静静躺在两格外，
+是塔那 200 tick 里世界自己把水流过来的（`climb.0` 行 `water=false`，`.state` 行 `inWater=true`，
+两行相隔一整课）。改法：先 `rig.settle(new HoldStill(40), 80, …)` 让世界走 40 tick，再断言。
+
+⇒ **一条采样点远早于它所守分支的前提，不是前提，是另一次测量顶着前提的名字。**
+与 [[a-lagging-reading-became-the-crime-scene]] 同族，方向相反：那条是判词读了滞后的数，
+这条是前提读了**超前**的数。两边的规矩是同一条——**判某一刻，就用紧挨那一刻的读数**。
+`staged.beforeFlow` 那一行被**留在场景里**，就是为了让下一个读者看见这个差。
 2. **一格高的窗口撑不过四 tick 的重力。** 两次实测：
    摆在 `ends+1.0` ⇒ `subject.endedAt 精确 …/217.92/…`；摆在 `ends+1.6` ⇒ `…/217.83/…`，
    两次 `settled=null`。`blockPosition()` 在脚越过格边界那一刻就翻，而一节点的腿要 4–5 tick 才
