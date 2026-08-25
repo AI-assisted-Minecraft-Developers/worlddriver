@@ -1592,6 +1592,30 @@ J60-B 解释不了。**对照臂本身不等价于绿参照，差分就没有解
 因为它自己也挂在 `sliceStart` 上。[[an-instrument-behind-a-flag-is-not-an-instrument]]
 的变体：仪器在，但它量的原点跟病理的原点不是同一个。
 
+#### ✅ 本轮闸结算（`gate-j65-instr.log`，HEAD=`a63a5876`）：**GREEN**
+
+| 键 | 结果 | 读数 |
+|---|---|---|
+| **L0** | **已验** | 闸判词恰 1 行 `[stagewright:dedicatedServerFabric] VERDICT: GREEN`；322 条；`FAIL: '` **0** 个；`fail(optional)` 3 个（`vineOverWaterClimb`／`serverEscapeSealedShelter`／`journeyGetsAshoreBeforePouring`）；三只 canary 全对；无 `UNDECLARED` |
+| **L1** | **未触发** | `TICK SPEND` **0 行** |
+| **L2** | **未触发** | 拿不到分布。但 L1 的零携带一个**上界**：健康跑里没有任何 tick 的寻路 ≥ 1000 ms |
+| **L3** | **证伪** | `wd.serverCastsObsidian` 4324 ms／**1 tick**，区段里**只有 6 行日志、0 次 `search-begin`**，只有一对 `realbody` 进出 ⇒ 那 4.3 秒是**换身体**的开销，**不是寻路**。先前「#169 是 J60-B 的成本」错了两处：绿参照也有它，而且它压根不是寻路 |
+| **L4** | **已验** | `wd.serverFightsAFlyingBlaze` **PASS**（34 tick，1831 ms），700 次 `owner=combat` 搜索**全部 `expanded=0`** |
+
+⇒ **顺带了结了挂账的那一条**：上一轮只确立了差分、没有判词，现在
+**HEAD 上闸确实是 GREEN**（[[a-verdict-has-upstream-verdicts]] 要求的三条上游判词都已单独核过）。
+
+⚠️ **读判词的正则一开始是错的。** `grep -c 'VERDICT:'` 在绿参照上数出 **2**：
+一条是闸的 `[stagewright:<拓扑>] VERDICT: GREEN`，另一条是**场景自己的证据行**
+`[wd.vineClingFidelityProbe] VERDICT: y0=...`。只有**带拓扑前缀、不带时间戳**那条是闸在说话。
+先拿已知绿参照校准读法才发现（[[a-verification-tool-needs-verifying-too]]）。
+
+⚠️ **L1 未触发 ⇒ 仪器一次都没说过话**，所以它**还没有被验证过**
+（[[an-instrument-behind-a-flag-is-not-an-instrument]]）。1 秒的报告下限**高过健康跑的一切**，
+既标定不出分布，也证明不了管路（`tickMarker` 解析、ThreadLocal 累加、行格式）是通的。
+⇒ 下一趟做**正对照**：把下限临时降到 50 ms 重跑，它必须开口；然后按实测分布把
+永久下限和闸值都定在数据之上（[[verify-by-making-the-criterion-impossible]]）。
+
 #### ✅ J65 仪器已落地（`a63a5876`，**只报不拦**）
 
 `WorldView.tickMarker()`（默认 `Long.MIN_VALUE` = 没有时钟 ⇒ 会计**关闭**，不臆造 tick）
