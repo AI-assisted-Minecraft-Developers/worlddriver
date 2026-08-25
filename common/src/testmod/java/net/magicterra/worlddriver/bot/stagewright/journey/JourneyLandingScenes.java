@@ -725,11 +725,21 @@ public final class JourneyLandingScenes implements SceneProvider {
         ctx.check(fp.onGround()).as("控制组 B：身体必须是**站着**的，不是正在下坠 —— "
                 + "下坠中的身体过一会儿自己就落进去了，那测的不是修法：" + fp.onGround()).isTrue();
 
+        // DID THE GUARD THAT ALREADY EXISTS FIRE? `WalkerTickProgress.unwalkedDescentConsume` was
+        // written for this exact shape — journey rung 13, a last node one row DOWN that the walker
+        // spends on the tick it adopts it — and it bumps `Walker.descentHolds` every time it holds.
+        // A counter is the honest instrument here: `walkerDebug` is behind a flag no gate turns on,
+        // so its 步进 rows prove nothing about a run that did not set it, while a counter delta is a
+        // state change that happened or did not.
+        long holdsBefore = net.magicterra.worlddriver.bot.movement.Walker.descentHolds;
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         JourneyPortalRung.finishTheFlight(rig, "lip", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
             Object end = rig.evidenceOf("lip.flightLastStepEnd");
+            ctx.record("subject.descentHolds", (net.magicterra.worlddriver.bot.movement.Walker.descentHolds
+                    - holdsBefore) + "（末节点保持支开火次数；0 = 守卫在这一族上是哑的，"
+                    + "非 0 = 它开了火而身体照样没下去，两条完全不同的路）");
             ctx.record("subject.endedAt", String.format(java.util.Locale.ROOT,
                     "%s 精确 %.2f/%.2f/%.2f", got.toShortString(), fp.getX(), fp.getY(), fp.getZ()));
             ctx.record("subject.missed", String.valueOf(missed));
