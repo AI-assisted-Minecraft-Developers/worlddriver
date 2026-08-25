@@ -3323,6 +3323,33 @@ E 那条断言不是摆设：5 级、stride=4、终点在第 3 级时，stride �
 `i < end` 那个界把它丢掉了，`wet.route` 里没有第 4 级就是证据。若写成 `i < cells.size()`，
 `wet.route` 会是 `[0, 4, 3]`，E 立刻红。
 
+###### 🔎 J70：排水等的时间只有它自称的一半（2026-08-25，登记，排练跑完就修）
+
+`JourneyDrain:73–74` 的 javadoc 明写「**five legs of forty ticks** is generous —
+it is sized to be long enough that "still wet" means the SOURCE is still there」，
+而 `:170` 的实现是：
+
+```java
+rig.settle(new HoldStill(DRAIN_TICKS / 2), DRAIN_TICKS, () -> drainTheAlcove(ctx, rig, i, legs - 1, then));
+```
+
+`HoldStill(20)`，五段共 **100 tick**；而 `:140` / `:147` 两行判词印的是
+`DRAIN_LEGS * DRAIN_TICKS` = **200 tick**。**实现比设计意图短一半，证据行印的是意图不是事实。**
+调用点只有一个（`JourneyPortalRung:2027`，传 `JourneyDrain.legs()`），所以段数是对的，
+错的只有每段的 tick 数。
+
+后果不止是数字难看：整套设计压在「等够久 ⇒ 还湿就说明源还在」这句上，
+而这句的标定值是 200。`drain.7.upstream` 那句「8 格内没有水源块 —— 那就真的只是还没退完」
+正是在裁决一个**被夸大一倍**的说法。⇒ [[a-reading-is-not-the-quantity-it-looks-like]]
+再添一形：**行里印的是常量的乘积，不是真正等过的时间。**
+
+**修法**：`HoldStill(DRAIN_TICKS)`，settle 预算给 `DRAIN_TICKS * 2` 留余量，
+两行判词就自动为真。⚠ **这治不了 cast8 的淹水**——每趟的次序是
+浇水 → 上行取岩浆 → 回程 → 浇筑 → 收水 → 排水，**排水排在回程之后**，
+下一趟又会重新浇一次再离开，所以趟内那段活源期照旧
+（[[a-fix-that-cannot-reach-its-own-occasion]]，这一点已经在上面记过）。
+它能减少的只有「上一趟的残水带进下一趟」那部分，`drain.7 → cast8` 正是这一例。
+
 ###### J68c（只登记，不追）：「不用修楼梯」这条捷径只比了 y，没比柱
 
 同一条腿再往下三行：
