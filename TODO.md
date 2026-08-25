@@ -2101,6 +2101,21 @@ blaze 这条场景要不要坠落，取决于这一轮 blaze 往哪飞——**�
 **预测**：`still` 收在 `FAILED` 且 `lastError` 含 `no route progress`；
 `creep` 跑满 240 tick 收在 `WALKING`，桶 7 占大头、桶 8 远小于 `cap=5` 的累计需求。
 
+⚠️ **同时要看的第二个数：这条场景自己的用时。** 两臂共 480 次走行器 tick **全在一个服务端 tick 里**，
+而 `BlazeFightRun` 的 javadoc 记着同一条算术：身体无路可走的那一 tick 会烧掉
+`pathfinderIdleSliceMs`（默认 30 ms），当年 `3000 × ~20 ms` 正好撞上 60 s 看门狗。
+这里 `480 × ~20 ms ≈ 10 s`，看门狗打不着但难看，且慢机器上会放大。
+
+| 完成行读到 | 处置 |
+|---|---|
+| `(1 ticks, <2000 ms)` | 可接受，不动 |
+| `(1 ticks, 2000–20000 ms)` | 压 `pathfinderIdleSliceMs`，**不要**减 tick 数（会削薄普查样本） |
+| 超时或 >20 s | 改成 `BlazeFightRun` 那样的按服务端 tick 分片 pump |
+
+**不预先优化**：压 slice 可能让一次搜索跨多 tick 才完成，从而减少完成的搜索数、削薄读数——
+两害之间选哪个取决于实际用时，所以先让这一趟把数报出来
+（[[a-reading-is-not-the-quantity-it-looks-like]] 的反面用法：先量再调）。
+
 ##### ⚠️ 加了沿，这条引擎缺陷在全套件里就**再没有自然场合**了
 
 这是必须和修法同时想的一件事：场景侧的沿一旦落地，blaze 场景**永远造不出这次坠落**，
