@@ -322,22 +322,10 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         return at.toShortString() + " 站的是 " + fp.level().getBlockState(at).getBlock();
     }
 
-    /**
-     * Open one named cell with an aimed swing — the same three calls {@code
-     * JourneyRig.breakItWhereItStands} makes, which is what the rung's {@code mineCellOrGiveUp} tries
-     * before it routes anywhere.
-     *
-     * <p>Judged on the WORLD rather than on the call, because {@code breakHold} returns nothing and
-     * refuses silently.
-     */
+    /** {@link JourneyHands#swing} — the arena's own break oracle, shared with the pour-line arenas
+     *  so there is one of it rather than one per file. */
     private static boolean swing(ServerWorldDriver driver, BlockPos cell) {
-        ServerPlayerAvatar av = driver.avatar();
-        if (!av.canBreak(cell)) return false;
-        av.selectTool(cell);
-        av.aimAtBlock(cell);
-        av.breakHold(true);
-        av.breakHold(false);
-        return !driver.fakePlayer().level().getBlockState(cell).blocksMotion();
+        return JourneyHands.swing(driver, cell);
     }
 
     // ---------------------------------------------------------------------- arms ----

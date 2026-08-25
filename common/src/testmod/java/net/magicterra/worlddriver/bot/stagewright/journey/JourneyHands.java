@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 
@@ -599,5 +601,28 @@ final class JourneyHands {
                 rig.carrying("minecraft:bucket"),
                 rig.carrying("minecraft:water_bucket"),
                 rig.carrying("minecraft:lava_bucket"));
+    }
+
+    /**
+     * Open one named cell with an aimed swing — the same three calls
+     * {@code JourneyRig.breakItWhereItStands} makes, which is what a rung's {@code mineCellOrGiveUp}
+     * tries before it routes anywhere.
+     *
+     * <p>Judged on the WORLD rather than on the call, because {@code breakHold} returns nothing and
+     * refuses silently. That is what makes this a scene-side twin of the production verb rather than
+     * a call to it: an arena that wants to know whether a cell opened must ask the level, and a
+     * scene that asked {@code breakItWhereItStands} would be asking the subject to grade itself.
+     *
+     * <p>Two arena files each had a byte-identical copy of the twin. One independent oracle is the
+     * point; two are just two, and the second is free to drift into agreeing with the subject.
+     */
+    static boolean swing(ServerWorldDriver driver, BlockPos cell) {
+        ServerPlayerAvatar av = driver.avatar();
+        if (!av.canBreak(cell)) return false;
+        av.selectTool(cell);
+        av.aimAtBlock(cell);
+        av.breakHold(true);
+        av.breakHold(false);
+        return !driver.fakePlayer().level().getBlockState(cell).blocksMotion();
     }
 }

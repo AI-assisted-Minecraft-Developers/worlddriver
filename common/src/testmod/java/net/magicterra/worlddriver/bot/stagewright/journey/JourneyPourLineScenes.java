@@ -389,17 +389,10 @@ public final class JourneyPourLineScenes implements SceneProvider {
         return new Shot(landing == null ? null : hit.getBlockPos(), landing, where);
     }
 
-    /** Open one named cell with an aimed swing — the three calls
-     *  {@code JourneyRig.breakItWhereItStands} makes, judged on the WORLD because {@code breakHold}
-     *  returns nothing and refuses silently. */
+    /** {@link JourneyHands#swing} — the arena's own break oracle, shared with the portal-entry
+     *  arenas so there is one of it rather than one per file. */
     private static boolean swing(ServerWorldDriver driver, BlockPos cell) {
-        ServerPlayerAvatar av = driver.avatar();
-        if (!av.canBreak(cell)) return false;
-        av.selectTool(cell);
-        av.aimAtBlock(cell);
-        av.breakHold(true);
-        av.breakHold(false);
-        return !driver.fakePlayer().level().getBlockState(cell).blocksMotion();
+        return JourneyHands.swing(driver, cell);
     }
 
     /** The nearest foot cell that grades {@link JourneySight#ANYWHERE} — a stand this pour is
