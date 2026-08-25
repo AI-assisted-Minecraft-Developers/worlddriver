@@ -12,7 +12,8 @@ import net.minecraft.server.level.ServerLevel;
  * <p>Split out of {@link JourneyPortalRung} the same mechanical way that rung was split out of
  * {@code WorldDriverJourneyScenes}: the file crossed its 3000-line budget, and the alternative —
  * shaving the comments that carry the measurements — trades the only thing those files are good
- * for. Nothing changed in the move except that {@code stairBottom} is package-private now.
+ * for. Nothing changed in the move except that {@code stairBottom} is package-private now; it has
+ * since moved on to {@link JourneyStairwell}, which is where the flight it names is cut and walked.
  *
  * <p>These four readings belong together because they are one story told at two moments. The cast
  * pours a source into an open mould; the mould's floor row IS the flight's bottom row; so the
@@ -34,8 +35,8 @@ final class JourneyDrain {
      * wait.
      */
     static List<BlockPos> stairFootCells() {
-        if (JourneyPortalRung.stairBottom == null) return List.of();
-        BlockPos b = JourneyPortalRung.stairBottom;
+        if (JourneyStairwell.stairBottom == null) return List.of();
+        BlockPos b = JourneyStairwell.stairBottom;
         return List.of(b, b.above(), b.above(2));
     }
 
@@ -58,7 +59,7 @@ final class JourneyDrain {
      * and to say so when it has not.
      */
     static String stairFootStory(ServerLevel level) {
-        BlockPos bottom = JourneyPortalRung.stairBottom;
+        BlockPos bottom = JourneyStairwell.stairBottom;
         if (bottom == null) return "还没有楼梯底坐标";
         String wet = JourneyForge.firstFluid(level, stairFootCells());
         if (wet == null) return "楼梯底 " + bottom.toShortString() + " 那三格没有流体";
@@ -142,8 +143,8 @@ final class JourneyDrain {
             // Its own row, unconditionally — a drain that waited for the stairwell and a drain that
             // never looked at it must not read alike.
             rig.evidence("drain." + i + ".stairFoot", foot == null
-                    ? "楼梯底那三格已排干" + (JourneyPortalRung.stairBottom == null ? "（还没有楼梯底坐标）"
-                            : "（" + JourneyPortalRung.stairBottom.toShortString() + "）")
+                    ? "楼梯底那三格已排干" + (JourneyStairwell.stairBottom == null ? "（还没有楼梯底坐标）"
+                            : "（" + JourneyStairwell.stairBottom.toShortString() + "）")
                     : "等了 " + (DRAIN_LEGS * DRAIN_TICKS) + " tick 楼梯底仍有流体：" + foot
                       + " —— 下一趟下楼会落进水里，塔垒不起来（见 cast*.stairFoot / climb.*.afloat）");
             // ONLY WHEN THE WAIT RAN OUT, and only then. A drain that cleared has nothing upstream

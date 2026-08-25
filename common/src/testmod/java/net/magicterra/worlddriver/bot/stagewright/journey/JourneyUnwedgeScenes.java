@@ -167,7 +167,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     private static BlockPos top(SceneContext ctx) { return ctx.rel(0, BASE + 7, 0); }
 
     /** Step {@code s} of the flight, {@code s ∈ [1, STEPS]} — one along, one down, the shape
-     *  {@code JourneyPortalRung.digStairsDown} cuts. */
+     *  {@code JourneyStairwell.digStairsDown} cuts. */
     private static BlockPos step(SceneContext ctx, int s) { return ctx.rel(s, BASE + 7 - s, 0); }
 
     /**

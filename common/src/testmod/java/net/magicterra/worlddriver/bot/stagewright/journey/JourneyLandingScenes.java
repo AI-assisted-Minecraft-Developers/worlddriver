@@ -607,7 +607,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                 + "（" + JourneyStairs.steps() + " 级）");
 
         // ---- arm A: dry. The terminal must be the bottom, i.e. nothing changed for a healthy run.
-        List<BlockPos> dry = JourneyPortalRung.stairRoute(level, true);
+        List<BlockPos> dry = JourneyStairwell.stairRoute(level, true);
         ctx.record("dry.route", dry.toString());
         ctx.check(dry.get(dry.size() - 1).equals(bottom))
                 .as("A 楼梯底是干的时候，末路点仍然是楼梯底 " + bottom.toShortString()
@@ -620,7 +620,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // ---- arm B: the bottom step and its head room under water, as cast8 found them.
         ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 1, 0, Blocks.WATER);
         ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 2, 0, Blocks.WATER);
-        List<BlockPos> wet = JourneyPortalRung.stairRoute(level, true);
+        List<BlockPos> wet = JourneyStairwell.stairRoute(level, true);
         BlockPos ends = wet.get(wet.size() - 1);
         ctx.record("wet.route", wet.toString());
         ctx.record("wet.cells", story(level, cut));
@@ -697,8 +697,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         ctx.cleanup(() -> {
             net.magicterra.worlddriver.bot.BotConfig.walkerDebug = debugWas;
             JourneyStairs.forget();
-            JourneyPortalRung.stairTop = null;
-            JourneyPortalRung.stairBottom = null;
+            JourneyStairwell.stairTop = null;
+            JourneyStairwell.stairBottom = null;
             clearBox(ctx);
         });
         flatGround(ctx);
@@ -712,14 +712,14 @@ public final class JourneyLandingScenes implements SceneProvider {
         }
         JourneyStairs.reset(level, cut.get(0));
         for (int i = 1; i < STEPS; i++) JourneyStairs.cut(cut.get(i));
-        JourneyPortalRung.stairTop = cut.get(0);
-        JourneyPortalRung.stairBottom = cut.get(STEPS - 1);
+        JourneyStairwell.stairTop = cut.get(0);
+        JourneyStairwell.stairBottom = cut.get(STEPS - 1);
         // The bottom step under water, so `lowestDryStep` lifts the terminal one step — the only
         // world in which the lip pose is reachable at all. See finishTheFlight's own note.
         ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 1, 0, Blocks.WATER);
         ctx.setBlock(-4 + STEPS - 1, GROUND - STEPS + 2, 0, Blocks.WATER);
 
-        List<BlockPos> route = JourneyPortalRung.stairRoute(level, true);
+        List<BlockPos> route = JourneyStairwell.stairRoute(level, true);
         BlockPos ends = route.get(route.size() - 1);
         BlockPos beyond = JourneyStairs.nextDown(ends);
         ctx.record("staged.terminal", ends.toShortString() + "，下一级=" + String.valueOf(beyond));
@@ -792,7 +792,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                 + fp.onGround()).isFalse();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
-        JourneyPortalRung.finishTheFlight(rig, "drop", ends, () -> {
+        JourneyStairwell.finishTheFlight(rig, "drop", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object settled = rig.evidenceOf("drop.flightLastStepSettled");
             Object missed = rig.evidenceOf("drop.flightLastStepMissed");
@@ -849,7 +849,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // state change that happened or did not.
         long holdsBefore = net.magicterra.worlddriver.bot.movement.Walker.descentHolds;
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
-        JourneyPortalRung.finishTheFlight(rig, "lip", ends, () -> {
+        JourneyStairwell.finishTheFlight(rig, "lip", ends, () -> {
             BlockPos got = fp.blockPosition();
             Object missed = rig.evidenceOf("lip.flightLastStepMissed");
             Object end = rig.evidenceOf("lip.flightLastStepEnd");

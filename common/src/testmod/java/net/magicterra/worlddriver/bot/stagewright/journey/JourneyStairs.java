@@ -18,8 +18,9 @@ import net.minecraft.world.item.Items;
  * The portal rung's staircase, and whether it is still a staircase.
  *
  * <p>Split out of {@link JourneyPortalRung} when that file reached its 3000-line budget. Nothing
- * changed in the move; the seam is that the rung CUTS and WALKS the flight while this asks whether
- * the flight can still be walked, and puts back what it has lost.
+ * changed in the move; the seam is that {@link JourneyStairwell} CUTS and WALKS the flight while
+ * this asks whether the flight can still be walked, and puts back what it has lost. (The cutting
+ * and walking half was itself the rung's until that file hit the budget in turn.)
  *
  * <p>The whole reason this exists as a self-check rather than as a one-off dig: a flight of sixteen
  * cut cells is not a thing that stays cut. Ten casts walk it twenty times, and between legs the same
@@ -292,7 +293,7 @@ final class JourneyStairs {
      * at it was measured on {@code wd.journeyWalksOffTheLipOntoTheDryStep} and removed: whenever the
      * terminal was raised by {@link #lowestDryStep} — the only case where the lip pose happens — the
      * step below is by definition under water, and the leg spent its whole budget walking the body
-     * two cells back and one row UP the flight. See {@code JourneyPortalRung#finishTheFlight}.
+     * two cells back and one row UP the flight. See {@code JourneyStairwell#finishTheFlight}.
      *
      * <p>What it is still for is <b>staging</b>: a scene that means to reproduce the raised-terminal
      * world asserts this is non-null, because「the terminal was raised」and「there is a step below it」
