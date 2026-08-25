@@ -210,14 +210,68 @@ public final class WalkerExpectAlarms {
 
     /** Client-only holder for the GEAR sentinel — see the side guard above. */
     private static final class ClientGearCheck {
-        /** @return the missing-gear description ("water_bucket ", "pickaxe", …) or null if OK / not a LocalPlayer. */
+        /** EVERY pickaxe tier. The tier is irrelevant to what this sentinel watches: a wooden pick
+         *  stranded in slot 33 leaves the body mining by hand exactly as a diamond one would.
+         *  Listing only IRON/DIAMOND — as this did until 2026-08-26 — put the alarm's threshold
+         *  ABOVE the run it was watching: the journey ladder does not smelt iron until rung 9, so
+         *  rungs 1-8 tripped it every 100t no matter how healthy the body was (ladder5: 30 times
+         *  through rung 6, wording unchanged after rung 4 handed over a wooden pick). */
+        private static final List<net.minecraft.world.item.Item> PICKS = List.of(
+                net.minecraft.world.item.Items.WOODEN_PICKAXE,
+                net.minecraft.world.item.Items.STONE_PICKAXE,
+                net.minecraft.world.item.Items.IRON_PICKAXE,
+                net.minecraft.world.item.Items.GOLDEN_PICKAXE,
+                net.minecraft.world.item.Items.DIAMOND_PICKAXE,
+                net.minecraft.world.item.Items.NETHERITE_PICKAXE);
+
+        private static final List<net.minecraft.world.item.Item> BUCKET =
+                List.of(net.minecraft.world.item.Items.WATER_BUCKET);
+
+        /** @return the missing-gear description ("water_bucket(slot 12) ", …) or null if OK / not a
+         *  LocalPlayer. The slot is printed because this alarm names a cause, and a reader who wants
+         *  to refute it needs the cell to look in — an alarm that asserts "crowded out" without
+         *  saying out of WHERE is asking to be believed rather than checked. */
         static String missing(Player p) {
             if (!(p instanceof net.minecraft.client.player.LocalPlayer lp)) return null;
-            boolean bucket = net.magicterra.worlddriver.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.WATER_BUCKET) >= 0;
-            boolean pick = net.magicterra.worlddriver.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.DIAMOND_PICKAXE) >= 0
-                    || net.magicterra.worlddriver.bot.util.BotInteract.hotbarSlotOf(lp, net.minecraft.world.item.Items.IRON_PICKAXE) >= 0;
-            if (bucket && pick) return null;
-            return (bucket ? "" : "water_bucket ") + (pick ? "" : "pickaxe ");
+            int bucket = strandedSlot(lp, BUCKET);
+            int pick = strandedSlot(lp, PICKS);
+            String out = (bucket >= 0 ? "water_bucket(slot " + bucket + ") " : "")
+                    + (pick >= 0 ? "pickaxe(slot " + pick + ") " : "");
+            return out.isEmpty() ? null : out;
+        }
+
+        /** DEGRADED names a cause — pickups crowded the gear out — so the judgement has to be able
+         *  to refute that cause: the bag must HOLD a member of {@code family} while the hotbar holds
+         *  none. Carrying none of it at all is "not crafted yet", a different fact and not this
+         *  alarm's business; conflating the two is what made it fire on a body that was fine.
+         *
+         *  <p>Note this feeds the shared {@link WalkerExpectAlarms#FIRED} counter, which scenes diff across an
+         *  edge. Today that is safe only because those scenes drive a FakePlayer and {@link #missing}
+         *  returns null for anything that is not a LocalPlayer — a client-side scene doing the same
+         *  edge trick would see GEAR ticks bleed into its own.
+         *
+         *  @return the slot holding the stranded gear, or -1 when nothing is crowded out — which
+         *          covers BOTH "it is on the hotbar" and "we own none of it".
+         */
+        private static int strandedSlot(net.minecraft.client.player.LocalPlayer lp,
+                                        List<net.minecraft.world.item.Item> family) {
+            int stranded = -1;
+            for (net.minecraft.world.item.Item it : family) {
+                if (net.magicterra.worlddriver.bot.util.BotInteract.hotbarSlotOf(lp, it) >= 0) return -1;
+                if (stranded < 0) stranded = bagSlot(lp, it);
+            }
+            return stranded;
+        }
+
+        /** Scans all 36 main-inventory slots. The hotbar is among them, but every caller has already
+         *  ruled the hotbar out, so a hit here is necessarily out of reach. */
+        private static int bagSlot(net.minecraft.client.player.LocalPlayer lp,
+                                   net.minecraft.world.item.Item it) {
+            net.minecraft.world.entity.player.Inventory inv = lp.getInventory();
+            for (int s = 0; s < inv.items.size(); s++) {
+                if (inv.items.get(s).getItem() == it) return s;
+            }
+            return -1;
         }
     }
 }
