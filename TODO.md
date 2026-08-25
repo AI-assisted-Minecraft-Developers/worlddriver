@@ -885,6 +885,11 @@ public static volatile boolean autoRetreat = false;
 身体最终落回验过的那一排。⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
+🔴 **第 12 级 PORTAL_LIT：第 4 格浇不成黑曜石。** `water3.atUse` 的射线打到 `5,57,21` 面=west
+（水落 `4,57,21`），**和 `water1` 打的是同一格**；同一格的 `cast3` 打 `4,56,22` 面=up（岩浆落
+`4,57,22`）却是对的。两侧目标差一格，判词读到 `4,57,22=air`。
+⇒ 要查的是：第 12 级模腔第 4 格的目标格怎么算的，为什么 water 侧比 cast 侧少走一格。
+
 📌 **`[expect] GEAR-degraded` 是恒假阳性，判据要改。** `WalkerExpectAlarms.ClientGearCheck.missing`
 的 `pick` 只认 `DIAMOND_PICKAXE`/`IRON_PICKAXE`，木镐石镐都不算，所以梯子拿到铁镐之前每 100 tick
 必报一次（ladder5 前六级 30 次，第 4 级「木镐 ×1 到手」PASS 之后措辞一字未变）。而它印的是
