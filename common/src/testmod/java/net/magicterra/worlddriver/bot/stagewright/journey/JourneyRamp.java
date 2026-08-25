@@ -742,12 +742,53 @@ final class JourneyRamp {
      *  is measured in {@code wd.pourLineHasNoOtherWayUp} rather than argued. */
     static List<BlockPos> planKeeping(ServerLevel level, Set<BlockPos> corridor, int floorY,
                                       BlockPos landing, boolean keepLinesClear) {
-        List<BlockPos> found = new ArrayList<>();
-        return walkDown(level, corridor, floorY, landing, found, keepLinesClear) ? found : null;
+        return planKeeping(level, corridor, floorY, landing, keepLinesClear, false);
     }
 
+    /**
+     * The same, with the choice of whether a course may double back on the one two below it.
+     *
+     * <p>{@code mayFold=true} is what this planner did until 2026-08-25 and is now reachable only
+     * from {@link #whyNoFlight}, which uses the pair as a discriminant. A landing that has a flight
+     * ONLY when folds are allowed was refused by that rule and by nothing about the alcove's walls —
+     * and the walls is where the route sentence would otherwise send the reader, which is the exact
+     * mistake this method's own note records five instances of.
+     */
+    static List<BlockPos> planKeeping(ServerLevel level, Set<BlockPos> corridor, int floorY,
+                                      BlockPos landing, boolean keepLinesClear, boolean mayFold) {
+        List<BlockPos> found = new ArrayList<>();
+        return walkDown(level, corridor, floorY, landing, found, keepLinesClear, null, mayFold)
+                ? found : null;
+    }
+
+    /**
+     * One step of the descent. {@code banned} is the one horizontal this level may not take.
+     *
+     * <p><b>A FLIGHT CAN SEAL ITSELF, and the planner reads a world where none of it exists yet.</b>
+     * {@link #standable} asks whether {@code stand} and {@code stand.above()} are clear, of a world
+     * where every course is still air — so it can never see that the head room it just approved is
+     * where a course two rows up is about to put its own support. The body then cannot enter its own
+     * staircase at course 0, and A* is right to route around it.
+     *
+     * <p>Measured, ladder {@code journey-n3} 2026-08-25, rung 12 cell {@code wet.8}. Landing
+     * {@code 3,60,20}, floor {@code y=56}; the descent went NORTH, NORTH, SOUTH and planned stands
+     * {@code 3,57,19 → 3,58,18 → 3,59,19 → 3,60,20}. Course 2's support is {@code 3,59,19.below() =
+     * 3,58,19}, which is exactly {@code 3,57,19.above()} — course 0's head room. All five placements
+     * went in ({@code [place] … 结果=SUCCESS} ×5, shoulder included), the flight was complete, and the
+     * {@code goto 3,60,20} that followed walked WEST out of the alcove and finished on the surface at
+     * {@code -5,65,20}, 9.85 blocks off. Three retries never came back to the column.
+     *
+     * <p><b>The rule is local and it is exact.</b> With {@code s(k-1) = s(k).relative(d(k)).below()},
+     * {@code support(k) = s(k) - ŷ} can only collide with {@code s(k-2).above() = s(k) + d(k) +
+     * d(k-1) - ŷ}: every other stand or head-room cell of the flight differs from it in Y. So the
+     * collision is exactly {@code d(k-1) == d(k).getOpposite()}, and refusing that one direction at
+     * the moment the child chooses is both sufficient and free of false refusals — the child still
+     * has its other three. Checking it on the way back out instead would discard a whole subtree that
+     * had other routes left, and refuse flights that exist.
+     */
     private static boolean walkDown(ServerLevel level, Set<BlockPos> corridor, int floorY,
-                                    BlockPos stand, List<BlockPos> found, boolean keepLinesClear) {
+                                    BlockPos stand, List<BlockPos> found, boolean keepLinesClear,
+                                    Direction banned, boolean mayFold) {
         if (!standable(level, corridor, stand)
                 || !supportable(level, corridor, stand.below(), keepLinesClear))
             return false;
@@ -763,7 +804,9 @@ final class JourneyRamp {
             return true;
         }
         for (Direction d : Direction.Plane.HORIZONTAL) {
-            if (walkDown(level, corridor, floorY, stand.relative(d).below(), found, keepLinesClear)) {
+            if (d == banned) continue;
+            if (walkDown(level, corridor, floorY, stand.relative(d).below(), found, keepLinesClear,
+                    mayFold ? null : d.getOpposite(), mayFold)) {
                 found.add(stand);
                 return true;
             }
@@ -879,6 +922,15 @@ final class JourneyRamp {
         if (!supportable(level, corridor, support))
             return "这一格自己的垫脚 " + support.toShortString() + " 垫不了："
                     + whySupport(level, corridor, support);
+        // THE FOLD CLAUSE IS ASKED FIRST AND BY MEASUREMENT, not by argument: re-plan with the rule
+        // dropped and see whether a flight appears. It is a separate finding wanting separate work —
+        // a route that only folds wants the top courses handed to the raise-with-body path, while a
+        // route that has no wall wants a wider alcove — and answering both with the sentence below is
+        // the same shape of mistake this method's note already records five instances of.
+        if (planKeeping(level, corridor, floorY, landing, false, true) != null)
+            return "从地板 y=" + floorY + " 到 y=" + landing.getY()
+                    + " 只剩折回那一条路（某一级原路退回，它的垫脚会正好落在下面第二级的头顶格里，"
+                    + "身体连第 0 级都站不上去）—— 楼梯修不上去，顶上那几级要改走带身体一起升的路子";
         return "垫脚有了，但从地板 y=" + floorY + " 一级一级走不到 y=" + landing.getY()
                 + "：壁龛五格宽、" + corridor.size() + " 格，每一级只能挪一格，中间某一级没有能贴的墙";
     }
@@ -916,6 +968,17 @@ final class JourneyRamp {
                 + "）—— 两条路都断了";
     }
 
+    /**
+     * The flight as a row of cells — <b>the SUPPORTS, not the stands</b>, because those are the cells
+     * this rung places and the ones a {@code [place]} row can be lined up against.
+     *
+     * <p>Named because the difference costs a round every time. {@link #plan} says each entry is a
+     * cell the body stands in and it is right; this prints {@code below()} of each, so
+     * {@code wet.8.ramp.flight = … → 3, 59, 20} is course 3's SUPPORT and its stand is
+     * {@code 3,60,20}. Reading the row as stands puts every headroom question one row off, which is
+     * exactly the reasoning that has to be right for {@link #walkDown}'s fold rule to be checkable
+     * from a log.
+     */
     private static String describe(List<BlockPos> flight) {
         StringBuilder out = new StringBuilder();
         for (BlockPos s : flight)

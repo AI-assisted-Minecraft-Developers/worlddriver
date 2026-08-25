@@ -452,6 +452,7 @@ wd.guardRepathSeparatesARimWalkFromALivelock
 # built.
 wd.rampStepsAsideWhenTheBodyIsInItsOwnStep
 wd.rampFootholdRisesWithTheFlightItLaid
+wd.rampNeverFoldsBackIntoItsOwnHeadroom
 # A ruler, not a test: zero assertions, only ctx.record. Permanently optional — it has no
 # verdict to give. On THIS loader its factory column is a real net.neoforged FakePlayer, which
 # is the body being retired — so this loader's readings are the ones that cannot be taken again

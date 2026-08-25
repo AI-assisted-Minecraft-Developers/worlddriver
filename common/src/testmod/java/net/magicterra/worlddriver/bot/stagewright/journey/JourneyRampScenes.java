@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -10,10 +11,13 @@ import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
+import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -108,7 +112,9 @@ public final class JourneyRampScenes implements SceneProvider {
                 Scene.of("wd.rampStepsAsideWhenTheBodyIsInItsOwnStep", 200,
                         JourneyRampScenes::stepsAsideWhenTheBodyIsInItsOwnStep),
                 Scene.of("wd.rampFootholdRisesWithTheFlightItLaid", 200,
-                        JourneyRampScenes::footholdRisesWithTheFlightItLaid));
+                        JourneyRampScenes::footholdRisesWithTheFlightItLaid),
+                Scene.of("wd.rampNeverFoldsBackIntoItsOwnHeadroom", 400,
+                        JourneyRampScenes::neverFoldsBackIntoItsOwnHeadroom));
     }
 
     // ---------------------------------------------------------------------- arena ----
@@ -140,12 +146,21 @@ public final class JourneyRampScenes implements SceneProvider {
      *  question here is what the loop does about a body, and a frame cell in the way would answer a
      *  different one. */
     private static void stage(SceneContext ctx) {
+        stage(ctx, JourneyForge.corridor(at(ctx), AWAY, PUSH));
+    }
+
+    /** The same rock, with the caller naming which cells are hollow. Split out for the fold arm,
+     *  whose whole subject is a corridor shape {@link JourneyForge} does not produce: the route the
+     *  planner must refuse only exists when one continuation is missing, and a generated alcove has
+     *  them all. The rock box is unchanged either way, so the arena footprint in the class note
+     *  still covers both. */
+    private static void stage(SceneContext ctx, Iterable<BlockPos> corridor) {
         clearBox(ctx);
         for (int dx = -2; dx <= 3; dx++)
             for (int dz = -4; dz <= 4; dz++)
                 for (int dy = BASE - 2; dy <= BASE + 8; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.STONE);
-        for (BlockPos c : JourneyForge.corridor(at(ctx), AWAY, PUSH))
+        for (BlockPos c : corridor)
             ctx.level().setBlockAndUpdate(c, Blocks.AIR.defaultBlockState());
     }
 
@@ -469,4 +484,164 @@ public final class JourneyRampScenes implements SceneProvider {
                         + " —— 把落脚点抬起来的正是垫台阶这件事，所以水里那一格是 0/"
                         + flight.size() + " 的后果，不是另一个缺陷").isTrue();
     }
+
+    // ------------------------------------------------- the flight that sealed itself ----
+
+    /** The fold arm's alcove: two ranks in x, three in z, six tall, floor on {@link #BASE}.
+     *
+     * <p><b>Narrower in z than a generated corridor on purpose.</b> The descent from the landing runs
+     * NORTH twice and then wants a third; {@code dz = -3} is rock, so the third does not exist and the
+     * only continuation the old planner had left was to double back. That missing cell IS the
+     * fixture — a five-wide alcove has the straight route and never asks the question. */
+    private static Set<BlockPos> foldCorridor(SceneContext ctx) {
+        Set<BlockPos> cells = new LinkedHashSet<>();
+        for (int dx = -1; dx <= 0; dx++)
+            for (int dz = -2; dz <= 0; dz++)
+                for (int dy = BASE; dy <= BASE + 5; dy++)
+                    cells.add(ctx.rel(dx, dy, dz));
+        return Set.copyOf(cells);
+    }
+
+    /** Where this flight's feet have to end up. Four courses above the floor, which is what rung 12's
+     *  {@code wet.8} asked for. */
+    private static BlockPos foldLanding(SceneContext ctx) { return ctx.rel(0, BASE + 4, 0); }
+
+    /**
+     * The first support of this flight that stands in another course's cell or head room — or null
+     * when every course is enterable.
+     *
+     * <p>The PROPERTY, checked over all pairs, deliberately not the rule
+     * {@link JourneyRamp} implements. The rule is「a course may not double back on the one two
+     * below」and it is a derivation; if the derivation is wrong this must still catch it. A flight
+     * that satisfies this is one the body can walk up, because the only thing that can seal a step
+     * of a staircase built entirely out of this flight's own blocks is another block of it.
+     */
+    private static BlockPos sealedBy(List<BlockPos> flight) {
+        for (int i = 0; i < flight.size(); i++) {
+            BlockPos support = flight.get(i).below();
+            for (int j = 0; j < flight.size(); j++) {
+                if (j == i) continue;
+                BlockPos stand = flight.get(j);
+                if (support.equals(stand) || support.equals(stand.above())) return support;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A flight may not fill the head room of a course below it — and the body must be able to walk up
+     * the one that does not.
+     *
+     * <h2>The run</h2>
+     *
+     * <p>Ladder {@code journey-n3}, 2026-08-25, rung 12, cell {@code wet.8}. The planner searched down
+     * from {@code 3,60,20} NORTH, NORTH, SOUTH and returned stands {@code 3,57,19 → 3,58,18 →
+     * 3,59,19 → 3,60,20}. Course 2's support is {@code 3,58,19} and course 0's head room is
+     * {@code 3,57,19.above()} — the same cell. Every placement then landed:
+     *
+     * <pre>
+     * [place] 成功 点击格=3, 55, 19 面=up    邻格=3, 56, 19→cobblestone 身体y=56.000 结果=SUCCESS
+     * [place] 成功 点击格=3, 57, 17 面=south 邻格=3, 57, 18→cobblestone 身体y=56.000 结果=SUCCESS
+     * [place] 成功 点击格=4, 58, 19 面=west  邻格=3, 58, 19→cobblestone 身体y=56.000 结果=SUCCESS
+     * [place] 成功 点击格=3, 58, 19 面=south 邻格=3, 58, 20→cobblestone 身体y=56.000 结果=SUCCESS
+     * [place] 成功 点击格=3, 58, 20 面=up    邻格=3, 59, 20→cobblestone 身体y=56.000 结果=SUCCESS
+     * [pathfinder] search-begin owner=goto start=3, 56, 20 goal=BlockPos{x=3, y=60, z=20}
+     * [walker] 步进: w=2, 56, 20 nx=1, 57, 20 …
+     * </pre>
+     *
+     * <p>The staircase was complete and the {@code goto} onto its top step walked WEST out of the
+     * alcove and finished on the surface at {@code -5,65,20}, 9.85 blocks from the cell it was sent
+     * to; three retries never came back to the column. <b>A* was right.</b> The body cannot enter
+     * course 0 — its head is under course 2 — so there is no route up this flight, and the rung then
+     * poured every remaining cast from a column nobody had verified.
+     *
+     * <h2>判据</h2>
+     *
+     * <ol>
+     *   <li><b>A THE RIG</b> with folds allowed this alcove yields a flight — otherwise B is
+     *       measuring an alcove with no staircase rather than a rule;</li>
+     *   <li><b>A</b> and that flight really does seal itself. <b>Without this the arm is 0==0</b>: a
+     *       staging that cannot reproduce the run's own geometry would let any planner pass;</li>
+     *   <li><b>B</b> with the rule on, a flight still exists — the rule must not answer「no route」to
+     *       an alcove that has one, which is the failure mode of checking on the way back out;</li>
+     *   <li><b>B</b> and no course of it stands in another's cell or head room;</li>
+     *   <li><b>C</b> the production loop builds it, and the WORLD holds every course up — so B is
+     *       about a staircase and not about a list;</li>
+     *   <li><b>D</b> a real body, walked by the real {@link Walker} from the alcove floor, ENDS ON
+     *       the top step. Not「the walker returned ARRIVED」— that is the reading rung 12 was already
+     *       getting from a body nine blocks away.</li>
+     * </ol>
+     */
+    private static void neverFoldsBackIntoItsOwnHeadroom(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        Set<BlockPos> corridor = foldCorridor(ctx);
+        stage(ctx, corridor);
+
+        BlockPos landing = foldLanding(ctx);
+        int floorY = JourneyRamp.floorOf(corridor);
+
+        // ---- A: the negative control, measured on this staging rather than argued ----
+        List<BlockPos> folded = JourneyRamp.planKeeping(level, corridor, floorY, landing, false, true);
+        ctx.record("folded", folded == null ? "修不出楼梯"
+                : folded.size() + " 级：" + supports(folded));
+        ctx.check(folded).as("A THE RIG: 放开折返之后这个壁龛必须修得出楼梯到 "
+                + landing.toShortString() + " —— 修不出的话 B 量的是「壁龛没有楼梯」，不是规则")
+                .isNotNull();
+        BlockPos foldSeal = folded == null ? null : sealedBy(folded);
+        ctx.record("folded.seal", foldSeal == null ? "没有哪一级压住别的级"
+                : foldSeal.toShortString() + " 既是某一级的垫脚，又是下面某一级的落脚格或头顶格");
+        ctx.check(foldSeal).as("A THE RIG: 而且那条路必须真的自封 —— 这个布景要复现的就是 wet.8 的"
+                + "「NORTH, NORTH, SOUTH」，复现不出来，下面全是 0==0："
+                + (folded == null ? "null" : supports(folded))).isNotNull();
+
+        // ---- B: the subject ----
+        List<BlockPos> flight = JourneyRamp.planKeeping(level, corridor, floorY, landing, false);
+        ctx.record("flight", flight == null ? "修不出楼梯" : flight.size() + " 级：" + supports(flight));
+        ctx.check(flight).as("B 禁掉折返之后仍然修得出楼梯 —— 这条路在选方向那一刻就被排除，"
+                + "子级还剩另外三个方向可走；要是改成事后否决，整棵子树会被连根丢掉，"
+                + "本来有解的壁龛会被判成无解").isNotNull();
+        if (flight == null) return;
+        ctx.check(sealedBy(flight)).as("B 而且这一条没有任何一级把别的级的落脚格或头顶格垫死："
+                + supports(flight)).isNull();
+        ctx.check(flight.get(flight.size() - 1)).as("B 顶级还是要送到指定的落脚格").isEqualTo(landing);
+
+        // ---- C: build it for real ----
+        // The one floor cell beside the bottom support — taken FROM the flight rather than named
+        // again, so the arm cannot end up building one staircase and climbing beside another.
+        BlockPos entry = flight.get(0).below().relative(Direction.SOUTH);
+        ServerWorldDriver driver = body(ctx, entry);
+        ServerPlayer fp = driver.fakePlayer();
+        Loop run = driveTheLoop(ctx, driver, corridor, flight, 0, false, "lay");
+        ctx.record("lay.trace", String.join("；", run.trace()));
+        ctx.record("lay.standing", standing(level, flight) + "/" + flight.size()
+                + " 级立在世界里（收在 " + run.last().stop() + "）");
+        ctx.check(standing(level, flight)).as("C 世界里每一级都立着 —— 否则 D 走不上去说的是"
+                + "「没垫完」，不是「垫完了走不上去」").isEqualTo(flight.size());
+
+        // ---- D: and walk it, judged by where the body ENDS ----
+        placeAt(driver, entry);
+        ctx.record("walk.from", fp.blockPosition().toShortString() + " → " + landing.toShortString());
+        if (!fp.blockPosition().equals(entry))
+            ctx.fail("THE RIG, not the subject: 身体没落在起步格 " + entry.toShortString()
+                    + "，落在 " + fp.blockPosition().toShortString());
+        Walker walker = new Walker();
+        walker.setGoal(new Goal.Block(landing));
+        LevelWorldView view = new LevelWorldView(level, fp);
+        BlockPos best = fp.blockPosition();
+        for (int t = 0; t < WALK_TICKS && !fp.blockPosition().equals(landing); t++) {
+            walker.tick(driver.avatar(), view);
+            driver.avatar().step();
+            if (fp.blockPosition().getY() > best.getY()) best = fp.blockPosition();
+        }
+        ctx.record("walk.end", fp.blockPosition().toShortString() + "（最高爬到 "
+                + best.toShortString() + "，" + WALK_TICKS + " tick 预算）");
+        ctx.check(fp.blockPosition()).as("D 身体自己走上了顶级台阶 " + landing.toShortString()
+                + " —— 判的是身体停在哪，不是 walker 返回了什么：真梯上那具身体报的是走完了，"
+                + "人停在九格外的地表上").isEqualTo(landing);
+    }
+
+    /** How long the climb gets. Four courses at one cell each; the budget is loose enough that a
+     *  failure here is「cannot」and not「not yet」. */
+    private static final int WALK_TICKS = 300;
 }
