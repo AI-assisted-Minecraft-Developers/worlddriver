@@ -1951,21 +1951,118 @@ if (gotCloser || moved) { wk.searchGov.futileSearches = 0; … }
 **blaze 在缓缓下沉**，于是每隔一次搜索目标就靠近 1 格，`gotCloser` 为真，
 `futileSearches` 归零。计数器永远到不了上限，退避永远不武装。
 
-⇒ 这不是 [[a-retry-that-changes-nothing]]（那条是「什么都没变还重问」），
-是**它的孪生**：重问确实有东西变了——目标挪了 1 格——**而这个变化在这个尺度上毫无意义**。
-身体离目标 250 格且物理上够不着，目标以 0.5 格/tick 逼近意味着还要再烧 500 tick 的满预算搜索。
-闸问的是「有没有变好」，该问的是「变好得**够不够**」。
+##### ❌ 又点错了门：真正的复位者不是 `gotCloser`，是 `setGoal`
 
-**修法（引擎侧，待写）**：`gotCloser` 的复位应当要求进展**由身体挣来**，
-或者至少要求改善量相对于剩余距离不可忽略；一次**烧穿 `maxNodes` 且没够到目标**的搜索，
-不该仅因为目标自己飘近了 1 格就被判为「有进展」。
-`moved` 那一支照旧——身体真挪了就是真进展。
+上一节把 `gotCloser` 判成复位者。**那条推理自洽、但它是死的**——
+`futileSearches` 有**两个**写者，我只验了里层那个
+（[[a-field-with-one-writer-is-a-proof]] 的反用：一个写者才是证明，两个就只是候选）。
 
-📌 **负测试是这条的硬要求**：一次合法的追击（目标在跑、身体在追、双方都在动）
-不能被误伤成 NO_PATH。测的形状应当是**身体不动 + 目标缓慢逼近 + 搜索烧穿预算**
-三者同时成立，而不是只测「目标在动」。
-[[verify-by-making-the-criterion-impossible]]：把目标放到物理上够不着的高度，
-健康的追击永远走不到这条闸。
+外层那个先开火，而且更彻底：
+
+```java
+// Walker.setGoal(Goal) —— searchGov.reset() 全仓唯一调用点
+this.searchGov.reset();     // futileSearches=0, futileBestDist=+∞, futileFoot=null
+
+// CombatProcess.approach(): "Path toward the target's block (re-goaling as it moves)"
+BlockPos tb = target.blockPosition();
+if (lastGoalBlock == null || !lastGoalBlock.equals(tb)) {
+    walker.setGoal(new Goal.Near(tb, radius));   // ← 每次 blaze 换格就重下一次
+    lastGoalBlock = tb;
+}
+```
+
+`Goal.Near` 存的是**定值 BlockPos**，所以会动的目标每换一格就必然重建一个 Goal。
+日志里那 27 次搜索目标变了 **14 次** ⇒ 14 次 `setGoal` ⇒ 14 次 `searchGov.reset()`。
+
+而复位还带一记**回旋镖**：`reset()` 把 `futileFoot` 置回 null，
+于是下一次搜索走到第 123 行时 `moved = (futileFoot == null) = true`，**再复位一次**。
+
+```
+blaze 换格 → setGoal → reset（futileSearches=0, futileFoot=null）
+  ↓ 第 1 次搜索：moved=true（futileFoot 是 null）→ 又清零，记下 futileFoot
+  ↓ 第 2 次搜索：moved=false, gotCloser=false → futileSearches=1，武装 8 tick 退避
+  ↓ blaze 又换格 → 回到第一行
+```
+
+⇒ **`futileSearches` 的实际封顶是 1**，而 `walkerFutileSearchCap = 5`。
+闸不是「阈值定高了」，是**计数器每两次搜索被外面清一次，永远走不到阈值**。
+
+这仍然是 [[a-retry-that-changes-nothing]] 的孪生——重问确实有东西变了（目标挪 1 格），
+而这个变化在 250 格、物理够不着的尺度上毫无意义——**但记账的那一笔在调用侧，不在闸里**。
+
+##### 修法只能落在调用侧：`setGoal` 是被人当复位手段**故意**用的
+
+不能改 `setGoal` 去保住 futile 状态。同一个文件下面 30 行写着为什么：
+
+```java
+// CombatProcess 收掉落物那支，第 356-367 行
+if (s != Walker.Step.WALKING) {
+    // …without a reset it no-ops every subsequent tick (setGoal is the only thing
+    // that clears a terminal — measured live: sweepTicks=101, 0.8 blocks moved,
+    // lastStep=ARRIVED). Same idiom as FollowProcess…
+    lastGoalBlock = null;      // ← 特地清掉，好在下一 tick 强制重下
+}
+```
+
+「`setGoal` 清一切」是**被依赖的契约**，动它就是去踩收掉落物和 `FollowProcess`
+（[[a-fix-that-cannot-reach-its-own-occasion]] 的反面：修法够得着场合，却顺手砸了别人的场合）。
+
+**两个候选形状，都还没测，先记形状不记数**：
+
+- **A｜重下目标要有迟滞**：只在目标**离开当前 Goal 自己的容差**时才重下，
+  即 `lastGoalBlock.distSqr(tb) > radius*radius`。`radius` 是现成的
+  `max(1, floor(combatReach))`，**不引入新常数**（这是刻意的：
+  「相对剩余距离的比例」那版要挑一个数，挑出来就是
+  [[the-number-that-appears-on-both-sides]] 的候选）。
+  ⚠️ 但它**单独可能不够**：radius≈3 时 blaze 要 6 次搜索才走出容差，
+  而每个复位窗口里第一次搜索被 `futileFoot==null` 吃掉，实际只数得到 ~4 次 < 5。**边际**。
+- **B｜「从这里够不着」是身体位置的性质，不是 Goal 实例的性质**：
+  同一个实体的重定向之间，futile 状态应当存活。改动更大，但 A 的边际性说明可能非它不可。
+
+⇒ **A、B 都要等一次能观测的运行才能选**，而下一条正说明这个观测通道要自己造。
+
+##### ⚠️ 加了沿，这条引擎缺陷在全套件里就**再没有自然场合**了
+
+这是必须和修法同时想的一件事：场景侧的沿一旦落地，blaze 场景**永远造不出这次坠落**，
+于是 A/B 两个候选修法在 301 条场景里**一个观测通道都没有**——
+改完只能靠读代码说「应该好了」，那不是回测（[[a-criterion-success-cannot-satisfy]] 的近亲：
+判据要读的那行，在健康的世界里根本不会被写出来）。
+
+⇒ **负测试场景不是可选项，是唯一通道**，而且必须和修法、
+`scripts/stagewright/expected-scenes-*.txt` **同一个提交**——
+否则要么 UNDECLARED 红（[[a-manifest-is-part-of-the-judge]]），要么修法不可观测。
+
+场景形状要三件事同时成立，只测「目标在动」是不够的：
+
+1. **身体钉死**（站在一块地板上，四周无路）
+2. **目标缓慢逼近**（每两 tick 挪一格——正是 blaze 下沉的那个节奏）
+3. **搜索烧穿 `maxNodes` 且够不着**（目标放在物理上不可达的高度）
+
+判据：`walker.lastError` 出现 `no route progress`，或搜索次数封顶。
+[[verify-by-making-the-criterion-impossible]]：把目标放到够不着的高度，
+健康的追击永远走不到这条闸，所以这条闸响=修法生效，不响=修法没生效，两态都可证。
+再加一条**反向臂**：目标在跑、身体在追、双方都在动 ⇒ **不得**报 NO_PATH，
+挡住把合法追击误伤掉。
+
+##### 场景侧那圈沿的形状（尺寸有理由，不是随手挑的）
+
+- **高度 ≥2**。1 高是 walker 一次跳就过；而这具身体包里只有铁剑、没有可垒的东西，
+  所以 2 高在这条场景里是终局。顺带把「被火球击退推下去」一并堵上——
+  是自己走下去还是被弹下去就不必再证了，围挡对两种弹射机制同责。
+- **位置 r=6、`dy ∈ [1,2]` 的悬空环**，正好落在这条场景 cleanup 盒
+  （`dx,dz ∈ [−6,6]`，`dy ∈ [1,8]`）**之内**，收得干净。
+- **不要在 `dy=0` 外扩地板**：那一层在 cleanup 盒外，会给下一条场景留残块
+  （[[a-cleanup-that-tests-its-own-verb]]：收尾的失败总是落在下一条场景头上）。
+- 第二轮 `rr=5` 的罩子在环**内侧**，互不干涉；`open` 轮的数字是 `ctx.record` 不是断言
+  （第 337-343 行有原因），所以围挡带来的偏移不会把这条场景判红。
+
+##### 顺带：`buildFloor` 有六份逐字节相同的拷贝
+
+`WorldDriverProcessScenes:225`（package-private）＋ `Avatar/Combat/Core/Coverage/Terrain`
+五个 `private static` 拷贝，**六份逐字节相同**，共 30 个调用点。
+janitor 那条「重点看代码复用」的现成靶子。
+⚠️ **单独提交，不要和沿混在一个 diff 里**；带沿的变体也**不进**那个 30 调用点的共享方法
+——那会把一圈墙塞给 29 条不需要它的场景。
 
 **双稳仍然成立，但掷骰子的不是入场时序**，是**这一轮 blaze 往哪飞**：
 飞出台沿身体就跟出去，飞不出就全程 `expanded=0`。跟改了哪份代码无关，
