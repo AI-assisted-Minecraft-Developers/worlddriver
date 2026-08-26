@@ -59,6 +59,19 @@ public final class BotUtil {
      * <b>Identical source, different class-loading.</b> "Byte-identical" is a claim about the
      * expression, not about the bytecode a widening call site emits.
      *
+     * <p><b>Three callers break that ⛔ today, on purpose, and here is the expiry condition.</b>
+     * {@code GoalResolver}, {@code GotoGoalResolver} and {@code ClutchController} still hand a
+     * {@code LocalPlayer} to this overload — measured in the compiled constant pools, not assumed.
+     * They survive for a reason that is about the CLASS and not about the line: verification runs
+     * when a class is loaded, so a widening is only fatal in a class a dedicated server loads at
+     * all, and nothing over there names these three. {@code RetreatChain} was different only in
+     * that the {@code wd.*Matrix} scenes {@code new} it directly. So the rule as a reader should
+     * apply it is: <em>hold the three-double overload whenever the class might ever be constructed
+     * server-side, and treat「it isn't today」as a fact with an owner, not as a property of the
+     * code.</em> The day a scene, a verb or a chain reaches one of those three from a server, the
+     * widening becomes fatal without anyone editing the line that dies — which is why they are
+     * listed here by name rather than left for the next gate to discover.
+     *
      * <p><b>Deliberately not {@code e.blockPosition()}.</b> That is a cached field vanilla
      * maintains inside {@code setPosRaw}, i.e. a second authority with its own update schedule.
      * It may well agree with this floor everywhere the bot asks, but swapping it in is a change
