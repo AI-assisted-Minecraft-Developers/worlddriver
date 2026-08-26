@@ -5,6 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-26
+
+- **A pour is now gated on the ray the client will fire, not on the server body's own.** Rung 12's
+  gate rayed `rig.player()` — the `ServerPlayer` — while `useItemInHand()` runs on the client avatar.
+  Both bodies are aimed at the same cell and each aim is exact for the body it was written on, so the
+  two rays agree wherever they cross open cell interiors. They stop agreeing at a boundary: ladder5
+  measured the bodies 0.06 blocks apart picking different FACES (client `4,56,21 west`, server
+  `4,56,22 up`). The gate cleared the server's, the client fired its own, and the lava went into a
+  cell nobody had checked — after which the rung reported the honest-looking「第 4 格没浇成黑曜石」
+  while the real defect was three steps upstream. Displacement being small does not make the
+  difference small; where a ray grazes a cell boundary the answer is discrete.
+
+  Both halves of a real player's state are client-authoritative — `handleMovePlayer` overwrites the
+  server's POSITION every tick just as `handleUseItem` adopts the packet's ANGLES — so by the tick a
+  use is processed the server's eye has already followed the client's. There is no third "server eye
+  + client angles" line to predict; an intermediate fix built on one was written, measured against
+  this run's own outcome, and removed. Behaviour change: the rung now refuses a pour it cannot land
+  and says where the ray would have gone, instead of spending the bucket and failing later on a
+  symptom. Verified on ladder9 — the failure moved from「第 N 格没浇成黑曜石」to「浇不到指定格」.
+
+- **The pour re-asks where it lands with nothing but the use after it.** Not a fix — an invariant
+  assertion. `regripBeforeUse` returns immediately when the hand already holds the bucket, and
+  everything else between the gate and the use reads fields or writes evidence, so nothing there
+  ticks the server; `handTrace`'s contract already depended on that being true and nothing checked
+  it. It now records `.atUseGate`, and a refusal there with no `.handSlipped` would mean the no-tick
+  claim is false and every reading between the two points needs re-dating. Sixteen samples on
+  ladder9: no refusal, no `handSlipped` — the claim holds.
+
 ## 2026-08-25
 
 - **Nothing else may take the hand while a bucket is being emptied.** Re-gripping immediately before
