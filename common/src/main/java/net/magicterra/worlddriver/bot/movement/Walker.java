@@ -1851,8 +1851,20 @@ public final class Walker {
         return !gated;
     }
 
-    /** Recovery-hop events logged per walker before the latch goes quiet. */
-    private static final int WIGGLE_EVENTS = 4;
+    /**
+     * Recovery-hop events logged per walker before the latch goes quiet.
+     *
+     * <p>Sixteen, not four. The budget is PER WALKER and the journey ladder drives one walker
+     * across all twenty rungs — {@code walkerCensus} says so in its own row (「整趟共享」) — so four
+     * was four lines for a forty-minute run, and the run that made this obvious spent all four
+     * inside thirteen seconds of rung 12 and then printed 序=5+/4 for the hops that mattered: the
+     * body was stalling on a lava lake's rim, and the hops after the cap are the ones between the
+     * last logged position and the corpse. A cap that runs out before the interesting stall is not
+     * a hose guard, it is a blind spot with a budget. Sixteen is still bounded — the line is one
+     * per ENTRY to a 7-tick window, not one per tick — and the 序=N+/16 line still says when even
+     * that was not enough.
+     */
+    private static final int WIGGLE_EVENTS = 16;
     private int wiggleEvents;
     /** One-shot latch for the "the cap swallowed an entry" line — see {@link #wiggleHop}. */
     private boolean wiggleCapped;
