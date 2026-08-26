@@ -803,10 +803,22 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 // rung then spent every remaining tick asking that same body to walk five more
                 // blocks — about 110 searches from one cell. The end reason existed the whole time
                 // and was written only on the branch below, so the results file said nothing.
+                // BOTH TOLERANCES, side by side. `tolerance` is a parameter this method accepts and
+                // then never consults: it goes into the goal at the top and the arrival test below is
+                // `ARRIVED_WITHIN`, a constant. So a caller asking for radius 0 — JourneyPour#raiseTo
+                // does, and says why — is told「到达」from four cells out, and the retry loop under
+                // this branch never gets to run. Printing only the number that judged makes that row
+                // read as if the caller had asked for five. Evidence only: the judge is deliberately
+                // unchanged here, because this helper also carries the surface legs (prey, home,
+                // gravel, the lava approach) where five cells is the right bar and tightening it
+                // globally would redden rungs that pass today.
+                String asked = tolerance == ARRIVED_WITHIN ? ""
+                        : "，而这一腿要的是 " + tolerance + " 格"
+                          + (Math.round(away) > tolerance ? " —— 判到达的尺不是要的那把尺" : "");
                 rig.evidence(what + ".gotoEnd." + attempt,
                         JourneyLeg.walkerEnd(rig)
                                 + "（判为到达：停在 " + at.toShortString() + "，距 " + x + "," + z
-                                + " " + Math.round(away) + " 格，容差 " + ARRIVED_WITHIN + "）");
+                                + " " + Math.round(away) + " 格，容差 " + ARRIVED_WITHIN + asked + "）");
                 onArrived.run();
                 return;
             }
