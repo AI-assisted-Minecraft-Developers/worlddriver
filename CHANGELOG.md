@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A rung that times out while still standing now says which guard refused to move it.**
+  The futile-search gate has reported every rung's searches for a while, and rung 6's timeout of
+  this date shows what that alone cannot settle: 8040 ticks, 5788 searches, one single goal cell
+  the whole time, and the gate excusing 5787 of them under「搜索到达了目标」. That exclusion is by
+  design — `SearchGovernors#deadZoneRepeats` has documented the shape since rung 20 hit it in
+  August: the cap is gated on `!res.goalReached()`, so it cannot see a search that SUCCEEDS while
+  the executor refuses the edge it produced. Naming which of the three refusers it was (the footing
+  guard, the stride floor-guard, the recovery hop) needs the executor's counters, and every home
+  those had missed this rung: `death.strideGuard` writes only when the body dies,
+  `body.leftTheWorld` only when it falls out of the world, and `JourneyFlight`'s per-leg deltas
+  only on the `walkToColumn` path — while rung 6 hands an `IntentProcess` straight to `drive` and
+  ends in TIMEOUT. Driven directly, timed out, still standing: no executor-side row existed at all,
+  so a body could be pinned for an entire budget with the ledger silent about who pinned it.
+
+  `WalkerCensus` fills that intersection, written from the same two choke points as the futile
+  census so every rung has one on every outcome. Fires plus skips is the tick count the stride
+  guard ran over — its own doc promises one bucket per tick — so the row can tell a guard that
+  ran and allowed everything from a guard that was never asked, which is the distinction that
+  decides whether the next round instruments this guard or the other two. Nothing branches on any
+  of it; behaviour is unchanged, and the rung is no closer to passing than it was.
+
 - **A climb no longer spends its whole cap on two writes that undo each other.**
   `JourneyShaft#ascendByTowering` corrects a tower that has drifted off its column by walking back
   to it. When that walk cannot move the body at all, `driftKept` adopts the column the body is
