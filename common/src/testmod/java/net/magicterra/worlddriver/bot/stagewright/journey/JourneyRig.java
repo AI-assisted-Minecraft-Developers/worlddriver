@@ -1494,11 +1494,38 @@ public final class JourneyRig {
         recordBodyVitals(bodyVitalsLine());
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info(
-                "[journey] 心跳 {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
-                stage.name(), driving == null ? "等待中（无驱动器）" : driving, legTicks, budget,
+                "[journey] 心跳 {} {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
+                stage.name(), driving == null ? "等待中（无驱动器）" : driving, legPlanLine(), legTicks, budget,
                 fp.blockPosition().getX(), fp.blockPosition().getY(), fp.blockPosition().getZ(),
                 fp.level().dimension().location(), fp.level().players().contains(fp),
                 driver.finished());
+    }
+
+    /**
+     * Where this leg is trying to go, and how far along its plan the body is.
+     *
+     * <p>The heartbeat used to print only {@code driving} ("goto") and the body's cell. Two such rows
+     * ten seconds apart prove the body MOVED; they cannot say whether it moved along a plan or away
+     * from one, and rung 12's post-mortem turned on exactly that. A leg whose sampled path was 57
+     * blocks for 9 blocks of net displacement reads identically as「walking the long way around the
+     * lava rim」(correct — {@code cast8.rimTax} prices the rim at 300/cell so a 30-cell detour is
+     * cheaper than stepping on it) and as「the plan keeps being replaced」(a defect). Three separate
+     * readings were fitted to that one ambiguity in a single sitting before anyone noticed the
+     * heartbeat could not decide it. {@code pathStep}/{@code pathLen} decides it: climbing toward
+     * pathLen is the detour, resetting is the churn.
+     *
+     * <p>Read through {@link #slot} rather than {@code body().botState()} so a real-player helm
+     * reports the CLIENT's walker — the one actually driving the ladder. {@code driving} carries a
+     * parenthesised target for some legs ({@code mine(x,y,z)}), so the slot name is the part before
+     * it; only the fields {@code ProcessSlot.snapshot()} publishes are reachable here.
+     */
+    private String legPlanLine() {
+        if (driving == null) return "无腿";
+        String kind = driving.split("\\(")[0];
+        Map<?, ?> s = slot(kind);
+        if (s.isEmpty()) return kind + "槽无读数";
+        Object t = s.get("target") == null ? s.get("goal") : s.get("target");
+        return "目标=" + (t == null ? "无" : t) + " 路=" + s.get("pathStep") + "/" + s.get("pathLen");
     }
 
     /**
