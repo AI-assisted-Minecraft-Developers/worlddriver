@@ -174,6 +174,17 @@ public final class BackfillProcess implements BotProcess {
         return false;
     }
 
+    /** This method's body is line-for-line the twin of {@code BuildProcess#findPlacement} (only its
+     *  comments differ), and it carries the same two gaps — no reach test on the stand it returns,
+     *  and {@code isSolid()} as the support rule. The reasoning is written out once, over there;
+     *  this pointer exists so the two copies cannot drift into disagreeing about what they know,
+     *  which is the failure {@code PlaceNearby}'s header was created to end. Fix one twin, fix both.
+     *
+     *  <p>⚠️ <b>The identical body is not an invitation to merge them</b>, because what it CALLS is
+     *  not identical: {@code findStandableNear} differs between the two classes, and the javadoc
+     *  below this one says why (no "stand on top of the target" arm here, deliberately, since
+     *  backfill only ever targets air). A shared helper would have to take that difference as a
+     *  parameter, which is a behaviour change for whichever twin ends up on the other's rule. */
     private Placement findPlacement(Level lvl, BlockPos block) {
         Direction[] order = {Direction.DOWN, Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST, Direction.UP};
         for (Direction d : order) {

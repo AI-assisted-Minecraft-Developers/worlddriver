@@ -210,7 +210,30 @@ public final class BuildProcess implements BotProcess {
         return false;
     }
 
-    /** Pick a supporting face: prefer top of block-below, fall back to a side neighbor that's solid. */
+    /**
+     * Pick a supporting face: prefer top of block-below, fall back to a side neighbor that's solid.
+     *
+     * <p><b>Two things this selector does not do, both of which a sibling already knows about.</b>
+     * They are written here because the knowledge sat in the other files and a reader of this one
+     * had no way to reach it.
+     *
+     * <p>1. <b>No reach test on the stand it returns.</b> {@code BboxFillProcess} gates its
+     * equivalent on {@code withinReach}/{@code FILL_STAND_REACH}, and its javadoc gives the reason
+     * — a stand the actuator can only just reach is how a fill "reports a cell placed from a stand
+     * it then cannot place from" — and names this class and {@code BackfillProcess} as having no
+     * such gate at all. It also notes both of these sneak, costing another 0.35 of eye height that
+     * the reach budget would have to carry.
+     *
+     * <p>2. <b>{@code ss.isSolid()} is a narrower support rule than the one the repo settled on.</b>
+     * {@code PlaceNearby}'s header records that a stricter support gate was a real defect once
+     * (gap#62: the furnace copy's {@code isFaceSturdy} "wrongly rejects leaf/dirt-path ground"),
+     * and states the rule that replaced it: a full block sits on the top face of ANY non-air,
+     * non-replaceable support, leaves included. {@code isSolid()} is not the predicate that defect
+     * was filed against, so whether it refuses the same supports is UNMEASURED — and measuring it
+     * is the first step of any fix, not a thing to assume in either direction. Note the direction:
+     * a support wrongly refused costs a placement that was available, so this errs toward doing
+     * nothing rather than toward placing somewhere unsafe.
+     */
     private Placement findPlacement(Level lvl, BlockPos block) {
         // Each candidate: a SOLID neighbor we can click. The face is THAT neighbor's
         // face that points toward `block`. Player stands adjacent to the neighbor.
