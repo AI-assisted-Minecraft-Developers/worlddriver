@@ -955,6 +955,10 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 「which is how rung 12 filled 0,58,19 and 1,58,19 and then could not walk back down past its own
 cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。但这趟 `climbOutInColumn` 没跑
 （`.climb` 一行都没有），所以作者是别人，等探针点名。
+📌 **待修（2026-08-26 排练新暴露，与上面撞墙那条是两个死因）**：`JourneyRig:1113-1118` 的
+`mineCellOrGiveUp` 回调不判「`Goal.Near(target,2)` 那条腿真到了没有」，四格外照样开挥 ⇒
+第 9 格 `4,60,19` 三次 `canBreak=false`（最近一次格心距 **4.00**、眼距 5.13／上限 5.00）后静默继续。
+⚠️ `standShort` 这趟 **0 次**（`.stand=` 8 次全走到）⇒ 撞墙那条是间歇的，仪器留着等它再来。
 （浇线上 `1,60~63,20` 的 dirt 已排除是这一趟垒的：`clear3` 印的是 grass_block 压 dirt 的原生剖面，
 「壁龛外」是 `clearPourLine` 拒绝清的理由，不是放置记录。）
 
