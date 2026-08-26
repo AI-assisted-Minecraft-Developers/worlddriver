@@ -78,6 +78,7 @@
 | ❌ 判：不做（前提已过期） | Q30 | 追猎全程零行日志。前提已不成立：`5d81dee5` 后有 `kill.swings`／`kill.kills`／`kill.preyVitals`／`kill.onGround`／`kill.combatError`。只剩死亡时刻 tick 戳没有，而 6 级此后连续 PASS。**重开条件**：等归因真卡在时刻上再补 | 我 |
 | ❌ 判：不做（重开＝`JourneyRig` ≥ 2900 行） | J42 | `JourneyRig` 的门面缝是真的且干净：`1856–2410` 这一带 27 个方法里 **20 个是纯查询**，不纯的 7 个还**连续**（收集那一族 `2024–2178`）。代价 **192 个调用点、13 个文件**，收益 **0**。重开条件从「逼近 3000」改成数字：`JourneyRig.java` 行数 **≥ 2900**（今 2606/3000）。⚠️ **2026-08-26 复核已经是 2745**，离触发只剩 **155 行**。到那一刻 `1856–2023` + `2179–2410` 这约 400 行就是现成的搬运单，而 `2024–2178` **必须留下**（它要 `settle`）。顺带记着 `JourneyRig:1297-1312` 那处孤儿 javadoc（写的是 `heartbeat`，挂在 `sinceHeartbeat` 上），切缝那一笔顺手改 | janitor 查，topology 决定 |
 | ✅ 已落（队列行过期，2026-08-25 核 HEAD） | Q8 | V2 不低头：瞄准从此**经过** `LookController`（`ClientPlayerAvatar.aimAtBlock:52` → `BotInteract.aimAtBlockSnap:365` → `LookController.requestSnap:47`，`apply()` 是 tick 末唯一的回拉写者）。**未兑现的那一半**：V2 那个 **90° 俯角分布没人复量过**，拟真复量归 parity | 我 |
+| 🔴 判：做（先设计） | J49 | rule 12 的加宽扫描还盖不到 `bot/movement/**`：现有守卫断言「宽形参集合为空」，那里合法非空（`Walker` 四处），照搬即在健康树报红。要判**实参**类型，需要 dataflow | janitor 查，topology 决定 |
 
 **放行规则**：janitor 的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
 
