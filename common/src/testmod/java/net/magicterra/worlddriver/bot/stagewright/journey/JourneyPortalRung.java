@@ -2229,8 +2229,27 @@ public final class JourneyPortalRung {
                         }
                     rig.evidence("portal.cells", lit + "/6");
                     rig.evidence("portal.cellsNow", cells.toString());
+                    // WHICH CELL, not only how many. `frame.obsidianNow = 9/10` is what a lighting
+                    // failure looks like from here — the fire lights and no portal forms, because a
+                    // ring of nine is not a frame — and the count alone sends the next reader to
+                    // re-derive the missing cell from `portal.cellsNow`, which lists the INTERIOR and
+                    // therefore cannot name it at all. Measured, rehearsal 2026-08-26: `frame.cast =
+                    // 10/10（浇成之后又丢了 0 格）` beside `frame.obsidianNow = 9/10`, so the block
+                    // went missing during `strike`'s walk and the run failed with `portal.cells 0/6`
+                    // and `light.cellAfter = fire`. Naming the cell is what turns that into a place
+                    // to look. The block it is NOW is part of the answer: air is something removing
+                    // it, lava or cobblestone is the cast coming apart.
+                    StringBuilder gone = new StringBuilder();
+                    for (int[] rc : RING) {
+                        BlockPos fc = frameCell(base, away, rc[0], rc[1]);
+                        var fs = level.getBlockState(fc);
+                        if (fs.getBlock() == Blocks.OBSIDIAN) continue;
+                        gone.append(gone.isEmpty() ? "" : " ").append(fc.toShortString())
+                                .append('=').append(fs.getBlock());
+                    }
                     rig.evidence("frame.obsidianNow", countObsidian(level, base, away) + "/" + RING.length
-                            + "（对照 frame.obsidian：那个数是清门洞之前读的，中间隔着 strike 里最多 1500 tick 的走路）");
+                            + "（对照 frame.obsidian：那个数是清门洞之前读的，中间隔着 strike 里最多 1500 tick 的走路）"
+                            + (gone.isEmpty() ? "" : " —— 缺的是 " + gone));
                     rig.evidence("light.cellAfter", String.valueOf(level.getBlockState(doorway).getBlock()));
                     rig.evidence("bucket.after", rig.carrying("minecraft:bucket")
                             + " 空 / " + rig.carrying("minecraft:water_bucket") + " 水");
