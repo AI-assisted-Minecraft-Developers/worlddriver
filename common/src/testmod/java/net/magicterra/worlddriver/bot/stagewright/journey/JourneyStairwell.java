@@ -350,7 +350,27 @@ final class JourneyStairwell {
             // ended having walked read identically — which is how「重走会原地不动」stood as a
             // mechanism for a whole ladder without ever being asked.
             rig.evidence(tag + ".flightLastStepEnd", JourneyLeg.walkerEnd(rig));
-            if (down(got, ends)) { then.run(); return; }
+            // ⚠️ NOT `down(got, ends)` ON ITS OWN. That reads the BLOCK row, and a body's feet cross
+            // into the terminal's row while it is still most of a block above that row's FLOOR —
+            // 够低的是格号，不是身体。Measured across eight rung-12 rehearsals, byte-identical:
+            // `flightLastStepEnd=path-consumed`, `down` true at `1,57,20`, and `landing` an instant
+            // later reading `精确 1.53/57.92/20.51，onGround=false` — 0.92 of a block still to fall.
+            // The pour that follows decides its aim from THAT eye (`fromHere.3`, eye y=59.54, which
+            // validates a shot at the target's own floor) and fires 0.69 of a block lower
+            // (`picks.3`, eye y=58.85), by which point the same ray enters the backing through its
+            // WEST face instead of its top and the lava lands one cell short, in `3,56,19`. The wait
+            // below already existed; it never ran, because this line had said 够低了 first.
+            //
+            // The ladder run is the control, and it only reached the wait by accident: its last-step
+            // leg ran out of budget (`end=unavailable`), leaving `got` at `ends.above()`, so it
+            // waited, landed at `57.00`, and its FIRST shot hit — `1.84/58.62/20.50 → 落进 4,57,19`.
+            //
+            // The quantity is a POSITION on purpose. `onGround` is rejected twelve lines down for a
+            // reason that still holds — it describes the previous `move()`, not what is underfoot —
+            // and that objection does not touch a coordinate.
+            double afootBy = rig.player().getY() - ends.getY();
+            boolean afoot = afootBy > SETTLED_SLACK;
+            if (down(got, ends) && !afoot) { then.run(); return; }
             // A BODY ONE ROW ABOVE THE TERMINAL MAY BE FALLING INTO IT, and this callback is the
             // wrong tick to ask. Measured on the rung-12 rehearsal of 2026-08-25, whose last walker
             // row before this judgment was `身体=1,58,20 精确=(1.454,58.000,20.500) cur2=0.002
@@ -365,15 +385,24 @@ final class JourneyStairwell {
             //
             // Not `onGround`: that same row read `onGround=true` beside `脚底实心=0.0000`, because
             // it describes the previous `move()` and not what is under the body now.
-            if (got.equals(ends.above())) {
+            if (got.equals(ends.above()) || afoot) {
                 rig.settle(new HoldStill(LAND_TICKS), LAND_TICKS * 2, () -> {
                     BlockPos after = rig.player().blockPosition();
                     // WHETHER THE WAIT CHANGED THE ANSWER, always. A step that was already walked
                     // and one where the body is genuinely balanced on the lip above must not leave
                     // the same log — that is the whole reason this branch is allowed to exist.
+                    // PRINT THE HEIGHT, NOT ONLY THE CELL. `down(after, ends)` was ALREADY true on
+                    // the `afoot` path — the body was inside the terminal and falling — so a row that
+                    // only says「落进末路点了」cannot tell 等到落地 from 本来就没在动, and those are
+                    // the two readings this branch exists to separate. The number that decides it is
+                    // the body's exact Y above the terminal row's floor: 0.92 → 0.00 is a fall that
+                    // finished, 0.92 → 0.92 is a body resting on something at that height.
                     rig.evidence(tag + ".flightLastStepSettled", got.toShortString() + " → "
-                            + after.toShortString() + "（等 " + LAND_TICKS + " tick 让下坠落地）—— "
-                            + (down(after, ends) ? "落进末路点了，这一步本来就走成了"
+                            + after.toShortString() + "（等 " + LAND_TICKS + " tick 让下坠落地；"
+                            + String.format(java.util.Locale.ROOT, "离末路排地板 %.2f → %.2f 格，进来时%s",
+                                    afootBy, rig.player().getY() - ends.getY(),
+                                    afoot ? "在下坠（本行就是为它开的）" : "骑在上一级唇上")
+                            + "）—— " + (down(after, ends) ? "落进末路点了，这一步本来就走成了"
                                                  : "没动，身体是真骑在上一级的唇上"));
                     sayMissedUnlessLanded(rig, tag, after, ends, then);
                 });
@@ -387,6 +416,16 @@ final class JourneyStairwell {
      *  again. Three times the fall of one block from rest, and the leg it follows has already spent
      *  its own budget — so this cannot pass off a walk that never happened as one that did. */
     private static final int LAND_TICKS = 20;
+
+    /** How far above the terminal row's floor a body may rest and still count as having arrived.
+     *
+     *  <p>A quarter of a block: every vanilla thing a body can legitimately stand on inside a cell
+     *  either sits at the floor or a full step above it, so nothing benign lands in between — while
+     *  the case this separates was measured at <b>0.92</b>, a body whose feet had entered the row
+     *  and had almost the whole block left to fall. Deliberately not {@code onGround}: that flag
+     *  describes the previous {@code move()} (see {@link #finishTheFlight}'s own note), and a body
+     *  that has just been placed reads {@code true} while resting on nothing. */
+    private static final double SETTLED_SLACK = 0.25;
 
     /** SAY SO WHEN IT DID NOT LAND. A leg that quietly fails leaves {@code returnedY} to report the
      *  same row it would have reported without {@link #finishTheFlight}, and the reader cannot tell a
