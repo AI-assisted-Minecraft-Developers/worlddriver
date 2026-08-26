@@ -35,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the change can only let more through, never less; when canBreak refuses, the body falls through
   to precisely the stand-finding it did before.
 
+  Cashed the same day. The next rehearsal recorded `swingFromHere` eighteen times, and every one is
+  followed by an `opened.N` row showing that cell went to air: `4,57,19` at 2.24, `4,56,20` at 2.24,
+  `4,57,18` at 2.45, `4,58,18` at 3.00, `4,57,21` at 3.61 — every distance past `DIG_ARRIVE`, every
+  swing landing. Old code sent each of those off to build a staircase instead. `mineCell.4,60,19`,
+  the row the previous run died on, does not appear at all, and the rung's failure moved forward out
+  of the carve and into the pour. Note what the bill actually is: not that the rung passed — it did
+  not, and the rehearsal baseline is one green in three — but that the green-light and the opening
+  are paired eighteen times over. A fix whose passing carries its own counter-evidence.
+
 - **An evidence row now says what a dig already did, instead of what to do next.**
   `JourneyRig#sayIfStillThere` takes a `how` string and appends it to a row that already carries
   every measurement a reader needs — block, fluid, body position, `canBreak`, exposure, eye distance

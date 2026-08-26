@@ -955,10 +955,16 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 「which is how rung 12 filled 0,58,19 and 1,58,19 and then could not walk back down past its own
 cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。但这趟 `climbOutInColumn` 没跑
 （`.climb` 一行都没有），所以作者是别人，等探针点名。
-📌 **待修（2026-08-26 排练新暴露，与上面撞墙那条是两个死因）**：`JourneyRig:1113-1118` 的
-`mineCellOrGiveUp` 回调不判「`Goal.Near(target,2)` 那条腿真到了没有」，四格外照样开挥 ⇒
-第 9 格 `4,60,19` 三次 `canBreak=false`（最近一次格心距 **4.00**、眼距 5.13／上限 5.00）后静默继续。
-⚠️ `standShort` 这趟 **0 次**（`.stand=` 8 次全走到）⇒ 撞墙那条是间歇的，仪器留着等它再来。
+✅ **第 9 格那条已解决**（`bd4e41ae`：`standBehind` 在执行器尺之外也问判官尺）。
+下一趟实测：`.swingFromHere` 放行 18 次，每次紧跟 `opened.N=<格>=air`，格心距 2.24–3.61
+全部 >`DIG_ARRIVE=2`，而 `mineCell.4,60,19` **零次**。死因前移到浇筑。
+📌 **12 级现在死在这里**：`浇不到指定格：想浇 4,59,21（瞄 5,59,21），射线会把流体放进 4,64,18，
+身体在 3,65,16`——身体又在地表 y=65，而模腔在 y≈59。
+📌 **撞墙那条（`cast7.lift.standShort`）复现了 2 次，剖面已点名**：
+`身体柱 2,21=.#....... [63=grass_block]；目标柱 3,19=.#....... [63=grass_block]`
+⇒ 两柱 y62..56 全空，各自只有 y63 一层**天然地表**盖着；身体站在盖子上、目标在盖子下，
+而 `walkTo` 带 `NoBreak` 不许挖穿 ⇒ **要找开口，不是要挖**。四邻唯一的 `#` 在 west，
+而目标在 east/south 方向 ⇒ 那个 `#` 不是障碍。
 （浇线上 `1,60~63,20` 的 dirt 已排除是这一趟垒的：`clear3` 印的是 grass_block 压 dirt 的原生剖面，
 「壁龛外」是 `clearPourLine` 拒绝清的理由，不是放置记录。）
 
