@@ -907,10 +907,14 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 [walker] 恢复跳: 卡住=11 身体=2,64,19 精确=(2.300,64.000,19.381) 闸=true 起跳=true
 [expect]  MOVE-noMove: forward held 10t, displacement<0.3 at 2.3,64.0,19.4 hCol=true
 ```
-同一起点同一目标搜了 10 次（[[a-retry-that-changes-nothing]]）。壁龛底常年积水
-（`cast1.stairFoot=⚠ 楼梯底积水：2,56,19=water`），而 `raiseOffTheFlight` 自己就写着
-「它是下井楼梯（垒不了台阶、塔在水里会被冲下来）」——**下井这条腿的落脚就在水里**
-（[[water-is-not-a-floor]]、[[the-lake-rim-pins-the-body]]）。
+同一起点同一目标搜了 10 次（[[a-retry-that-changes-nothing]]）。
+⛔ **不要归给水**：积水在 y=56/57（`cast1.stairFoot`），而碰撞在 **y=64**——高 8 格，
+撞的是实心墙，水解释不了。两条已排除：`builderStand:392` **验过** standability
+（脚下实心＋头脚皆空），所以施工位不是被填死的；`walkTo:418` 带 `NoBreak`，**身体不许挖**。
+❓ **那堵墙是什么，日志答不了**——`2,64,18` 全份零命中。唯一间接证据是物理推论：
+`ramp.rampedY` 说身体曾停在 `2,65,18`，站着就意味着 `2,64,18` 实心；而起塔本该在 `3,19` 柱
+（`raiseOffTheFlight` 避开了 `2,19`），`raisedY` 却说身体停在 `2,18`。
+⇒ **下一步是加仪器不是改走法**：`standShort` 要能报出撞在哪一格、那格是什么、谁放的。
 ⚠️ 不是回归：ladder9 是 `65/60` 且**一级楼梯都没修**，`.ramp.*` 一行都没有。
 ⚠️ 双闸零回归已验（`637eb4b8`，Fabric GREEN／COVERAGE 298/25／失败集逐条同基线）。
 
