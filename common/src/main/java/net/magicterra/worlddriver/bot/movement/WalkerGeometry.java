@@ -340,14 +340,68 @@ public final class WalkerGeometry {
      * set) and is what lets the distance be reported at all.
      */
     public static int nearestLethalHopRing(WorldView world, Player p, BlockPos foot, int scanTo) {
+        return ringOf(foot, nearestLethalHopCell(world, p, foot, scanTo));
+    }
+
+    /** Chebyshev ring of {@code cell} around {@code foot}, or {@code -1} for a null cell. Shared so
+     *  a caller that wants BOTH the cell and its ring pays for one scan, not two. */
+    public static int ringOf(BlockPos foot, BlockPos cell) {
+        return cell == null ? -1
+                : Math.max(Math.abs(cell.getX() - foot.getX()), Math.abs(cell.getZ() - foot.getZ()));
+    }
+
+    /**
+     * The CELL {@link #nearestLethalHopRing} found, or null. Same scan, one implementation, so the
+     * ring and the cell can never disagree — the same argument that extracted the ring out of the
+     * boolean.
+     *
+     * <p>Wanted because the ring alone cannot answer the question the ring itself raised. Measured
+     * 2026-08-26, one directed rehearsal, both sides inside twenty seconds: at ring 3 the gate lets
+     * the hop go (a ladder body took that one into a lava lake), and at ring 2 it holds — sixteen
+     * consecutive suppressions and a three-minute deterministic stall beside the lava station,
+     * repeating the same coordinates every ~30 s. So WIDENING the radius does not fix the hole, it
+     * relocates it into the stall. What separates the two is DIRECTION: an unaimed hop launched
+     * away from the lethal cell is the escape the stall needs, and one launched at it is the death.
+     * The cell is what makes that bearing computable.
+     */
+    public static BlockPos nearestLethalHopCell(WorldView world, Player p, BlockPos foot, int scanTo) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
         for (int r = 1; r <= scanTo; r++)
             for (int dx = -r; dx <= r; dx++)
                 for (int dz = -r; dz <= r; dz++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
-                    if (isLethalDropColumn(world, foot.offset(dx, 0, dz), threshold)) return r;
+                    BlockPos cand = foot.offset(dx, 0, dz);
+                    if (isLethalDropColumn(world, cand, threshold)) return cand;
                 }
-        return -1;
+        return null;
+    }
+
+    /**
+     * 「where the body is pointed」beside「where the lethal cell is」, as one row.
+     *
+     * <p>MEASUREMENT ONLY — nothing branches on it yet, deliberately. Gating the hop on this
+     * bearing would introduce a cone half-angle, and this repo's rule is that a free parameter
+     * needs a reading that isolates what it acts on first (the same reason the gate's own boolean
+     * was turned into a printed ring rather than simply widened). What this row has to establish
+     * before any cone exists: that the firing ring-3 hops point AT the hazard and the suppressed
+     * ring-2 ones point AWAY. If they do not split that way, direction is the wrong lever and no
+     * threshold on it would have helped.
+     *
+     * <p>Yaw and not the velocity vector: at the moment this fires the body is stalled by
+     * definition — the measured speeds are 0.003–0.040 against a walk of ~0.13 — so the delta is
+     * noise and the facing is the drive.
+     */
+    public static String hopBearingRow(Player p, BlockPos foot, BlockPos lethal) {
+        if (lethal == null) return "无致命格，不算方位";
+        double bx = (lethal.getX() + 0.5) - (foot.getX() + 0.5);
+        double bz = (lethal.getZ() + 0.5) - (foot.getZ() + 0.5);
+        // Minecraft yaw: 0 = +Z, 90 = -X. atan2(-dx, dz) puts a world bearing in the same frame.
+        double bearing = Math.toDegrees(Math.atan2(-bx, bz));
+        double delta = Math.abs(net.minecraft.util.Mth.wrapDegrees(bearing - p.getYRot()));
+        return String.format(java.util.Locale.ROOT,
+                "朝向 %.0f°，致命格 %s 在 %.0f°，夹角 %.0f°（%s）",
+                net.minecraft.util.Mth.wrapDegrees(p.getYRot()), lethal.toShortString(), bearing,
+                delta, delta <= 90 ? "朝着它" : "背着它");
     }
 
     /** One column's worth of {@link #lethalDropWithinHopRange}: open foot cell, no floor, and the

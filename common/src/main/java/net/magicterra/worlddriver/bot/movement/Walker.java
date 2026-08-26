@@ -1820,6 +1820,13 @@ public final class Walker {
      * trailing {@code 序=5+/4 已达上限} line (and only that line) means a further entry was
      * swallowed, so {@code 序=4/4} alone still means "exactly four entries".
      *
+     * <p><b>And the bearing, measurement only.</b> The ring answered「is the reach shorter than the
+     * throw」— yes, by one — but the answer does NOT license widening it: one directed rehearsal
+     * caught both sides, ring 3 firing (a ladder body took that into a lava lake) and ring 2 holding
+     * through a three-minute stall. Direction is what separates them, so {@link
+     * WalkerGeometry#hopBearingRow} prints where the body points against where the lethal cell is.
+     * Nothing branches on it yet, by the same rule that turned this gate's boolean into a ring.
+     *
      * <p>Why this earns a line at all: rung 20's takeoff samples showed the body already airborne
      * with {@code 距上次起跳=7}, and eliminating the jump terms that need a riser or water leaves
      * {@code wiggle} as the only one that can fire on a flat dry level walk. That elimination is
@@ -1829,16 +1836,18 @@ public final class Walker {
     boolean wiggleHop(WorldView world, net.minecraft.world.entity.player.Player p, BlockPos foot, boolean precond) {
         long call = ++wiggleCalls;   // bumped BEFORE the precondition: adjacency must count skipped calls too
         if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
-        int ring = WalkerGeometry.nearestLethalHopRing(world, p, foot, WIGGLE_SCAN_MAX);
+        BlockPos lethal = WalkerGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
+        int ring = WalkerGeometry.ringOf(foot, lethal);
         boolean gated = BotConfig.walkerRecoveryHopFloorGate && ring >= 0 && ring <= WalkerGeometry.HOP_RANGE;
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
-            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={}",
+            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={} {}",
                     wiggleEvents, WIGGLE_EVENTS,
                     p.level().getGameTime(), stuckTicks, foot.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                     WalkerGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
-                    BotConfig.walkerRecoveryHopFloorGate, !gated);
+                    BotConfig.walkerRecoveryHopFloorGate, !gated,
+                    WalkerGeometry.hopBearingRow(p, foot, lethal));
         } else if (wiggleEvents >= WIGGLE_EVENTS && !wiggleCapped && call - wiggleLastCall > 1) {
             // Same blind spot as the jump-source cap: "序=4/4" is the last line both when the body
             // entered the stall window exactly WIGGLE_EVENTS times and when it entered it forty
@@ -1854,15 +1863,17 @@ public final class Walker {
     /**
      * Recovery-hop events logged per walker before the latch goes quiet.
      *
-     * <p>Sixteen, not four. The budget is PER WALKER and the journey ladder drives one walker
-     * across all twenty rungs — {@code walkerCensus} says so in its own row (「整趟共享」) — so four
-     * was four lines for a forty-minute run, and the run that made this obvious spent all four
-     * inside thirteen seconds of rung 12 and then printed 序=5+/4 for the hops that mattered: the
-     * body was stalling on a lava lake's rim, and the hops after the cap are the ones between the
-     * last logged position and the corpse. A cap that runs out before the interesting stall is not
-     * a hose guard, it is a blind spot with a budget. Sixteen is still bounded — the line is one
-     * per ENTRY to a 7-tick window, not one per tick — and the 序=N+/16 line still says when even
-     * that was not enough.
+     * <p>Sixteen, not four. The budget is per WALKER INSTANCE — {@code wiggleEvents} is an instance
+     * field with no reset, and every process carries its own {@code new Walker(…)} — so it is spent
+     * per settle, not per run. That is not as generous as it sounds, because a single stall episode
+     * burns it: on 2026-08-26 rung 12's body stalled on a lava lake's rim, spent all four inside
+     * thirteen seconds, and printed 序=5+/4 for the hops that mattered — the ones between the last
+     * logged position and a corpse in the lake. A cap that runs out inside the one stall worth
+     * reading is not a hose guard, it is a blind spot with a budget. Sixteen is still bounded —
+     * the line is one per ENTRY to a 7-tick window, not one per tick — and the 序=N+/16 line still
+     * says when even that was not enough. Measured immediately after: one rehearsal stall printed
+     * six consecutive suppressed hops (ring 2, 闸=true, 起跳=false), of which the old cap would
+     * have shown four.
      */
     private static final int WIGGLE_EVENTS = 16;
     private int wiggleEvents;
