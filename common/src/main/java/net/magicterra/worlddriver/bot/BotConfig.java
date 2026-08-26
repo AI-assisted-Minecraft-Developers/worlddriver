@@ -449,7 +449,8 @@ public final class BotConfig {
      *  selection still uses the RAW (unweighted) {@code h}, so segment commitment is
      *  unaffected.
      *
-     *  DEFAULT 1.0 (optimal A*) — A/B-DISPROVEN as a default for hilly/jungle terrain
+     *  DEFAULT 1.0 (optimal A*). W>1 — NOT the shipped 1.0 — is what was A/B-DISPROVEN as a
+     *  default for hilly/jungle terrain
      *  (2026-06-06): at W=1.3 the greedy frontier drives the best-effort segment UP a
      *  hill/canopy that is "toward the goal" but a dead end, and the bot PERMANENTLY
      *  STALLS there (live test: 5+ consecutive repaths stuck at the same hilltop cell,
@@ -463,9 +464,11 @@ public final class BotConfig {
     /** Collision-SHAPE-aware solidity/passability (vs the coarse {@code blocksMotion()}
      *  boolean). When true the pathfinder reads each block's actual collision
      *  {@code VoxelShape}: a cell is a valid FLOOR only if its collision top is a full
-     *  1×1 face ({@code Block.isFaceFull(shape, UP)} — keeps full blocks/leaves/slabs/
-     *  snow, EXCLUDES cocoa pods / fences / partial attachments the player can't truly
-     *  stand on), and a cell is PASSABLE if the player's body column doesn't intersect
+     *  1×1 face ({@code Block.isFaceFull(shape, UP)} — keeps full blocks, leaves, TOP-half and
+     *  double slabs; EXCLUDES cocoa, fences, BOTTOM-half slabs and snow at EVERY layer count.
+     *  Stricter than {@link #isUsableBuildBlock}'s isFaceSturdy; the exact boundary and why is
+     *  on {@code ClientWorldView.canStandOn}), and a cell is PASSABLE
+     *  if the player's body column doesn't intersect
      *  the collision shape (so a cocoa pod offset to one side, panes, etc. stop being
      *  treated as full-cube walls). Fixes the jungle "cocoa 挡路 / phantom foothold on a
      *  pod → walker can't execute → stuck/oscillation" class of bugs. Off = legacy
@@ -800,8 +803,8 @@ public final class BotConfig {
      *  1.5 hearts, 5 ≈ 2) instead of building a dirt "天梯" staircase with
      *  {@code BridgePlace} — the smooth-jungle-descent lever. A higher fall is
      *  cheaper than a place-bridge (Fall(5)=35 vs BridgePlace≈80), so once enabled
-     *  A* prefers the natural drop. Survival-sensitive (the bot takes the damage),
-     *  so it ships OFF (3) and is opt-in via mc.bot.setting. Capped at 5 (≈2 hearts);
+     *  A* prefers the natural drop. Survival-sensitive (the bot takes the damage).
+     *  Capped at 5 (1 heart);
      *  taller no-bucket descents stay {@link net.magicterra.worlddriver.bot.pathfinder.moves.FallIntoWater}
      *  (into water) or place-bridges.
      *  <p>Default raised 3→4 (2026-06-09): a 4-block fall is the MINIMUM non-zero
@@ -1023,14 +1026,10 @@ public final class BotConfig {
                     net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block);
             return id != null && wl.contains(id.toString());
         }
-        // Accept any non-falling, motion-blocking block with a STURDY top face the bot
-        // can place against and STAND on — not only geometric full cubes. The old
-        // isCollisionShapeFullBlock rejected mud / soul_sand / soul_soil (collision box
-        // 14/16 tall) though they are perfectly standable, leaving a bot carrying ONLY
-        // those (live round69: 17 mud + 9 sand + 37 gravel, all rejected — sand/gravel
-        // FallingBlocks above, mud here) with NO usable foothold, so the water +2
-        // climb-out place never engaged and it hard-deadlocked at the bank. isFaceSturdy
-        // (UP) still rejects bottom-slabs / fences / carpets / non-standable shapes.
+        // Sturdy top face, not geometric full cube — see the javadoc. The old
+        // isCollisionShapeFullBlock rejected mud/soul_sand/soul_soil (14/16 tall) though they
+        // are standable: live round69, a bot holding ONLY 17 mud + 9 sand + 37 gravel (sand and
+        // gravel fall, rejected above) had no foothold, so the +2 climb-out from water deadlocked.
         return st.isFaceSturdy(
                 net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO,
                 net.minecraft.core.Direction.UP);
@@ -1199,9 +1198,10 @@ public final class BotConfig {
     /** Baritone {@code allowBreak} analogue — the pathfinder may mine
      *  obstructing blocks as part of a route (tunnel through a wall, dig
      *  straight down). The break time (tool-aware) is folded into the move
-     *  cost so A* only tunnels when detouring would cost more. Off by default
-     *  so {@code goto}/{@code follow}/{@code explore} never modify the world
-     *  unless explicitly enabled — keeps livestream/demo runs non-destructive.
+     *  cost so A* only tunnels when detouring would cost more. Default ON
+     *  (this said "off" while the initialiser said true) — so {@code goto}/{@code follow} DO
+     *  modify the world; set false for a non-destructive livestream/demo run. Scenes see it
+     *  OFF instead, pinned by {@link #applyGameTestBaseline()}.
      *  Read every {@code TraverseBreak}/{@code DownBreak}.eval + WorldView.breakCost. */
     public static volatile boolean allowBreak = true;
 
