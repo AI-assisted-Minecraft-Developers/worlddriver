@@ -885,13 +885,12 @@ public static volatile boolean autoRetreat = false;
 身体最终落回验过的那一排。⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
-🔴 **第 12 级第 4 格：两具身体差 0.06 格，射线擦着格子边界走，两边算出不同的面。**
-`cast3.atUse` 同一刻两行——客户端眼睛 `2.57/58.39/20.50` 打 `4,56,21` 面=west；服务端 `2.51/58.54/20.50`
-打 `4,56,22` 面=up（这才是想要的 `4,57,22`）。`picks` 那道校验读的是服务端那份，所以放行了。
-`cast3.stand.3` 的否决计数里已有「只有正对格心才成立（走位偏 0.3 格就 射线停在 `4,56,21`）」——
-那道容差只看一具身体。身体差从哪来：`cast3.stairFoot` 说模腔的水积在楼梯底 `2,56,20`，身体泡在里面。
-⇒ 先要确认的是 use 那刻服务端拿哪一份角度做射线（1.21 的 `ServerboundUseItemPacket` 带 yRot/xRot），
-再决定是让容差把两具身体都算进去，还是干脆不选贴边界的站位。
+🟡 **第 12 级第 4 格：开火的那条射线是「服务端的眼 + 客户端的角度」，而闸判的是服务端自己那条。**
+（`ServerboundUseItemPacket` 带 yRot/xRot、服务端开射前采纳它——`JourneyHands.aimBoth` 的 javadoc 已写明。）
+`cast3.atUse` 两行差 0.06 格却选了不同的面：客户端 `4,56,21` west、服务端 `4,56,22` up。
+修法已落（`aimedAtAsUseWill`），**未验证**：专用服上它退化成原来那条，只有集成服会变。
+验证三态：① 第 12 级过 = 有效；② 仍红但死因变成「浇不到指定格」= 闸住了错浇、几何仍不行；
+③ 仍是「第 N 格没浇成黑曜石」且 `castN.atUse` 两行仍分叉 = 没生效。
 
 📌 **`[expect] GEAR-degraded` 是恒假阳性，判据要改。** `WalkerExpectAlarms.ClientGearCheck.missing`
 的 `pick` 只认 `DIAMOND_PICKAXE`/`IRON_PICKAXE`，木镐石镐都不算，所以梯子拿到铁镐之前每 100 tick
