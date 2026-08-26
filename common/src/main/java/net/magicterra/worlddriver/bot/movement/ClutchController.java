@@ -206,8 +206,7 @@ public final class ClutchController {
             if (scoopPending(world, p) && ensureHolding(mc, Items.BUCKET)) {
                 yieldMovement(mc);
                 scoopTicks++;
-                BlockPos feet = new BlockPos((int) Math.floor(p.getX()),
-                        (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+                BlockPos feet = blockPosOf(p);
                 aimAtBlockSnap(p, feet);
                 InteractionResult sr = mc.gameMode.useItem(p, InteractionHand.MAIN_HAND);
                 if (sr.consumesAction()) p.swing(InteractionHand.MAIN_HAND);
@@ -233,8 +232,7 @@ public final class ClutchController {
      *  actually landed), so horizontal drift can't strand the placed source. */
     private boolean scoopPending(WorldView w, LocalPlayer p) {
         if (!BotConfig.waterBucketScoop || !p.onGround() || scoopTicks >= MLG_SCOOP_MAX) return false;
-        BlockPos feet = new BlockPos((int) Math.floor(p.getX()),
-                (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        BlockPos feet = blockPosOf(p);
         return w.isWater(feet) && hotbarSlotOf(p, Items.BUCKET) >= 0;
     }
 

@@ -817,7 +817,7 @@ public final class BotApiImpl implements BotApi {
             LocalPlayer p = Minecraft.getInstance().player;
             if (p == null) return Map.of("ok", false, "error", "no player");
             BlockPos src = source;
-            if (src == null) src = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+            if (src == null) src = blockPosOf(p);
             startProcess(new RunAwayProcess(src, minDist));
             return Map.of("ok", true, "started", true, "from", posMap(src), "minDist", minDist);
         });

@@ -177,9 +177,7 @@ public final class BridgeProcess implements BotProcess {
      * under the AABB has support (genuinely airborne — the caller's fell-off terminal).
      */
     private static BlockPos anchoredFoot(Player p, Level lvl) {
-        BlockPos foot = new BlockPos((int) Math.floor(p.getX()),
-                                     (int) Math.floor(p.getY()),
-                                     (int) Math.floor(p.getZ()));
+        BlockPos foot = blockPosOf(p);
         if (lvl.getBlockState(foot.offset(0, -1, 0)).blocksMotion()) return foot;
         AABB box = p.getBoundingBox();
         BlockPos best = null;

@@ -189,7 +189,7 @@ final class WalkerTickPrelude {
         // scooped. So there's nothing to do here; the walk dispatch below only
         // ARMS the planned case and biases the step-off keys.
 
-        BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        BlockPos foot = blockPosOf(p);
         // Search start for a bot floating AT the water surface. foot=floor(p.y) DIPS underwater on a
         // down-bob (p.y 61.64↔62.02 → foot.y 61↔62), so a repath fired mid-down-bob starts A* one
         // cell UNDER the surface; A* prefixes the plan with submerged nodes the buoyant bot can't

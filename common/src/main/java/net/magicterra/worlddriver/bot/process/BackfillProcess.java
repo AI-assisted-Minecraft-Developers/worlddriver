@@ -55,7 +55,7 @@ public final class BackfillProcess implements BotProcess {
         // share this very `st.builder` slot, have always stamped it.
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         Level lvl = p.level();
-        BlockPos playerFoot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        BlockPos playerFoot = blockPosOf(p);
 
         switch (phase) {
             case NEXT -> {

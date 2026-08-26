@@ -17,6 +17,7 @@ import net.minecraft.world.entity.monster.RangedAttackMob;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
+import static net.magicterra.worlddriver.bot.util.BotUtil.blockPosOf;
 
 /**
  * Survival reflex (ROADMAP Phase B): when {@link BotConfig#autoRetreat} is on and
@@ -500,9 +501,7 @@ public final class RetreatChain implements Chain {
             sx += e.getX(); sy += e.getY(); sz += e.getZ(); n++;
         }
         if (n == 0) {
-            return new BlockPos((int) Math.floor(mc.player.getX()),
-                    (int) Math.floor(mc.player.getY()),
-                    (int) Math.floor(mc.player.getZ()));
+            return blockPosOf(mc.player);
         }
         return new BlockPos((int) Math.floor(sx / n), (int) Math.floor(sy / n), (int) Math.floor(sz / n));
     }

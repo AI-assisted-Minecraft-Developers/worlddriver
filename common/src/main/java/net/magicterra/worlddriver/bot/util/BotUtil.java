@@ -38,6 +38,21 @@ public final class BotUtil {
 
     private BotUtil() {}
 
+    /**
+     * The cell an entity's position floors into — the bot's answer to "which cell is the body in".
+     *
+     * <p>This exact expression was written out inline in a dozen places (BotApiImpl,
+     * ClutchController ×2, WalkerTickPrelude, Backfill/Bridge/Farm/Mine ×3/Sleep, RetreatChain)
+     * while this helper already existed. Byte-identical copies, so folding them in changes
+     * nothing — but a dozen hand-written floors is a dozen chances for the next one to be
+     * written differently, and "the cell the body is in" is precisely the quantity this repo has
+     * been bitten by having two answers to.
+     *
+     * <p><b>Deliberately not {@code e.blockPosition()}.</b> That is a cached field vanilla
+     * maintains inside {@code setPosRaw}, i.e. a second authority with its own update schedule.
+     * It may well agree with this floor everywhere the bot asks, but swapping it in is a change
+     * of SOURCE, not a rename, and belongs to a measurement rather than a tidy-up.
+     */
     public static BlockPos blockPosOf(Entity e) {
         return new BlockPos((int) Math.floor(e.getX()), (int) Math.floor(e.getY()), (int) Math.floor(e.getZ()));
     }

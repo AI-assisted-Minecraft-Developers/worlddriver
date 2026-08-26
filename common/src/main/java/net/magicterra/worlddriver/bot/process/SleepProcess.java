@@ -115,9 +115,7 @@ public final class SleepProcess implements BotProcess {
     }
 
     private BlockPos scanNearestBed(Level lvl, Player p) {
-        BlockPos foot = new BlockPos((int) Math.floor(p.getX()),
-                                     (int) Math.floor(p.getY()),
-                                     (int) Math.floor(p.getZ()));
+        BlockPos foot = blockPosOf(p);
         int vr = Math.min(searchRadius, 8);
         long bestD2 = Long.MAX_VALUE;
         BlockPos best = null;

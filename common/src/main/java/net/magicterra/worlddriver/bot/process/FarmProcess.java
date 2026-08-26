@@ -181,7 +181,7 @@ public final class FarmProcess implements BotProcess {
     /** Scan the bbox for the nearest mature, in-filter, reachable crop. */
     private BlockPos[] scanNextMature(Level lvl, Player p) {
         if (p == null) return null;
-        BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        BlockPos foot = blockPosOf(p);
         BlockPos bestCrop = null, bestStand = null;
         long bestD2 = Long.MAX_VALUE;
         for (int y = minP.getY(); y <= maxP.getY(); y++) {

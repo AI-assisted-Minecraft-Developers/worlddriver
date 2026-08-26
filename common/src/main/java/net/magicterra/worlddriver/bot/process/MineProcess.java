@@ -366,8 +366,7 @@ public final class MineProcess implements BotProcess {
                     // straight-up from the bot's own cell). Only blacklist if even a
                     // clearing leaf is unreachable.
                     if (!currentTargetClearing) {
-                        BlockPos foot = new BlockPos((int) Math.floor(p.getX()),
-                                (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+                        BlockPos foot = blockPosOf(p);
                         Target clear = findClearingTarget(lvl, foot, currentTarget);
                         if (clear != null) {
                             if (BotConfig.walkerDebug)
@@ -637,8 +636,7 @@ public final class MineProcess implements BotProcess {
             BlockPos best = null;
             double bestD2 = Double.MAX_VALUE;
             for (var it : items) {
-                BlockPos cell = new BlockPos((int) Math.floor(it.getX()),
-                        (int) Math.floor(it.getY()), (int) Math.floor(it.getZ()));
+                BlockPos cell = blockPosOf(it);
                 if (unreachableDrops.contains(cell)) continue;   // the walker already said no
                 double d2 = it.distanceToSqr(p);
                 if (d2 < bestD2) { bestD2 = d2; best = cell; }
@@ -810,7 +808,7 @@ public final class MineProcess implements BotProcess {
     private Target scanForTarget(Level lvl, Player p) {
         if (lvl == null) return null;
         noTargetReason = null;
-        BlockPos foot = new BlockPos((int) Math.floor(p.getX()), (int) Math.floor(p.getY()), (int) Math.floor(p.getZ()));
+        BlockPos foot = blockPosOf(p);
         int r = searchRadius;
         Target best = null;
         long bestD2 = Long.MAX_VALUE;
