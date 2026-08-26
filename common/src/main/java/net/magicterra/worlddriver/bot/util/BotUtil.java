@@ -241,6 +241,30 @@ public final class BotUtil {
      * a body already standing somewhere is actually supported is a different question with a
      * different answer — the body is 0.6 wide and can be held by a neighbour cell — and it belongs
      * to {@code WalkerGeometry.soleOnSolid}. Do not use one for the other.
+     *
+     * <p><b>It has no hazard clause, and the paragraphs above account for every divergence except
+     * that one.</b> {@code WorldView.canStandAt} — the pathfinder's own answer to this same
+     * question — refuses {@code isHazard} on the floor, the foot cell AND the head cell. This
+     * method refuses none of the three, and the gap is not cosmetic in either direction:
+     * <ul>
+     *   <li>MAGMA_BLOCK is in {@link #HAZARD_BLOCKS} and {@code blocksMotion()} is true, so it
+     *       passes here as a FLOOR and is refused there.</li>
+     *   <li>Lava {@code blocksMotion()} is false, so a foot cell FULL OF LAVA over a solid floor
+     *       passes all three clauses here and is refused there.</li>
+     * </ul>
+     * That is the validation-cell-vs-execution-cell shape this repo keeps paying for: the one
+     * consumer that hands the result straight to the Walker — {@link #findStandAdjacent} →
+     * {@code GoalResolver.findNearestStandForBlock} → {@code Goal.Block} — picks a cell A* can
+     * never expand, so the goal is unreachable by construction and the run burns its node budget
+     * on best-effort paths instead of failing. {@code MineProcess} is the only caller that noticed;
+     * its {@code && no lava} is described above as a digger's EXTRA refusal, and reads that way,
+     * but it is really this method's missing clause patched at one call site out of four.
+     *
+     * <p>Adopting the hazard clause TIGHTENS every consumer, which is the safe direction here
+     * precisely because the cells it would newly refuse are cells the planner already refuses —
+     * the selector's answer for them was never usable. Not done in the same pass that wrote this
+     * down: it changes what {@code goto block:} and the two fill verbs select, so it wants its own
+     * gate run and its own attribution, not a ride on a comment commit.
      */
     public static boolean canStandHereStatic(Level lvl, BlockPos foot) {
         BlockState below = lvl.getBlockState(foot.offset(0, -1, 0));

@@ -707,6 +707,16 @@ public final class ClientWorldView implements WorldView {
         // Mob snapshot (stride-4: x,y,z,r; ranged mobs get the wider radius). Gated
         // on avoidMobs — but NO early return: fleeSearch + hazardSnapshot below must
         // ALWAYS be refreshed (a prior bug left them stale when avoidMobs was off).
+        //
+        // "Is this entity a threat" is answered TWICE in this repo and this is the older
+        // answer. ThreatScanner (the reflex chains' feed) counts `instanceof Enemy` OR
+        // "it is the body's last damager", and says why in so many words: angered NEUTRAL
+        // mobs — wolf, bee, polar bear — never implement Enemy and "were invisible to
+        // every reflex chain (gap #55)". That fix never reached this loop, so an angered
+        // wolf is simultaneously the top-ranked threat for RetreatChain/CombatChain and a
+        // zero-danger cell for A*, which will route straight through it. Not corrected
+        // here: mirroring the attacker clause widens the danger field mid-search and
+        // changes which paths A* prices out, so it needs a gate and a name of its own.
         mobXyz = new float[0];
         if (BotConfig.avoidMobs) {
             Minecraft mcb = Minecraft.getInstance();
