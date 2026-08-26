@@ -40,6 +40,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   engine's eating path exactly zero times, which is the argument for driving the next one through
   `Avatar#commandUseItem` and leaving this as a recorded fallback.
 
+- **The brake row named the wrong cell, and the hop log ran out before the stall that mattered.**
+  Two walker instruments, both corrected after a rung-12 body walked into a lava lake and the
+  post-mortem's first pass read the evidence backwards.
+
+  `announceLavaBrake` printed `foot` under the words「creeping past lava at …」— wording that reads
+  as the HAZARD's position and is the BODY's. The body died at `-11,63,19` and the row said「lava
+  at -11,63,19」, so it was read as「the brake saw lava ahead」when it in fact said「the body is
+  already standing in it」. Those point at opposite defects. It now names both cells, plus speed
+  and sprint: sneak still creeps ~0.9 b/s so「braked」is not「stopped」, and sprint is gated on
+  `!hazardAhead`, so the question「was it carrying sprint momentum?」was unanswerable — the word
+  "sprint" appeared zero times in a full ladder log.
+
+  `WIGGLE_EVENTS` went 4 → 16. The budget is per Walker INSTANCE (an instance field, no reset,
+  one `new Walker(…)` per process), and a single stall episode burns it: that run spent all four
+  inside thirteen seconds and printed 序=5+/4 for the hops between the last logged position and
+  the corpse. Measured on the very next rehearsal: one stall printed sixteen consecutive suppressed
+  hops and still hit 序=17+/16 — the old cap would have shown a quarter of it.
+
 - **The raise search prints its own vetoes.** `raiseColumn` built a reason map for every candidate
   column it rejected and threw it away, so the only rows a reader had were the winner and the
   *stand* search's veto map — a different question over a different candidate set (`standToPour`
