@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **The ladder eats.** Rung 9 mines iron down a shaft it digs itself, and on 2026-08-26 it fell
+  three times on the way (−4, −7, −3, every `hp.trace` row reading `身处=air`), banked its three
+  ingots and passed: its assertion asks for ingots, not for a body able to continue. Rung 10 then
+  aborted on its first tick without breaking a single block, because `MineProcess` refuses to mine
+  at or below `MINE_HP_CRITICAL` = 4 and the body arrived at exactly 4.0 — so it reported
+  「10% 掉率，靠量不靠运气」about a die it never rolled. The run after it fell only twice, arrived
+  at 9.0, and rung 10 passed. One fall is the whole difference, and nothing in either run spends
+  the five raw beef rung 6 banks.
+
+  `JourneyFeed` eats before the gravel rung's walk — before the walk rather than before the dig,
+  because the walk and the shaft cost health too and a body that starts them at 4 has nothing to
+  spend. It asserts nothing: an empty bag, a hold that will not take, a `startUsingItem` that does
+  not stick, a bite that feeds nothing, a regen that times out — each writes its own evidence row
+  and the rung continues in exactly the state it would have been in. That is deliberate for the
+  first run, because whether a client-driven `ServerPlayer` can be made to eat from the server side
+  is still an open question, and an instrument that failed the rung would answer it by killing the
+  run. `BotConfig.autoHeal` was not the answer: it would arm a preemption for all twenty rungs at
+  once, and it works by holding a key down in a tick.
+
+  A second row now travels with every rung: `body.vitals` reports 「entered at X, now Y」 plus
+  hunger, so a rung that starts low reads as a complaint about its predecessor rather than as its
+  own failure. It found something on its first run — hunger falls below 18 at rung 6 and never
+  comes back, so from rung 6 onward the body cannot regenerate at all, whatever it is carrying.
+
 - **Folding a hand-written floor into a shared helper is not free when the caller holds a client
   type.** Twelve inline copies of `new BlockPos((int) Math.floor(e.getX()), …)` were folded into
   the `BotUtil.blockPosOf(Entity)` that already existed, on the stated grounds that the copies were
