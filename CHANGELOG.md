@@ -29,9 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without arriving, and a flight naming a third column has changed it too. Both keep the old
   behaviour.
 
-  What this does not fix is where the run dies. The exit taken is the one the exhausted cap already
-  took, so the pour that follows is the same pour; what it buys is thirty-nine courses of budget and
-  a ledger that no longer reports climbing while the body stands still.
+  The exit taken is the one the exhausted cap already took, so this was expected to buy budget and a
+  truthful ledger rather than a different outcome: thirty-nine courses back, and rows that no longer
+  report climbing while the body stands still. The rehearsal that followed disagreed with the second
+  half — rung 12 poured its ten blocks and lit the portal, with `driftLoop` firing once at
+  `cast7#1.climb.1` and no climb in the run reaching course 40. That is not an attribution: the
+  rehearsal's baseline is one green in three, and the loop that fired was not the one measured above
+  (`cast8` never entered it this time). What the run establishes is that the loop ends, not that the
+  rung is fixed.
 
 - **A pour's row retry now asks a different question from the one that sent it back.**
   When `JourneyPour#raiseTo` found the body more than `POUR_ROW_SLACK` rows above `wantY`, it walked
