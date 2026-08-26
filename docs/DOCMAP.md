@@ -22,6 +22,11 @@
 ⚠️ **核对是不对称的**：核实错一条就足以判 `stale`；核实对一条**不足以**判 `current`
 （`mcp-clients.md` 的端口文件名对，但那是 289 行里的两行）。
 
+⚠️ **「我读过」不能当「我核过」。** 这是上一条警告的姊妹条。判 `current` 的判据必须是
+**「对照它所描述的那个东西核过」**，不是「读完了没发现语法问题」。
+建账当天就栽在这里：`CLAUDE.md` 只有三行，读完两秒，于是被判 `current` 并写下「内容已读，无误」——
+而那三行里恰好有一句是假的。**越短的文件越容易免检，正因为读它不费事。**
+
 ---
 
 ## 一、根级 — 目前事实上的 user / dev 入口
@@ -31,7 +36,7 @@
 | `README.md` | user | current | — | 英文主页；三个 transport 的连法目前最全的一份 |
 | `README-zh_CN.md` | user | current | — | 中译；**必须与 `README.md` 同批改** |
 | `AGENTS.md` | dev | **stale** | 2026-08-26 | canonical 开发约定。⚠️ 场景数写「222（171 `wd.*`）」，实为 **322**——见下方 P1 |
-| `CLAUDE.md` | meta | current | 2026-08-26 | 三行指针，指向 `AGENTS.md`。内容已读，无误 |
+| `CLAUDE.md` | meta | **stale** | 2026-08-26 | 三行指针。⚠️ 末句「Both files are kept in sync」描述了一个不存在的关系——见下方 P2 |
 | `CONTRIBUTING.md` | dev | current | — | 外部贡献者入口：构建 / 测试 / 布局 / 约定 / 日志位置 |
 | `ROADMAP.md` | dev·history | — | — | N0–N5 里程碑梯 + E1/E2；排期归它 |
 | `CHANGELOG.md` | history | **keep** | — | ⛔ 行为变更史，**永不删**（543KB） |
@@ -145,18 +150,19 @@
 | # | 事项 | 类型 | 为什么排这里 |
 |---|---|---|---|
 | **P1** | 修 `AGENTS.md` 的场景数 | 核对 | **今日已核实错**，且这句话历史上错过三次 |
-| P2 | `docs/user/transports.md` | 补 | 三 transport 只有 MCP 有 user 文档；RPC 只活在 skill 里，Rhino 一份没有 |
-| P3 | `docs/dev/architecture.md` | 补 | `DriverApi` 单一真相 / transport 只翻译 / 写路径过 `server.execute()` |
-| P4 | 删除波 1：自称 SUPERSEDED 的 2 份 plan | 删 | 判据无歧义，不需要核实完成状态 |
-| P5 | `docs/user/capabilities.md` | 补 | 72 个 `mc.*` 方法按能力分族，让人知道能让 LLM 干什么 |
-| P6 | `docs/dev/bot-layering.md` | 补 | `pathfinder` / `Walker` / `process` / `settings` 四层与 3000 行预算 |
-| P7 | `docs/dev/adding-a-scene.md` | 补 | 场景与 `expected-scenes-*.txt` 的**同批纪律**（漏了就 `UNDECLARED:` 判红） |
-| P8 | `docs/user/troubleshooting.md` | 补 | 端口文件、连不上、bot 不动 |
-| P9 | 删除波 2+：stagewright 建设族 14 份 | 删 | 需先核实框架已完成迁移（很可能是，但要验） |
-| P10 | 删 `handoffs/2026-07-16-…` | 删 | 单份，判据清楚 |
-| P11 | 删除波 3+：导航意图层 9 份 + 其余 13 份 | 删 | 逐份核实，最慢 |
-| P12 | `coverage-exemptions.md` 标题去掉 `task#95b` | 核对 | 违反禁编号，顺手 |
-| P13 | `scripts/agent-driver-channel.mcp.json.example` 的旧项目名 | 核对 | `agent-driver` 已改名 WorldDriver；文件名与内容都要看 |
+| **P2** | 修 `CLAUDE.md` 末句的「kept in sync」 | 核对 | **今日已核实假**；与 P1 同类（正典文档里的假陈述），且只改一句话 |
+| P3 | `docs/user/transports.md` | 补 | 三 transport 只有 MCP 有 user 文档；RPC 只活在 skill 里，Rhino 一份没有 |
+| P4 | `docs/dev/architecture.md` | 补 | `DriverApi` 单一真相 / transport 只翻译 / 写路径过 `server.execute()` |
+| P5 | 删除波 1：自称 SUPERSEDED 的 2 份 plan | 删 | 判据无歧义，不需要核实完成状态 |
+| P6 | `docs/user/capabilities.md` | 补 | 72 个 `mc.*` 方法按能力分族，让人知道能让 LLM 干什么 |
+| P7 | `docs/dev/bot-layering.md` | 补 | `pathfinder` / `Walker` / `process` / `settings` 四层与 3000 行预算 |
+| P8 | `docs/dev/adding-a-scene.md` | 补 | 场景与 `expected-scenes-*.txt` 的**同批纪律**（漏了就 `UNDECLARED:` 判红） |
+| P9 | `docs/user/troubleshooting.md` | 补 | 端口文件、连不上、bot 不动 |
+| P10 | 删除波 2+：stagewright 建设族 14 份 | 删 | 需先核实框架已完成迁移（很可能是，但要验） |
+| P11 | 删 `handoffs/2026-07-16-…` | 删 | 单份，判据清楚 |
+| P12 | 删除波 3+：导航意图层 9 份 + 其余 13 份 | 删 | 逐份核实，最慢 |
+| P13 | `coverage-exemptions.md` 标题去掉 `task#95b` | 核对 | 违反禁编号，顺手 |
+| P14 | `scripts/agent-driver-channel.mcp.json.example` 的旧项目名 | 核对 | `agent-driver` 已改名 WorldDriver；文件名与内容都要看 |
 
 ### P1 的正确改法
 
@@ -169,13 +175,34 @@
 今日实测：两份清单各 **322** 行且逐字节同构（271 `wd.*` + 38 `cap.*` + 13 `pack.*`）。
 `AGENTS.md` 现写 222（171 `wd.*`）。
 
+### P2 的正确改法
+
+`CLAUDE.md` 现在的末句是：
+
+> Both files are kept in sync; AGENTS.md is the canonical version.
+
+**前半句假。** 它描述的是「两份互相同步的拷贝」，而实际关系是**指针 → 正典**：
+`CLAUDE.md` 三行，`AGENTS.md` 499 行，前者是后者的入口而不是它的副本。
+今日实测：`AGENTS.md` 当天被改了三次（`1052cc2a`、`61fe1a1c`、`05dc3299`），
+`CLAUDE.md` 最后一次真实改动停在 2026-05-31（`0ca2a5cb`）——
+**按那句话的字面意思它此刻就是失同步的；按真实关系它压根不需要同步。**
+
+⇒ 改法是让那半句描述真实关系（指针，没有第二份拷贝），而**不是**去「同步」两份文件。
+一句话的改动，别顺手扩写。
+
 ---
 
 ## 轮次记录
 
 **2026-08-26｜建账。** 仓库里 87 份跟踪文档全部入账，本轮不改任何其它文件。
-顺手核实两件事：场景清单实为 322（`AGENTS.md` 写 222，判 `stale`）；
+顺手核实三件事：场景清单实为 322（`AGENTS.md` 写 222，判 `stale`）；
+`CLAUDE.md` 末句的「kept in sync」是假陈述（判 `stale`，见 P2）；
 `mcp-clients.md` 的端口文件名 `worlddriver-{mcp,rpc}.port` 与
 `WorldDriverCommon.java` 一致（只抽查了这两行，不足以判 `current`）。
 
+其中 `CLAUDE.md` 那条是**建账时先判错、当轮被退回改正的**：初判写的是
+「内容已读，无误」——读的是它说了什么，没读它说的是不是真的。教训已固化成上面
+「我读过不能当我核过」那条规矩，因为三行文件下次还会这样免检。
+
 **下一轮：P1** —— 把 `AGENTS.md` 那句场景数改成指向 `expected-scenes-*.txt` 的写法。
+**其后 P2** —— 把 `CLAUDE.md` 末句改成描述真实关系（本轮**不动它**，先让它排进队列）。
