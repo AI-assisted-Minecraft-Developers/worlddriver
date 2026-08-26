@@ -15,7 +15,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluids;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -63,11 +62,14 @@ public final class BotUtil {
 
     public static BlockPos readPos(Object o) { return Params.toPos(o); }
 
+    // These forward to Params so a bot-package caller need not import it. Only the ones
+    // something actually calls are kept: `doubleOr` and `parseStringList` sat here with
+    // zero call sites while their neighbours had 3-42 each, because callers reach
+    // Params.toDouble / Params.toStringList directly. A never-asked forwarder is not a
+    // convenience, it is a second name for one function — add one back the day a caller
+    // wants it, not in advance.
     public static int intOr(Object o, int dflt) { return Params.toInt(o, dflt); }
-    public static double doubleOr(Object o, double dflt) { return Params.toDouble(o, dflt); }
     public static int clamp(int v, int lo, int hi) { return Params.clamp(v, lo, hi); }
-
-    public static List<String> parseStringList(Object o) { return Params.toStringList(o); }
 
     public static Map<String, Object> unimplemented(String msg) {
         return Map.of("ok", false, "error", "unimplemented: " + msg);

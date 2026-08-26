@@ -27,11 +27,6 @@ import java.util.function.Predicate;
 public final class BlockMatch {
     private BlockMatch() {}
 
-    /** True when {@code selector} is a tag selector ({@code '#'}-prefixed). */
-    public static boolean isTag(String selector) {
-        return selector != null && selector.trim().startsWith("#");
-    }
-
     /** Build a predicate matching {@code selector}. Returns a never-match
      *  predicate for null/blank/malformed selectors. */
     public static Predicate<BlockState> of(String selector) {
