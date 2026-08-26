@@ -366,11 +366,26 @@ final class JourneyRamp {
                         ? "（现在正压在这道楼梯的足迹上，不挪开第一级就垫不了）" : "（现在不在足迹上）"));
         walkTo(rig, from, () -> {
             BlockPos now = rig.player().blockPosition();
-            if (!now.equals(from))
+            if (!now.equals(from)) {
                 rig.evidence(tag + ".standShort", "没走到 " + from.toShortString() + "，停在 "
                         + now.toShortString()
                         + (onTheFlight(flight, now) || onTheFlight(flight, now.above())
                                 ? " —— 还压在足迹上" : ""));
+                // WHAT STOOD IN THE WAY, not merely that the walk fell short. The rehearsal of
+                // 2026-08-26 spent a whole round on this row: it reported the body stopping at
+                // 3,64,18 en route to 2,56,18, the walker logged `MOVE-noMove … hCol=true` at
+                // 2.3,64.0,19.4 — and the cell it collided with has ZERO mentions anywhere in the
+                // run, so the obstruction could only be guessed at. A guess picked the water eight
+                // rows below, which cannot produce a collision at y=64.
+                //
+                // Cheap because it is rare: `.stand` fires ~15 times a run and reaches here twice,
+                // both on the alcove's descending leg. Two waypoints, since this is one leg; the
+                // probe cuts its bands at the FIRST waypoint's row, which is where the body still
+                // is and therefore where the obstruction has to be.
+                JourneyCorridorProbe.record(rig, tag + ".standShort", now,
+                        new int[][] {{now.getX(), now.getY(), now.getZ()},
+                                {from.getX(), from.getY(), from.getZ()}}, 0, 2);
+            }
             then.run();
         });
     }
