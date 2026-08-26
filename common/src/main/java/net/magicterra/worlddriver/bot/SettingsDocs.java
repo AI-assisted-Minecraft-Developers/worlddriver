@@ -125,8 +125,8 @@ public final class SettingsDocs {
         e("allowParkour4", "bool — enable 4-block cardinal leaps in A* (edge of vanilla physics; off by default)"),
         e("allowBreak",
             "bool — Baritone allowBreak; A* may MINE through walls / dig straight down to reach the " +
-            "goal (tool-aware cost folded into the move). Off by default (keeps goto/follow " +
-            "non-destructive)"),
+            "goal (tool-aware cost folded into the move). On by default — set false for a " +
+            "non-destructive goto/follow"),
         e("allowSwimEscapeBreak",
             "bool — when STUCK IN WATER (flooded pit / high lake-or-ocean bank too tall to step out " +
             "of), A* may mine the BANK blocks to climb ashore even with allowBreak off. ON by " +
@@ -138,14 +138,14 @@ public final class SettingsDocs {
             "block in the hotbar; independent of allowPlace, fires only at the water's edge"),
         e("allowPlace",
             "bool — Baritone allowPlace; A* may PLACE a throwaway hotbar block to bridge a 1-block " +
-            "gap. Off by default; needs a BlockItem in the hotbar (or creative)"),
+            "gap. On by default; needs a BlockItem in the hotbar (or creative)"),
         e("allowParkourPlace",
             "bool — Baritone allowParkourPlace; A* may cross a 2-block gap with a sprint-jump onto a " +
             "block placed mid-air (when the landing has a solid neighbour to place against). Faster " +
             "than two sneak-bridges. Off by default; needs a BlockItem in the hotbar (or creative)"),
         e("allowWaterBucketFall",
             "bool — Baritone maxFallHeightBucket; A* may fall >3 blocks by placing a water bucket on " +
-            "the landing (MLG) then scooping it back. Off by default; needs a water bucket in the " +
+            "the landing (MLG) then scooping it back. On by default; needs a water bucket in the " +
             "hotbar"),
         e("maxWaterBucketFall",
             "[4,256] dflt 20 — tallest drop committed to with a water-bucket fall when " +
@@ -214,7 +214,7 @@ public final class SettingsDocs {
             "bool — re-sync the step-pointer when grounded but the target node is ≥2 blocks off " +
             "VERTICALLY in the horizontal dead-zone with no wall-contact (a descent overshoot / " +
             "ascent slide-back the other recovery gates miss) → fold into the repath recovery instead " +
-            "of waiting out the ~5s wedge burst. On by default"),
+            "of waiting out the ~5s wedge burst. Off by default"),
         e("walkerLevelRiserJump",
             "bool — JUMP a y-mislabeled +1 riser: when A* labels an edge a LEVEL walk but its floor " +
             "is actually +1, the bot sprints in level, drops onto the lower cell ONE below the node, " +
@@ -281,7 +281,7 @@ public final class SettingsDocs {
             "just over the 0.45 reach gate — buoyancy + the water-climb jump ram it and it can't walk " +
             "the last fraction in). Treats arrival at the surface cell as reaching the node (relaxed " +
             "reach), gated on a confirmed stall so a clean approach advances normally first. Dry " +
-            "step-downs, deep floating-water landings, and climb/walk/parkour edges are inert. Off by " +
+            "step-downs, deep floating-water landings, and climb/walk/parkour edges are inert. On by " +
             "default"),
         e("walkerStepUpCrestReach",
             "bool — advance the step-pointer off a +1 stepUp/diagUp CREST node (a diagonal-staircase " +
@@ -303,7 +303,7 @@ public final class SettingsDocs {
             "confirmed in-water stall (noStepProgress — horizontal-only in water so bob-immune — past " +
             "24) at a flat walk water node within reach 1.3 advances the step (next node |Δy|<1.2 " +
             "bars a climb-skip). A clean crossing advances via passed first; dry walk and non-walk " +
-            "edges inert. Off by default"),
+            "edges inert. On by default"),
         e("walkerAscentRamJitterImmune",
             "bool — deep fix for the steep CLIMB-FAILURE stall: the bot slides 2-3 blocks BELOW a √2 " +
             "diagUp node (an effective +2/+3 ram, too tall for one jump, under the fellOffPath >3 " +
@@ -325,14 +325,14 @@ public final class SettingsDocs {
             "instead of the per-tick bob-compensating gates " +
             "(passed/crossedWalk/waterStepDown/crestReach/waterWalkReach are bypassed). Bob-immune by " +
             "construction — unfreezes the step pointer the buoyancy bob strands (live P0: projSeg led " +
-            "the frozen step by 2-5 segments at stalls). Edge-execution holds still gate it. Off by " +
+            "the frozen step by 2-5 segments at stalls). Edge-execution holds still gate it. On by " +
             "default"),
         e("walkerTangentAim",
             "bool — Phase-2: aim camera AND body at the path TANGENT ahead of the projection instead " +
             "of the immediate-node bearing, which flips ~180° on node overshoot (the backward-jump / " +
             "反复横跳 / facing-the-wall dead-corner stall; live P1: body stalled on-path with dYaw up to " +
             "129°). The tangent never reverses, killing that failure mode + the descent " +
-            "flip-rejection bandaids. Skipped for launches + in the aim dead-zone. Off by default"),
+            "flip-rejection bandaids. Skipped for launches + in the aim dead-zone. On by default"),
         e("walkerArcLengthWedge",
             "bool — Phase-3: bob/jitter-IMMUNE ram-wedge recovery. When the arc-length projection " +
             "makes no forward progress (|ds|<0.05/tick) while horizontalCollision for ~1.5s, fold " +
@@ -340,7 +340,7 @@ public final class SettingsDocs {
             "Structural replacement for the descentRamStuck/ascentRamSlide/verticalResync zoo, which " +
             "hang on noStepProgressTicks — a 3D-new-low counter the ram-jitter+bob zero every tick so " +
             "it never fills (live -672,94: descentRamStuck's exact node-1-below+hCol case, yet bobbed " +
-            "34+t with no recovery). Off by default"),
+            "34+t with no recovery). On by default"),
         e("walkerAscentRamBobBreak",
             "bool — bob-immune freeze-breaker trigger for a steep TALL-bank +1 stepUp/diagUp mount " +
             "(live W→E -861→-632, ~50-70s jank, reproducible): the bot jumps off the diagonal corner " +
@@ -350,7 +350,7 @@ public final class SettingsDocs {
             "(noStepProgressTicks 3D new-low, stepRamStuckTicks onGround) are BOTH zeroed by the " +
             "airborne bob apex. ON: a counter ticking on foot-below-node + laterally-close IGNORING " +
             "onGround ORs into stepUpFreeze so it engages on time. A clean fast climb tops out before " +
-            "the bar; water/parkour/far-node inert. Off by default"),
+            "the bar; water/parkour/far-node inert. On by default"),
         e("walkerDeepWaterFloatBeeline",
             "bool — at the segment anchor-gate, ACCEPT a continuation whose far first node is " +
             "reachable by a straight clear-LOS swim over open water (foot floating + all-water/air " +
@@ -362,7 +362,7 @@ public final class SettingsDocs {
             "hSpd=0, the bot never commits a forward path and never drives east (anti-spin ends " +
             "best-effort). Accepting lets the carrot bee-line toward the far node and cross. Gated so " +
             "a walled/cliff continuation or a dry foot still rejects (can't bee-line through a wall). " +
-            "Off by default"),
+            "On by default"),
         e("walkerFutileBankDigRelease",
             "bool — release the block-less bank-DIG early when it is an UNREACHABLE OVERHANG a " +
             "buoyant bot can never break. At a concave island-bank notch (live -782/-790) the bot " +
@@ -373,8 +373,7 @@ public final class SettingsDocs {
             ">=2-above-foot riser AFLOAT for ~200 ticks without grounding or breaking, drop it (latch " +
             "climbPillarGaveUp, clear breakingEdge, price the cell out, 30-tick dig lockout) so the " +
             "back-off burst frees the bot ~40 s sooner. A legit +1 grounded climb-out staircase never " +
-            "trips it (its riser is +1 and it grounds + breaks). Off by default — GameTest can't " +
-            "reproduce buoyant-dig dynamics, so live-A/B before trusting it")
+            "trips it (its riser is +1 and it grounds + breaks). On by default")
         );
     }
 
@@ -384,12 +383,12 @@ public final class SettingsDocs {
             "bool — planner: forbid a PARKOUR leap that LANDS on the surface of a DEEP floating-water " +
             "pocket (≥2 deep, head air) — the buoyant bot floats there and can't climb back out (~25× " +
             "underwater bank-dig). Forces A* to bridge over / find a shallower entry. Step/fall water " +
-            "entries (real river crossings) untouched. Off by default"),
+            "entries (real river crossings) untouched. On by default"),
         e("pathfinderForbidParkourFromFloatingWater",
             "bool — planner: forbid a PARKOUR leap that LAUNCHES from a DEEP floating-water cell " +
             "(water+water below) — a buoyant bot can't sprint-jump out (no floor to push off), so A* " +
             "must swim-to-edge + step/diag climb out instead. Takeoff complement of " +
-            "pathfinderForbidParkourIntoDeepWater. Off by default"),
+            "pathfinderForbidParkourIntoDeepWater. On by default"),
         e("pathfinderForbidParkourOverWaterGap",
             "bool — planner: forbid a parkourAscend whose GAP DROP-ZONE (launch-1, in the gap column) " +
             "is DEEP water (≥2) — an undershot leap drops into unclimbable water and bob-stalls on " +
@@ -460,7 +459,7 @@ public final class SettingsDocs {
             "curtain that HANGS over a bank/inlet the path skims at one Y (climbUp oscillates with " +
             "the y-bob, zero XZ progress — the -672 inlet vine-bob, ~10 s); the body drops off the " +
             "vine and the normal walk/stepDown resumes. A genuine vine ascent (wp ABOVE the foot) is " +
-            "untouched. Off by default"),
+            "untouched. On by default"),
         e("elytraDebug", "bool — log per-tick elytra flight controller decisions; off by default"),
         e("pathDebug",
             "bool — capture A* candidates + planned routes + actual trajectory for " +
@@ -473,7 +472,8 @@ public final class SettingsDocs {
         e("blocksToAvoid", "[id,...] — extra hazards pathfinder treats as impassable"),
         e("buildBlockWhitelist",
             "[id,...] — block ids the bot may PLACE as build/support footing (pillar/bridge/parkour). " +
-            "EMPTY (default) = any non-falling FULL cube; non-empty PINS placement to exactly these " +
+            "EMPTY (default) = any non-falling, non-GUI block with a sturdy top face (so mud/soul " +
+            "sand count, bottom slabs/fences don't); non-empty PINS placement to exactly these " +
             "ids (use to stop the bot grabbing bamboo/thin blocks it can't stand on). Whole-list " +
             "replace; [] clears"),
         e("mutedEvents",
@@ -501,8 +501,9 @@ public final class SettingsDocs {
         e("pathfinder.maxNodes", "[1000,1000000] dflt 100000 — A* node budget"),
         e("pathfinder.maxMs", "[100,30000] dflt 1500 — A* wall-clock budget, ms"),
         e("pathfinder.heuristicWeight",
-            "[1.0,3.0] dflt 1.3 — weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier " +
-            "per budget"),
+            "[1.0,3.0] dflt 1.0 — weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier " +
+            "per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a " +
+            "dead-end hill); opt in per use on open terrain, don't leave it on"),
         e("pathfinderCacheEnabled", "bool dflt true — per-search blockstate memoise (A/B knob for search throughput)"),
         e("collisionAwarePathing",
             "bool dflt true — use real collision VoxelShapes (not coarse blocksMotion): " +
@@ -520,7 +521,7 @@ public final class SettingsDocs {
             "int dflt 4 — free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost " +
             "apply"),
         e("pathfinderDescendCost",
-            "number dflt 18 — REAL g-cost/block for descending IN WATER or by BREAKING below the " +
+            "number dflt 40 — REAL g-cost/block for descending IN WATER or by BREAKING below the " +
             "slack threshold (fixes deep-water-bowl 卡上岸: makes dive-and-tunnel cost more than " +
             "climb-ashore). Dry stepped descent pays nothing. 0=off"),
         e("pathfinderWaterCellCost",
@@ -530,7 +531,7 @@ public final class SettingsDocs {
             "climb-out↔dive loop). A sole/shorter crossing still taken; Goal.Block GameTest water " +
             "arenas unaffected. 0=off"),
         e("pathfinderSubmergedWaterCost",
-            "number dflt 40 — g-cost for DESCENDING into a SUBMERGED water cell (water directly " +
+            "number dflt 80 — g-cost for DESCENDING into a SUBMERGED water cell (water directly " +
             "above; to.y<from.y) on the way to a LAND-target goal. A buoyant bot floats at " +
             "~surface+0.4 and can't follow a plan DOWN onto the submerged riverbed, but canStandAt " +
             "treats any water cell as a floor → A* routed stepDown/diagDown there → deep-water churn " +
@@ -554,11 +555,11 @@ public final class SettingsDocs {
             "(fixes 深谷凌空架桥 freeze). Doesn't touch depthPenalty (basin-dive still guarded). Old " +
             "hardcoded 30"),
         e("pathfinderFrontierCommit",
-            "bool dflt false — segmented planning to the loaded-chunk frontier: commit toward the " +
+            "bool dflt true — segmented planning to the loaded-chunk frontier: commit toward the " +
             "goal-ward edge of known terrain so far journeys chain across the render horizon instead " +
             "of backtracking"),
         e("pathfinderProgressive",
-            "bool dflt false — 渐进式寻路: overlap search with movement — greedily march a safe " +
+            "bool dflt true — 渐进式寻路: overlap search with movement — greedily march a safe " +
             "coarse-direction stub (dry land + open water) toward the goal so the bot starts moving " +
             "instantly instead of freezing while the big sliced A* runs"),
         e("pathfinderHorizonBlocks",
@@ -576,10 +577,11 @@ public final class SettingsDocs {
             "in the background, spend this many nodes SYNCHRONOUSLY on a short toward-goal segment " +
             "and walk it immediately instead of standing through the search gap (fixes 段间空窗停顿). 0=off"),
         e("pathfinderMaxDryFall",
-            "[3,5] dflt 3 — max DRY (no-water) fall the planner takes as a plain Fall move. " +
-            "3=Baritone no-damage cap (current). Raise (4-5) to descend a steep jungle slope by a " +
-            "small-damage drop instead of building a dirt 天梯 with BridgePlace (the 丝滑-descent lever). " +
-            "Survival-sensitive: the bot takes the fall damage (4≈1.5♥, 5≈2♥)"),
+            "[3,5] dflt 4 — max DRY (no-water) fall the planner takes as a plain Fall move. " +
+            "3=Baritone no-damage cap; 4 (current) halved place-bridges over a jungle canopy in an " +
+            "A/B. Raise to 5 to descend a steep slope by a bigger drop instead of building a dirt 天梯 " +
+            "with BridgePlace (the 丝滑-descent lever). Survival-sensitive: the bot takes the fall " +
+            "damage (4≈0.5♥, 5≈1♥)"),
         e("pathfinder.axisHeight", "[-64,320] dflt 120 — Y plane for goto{axis:true} (GoalAxis)")
         );
     }
