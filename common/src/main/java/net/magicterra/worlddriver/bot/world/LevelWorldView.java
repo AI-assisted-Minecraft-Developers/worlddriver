@@ -35,12 +35,25 @@ import net.minecraft.world.level.block.state.BlockState;
  *   <li>{@code BotConfig.pathfinderBreakCostMultiplier} (ships at 2.5).</li>
  * </ul>
  * A grep for those two keys finds exactly one consumer each, both in {@code ClientWorldView}
- * — so on every DEDICATED-server topology, including the journey ladder, both knobs are
- * inert whatever their value, and a bare-handed body's A* will tunnel through stone the
- * client planner detours around. Their own javadocs in {@code BotConfig} say "the planner's
- * breakCost" with no qualifier; read them as "the CLIENT planner's". This is written down,
- * not fixed: bringing the taxes over changes what the ladder's A* plans, which is a
- * measurement with its own gate, not a tidy-up.
+ * — so wherever THIS view is the planner, both knobs are inert whatever their value, and a
+ * bare-handed body's A* will tunnel through stone the client planner detours around. Their
+ * own javadocs in {@code BotConfig} say "the planner's breakCost" with no qualifier; read
+ * them as "the CLIENT planner's".
+ *
+ * <p><b>"Wherever this view is the planner" is a smaller set than「the ladder」, and the word
+ * ladder names two different tasks.</b> Construction decides it, so grep the constructors, not
+ * the task name: {@code new LevelWorldView} comes from {@code ServerWorldDriver} (the FakePlayer
+ * driver) and the scenes; {@code new ClientWorldView} comes from {@code BotApiImpl}, i.e. the
+ * real client body. So the DEDICATED-server topologies — the {@code wd.*} suite and the
+ * {@code journeyServer} task — plan through this view and the taxes are dead there, while
+ * {@code runJourneyIntegratedServer} drives a real client body and the taxes are LIVE for it:
+ * {@code JourneyRig} calls {@code applyCompiledDefaults()}, not {@code applyGameTestBaseline()},
+ * so they run at the shipping 3.0 / 2.5, and the A/B recorded beside that call (rung 3, one
+ * variable: 13 logs / 2 914 ticks against 6 logs / 13 899 ticks) is that multiplication being
+ * felt. Saying "inert on the ladder" without the task name inverts the answer for one of them.
+ *
+ * <p>Written down, not fixed: bringing the taxes over changes what a dedicated-server A* plans,
+ * which is a measurement with its own gate, not a tidy-up.
  */
 public final class LevelWorldView implements WorldView {
 

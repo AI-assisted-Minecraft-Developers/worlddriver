@@ -53,9 +53,17 @@ public final class LookController {
      *  the instrument is fine, the window is not the one a reader assumes. Correlate it by
      *  DIFFERENCING two rows, never by taking one row's value.
      *
-     *  <p>Left in place rather than deleted: the fix is a caller, and the natural one
-     *  (journey/replay start) is owned elsewhere. A deleted method makes the wiring
-     *  someone has to notice; an unwired one at least names it. */
+     *  <p><b>And a caller is the wrong fix, so do not add one.</b> These accumulators are
+     *  {@code static}: one copy per JVM, however many readers. A reset serves whoever called it
+     *  by zeroing the window of every other reader at the same time — two legs, two rungs or a
+     *  scene and a replay reading at once would silently truncate each other, and the corruption
+     *  looks exactly like a short quiet stretch. {@code futileGateBuckets} met this and chose
+     *  differencing for that reason; {@code WalkerCensus} is the same shape again. A reader that
+     *  takes its own baseline costs one extra row and gets in nobody's way, so the rule for every
+     *  process-wide counter here is: <em>the reader brings a baseline, the counter never rewinds.</em>
+     *
+     *  <p>Kept rather than deleted only because deleting it is a code change wanting a gate, and
+     *  an unwired method that says why it stays unwired is a cheaper signpost than a silent gap. */
     public static void resetWind() { windCumAbs = windUnwrapped = windMin = windMax = 0; windHavePrev = false; windTick = 0; }
 
     /** Bypass the slew for the CURRENT tick (functional exact aim — see class doc).
