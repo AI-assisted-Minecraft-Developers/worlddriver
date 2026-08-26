@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A body falling into the stairwell's terminal cell now waits out the fall instead of being
+  declared arrived the moment its feet cross the row.** `JourneyStairwell.finishTheFlight` used to
+  end the leg on `down(got, ends)` alone — a pure block-row test — and the `SETTLED_SLACK` check
+  beside it now also asks how far the body still is above that row's FLOOR. Nothing else about the
+  leg changed: the wait it enables (20 ticks of `HoldStill`) already existed immediately below, and
+  the row it records, `flightLastStepSettled`, now prints the height as a value (`0.92 → 0.00`)
+  rather than only the cell, because「the fall finished」and「the body was resting on something up
+  there」had been leaving the same log.
+
+  The reason is what the next verb did with that early return. Eight rung-12 rehearsals measured it
+  byte-identically: `down` went true at `1,57,20` while `landing` an instant later read
+  `1.53/57.92/20.51, onGround=false` — 0.92 of a block still to fall. The pour that follows picked
+  its aim from THAT eye (y=59.54), which clears the backing's top edge by 0.01 of a block, and fired
+  0.69 lower (y=58.85), by which point the same ray enters the backing's WEST face and the lava
+  lands one cell short. The one run that ever hit on its first shot got there by accident: its walk
+  ran out of budget, so `got` stayed at `ends.above()` and it took the wait branch.
+
+  Deliberately a position and not `onGround`: that flag describes the previous `move()`, an
+  objection the code twelve lines down already makes and which a coordinate does not inherit.
+  Backtested three for three — first-shot hit at cell 2 in all three, and the rung now reaches cell
+  8 or 9 instead of dying at cell 2.
+
 - **The journey heartbeat now names the leg's goal and its progress along the plan.** The row
   `[journey] 心跳 <stage> <driving> …` gained one field between `driving` and the tick counter:
   `目标=<target|goal> 路=<pathStep>/<pathLen>`, read out of the driving half's process slot (so a
