@@ -510,7 +510,10 @@ public final class BotTools {
                     .prop("quantity", integer(1, 256)
                         .desc("How many to break. Default 1."))
                     .prop("radius", integer(1, 64)
-                        .desc("XZ scan radius from player. Default 16; vertical fixed at ±8."))
+                        .desc("XZ scan radius from player. Default 16. The vertical half-extent is "
+                            + "separate and settable: mc.bot.setting{mine.searchVerticalRadius} "
+                            + "(1-32, default 8), read on every scan — widen it before giving up "
+                            + "on a vein that may be above or below the band."))
                     .prop("awaitMs", awaitMs())
                 ),
 
