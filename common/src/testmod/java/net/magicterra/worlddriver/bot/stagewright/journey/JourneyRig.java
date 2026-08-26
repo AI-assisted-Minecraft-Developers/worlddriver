@@ -275,6 +275,7 @@ public final class JourneyRig {
         // the obvious home, cannot carry this one.
         rig.recordFutileGate("本级还没有过等待——走行器一次都没被 await 过");
         rig.recordWalkerCensus("本级还没有过等待——走行器一次都没被 await 过");
+        rig.recordBodyVitals(rig.bodyVitalsLine());
         ctx.record("journey.stage", stage.name() + "(" + stage.label() + ")");
         return rig;
     }
@@ -315,6 +316,7 @@ public final class JourneyRig {
         ctx.record("journey.stage", label.name() + "(" + label.label() + ")（竞技场，不记账本）");
         rig.recordFutileGate("本场景还没有过等待——走行器一次都没被 await 过");
         rig.recordWalkerCensus("本场景还没有过等待——走行器一次都没被 await 过");
+        rig.recordBodyVitals(rig.bodyVitalsLine());
         return rig;
     }
 
@@ -1489,6 +1491,7 @@ public final class JourneyRig {
         sinceHeartbeat = 0;
         recordFutileGate(futileGateLine());
         recordWalkerCensus(walkerCensus.line());
+        recordBodyVitals(bodyVitalsLine());
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info(
                 "[journey] 心跳 {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
@@ -1748,6 +1751,50 @@ public final class JourneyRig {
     private void recordWalkerCensus(String line) {
         evidence.put("walkerCensus", line);
         ctx.record("walkerCensus", line);
+    }
+
+    /** Health the body walked INTO this rung with, or -1 before the first reading.
+     *
+     *  <p>Taken lazily rather than in the constructor: {@code enter} builds the rig before the
+     *  stage's own PREP has run, and on a BLOCKED rung there is no body to ask. */
+    private float hpEnteringRung = -1f;
+
+    /**
+     * What the body has left to spend on this rung — carried in from the last one.
+     *
+     * <p><b>The reading rung 10 needed and no rung produced.</b> On 2026-08-26 the iron rung fell
+     * three times down its own shaft (−4, −7, −3, every row {@code 身处=air}), banked its three
+     * ingots and passed: its assertion asks for ingots, not for a body able to continue. The
+     * gravel rung then aborted on its FIRST tick — {@code MineProcess} refuses to mine at or below
+     * {@code MINE_HP_CRITICAL}=4 and the body arrived at exactly 4.0 — so {@code broke 0/64},
+     * no gravel, no flint, and a rung that reported「10% 掉率，靠量不靠运气」about a die it never
+     * rolled. Every number in that chain existed; none of them sat on the same row, and the rung
+     * that PASSED is where the damage was taken.
+     *
+     * <p>So this is a DELTA across the rung boundary, not a snapshot: 「entered at X, now Y」 says
+     * both what this rung spent and what the last one left behind. A rung that starts low is a
+     * complaint about its predecessor, and only this row can tell that from a rung that hurt itself.
+     *
+     * <p>Hunger rides along because it is the other resource a rung silently inherits and the one
+     * that decides whether health comes back at all — vanilla regenerates nothing below 18, and
+     * this run's two {@code hp.trace} rows both read 「回血 0 次」 with five raw beef in the bag.
+     */
+    private String bodyVitalsLine() {
+        if (driver == null) return "没有身体（本级还没有驱动器）";
+        ServerPlayer fp = driver.fakePlayer();
+        float hp = fp.getHealth();
+        if (hpEnteringRung < 0) hpEnteringRung = hp;
+        return String.format("血 %.1f→%.1f（上限 %.1f）", hpEnteringRung, hp, fp.getMaxHealth())
+                + "，饱食 " + fp.getFoodData().getFoodLevel() + "/20"
+                + String.format("（饱和 %.1f）", fp.getFoodData().getSaturationLevel())
+                + (hp <= 4f ? " ⚠️ 血 ≤ MineProcess 的绝对下限 4，挖掘会在第一 tick 中止" : "")
+                + (fp.getFoodData().getFoodLevel() < 18 ? " ⚠️ 饱食 <18，自然回血不会发生" : "");
+    }
+
+    /** Same two choke points and the same clash-detector bypass as {@link #recordWalkerCensus}. */
+    private void recordBodyVitals(String line) {
+        evidence.put("body.vitals", line);
+        ctx.record("body.vitals", line);
     }
 
     /** This rung's share of the futile gate, bucket by bucket. Buckets 0-5 are searches the gate
@@ -2763,6 +2810,7 @@ public final class JourneyRig {
         claimed = true;
         recordFutileGate(futileGateLine());
         recordWalkerCensus(walkerCensus.line());
+        recordBodyVitals(bodyVitalsLine());
         evidence.put("body.invulnerable", bodyIsInvulnerable());
         int staged = JourneyLedger.stagingCalls().size();
         evidence.put("staging.calls", staged);
