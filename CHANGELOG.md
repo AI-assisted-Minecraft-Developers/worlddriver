@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A body that can already swing at a cell no longer walks off to find somewhere to stand.**
+  `JourneyPortalRung#standBehind` decided that with `withinDigReach` alone — `DIG_ARRIVE = 2`, a
+  cell-centre distance whose javadoc is explicit about where the number comes from: it matches the
+  `Goal.Near(cell, 2)` that `mineCellOrGiveUp` walks. That is the EXECUTOR's radius. What decides
+  whether a swing lands is `Avatar#canBreak`, an eye-distance test against
+  `blockInteractionRange() + 0.5` = 5.0. Asking only the tighter of the two sends a body that could
+  already break the block off to build a staircase for it.
+
+  Measured, rung 12's client rehearsal of 2026-08-26, and the three rows are consecutive in one
+  run. The stand for the ninth cell was refused at `2,58,20` for being `3.00` from `4,60,19` — an
+  eye distance of roughly 2.4, comfortably inside canBreak. The ramp that followed then skipped its
+  own flight, because the body was by then six rows up in a different column
+  (`cell.8.ramp.flightSkipped = -1,65,19 已经到了落点那一排或更高（高 6 排）`), so every later swing
+  came from the surface: `0,65,19` / `4,64,19` / `3,65,18`, eye distances 7.36 / 5.13 / 6.61 against
+  a ceiling of 5.00, all `canBreak=false`, and the cell never opened. The nearest miss was **0.13
+  blocks**. Walking is what turned 2.4 into 5.13.
+
+  The carve had already found and fixed the same disease on its own path — that run's
+  `forge.swung = 67/67 格是就地挥开的（canBreak 已经为真，不用走过去）`, and `mineCellOrGiveUp`
+  opens with `breakItWhereItStands` for exactly this reason (its comment records a run where
+  `forge.swung=64/67` beside `forge.carved=64/67`, i.e. THE WALKING LEG OPENED ZERO CELLS). The
+  stand in front of it was still on the pre-fix version. It now asks `canBreak` after the existing
+  short-circuit and before the litter clearing, records `<tag>.swingFromHere` when that is what
+  let it through, and asks the SERVER avatar — the one `breakItWhereItStands` itself asks — so the
+  gate and the swing it green-lights cannot disagree. The original short-circuit is untouched, so
+  the change can only let more through, never less; when canBreak refuses, the body falls through
+  to precisely the stand-finding it did before.
+
+- **An evidence row now says what a dig already did, instead of what to do next.**
+  `JourneyRig#sayIfStillThere` takes a `how` string and appends it to a row that already carries
+  every measurement a reader needs — block, fluid, body position, `canBreak`, exposure, eye distance
+  against its ceiling, cell distance. The client path passed 「走到 2 格内再挥（NoBreak）」, which
+  parses as advice for a next step; it is in fact the name of what the call had just done
+  (`startLeg(Goal.Near(target, 2) + NoBreak)`, then `breakItWhereItStands`). So the row read as a
+  suggestion, and 「格心距 4.00 格」 three clauses earlier — its direct contradiction, and the whole
+  finding above — went unexamined for an entire rehearsal. It now reads
+  「已走过 Goal.Near(2)+NoBreak 再就地挥，仍没开」, and the parameter's javadoc says why the tense is
+  part of the contract: an imperative in an evidence row is read as a TODO, a past-tense one as a
+  record, and only a record invites the reader to check it against the numbers beside it.
+
 - **A lift that skips its flight now has to be in the right column, not merely high enough.**
   `JourneyRamp#buildTo`'s `>=` arm returned "already there" for any body at or above the landing's
   row. A lift is asked for precisely when the body's own column cannot fire the pour, so the one
