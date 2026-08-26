@@ -885,7 +885,16 @@ public static volatile boolean autoRetreat = false;
 ⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
-🟡 **第 12 级：`buildTo` 的 `>=` 臂已加界（`55fe4a42`），等排练确认。**
+🟢 **第 12 级的界已确认生效**（`55fe4a42`，`runRehearsalIntegratedServer` 实测）：
+`water8.lift.flightNotSkipped` 开火，同 tag 下 `flightSkipped` 归零，而 `cell.7.ramp`／`cast7.ramp`
+两个不启用的调用方照旧 skip——界没漏到 dig 侧。
+🔴 **下游接手的那一段是新的死因**：楼梯修成了却没站上去。
+`lift.flight=4 级` → `lift.laid=4/4 级垫好了` → `lift.standShort=没走到` → `liftedY=64/60（停在 4…）`。
+⇒ 下一件是 `JourneyRamp` 走上楼梯那一腿（`walkTo`/`stand`），不是再动判据。
+⚠️ 不是回归：ladder9 是 `65/60` 且**一级楼梯都没修**。
+
+🟡 **同趟另一条，独立**：`cast7.1.settled.aimForked.1` —— 线段 clip 预言瞄 `5,59,21` 落进
+`4,59,21`，存成角度后实际射线落进 `2,58,20`，于是换候选。换候选的机制在工作，分叉率没量过。
 死因是 `lift.flightSkipped=0,65,15 …（落点 3,60,20，exactRow=false）—— 不用修楼梯`：
 `liftSideways` 刚说完「这一柱验不过这一浇，平移到验得过的那一柱」，`buildTo` 只比排号就跳过，
 横移没发生，`liftedY=65/60` 还把没动的身体记成抬升完成。

@@ -34,6 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Also, `liftedY` names the column it ended in. A body at the right height in the wrong column has
   not been lifted, it has been left, and that row is what the caller reads as「抬升成功了」.
 
+  Verified on a `runRehearsalIntegratedServer` rehearsal of `PORTAL_LIT` — a real `LocalPlayer`,
+  because the two body kinds walk different sub-cell tracks and this change is entirely about which
+  cell a body is in. `water8.lift.flightNotSkipped` fired, `flightSkipped` disappeared from that tag,
+  and the two callers that do NOT pass the bounds (`cell.7.ramp`, `cast7.ramp`) went on skipping —
+  so the bound reached the occasion it was written for and nowhere else. What follows it is a
+  different defect, now visible for the first time: the flight gets built and the body does not end
+  up on it (`lift.flight=4 级` → `lift.laid=4/4 级垫好了` → `lift.standShort=没走到` →
+  `liftedY=64/60`). Before this change the rung never built a single course.
+
 - **A pour is now gated on the ray the client will fire, not on the server body's own.** Rung 12's
   gate rayed `rig.player()` — the `ServerPlayer` — while `useItemInHand()` runs on the client avatar.
   Both bodies are aimed at the same cell and each aim is exact for the body it was written on, so the
