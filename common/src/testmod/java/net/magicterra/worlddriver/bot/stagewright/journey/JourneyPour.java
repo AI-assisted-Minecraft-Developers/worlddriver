@@ -273,9 +273,33 @@ final class JourneyPour {
         // A `Goal.XZ` makes it worse than the others: it ignores Y, so from atop the staircase the
         // cheapest route into a column below is to sink a shaft, and the 2026-08-25 rehearsal shows it
         // doing exactly that through `-1,58,20` — the support of the tread at `-1,59,20`.
+        // PRICE THE WAY OUT OF THE ALCOVE, because `Goal.XZ` cannot see it. The goal ignores Y — its
+        // own javadoc says so — and the surface cell of the target column belongs to that column too,
+        // so from a shaft floor it is that column's CHEAPEST cell. Three bodies measured the same
+        // ending on 2026-08-26: the real ladder's rung 12 poured at `4,60,20` with the body at
+        // `-2,66,19`; the real-client rehearsal poured at `4,60,18` from `3,65,13`; five fake-player
+        // rehearsals ended a raise at y=64..65. Every one of them is on the surface, and every one
+        // fired a ray that was verified for a row inside the alcove.
+        //
+        // A TAX, NOT A CONSTRAINT, and for the reason JourneyTerrain#poolsLipCells already argues:
+        // when the only route to the column really is over the top — a body that starts up there —
+        // the route must stay available. LIP_TAX is the precedent's number: a plain edge is 10, so
+        // 300 is thirty blocks of detour, which is more than the whole alcove is wide.
+        //
+        // The ceiling is the alcove's own, not `wantY`: legs inside the alcove legitimately move a
+        // row or two above their target, and pricing those would tax the ordinary work. Above the
+        // alcove there is nothing this leg wants at all.
+        int alcoveCeiling = JourneyRamp.floorOf(JourneyPortalRung.forgeCorridor)
+                + JourneyForge.ALCOVE_HEIGHT;
+        rig.evidence(tag + ".raiseTo.ceilingTax", "壁龛天花板 y=" + alcoveCeiling
+                + " 以上每踏一格加价 " + (int) JourneyTerrain.LIP_TAX
+                + "（普通走一格是 10）—— Goal.XZ 忽略 Y，指定柱的地表格也属于那一柱，"
+                + "从井底看它还是最便宜的一格；这条税就是为了让它不再是");
         WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 0, 800,
-                WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, List.of(), List.of(new NoBreak()),
-                arrived, stuck);
+                WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS,
+                List.of((from, to, edge, goal, world) ->
+                        to.getY() > alcoveCeiling ? JourneyTerrain.LIP_TAX : 0.0),
+                List.of(new NoBreak()), arrived, stuck);
     }
 
     private static void raiseInColumn(JourneyRig rig, BlockPos target, BlockPos col, int wantY,
