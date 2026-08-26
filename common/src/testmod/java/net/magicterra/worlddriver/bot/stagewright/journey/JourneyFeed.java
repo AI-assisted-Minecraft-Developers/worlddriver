@@ -47,7 +47,13 @@ import net.minecraft.world.item.ItemStack;
  * {@code stopUsingItem}, or a completion that fed nothing — was the answer, and neither would have
  * been found by reasoning about food. What settled it is that {@link Bite} prints the item's ID
  * rather than a same/different boolean: the two ids matched each other and neither was the food.
- * The wait added above is the whole fix.
+ *
+ * <p><b>And the run after that showed the wait was half of it.</b> Run 10 held the right item —
+ * {@code 手里=minecraft:beef、正在用的是=minecraft:beef}, so the bucket family is closed and the
+ * {@code updatingUsingItem} mismatch branch is ruled out — and the bite still died at
+ * {@code useItemRemaining=31}, two ticks into thirty-two. A bite that ends two ticks in with the
+ * hand correct is ended by something outside this file; {@link #finishTheBite} carries the leg past
+ * it and names the suspect, and the row it writes never claims the body ate.
  */
 final class JourneyFeed {
 
@@ -186,15 +192,58 @@ final class JourneyFeed {
             int after = fp.getFoodData().getFoodLevel();
             rig.evidence(tag + ".feed.bite" + n, chosen + "：饱食 " + foodBefore + "→" + after);
             rig.evidence(tag + ".feed.bite" + n + ".trace", trace.line(fp, rig));
-            if (after <= foodBefore) {
-                // Started and finished without feeding: the bite is not the thing that failed, the
-                // completion is. Stop rather than spend the whole cap proving it eight times.
-                rig.evidence(tag + ".feed.stalled", "一口下去饱食没涨，停止进食（" + (n + 1) + " 口）");
-                afterEating(rig, tag, n + 1, then);
+            if (after > foodBefore) { bite(rig, tag, n + 1, then); return; }
+            // Started and finished without feeding, and the trace says which of the two middles it
+            // was. Cut short — the clock still had ticks on it — is somebody ELSE ending this bite,
+            // and that is the one case a completion can honestly stand in for.
+            if (trace.wasCutShort() && finishTheBite(rig, tag, n, chosen)) {
+                bite(rig, tag, n + 1, then);
                 return;
             }
-            bite(rig, tag, n + 1, then);
+            rig.evidence(tag + ".feed.stalled", "一口下去饱食没涨，停止进食（" + (n + 1) + " 口）");
+            afterEating(rig, tag, n + 1, then);
         });
+    }
+
+    /**
+     * Finish, server-side, a bite that something else cut short — and say in the row that it was
+     * FINISHED rather than eaten, because those are not the same claim.
+     *
+     * <p><b>What cuts it.</b> Measured on the gravel rung, run 10 of 2026-08-26, with the hand
+     * already correct: {@code 还在吃了 2 tick；useItemRemaining=31；手里=minecraft:beef、正在用的是
+     * =minecraft:beef}. Hand and use agree, so this is not the {@code updatingUsingItem} mismatch
+     * branch. The remaining suspect is the client: {@code isUsingItem} rides on synced entity flags,
+     * so a {@code LocalPlayer} whose use key was never pressed sees itself using an item and sends
+     * {@code RELEASE_USE_ITEM} on its next tick. This repo's own {@link
+     * net.magicterra.worlddriver.bot.auto.AutoEat} is the corroboration: it eats by HOLDING
+     * {@code keyUse} down and releasing at food=20, which is only necessary if letting go ends the
+     * bite. ⚠️ Corroboration is not proof — nothing here has yet watched that packet arrive, and
+     * the settling measurement is an arena scene that starts a bite on BOTH bodies, since a joined
+     * body has no client to send it.
+     *
+     * <p><b>Why this and not a key.</b> Holding {@code keyUse} is the one route this repo does not
+     * take («tick 里面不要驱动按键»), and arming {@code BotConfig.autoEat} would preempt all twenty
+     * rungs at once. {@link ItemStack#finishUsingItem} is not an imitation of a bite's ending — it
+     * is the call {@code LivingEntity.completeUsingItem} itself makes, so nutrition, saturation,
+     * stack shrink and any effects land through the same path a full 32-tick bite would use.
+     *
+     * @return whether the bar actually moved; false leaves the caller's stall row to be written.
+     */
+    private static boolean finishTheBite(JourneyRig rig, String tag, int n, String chosen) {
+        ServerPlayer fp = rig.player();
+        ItemStack hand = fp.getMainHandItem();
+        if (hand.isEmpty() || hand.getItem() != JourneyRig.item(chosen)) {
+            rig.evidence(tag + ".feed.finish" + n, "不补完：手里已经不是 " + chosen
+                    + "（是 " + rig.heldItemId() + "）—— 补完别的东西比不补更糟");
+            return false;
+        }
+        int before = fp.getFoodData().getFoodLevel();
+        fp.setItemInHand(InteractionHand.MAIN_HAND, hand.finishUsingItem(fp.serverLevel(), fp));
+        int after = fp.getFoodData().getFoodLevel();
+        rig.evidence(tag + ".feed.finish" + n, "这一口是服务端补完的，不是自己走完的（"
+                + chosen + " 走 ItemStack.finishUsingItem，与 completeUsingItem 同一条路）"
+                + "：饱食 " + before + "→" + after);
+        return after > before;
     }
 
     /** Eating is over; wait for the health it enables, then hand back regardless. */
@@ -252,6 +301,12 @@ final class JourneyFeed {
             hand = id(fp.getItemInHand(InteractionHand.MAIN_HAND));
             using = id(fp.getUseItem());
         }
+
+        /** The flag went out with ticks still on the clock, so the bite did not end itself. A bite
+         *  that ran to {@code remaining == 0} and still fed nothing is a DIFFERENT disease, and the
+         *  server-side completion must not be allowed to paper over it — hence the reading rather
+         *  than「it fed nothing」as the trigger. {@code ticks == 0} never observed a clock at all. */
+        boolean wasCutShort() { return ticks > 0 && remaining > 0; }
 
         String line(ServerPlayer fp, JourneyRig rig) {
             String now = "；此刻服务端选中槽 " + fp.getInventory().selected + "，手里=" + rig.heldItemId();
