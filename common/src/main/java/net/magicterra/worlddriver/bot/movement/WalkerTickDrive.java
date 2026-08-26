@@ -857,7 +857,7 @@ final class WalkerTickDrive {
         // or head level, sneak-brake this tick (ledge-guard semantics keep the
         // body out of the cell; sneak still creeps ~0.9 b/s so a mandatory
         // lava-side passage stays passable, just slow — exactly right there).
-        boolean hazardAhead = false;
+        BlockPos hazardCell = null;   // the CELL, kept so the log can name it — see announceLavaBrake
         {
             double hax = (wp.getX() + 0.5) - p.getX();
             double haz = (wp.getZ() + 0.5) - p.getZ();
@@ -865,9 +865,10 @@ final class WalkerTickDrive {
             if (hal > 1e-3) {
                 BlockPos aheadCell = BlockPos.containing(
                         p.getX() + hax / hal * 0.8, p.getY(), p.getZ() + haz / hal * 0.8);
-                hazardAhead = world.isHazard(aheadCell) || world.isHazard(aheadCell.above());
+                if (world.isHazard(aheadCell) || world.isHazard(aheadCell.above())) hazardCell = aheadCell;
             }
         }
+        boolean hazardAhead = hazardCell != null;
         boolean bridgeBrake = false;
         // Descending-place lip anchor (task#4, replay-0013): the !plannedDescent gate
         // below exists because a sneak pin across a planned step-down deadlocks — but
@@ -908,7 +909,7 @@ final class WalkerTickDrive {
         // AND cliff-lip): the pin's job — don't drift off a lethal edge — is done by
         // the per-tick gapAhead/offCentre gate at full walking speed.
         boolean lavaBrake = hazardAhead && !p.isInWater();   // land-only: a surface swimmer sneaking beside lava would DIVE (active sink), not stop
-        announceLavaBrake(wk, lavaBrake, foot, wp);
+        announceLavaBrake(wk, lavaBrake, foot, hazardCell, wp, p);
         // sneak in water = vanilla active SINK (buoyancy never sinks a surface swimmer on its
         // own) — so the dry-land safety brakes (bridge / cliff-descend) must NOT sneak in water,
         // exactly like lavaBrake above: a brake's job is to STOP, but shift in water DIVES the bot
@@ -1457,11 +1458,35 @@ final class WalkerTickDrive {
      *       body has been clear again. A post-mortem still learns that the body crept past
      *       lava and where, without 600 identical lines for one mandatory 30-block corridor.</li>
      * </ul>
+     *
+     * <p><b>Two cells, both named.</b> This line used to print {@code foot} alone, under the words
+     * 「creeping past lava at …」— wording that reads as the HAZARD's position and is the BODY's.
+     * On 2026-08-26 that cost a rung-12 post-mortem its first pass: the body died at
+     * {@code -11,63,19} and the brake row said「lava at -11,63,19」, so it was read as「the brake
+     * saw lava ahead of the body」when what it actually said was「the body is already standing
+     * in it」. The two readings point at opposite defects. Naming both cells ends it.
+     *
+     * <p>And two numbers, because「braked」is not「stopped」: sneak still creeps ~0.9 b/s, and
+     * sprint is gated on {@code !hazardAhead} — so a run that wants to ask「was it carrying sprint
+     * momentum?」needs the answer printed here. A full ladder log of 2026-08-26 contained the word
+     * "sprint" zero times, which made that question unanswerable rather than answered no.
      */
-    private static void announceLavaBrake(Walker wk, boolean lavaBrake, BlockPos foot, BlockPos wp) {
+    private static void announceLavaBrake(Walker wk, boolean lavaBrake, BlockPos foot,
+                                          BlockPos hazard, BlockPos wp, Player p) {
         if (lavaBrake && !wk.driveLatch.lavaBrakeLogged)
-            LOG.info("[walker] hazard-ahead brake: creeping past lava at {} (wp {})",
-                    foot.toShortString(), wp.toShortString());
+            // BODY and HAZARD as two named cells, plus the two numbers that decide whether the
+            // sneak can hold: speed (sneak still creeps ~0.9 b/s, so「braked」is not「stopped」)
+            // and sprint (gated on !hazardAhead above — printing it is what turns「was it
+            // sprinting?」from a hypothesis into a reading; the 2026-08-26 post-mortem had to
+            // withdraw that question because the word never appeared in a full ladder log).
+            LOG.info("[walker] hazard-ahead brake: body {} sneaking past hazard {} "
+                            + "(wp {}, speed h={} sprint={} onGround={})",
+                    foot.toShortString(),
+                    hazard == null ? "?" : hazard.toShortString(),
+                    wp.toShortString(),
+                    String.format(java.util.Locale.ROOT, "%.3f",
+                            p.getDeltaMovement().horizontalDistance()),
+                    p.isSprinting(), p.onGround());
         wk.driveLatch.lavaBrakeLogged = lavaBrake;
     }
 }
