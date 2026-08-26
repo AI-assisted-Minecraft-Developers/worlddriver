@@ -42,8 +42,27 @@ public static Goal targetGoal(BlockPos target, String mode, int near) {
 
 /** Scan the client level for the nearest matching block id within `radius`
  *  (XZ Chebyshev, Y by BotConfig.mineSearchVerticalRadius) that has a
- *  standable adjacent. Mirrors {@code MineProcess.scanForTarget} but
- *  returns the stand position so the goto walker can target it. */
+ *  standable adjacent, and return the stand position so the goto walker can
+ *  target it.
+ *
+ *  <p><b>Shares the scan ORDER with {@code MineProcess.scanForTarget} and nothing else.</b>
+ *  This said "Mirrors {@code MineProcess.scanForTarget}", which is true only of the
+ *  {@link NearestFirstScan} traversal both call. Every filter that scan feeds is different,
+ *  and the differences all run one way — this selector is the permissive one:
+ *  <ul>
+ *    <li>no lava guard. {@code scanForTarget} skips a candidate {@code lavaTouching} says is
+ *        walling off a pocket; {@code goto block:} will walk to a stand beside it.</li>
+ *    <li>no tool gate, no blacklist, no {@code mineMaxDriftFromStart} cap.</li>
+ *    <li>a different stand finder. {@code MineProcess.findStandableAdjacent} is
+ *        foot-Y-relative (reach-from-below first for an overhead target, then sides, then
+ *        below-2, then on-top) and its {@code canStandHere} adds the lava veto;
+ *        {@code BotUtil.findStandAdjacent} is four cardinals over three dy plus an
+ *        above-arm, judged by the hazard-blind {@code canStandHereStatic}.</li>
+ *    <li>a different budget: 200_000 here against {@code MineProcess.SCAN_BUDGET} = 50_000.</li>
+ *  </ul>
+ *  None of that is necessarily wrong — a goto is not a mine — but "Mirrors" invited the
+ *  reader to assume a shared safety floor that was never there, and the missing clause is
+ *  the lava one. */
 public static BlockPos findNearestStandForBlock(LocalPlayer player, String blockId, int radius) {
     Level lvl = Minecraft.getInstance().level;
     if (lvl == null) return null;
