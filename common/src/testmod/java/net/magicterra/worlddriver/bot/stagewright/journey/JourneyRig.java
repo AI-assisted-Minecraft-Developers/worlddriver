@@ -274,6 +274,7 @@ public final class JourneyRig {
         // an absence. Overwritten by the first heartbeat; see recordFutileGate for why a cleanup,
         // the obvious home, cannot carry this one.
         rig.recordFutileGate("本级还没有过等待——走行器一次都没被 await 过");
+        rig.recordWalkerCensus("本级还没有过等待——走行器一次都没被 await 过");
         ctx.record("journey.stage", stage.name() + "(" + stage.label() + ")");
         return rig;
     }
@@ -313,6 +314,7 @@ public final class JourneyRig {
         JourneyRig rig = new JourneyRig(ctx, label);
         ctx.record("journey.stage", label.name() + "(" + label.label() + ")（竞技场，不记账本）");
         rig.recordFutileGate("本场景还没有过等待——走行器一次都没被 await 过");
+        rig.recordWalkerCensus("本场景还没有过等待——走行器一次都没被 await 过");
         return rig;
     }
 
@@ -1486,6 +1488,7 @@ public final class JourneyRig {
         if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
         sinceHeartbeat = 0;
         recordFutileGate(futileGateLine());
+        recordWalkerCensus(walkerCensus.line());
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info(
                 "[journey] 心跳 {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
@@ -1732,6 +1735,19 @@ public final class JourneyRig {
     private void recordFutileGate(String line) {
         evidence.put("futileGate", line);
         ctx.record("futileGate", line);
+    }
+
+    /** The executor's side of the same tick. Constructed HERE so its baseline is the rig's birth,
+     *  which is what makes its numbers this rung's rather than the run's — the identical reasoning
+     *  as {@link #futileAtStart}, one field above. */
+    private final WalkerCensus walkerCensus = new WalkerCensus();
+
+    /** Written on exactly the same terms as {@link #recordFutileGate}: the same two choke points,
+     *  the same deliberate bypass of {@code evidence()}'s clash detector (this key is REWRITTEN
+     *  every heartbeat on purpose), for the same reasons documented there. */
+    private void recordWalkerCensus(String line) {
+        evidence.put("walkerCensus", line);
+        ctx.record("walkerCensus", line);
     }
 
     /** This rung's share of the futile gate, bucket by bucket. Buckets 0-5 are searches the gate
@@ -2746,6 +2762,7 @@ public final class JourneyRig {
     public void reach(String detail) {
         claimed = true;
         recordFutileGate(futileGateLine());
+        recordWalkerCensus(walkerCensus.line());
         evidence.put("body.invulnerable", bodyIsInvulnerable());
         int staged = JourneyLedger.stagingCalls().size();
         evidence.put("staging.calls", staged);
