@@ -923,6 +923,33 @@ public final class JourneyPortalRung {
         BlockPos here = rig.player().blockPosition();
         if (forgeCorridor.isEmpty() || withinDigReach(here, cell)) { then.run(); return; }
 
+        // THE JUDGE'S RADIUS, NOT ONLY THE EXECUTOR'S. {@code withinDigReach} is the executor's:
+        // DIG_ARRIVE exists to match the {@code Goal.Near(cell, 2)} that mineCellOrGiveUp walks.
+        // But what decides whether a swing lands is {@code Avatar.canBreak}, an eye-distance test
+        // with a ceiling of 5.0 — so asking only the tighter number sends a body that could already
+        // swing off to build a staircase it does not need.
+        //
+        // Measured, rung 12's client rehearsal of 2026-08-26. The stand for the ninth cell was
+        // refused at 2,58,20 for being 3.00 from 4,60,19 — an eye distance of roughly 2.4, well
+        // inside canBreak. The ramp that followed then skipped its own flight (the body was already
+        // six rows up, in a different column), so every later swing came from the surface:
+        // three attempts at 0,65,19 / 4,64,19 / 3,65,18, eye distances 7.36 / 5.13 / 6.61 against a
+        // ceiling of 5.00, all canBreak=false, and the cell never opened. The nearest miss was
+        // 0.13 blocks. Walking is what turned 2.4 into 5.13 — the same shape as the carve's own
+        // finding that its walking leg opened ZERO cells (see JourneyRig#mineCellOrGiveUp).
+        //
+        // The server avatar on purpose: it is the one breakItWhereItStands itself asks, so this
+        // gate and the swing it green-lights cannot disagree. Costless when it refuses — the body
+        // falls through to exactly the stand-finding it would have done anyway.
+        if (rig.body().avatar().canBreak(cell)) {
+            rig.evidence(tag + ".swingFromHere", cell.toShortString() + " 就地够得着：身体 "
+                    + here.toShortString() + " 格心距 "
+                    + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
+                    + " 超了 DIG_ARRIVE=" + DIG_ARRIVE + "，但 canBreak 为真 ⇒ 不去找站位、不修坡道");
+            then.run();
+            return;
+        }
+
         BlockPos behind = cell.relative(away.getOpposite());
         BlockPos lower = behind.below();
         // TAKE BACK WHAT THE DIG ITSELF PUT HERE, one cell, before deciding this stand is impossible.
