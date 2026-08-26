@@ -553,11 +553,20 @@ final class JourneyPour {
         BlockPos here = rig.player().blockPosition();
         BlockPos best = null, onFlight = null;
         long bestD = Long.MAX_VALUE, flightD = Long.MAX_VALUE;
+        // THE CENSUS THIS SEARCH HAS NEVER PRINTED. `.raiseOffTheFlight` names the column that won
+        // and nothing about the ones that lost, so a reader holding only that row reaches for the
+        // nearest veto map in the same results file — `standToPour`'s. That one answers a DIFFERENT
+        // question over a DIFFERENT candidate set: it scans the target's own row for a place to pour
+        // from, this scans `wantY` for a place to raise to. Measured, ladder run 9: the stand map
+        // named `射线停在 4,60,19 dirt=2`, and a fix aimed at clearing those cells would have been
+        // aimed with the wrong instrument — the raise's own vetoes were never in the file at all.
+        int outside = 0, occupied = 0, vetoed = 0, verified = 0, onFlightOk = 0;
+        Map<String, Integer> why = new java.util.LinkedHashMap<>();
         for (int back = 1; back <= JourneyPortalRung.POUR_LINE; back++)
             for (int side = -2; side <= 2; side++) {
                 BlockPos foot = target.relative(away.getOpposite(), back)
                         .relative(away.getClockWise(), side).above(wantY - target.getY());
-                if (!JourneyPortalRung.forgeCorridor.contains(foot) || !JourneyPortalRung.forgeCorridor.contains(foot.above())) continue;
+                if (!JourneyPortalRung.forgeCorridor.contains(foot) || !JourneyPortalRung.forgeCorridor.contains(foot.above())) { outside++; continue; }
                 // A LANDING HAS TO BE A PLACE A BODY CAN BE. This asked only whether the eye at that
                 // cell would see the backing, which is true of a cell full of cobblestone — and by
                 // the ninth cast some of them are: the raise for the notch one row up rests its own
@@ -565,17 +574,41 @@ final class JourneyPour {
                 // rehearsal 2026-08-16: `wet.9` ramped to -10,60,37 over a step at -10,59,37, and
                 // `cast9.lift` then chose -10,59,37 and reported「被 cobblestone 占着」.
                 if (level.getBlockState(foot).blocksMotion()
-                        || level.getBlockState(foot.above()).blocksMotion()) continue;
-                if (!(pouring ? pourLandsFrom(level, rig.player(), foot, target, away)
-                              : scoopSeesFrom(level, rig.player(), foot, target))) continue;
+                        || level.getBlockState(foot.above()).blocksMotion()) { occupied++; continue; }
+                // ONE MAP PER CANDIDATE, merged only when that candidate actually lost. The two aims
+                // `pourLandsFrom` tries are fixed by the target, not by the foot, so a shared map
+                // collects the first aim's veto even when the second aim carries the cell — and when
+                // `target.relative(away)` is not solid, EVERY candidate contributes that one reason,
+                // which prints「射线否决 0；否决点名 {…=50}」and reads as a search that found nothing.
+                Map<String, Integer> mine = new java.util.LinkedHashMap<>();
+                if (!(pouring ? pourLandsFrom(level, rig.player(), foot, target, away, mine)
+                              : scoopSeesFrom(level, rig.player(), foot, target))) {
+                    if (!pouring)
+                        mine.merge("取水射线看不到 " + target.toShortString() + " 里的源", 1, Integer::sum);
+                    mine.forEach((k, v) -> why.merge(k, v, Integer::sum));
+                    vetoed++;
+                    continue;
+                }
                 long dx = foot.getX() - here.getX(), dz = foot.getZ() - here.getZ();
                 long d = dx * dx + dz * dz;
+                // COUNTED APART, because「only the flight verified」is the empty-candidate-set case
+                // wearing a 1: a lumped `验得过 1` next to a stair column being chosen reads as a
+                // ranking bug, which is a different disease with a different fix.
                 if (JourneyStairs.stepInColumn(level, foot.getX(), foot.getZ()) != null) {
+                    onFlightOk++;
                     if (d < flightD) { flightD = d; onFlight = foot.immutable(); }
                     continue;
                 }
+                verified++;
                 if (d < bestD) { bestD = d; best = foot.immutable(); }
             }
+        // ALWAYS, both when the search found plenty and when it found nothing: an empty candidate set
+        // and a search that never ran read identically once only the winner is printed.
+        rig.evidence(tag + ".raiseVeto", "抬升候选（wantY=" + wantY + "，" + (pouring ? "为浇" : "为取")
+                + "）：验得过 " + verified + "（另有楼梯柱 " + onFlightOk + " 柱也验得过）"
+                + "，射线否决 " + vetoed + "，落脚或头顶被占 " + occupied
+                + "，不在壁龛内 " + outside
+                + (why.isEmpty() ? "" : "；否决点名 " + why));
         // Say which way the order went, and say it whichever way it went — a row that only appears
         // when the flight was avoided cannot tell「there was nowhere else」from「this never ran」.
         if (onFlight != null)
@@ -608,6 +641,14 @@ final class JourneyPour {
      *  cell the rung is about to build a floor under, which is why it cannot ask for one. */
     private static boolean pourLandsFrom(ServerLevel level, ServerPlayer body, BlockPos foot,
                                          BlockPos target, Direction away) {
+        return pourLandsFrom(level, body, foot, target, away, new java.util.LinkedHashMap<>());
+    }
+
+    /** As above, and it hands back WHY it said no. The two single-cell callers ask about one cell
+     *  they have already chosen, so the reason has nowhere to go; {@link #raiseColumn} asks about
+     *  fifty and the distribution across them is the whole reading. */
+    private static boolean pourLandsFrom(ServerLevel level, ServerPlayer body, BlockPos foot,
+                                         BlockPos target, Direction away, Map<String, Integer> why) {
         // THE WHOLE CELL, exactly as a stand is judged — see JourneySight. A column is chosen once and
         // then PINNED («换柱等于换射线，不许改»), so a column that only verifies from its own centre
         // commits the pour to a shot the body cannot reproduce, and the pin is what stops it being
@@ -616,9 +657,11 @@ final class JourneyPour {
         // target — while the eye that fired, (2.70, 60.62, 19.50), crosses at z=19.96 and stops on
         // the obsidian this rung cast one cell earlier.
         boolean afloat = !level.getFluidState(foot).isEmpty();
-        Map<String, Integer> why = new java.util.LinkedHashMap<>();
         for (BlockPos aim : List.of(target.relative(away), target.below())) {
-            if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
+            if (!level.getBlockState(aim).isSolidRender(level, aim)) {
+                why.merge(aim.toShortString() + " 不是实心的，弹不出流体", 1, Integer::sum);
+                continue;
+            }
             if (JourneySight.pourGrade(level, body, foot, afloat, aim, target, why)
                     == JourneySight.ANYWHERE) return true;
         }
