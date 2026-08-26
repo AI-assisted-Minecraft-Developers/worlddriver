@@ -29,7 +29,9 @@ public final class ActionApi {
 
     /**
      * Fill an axis-aligned box with one block type in a single server-thread hop.
-     * Volume is clamped to 32768 (= 32x32x32) to avoid pathological calls. Emits
+     * A volume over 32768 (= 32x32x32) is REJECTED, not clamped: the call throws and
+     * nothing is written, so a caller that asked for too much gets an error rather
+     * than a silently truncated region it may believe was filled. Emits
      * one {@code block.fill} event with {from,to,type} as the data payload — not
      * one per cell, so listeners aren't flooded.
      */
