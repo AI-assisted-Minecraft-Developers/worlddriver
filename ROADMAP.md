@@ -145,8 +145,8 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 
 | 序 | 笔 | 为什么在这一窗口 |
 |---|---|---|
-| 1 | **J72 第 1/2 笔**：`aimThatLandsIn` 五个 `continue` 出声（`JourneyPour:744-752`）；tries=1 的 `ctx.fail` 改说「身体不在它自己选的落脚格上」 | 直指当前前沿，且**零行为改动**。判词错族会把下一个读者送去挖 k=0 |
-| 2 | **J70**：`JourneyDrain:170` 的 `HoldStill(DRAIN_TICKS / 2)` → `HoldStill(DRAIN_TICKS)` | **必须与 J52 的读数同窗口**，否则 `drain.N.upstream` 裁决的还是一个被夸大一倍的说法（判词印 200 而实际等 100） |
+| 1 | **J72 第 1/2 笔**：`aimThatLandsIn` 五个 `continue` 出声（`JourneyPour:885-893`）；tries=1 的 `ctx.fail` 改说「身体不在它自己选的落脚格上」 | 直指当前前沿，且**零行为改动**。判词错族会把下一个读者送去挖 k=0 |
+| 2 | ✅ **J70 已落**：`JourneyDrain:179` 实测就是 `HoldStill(DRAIN_TICKS)` | 原因照留：`drain.N.upstream` 裁决的说法不能被夸大一倍（判词印 200 而实际等 100）。**验收仍欠**：下一趟 12 级 `drain.7` 是否翻成「已排干」 |
 | 3 | **J54 的出处行**：给撞上的水落「天然／上级留／自浇」一行（照 12 级 `water0.spent` 的问法） | 「先补测量」的对象；不落这一行，11 级两条腿都不许修 |
 | 4 | **J41 头条**：`WorldDriverJourneyScenes:2521` 的 `tunnel.fell` 走 `ascendByTowering` 的 `String tag` 入口，三行 `recordExit` 一行都没有——而它爬的是**岩浆廊道** | 纯仪器；其余 12 个入口**不做**（无证据） |
 | 5 | **J75 的 `enderman.stall.*` 一行** | 不占排练槽，只占编译窗口 |
@@ -176,6 +176,7 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 |---|---|---|
 | 12 | **J24 的 grep**（`JourneyShaft.supportUnder` 用 `rig.ctx().level()`） | **13–20 级开工的第一步**，不是 J33 之后 |
 | 13 | **J33**：两套 `WorldView` 两张破坏价目表（含 Q14 的残余） | 引擎批，**双闸，不与真梯同趟**。五条分歧已定位、三条承重断言已核 |
+| 13b | **J47 引擎侧那半**：末节点被 `within` 的**水平**项（`cur2<0.45`）在无落脚时吃掉 | 同属引擎批，**排在 13 之后**：判词与凭据在 `TODO.md` 的 🅹 块。⚠️ 不能照搬 `airborneClimbConsume`——它 scoped `nx != null` 且 `!p.isInWater()` 是量出来的排除 |
 
 ### 6.5 ⬜ 窗口 4 —— 工程债（红绿不影响真梯排期，但 J7 有硬触发）
 
