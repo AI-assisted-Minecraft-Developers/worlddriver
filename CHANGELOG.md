@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A climb no longer spends its whole cap on two writes that undo each other.**
+  `JourneyShaft#ascendByTowering` corrects a tower that has drifted off its column by walking back
+  to it. When that walk cannot move the body at all, `driftKept` adopts the column the body is
+  standing in — precisely because the old one is unreachable — and the flight check on the next line
+  rejects the adopted column for being a staircase column and names another. When the column it
+  names is the one the walk has just failed to reach, the two writes are inverses: the course ends
+  in the state it began in, and the next course asks the identical question.
+
+  Measured, rung 12's client rehearsal of 2026-08-26: `cast8#2.climb.0` through `.39`, byte for
+  byte the same — body pinned at `1,57,19`, `driftGoto` timing out toward `2,56,18`, `driftKept`
+  naming `1,19`, `driftOffTheFlight` naming `2,18` — forty courses, which is `MAX_CLIMB_STEPS`
+  exactly. The cap was the only thing that ended it. The file's own javadoc had already named the
+  shape it was written to prevent, *forty identical no-op legs*, without anyone noticing the loop
+  above it could produce them.
+
+  A course whose walk moved the body nothing, and whose flight check points back at the column that
+  walk just failed to reach, now records `driftLoop` and stops the tower through the exit
+  `driftOntoTheFlight` already uses — the walker fallback. Bounded by the shape and not by a
+  counter, because only this shape is a loop: a body that moved has changed the question even
+  without arriving, and a flight naming a third column has changed it too. Both keep the old
+  behaviour.
+
+  What this does not fix is where the run dies. The exit taken is the one the exhausted cap already
+  took, so the pour that follows is the same pour; what it buys is thirty-nine courses of budget and
+  a ledger that no longer reports climbing while the body stands still.
+
 - **A pour's row retry now asks a different question from the one that sent it back.**
   When `JourneyPour#raiseTo` found the body more than `POUR_ROW_SLACK` rows above `wantY`, it walked
   a full `returnToTheForge` and then called itself again — with the same column, the same
