@@ -459,12 +459,22 @@ public final class WalkerGeometry {
      * direction of travel is caught at r=1.0–2.0 — and the cells behind the body, which the ring
      * test also caught and which no hop can reach, are exactly what it stops suppressing.
      *
-     * <p><b>Measured, three directed rehearsals (2026-08-26, {@code -Prehearse=PORTAL_LIT
-     * -PforgeAway=east -PshaftColumn=-8,20}), 216 hop rows on the third.</b> Of the old gate's 131
-     * suppressions this rule releases <b>129</b>, and of its 77 firings it suppresses <b>none</b> —
-     * so what changes is the stall, not the hops that already work. The stall it lifts is
-     * deterministic: sixteen consecutive suppressions repeating the same coordinates every ~30 s
-     * for three minutes.
+     * <p><b>Backtested A/B, same command both arms (2026-08-26, {@code -Prehearse=PORTAL_LIT
+     * -PforgeAway=east -PshaftColumn=-8,20}), both PASS.</b> Control (the ring) 208 hop rows,
+     * treatment (this) 188:
+     *
+     * <pre>
+     *                     ring gate      landing probe
+     *   fired / held        77 / 131       183 / 5
+     *   longest held run          37             1
+     *   held at -7,64,16          87             5
+     * </pre>
+     *
+     * 146 of the released hops are ones the ring would have held (123 at ring 2, 23 at ring 1), and
+     * the deterministic stall — the same coordinates every ~30 s for three minutes — is gone. Zero
+     * deaths in either arm. ⚠️ The treatment arm also ran LONGER (16214 ticks against 14478 /
+     * 14609 / 15019 for three control runs); that is one sample against three and is recorded, not
+     * explained — this rung is known to produce different colours from the same command.
      *
      * <p><b>What is NOT measured, and must not be written up as if it were.</b> That same run
      * produced <b>no</b> firing hop pointed AT a lethal cell, so the death side has no direct

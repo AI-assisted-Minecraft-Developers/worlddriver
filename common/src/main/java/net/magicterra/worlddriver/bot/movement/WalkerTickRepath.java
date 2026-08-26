@@ -215,9 +215,14 @@ final class WalkerTickRepath {
      * the very heading {@code commandMove} pushes the body along two lines above — so it never had
      * to be handed the drive channel at all.
      *
-     * <p><b>It logs because it never has.</b> One directed rehearsal produced 216 rows from the
-     * wiggle path and <b>zero</b> from this one, so this gate's first firing would have had nothing
-     * to be attributed to and its silence would have read as an all-clear. Throttled by
+     * <p><b>It logs because it never has</b> — and the first run that gave it a pen settled a
+     * question the wiggle path could not. One rehearsal produced 216 rows from the wiggle path and
+     * <b>zero</b> from this one; the next produced <b>97</b> here, on which camera and drive sit a
+     * median <b>177°</b> apart (min 66°, max 180°, <b>not one sample under 45°</b>) against a
+     * median of 2° on the wiggle path. A gate reading {@code p.getYRot()} would have judged every
+     * one of those 97 backwards — the divergence between the two channels is not a constant, it is
+     * per code path, and the path that diverges most is the one that had no instrument at all.
+     * Throttled by
      * {@code burstTicks} rather than latched: a burst is armed at 14 or 16 ticks, so {@code % 8}
      * prints exactly twice per episode, and BOTH outcomes print — a row that only appears when the
      * hop is cut cannot tell a reader the gate was consulted and said yes.
@@ -225,9 +230,16 @@ final class WalkerTickRepath {
     private static boolean burstHopAllowed(Walker wk, WorldView world, Player p, BlockPos foot) {
         boolean allowed = !(BotConfig.walkerRecoveryHopFloorGate
                 && hopSuppressed(world, p, foot, wk.unstuck.burstYaw));
-        if (wk.unstuck.burstTicks % 8 == 0)
-            LOG.info("[walker] 解卡突进跳: 起跳={} 身体={} 剩余={} | {}", allowed, foot.toShortString(),
-                    wk.unstuck.burstTicks, hopLandingRow(world, p, foot, wk.unstuck.burstYaw));
+        if (wk.unstuck.burstTicks % 8 == 0) {
+            // The RETIRED gate's verdict, printed beside the live one: ring ≥ 0 means the old
+            // Chebyshev-≤2 test would have held this hop, ">2" means it would have let it go. A row
+            // that prints only the rule that won cannot tell a reader the two ever disagreed.
+            int oldRing = nearestLethalHopRing(world, p, foot, HOP_RANGE);
+            LOG.info("[walker] 解卡突进跳: 起跳={} 身体={} 剩余={} 旧闸最近致命格={} | {}", allowed,
+                    foot.toShortString(), wk.unstuck.burstTicks,
+                    oldRing < 0 ? ">" + HOP_RANGE : String.valueOf(oldRing),
+                    hopLandingRow(world, p, foot, wk.unstuck.burstYaw));
+        }
         return allowed;
     }
 
