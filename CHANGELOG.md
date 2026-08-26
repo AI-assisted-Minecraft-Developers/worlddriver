@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A bite that lasts two ticks out of thirty-two is now finished rather than abandoned.** With the
+  hand fixed, the next run held the right item and the bar still did not move:
+
+  ```
+  还在吃了 2 tick；翻回 false 前最后一次读到 useItemRemaining=31；
+  那一刻手里=minecraft:beef、正在用的是=minecraft:beef
+  ```
+
+  Hand and use agree, so the `updatingUsingItem` mismatch branch is out; a bite that ends two ticks
+  in with everything correct is ended from outside this file. The suspect is the client:
+  `isUsingItem` rides on synced entity flags, so a `LocalPlayer` whose use key was never pressed
+  sees itself using an item and releases it on its next tick — and this repo's own `AutoEat` eats
+  by HOLDING `keyUse` down, which is only necessary if letting go ends the bite. That is
+  corroboration, not proof: nothing has yet watched the packet arrive, and the measurement that
+  would settle it is an arena scene starting a bite on both bodies, since a joined body has no
+  client to send one.
+
+  Rather than hold a key — the one route this repo does not take — a bite that the trace shows was
+  CUT SHORT (`remaining > 0`, so the clock had not run out) is completed with
+  `ItemStack.finishUsingItem`, the same call `LivingEntity.completeUsingItem` makes. A bite that
+  ran its clock out and still fed nothing is a different disease and is deliberately left alone;
+  the trigger is the reading, not「the bar did not move」. The row says
+  「这一口是服务端补完的，不是自己走完的」, because those are not the same claim.
+
+- **The raise search prints its own vetoes.** `raiseColumn` built a reason map for every candidate
+  column it rejected and threw it away, so the only rows a reader had were the winner and the
+  *stand* search's veto map — a different question over a different candidate set (`standToPour`
+  scans the target's own row for somewhere to pour from; this scans `wantY` for somewhere to raise
+  to). A remedy for rung 12 was about to be aimed at cells the stand search had named. It now
+  reports `raiseVeto` on every call, in both directions, with the flight column counted separately
+  because「only the stairs verified」is an empty candidate set wearing a 1.
+
 - **The body ate the bucket.** `JourneyFeed` held the food, called `startUsingItem` on the next
   line, and the bar never moved — twice, on two runs, with every branch the leg has a name for
   ruled out: food was found, the hold returned true, the flag took, the wait returned. The trace
