@@ -929,8 +929,15 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
 3. 🔴 **`ccaf6861` 那个「容差 0」根本没生效，而它是最上游的一件。**
    `WorldDriverJourneyScenes:778/795`：`tolerance` 只喂给 `Goal.XZ`，判到达写死 `away <= ARRIVED_WITHIN`。
    2026-08-26 闸的证据：`lava.lastStep` 传 0，`gotoEnd.1` 照印「容差 5」、距 1 格判到达。
-   ⇒ 先改 795 用调用方的 tolerance（跨全部调用点，要连带重跑六拓扑），别先做第 1、2 件。
-   ⚠️ 改完预期它**不会立刻翻绿**：`end=path-consumed` 说明走行器自己也停在 244892，
+   ⚠️ **别一刀把 795 改成 `away <= tolerance`。** 普查了 14 个调用点：传 **0** 的有 **8** 个
+   （`lava.lastStep`／`water`×2／`lava`×2／`raiseTo`／`shaft`／`gravel`），另有 1／2／3×4／6 各若干。
+   一刀收紧＝8 处同时从「5 格算到」变成「必须精确到柱」，一趟里冒出一堆红且互相掩盖，归不了因。
+   顺序改成：
+   a. 先只加证据行——`tolerance < away <= ARRIVED_WITHIN` 时打一条「按调用方容差本不算到达」，
+      跑一趟数出**谁在吃这个宽松**（零成本，不改判据，不会让任何场景变色）；
+   b. 再给 `lava.lastStep` 这类要精确的单开一条路径（重载或 exact 标志），只收紧它；
+   c. 其余调用点按 a 的读数逐个处理，别批量动。
+   ⚠️ 收紧之后 ashore 场景**不会立刻翻绿**：`end=path-consumed` 说明走行器自己也停在 244892，
    795 只是第二道闸；届时死因应从「假上岸」变成「走不到那一柱」——那是对的红。
 
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
