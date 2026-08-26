@@ -934,7 +934,13 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 而 `:140-141` 的「钉住这一柱」**只有这一个写者**，实测 `water8.raise=…钉住这一柱` 即证明
 （[[a-field-with-one-writer-is-a-proof]]）。⇒ `:265` 的注释「到了排就没塔什么事了」在 `pin=false` 时对、
 在 `pin=true` 时错。修法：那个 early-return 要在 `pin` 时并上同柱判断。
-⚠️ 排队在探针那一趟之后——一次一个机制。
+⚠️ **但它救不了第 12 级，别排成下一笔**：并上同柱后路由到 `footBeforeTower → climbOutInColumn`，
+而 `JourneyShaft:212` 是 `rise = max(0, surfaceY - y)` ⇒ 身体已在 `wantY` **之上**时 `rise=0`，
+塔是 no-op。`:265` 的价值是**诚实和早期路由**，不是这一级的解药。
+📌 **同段注释点了先例**（`JourneyShaft:222-225`）：塔会填掉身体起跳的那一格，
+「which is how rung 12 filled 0,58,19 and 1,58,19 and then could not walk back down past its own
+cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。但这趟 `climbOutInColumn` 没跑
+（`.climb` 一行都没有），所以作者是别人，等探针点名。
 （浇线上 `1,60~63,20` 的 dirt 已排除是这一趟垒的：`clear3` 印的是 grass_block 压 dirt 的原生剖面，
 「壁龛外」是 `clearPourLine` 拒绝清的理由，不是放置记录。）
 
