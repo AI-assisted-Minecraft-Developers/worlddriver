@@ -191,16 +191,22 @@ etc.) working in this project. Keep it short and authoritative.
     constant pool and fails on any call site in that package whose descriptor takes
     `Player`/`LivingEntity`/`Entity`; it carries its own positive controls, so its green
     means it looked rather than that it found nothing anywhere. `./gradlew :common:test`
-    runs it, needs no game, and finishes in seconds — **run it before landing any change
-    that alters the SHAPE of a call**: folding a duplicated expression into a shared helper,
-    extracting a method, adding a parameter. Those read as pure tidy-ups, which is exactly
-    the disguise this rule keeps being broken in.
+    runs it and needs no game — **run it before landing any change that alters the SHAPE of
+    a call**: folding a duplicated expression into a shared helper, extracting a method,
+    adding a parameter. Those read as pure tidy-ups, which is exactly the disguise this rule
+    keeps being broken in.
 
-    ⚠️ **That test guards one package.** A widening in any other dual-loaded class is
-    outside it and reaches the gate unannounced — `BotApiImpl`, `GoalResolver`,
-    `GotoGoalResolver` and `ClutchController` all hand a `LocalPlayer` around today. There,
-    `javap -c` the class and count calls taking a `Player` parameter by hand. Full account:
-    `docs/drown-escape-design.md` §5.
+    ⚠️ It is still a Gradle task, so it recompiles `:common` from whatever is on disk and
+    needs the tree to itself. **Take the slot from main exactly as you would for a gate** —
+    a live `runJourney*` / `runDogfood*` loads classes lazily out of `build/classes`, and
+    recompiling under one turns a single run into a mixture of two builds.
+
+    ⚠️ **That test guards one package**, and its scope cannot simply be widened: it asserts
+    the wide-parameter set is EMPTY, which is only true in `bot/scheduler/**`. `Walker` is
+    dual-loaded (`ServerWorldDriver` ticks one) and legitimately makes four such calls, so
+    pointing the same assertion at `bot/movement/**` reddens a healthy tree. Everywhere
+    outside that one package, `javap -c` the class and count calls taking a `Player`
+    parameter by hand. Full account: `docs/drown-escape-design.md` §5.
 
 ## Log locations
 

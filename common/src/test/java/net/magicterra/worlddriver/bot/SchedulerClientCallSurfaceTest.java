@@ -86,6 +86,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * about it. A refactor whose whole claim is "the diff is only a shape" is not the exception to
  * this rule, it is its main occasion.
  *
+ * <p><b>Why the scope stays at one package.</b> The assertion shape here is "the set is EMPTY",
+ * and that is only available where the set is empty. A scan of all 409 compiled classes on
+ * 2026-08-26 found wide-parameter call sites are ordinary outside this package: {@code Walker}
+ * alone hands a {@code Player} to {@code WalkerGeometry.soleOnSolid}, {@code lethalDropAdjacent},
+ * {@code nearestLethalHopRing} and its own {@code widenFooting}, and it is dual-loaded —
+ * {@code ServerWorldDriver} holds a {@code Walker} and ticks it. So aiming this same assertion at
+ * {@code bot/movement/**} would go red on a healthy tree and get switched off, which is the very
+ * failure the ALLOWED list above is shaped to avoid. Covering that package needs the other
+ * question — the ARGUMENT's type rather than the parameter's — and that needs dataflow this file
+ * does not do. Until someone writes it, everything outside {@code bot/scheduler/**} is guarded by
+ * the dedicated-server gate and by nothing else.
+ *
+ * <p><b>And a prefilter can hide the exact shape it is hunting.</b> That scan first skipped every
+ * class with no {@code net/minecraft/client/} Methodref/Fieldref owner — the reading
+ * {@link #clientOwners} does — and {@code Walker} disappeared from the results, because it only
+ * NAMES {@code Minecraft} in a descriptor and never calls a member on it. A class that receives a
+ * {@code LocalPlayer} as a parameter and hands it onward has no client owner in its pool at all.
+ * So "does it call a client class" must never be used to decide "can it widen one": the two
+ * readings below are separate on purpose, and only the second one answers rule 12.
+ *
  * <p>Measured 2026-08-23 with {@code javap -c} over the compiled package, so the gap is recorded
  * rather than merely suspected: every client type in an invoked descriptor's PARAMETER position is
  * the exact type ({@code LocalPlayer} into a {@code LocalPlayer} parameter, {@code Minecraft} into
