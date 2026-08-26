@@ -939,9 +939,13 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 而 `:140-141` 的「钉住这一柱」**只有这一个写者**，实测 `water8.raise=…钉住这一柱` 即证明
 （[[a-field-with-one-writer-is-a-proof]]）。⇒ `:265` 的注释「到了排就没塔什么事了」在 `pin=false` 时对、
 在 `pin=true` 时错。修法：那个 early-return 要在 `pin` 时并上同柱判断。
-⚠️ **但它救不了第 12 级，别排成下一笔**：并上同柱后路由到 `footBeforeTower → climbOutInColumn`，
-而 `JourneyShaft:212` 是 `rise = max(0, surfaceY - y)` ⇒ 身体已在 `wantY` **之上**时 `rise=0`，
-塔是 no-op。`:265` 的价值是**诚实和早期路由**，不是这一级的解药。
+⚠️ **但它救不了第 12 级，别排成下一笔**——⛔ 而且它是**一族两处，不是一处**：
+`JourneyShaft:246`（`ascendByTowering` 的回调）写着同一句
+`if (getY() >= surfaceY) { recordExit(…); return; }`，同样只判排。⇒ 只改 `:265` 会当场撞到它。
+（此前这里记的理由是「`rise=0` ⇒ 塔是 no-op」，**理由错、结论对**：`climbFrom` 在算 `rise`
+之前就设了 `BotConfig.allowPlace=true` 并打三行证据，`rise=0` 只让塔不垒，不让这条腿不发生；
+真正让身体不回柱的是 `:246` 第二次判排。）
+`:265` 的价值是**诚实和早期路由**，不是这一级的解药。
 📌 **同段注释点了先例**（`JourneyShaft:222-225`）：塔会填掉身体起跳的那一格，
 「which is how rung 12 filled 0,58,19 and 1,58,19 and then could not walk back down past its own
 cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。但这趟 `climbOutInColumn` 没跑
