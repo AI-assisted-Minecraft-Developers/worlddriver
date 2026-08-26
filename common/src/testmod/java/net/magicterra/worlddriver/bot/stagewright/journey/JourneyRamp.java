@@ -14,6 +14,7 @@ import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Items;
@@ -404,7 +405,11 @@ final class JourneyRamp {
      * the vertical question they flatten away.
      *
      * <p>{@code #} is solid, {@code .} is not, both columns printed top-down over the same span so
-     * the two strings line up character for character.
+     * the two strings line up character for character. Each solid row then repeats with its block
+     * name, because {@code #} alone cannot separate the two answers this question needs kept apart:
+     * cobblestone is a block some pass of this run laid, stone and dirt are terrain that was always
+     * there. ⚠️ That is a family, <b>not</b> attribution — no placement row in this run carries
+     * coordinates, so a cobblestone here narrows the suspect list and never names the author.
      */
     static String rowsBetween(ServerLevel level, BlockPos now, BlockPos target) {
         int hi = Math.max(now.getY(), target.getY());
@@ -412,8 +417,10 @@ final class JourneyRamp {
         StringBuilder sb = new StringBuilder("y").append(hi).append("→").append(lo)
                 .append(" 身体柱 ").append(now.getX()).append(',').append(now.getZ()).append('=')
                 .append(rowsOf(level, now.getX(), now.getZ(), lo, hi))
+                .append(solidNames(level, now.getX(), now.getZ(), lo, hi))
                 .append("；目标柱 ").append(target.getX()).append(',').append(target.getZ())
-                .append('=').append(rowsOf(level, target.getX(), target.getZ(), lo, hi));
+                .append('=').append(rowsOf(level, target.getX(), target.getZ(), lo, hi))
+                .append(solidNames(level, target.getX(), target.getZ(), lo, hi));
         // The horizontal neighbours are the ones a `hCol=true` actually reports against — the walk
         // that produced this row stopped with the body pressed into one of them, and until now no
         // reading said which. Feet and head separately: a body stopped by head clearance and one
@@ -422,8 +429,7 @@ final class JourneyRamp {
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos side = now.relative(d);
             sb.append(' ').append(d.getName()).append('=')
-                    .append(level.getBlockState(side).blocksMotion() ? '#' : '.')
-                    .append(level.getBlockState(side.above()).blocksMotion() ? '#' : '.');
+                    .append(nameOf(level, side)).append('/').append(nameOf(level, side.above()));
         }
         return sb.toString();
     }
@@ -434,6 +440,34 @@ final class JourneyRamp {
         for (int y = hi; y >= lo; y--)
             sb.append(level.getBlockState(new BlockPos(x, y, z)).blocksMotion() ? '#' : '.');
         return sb.toString();
+    }
+
+    /**
+     * The same column's solid rows again, by name. Prints {@code [无实心]} rather than an empty
+     * bracket when nothing is solid, so "no solid rows" and "I forgot to print this" cannot read
+     * alike.
+     */
+    private static String solidNames(ServerLevel level, int x, int z, int lo, int hi) {
+        StringBuilder sb = new StringBuilder();
+        for (int y = hi; y >= lo; y--) {
+            BlockPos p = new BlockPos(x, y, z);
+            if (!level.getBlockState(p).blocksMotion()) continue;
+            sb.append(sb.isEmpty() ? " [" : " ").append(y).append('=')
+                    .append(BuiltInRegistries.BLOCK.getKey(level.getBlockState(p).getBlock()).getPath());
+        }
+        return sb.isEmpty() ? " [无实心]" : sb.append(']').toString();
+    }
+
+    /**
+     * One cell as {@code #name} or {@code .name}. The leading character is the {@code blocksMotion}
+     * verdict the walker itself collides against; the name is kept beside it rather than instead of
+     * it, because a name alone would make the reader re-derive that verdict — and get it wrong for
+     * the cells where the two disagree (grass does not block motion, mud blocks it at 14/16 height).
+     */
+    private static String nameOf(ServerLevel level, BlockPos p) {
+        var state = level.getBlockState(p);
+        return (state.blocksMotion() ? "#" : ".")
+                + BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath();
     }
 
     /**
