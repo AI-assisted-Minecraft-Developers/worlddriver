@@ -2205,12 +2205,32 @@ public final class JourneyPortalRung {
             JourneyHands.aimThenAct(rig, hearth, () -> {
                 rig.avatar().useBlock(hearth, Direction.UP);
                 rig.settle(new HoldStill(5), 20, () -> {
+                    // PRINT THE VALUE, NOT THE PREDICATE — and print it HERE, not upstream.
+                    // `portal.cells` is a count, and a count of zero names nothing. Rehearsal #7 read
+                    // frame.obsidian=10/10, portal.slag=门洞六格都是空气, light.cellAfter=fire and
+                    // portal.cells=0/6: every row right, and not one row saying what was in the other
+                    // five cells. Those two upstream rows are also STALE by the time the flint moves —
+                    // both are taken in clearTheDoorway, which then hands off to strike(), and strike()
+                    // walks the body to the hearth on a budget of 1500 ticks. This rung's mould is full
+                    // of water by design and its alcove leaks into the doorway from behind (see this
+                    // class's own note on portal.dam), so "six cells of air" a thousand ticks ago is not
+                    // evidence about the tick that lit. Re-read both adjacent to the strike.
                     int lit = 0;
+                    StringBuilder cells = new StringBuilder();
                     for (int ix = 0; ix <= 1; ix++)
-                        for (int iy = 1; iy <= 3; iy++)
-                            if (level.getBlockState(frameCell(base, away, ix, iy)).getBlock()
-                                    == Blocks.NETHER_PORTAL) lit++;
+                        for (int iy = 1; iy <= 3; iy++) {
+                            BlockPos c = frameCell(base, away, ix, iy);
+                            var st = level.getBlockState(c);
+                            if (st.getBlock() == Blocks.NETHER_PORTAL) lit++;
+                            cells.append(cells.isEmpty() ? "" : " ").append(c.toShortString())
+                                    .append('=').append(st.getBlock())
+                                    .append(level.getFluidState(c).isEmpty() ? ""
+                                            : level.getFluidState(c).isSource() ? "(源块)" : "(流动)");
+                        }
                     rig.evidence("portal.cells", lit + "/6");
+                    rig.evidence("portal.cellsNow", cells.toString());
+                    rig.evidence("frame.obsidianNow", countObsidian(level, base, away) + "/" + RING.length
+                            + "（对照 frame.obsidian：那个数是清门洞之前读的，中间隔着 strike 里最多 1500 tick 的走路）");
                     rig.evidence("light.cellAfter", String.valueOf(level.getBlockState(doorway).getBlock()));
                     rig.evidence("bucket.after", rig.carrying("minecraft:bucket")
                             + " 空 / " + rig.carrying("minecraft:water_bucket") + " 水");
