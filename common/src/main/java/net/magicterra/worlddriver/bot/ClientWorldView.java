@@ -206,10 +206,13 @@ public final class ClientWorldView implements WorldView {
         //         vanilla itself works around this with an explicit LAYERS == 8 case
         //         in SnowLayerBlock.canSurvive.
         // This is STRICTER than BotConfig.isUsableBuildBlock's isFaceSturdy(UP), which
-        // accepts that same 14/16 family as placeable footing. The two disagree on
-        // purpose — the planner refuses to route over what it cannot guarantee, while
-        // placement accepts what the body demonstrably stands on — but nothing else
-        // states that, so do not "align" them without reading both call sites.
+        // accepts that same 14/16 family as placeable footing. So one question — "can a
+        // body stand on this?" — has two answers here, and NEITHER side's comment names
+        // the other. Whether that is intended is not recorded anywhere: round69 documents
+        // only why PLACEMENT moved to isFaceSturdy; nothing says the planner was
+        // considered and left on isFaceFull. Treat it as open, not as design. Aligning
+        // them would make the planner route over mud/soul_sand/soul_soil it currently
+        // refuses outright, which is a behaviour change and wants its own gate run.
         return Block.isFaceFull(shape, Direction.UP);
     }
     @Override public Vec3 waterFlow(BlockPos p) {
