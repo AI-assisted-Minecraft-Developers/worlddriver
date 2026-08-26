@@ -42,10 +42,22 @@ public final class BotUtil {
      *
      * <p>This exact expression was written out inline in a dozen places (BotApiImpl,
      * ClutchController ×2, WalkerTickPrelude, Backfill/Bridge/Farm/Mine ×3/Sleep, RetreatChain)
-     * while this helper already existed. Byte-identical copies, so folding them in changes
-     * nothing — but a dozen hand-written floors is a dozen chances for the next one to be
-     * written differently, and "the cell the body is in" is precisely the quantity this repo has
-     * been bitten by having two answers to.
+     * while this helper already existed — a dozen hand-written floors is a dozen chances for the
+     * next one to be written differently, and "the cell the body is in" is precisely the quantity
+     * this repo has been bitten by having two answers to.
+     *
+     * <p><b>⛔ A caller holding a CLIENT-ONLY reference must take the three-double overload.</b>
+     * This paragraph used to say the copies were byte-identical and folding them in therefore
+     * changed nothing. The dedicated-server gate of 2026-08-26 refuted that in the only way it
+     * could: three of the folded call sites held a {@code LocalPlayer}
+     * ({@code RetreatChain#fleeFrom}, and BotApiImpl's waypoint and runAway handlers), and handing
+     * one to this {@code Entity} parameter makes the VERIFIER prove {@code LocalPlayer <: Entity}
+     * — which loads the class. {@code wd.retreatGateMatrix} and {@code wd.cancelRouting} went from
+     * PASS to「Cannot load class net.minecraft.client.player.LocalPlayer in environment type
+     * SERVER」. The hand-written floor did not do this: {@code p.getX()} is an invokevirtual
+     * resolved lazily against the local's own type, and on a server that line never runs.
+     * <b>Identical source, different class-loading.</b> "Byte-identical" is a claim about the
+     * expression, not about the bytecode a widening call site emits.
      *
      * <p><b>Deliberately not {@code e.blockPosition()}.</b> That is a cached field vanilla
      * maintains inside {@code setPosRaw}, i.e. a second authority with its own update schedule.
@@ -53,7 +65,14 @@ public final class BotUtil {
      * of SOURCE, not a rename, and belongs to a measurement rather than a tidy-up.
      */
     public static BlockPos blockPosOf(Entity e) {
-        return new BlockPos((int) Math.floor(e.getX()), (int) Math.floor(e.getY()), (int) Math.floor(e.getZ()));
+        return blockPosOf(e.getX(), e.getY(), e.getZ());
+    }
+
+    /** The same floor for a caller whose reference is a client-only type — see the warning on the
+     *  overload above. Three doubles ask the verifier nothing about the holder's class, so this
+     *  keeps one authority for「which cell」without dragging a client class onto a server. */
+    public static BlockPos blockPosOf(double x, double y, double z) {
+        return new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
     public static Map<String, Object> posMap(BlockPos p) {

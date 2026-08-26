@@ -501,7 +501,9 @@ public final class RetreatChain implements Chain {
             sx += e.getX(); sy += e.getY(); sz += e.getZ(); n++;
         }
         if (n == 0) {
-            return blockPosOf(mc.player);
+            // Three doubles, not the entity: mc.player is a LocalPlayer, and widening one into an
+            // Entity parameter makes the verifier load that class on a dedicated server.
+            return blockPosOf(mc.player.getX(), mc.player.getY(), mc.player.getZ());
         }
         return new BlockPos((int) Math.floor(sx / n), (int) Math.floor(sy / n), (int) Math.floor(sz / n));
     }

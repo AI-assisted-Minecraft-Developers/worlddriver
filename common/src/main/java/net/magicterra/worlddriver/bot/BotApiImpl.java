@@ -267,7 +267,7 @@ public final class BotApiImpl implements BotApi {
                     if (pos == null) {
                         LocalPlayer pl = Minecraft.getInstance().player;
                         if (pl == null) return Map.of("ok", false, "error", "no pos provided and no player");
-                        pos = blockPosOf(pl);
+                        pos = blockPosOf(pl.getX(), pl.getY(), pl.getZ());
                     }
                     waypoints.put(name, pos);
                     return Map.of("ok", true, "op", "save", "name", name, "pos", posMap(pos), "count", waypoints.size());
@@ -817,7 +817,7 @@ public final class BotApiImpl implements BotApi {
             LocalPlayer p = Minecraft.getInstance().player;
             if (p == null) return Map.of("ok", false, "error", "no player");
             BlockPos src = source;
-            if (src == null) src = blockPosOf(p);
+            if (src == null) src = blockPosOf(p.getX(), p.getY(), p.getZ());
             startProcess(new RunAwayProcess(src, minDist));
             return Map.of("ok", true, "started", true, "from", posMap(src), "minDist", minDist);
         });
