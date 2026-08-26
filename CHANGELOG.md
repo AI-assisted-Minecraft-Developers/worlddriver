@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **The body ate the bucket.** `JourneyFeed` held the food, called `startUsingItem` on the next
+  line, and the bar never moved — twice, on two runs, with every branch the leg has a name for
+  ruled out: food was found, the hold returned true, the flag took, the wait returned. The trace
+  added for exactly this said what none of those could:
+
+  ```
+  还在吃了 1 tick；useItemRemaining=0；那一刻手里=minecraft:bucket、正在用的是=minecraft:bucket；
+  此刻服务端选中槽 4，手里=minecraft:beef
+  ```
+
+  Nothing in the middle failed. The item being used was the **bucket** the portal-kit rung had
+  crafted a moment earlier — use duration zero, so the flag cleared on the next tick and the food
+  was never touched. `holdBoth` returned true and was telling the truth: it reports what it SENT.
+  The client's swap click had not reached the server, and `startUsingItem` is a direct server call
+  that reads the hand as it is right now. `JourneyHands.holdBoth`'s own javadoc records the same
+  shape from rung 12's `water6` and names the ordering that saves the bucket pours — the click
+  arrives before the use packet, on the same connection — but that guarantee belongs to actions
+  sent over the connection, not to a direct call. The bite now waits for the server's hand to
+  actually be the food, and says `feed.holdLate<N>` and skips rather than eating something else.
+
+  Two mistakes worth keeping. The four states pre-registered for the trace were all wrong, and so
+  was the fix drafted for three of them (routing through the client's `useItem` would have let the
+  client release a 32-tick use on the next tick, which is a different old defect). What saved it
+  is that the trace prints the item's ID instead of a same/different boolean: the two IDs matched
+  each other, and the answer was in the value they matched on.
+
 - **The drain waits as long as it says it does.** Every sentence `drainTheAlcove` prints quotes
   `DRAIN_LEGS * DRAIN_TICKS` = 200 ticks, and the hold underneath them was `DRAIN_TICKS / 2` — so
   a drain that timed out reported twice the wait it had taken, and 「等了 200 tick 仍有流体」was
