@@ -925,8 +925,13 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 横移没发生，`liftedY=65/60` 还把没动的身体记成抬升完成。
 修法落在 `JourneyRamp.buildTo` 的新参数 `rowSlack`／`sameColumn`，只由 `JourneyPour:690`（`.lift`）
 启用；`JourneyPortalRung:975` 不启用——它跳过后紧接 `walkToStand` 走过去，加同柱会让它白修楼梯。
-⇒ 待办：排练读 `.lift.flightNotSkipped` 是否开火（判据见 scratchpad 预登记），
-再决定 `JourneyPour:260`（`raiseInColumn`，`ramp.rampedY=61/60 …不是同一柱`）要不要同样处理。
+⇒ 前半已答：`.lift.flightNotSkipped` 已开火（见上）。后半重新定位了——**要改的不是
+`JourneyPour:260` 的 `buildTo`，是 `:265` 的回调**：`if (getY() >= wantY) { done.run(); return; }`
+只比排，而唯一把身体钉回指定柱的 `climbOutInColumn` 排在它后面（`:254`，仅 `pin` 为真时）。
+实测 `water8.raisedY=65/60（停在 2,18，指定柱 3,19）`＝排够了、柱错着、塔没跑，
+**而 `2,18` 正是后来挡住下井腿的那一柱** ⇒ 这可能是撞墙那件事的上游。
+⚠️ 待验再改：`:265` 的注释明写「到了排就没塔什么事了」，先确认 `pin` 这趟是否为 true
+（`raiseOffTheFlight` 说柱是射线选的 ⇒ 应为 true，**未实测**）。判据：`raisedY` 同批加印 `pin`，一趟可定。
 （浇线上 `1,60~63,20` 的 dirt 已排除是这一趟垒的：`clear3` 印的是 grass_block 压 dirt 的原生剖面，
 「壁龛外」是 `clearPourLine` 拒绝清的理由，不是放置记录。）
 
