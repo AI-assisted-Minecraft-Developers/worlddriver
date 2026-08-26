@@ -120,7 +120,7 @@ final class WalkerTickEdgeGuards {
             // oscillates. Plain over-climb semantics restored; a narrower pocket-only guard can be
             // added later if a real slide-into-pocket is observed WITH the handoff in place.
             boolean climbUp = ahead.getY() >= foot.getY();   // path ahead up/level → climb; below → over-climbed, descend
-            // DESCEND-OFF-THE-CURTAIN gate (walkerVineDescentDrop, default OFF). When the path skims a
+            // DESCEND-OFF-THE-CURTAIN gate (walkerVineDescentDrop, default ON). When the path skims a
             // bank/inlet at one Y under a HANGING vine curtain, `ahead` (step+2) sits at the bob floor and
             // `climbUp` OSCILLATES with the y-bob → the bot is pinned ON the vine, jumping up / sliding down
             // with ZERO XZ progress toward the actual node (live -672,64,311 inlet bob ~10 s). If the
