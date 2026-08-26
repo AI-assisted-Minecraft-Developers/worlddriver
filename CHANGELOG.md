@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **Folding a hand-written floor into a shared helper is not free when the caller holds a client
+  type.** Twelve inline copies of `new BlockPos((int) Math.floor(e.getX()), …)` were folded into
+  the `BotUtil.blockPosOf(Entity)` that already existed, on the stated grounds that the copies were
+  byte-identical and the fold therefore changed nothing. Three of those call sites held a
+  `LocalPlayer` — `RetreatChain#fleeFrom`, and BotApiImpl's waypoint and runAway handlers — and
+  handing one to an `Entity` parameter makes the bytecode verifier prove `LocalPlayer <: Entity`,
+  which loads the class. On the dedicated-server gate `wd.retreatGateMatrix` and `wd.cancelRouting`
+  went from PASS to `Cannot load class net.minecraft.client.player.LocalPlayer in environment type
+  SERVER`. The hand-written floor never did that: `p.getX()` is an invokevirtual resolved lazily
+  against the local's own type, and on a server that line never runs.
+
+  Byte-identical is a claim about the expression, not about the bytecode a widening call site
+  emits, and nothing about it shows up at compile time. The fix keeps the fold rather than reverting
+  it: a `blockPosOf(double, double, double)` overload that asks the verifier nothing about the
+  holder's class, taken by those three call sites. One authority for "which cell the body is in"
+  still stands, and the gate is back to 298 executed with a pass set identical to the baseline's.
+
 - **A rung that times out while still standing now says which guard refused to move it.**
   The futile-search gate has reported every rung's searches for a while, and rung 6's timeout of
   this date shows what that alone cannot settle: 8040 ticks, 5788 searches, one single goal cell
