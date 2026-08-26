@@ -1247,10 +1247,10 @@ public final class BotConfig {
     public static volatile boolean allowSwimEscapePlace = true;
 
     /** Baritone {@code allowPlace} analogue — the pathfinder may place a
-     *  throwaway block to bridge a one-block gap as part of a route. Requires a
-     *  BlockItem in the hotbar (creative skips the check). Off by default for
-     *  the same non-destructive reason. Read every {@code BridgePlace}.eval +
-     *  WorldView.canPlace. */
+     *  throwaway block to bridge a one-block gap as part of a route. Default ON
+     *  (this said "off" while the initialiser said true). Read by
+     *  {@code ClientWorldView.canPlace} and the Walker's place actuators;
+     *  {@code LevelWorldView.canPlace} does NOT read it — see the note there. */
     public static volatile boolean allowPlace = true;
 
     /** Baritone {@code maxFallHeightBucket} analogue — the pathfinder may plan a

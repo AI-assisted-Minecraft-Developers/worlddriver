@@ -127,6 +127,29 @@ public final class LevelWorldView implements WorldView {
         return COST_PER_TICK * ticks;
     }
 
+    /**
+     * <b>The one member of this family that drops its own flag.</b> {@code ClientWorldView.canPlace}
+     * is {@code BotConfig.allowPlace && hasPlaceableBlock()}; {@link #canParkourPlace} further down
+     * this file is {@code BotConfig.allowParkourPlace && placeableBlockCount() > 0}; the interface
+     * defaults for {@code canPlace} and {@code canWaterBucketFall} are both {@code false}, so a
+     * headless view plans nothing it cannot do. This override alone answers on inventory contents
+     * and nothing else.
+     *
+     * <p>What that buys where it is reached: {@code applyGameTestBaseline()} sets
+     * {@code allowPlace = false}, and the two consumers of this method — {@code PillarUp.eval} and
+     * {@code BridgePlace.eval}, a repo-wide grep finds no third — go on emitting those edges for a
+     * server body that holds build blocks. Every place actuator on the far side is gated
+     * {@code BotConfig.allowPlace && …} ({@code WalkerTickDrive}, {@code WalkerTickStallDetect}
+     * twice, {@code Walker}'s well-plug), so the walker then declines an edge A* put in the path.
+     * Planner LOOSER than executor is the direction that yields a route the body cannot walk,
+     * rather than one it merely never finds.
+     *
+     * <p><b>Recorded, not changed, and not called a bug either.</b> No gate has caught it, and that
+     * is evidence about REACH rather than about correctness: the two only disagree in a scene that
+     * pins the baseline AND hands the body build blocks AND needs a pillar or a bridge. Adding the
+     * flag is a tightening — it deletes edges the server planner emits today — so it belongs to a
+     * run that can measure which scenes lose one, not to a comment pass.
+     */
     @Override public boolean canPlace() { return placeableBlockCount() > 0; }
 
     /**

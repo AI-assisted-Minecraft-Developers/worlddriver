@@ -15,6 +15,29 @@ import net.magicterra.worlddriver.bot.BotConfig;
  * there's room to rise). Lets A* <em>gain</em> height to reach a goal above,
  * the vertical counterpart to {@link BridgePlace}. Executed by the Walker's
  * jump-place actuator, which owns the airborne timing.
+ *
+ * <p><b>The gate on the first line of {@link #eval} is not the gate that actuator uses.</b>
+ * {@code w.canPlace()} asks the PLANNER's inventory question, and the two views answer it
+ * differently from each other and from the executor:
+ * <ul>
+ *   <li>{@code ClientWorldView.hasPlaceableBlock} reads hotbar slots 0..8 and applies
+ *       {@code BotConfig.isUsableBuildBlock}, which EXCLUDES falling blocks;</li>
+ *   <li>{@code LevelWorldView.placeableBlockCount} reads the whole inventory 0..35 with the same
+ *       exclusion, and drops {@code BotConfig.allowPlace} altogether — see the note on it;</li>
+ *   <li>the client executor — {@code ClientPlayerAvatar#holdPillarBlock} →
+ *       {@code BotInteract.ensureHoldingPillarBlock} — applies {@code isUsablePillarBlock}, which
+ *       ACCEPTS supported falling blocks, and ends in {@code swapFromMainInv}, so in survival it
+ *       reaches 9..35 as well. (The server avatar takes {@code Avatar}'s default, i.e. plain
+ *       {@code holdPlaceable()}, so this axis is a client-side gap.)</li>
+ * </ul>
+ * On a client the planner is therefore STRICTER than the actuator on both axes at once: a body
+ * carrying only sand and gravel, or with its cobble stranded in slot 9, makes {@code canPlace()}
+ * false and A* emits no pillar edge at all — while {@code WalkerTickDrive} and
+ * {@code WalkerTickStallDetect} pillar out of exactly that situation, which is why both gate on
+ * {@code holdPillarBlock} and say「not world.canPlace」in as many words. Stricter is the safe
+ * direction here (a route never found, rather than one that cannot be walked), so this is a note
+ * and not a fix: closing it means handing the planner the executor's predicate, which changes what
+ * A* plans and wants its own measurement.
  */
 public final class PillarUp extends Move {
     public PillarUp() { super(0, 1, 0, 10); }
