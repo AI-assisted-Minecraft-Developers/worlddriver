@@ -292,9 +292,20 @@ public abstract class Move {
 
     /**
      * True when {@code from} sits in a "water-edge" context — the only place the
-     * water-escape break moves ({@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimAshoreBreak} /
-     * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimTraverseBreak}) are
-     * allowed to fire. That is: the feet are IN water, OR water sits in the 3×3
+     * water-escape break moves are allowed to fire. Which moves those are is a
+     * {@code grep -rn "waterEscapeContext("} away and today the answer is THREE:
+     * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimAshoreBreak},
+     * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimTraverseBreak} and
+     * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimUpBreak}. This list
+     * named only the first two, and the omitted one is the VERTICAL move — the one that
+     * keeps a roofed body from drowning — so anyone tightening this predicate for the
+     * horizontal bank-exit case would have moved a drown-escape gate without knowing it.
+     * ({@code SwimUpBreak}'s own javadoc says it is gated here; the disagreement was
+     * one-sided, which is why nothing caught it.) The fourth swim-break,
+     * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimBankClimbBreak}, is
+     * genuinely NOT gated here; it uses {@link #bankClimbContext}.
+     *
+     * <p>The context itself: the feet are IN water, OR water sits in the 3×3
      * ring directly below the feet (the bot is standing on the bank it just
      * climbed out of, one break from the water it escaped). This trailing-edge
      * definition lets a short dig-out stair stay in-context for a step or two

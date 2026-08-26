@@ -39,7 +39,23 @@ public final class LookController {
     private static float windPrev;
     private static boolean windHavePrev;
     private static int windTick;
-    /** Reset the winding accumulators (call at replay/journey start). */
+    /** Reset the winding accumulators.
+     *
+     *  <p><b>Nothing calls this.</b> The javadoc read "call at replay/journey start" and
+     *  described a call site that does not exist — {@code grep -rn resetWind} over every
+     *  source set returns this declaration and nothing else. The contract was the wish,
+     *  not the wiring.
+     *
+     *  <p>That makes the WIND row below say something other than what it looks like: with
+     *  no reset, {@code turns} / {@code netDrift} / {@code ticks} accumulate from the first
+     *  tick {@code walkerDebug} was ever on, for the life of the JVM. A row read against
+     *  one leg, one rung or one replay is answering a question about the whole session —
+     *  the instrument is fine, the window is not the one a reader assumes. Correlate it by
+     *  DIFFERENCING two rows, never by taking one row's value.
+     *
+     *  <p>Left in place rather than deleted: the fix is a caller, and the natural one
+     *  (journey/replay start) is owned elsewhere. A deleted method makes the wiring
+     *  someone has to notice; an unwired one at least names it. */
     public static void resetWind() { windCumAbs = windUnwrapped = windMin = windMax = 0; windHavePrev = false; windTick = 0; }
 
     /** Bypass the slew for the CURRENT tick (functional exact aim — see class doc).

@@ -123,7 +123,9 @@ final class WalkerTickRepath {
             } else {
                 // First wedge here, or the bot has TRAVELLED >2 blocks off the old
                 // anchor (genuine progress) — (re)anchor at the current foot and
-                // restart the count. This is the ONLY place lastWedgeFoot is set.
+                // restart the count. This is the only place lastWedgeFoot is set to an
+                // ANCHOR; Unstuck.resetForNewGoal() and Unstuck.dropWedgeAnchor() both
+                // clear it to null, so a grep for writes returns three sites, not one.
                 wk.unstuck.wedgeRepathsHere = 0;
                 wk.unstuck.lastWedgeFoot = foot;
             }

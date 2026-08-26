@@ -86,8 +86,11 @@ public final class BotInteract {
      *  <p>The body moved to {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
      *  same answer can have it without naming this client-only class — see that method for why
      *  their private copies existed and why deleting them did not put a client type on a
-     *  dedicated server's class path. This name stays because its six callers are all
-     *  client-side and all use it. */
+     *  dedicated server's class path. This name stays because its callers are all
+     *  client-side and all use it — {@code grep -rn "pickFaceTowardsPlayer"} for the set;
+     *  it read "six callers" while a grep returned five, and the same wrong count was
+     *  written into {@link BotUtil#faceTowardEye}'s javadoc too, which is the copy-drift
+     *  both of these paragraphs otherwise argue against. */
     public static Direction pickFaceTowardsPlayer(BlockPos block, net.minecraft.world.entity.player.Player p) {
         return BotUtil.faceTowardEye(block, p);
     }

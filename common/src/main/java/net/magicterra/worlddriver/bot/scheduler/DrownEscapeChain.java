@@ -354,7 +354,13 @@ public final class DrownEscapeChain implements Chain {
      *   <li>{@code 跳读回} is read back off the player's own {@code Input}, i.e. what
      *       {@link net.magicterra.worlddriver.bot.movement.AvatarInput#tick} actually left there on
      *       the previous tick — <b>not</b> what this class asked for. The command channel is
-     *       last-writer-wins and nine callers write it, so "we commanded it" is not the same claim.</li>
+     *       last-writer-wins and heavily contended, so "we commanded it" is not the same claim.
+     *       This said "nine callers"; a repo-wide {@code grep -rn "commandJump("} (minus the
+     *       five plumbing lines in Avatar / AvatarInput / ClientPlayerAvatar / BotInput) returns
+     *       thirty-odd writes across thirteen behaviour classes. Nine is the count for
+     *       {@code AutoSwim} ALONE — one file was measured and reported as the whole. The
+     *       argument survives (more contention, not less); the number is the part a reader
+     *       would use to bound a race audit, so take it from the grep.</li>
      *   <li>{@code 撞顶} ({@code verticalCollision}) is the one-row proof of "buoyancy IS applying
      *       and something is in the way" — the state every column scan in this class is blind to.
      *       A body that is neither rising nor sinking is pinned, and only this field says so
