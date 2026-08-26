@@ -18,11 +18,12 @@ import net.minecraft.world.item.ItemStack;
  * What was missing is that nobody spends the five raw beef the food rung banked.
  *
  * <p><b>Why not the engine's own toggles.</b> {@code BotConfig.autoHeal} and {@code autoEat} exist
- * and are off by default. Turning them on would arm a preemption for all twenty rungs at once, so
- * the next run's every change becomes unattributable, and {@code AutoHeal.engage} does its work
- * through {@code mc.options.keyUse.setDown(true)} — a key press in a tick, which this repo drives
- * with direct calls and packets instead. An explicit leg eats where eating is wanted and nowhere
- * else.
+ * and are off by default. Turning them on arms a preemption for all twenty rungs at once, so every
+ * change in the next run becomes unattributable — that, and not the use key itself, is the
+ * objection. ⚠️ An earlier version of this paragraph also refused the key as「a key press in a
+ * tick」; {@link #startBite} now holds it, because the ban is on hammering a key every tick as a
+ * drive loop, not on {@code Avatar#commandUseItem}, which is an edge-triggered actuator verb the
+ * engine steers its own bow with. An explicit leg eats where eating is wanted and nowhere else.
  *
  * <p><b>What it does NOT assert.</b> Nothing here fails a rung. Every branch records what it saw
  * and calls {@code then}: a body with no food, a hold that would not take, a bite that never
@@ -52,8 +53,14 @@ import net.minecraft.world.item.ItemStack;
  * {@code 手里=minecraft:beef、正在用的是=minecraft:beef}, so the bucket family is closed and the
  * {@code updatingUsingItem} mismatch branch is ruled out — and the bite still died at
  * {@code useItemRemaining=31}, two ticks into thirty-two. A bite that ends two ticks in with the
- * hand correct is ended by something outside this file; {@link #finishTheBite} carries the leg past
- * it and names the suspect, and the row it writes never claims the body ate.
+ * hand correct is ended by something outside this file, and the suspect is the client: a
+ * {@code LocalPlayer} whose use key was never pressed sees the synced「using」flag and releases it.
+ *
+ * <p><b>So the bite is begun the way the engine begins one.</b> {@code Avatar#commandUseItem} holds
+ * the client's own use key — the route {@code CombatProcess} draws a bow with and the one rung 20
+ * shoots the dragon with — and a use the client started is not one it takes back. See
+ * {@link #startBite}. {@link #finishTheBite} stays behind it as a recorded fallback, so a run where
+ * the held key still is not enough carries its own counter-evidence rather than a green row.
  */
 final class JourneyFeed {
 
@@ -171,24 +178,45 @@ final class JourneyFeed {
         });
     }
 
-    /** The bite itself, entered only once the hand is known to hold the food. */
+    /**
+     * The bite itself, entered only once the hand is known to hold the food.
+     *
+     * <p><b>Through the avatar, not through {@code startUsingItem}.</b> The first two runs drove
+     * this by calling {@code fp.startUsingItem(MAIN_HAND)} on the server and then watching the flag
+     * — and on a client-driven body the flag went out two ticks into a thirty-two-tick meal with
+     * the hand correct. The engine has had the held use all along: {@code Avatar#commandUseItem} is
+     * how {@code CombatProcess} draws a bow and how rung 20 shoots the dragon, and on this topology
+     * it resolves to {@code ClientPlayerAvatar}, which holds the CLIENT's use key. A bite begun by
+     * the client is a bite the client will not take back. Driving the engine path by hand also
+     * stops testing it — {@code JourneyEndRungs}' bow comment paid for that lesson once already.
+     *
+     * <p><b>Down-edge first.</b> {@code ServerPlayerAvatar}'s side of this verb is edge-triggered on
+     * its own {@code useHeld} flag, so a stale {@code true} makes every later {@code (true)} a
+     * no-op — the failure that cost the dragon fight 21975 ticks of dead bow. Releasing first costs
+     * nothing on either implementation.
+     *
+     * <p><b>The wait is on the BAR, not on the flag.</b> With the key held, vanilla starts the next
+     * use a few ticks after one finishes, so 「still using」 never cleanly goes false and a flag
+     * watcher would time out through a meal that was working. Hunger rising is the thing actually
+     * being asked about.
+     *
+     * <p>⚠️ The key is a shared global that {@code BotInteract.releaseKeys()} deliberately does not
+     * clear (see {@code UseKeyOwnershipTest}); leaking it leaves the body walking with right-click
+     * held. It is released in the continuation, which {@code rig.await} runs on timeout and on
+     * body death as well as on success.
+     */
     private static void startBite(JourneyRig rig, String tag, int n, String chosen, Runnable then) {
         ServerPlayer fp = rig.player();
         int foodBefore = fp.getFoodData().getFoodLevel();
-        fp.startUsingItem(InteractionHand.MAIN_HAND);
-        if (!fp.isUsingItem()) {
-            // The open question, answered on the first run that gets here: a server-side
-            // startUsingItem on a client-driven body either takes or it does not.
-            rig.evidence(tag + ".feed.bite" + n, "startUsingItem 之后 isUsingItem 仍为 false —— "
-                    + "这具身体不接受服务端发起的进食（手里=" + rig.heldItemId() + "）");
-            afterEating(rig, tag, n, then);
-            return;
-        }
+        var av = rig.avatar();
+        av.commandUseItem(false);
+        av.commandUseItem(true);
         Bite trace = new Bite();
         rig.await(() -> {
-            if (fp.isUsingItem()) { trace.sample(fp); return false; }
-            return true;
+            if (fp.isUsingItem()) trace.sample(fp);
+            return fp.getFoodData().getFoodLevel() > foodBefore;
         }, BITE_TICKS, () -> {
+            av.commandUseItem(false);
             int after = fp.getFoodData().getFoodLevel();
             rig.evidence(tag + ".feed.bite" + n, chosen + "：饱食 " + foodBefore + "→" + after);
             rig.evidence(tag + ".feed.bite" + n + ".trace", trace.line(fp, rig));
@@ -217,15 +245,20 @@ final class JourneyFeed {
      * {@code RELEASE_USE_ITEM} on its next tick. This repo's own {@link
      * net.magicterra.worlddriver.bot.auto.AutoEat} is the corroboration: it eats by HOLDING
      * {@code keyUse} down and releasing at food=20, which is only necessary if letting go ends the
-     * bite. ⚠️ Corroboration is not proof — nothing here has yet watched that packet arrive, and
-     * the settling measurement is an arena scene that starts a bite on BOTH bodies, since a joined
-     * body has no client to send it.
+     * bite. ⚠️ Corroboration is not proof — nothing here has yet watched that packet arrive. What
+     * exists is one half of the comparison: {@code wd.serverAvatarTickFidelity} (A) holds the use
+     * on cooked beef for forty ticks and requires the meal to finish, and it is GREEN — on a
+     * {@code SceneBody.mint} SERVER avatar, which has no client to release anything. The missing
+     * half is the same measurement on a client-driven body.
      *
-     * <p><b>Why this and not a key.</b> Holding {@code keyUse} is the one route this repo does not
-     * take («tick 里面不要驱动按键»), and arming {@code BotConfig.autoEat} would preempt all twenty
-     * rungs at once. {@link ItemStack#finishUsingItem} is not an imitation of a bite's ending — it
-     * is the call {@code LivingEntity.completeUsingItem} itself makes, so nutrition, saturation,
-     * stack shrink and any effects land through the same path a full 32-tick bite would use.
+     * <p><b>A fallback, not the route.</b> {@link #startBite} holds the client's own use key
+     * through {@code Avatar#commandUseItem}, which is how the engine draws a bow; this runs only
+     * when even that came back with the bar unmoved and the clock cut short. It is not an imitation
+     * of a bite's ending — {@link ItemStack#finishUsingItem} is the call
+     * {@code LivingEntity.completeUsingItem} itself makes, so nutrition, saturation, stack shrink
+     * and any effects land through the same path a full 32-tick bite would use. It is still a hand
+     * drive of an engine path, which stops testing that path — hence the row, and hence its being
+     * second.
      *
      * @return whether the bar actually moved; false leaves the caller's stall row to be written.
      */
@@ -246,8 +279,18 @@ final class JourneyFeed {
         return after > before;
     }
 
-    /** Eating is over; wait for the health it enables, then hand back regardless. */
+    /**
+     * Eating is over; wait for the health it enables, then hand back regardless.
+     *
+     * <p>The first line releases the use key unconditionally. {@link #startBite} already releases
+     * in its own continuation, but a continuation is not a guarantee: a scene that hard-fails
+     * mid-{@code await} never reaches one, and {@code mc.options.keyUse} outlives the scene — a
+     * gravel rung that dies mid-bite would hand rung 11 a body walking around with right-click
+     * held, exactly the leak {@code UseKeyOwnershipTest} names. This method is where every exit of
+     * the leg converges, and releasing twice costs nothing (that test calls releases unrestricted).
+     */
     private static void afterEating(JourneyRig rig, String tag, int bites, Runnable then) {
+        rig.avatar().commandUseItem(false);
         ServerPlayer fp = rig.player();
         float hp = fp.getHealth();
         int food = fp.getFoodData().getFoodLevel();
@@ -311,8 +354,8 @@ final class JourneyFeed {
         String line(ServerPlayer fp, JourneyRig rig) {
             String now = "；此刻服务端选中槽 " + fp.getInventory().selected + "，手里=" + rig.heldItemId();
             if (ticks == 0) {
-                return "一 tick 都没观察到「还在吃」—— 标志在 startUsingItem 之后、第一次 await 之前"
-                        + "就已经没了，所以这一口连一个 tick 都没活过" + now;
+                return "整段等待里一 tick 都没观察到「还在吃」—— 按住 use 键之后客户端根本没开始这一口"
+                        + "（不是被掐掉：被掐掉至少会看到一 tick）" + now;
             }
             return "还在吃了 " + ticks + " tick；翻回 false 前最后一次读到 useItemRemaining=" + remaining
                     + "（一口 32 tick，倒数到 0 才会 completeUsingItem，所以 >1 就是被别人掐掉的）"
