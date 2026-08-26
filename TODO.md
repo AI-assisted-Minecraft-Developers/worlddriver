@@ -896,14 +896,23 @@ lift.standShort = 没走到 2,56,18，停在 3,64,18          ← 全程没离�
 lift.laid       = 4/4 级垫好了（身体 3,64,18，停在 FINISHED）
 lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 ```
-⚠️ **两处要先查，别急着改走法**：
-1. `laid=4/4` 是身体在 **8 格之上**报的。`placeInto` 走服务端，多半没有 reach 闸
-   （同 [[the-avatar-mined-through-rock]] 那族）⇒ **先确认那四级是不是真在世界里**，
-   `laid` 有可能数的是「调用成功」而不是「方块在那儿」。
-2. `walkTo` 用的是 `Goal.Block`（`JourneyRamp:418`），判 3D 精确格——**不是容差族**，
-   `standShort` 是诚实的「走了没到」。要查的是寻路器为什么下不去（NoBreak？无路？），
-   证据在同段的 `search-begin`/`end=` 行里。
+✅ **`laid=4/4` 不是越距放置，那四级本来就在世界里。** `layWhereItStands` 自带 reach 闸
+（`JourneyRamp:548`，`MEND_REACH=5.0`），而 `.flight` 印的是 `supports(flight)`
+（`JourneyRamp:291`）不是落脚格——四格 support 到身体 `3,64,18` 是 5.10～8.12，
+只要有一格是空的就必返 `OUT_OF_REACH`；实测 `FINISHED` ⇒ 全部走 `:545` 的
+「已实心就跳过」，**一级没放**。谁填的 `3,59,19` 日志答不了（无带坐标的放置行）。
+🔴 **还开着的只剩一件：身体走不到施工位 `2,56,18`，而且不是「找不到路」。**
+寻路器给出 64 步的路，身体在 `2,64,19` 被水平碰撞钉死：
+```
+[walker] 恢复跳: 卡住=11 身体=2,64,19 精确=(2.300,64.000,19.381) 闸=true 起跳=true
+[expect]  MOVE-noMove: forward held 10t, displacement<0.3 at 2.3,64.0,19.4 hCol=true
+```
+同一起点同一目标搜了 10 次（[[a-retry-that-changes-nothing]]）。壁龛底常年积水
+（`cast1.stairFoot=⚠ 楼梯底积水：2,56,19=water`），而 `raiseOffTheFlight` 自己就写着
+「它是下井楼梯（垒不了台阶、塔在水里会被冲下来）」——**下井这条腿的落脚就在水里**
+（[[water-is-not-a-floor]]、[[the-lake-rim-pins-the-body]]）。
 ⚠️ 不是回归：ladder9 是 `65/60` 且**一级楼梯都没修**，`.ramp.*` 一行都没有。
+⚠️ 双闸零回归已验（`637eb4b8`，Fabric GREEN／COVERAGE 298/25／失败集逐条同基线）。
 
 🟡 **同趟另一条，独立**：`cast7.1.settled.aimForked.1` —— 线段 clip 预言瞄 `5,59,21` 落进
 `4,59,21`，存成角度后实际射线落进 `2,58,20`，于是换候选。换候选的机制在工作，分叉率没量过。
