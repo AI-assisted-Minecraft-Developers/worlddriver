@@ -885,12 +885,13 @@ public static volatile boolean autoRetreat = false;
 身体最终落回验过的那一排。⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
-🟡 **第 12 级第 4 格：开火的那条射线是「服务端的眼 + 客户端的角度」，而闸判的是服务端自己那条。**
-（`ServerboundUseItemPacket` 带 yRot/xRot、服务端开射前采纳它——`JourneyHands.aimBoth` 的 javadoc 已写明。）
-`cast3.atUse` 两行差 0.06 格却选了不同的面：客户端 `4,56,21` west、服务端 `4,56,22` up。
-修法已落（`aimedAtAsUseWill`），**未验证**：专用服上它退化成原来那条，只有集成服会变。
-验证三态：① 第 12 级过 = 有效；② 仍红但死因变成「浇不到指定格」= 闸住了错浇、几何仍不行；
-③ 仍是「第 N 格没浇成黑曜石」且 `castN.atUse` 两行仍分叉 = 没生效。
+🟡 **第 12 级浇筑的两道射线闸已落，未验证**（早闸改判客户端身体；use 紧邻前加贴身复核 `.atUseGate`）。
+下一趟集成服梯子按四态判，**先算再读**：
+① 第 12 级过 = 有效；
+②a 早闸拒、三次重走耗尽、桶未花 = 闸对了，几何仍不行；
+②b `.atUseGate` 拒、桶未花 = regrip 那几 tick 身体沉了（`cast3.stairFoot` 说水积在楼梯脚只能等它退）；
+③ 两道闸都放行、桶花了、格仍 air = 模型仍错，别再往瞄准上加仪器。
+⚠️ ②b 高发是预期内的，它是**有名字的失败**，好过烧桶说谎；这轮不扩 scope 去修沉降。
 
 📌 **`[expect] GEAR-degraded` 是恒假阳性，判据要改。** `WalkerExpectAlarms.ClientGearCheck.missing`
 的 `pick` 只认 `DIAMOND_PICKAXE`/`IRON_PICKAXE`，木镐石镐都不算，所以梯子拿到铁镐之前每 100 tick

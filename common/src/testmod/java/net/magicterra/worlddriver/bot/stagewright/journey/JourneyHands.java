@@ -56,35 +56,6 @@ final class JourneyHands {
     }
 
     /**
-     * The ray that will ACTUALLY FIRE on a client-driven use: <b>the server body's eye, the client
-     * body's angles.</b> Neither body's own ray is that line.
-     *
-     * <p>{@code ServerboundUseItemPacket} carries yRot/xRot and the server adopts them before
-     * {@code Item.use} rays (see {@link #aimBoth}) — so the eye is the SERVER's and the angles are the
-     * CLIENT's. {@code aimBoth} aims each body from its own position, which is exact for each of them
-     * and produces a THIRD line for the use: a gate reading {@code aimedAt(rig.player(), …)} is
-     * judging a ray nobody fires.
-     *
-     * <p>Harmless while the two bodies sit a packet apart and the ray runs through open cell interiors
-     * — which is why this went unnoticed until a ray grazed a boundary. <b>Measured, ladder5 rung 12
-     * cell 4:</b> the bodies were 0.06 blocks apart and the two rays picked different FACES —
-     * client {@code 4,56,21 face=west}, server {@code 4,56,22 face=up} — so the pour that the gate
-     * cleared put its lava somewhere the cell check then reported as {@code air}. A small displacement
-     * does not imply a small difference: the answer here is discrete.
-     */
-    static net.minecraft.world.phys.BlockHitResult aimedAtAsUseWill(
-            net.minecraft.world.entity.player.Player eyeFrom,
-            net.minecraft.world.entity.player.Player anglesFrom, double range, boolean hitFluids) {
-        net.minecraft.world.phys.Vec3 eye = eyeFrom.getEyePosition();
-        net.minecraft.world.phys.Vec3 look = net.minecraft.world.phys.Vec3
-                .directionFromRotation(anglesFrom.getXRot(), anglesFrom.getYRot());
-        net.minecraft.world.phys.Vec3 end = eye.add(look.scale(range));
-        return eyeFrom.level().clip(new net.minecraft.world.level.ClipContext(eye, end,
-                net.minecraft.world.level.ClipContext.Block.OUTLINE,
-                hitFluids ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
-                          : net.minecraft.world.level.ClipContext.Fluid.NONE, eyeFrom));
-    }
-    /**
      * Hold still, THEN aim, then act — with nothing between the aim and the act.
      *
      * <p><b>On this topology an aim only lives until the next packet.</b> The ladder's body is an
@@ -148,6 +119,22 @@ final class JourneyHands {
      * body does not merely mis-report, it acts. Aiming both is exact rather than approximate:
      * {@code aimAtBlock} is a pure function of (body position, target cell) and the two bodies are
      * the same body one packet apart.
+     *
+     * <p><b>"One packet apart" is not a negligible quantity, and a server-side gate is not a
+     * prediction of the use.</b> Both halves of a real player's state are client-authoritative:
+     * {@code handleMovePlayer} overwrites the server's POSITION every tick just as
+     * {@code handleUseItem} adopts the packet's ANGLES above. So by the tick the use is processed the
+     * server's eye has already followed the client's, and the line that fires is the CLIENT's own —
+     * eye and angles together. A gate must ray {@code rig.avatar().player()}; {@code rig.player()}'s
+     * eye, read some ticks earlier, is a snapshot guaranteed to be stale by the use.
+     *
+     * <p>Measured, ladder5 rung 12 cell 4: the two bodies stood 0.06 blocks apart and their rays
+     * picked different FACES — client {@code 4,56,21 face=west}, server {@code 4,56,22 face=up}. The
+     * gate cleared the SERVER's, and the cell check afterwards read {@code air}; the outcome names the
+     * client's ray, because the server's would have dropped lava into {@code 4,57,22} against the
+     * water source at {@code 4,57,21} and made obsidian, which is how the first three cells were won.
+     * A small displacement does not imply a small difference — where a ray grazes a cell boundary the
+     * answer is discrete, so any displacement at all can flip it.
      *
      * <p>Consequence worth carrying: a fill/pour site with <b>no</b> server-side prediction gate
      * needs none of this, and reading a failure there as an aiming bug sends the next person to the

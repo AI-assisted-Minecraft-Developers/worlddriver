@@ -1616,9 +1616,10 @@ public final class JourneyPortalRung {
                 BlockPos settled = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away,
                         tag + "." + tries + ".settled");
                 BlockPos at = settled != null ? settled : planned;
-                // BOTH bodies: the next statement is a prediction gate on the SERVER one. Same
-                // reason as JourneyFill.scoop — see JourneyHands.aimBoth — and the same
-                // stakes, because this gate's failure branch runs clearPourLine, which mines.
+                // BOTH bodies: the gate below rays the CLIENT one, but the server's aim is owed to
+                // every other server-side predicate this rung runs (see JourneyHands.aimBoth), and
+                // the stakes are the same, because this gate's failure branch runs clearPourLine,
+                // which mines.
                 JourneyHands.aimBoth(rig, at);
                 // Where the fluid is actually going to land, recorded BEFORE it is spent. A filled
                 // bucket clips with `Fluid.NONE` and empties into the cell in front of the face it
@@ -1626,13 +1627,20 @@ public final class JourneyPortalRung {
                 // the wrong cell is indistinguishable from a pour that did not work, which is the
                 // shape of the last three rounds of this rung's investigation. `pourInto` has had
                 // this instrument for a while; the ten casts that matter never did.
-                // THE LINE THAT FIRES, not either body's own. `aimBoth` above aims each body from its
-                // own position — exact for each of them, and a THIRD ray for the use, which takes the
-                // server's eye and the client's angles. Ladder5 rung 12 cell 4 is what that costs: the
-                // bodies were 0.06 blocks apart, the two rays picked different faces (client
-                // `4,56,21 west`, server `4,56,22 up`), this gate cleared the server's, and the cell
-                // check afterwards read `air`. See JourneyHands#aimedAtAsUseWill.
-                var hit = JourneyHands.aimedAtAsUseWill(rig.player(), rig.avatar().player(),
+                // THE CLIENT'S RAY, because the client is the body that fires. This read
+                // `aimedAt(rig.player(), …)` — the SERVER's — until ladder5, and rung 12 cell 4 is what
+                // that cost: the bodies stood 0.06 blocks apart, the two rays picked different faces
+                // (client `4,56,21 west`, server `4,56,22 up`), the gate cleared the server's, and the
+                // cell check afterwards read `air`. The outcome names the client's line — the server's
+                // would have dropped lava into `4,57,22` beside the water source at `4,57,21` and made
+                // obsidian, which is how cells 1–3 were won. See JourneyHands#aimBoth for why the
+                // server's eye cannot be the one predicted from: it is client-authoritative too, so
+                // the snapshot read here is stale by the time the use packet is handled.
+                //
+                // On a dedicated server `rig.avatar()` IS `rig.body().avatar()` (JourneyRig#avatar), so
+                // this argument is the same fake player the old line passed and the gate is unchanged
+                // there — the six-topology gate is what proves that, not this comment.
+                var hit = JourneyHands.aimedAt(rig.avatar().player(),
                         JourneyFill.BUCKET_REACH, false);
                 BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
@@ -1758,6 +1766,42 @@ public final class JourneyPortalRung {
                 // rows that disagree mean the INSTRUMENT is broken and nothing below may be read as a
                 // fact about the world. See JourneyHands#handTrace; rung 11's pour has carried this
                 // since j43b and rung 12's, the one that actually keeps failing, never had it.
+                // AND ASK WHERE IT LANDS ONE MORE TIME, HERE, with nothing but the use after it. The
+                // gate a hundred lines up ran BEFORE `regripBeforeUse`, and a regrip settles, which
+                // ticks. This rung pours from a body standing in the stair foot's own water
+                // (`cast3.stairFoot`:「不能挖也不能垫，只能等它退」), so it is SINKING across exactly
+                // that gap — and an aim is a pure function of eye position, so a body that moved has an
+                // aim that expired. Same reason `aimThenAct` puts the aim adjacent to the act; this
+                // applies it to the CHECK, which is the half that was still far away. A hold must be
+                // adjacent to the use, and so must the verification of where it points.
+                //
+                // Re-aim, then re-ask, and no retry branch: `clearPourLine`/`liftInPlace` both need
+                // `BotConfig.allowPlace`, which is off from here down, so a repair launched from here
+                // could not place. Naming the failure beats running a fix that cannot work.
+                JourneyHands.aimBoth(rig, at);
+                var atUseHit = JourneyHands.aimedAt(rig.avatar().player(), JourneyFill.BUCKET_REACH, false);
+                BlockPos atUseLands = atUseHit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                        ? atUseHit.getBlockPos().relative(atUseHit.getDirection()) : null;
+                rig.evidence(tag + ".atUseGate." + tries,
+                        (atUseHit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                                ? atUseHit.getBlockPos().toShortString() + " face=" + atUseHit.getDirection()
+                                  + " → 落进 " + atUseLands.toShortString()
+                                : String.valueOf(atUseHit.getType()))
+                        + "（贴着 use 重瞄 " + at.toShortString() + " 之后再问一次，想浇 "
+                        + target.toShortString() + "，身体 " + rig.player().blockPosition().toShortString()
+                        + "，" + JourneyFill.eyeNow(rig) + "）");
+                if (atUseLands == null || !atUseLands.equals(target)) {
+                    BotConfig.allowPlace = placeWas;
+                    ctx.fail("开浇前最后一刻射线已经偏了：想浇 " + target.toShortString()
+                            + "，贴着 use 重瞄 " + at.toShortString() + " 之后射线落进 "
+                            + (atUseLands == null ? String.valueOf(atUseHit.getType())
+                                                  : atUseLands.toShortString())
+                            + "，身体在 " + rig.player().blockPosition()
+                            + " —— 早闸放行到这里之间只隔了一次 regrip，身体在这几 tick 里动了"
+                            + "（多半是在楼梯脚的水里下沉）。没有倒：倒下去 use 照样报 CONSUME，"
+                            + "然后这一级会把失败写成「浇不出黑曜石」");
+                    return;
+                }
                 JourneyHands.handTrace(rig, tag, -1);
                 rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
                 // THE HAND ON CONSECUTIVE SERVER TICKS. `.result` is the CLIENT's prediction and
