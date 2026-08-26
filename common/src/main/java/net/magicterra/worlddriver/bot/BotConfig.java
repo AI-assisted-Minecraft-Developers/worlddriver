@@ -1241,7 +1241,7 @@ public final class BotConfig {
      *  Walker detects that stall it places ONE throwaway block on the surface
      *  against the bank to get GROUNDED, after which the ordinary dry climb
      *  finishes the +1/+2. Default ON as a water-escape safety net (independent
-     *  of the conservative general {@link #allowPlace}); needs a placeable block
+     *  of the general {@link #allowPlace}); needs a placeable block
      *  in the hotbar. Read only by the Walker's climb-out actuator — never by the
      *  pathfinder, so land/route planning is byte-for-byte unchanged. */
     public static volatile boolean allowSwimEscapePlace = true;
@@ -1256,18 +1256,18 @@ public final class BotConfig {
     /** Baritone {@code maxFallHeightBucket} analogue — the pathfinder may plan a
      *  fall taller than the no-water cap (3 blocks) when the bot has a water
      *  bucket in its hotbar, placing a water source on the landing block to
-     *  break the fall (MLG) and scooping it back. Off by default for the same
-     *  non-destructive reason as {@link #allowPlace} (it places a water source).
-     *  Read every {@code WaterBucketFall}.valid + WorldView.canWaterBucketFall. */
+     *  break the fall (MLG) and scooping it back. Default ON (this said "off").
+     *  NOT read by {@code WaterBucketFall.valid}, which asks the view — and the
+     *  views disagree; see the {@code canPlace} note in {@code LevelWorldView}. */
     public static volatile boolean allowWaterBucketFall = true;
 
     /** Baritone {@code allowParkourPlace} analogue — the pathfinder may cross a
      *  gap with a sprint-jump onto a block placed mid-air (instead of two slow
      *  sneak-bridges) when the landing cell has a pre-existing solid neighbour to
      *  place against. Requires a placeable block in the hotbar (creative skips the
-     *  check). Off by default for the same non-destructive reason as
-     *  {@link #allowPlace}. Read every {@code ParkourPlace}.eval +
-     *  WorldView.canParkourPlace. */
+     *  check). Off by default — genuinely, unlike {@link #allowPlace} above.
+     *  {@code ParkourPlace.eval} reaches it only via WorldView.canParkourPlace,
+     *  which BOTH views read live — the coupling {@code canPlace} is missing. */
     public static volatile boolean allowParkourPlace = false;
 
     /** Tallest drop (blocks) the bot will commit to with a water-bucket fall when

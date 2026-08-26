@@ -144,6 +144,16 @@ public final class LevelWorldView implements WorldView {
      * Planner LOOSER than executor is the direction that yields a route the body cannot walk,
      * rather than one it merely never finds.
      *
+     * <p><b>The same flag family, three different couplings — that is the finding, not this one
+     * method.</b> {@link #canParkourPlace} reads its flag live. {@code canWaterBucketFall} is not
+     * overridden here at all, so this planner takes the interface default {@code false} and never
+     * plans an MLG fall, while {@code BotConfig.allowWaterBucketFall} defaults ON and the clutch
+     * actuator gates on that live volatile — planner STRICTER than actuator, which costs a route
+     * that was available and is therefore the safe direction. And {@code ClientWorldView} folds the
+     * same flag into {@code bucketFallReady} once per {@code beginSearch}, so a mid-search flip
+     * leaves ITS planner and the actuator disagreeing until the next search begins. Live flag,
+     * absent flag, snapshotted flag: any fix should pick one rule for all of them.
+     *
      * <p><b>Recorded, not changed, and not called a bug either.</b> No gate has caught it, and that
      * is evidence about REACH rather than about correctness: the two only disagree in a scene that
      * pins the baseline AND hands the body build blocks AND needs a pillar or a bridge. Adding the
