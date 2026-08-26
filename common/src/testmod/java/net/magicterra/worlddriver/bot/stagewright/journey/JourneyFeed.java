@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * Eat, then wait for the health that eating makes possible — the leg the ladder never had.
@@ -28,6 +30,15 @@ import net.minecraft.world.InteractionHand;
  * run: whether a client-driven {@code ServerPlayer} can be made to eat from the server side at all
  * is an open question (server-written state has been lost to the next client packet before — see
  * the aiming subsystem), and an instrument that fails the rung would answer it by killing the run.
+ *
+ * <p><b>What the first real occasion returned</b>, on the gravel rung of 2026-08-26: it fired on
+ * FOOD, not on health — {@code 血 20.0/20.0，饱食 8/20}. Health has been full on that rung both runs
+ * that reached it, while hunger has been under {@link #REGEN_FOOD} from the food rung onward in
+ * every run, so the hunger half of the condition is the half that gets used, and this leg speaks on
+ * every climb rather than only after a bad fall. The bite then landed in the one ending no branch
+ * had a name for: the food was found, the hold took, {@code startUsingItem} took, the wait returned
+ * — and the bar read {@code 8→8}. Start and finish both happened; the middle did not. {@link Bite}
+ * exists to say which middle.
  */
 final class JourneyFeed {
 
@@ -118,9 +129,14 @@ final class JourneyFeed {
             afterEating(rig, tag, n, then);
             return;
         }
-        rig.await(() -> !fp.isUsingItem(), BITE_TICKS, () -> {
+        Bite trace = new Bite();
+        rig.await(() -> {
+            if (fp.isUsingItem()) { trace.sample(fp); return false; }
+            return true;
+        }, BITE_TICKS, () -> {
             int after = fp.getFoodData().getFoodLevel();
             rig.evidence(tag + ".feed.bite" + n, chosen + "：饱食 " + foodBefore + "→" + after);
+            rig.evidence(tag + ".feed.bite" + n + ".trace", trace.line(fp, rig));
             if (after <= foodBefore) {
                 // Started and finished without feeding: the bite is not the thing that failed, the
                 // completion is. Stop rather than spend the whole cap proving it eight times.
@@ -152,5 +168,60 @@ final class JourneyFeed {
                     fp.getHealth(), LOW_HP));
             then.run();
         });
+    }
+
+    /**
+     * One bite's per-tick trace — the reading that tells three identical-looking endings apart.
+     *
+     * <p>The first run to reach here ate nothing and left exactly two rows: {@code isUsingItem}
+     * back to false, food unchanged. Three mechanisms produce that pair and they want opposite
+     * fixes:
+     *
+     * <ul>
+     *   <li>the counter never ran down, so something outside called {@code stopUsingItem} — the
+     *       client-packet family, the same shape the aiming subsystem loses angles to;</li>
+     *   <li>the counter reached zero and {@code completeUsingItem} still fed nothing;</li>
+     *   <li>the stack in the hand stopped matching {@code getUseItem()}, which is
+     *       {@code LivingEntity.updatingUsingItem}'s own mismatch branch calling
+     *       {@code stopUsingItem} — a hold landing mid-bite, not a lost packet.</li>
+     * </ul>
+     *
+     * <p>{@code useItemRemaining} separates the first from the other two and the two item ids
+     * separate the third, so one row decides it. Sampling lives inside the await predicate because
+     * that is the only hook running on every tick of the wait; what it samples never decides what
+     * the predicate returns.
+     */
+    private static final class Bite {
+        private int ticks;
+        private int remaining = -1;
+        private String hand;
+        private String using;
+
+        void sample(ServerPlayer fp) {
+            ticks++;
+            remaining = fp.getUseItemRemainingTicks();
+            hand = id(fp.getItemInHand(InteractionHand.MAIN_HAND));
+            using = id(fp.getUseItem());
+        }
+
+        String line(ServerPlayer fp, JourneyRig rig) {
+            String now = "；此刻服务端选中槽 " + fp.getInventory().selected + "，手里=" + rig.heldItemId();
+            if (ticks == 0) {
+                return "一 tick 都没观察到「还在吃」—— 标志在 startUsingItem 之后、第一次 await 之前"
+                        + "就已经没了，所以这一口连一个 tick 都没活过" + now;
+            }
+            return "还在吃了 " + ticks + " tick；翻回 false 前最后一次读到 useItemRemaining=" + remaining
+                    + "（一口 32 tick，倒数到 0 才会 completeUsingItem，所以 >1 就是被别人掐掉的）"
+                    + "；那一刻手里=" + hand + "、正在用的是=" + using
+                    + (hand != null && !hand.equals(using)
+                            ? " ⚠️ 两者不同 —— 正是 updatingUsingItem 自己会 stopUsingItem 的那一支"
+                            : "")
+                    + now;
+        }
+
+        private static String id(ItemStack s) {
+            return s == null || s.isEmpty() ? "空"
+                    : String.valueOf(BuiltInRegistries.ITEM.getKey(s.getItem()));
+        }
     }
 }
