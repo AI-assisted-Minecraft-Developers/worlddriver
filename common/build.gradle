@@ -67,6 +67,19 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     testLogging { events "failed" }
+
+    // ConfigPinDisciplineTest reads the compiled testmod BYTECODE. That directory is not on the
+    // test classpath, so Gradle did not know it was an input: editing a scene made
+    // `:common:testmodClasses` recompile while `:common:test` reported UP-TO-DATE, and the run
+    // then served the PREVIOUS verdict with EXIT=0 and BUILD SUCCESSFUL. A gate that answers a
+    // question you did not ask is worse than one that fails, because nothing about the output
+    // says it is stale. Declaring the directory makes a scene edit invalidate the test the way a
+    // source edit already does; dependsOn means plain `:common:test` builds it first, so the
+    // command needs neither an extra task nor --rerun-tasks.
+    dependsOn tasks.named('testmodClasses')
+    inputs.files(sourceSets.testmod.output.classesDirs)
+            .withPropertyName('testmodClasses')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 repositories {

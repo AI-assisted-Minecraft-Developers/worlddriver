@@ -227,15 +227,19 @@ etc.) working in this project. Keep it short and authoritative.
     than starting it under a live run.
 
     ```bash
-    ./gradlew :common:testmodClasses :common:test --rerun-tasks
+    ./gradlew :common:test
     ```
 
-    ⚠️ **`--rerun-tasks` is not optional here.** The bytecode this test reads is not one of
-    the task's declared inputs, so gradle calls `:common:test` UP-TO-DATE after a testmod
-    change and replays the previous verdict. Measured 2026-08-26: deleting a pin and
-    re-running without the flag printed `BUILD SUCCESSFUL` over an unchanged results file
-    whose timestamp was two minutes old. Believe a green only if the run line says the task
-    executed and the XML timestamp is this run's.
+    ⚠️ **This used to need `--rerun-tasks`, and why is worth keeping.** The bytecode the test
+    reads is not on the test classpath, so gradle did not know it was an input: measured
+    2026-08-26, deleting a pin recompiled `:common:testmodClasses`, called `:common:test`
+    UP-TO-DATE, and printed `BUILD SUCCESSFUL` over a results file two minutes old. A gate
+    that answers a question you did not ask is worse than one that fails — nothing in the
+    output says it is stale. `common/build.gradle` now declares
+    `sourceSets.testmod.output.classesDirs` as an input and depends on `testmodClasses`, so a
+    scene edit invalidates the test the way a source edit always did, and the flag is no
+    longer needed. **If you see `:common:test UP-TO-DATE` right after editing a scene, that
+    wiring is gone** — restore it rather than reaching for the flag again.
 
     ⚠️ Its javadoc carries two named edits that MUST turn it red — one deleting a direct
     pin, one deleting a delegated pin — each measured against the compiled tree before the
@@ -246,10 +250,14 @@ etc.) working in this project. Keep it short and authoritative.
     Both were run on 2026-08-26 and both went red: deleting `WorldDriverTerrainScenes#summit`'s
     own pin, and deleting `JourneyRig#generousPathfinding`'s (18 methods named, among them
     `JourneyEndRungs#digToTheRoom` and `JourneyPortalRung#descendToTheForge`, none of which
-    takes a pin of its own). ⚠️ The first sample proves LESS than it looks: `summit` is also
-    the positive control, so removing its pin trips the reachability self-check and the main
-    assertion never runs. Only the second sample exercises the unprotected-set assertion, so
-    a sample-one red is not evidence that the set is still computed correctly.
+    takes a pin of its own). ⚠️ Sample one first went red for the WRONG reason: `summit` was
+    also the positive control, so deleting its pin tripped the reachability self-check and the
+    unprotected-set assertion never ran — and a red for that reason reads exactly like a red
+    for the right one. The control now names `WorldDriverAvatarScenes#serverCapabilityScene`,
+    which neither sample touches, so sample one again exercises what it was written for. A
+    third sample is not needed: the one direction no pin-deletion can probe — a reachability
+    that answers true for everything — is caught by the `ACCOUNTED_FOR` staleness check, which
+    reddens on all eight entries at once. One probe per direction, not one per edit.
 
     ⚠️ Restoring by hand is legal, but only on a path a FAILURE also takes (`try/finally`,
     or `ctx.cleanup`). Restoring at the end of the body is not — that is exactly the line a

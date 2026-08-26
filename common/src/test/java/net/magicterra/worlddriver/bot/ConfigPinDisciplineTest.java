@@ -46,6 +46,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * everything. Verify by editing one line, running, and putting the line back; do not leave a
  * broken scene in the tree as a permanent canary.
  *
+ * <p><b>Why two samples and not three.</b> Sample 1 first proved less than it looked: the positive
+ * control below was {@code summit} too, so deleting that pin tripped the reachability self-check
+ * and the unprotected-set assertion never ran — the sample went red for the wrong reason, which
+ * reads identically in the output. The control now names a scene neither sample touches, which
+ * restores sample 1 to the job it was written for and makes a third sample redundant.
+ *
+ * <p>The one failure a sample cannot reach is a reachability that answers TRUE for everything: it
+ * would hide every real finding behind a green, and no amount of pin-deleting produces a red. That
+ * direction is covered structurally instead — the {@code ACCOUNTED_FOR} staleness check fails when
+ * an entry there stops being unprotected, so an always-true reachability reddens on all eight at
+ * once. One probe per DIRECTION, not one probe per edit.
+ *
  * <h2>Why bytecode and not a source scan</h2>
  *
  * <p>A regex pass over the sources was tried first and got four separate things wrong, three of
@@ -153,11 +165,17 @@ class ConfigPinDisciplineTest {
 
         // Positive control, in the test rather than in a comment: a method known to pin must come
         // back protected. If this flips, the reachability is broken and every green below is noise.
-        String summit = "net/magicterra/worlddriver/bot/stagewright/scene/WorldDriverTerrainScenes"
-                + "#summit";
-        assertTrue(g.protectedMethod(summit, new HashSet<>()),
-                "the positive control is not protected: " + summit + " calls pinnedBaseline() in its "
-                        + "own body. Reachability is broken; fix it before trusting any verdict here.");
+        //
+        // DELIBERATELY not either negative sample's target. It used to be summit — which is also
+        // negative sample 1 — so deleting summit's pin tripped THIS line and the assertion the
+        // sample exists to exercise never ran. A control that shadows the thing it licenses is not
+        // a control. Keep it pointed at a scene no sample touches.
+        String control = "net/magicterra/worlddriver/bot/stagewright/scene/WorldDriverAvatarScenes"
+                + "#serverCapabilityScene";
+        assertTrue(g.protectedMethod(control, new HashSet<>()),
+                "the positive control is not protected: " + control + " calls pinnedBaseline() in "
+                        + "its own body. Reachability is broken; fix it before trusting any verdict "
+                        + "here.");
 
         Map<String, Set<String>> unprotected = new TreeMap<>();
         for (Map.Entry<String, Set<String>> e : writes.entrySet()) {
