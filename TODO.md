@@ -885,11 +885,14 @@ public static volatile boolean autoRetreat = false;
 ⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
-🔴 **第 12 级：`liftInPlace` 的 `flightSkipped` 短路没有排上界，也不判柱。**
-`lift.flightSkipped=0,65,15 已经到了落点那一排或更高（高 5 排）（落点 3,60,20，exactRow=false）
-—— 不用修楼梯`，于是射线从高 5 排、差 3 柱的地方打出去。同一道闸 `raiseTo` 那侧已经有了
-（`raiseRowTooHigh=… 高 6 排（容许 1）… 走回模腔重来一次`，ladder9 实测触发 1 次）。
-⇒ 照它给 `lift` 加同一道闸，并且判**同一柱**，不只判排号。
+🟡 **第 12 级：`buildTo` 的 `>=` 臂已加界（`55fe4a42`），等排练确认。**
+死因是 `lift.flightSkipped=0,65,15 …（落点 3,60,20，exactRow=false）—— 不用修楼梯`：
+`liftSideways` 刚说完「这一柱验不过这一浇，平移到验得过的那一柱」，`buildTo` 只比排号就跳过，
+横移没发生，`liftedY=65/60` 还把没动的身体记成抬升完成。
+修法落在 `JourneyRamp.buildTo` 的新参数 `rowSlack`／`sameColumn`，只由 `JourneyPour:690`（`.lift`）
+启用；`JourneyPortalRung:975` 不启用——它跳过后紧接 `walkToStand` 走过去，加同柱会让它白修楼梯。
+⇒ 待办：排练读 `.lift.flightNotSkipped` 是否开火（判据见 scratchpad 预登记），
+再决定 `JourneyPour:260`（`raiseInColumn`，`ramp.rampedY=61/60 …不是同一柱`）要不要同样处理。
 （浇线上 `1,60~63,20` 的 dirt 已排除是这一趟垒的：`clear3` 印的是 grass_block 压 dirt 的原生剖面，
 「壁龛外」是 `clearPourLine` 拒绝清的理由，不是放置记录。）
 

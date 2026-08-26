@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A lift that skips its flight now has to be in the right column, not merely high enough.**
+  `JourneyRamp#buildTo`'s `>=` arm returned "already there" for any body at or above the landing's
+  row. A lift is asked for precisely when the body's own column cannot fire the pour, so the one
+  caller that most needed the walk was the one the arm answered with nothing. Ladder9, cell eight:
+  `liftInPlace` recorded `liftSideways = 0,65,15 高度够了（y=60）但这一柱验不过这一浇 —— 平移到
+  验得过的那一柱，不是往上垒`, chose `3,60,20`, and `buildTo` compared `65 >= 60` and returned
+  without building or walking. No `.ramp.*` row exists for that lift at all; the sideways move never
+  happened, and `liftedY = 65/60` recorded the non-move as a lift that finished. From three columns
+  out and five rows up the only line to the backing is the steep one `POUR_ROW_SLACK` was already
+  written for, so the pour picked the body's own footing instead: `picks.1 = 4,63,20 grass_block
+  face=up → 落进 4,64,20`.
+
+  The row bound already existed on the other path — `raiseTo` has refused a body more than
+  `POUR_ROW_SLACK` rows high since `3ce54dd4`, and ladder9 shows it firing once
+  (`raiseRowTooHigh … 高 6 排（容许 1）… 走回模腔重来一次`). It simply never reached this occasion:
+  the flow that failed goes through `lift`, not `raiseTo`. `buildTo` now takes `rowSlack` and
+  `sameColumn`, and `JourneyPour`'s lift passes `POUR_ROW_SLACK` and `true` — so a body high or
+  sideways falls through to the staircase it asked for. `JourneyPortalRung#standBehind` deliberately
+  does NOT pass them: it follows the call with a `walkToStand` onto that same landing, so for it
+  "high enough, wrong column" is a walk rather than a flight, and pinning the column would make it
+  build stairs it does not need. `buildTo`'s javadoc claimed a pour「is genuinely served from any row
+  high enough」; that is true of one row and false of five, which `POUR_ROW_SLACK`'s own javadoc had
+  already said — the two accounts now agree.
+
+  Also, `liftedY` names the column it ended in. A body at the right height in the wrong column has
+  not been lifted, it has been left, and that row is what the caller reads as「抬升成功了」.
+
 - **A pour is now gated on the ray the client will fire, not on the server body's own.** Rung 12's
   gate rayed `rig.player()` — the `ServerPlayer` — while `useItemInHand()` runs on the client avatar.
   Both bodies are aimed at the same cell and each aim is exact for the body it was written on, so the
