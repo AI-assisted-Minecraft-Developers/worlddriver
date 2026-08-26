@@ -105,7 +105,10 @@ final class GotoGoalResolver {
             // Baritone GoalStrictDirection: keep boring this way with no fixed
             // endpoint (the best-effort fallback carries it as far as it can).
             if (p.getBool("strict")) {
-                BlockPos origin = blockPosOf(player);
+                // Three doubles, not `player`: widening a LocalPlayer into blockPosOf(Entity)
+                // makes the verifier load that class. The two blockPosOf(e) calls above are a
+                // genuine Entity from lvl.getEntity / findNearestEntity and stay as they are.
+                BlockPos origin = blockPosOf(player.getX(), player.getY(), player.getZ());
                 int[] step = horizontalStep(player, d);
                 if (step == null) throw new IllegalArgumentException(
                         "strict direction must be horizontal (north|south|east|west|forward|backward|left|right), got '" + dirName + "'");

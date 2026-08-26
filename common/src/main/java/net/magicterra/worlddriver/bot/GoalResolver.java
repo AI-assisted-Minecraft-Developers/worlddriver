@@ -66,7 +66,9 @@ public static Goal targetGoal(BlockPos target, String mode, int near) {
 public static BlockPos findNearestStandForBlock(LocalPlayer player, String blockId, int radius) {
     Level lvl = Minecraft.getInstance().level;
     if (lvl == null) return null;
-    BlockPos foot = blockPosOf(player);
+    // Three doubles, not `player`: widening a LocalPlayer into blockPosOf(Entity) makes the
+    // verifier load that class, and this one is reachable from a goto verb.
+    BlockPos foot = blockPosOf(player.getX(), player.getY(), player.getZ());
     int vr = BotConfig.mineSearchVerticalRadius;
     long bestD2 = Long.MAX_VALUE;
     BlockPos bestStand = null;
