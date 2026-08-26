@@ -2446,7 +2446,32 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             then.run();
             return;
         }
-        if (left <= 0) { onStuck.run(); return; }
+        if (left <= 0) {
+            // WHICH OF THE FOUR REFUSED, and the reason as a VALUE. The caller answers this path with
+            // 「站不到可下挖的柱子上」, and the integrated rehearsal of 2026-08-26 — the first run of
+            // this rung on a real client body — printed that sentence beside a body standing AT the
+            // pinned column: `想去 -8,20，停在 BlockPos{x=-8, y=66, z=20}`. The one thing the sentence
+            // names is the one thing that had NOT gone wrong, which sent the reading straight to the
+            // walk when the walk had already arrived.
+            //
+            // Everything needed to say which of the four conditions refused is already computed in
+            // this frame; only `columnIsSafeToSink`'s answer was discarded, and it is a boolean view
+            // of `whyNotDiggable`, which hands the reason back as a string. So this costs one extra
+            // call on a path that runs once per rung, at the moment the rung gives up.
+            var lvl = rig.ctx().level();
+            rig.evidence("shaft.stepStuck", at.toShortString() + "，尝试用尽（"
+                    + MAX_WALK_ATTEMPTS + " 次）—— 正站在岩浆柱上=" + overThePool
+                    + "，正站在刚换掉的湿柱上=" + abandoned + "，不在指定柱上=" + offTheStagedSide
+                    + "；脚下这一柱 " + at.getX() + "," + at.getZ() + " 不能下挖的理由="
+                    + JourneyTerrain.whyNotDiggable(lvl,
+                            new BlockPos(at.getX(), lava.getY(), at.getZ()), surfaceY)
+                    + "；选定柱 " + dig.getX() + "," + dig.getZ() + " 的理由="
+                    + JourneyTerrain.whyNotDiggable(lvl,
+                            new BlockPos(dig.getX(), lava.getY(), dig.getZ()), surfaceY)
+                    + "（理由=null 表示那一柱本身合格，于是拒绝来自它前面那三个布尔之一）");
+            onStuck.run();
+            return;
+        }
         int attempt = MAX_WALK_ATTEMPTS - left + 1;
         rig.evidence("shaft.stepping." + attempt,
                 at.toShortString() + " → " + dig.getX() + "," + dig.getZ()
