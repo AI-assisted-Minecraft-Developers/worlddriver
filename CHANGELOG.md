@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **The journey heartbeat now names the leg's goal and its progress along the plan.** The row
+  `[journey] 心跳 <stage> <driving> …` gained one field between `driving` and the tick counter:
+  `目标=<target|goal> 路=<pathStep>/<pathLen>`, read out of the driving half's process slot (so a
+  real-player helm reports the CLIENT's walker, not the server's copy). Anything grepping that row
+  by column position needs re-anchoring; grepping by the labels does not.
+
+  The reason is an ambiguity the previous row could not resolve. Two heartbeats ten seconds apart
+  prove the body MOVED; they cannot say whether it moved along a plan or away from one. Rung 12's
+  post-mortem turned on exactly that: a leg whose sampled path was 57 blocks for 9 blocks of net
+  displacement reads identically as「the long way around the lava rim」— which `cast8.rimTax`
+  prices deliberately, at 300 per rim cell against 10 for a normal step, so a 30-cell detour is the
+  cheaper route — and as「the plan keeps being replaced」. Three separate readings were fitted to
+  that one ambiguity in a single sitting before anyone checked whether the heartbeat could decide
+  it. `pathStep`/`pathLen` decides it: climbing toward `pathLen` is the detour, resetting is churn.
+
+  No behaviour change — one slot read and a string concatenation on a row that already fired every
+  200 ticks. The fields are the ones `ProcessSlot.snapshot()` already published; nothing new is
+  recorded and no main-source class changed.
+
 - **The unaimed recovery hop is now gated on where its arc comes down, not on a ring around where
   it launches.** Both consumers of the old guard — the stuck-wiggle jump and the unstuck
   displacement burst — ask `WalkerGeometry.hopSuppressed`, which walks the drive bearing out to
