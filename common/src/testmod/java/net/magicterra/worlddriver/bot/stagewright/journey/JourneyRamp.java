@@ -382,12 +382,58 @@ final class JourneyRamp {
                 // both on the alcove's descending leg. Two waypoints, since this is one leg; the
                 // probe cuts its bands at the FIRST waypoint's row, which is where the body still
                 // is and therefore where the obstruction has to be.
+                rig.evidence(tag + ".standShort.rows", rowsBetween(level, now, from));
                 JourneyCorridorProbe.record(rig, tag + ".standShort", now,
                         new int[][] {{now.getX(), now.getY(), now.getZ()},
                                 {from.getX(), from.getY(), from.getZ()}}, 0, 2);
             }
             then.run();
         });
+    }
+
+    /**
+     * The three questions a walk that fell short leaves open, in one row: can the body descend its
+     * own column, is the target buried, and what is it pressed against right now.
+     *
+     * <p><b>This exists because the corridor maps cannot answer any of them.</b>
+     * {@link JourneyCorridorProbe} cuts at the HIGHEST standable face in its band
+     * ({@code standY} walks down from {@code ref + 4} and returns the first solid-with-air-above),
+     * so a body standing on surface at y=63 hides an alcove at y=56 completely — the run of
+     * 2026-08-26 read {@code n} (=63) for the target's own column and learned nothing about the
+     * seven rows under it. The maps still earn their place for the lie of the land; this row is for
+     * the vertical question they flatten away.
+     *
+     * <p>{@code #} is solid, {@code .} is not, both columns printed top-down over the same span so
+     * the two strings line up character for character.
+     */
+    static String rowsBetween(ServerLevel level, BlockPos now, BlockPos target) {
+        int hi = Math.max(now.getY(), target.getY());
+        int lo = Math.min(now.getY(), target.getY());
+        StringBuilder sb = new StringBuilder("y").append(hi).append("→").append(lo)
+                .append(" 身体柱 ").append(now.getX()).append(',').append(now.getZ()).append('=')
+                .append(rowsOf(level, now.getX(), now.getZ(), lo, hi))
+                .append("；目标柱 ").append(target.getX()).append(',').append(target.getZ())
+                .append('=').append(rowsOf(level, target.getX(), target.getZ(), lo, hi));
+        // The horizontal neighbours are the ones a `hCol=true` actually reports against — the walk
+        // that produced this row stopped with the body pressed into one of them, and until now no
+        // reading said which. Feet and head separately: a body stopped by head clearance and one
+        // stopped by a wall read identically from the outside.
+        sb.append("；四邻（脚/头）");
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            BlockPos side = now.relative(d);
+            sb.append(' ').append(d.getName()).append('=')
+                    .append(level.getBlockState(side).blocksMotion() ? '#' : '.')
+                    .append(level.getBlockState(side.above()).blocksMotion() ? '#' : '.');
+        }
+        return sb.toString();
+    }
+
+    /** One column's solidity, top row first, over {@code [lo, hi]}. */
+    private static String rowsOf(ServerLevel level, int x, int z, int lo, int hi) {
+        StringBuilder sb = new StringBuilder();
+        for (int y = hi; y >= lo; y--)
+            sb.append(level.getBlockState(new BlockPos(x, y, z)).blocksMotion() ? '#' : '.');
+        return sb.toString();
     }
 
     /**
