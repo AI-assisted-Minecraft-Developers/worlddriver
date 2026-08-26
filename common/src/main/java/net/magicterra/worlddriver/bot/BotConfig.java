@@ -70,11 +70,14 @@ public final class BotConfig {
     public static volatile boolean walkerStrideFloorGuard = true;
 
     /** Floor-gate the UNAIMED recovery hops (stuck-wiggle jump, unstuck displacement-burst
-     *  jump): skip the jump when a LETHAL drop column sits within hop range (Chebyshev ≤2)
-     *  of the foot — {@code WalkerGeometry.lethalDropWithinHopRange}. Those hops launch a
-     *  ballistic arc along whatever the current (often mid-slew) heading is; on 1-wide
-     *  elevated footing that arc clears the deck and the stride floor-guard cannot help
-     *  (it only sees GROUNDED velocity — the jump rewrites the trajectory after launch).
+     *  jump): skip the jump when the arc would COME DOWN in a lethal drop column — probed
+     *  along the drive bearing by {@code WalkerGeometry.hopSuppressed}. ⚠️ It was a
+     *  Chebyshev-≤2 ring around the foot until 2026-08-26; that radius held through a
+     *  three-minute deterministic stall while letting a ring-3 hop carry a ladder body into
+     *  a lava lake, so the reach was not widened, it was re-centred on where the arc lands.
+     *  Those hops launch a ballistic arc along whatever the current (often mid-slew) heading
+     *  is; on 1-wide elevated footing that arc clears the deck and the stride floor-guard
+     *  cannot help (it only sees GROUNDED velocity — the jump rewrites it after launch).
      *  Bridge-battery t0 2026-07-20: every shed (breach@t=81/609) was a wiggle-window
      *  sprint-jump from a floored cell one stride inside the rim. AIMED jumps (stepUp,
      *  parkour, riser breakers) are untouched — hurdle-on-a-bridge legitimately jumps.

@@ -305,34 +305,31 @@ public final class WalkerGeometry {
         return false;
     }
 
-    /** True if a LETHAL drop column sits anywhere within HOP RANGE (Chebyshev ≤2) of the
-     *  foot — the landing footprint of an UNAIMED recovery hop (stuck-wiggle, unstuck
-     *  displacement burst). Those hops launch a full sprint-jump arc along whatever the
-     *  current (often mid-slew) heading is, which travels ~3 blocks: a foot-ADJACENT scan
-     *  is blind to it — the bridge-battery sheds launched from one cell INSIDE a safe pad
-     *  rim, every neighbour floored, and sailed clean over the deck edge (t0 2026-07-20,
-     *  breach@t=81/609). Radius 2 covers the arc's reachable columns; lethal-only
-     *  (survivableFall at current HP) so ordinary rough terrain keeps its recovery hops —
-     *  suppressing a hop near a killer edge degrades to a grounded stall, which the
-     *  futile-search cap converts into an honest repath/FAILED instead of a corpse. */
-    public static boolean lethalDropWithinHopRange(WorldView world, Player p, BlockPos foot) {
-        return nearestLethalHopRing(world, p, foot, HOP_RANGE) >= 0;
-    }
-
-    /** The Chebyshev radius {@link #lethalDropWithinHopRange} scans. Named rather than inlined
-     *  because it is one of the two numbers this guard's correctness turns on, and the other —
-     *  the arc a recovery hop actually travels — lives only in prose ("~3 blocks") in the javadoc
-     *  above. A guard whose reach is 2 against a throw of 3 is a guard with a hole exactly one ring
-     *  wide, and on a 5-wide platform the centre cell is the single cell that sits in it. Reading
-     *  the two side by side is what {@link Walker#wiggleHop} prints; do not infer either from the
-     *  comment. */
+    /**
+     * The Chebyshev radius the recovery-hop gate USED to scan around the foot, kept because the
+     * rows that judged it print it and a reader comparing two runs needs the old number in view.
+     *
+     * <p><b>Retired as a gate on 2026-08-26</b> in favour of {@link #hopSuppressed}. The reasoning
+     * it was built on is still correct and is why the replacement exists: those hops launch a full
+     * sprint-jump arc along whatever the current (often mid-slew) heading is — the bridge-battery
+     * sheds launched from one cell INSIDE a safe pad rim, every neighbour floored, and sailed clean
+     * over the deck edge (t0 2026-07-20, breach@t=81/609) — so a foot-ADJACENT scan is blind to
+     * them. What was wrong was the SHAPE of the answer: a guard whose reach is 2 against a throw
+     * measured at 3.47 has a hole exactly one ring wide, and on a 5-wide platform the centre cell
+     * is the single cell that sits in it. Widening it was measured and rejected (it relocates the
+     * hole into a three-minute stall); re-centring the probe on where the arc lands closed both.
+     *
+     * <p>{@code lethalDropWithinHopRange}, the boolean over this radius, is gone with it — the
+     * ring and the CELL that replaced it live in {@link #nearestLethalHopRing} and
+     * {@link #nearestLethalHopCell}, which the rows still print.
+     */
     public static final int HOP_RANGE = 2;
 
     /**
      * The Chebyshev RING of the nearest lethal drop column around {@code foot}, scanning outward
      * ring by ring to {@code scanTo}, or {@code -1} when none is inside it.
      *
-     * <p>Extracted from {@link #lethalDropWithinHopRange} rather than written beside it: the two
+     * <p>Extracted from the retired {@code lethalDropWithinHopRange} rather than written beside it: the two
      * must agree by construction, because the gate's decision and the diagnostic that judges the
      * gate cannot be allowed to disagree about what "a lethal drop" is. The boolean is now this
      * function thresholded at {@link #HOP_RANGE}, so the only difference between them is how far
@@ -415,62 +412,113 @@ public final class WalkerGeometry {
     }
 
     /**
-     * The radii, in blocks along the drive bearing, that {@link #hopLandingRow} samples for a
-     * landing column.
+     * The radii, in blocks along the drive bearing, that {@link #hopSuppressed} probes for a lethal
+     * landing column — and that {@link #hopLandingRow} prints. <b>ONE array</b>, consumed through
+     * one {@link #hopLandingCells}, because a gate and the row that judges the gate must not be
+     * able to disagree about which cells they mean (the same argument that made the ring and the
+     * cell share a scan).
      *
-     * <p>Three and not one because the arc length is a MEASUREMENT with spread, not a constant.
-     * Measured 2026-08-26 off the ladder's rung 12: a hop logged at {@code (-4.854,66,22.577)} put
-     * the body at {@code (-8.257,66,23.234)} twelve ticks later — <b>3.47 blocks</b>, against the
-     * "~3" that {@link #lethalDropWithinHopRange}'s javadoc had carried in prose. A body that
-     * launches slowed lands short of that, one that launches sprinting lands past it, so a single
-     * point probe would be a coin flip on the one decision that costs a life.
+     * <p><b>Why the far end is 4 and not one point at 3.</b> The arc length is a MEASUREMENT with
+     * spread, not a constant. Measured 2026-08-26 off the ladder's rung 12: a hop logged at
+     * {@code (-4.854,66,22.577)} put the body at {@code (-8.257,66,23.234)} twelve ticks later —
+     * <b>3.47 blocks</b>, against the "~3" that the retired gate's javadoc had carried in prose. A body that launches slowed lands short, one that launches sprinting lands
+     * past, so a single point probe would be a coin flip on the one decision that costs a life.
+     *
+     * <p><b>Why the near end is 1.</b> A hop that barely leaves the ground lands one block out —
+     * back inside the ring the old gate covered. Dropping r=1 would trade the old gate's whole
+     * purpose for the new one's reach.
+     *
+     * <p><b>Why half-block steps.</b> Whole-block steps along a diagonal bearing SKIP cells: the
+     * ray clips a corner and the two samples either side of it both land in neighbours. Harmless
+     * against rung 12's 72-source lava lake, blind against a one-cell shaft — and the cost of
+     * closing it is four more array entries, which is sampling density, not a tuned parameter.
      */
-    private static final double[] HOP_ARC_SAMPLES = {2.0, 3.0, 4.0};
+    private static final double[] HOP_ARC_SAMPLES = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0};
 
-    /**
-     * Where the unaimed hop would LAND, and whether those columns are lethal — the reading that
-     * {@link #lethalDropWithinHopRange}'s ring cannot give.
-     *
-     * <p><b>MEASUREMENT ONLY. Nothing branches on it</b>, by the same rule that turned this gate's
-     * boolean into a printed ring rather than simply widening it.
-     *
-     * <p><b>Why a landing probe and not a cone on the bearing.</b> The ring reading established the
-     * gate has a hole one ring wide (reach 2 against a throw of 3.47), and the obvious repair —
-     * widen {@link #HOP_RANGE} — was measured and rejected: at ring 2 the gate already holds
-     * through a three-minute deterministic stall, so widening RELOCATES the hole into the stall
-     * rather than closing it. The next obvious repair, a cone half-angle on {@link
-     * #hopBearingRow}'s delta, buys a free parameter AND leaves the deeper defect untouched: that
-     * scan is centred on the LAUNCH point while the danger is at the LANDING point. The rung-12 hop
-     * quoted above reported "no lethal cell within 4" and put the body 3.47 blocks away with a
-     * lethal column beside it. A probe along the bearing has no half-angle to tune and answers the
-     * launch-vs-landing question in the same stroke.
-     *
-     * <p><b>Drive bearing, not camera.</b> {@code driveYaw} must be {@code WalkerTickDrive}'s
-     * {@code driveTargetYaw} — the channel the impulse is actually rotated onto. Passing
-     * {@code p.getYRot()} here would reproduce {@link #hopBearingRow}'s mistake; the row prints
-     * both and their difference so a run can say how far apart they run at a stall.
-     */
-    public static String hopLandingRow(WorldView world, Player p, BlockPos foot, float driveYaw) {
+    /** The columns {@link #HOP_ARC_SAMPLES} names along {@code driveYaw}, in order and with
+     *  duplicates kept (half-block steps repeat a cell whenever the ray crosses it slowly). Both
+     *  the gate and the row read this — see {@link #HOP_ARC_SAMPLES} on why that matters. */
+    private static List<BlockPos> hopLandingCells(Player p, BlockPos foot, float driveYaw) {
         double r = Math.toRadians(driveYaw);
         double dx = -Math.sin(r), dz = Math.cos(r);           // Minecraft yaw: 0 = +Z, 90 = -X
+        List<BlockPos> out = new ArrayList<>(HOP_ARC_SAMPLES.length);
+        for (double d : HOP_ARC_SAMPLES)
+            out.add(BlockPos.containing(p.getX() + dx * d, foot.getY(), p.getZ() + dz * d));
+        return out;
+    }
+
+    /**
+     * Should an unaimed recovery hop be held? — <b>the gate</b>, true when the arc would come down
+     * in a lethal column along the bearing the body is actually driven on.
+     *
+     * <p><b>This REPLACES the ring test rather than joining it.</b> Both conjunctions were
+     * considered and both are wrong: {@code ring && landing} lets a lethal cell at ring 3 through,
+     * which is precisely the hop a rung-12 ladder body rode into a lava lake; {@code ring ||
+     * landing} only ever suppresses more, which deepens the stall this change exists to lift. The
+     * landing probe SUBSUMES the ring test — a lethal column at Chebyshev ≤2 that lies in the
+     * direction of travel is caught at r=1.0–2.0 — and the cells behind the body, which the ring
+     * test also caught and which no hop can reach, are exactly what it stops suppressing.
+     *
+     * <p><b>Measured, three directed rehearsals (2026-08-26, {@code -Prehearse=PORTAL_LIT
+     * -PforgeAway=east -PshaftColumn=-8,20}), 216 hop rows on the third.</b> Of the old gate's 131
+     * suppressions this rule releases <b>129</b>, and of its 77 firings it suppresses <b>none</b> —
+     * so what changes is the stall, not the hops that already work. The stall it lifts is
+     * deterministic: sixteen consecutive suppressions repeating the same coordinates every ~30 s
+     * for three minutes.
+     *
+     * <p><b>What is NOT measured, and must not be written up as if it were.</b> That same run
+     * produced <b>no</b> firing hop pointed AT a lethal cell, so the death side has no direct
+     * sample. It rests on two independent RECONSTRUCTIONS: the ladder's fatal hop back-solves to a
+     * bearing of 140.7°, whose landing columns are the lake; and the one「toward」ring-3 firing an
+     * earlier rehearsal did produce ({@code t=13294}) came with camera and drive within a few
+     * degrees. No run has yet shown this rule suppressing a hop that would otherwise have killed
+     * the body — which is why the row stays: the next real occasion files its own evidence.
+     *
+     * <p><b>Known limitation.</b> This reads the bearing at LAUNCH, and the walker keeps steering
+     * through the arc — the ladder hop above travelled along a heading its launch angle did not
+     * name. So it predicts where a trajectory that is still being driven would land, not where the
+     * body ends up. A hop released here can still be steered into the cell it was cleared of.
+     *
+     * <p>{@code driveYaw} must be {@code WalkerTickDrive}'s {@code driveTargetYaw} (or, on the
+     * burst path, {@code unstuck.burstYaw}) — the channel the impulse is rotated onto. Passing
+     * {@code p.getYRot()} would reproduce {@link #hopBearingRow}'s mistake.
+     */
+    public static boolean hopSuppressed(WorldView world, Player p, BlockPos foot, float driveYaw) {
+        int threshold = SurvivalMath.survivableFall(p.getHealth());
+        for (BlockPos cand : hopLandingCells(p, foot, driveYaw))
+            if (isLethalDropColumn(world, cand, threshold)) return true;
+        return false;
+    }
+
+    /**
+     * The cells {@link #hopSuppressed} looked at and what it saw — the row that lets a reader
+     * check the gate instead of trusting it.
+     *
+     * <p>Prints the drive angle beside the camera angle and their difference, because the two are
+     * decoupled by design and an earlier version of this instrument measured the wrong one (see
+     * {@link #hopBearingRow}). Duplicate cells are collapsed so half-block sampling does not turn
+     * one column into three entries.
+     */
+    public static String hopLandingRow(WorldView world, Player p, BlockPos foot, float driveYaw) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
         StringBuilder cells = new StringBuilder();
+        BlockPos prev = null;
         boolean anyLethal = false;
-        for (double d : HOP_ARC_SAMPLES) {
-            BlockPos cand = BlockPos.containing(p.getX() + dx * d, foot.getY(), p.getZ() + dz * d);
+        for (BlockPos cand : hopLandingCells(p, foot, driveYaw)) {
+            if (cand.equals(prev)) continue;
+            prev = cand;
             boolean lethal = isLethalDropColumn(world, cand, threshold);
             anyLethal |= lethal;
             if (cells.length() > 0) cells.append('，');
-            cells.append(String.format(java.util.Locale.ROOT, "%.0f格→%s %s", d, cand.toShortString(),
-                    lethal ? "致命" : "安全"));
+            cells.append(cand.toShortString()).append(lethal ? " 致命" : " 安全");
         }
-        return String.format(java.util.Locale.ROOT, "驱动 %.0f°（相机 %.0f°，两者差 %.0f°）；%s ⇒ 落点规则会：%s",
+        return String.format(java.util.Locale.ROOT, "驱动 %.0f°（相机 %.0f°，两者差 %.0f°）；落点柱 %s ⇒ 落点规则：%s",
                 Mth.wrapDegrees(driveYaw), Mth.wrapDegrees(p.getYRot()),
                 Math.abs(Mth.wrapDegrees(driveYaw - p.getYRot())), cells,
                 anyLethal ? "压制" : "放行");
     }
 
-    /** One column's worth of {@link #lethalDropWithinHopRange}: open foot cell, no floor, and the
+    /** One column's worth of {@link #nearestLethalHopCell}'s scan: open foot cell, no floor, and the
      *  fall below it either hazardous anywhere or deeper than {@code threshold}. Lifted verbatim
      *  from that loop's body. ({@link #dropAdjacentExceeds} carries its own copy of this test and is
      *  deliberately left alone — it is on the footing-guard and sprint-brake paths, and folding it in

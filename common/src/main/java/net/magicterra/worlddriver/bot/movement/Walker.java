@@ -1791,17 +1791,17 @@ public final class Walker {
     /**
      * The stuck-wiggle recovery hop — and the one place that says why it did or did not fire.
      *
-     * <p>Moved out of {@code WalkerTickDrive}'s jump expression (it was two lines there, this call
-     * is one) because the decision needs a number the expression threw away. {@code
-     * lethalDropWithinHopRange} is a boolean over Chebyshev ≤{@link WalkerGeometry#HOP_RANGE}, and
-     * the question on the table is whether that radius is smaller than the ~3 blocks the hop's own
-     * javadoc says the arc travels. A boolean cannot answer it; the RING can, so the gate is now
-     * that ring thresholded, and the ring is printed beside the radius. <b>Both numbers are inputs
-     * — do not read the conclusion off the comment.</b>
+     * <p>Moved out of {@code WalkerTickDrive}'s jump expression because the decision needed a
+     * number the expression threw away. It began as {@code lethalDropWithinHopRange}, a boolean
+     * over Chebyshev ≤{@link WalkerGeometry#HOP_RANGE} of the LAUNCH cell; printing the RING
+     * instead of the boolean is what showed the radius (2) to be shorter than the arc (measured
+     * 3.47), and printing the CELL is what made a bearing computable. <b>Those numbers are still
+     * inputs — do not read the conclusion off the comment.</b>
      *
-     * <p>Semantics are unchanged from the expression it replaces, term for term:
-     * {@code precond && stuckTicks > 10 && stuckTicks < 18 && !(gate && lethalDropWithinHopRange)}.
-     * The scan still runs only inside the stuck window, exactly as the old short-circuit arranged.
+     * <p><b>The gate is no longer that ring.</b> It is {@link WalkerGeometry#hopSuppressed}: the
+     * columns the arc would come down in along the drive bearing. The stuck window is unchanged
+     * ({@code precond && stuckTicks > 10 && stuckTicks < 18}), so the scan still runs only inside
+     * it, exactly as the old short-circuit arranged; only the predicate after it moved.
      *
      * <p>One line per EVENT, not per tick: the window is 7 ticks wide and a body sits in it for
      * runs of them, so a per-tick line would be a hose. Entry to the window is the event. Capped at
@@ -1826,10 +1826,10 @@ public final class Walker {
      * through a three-minute stall. Direction is what separates them, so {@link
      * WalkerGeometry#hopBearingRow} prints where the body points against where the lethal cell is.
      * Nothing branches on it yet, by the same rule that turned this gate's boolean into a ring.
-     * ⚠️ That row prints the CAMERA; the body is pushed along {@code driveTargetYaw}, which is
-     * decoupled from it by design, so {@link WalkerGeometry#hopLandingRow} prints the drive angle,
-     * the columns the arc would land in, and what a landing rule would decide. Read its javadoc
-     * before treating either angle as a lever — and neither row is one yet.
+     * ⚠️ That row prints the CAMERA; the body is pushed along {@code driveTargetYaw}, decoupled
+     * from it by design, so it is NOT the gate. The gate is {@link WalkerGeometry#hopSuppressed} —
+     * the arc's own landing columns along the DRIVE bearing, which subsumes the ring test rather
+     * than joining it — and {@link WalkerGeometry#hopLandingRow} prints the cells it read.
      *
      * <p>Why this earns a line at all: rung 20's takeoff samples showed the body already airborne
      * with {@code 距上次起跳=7}, and eliminating the jump terms that need a riser or water leaves
@@ -1843,10 +1843,10 @@ public final class Walker {
         if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
         BlockPos lethal = WalkerGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
         int ring = WalkerGeometry.ringOf(foot, lethal);
-        boolean gated = BotConfig.walkerRecoveryHopFloorGate && ring >= 0 && ring <= WalkerGeometry.HOP_RANGE;
+        boolean gated = BotConfig.walkerRecoveryHopFloorGate && WalkerGeometry.hopSuppressed(world, p, foot, driveYaw);
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
-            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={} {} | {}",
+            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 旧闸半径={} 最近致命格={} 闸={} 起跳={} {} | {}",
                     wiggleEvents, WIGGLE_EVENTS,
                     p.level().getGameTime(), stuckTicks, foot.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),

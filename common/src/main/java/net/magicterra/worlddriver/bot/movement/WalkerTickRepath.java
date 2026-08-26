@@ -193,8 +193,7 @@ final class WalkerTickRepath {
             // where the stride floor-guard (grounded-velocity only) can no longer help.
             // The grounded displacement is kept: drift toward a lip stays covered by the
             // guard's sneak-pin; only the airborne launch is unguarded, so only it is cut.
-            boolean burstJump = !(BotConfig.walkerRecoveryHopFloorGate
-                    && lethalDropWithinHopRange(world, p, foot));
+            boolean burstJump = burstHopAllowed(wk, world, p, foot);
             if (burstJump) wk.jumpTag = "unstuckBurst";
             wk.avatarJump(a, burstJump);
             p.setSprinting(false);
@@ -202,6 +201,34 @@ final class WalkerTickRepath {
         }
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         return null;
+    }
+
+    /**
+     * The displacement burst's own copy of {@link Walker#wiggleHop}'s decision — and the only line
+     * that will ever say what it decided.
+     *
+     * <p><b>The second consumer of the same guard, so it inherited the same defect.</b>
+     * {@code lethalDropWithinHopRange} was a Chebyshev-2 ring around the LAUNCH cell measured
+     * against an arc of 3.47 blocks; repairing only {@code Walker#wiggleHop} would have left the
+     * identical hole open on the door beside it. This path is the easier of the two to reason
+     * about, because a burst already carries an explicit escape bearing — {@code unstuck.burstYaw},
+     * the very heading {@code commandMove} pushes the body along two lines above — so it never had
+     * to be handed the drive channel at all.
+     *
+     * <p><b>It logs because it never has.</b> One directed rehearsal produced 216 rows from the
+     * wiggle path and <b>zero</b> from this one, so this gate's first firing would have had nothing
+     * to be attributed to and its silence would have read as an all-clear. Throttled by
+     * {@code burstTicks} rather than latched: a burst is armed at 14 or 16 ticks, so {@code % 8}
+     * prints exactly twice per episode, and BOTH outcomes print — a row that only appears when the
+     * hop is cut cannot tell a reader the gate was consulted and said yes.
+     */
+    private static boolean burstHopAllowed(Walker wk, WorldView world, Player p, BlockPos foot) {
+        boolean allowed = !(BotConfig.walkerRecoveryHopFloorGate
+                && hopSuppressed(world, p, foot, wk.unstuck.burstYaw));
+        if (wk.unstuck.burstTicks % 8 == 0)
+            LOG.info("[walker] 解卡突进跳: 起跳={} 身体={} 剩余={} | {}", allowed, foot.toShortString(),
+                    wk.unstuck.burstTicks, hopLandingRow(world, p, foot, wk.unstuck.burstYaw));
+        return allowed;
     }
 
     /**
