@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot.stagewright.journey;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -39,6 +40,14 @@ import net.minecraft.world.item.ItemStack;
  * had a name for: the food was found, the hold took, {@code startUsingItem} took, the wait returned
  * — and the bar read {@code 8→8}. Start and finish both happened; the middle did not. {@link Bite}
  * exists to say which middle.
+ *
+ * <p><b>And it answered on its first run.</b> The middle was never a middle: the hand held a BUCKET
+ * at the instant the use began, so a zero-duration item was "eaten" and the flag cleared one tick
+ * later. Neither of the two candidates the trace was built to separate — an outside
+ * {@code stopUsingItem}, or a completion that fed nothing — was the answer, and neither would have
+ * been found by reasoning about food. What settled it is that {@link Bite} prints the item's ID
+ * rather than a same/different boolean: the two ids matched each other and neither was the food.
+ * The wait added above is the whole fix.
  */
 final class JourneyFeed {
 
@@ -113,12 +122,52 @@ final class JourneyFeed {
             afterEating(rig, tag, n, then);
             return;
         }
-        if (!JourneyHands.holdBoth(rig, JourneyRig.item(chosen))) {
+        Item want = JourneyRig.item(chosen);
+        if (!JourneyHands.holdBoth(rig, want)) {
             // Same failure the weapon hold reports: owning it and holding it are different questions.
             rig.evidence(tag + ".feed.hold", "拿不到手上：" + chosen + "（手里是 " + rig.heldItemId() + "）");
             afterEating(rig, tag, n, then);
             return;
         }
+        // THE HOLD IS A PACKET, NOT AN ASSIGNMENT — wait for it to land before starting the use.
+        // The first run to get a trace here (2026-08-26) read
+        // 「还在吃了 1 tick；useItemRemaining=0；那一刻手里=minecraft:bucket、正在用的是=minecraft:bucket」
+        // with beef in slot 4 by the time the row was written. `holdBoth` returned true, and it was
+        // telling the truth about what it had SENT; the client's swap click had not reached the
+        // server yet, so the server-side `startUsingItem` one line later picked up the bucket the
+        // portal-kit rung had just crafted. A bucket's use duration is zero, so the flag cleared on
+        // the next tick and the bar never moved. `JourneyHands.holdBoth`'s own javadoc records the
+        // same shape from rung 12's `water6`, where the click landed BEFORE the use packet and made
+        // the client the single correct author — but that ordering guarantee belongs to actions sent
+        // over the connection, and this one is a direct server call, which reads the hand as it is
+        // right now. So this waits for the hand rather than trusting the send.
+        awaitHand(rig, tag, n, want, chosen, () -> startBite(rig, tag, n, chosen, then), then);
+    }
+
+    /** How long to let the hold's packet land. Twenty ticks is a second — far longer than a
+     *  round-trip on an integrated server, and short enough that a hold that will never land does
+     *  not eat the rung's budget. */
+    private static final int HOLD_TICKS = 20;
+
+    /** Wait for the SERVER's hand to be the food, then eat; on timeout say so and carry on. */
+    private static void awaitHand(JourneyRig rig, String tag, int n, Item want, String chosen,
+                                  Runnable eat, Runnable then) {
+        ServerPlayer fp = rig.player();
+        if (fp.getMainHandItem().getItem() == want) { eat.run(); return; }
+        rig.await(() -> rig.player().getMainHandItem().getItem() == want, HOLD_TICKS, () -> {
+            if (rig.player().getMainHandItem().getItem() != want) {
+                rig.evidence(tag + ".feed.holdLate" + n, "等了 " + HOLD_TICKS + " tick，服务端手里仍不是 "
+                        + chosen + "（是 " + rig.heldItemId() + "）—— 不开吃，否则吃的是别的东西");
+                afterEating(rig, tag, n, then);
+                return;
+            }
+            eat.run();
+        });
+    }
+
+    /** The bite itself, entered only once the hand is known to hold the food. */
+    private static void startBite(JourneyRig rig, String tag, int n, String chosen, Runnable then) {
+        ServerPlayer fp = rig.player();
         int foodBefore = fp.getFoodData().getFoodLevel();
         fp.startUsingItem(InteractionHand.MAIN_HAND);
         if (!fp.isUsingItem()) {
