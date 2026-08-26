@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A pour's row retry now asks a different question from the one that sent it back.**
+  When `JourneyPour#raiseTo` found the body more than `POUR_ROW_SLACK` rows above `wantY`, it walked
+  a full `returnToTheForge` and then called itself again — with the same column, the same
+  `walkToColumn`, and the same `Goal.XZ`. `Goal.XZ.ignoresY()`, so the surface belongs to the target
+  column too and, from a shaft floor, is that column's cheapest cell. The descent worked; the second
+  ascent went straight back up.
+
+  Measured, rung 12's client rehearsal of 2026-08-26: `raiseRowRetry.returnedY = 57` with a landing
+  of `1.83/57.00/19.52`, onGround and out of the water — then
+  `raiseTo.arrivedY = 64（起 57，净升 7）` on `grass_block`, six rows above a `wantY` of 58, reported
+  as an arrival because the leg judges 「距 2,20 一格，容差 5」 with Y discarded. The gate that caught
+  it also predicted the consequence in words —「下面这一浇多半会被射线闸拦下，失败记在浇上而不是记在
+  这一排上」— and the run failed exactly there. **The gate was right; its remedy was the part that
+  could not work.**
+
+  The retry — only the retry, and only when pouring — now walks a
+  `Goal.Near(col at wantY, POUR_ROW_SLACK)` under `NoBreak`. `Near` and not `Block`:
+  `Walker#snapGoalToStandable` pulls an unstandable `Goal.Block` to the nearest standable cell, which
+  when the column is occupied is the surface — the same defect rebuilt inside the goal. The radius is
+  `POUR_ROW_SLACK` so this leg and the `over` check downstream are one bar in one place. First
+  attempts are untouched: a long 3D route from wherever the rung left the body is unmeasured. The
+  scoop side is untouched too, because its own remedy — `buildTo` with `exactRow` — would never get
+  its turn again if this ran ahead of it.
+
+  Next rehearsal: the retry fired twice and landed low both times — `cast7` at `2,57,20`, **1.00**
+  from its target, and `cast8` at `1,57,19` — with `raiseRowGaveUp` and `raiseStuck` both at zero,
+  one each before. The cast frontier moved from `cast7` to `cast8`.
+
 - **A body that can already swing at a cell no longer walks off to find somewhere to stand.**
   `JourneyPortalRung#standBehind` decided that with `withinDigReach` alone — `DIG_ARRIVE = 2`, a
   cell-centre distance whose javadoc is explicit about where the number comes from: it matches the
