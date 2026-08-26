@@ -197,8 +197,19 @@ public final class ClientWorldView implements WorldView {
         if (lvl == null) return false;
         VoxelShape shape = s.getCollisionShape(lvl, p);
         if (shape.isEmpty()) return false;
-        // A valid floor needs a FULL 1×1 top face to stand on (full blocks, leaves,
-        // slabs, snow layers, soul sand → yes; cocoa pods, fences, partial pods → no).
+        // A valid floor needs a FULL 1×1 top face on the COLLISION shape.
+        //   pass: full cubes (leaves included), TOP-half slabs, double slabs
+        //   fail: cocoa, fences, BOTTOM-half slabs, and — despite being walkable —
+        //         the 14/16-tall family: soul_sand, soul_soil, mud, and snow at EVERY
+        //         layer count. SnowLayerBlock.getCollisionShape indexes
+        //         SHAPE_BY_LAYER[layers - 1], so even layers=8 yields the 14/16 box;
+        //         vanilla itself works around this with an explicit LAYERS == 8 case
+        //         in SnowLayerBlock.canSurvive.
+        // This is STRICTER than BotConfig.isUsableBuildBlock's isFaceSturdy(UP), which
+        // accepts that same 14/16 family as placeable footing. The two disagree on
+        // purpose — the planner refuses to route over what it cannot guarantee, while
+        // placement accepts what the body demonstrably stands on — but nothing else
+        // states that, so do not "align" them without reading both call sites.
         return Block.isFaceFull(shape, Direction.UP);
     }
     @Override public Vec3 waterFlow(BlockPos p) {

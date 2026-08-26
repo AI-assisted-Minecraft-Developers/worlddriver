@@ -214,9 +214,20 @@ public final class BotUtil {
      * user-configurable {@code BotConfig.extraHazardBlocks} (Baritone-style {@code blocksToAvoid})
      * is checked LAST so the built-ins stay short-circuit cheap.
      *
-     * <p><b>Not every {@code isHazard} belongs here.</b> {@code bot.debug.GridWorldView} answers a
-     * flat {@code false} on purpose — it is a synthetic grid for the path-debug tools with no level
-     * to ask — so it is a fourth answer to a different question, not a straggler to route in.
+     * <p><b>Not every {@code isHazard} belongs here.</b> Two others answer deliberately
+     * differently, and neither is a straggler to route in:
+     * <ul>
+     *   <li>{@code bot.debug.GridWorldView} answers a flat {@code false} — a synthetic grid for
+     *       the path-debug tools, with no level to ask.</li>
+     *   <li>{@code auto.ContactDamageEscape.isContactHazard} reuses {@link #HAZARD_BLOCKS} and
+     *       {@link BlockTags#FIRE} but drops BOTH the lava clause and
+     *       {@code extraHazardBlocks}. That reflex exists for CONTACT damage (cactus, magma,
+     *       sweet berries) and lava has its own dedicated escape beside it, so folding lava in
+     *       would make the two reflexes fight over the same body. The user list is omitted
+     *       because {@code blocksToAvoid} means "route around", not "I am being hurt".</li>
+     * </ul>
+     * Both are narrower than this method on purpose; widening either one is a behaviour change,
+     * not a cleanup.
      */
     public static boolean isHazardState(BlockState s) {
         if (s.getFluidState().is(FluidTags.LAVA)) return true;
@@ -247,7 +258,14 @@ public final class BotUtil {
 
     /**
      * Can a body stand with its feet in {@code foot}: a floor that blocks motion under it, and
-     * both body cells clear of anything that does (water excepted — a body wades).
+     * both body cells clear of anything that does, with a water exception.
+     *
+     * <p>That exception reaches less than it reads. {@code Blocks.WATER.blocksMotion()} is
+     * {@code false}, so a plain water cell is already clear and never tests the
+     * {@code !is(Fluids.WATER)} clause at all. The clause only ever fires for a WATERLOGGED
+     * SOLID — a waterlogged slab, stairs or fence, which blocks motion AND reports fluid
+     * WATER — and its effect there is to admit that cell as body space. So this is not "a body
+     * wades"; it is "a waterlogged block does not count as an obstruction".
      *
      * <p><b>The answer for most of the process family — not yet all of it.</b>
      * {@code BboxFillProcess}, {@code FarmProcess} and {@code MineProcess} each carried a

@@ -1105,7 +1105,18 @@ public final class MineProcess implements BotProcess {
         return findReachStand(lvl, block);
     }
 
-    /** Vanilla survival block-interaction reach is 4.5; keep a hair inside it. */
+    /**
+     * Eye-to-block-CENTRE budget for a reach-across stand — not the vanilla 4.5.
+     *
+     * <p>Vanilla measures to the block's nearest SURFACE:
+     * {@code canInteractWithBlock} tests {@code new AABB(pos).distanceToSqr(eye)} against
+     * {@code blockInteractionRange() + padding}. This scan measures to {@code pos + 0.5}
+     * (see {@code findReachStand}), which is up to ~0.87 further for the same block, so
+     * 4.4-to-centre is roughly 3.9-to-face: about 0.6 TIGHTER than vanilla, not "a hair
+     * inside" it. Kept deliberately conservative — a stand that only just reaches works
+     * until the body's own bob moves the eye — but do not raise it toward 4.5 believing
+     * that merely restores parity; the two numbers measure different distances.
+     */
     private static final double MAX_REACH = 4.4;
     /** Horizontal disk radius scanned for a dry reach-across stand. */
     private static final int REACH_SCAN_H = 4;
@@ -1123,8 +1134,9 @@ public final class MineProcess implements BotProcess {
         for (int dx = -REACH_SCAN_H; dx <= REACH_SCAN_H; dx++) {
             for (int dz = -REACH_SCAN_H; dz <= REACH_SCAN_H; dz++) {
                 // dy reaches -5 so a bot can stand directly under an overhead block
-                // and mine straight UP (eye→center of a block 4–5 up is within the
-                // 4.5 reach): the leaf-encased canopy log / low-ceiling case.
+                // and mine straight UP (eye→centre of a block 4–5 up is within
+                // MAX_REACH — see its javadoc; that is a centre distance, not the
+                // vanilla 4.5 face distance): the canopy log / low-ceiling case.
                 for (int dy = -5; dy <= 2; dy++) {
                     // Same-column candidates are valid ONLY below the target (stand
                     // under it, mine up). A same-column stand at/above the target is

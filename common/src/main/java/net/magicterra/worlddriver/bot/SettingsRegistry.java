@@ -43,8 +43,10 @@ import java.util.Set;
  * {@code mc.bot.setting}, echoed back as set, and changes nothing; the caller, often an LLM,
  * gets every signal that it worked. {@code SettingsConsumerTest} (common/src/test) closes
  * that side: it takes the key set from {@link #reflectivePrimitiveFields()} — this method,
- * not a re-parse — and fails if any key is unread outside the settings plumbing. All 218
- * are consumed today.
+ * not a re-parse — and fails if any key is unread outside the settings plumbing. Every key
+ * is consumed today. (Deliberately not stated as a count: the number here read 218 while the
+ * surface had grown to 224, and a stale total is exactly the kind of claim that test exists
+ * to make unnecessary — it enumerates, so nobody has to trust a written-down figure.)
  */
 public final class SettingsRegistry {
     private SettingsRegistry() {}
