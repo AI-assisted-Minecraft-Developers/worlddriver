@@ -143,43 +143,7 @@ final class WalkerTickRepath {
             // bobs there until an unrelated repath happens to diverge (a 600+-tick
             // stall observed on a steep mountain). Soft + decaying, so a sole route
             // is still taken eventually.
-            if ((wk.stuckTicks > STUCK_TICKS || wedged || fellOffPath) && wk.path != null && wk.step < wk.path.size()) {
-                // fellOffPath included: the step node the bot FELL AWAY from is a
-                // demonstrably fragile traverse (mountain high route) — charge it
-                // so the immediate re-search doesn't commit the same brittle line.
-                world.penalizeStuckNode(wk.path.get(wk.step));
-                // Also penalize the cells at the bot's NOSE. After string-pulling
-                // the current step node can sit many blocks past the actual
-                // obstruction (live 2026-06-09: afloat in a 1-wide flooded crevice,
-                // carrot 10 blocks south, zero displacement for ~50 s) — punishing
-                // only that far carrot leaves the choke point itself cheap, so
-                // every re-search threads the same impassable gap from the same
-                // foot and returns the same segment. Charging the blocks directly
-                // ahead makes the next search route AROUND the choke (other bank /
-                // over the top) instead of back into it.
-                BlockPos nose = foot.relative(p.getDirection());
-                // In a deep-water bowl pocket a single-cell nose charge barely
-                // shifts A*'s cost — an adjacent equally-cheap water cell funnels
-                // the next search straight back in, so the pocket only prices out
-                // after a dozen slow over-water repaths (~27 s observed live,
-                // round76 NE leg at 2307,62,2579). The land-churn escape already
-                // ESCALATES its priced-out radius each repeat; the safety-repath
-                // nose charge did not, the asymmetry IS the deep-water latency.
-                // When the SAME foot wedges repeatedly IN WATER, widen the charge
-                // with the existing same-foot repath counter so the bowl is priced
-                // out in a few cycles, not a dozen. Land/first-wedge keep radius 0
-                // (loop runs once at the nose) — behaviour there is unchanged.
-                // Soft+decaying → a sole route is still taken; gated to repeated
-                // water wedges so it can't misfire on legitimate slow progress
-                // (the foot must stay put across repaths to grow the counter).
-                int chargeR = world.isWater(foot) ? Math.min(wk.unstuck.wedgeRepathsHere, 2) : 0;
-                for (int dx = -chargeR; dx <= chargeR; dx++)
-                    for (int dz = -chargeR; dz <= chargeR; dz++) {
-                        BlockPos c = nose.offset(dx, 0, dz);
-                        world.penalizeStuckNode(c);
-                        world.penalizeStuckNode(c.above());
-                    }
-            }
+            penalizeWedgeNodes(wk, p, world, foot, wedged, fellOffPath);
             wk.seg.activeSearch = wk.newPathFinder(world).newSearch(searchFoot, wk.goal);
             wk.seg.searchFromEnd = false;
             wk.seg.searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
@@ -238,5 +202,66 @@ final class WalkerTickRepath {
         }
         // ---- publish: write this phase's products for the downstream phases (WalkerTickCtx) ----
         return null;
+    }
+
+    /**
+     * Price out the cells a wedged body keeps re-planning into, so the re-search that follows
+     * routes AROUND the obstruction instead of straight back at it.
+     *
+     * <p><b>Where the cut is, and why here.</b> Lifted verbatim out of {@link #run}, which had
+     * drifted two lines over its budget. This is the one block in that method where nothing flows
+     * back out: it reads {@code wk}/{@code world}/{@code foot}, calls only
+     * {@code world.penalizeStuckNode}, declares no local that the rest of the tick reads, and
+     * contains no {@code return} of its own — so the guard became an early return and the call
+     * site became one line. Nothing else in {@code run} separates that cheaply; every other block
+     * either returns a {@link Walker.Step} that ends the tick, or writes a local the next block
+     * consumes. Bodies are unchanged, which is the standing rule for this file.
+     *
+     * <p><b>The parameter that had to be checked before moving anything.</b> {@code p} is already
+     * declared {@code Player} at the call site ({@code cx.frame.p}), so this signature is NOT a
+     * widening. Hard rule 12 exists because handing a client type to a wider formal from a
+     * dual-loaded class kills the dedicated server at class-load time, and "extract a method" is
+     * exactly the tidy-up that disguise hides in — {@code bot/movement/**} is dual-loaded, so this
+     * is safe only because the local was never the client type. Re-check it, do not assume it.
+     */
+    private static void penalizeWedgeNodes(Walker wk, Player p, WorldView world, BlockPos foot,
+                                           boolean wedged, boolean fellOffPath) {
+        if (!((wk.stuckTicks > STUCK_TICKS || wedged || fellOffPath)
+                && wk.path != null && wk.step < wk.path.size())) return;
+        // fellOffPath included: the step node the bot FELL AWAY from is a
+        // demonstrably fragile traverse (mountain high route) — charge it
+        // so the immediate re-search doesn't commit the same brittle line.
+        world.penalizeStuckNode(wk.path.get(wk.step));
+        // Also penalize the cells at the bot's NOSE. After string-pulling
+        // the current step node can sit many blocks past the actual
+        // obstruction (live 2026-06-09: afloat in a 1-wide flooded crevice,
+        // carrot 10 blocks south, zero displacement for ~50 s) — punishing
+        // only that far carrot leaves the choke point itself cheap, so
+        // every re-search threads the same impassable gap from the same
+        // foot and returns the same segment. Charging the blocks directly
+        // ahead makes the next search route AROUND the choke (other bank /
+        // over the top) instead of back into it.
+        BlockPos nose = foot.relative(p.getDirection());
+        // In a deep-water bowl pocket a single-cell nose charge barely
+        // shifts A*'s cost — an adjacent equally-cheap water cell funnels
+        // the next search straight back in, so the pocket only prices out
+        // after a dozen slow over-water repaths (~27 s observed live,
+        // round76 NE leg at 2307,62,2579). The land-churn escape already
+        // ESCALATES its priced-out radius each repeat; the safety-repath
+        // nose charge did not, the asymmetry IS the deep-water latency.
+        // When the SAME foot wedges repeatedly IN WATER, widen the charge
+        // with the existing same-foot repath counter so the bowl is priced
+        // out in a few cycles, not a dozen. Land/first-wedge keep radius 0
+        // (loop runs once at the nose) — behaviour there is unchanged.
+        // Soft+decaying → a sole route is still taken; gated to repeated
+        // water wedges so it can't misfire on legitimate slow progress
+        // (the foot must stay put across repaths to grow the counter).
+        int chargeR = world.isWater(foot) ? Math.min(wk.unstuck.wedgeRepathsHere, 2) : 0;
+        for (int dx = -chargeR; dx <= chargeR; dx++)
+            for (int dz = -chargeR; dz <= chargeR; dz++) {
+                BlockPos c = nose.offset(dx, 0, dz);
+                world.penalizeStuckNode(c);
+                world.penalizeStuckNode(c.above());
+            }
     }
 }
