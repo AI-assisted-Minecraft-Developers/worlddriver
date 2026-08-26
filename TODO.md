@@ -932,7 +932,10 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
 1. 补一步之后仍浮着，`bankRow` 只记一笔就往下走，而那行键叫 `lava.exit.ashore`（上岸）在脚下是水时照打 ⇒ 判词撒谎。
 2. ⚠️ **「脚下垫一块」这个写死步骤的几何不成立**：浮体在 y=220、岸在 221，`at.below()` 是 219，
    垫上去身体仍低岸一格。真几何要先读 `JourneyLandingScenes` 的布景再定，别照 J47 那句原文抄。
-3. 🔴 **`ccaf6861` 那个「容差 0」根本没生效，而它是最上游的一件。**
+3. 🔴 **`ccaf6861` 那个「容差 0」根本没生效——它管的是报告诚实性，不是这个场景的上游。**
+   （上游是 J47：2026-08-26 闸实测 `lava.lastStep.gotoEnd.1=end=path-consumed`，
+   路本身就只到差 1 格处，所以收紧判据只会把「假上岸」换成「走不到」，见本条末尾。
+   `JourneyLandingScenes:45-55` 的场景注释早写着这一点，两处别再各说各的。）
    `WorldDriverJourneyScenes:778/795`：`tolerance` 只喂给 `Goal.XZ`，判到达写死 `away <= ARRIVED_WITHIN`。
    2026-08-26 闸的证据：`lava.lastStep` 传 0，`gotoEnd.1` 照印「容差 5」、距 1 格判到达。
    ⚠️ **别一刀把 795 改成 `away <= tolerance`。** 普查了 14 个调用点：传 **0** 的有 **8** 个
