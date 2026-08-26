@@ -33,11 +33,11 @@
 
 | 路径 | 读者 | 状态 | 最后核对 | 备注 |
 |---|---|---|---|---|
-| `README.md` | user | current | — | 英文主页；三个 transport 的连法目前最全的一份 |
-| `README-zh_CN.md` | user | current | — | 中译；**必须与 `README.md` 同批改** |
-| `AGENTS.md` | dev | **stale** | 2026-08-26 | canonical 开发约定。⚠️ 场景数写「222（171 `wd.*`）」，实为 **322**——见下方 P1 |
+| `README.md` | user | **stale** | 2026-08-26 | 英文主页。⚠️「Sandboxed Rhino」是假的：类过滤器默认**关**——见下方 S1 |
+| `README-zh_CN.md` | user | **stale** | 2026-08-26 | 中译，同一句假陈述（196 行）；**必须与 `README.md` 同批改** |
+| `AGENTS.md` | dev | **stale** | 2026-08-26 | canonical 开发约定。⚠️ 两处：场景数写「222（171 `wd.*`）」实为 **322**（P1）；91 行的 sandbox 硬规则同 S1 |
 | `CLAUDE.md` | meta | **stale** | 2026-08-26 | 三行指针。⚠️ 末句「Both files are kept in sync」描述了一个不存在的关系——见下方 P2 |
-| `CONTRIBUTING.md` | dev | current | — | 外部贡献者入口：构建 / 测试 / 布局 / 约定 / 日志位置 |
+| `CONTRIBUTING.md` | dev | **stale** | 2026-08-26 | 外部贡献者入口。⚠️ 93 行「Sandbox safety」把默认关的过滤器写成硬性关卡——见 S1 |
 | `ROADMAP.md` | dev·history | — | — | N0–N5 里程碑梯 + E1/E2；排期归它 |
 | `CHANGELOG.md` | history | **keep** | — | ⛔ 行为变更史，**永不删**（543KB） |
 | `TODO.md` | meta | — | — | 主线活工作日志（119KB）。**他人所有，本角色不动** |
@@ -46,7 +46,7 @@
 | `TODO-rung20-stand.md` | meta | delete-candidate | — | 同上 |
 | `path-replay/README.md` | dev | — | — | replay 工具链用法（record / replay / analyze） |
 | `scripts/.claude/skills/worlddriver-rpc/SKILL.md` | user·dev | — | — | ⚠️ 跨平台，Linux 主机也读它——别写 Windows 专用指令 |
-| `scripts/.claude/skills/worlddriver-rpc/references/methods.md` | user·dev | — | — | 72 方法 RPC 参考；方法数与 `DriverApi` 今日实测的 72 一致 |
+| `scripts/.claude/skills/worlddriver-rpc/references/methods.md` | user·dev | **stale** | 2026-08-26 | 72 方法 RPC 参考。⚠️ 296 行 `mc.script.eval` 写「sandboxed…No file/network/reflection」同 S1，且「server thread」与 `ScriptEvaluator` 的 worker 线程相反 |
 
 ## 二、`docs/` 顶层
 
@@ -62,6 +62,16 @@
 | `docs/parity-setpos-centre-snap.md` | dev·history | — | — | 一次格心吸附审计的结论 |
 | `docs/drown-escape-design.md` | dev | — | — | drownEscape 调研；自述 §4 已建成、§5 未建 |
 | `docs/stagewright/migration-log.md` | history | **keep** | — | 自述为 migrate-then-delete 的**永久审计记录**——名字像日志，实为存档 |
+
+## 二之二、`docs/user/` — 用户线，2026-08-26 起
+
+| 路径 | 读者 | 状态 | 最后核对 | 备注 |
+|---|---|---|---|---|
+| `docs/user/transports.md` | user | current | 2026-08-26 | 三 transport 的选择表 + 端口 + RPC 线协议 + Rhino 两种入口 + 安全姿态。**逐条对着源码写的**，不是从 `README.md` 抄的 |
+
+⚠️ `docs/mcp-clients.md` **没有**搬进 `docs/user/`：`README.md`、`CONTRIBUTING.md` 与
+`docs/claude_desktop_config.example.json` 都按现路径链接它，而那三份都在本角色写权限之外。
+`transports.md` 的 MCP 一节只留指针，不复述——**两份 MCP 文档必然分叉**。
 
 ## 三、`docs/design/` — 5 份，2026-06-04 的原始设计
 
@@ -147,11 +157,16 @@
 目标结构是两条读者线：`docs/user/`（装了 mod 的人能做什么）与 `docs/dev/`（在库里加东西要知道什么）。
 **两个目录目前都不存在。** 建它们的素材大都已在 `AGENTS.md` 与 `README.md` 里，是重组不是从零写。
 
+⛔ **`docs/**` 之外的改动需要那一轮的任务说明明确给出写权限。**
+2026-08-26 第二轮的写范围只有 `docs/**`，P1/P2/S1 目标全在根级，**只能记账不能改**。
+它们不降级、仍在队首——下一轮拿到根级写权限就先做它们。
+
 | # | 事项 | 类型 | 为什么排这里 |
 |---|---|---|---|
-| **P1** | 修 `AGENTS.md` 的场景数 | 核对 | **今日已核实错**，且这句话历史上错过三次 |
-| **P2** | 修 `CLAUDE.md` 末句的「kept in sync」 | 核对 | **今日已核实假**；与 P1 同类（正典文档里的假陈述），且只改一句话 |
-| P3 | `docs/user/transports.md` | 补 | 三 transport 只有 MCP 有 user 文档；RPC 只活在 skill 里，Rhino 一份没有 |
+| **S1** | 清掉「Rhino 是沙箱」的假陈述（6 处） | 核对 | **今日已核实假**，且它是**安全**陈述：读者据此决定要不要把端口挪出 loopback |
+| **P1** | 修 `AGENTS.md` 的场景数 | 核对 | **已核实错**，且这句话历史上错过三次 |
+| **P2** | 修 `CLAUDE.md` 末句的「kept in sync」 | 核对 | **已核实假**；与 P1 同类（正典文档里的假陈述），且只改一句话 |
+| ~~P3~~ | ~~`docs/user/transports.md`~~ | 补 | **2026-08-26 已建**，见上方 `docs/user/` 一节 |
 | P4 | `docs/dev/architecture.md` | 补 | `DriverApi` 单一真相 / transport 只翻译 / 写路径过 `server.execute()` |
 | P5 | 删除波 1：自称 SUPERSEDED 的 2 份 plan | 删 | 判据无歧义，不需要核实完成状态 |
 | P6 | `docs/user/capabilities.md` | 补 | 72 个 `mc.*` 方法按能力分族，让人知道能让 LLM 干什么 |
@@ -163,6 +178,36 @@
 | P12 | 删除波 3+：导航意图层 9 份 + 其余 13 份 | 删 | 逐份核实，最慢 |
 | P13 | `coverage-exemptions.md` 标题去掉 `task#95b` | 核对 | 违反禁编号，顺手 |
 | P14 | `scripts/agent-driver-channel.mcp.json.example` 的旧项目名 | 核对 | `agent-driver` 已改名 WorldDriver；文件名与内容都要看 |
+
+### S1 的证据与正确改法
+
+`ScriptClassFilter.java` 第 23 行：
+
+```java
+private static final boolean DISABLED = !"on".equalsIgnoreCase(System.getProperty("worlddriver.sandbox", "off"));
+```
+
+⇒ **默认 `off`，`isAllowed` 第一行就 `return true`，整张 denylist 不生效。**
+类注释写明这是 2026-07-17 的用户指令（脚本是第一方能力，安全归调用方）。
+没有任何 `*.gradle` 设过 `-Dworlddriver.sandbox=on`。
+
+六处受影响，全部在本角色写权限之外，**按危害排序**：
+
+| 位置 | 现文 | 为什么危害是这个次序 |
+|---|---|---|
+| `mcp/catalog/ScriptTools.java:28` | `Sandboxed (no file/network/reflection)` | **最重**：它是 tool schema，**进每个 LLM 客户端的 prompt**——模型据此判断这个动词安不安全 |
+| `README.md:6,220-222` | `sandboxed` / `ScriptClassFilter blocks …` | 主页；读者据此决定要不要开 `rpcHost` |
+| `README-zh_CN.md:196` | 同上中译 | 与 `README.md` **同批改** |
+| `scripts/.claude/skills/worlddriver-rpc/references/methods.md:296` | `sandboxed … No file/network/reflection` | 顺带：同行的「server thread」也与 `ScriptEvaluator` 的 worker 线程矛盾 |
+| `CONTRIBUTING.md:93` | `Any new Rhino-exposed surface must pass through ScriptClassFilter` | 它要求的关卡默认不在路径上 |
+| `AGENTS.md:91` | 「Don't widen the Rhino sandbox」硬规则 | 同上；`08_sandbox.js` 断言「必须被拒」而默认放行 |
+
+⚠️ **改法不是把默认翻回 `on`**（那是在改行为，不是改文档，且推翻一条用户指令），
+而是让每处都带上默认值：**过滤器存在、默认关、`-Dworlddriver.sandbox=on` 开**。
+`docs/user/transports.md` 的 Security 一节已按这个写法落了一份，可直接抄。
+
+⚠️ 还有一条**不是文档问题**，只记不动：`08_sandbox.js` 五条断言「危险类必须抛异常」，
+而默认配置下它们不会。它归代码角色，本角色只记账。
 
 ### P1 的正确改法
 
@@ -204,5 +249,26 @@
 「内容已读，无误」——读的是它说了什么，没读它说的是不是真的。教训已固化成上面
 「我读过不能当我核过」那条规矩，因为三行文件下次还会这样免检。
 
-**下一轮：P1** —— 把 `AGENTS.md` 那句场景数改成指向 `expected-scenes-*.txt` 的写法。
-**其后 P2** —— 把 `CLAUDE.md` 末句改成描述真实关系（本轮**不动它**，先让它排进队列）。
+**2026-08-26 第二轮｜建 `docs/user/transports.md`。** 本轮写范围只有 `docs/**`，
+而队首的 P1（`AGENTS.md`）与 P2（`CLAUDE.md`）都在根级 ⇒ **跳过它们做 P3**，二者留在队首不降级。
+
+新文档的每一条都对着源码写，没有一条抄自 `README.md`：
+`RpcServer` 的帧形状与 JSON-RPC 码、`TransportLimits` 的 8 MiB（超限是**断连不是报错**）、
+`mc.events.subscribe` 的 `allTypes`、`WorldDriverCommon` 的六个 `-D` 与端口文件、
+`ScriptEvaluator` 的 3000/30000/64 KiB 与 fresh scope、`ScriptManager` 的字母序共享作用域与
+harness extras、`McpServer` 的三个协议版本与 Origin 校验、`/agent` 六条子命令。
+
+⚠️ 顺带查出 **S1**：整棵树把 Rhino 说成沙箱的六处**全是假的**（默认 `off`）。
+起因是 `ScriptEvaluator` 的 javadoc 与 `README.md` 的 Design highlights **正面冲突**——
+两句话都读得通，冲突本身才是线索。教训与「两个『唯一』互相矛盾」同类：
+**各自为真的两句话比一句假话更难被质疑**，所以撞见冲突要去读它们共同描述的那个东西
+（这里是 `ScriptClassFilter` 第 23 行），而不是挑一句顺手的信。
+
+⚠️ 还有一个**一开始没查全**的坑：第一次 grep 用的是
+`worlddriver.sandbox\|sandbox=on\|SANDBOX`，**大小写敏感且不含裸词 `sandbox`**，
+所以只捞到 Java 里的开关、一处散文都没捞到——差点只在新文档里写对、把六处旧散文漏掉。
+`-i` 加裸词重跑才出全。**查一个说法散布在哪，别拿实现细节的名字去 grep。**
+
+**下一轮：S1** —— 但它整族在根级，**要先确认那一轮有 `docs/**` 之外的写权限**；
+没有就顺位取 P4（`docs/dev/architecture.md`，素材同样已在源码 javadoc 里）。
+P5（删自称 SUPERSEDED 的两份 plan）在 `docs/` 内，随时可做，适合塞给权限受限的一轮。
