@@ -219,18 +219,37 @@ etc.) working in this project. Keep it short and authoritative.
     ctx.cleanup(pin::close);
     ```
 
-    Gate: `ConfigPinDisciplineTest` (`./gradlew :common:test`, no game) reads the compiled
-    testmod bytecode and names any method that writes a `BotConfig` static with no
-    `pinnedBaseline()` on every path into it — counting a pin taken by a helper it calls,
-    which is how a rung inherits one from `rig.generousPathfinding()`. **Run it before
-    landing a scene that touches config.** Same slot discipline as #12: it recompiles
-    `:common`, so take the tree from main rather than starting it under a live run.
+    Gate: `ConfigPinDisciplineTest` (no game) reads the compiled testmod bytecode and names
+    any method that writes a `BotConfig` static with no `pinnedBaseline()` on every path
+    into it — counting a pin taken by a helper it calls, which is how a rung inherits one
+    from `rig.generousPathfinding()`. **Run it before landing a scene that touches config.**
+    Same slot discipline as #12: it recompiles `:common`, so take the tree from main rather
+    than starting it under a live run.
+
+    ```bash
+    ./gradlew :common:testmodClasses :common:test --rerun-tasks
+    ```
+
+    ⚠️ **`--rerun-tasks` is not optional here.** The bytecode this test reads is not one of
+    the task's declared inputs, so gradle calls `:common:test` UP-TO-DATE after a testmod
+    change and replays the previous verdict. Measured 2026-08-26: deleting a pin and
+    re-running without the flag printed `BUILD SUCCESSFUL` over an unchanged results file
+    whose timestamp was two minutes old. Believe a green only if the run line says the task
+    executed and the XML timestamp is this run's.
 
     ⚠️ Its javadoc carries two named edits that MUST turn it red — one deleting a direct
     pin, one deleting a delegated pin — each measured against the compiled tree before the
     test was written. The second is the load-bearing one: counting delegated pins is the
     loose direction, and without a sample proving that cut was earned, a green here would
     only mean the reachability swallowed everything. Re-run both if you touch it.
+
+    Both were run on 2026-08-26 and both went red: deleting `WorldDriverTerrainScenes#summit`'s
+    own pin, and deleting `JourneyRig#generousPathfinding`'s (18 methods named, among them
+    `JourneyEndRungs#digToTheRoom` and `JourneyPortalRung#descendToTheForge`, none of which
+    takes a pin of its own). ⚠️ The first sample proves LESS than it looks: `summit` is also
+    the positive control, so removing its pin trips the reachability self-check and the main
+    assertion never runs. Only the second sample exercises the unprotected-set assertion, so
+    a sample-one red is not evidence that the set is still computed correctly.
 
     ⚠️ Restoring by hand is legal, but only on a path a FAILURE also takes (`try/finally`,
     or `ctx.cleanup`). Restoring at the end of the body is not — that is exactly the line a
