@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the trigger is the reading, not「the bar did not move」. The row says
   「这一口是服务端补完的，不是自己走完的」, because those are not the same claim.
 
+  Measured on the next real ladder run: six bites, `4 → 7 → 10 → 13 → 16 → 19 → 20`, and the body
+  left the rung at full health because crossing 18 let natural regeneration run for the first time
+  on that climb. **Every one of the six was cut short** — `useItemRemaining` 30 or 31 out of 32,
+  the hand correct each time — so the cut is deterministic, not intermittent, and the sample for
+  the client hypothesis went from one to six. It is still corroboration and not proof; nothing has
+  watched the packet. And because all six were completed BY HAND, that climb exercised the
+  engine's eating path exactly zero times, which is the argument for driving the next one through
+  `Avatar#commandUseItem` and leaving this as a recorded fallback.
+
 - **The raise search prints its own vetoes.** `raiseColumn` built a reason map for every candidate
   column it rejected and threw it away, so the only rows a reader had were the winner and the
   *stand* search's veto map — a different question over a different candidate set (`standToPour`
