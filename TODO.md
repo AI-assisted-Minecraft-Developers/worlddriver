@@ -946,6 +946,11 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 之前就设了 `BotConfig.allowPlace=true` 并打三行证据，`rise=0` 只让塔不垒，不让这条腿不发生；
 真正让身体不回柱的是 `:246` 第二次判排。）
 `:265` 的价值是**诚实和早期路由**，不是这一级的解药。
+📌 **这一族的判据本仓已有一份血验过的**：`JourneyPortalRung` 的 javadoc 小节
+「**A height is not a column**」（`:1467-1493`）——一个同形状的高度闸让 2026-08-16 的真梯
+死在第六格，定的规矩是「**高度不许再拿来回答关于视线／柱的问题**」。
+⚠️ 但别拿它给整族定罪：`getY() >=` 在这个包里有二十来处，判每一处**要读它的下游问的是什么**
+（下游问柱 ⇒ 缺陷；下游只问高度 ⇒ 题目）——[[a-malformed-input-may-be-the-subject]]。
 📌 **同段注释点了先例**（`JourneyShaft:222-225`）：塔会填掉身体起跳的那一格，
 「which is how rung 12 filled 0,58,19 and 1,58,19 and then could not walk back down past its own
 cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。但这趟 `climbOutInColumn` 没跑
