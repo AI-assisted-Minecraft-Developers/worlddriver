@@ -923,17 +923,50 @@ final class JourneyPour {
                                            Direction away, String tag) {
         var eye = rig.player().getEyePosition();
         int candidate = 0;
+        // NAME THE NULL. Every reject below used to `continue` in silence, and the method returned
+        // null having written nothing — so a reader could not tell "never called" from "called, and
+        // both candidates failed". Measured across ten rehearsals of the portal rung: not one
+        // `.walked` / `.settled` row existed anywhere, and the honest reading of that zero is the
+        // second one. It matters because of what the caller does next: `placeFluid` computes
+        // `at = settled != null ? settled : planned` and fires the PRE-WALK aim when this returns
+        // null — a guaranteed miss, and the shape of `浇不到 4,57,19` in three of those ten runs.
+        // The row is written on the way out whether or not anyone is looking, for the reason
+        // JourneyPortalRung's stairs audit gives: a diagnosis that only speaks when someone already
+        // suspects it is not evidence.
+        StringBuilder no = new StringBuilder();
         for (BlockPos aim : List.of(target.relative(away), target.below())) {
             candidate++;
-            if (!level.getBlockState(aim).isSolidRender(level, aim)) continue;
+            String what = "候选" + candidate + " " + aim.toShortString();
+            if (!level.getBlockState(aim).isSolidRender(level, aim)) {
+                no.append(what).append("=不是实心渲染(")
+                        .append(level.getBlockState(aim).getBlock()).append(") ");
+                continue;
+            }
             var to = net.minecraft.world.phys.Vec3.atCenterOf(aim);
-            if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) continue;
+            if (eye.distanceTo(to) > JourneyFill.BUCKET_REACH) {
+                no.append(what).append(String.format(java.util.Locale.ROOT, "=够不着(%.2f>%.2f) ",
+                        eye.distanceTo(to), JourneyFill.BUCKET_REACH));
+                continue;
+            }
             var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, to,
                     net.minecraft.world.level.ClipContext.Block.OUTLINE,
                     net.minecraft.world.level.ClipContext.Fluid.NONE, rig.player()));
-            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) continue;
-            if (!hit.getBlockPos().equals(aim)) continue;
-            if (!aim.relative(hit.getDirection()).equals(target)) continue;
+            if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
+                no.append(what).append("=线段没打到方块(").append(hit.getType()).append(") ");
+                continue;
+            }
+            if (!hit.getBlockPos().equals(aim)) {
+                no.append(what).append("=线段先撞上 ").append(hit.getBlockPos().toShortString())
+                        .append('=').append(level.getBlockState(hit.getBlockPos()).getBlock())
+                        .append(' ');
+                continue;
+            }
+            if (!aim.relative(hit.getDirection()).equals(target)) {
+                no.append(what).append("=打中了但面朝 ").append(hit.getDirection())
+                        .append("，流体会落进 ")
+                        .append(aim.relative(hit.getDirection()).toShortString()).append(' ');
+                continue;
+            }
             // THE SHOT, not the prediction of it. Aiming here is not a side effect to apologise for:
             // the caller's very next act is to aim at whatever this returns, so the body ends up
             // pointing at the candidate either way — this only makes the decision and the aim the
@@ -952,7 +985,13 @@ final class JourneyPour {
                     + "，眼睛 " + String.format(java.util.Locale.ROOT, "%.2f/%.2f/%.2f", eye.x, eye.y, eye.z)
                     + " 朝 yaw=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getYRot())
                     + " pitch=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getXRot()) + "）");
+            no.append(what).append("=两条射线不一致，见 aimForked.").append(candidate).append(' ');
         }
+        rig.evidence(tag + ".noAim", "从这儿没有能落进 " + target.toShortString() + " 的瞄法："
+                + no + "（身体 " + rig.player().blockPosition().toShortString() + "，眼睛 "
+                + String.format(java.util.Locale.ROOT, "%.2f/%.2f/%.2f", eye.x, eye.y, eye.z)
+                + " 朝 yaw=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getYRot())
+                + " pitch=" + String.format(java.util.Locale.ROOT, "%.2f", rig.player().getXRot()) + "）");
         return null;
     }
 
