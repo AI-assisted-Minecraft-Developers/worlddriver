@@ -2083,7 +2083,24 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
     }
 
     /** Walk to the surveyed gravel column, sink to it, break enough of it to roll a flint, climb out. */
+    /**
+     * Feed the body BEFORE the walk, not just before the dig.
+     *
+     * <p>This rung failed on 2026-08-26 without mining a single block: the iron rung before it fell
+     * three times down its own shaft and handed the body over at exactly 4.0 health, and
+     * {@code MineProcess} refuses to mine at or below {@code MINE_HP_CRITICAL}=4. The abort landed
+     * on the first tick, so {@code broke 0/64} and the rung reported「10% 掉率，靠量不靠运气」about
+     * a die it never rolled. Eating here rather than at the dig because the walk and the shaft can
+     * both cost health too, and a body that starts them at 4 has nothing to spend.
+     *
+     * <p>{@link JourneyFeed} asserts nothing and always continues — see its class note for why the
+     * first run has to be an instrument rather than a gate.
+     */
     private static void gravelForFlint(SceneContext ctx, JourneyRig rig, BlockPos gravel) {
+        JourneyFeed.eatIfLow(rig, "gravel", () -> gravelForFlintFed(ctx, rig, gravel));
+    }
+
+    private static void gravelForFlintFed(SceneContext ctx, JourneyRig rig, BlockPos gravel) {
         rig.attempting("走到砾石堆的干燥柱");
         // Same bounded re-plan the ore rungs use, and this leg is where its absence showed last:
         // the run finished its iron shaft and set off for gravel 73 blocks away, the walker reported
