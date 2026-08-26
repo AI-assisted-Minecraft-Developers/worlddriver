@@ -40,7 +40,7 @@
 | 🔴 判：做（触发改具体：下一个 knob 之前） | J7 | **`BotConfig.java` 2993/3000，零死 import**——顶着上限，**要拆不要刮**（[[a-file-pinned-at-its-budget]]）。触发词从「梯子稳后」改成「**任何要新增 `BotConfig` knob 的修法之前，先拆**」；Q7c 已被迫复用 `walkerFutileSearchCap` 就是这条上限在收税 | 我（下一个 knob 之前） |
 | 🟠 判：做（排练退出后的编译窗口） | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom`（今在 `:2671`，10 级隧道用，一次瞄准一次 use，没有重瞄／换源／装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。已咬两口：Q25 是 scenes 份缺 `BUCKET_REACH` 那半格；j46 判词证明 11 级走的仍是 scenes 份（有 `fill.hand` 无 `.spot`／`.aimsAt`）。且 J48-(B) 的 `bucketInHand` 守卫只落在 `JourneyFill`，scenes 侧 `:2673` 的 `holdForUse(rig, Items.BUCKET, "fill")` **返回值仍丢**、拿不到桶就白花一次 use、红挂在「没装到」名下。**第一步只补同款守卫点名「拿不到桶」；合并成单份留给证据键允许变的那一轮** | 我 |
 | 🟠 判：做（先离线回放；Java 等排练退出后的编译窗口） | Q7c | 形状已定：**加宽现有那道闸，不造第二个调速器**——`WalkerTickSearch:85` 自己写着「two governors on one loop would race」。规格＝已量出的**两条盲区**：`!res.goalReached()` 让「搜得到、走不了」永不计数，`distSqr(foot) > 4` 让 5 格 ping-pong 每次清零。**不加新 `BotConfig` 开关**，复用 `walkerFutileSearchCap`。**落 Java 之前先离线回放**：拿 ladder-14 已录的 **174 案／816 案**回放新计数规则，必须抓住那两案且**不误伤正常绕行**（`journey03Wood` 绕树那段是现成阴性样本）。Q22 那 42 次岩浆重搜正是这道闸该数而没数的案 | 我 |
-| 🟠 判：排到 J47 之后（验收随 ashore 翻绿） | J39 | 修法 `bdece564`（`JourneyCast.leaveWithTheLava` 在 `climbOut` 之后补 `standOnDryGround`，复用 `JourneyTerrain.dryUnderfoot`，预算 **600 tick**）**在 HEAD 但至今未验**——真梯发作条件没复现。验收已移交 `wd.journeyGetsAshoreBeforePouring`（J45b），而它常驻已知红，红的不是 `standOnDryGround` 而是**浮体走不上齐平岸**（J47）⇒ **本行下一步就是 J47 已判的写死步骤；J47 绿则此行随之验** | 我 |
+| 🟠 判：排到引擎批之后（验收随 ashore 翻绿） | J39 | 修法 `bdece564`（`JourneyCast.leaveWithTheLava` 在 `climbOut` 之后补 `standOnDryGround`，复用 `JourneyTerrain.dryUnderfoot`，预算 **600 tick**）**在 HEAD 但至今未验**——真梯发作条件没复现。验收已移交 `wd.journeyGetsAshoreBeforePouring`（J45b），而它常驻已知红，红的不是 `standOnDryGround` 而是**浮体走不上齐平岸**（J47）⇒ **写死步骤那条路已在 2026-08-26 判掉（几何不成立），本行随 ashore 一起排到引擎批之后；ashore 绿则此行随之验** | 我 |
 | 🟠 判：血量半已落，空气半还欠 | J40 | ② **血量那一半在 HEAD 且已实测出行**：`JourneyRig.noteHurt`（`:1563`，无 flag、无节流、只记掉血、上限 60 行），排练日志里写出 `hp.trace=掉血 N 次、回血 M 次；t20 −1.0→19.0 @…`。⇒ **14 级的推进条件（读血量曲线）已经满足，不必再等这一项**。**还欠 `getAirSupply()`**——它服务的是 j39 溺水那条线，不挡 14 级。① 引擎自救维持**不做**（先用写死步骤） | 我 |
 | 🟠 判：做（引擎批，双闸，不与真梯同趟） | J33 | **专用服身体和客户端身体给「挖穿」定的不是同一个价**：`LevelWorldView.breakCost:93-104` 只有 `COST_PER_TICK × ticks`，`ClientWorldView` 叠了四道税（浮水 ×25／×5、错工具 ×3、树干税、`pathfinderBreakCostMultiplier`）⇒ 专用服上任何「会不会挖穿」的场景量的都是另一张表。**第五条分歧方向相反**：服务端规划器按**手里正拿着的那件**定价（`LevelWorldView:100`），而它的执行器破坏前会从**全部 36 格**换上最优工具（`ServerPlayerAvatar.selectTool:324-343`）⇒ **规划器比执行器严**。三条承重断言逐条核过：`selectTool` 确实扫 `inv.items.size()`、`LevelWorldView` 确实**只有 1 参 `breakCost`**（浮水税那条 2 参路径根本进不来）、`ClientWorldView` 确实只扫 `slot < 9`。证据在这个类自己的 javadoc 里（`:79-83`）。搬法分两笔两闸。**Q14 的残余记在这里** | janitor 已评估，我判做 |
 | 🟠 判：头条做（窗口 1 仪器批），其余 12 个不做 | J41 | 头条＝`WorldDriverJourneyScenes:2521` 的 `tunnel.fell`，走 `ascendByTowering` 的 `String tag` 入口，**根本不进 `recordExit`**（`toY`／`endedIn`／`endedOn`／`gained`／`lost`／`pillarStock` **六行一行都没有**，只有 `tunnel.climbedBackTo`），而它爬的是**岩浆廊道**。全表比例：afloat **1/13**、`endedIn` **1/13**、`gained/lost` 在调用点判 **2/13**（#4 #5），另 **4 处**靠下游或下一级守卫兜（#3 #7 #9 #10），**完全没接 5 处**（#2 #6 #8 #11 #13）。**尾巴那 12 个**：重开条件＝判词把红记在一次爬升的结局上而那一段三行皆无，届时只补那一个入口——展开说就是：任一趟的判词把红记在一次爬升的结局上，而那一段找不到 `*.afloat`／`*.endedIn`／`*.gained` 任何一行 ⇒ 给**那一个**入口补，**不批量补** | janitor 查，我排 |
@@ -51,7 +51,7 @@
 | 🟠 判：做（排练退出后的编译窗口） | J44c | **坑沿加价「每趟重算」白花了**：j48 的 12 级 15 条 `*.rimTax` **格数恒为 752**，一次都没涨——`onThePoolsLip` 要的是「脚边有个能掉下去、底下 8 格内是岩浆的洞」，而抽走源块留下的是空气、清射线敲的是岩浆层的挡土，都没造出新的**站得住**的沿格。⇒ 每趟一次 **25×25×9** 全量扫描是纯开销。**修法一句：重算撤回去程算一次的快照，加价本身一字不动**（j48 的 12 级零岩浆死是它买的） | 我 |
 | 🟠 判：先补测量（2026-08-25） | J54 | **11 级两根下挖柱都被流体废掉，退出爬升在流动水里被冲下柱子 8 次。** 代码自己诊断对了也决策对了（`shaft.reColumn.1 = 这一柱中段有水，身体浮起来了…爬回 y=63 换第 2 根柱子重挖`）；吃掉这趟的是退出爬升：`climb.1`…`climb.8` 每次 `placed=1` 就 `washedOff = 水把身体冲下柱子了（流速²=1.00000）`，重试 3→2→1→0 用尽。**要补的读数**：给撞上的水落「天然／上级留／自浇」一行出处，**照 12 级 `water0.spent=water_bucket 1→0` 的问法**；在它有分布之前**两条腿都不修**。⚠️ 别把「起塔在流动水里」和「换柱预算不够」合并成一条修法——它们是两条腿 | 我 |
 | 🟠 判：先补测量（收源那笔等点名，2026-08-25） | J52 | **模腔的水顺楼梯流到底。** 仪器半已在 HEAD（`DRAIN_UPSTREAM=8`，`JourneyDrain:103`），**2026-08-26 第 7 趟拿到第一条读数**：`drain.7.upstream=周围 8 格内没有水源块` ⇒ 是纯退水，不是「有源在喂」，所以「收走被点名的源」这条修法**在这一趟没有对象**（真链条见 J85）。⚠️ 别把 J70 排进这条因果（实测趟内的水是 `water0` 自浇、`JourneyStairs:250` 收水排在下降之后）。⚠️ 12 级现在**同时**挡在浇筑那一族和这摊水上：`cast8#10` 里它一口气做了五件事——淹掉楼梯底（`stairFoot`）、用 `wouldOpenFluid` 掐断**两次**起塔、让垫台阶的 `placeOn` 拒绝、占住要清的那几格、最后把身体泡在水里 | 我 |
-| 🟠 判：做（排练退出后的编译窗口；验收＝ashore 场景翻绿） | J47 | **浮在水面的身体走不上齐平的岸**，而每一行读数都像成功：`dryLand=242843,221` → `end=path-consumed`、停在 `242844,221`、`脚下=water`。**与浮力无关**——干体证人 `wd.journeyWalksOffTheLipOntoTheDryStep`（`inWater=false`、`onGround=true`、脚下 stone）读数逐字相同 ⇒ 是 `within` 把差一格判成到达、指针被推进（⚠️ 本行原写「**1.2 垂直闸**」，实测开火的是**水平项** `cur2=0.372 < 0.45` 而垂直项只有 0.619，凭据见「拍板」节 🅹）。今核 HEAD：`JourneyCast` 的 `standOnDryGround`／`stepOntoTheBank` **仍只补步不垫块**。写死步骤先行（testmod 侧，上岸失败就在脚下垫一块）；引擎侧那半**另立账**，见「拍板」节 | 我 |
+| ❌ 判：写死步骤不做（改判 2026-08-26）；ashore 翻绿排到引擎批之后 | J47 | **浮在水面的身体走不上齐平的岸**，而每一行读数都像成功：`dryLand=242843,221` → `end=path-consumed`、停在 `242844,221`、`脚下=water`。**与浮力无关**——干体证人 `wd.journeyWalksOffTheLipOntoTheDryStep`（`inWater=false`、`onGround=true`、脚下 stone）读数逐字相同 ⇒ 是 `within` 把差一格判成到达、指针被推进（⚠️ 本行原写「**1.2 垂直闸**」，实测开火的是**水平项** `cur2=0.372 < 0.45` 而垂直项只有 0.619，凭据见「拍板」节 🅹）。⛔ 「脚下垫一块」那个写死步骤**几何上不成立**（岸 221／身体 220／`at.below()`=219），四样见「拍板」节 🅹；ashore 常驻红是引擎缺陷的唯一常驻证人 | 我 |
 | 🟠 判：做（工程债；排练退出后的编译窗口，独立配闸） | J55 | **一个游戏动词住在脚本传输层**：`prelude.js:194` 的 `Driver.bot.tunnel` 是一整个动词（挖 1×2 走廊），只有 in-JVM Rhino 够得着——`DriverApi` 无路由、`ToolCatalog` 无 schema（grep 双零命中）⇒ MCP／RPC 客户端根本调不到。**不能直接删**（`validation/25_phase_d3.js` 在闸里跑它）。提升成真路由并**委托 `GoalResolver.applyDirection`**（`:93`，三者里唯一全集且唯一做归一化），做法四步见「拍板」节 | janitor 报，我判 |
 | 🟠 判：做（排练退出后的编译窗口，三笔照定稿次序） | J72 | **验证过的几何和开火的几何不是同一个。** 今核 HEAD 三笔都没落：`aimThatLandsIn` 五个 `continue` 仍静默（`JourneyPour:885-893`）、`planned = aimNow != null ? aimNow : backing` 仍在（`JourneyPortalRung:1621`，settle 后那问也同样 `settled != null ? settled : planned` 回退）、`standToPour`（**已搬到** `JourneyPour:786`／`:815`）没有排除集。**先 1/2（零风险仪器与判词），再 3（唯一的行为改动）**，判据三态见「拍板」节 | 我 |
 | 🟠 判：先补测量 | J71 | **`forge.carved` 在同一份布景上不是确定性的**，这是「1 绿 / 3 趟」那枚硬币的候选。四份日志里没挖动的每次都是同一格同一层：`carve.firstStuck=2, 62, 17=dirt：身体 4, 64, 17，距 2.8 格，canBreak=true，六邻实心 4/6，手上 stone_pickaxe`。**下一步是量不是修**：连跑 N 趟 **`runRehearsalIntegratedServer`**（⚠️ 必须固定这一种身体，混拓扑的方差有一半来自身体种类）列 `forge.carved` × 结局表。67/67 全绿、66/67 全红 ⇒ 它就是硬币；66/67 也能绿 ⇒ 只是噪声。**表出来之前不动开凿代码** | 我 |
@@ -330,7 +330,7 @@ water8.liftedY=64/60
 
 ---
 
-## ⚖️ 拍板（2026-08-25 夜）
+## ⚖️ 拍板（2026-08-25 夜；2026-08-26 补判一批，见各条的日期）
 
 这一节把所有还开着的判断收成判词。每条四样：**判词**（做／不做／先补测量／排到 X 之后）、
 **凭什么**（行号、证据键、量出来的数）、**重开条件**（可证伪，写死到证据键）、**代价**（判错了以什么形式暴露）。
@@ -508,21 +508,27 @@ cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满�
 
 ### 🅹 J47（浮体走不上齐平岸／指针推进）＋ J39 挂账
 
-**判词：做**（写死步骤先行，testmod 侧；引擎侧那半**另立账**）。**J39：排到 J47 之后。**
+**判词：写死步骤那一半——不做**（2026-08-26 改判，原判「做」作废）。
+**ashore 翻绿：排到引擎侧那半之后。J39 随之。**
 
-**凭什么**：修法尚未落（今核 HEAD，`standToDryGround`／`stepOntoTheBank` 仍只补步不垫块）；
-机制已查清且有**两个身体种类的证人**（浮体 ashore ＋ 干体唇场景，读数逐字相同）⇒ **与浮力无关**。
+**凭什么**：布景把几何写死了。`JourneyLandingScenes:210` 从 `GROUND=20`／`SUBMERGED=2` 下水，
+实测 `dryLand` y=**221** 而 `arrivedY`=**220**、`脚下=water` ⇒ `at.below()`=**219**：
+垫上去脚仍在 220，**仍低岸一排**；要够到 221 得垫身体自己那一格，`vanilla 的 isUnobstructed` 拒。
+下游两条腿也都在 `end=path-consumed` 的下游——`JourneyCast.stepOntoTheBank:137-154` 的 LAST_STEP、
+`bankRow:157-165` 记完一笔就 `ashore(rig)` 往下走，加腿改不了走行器只交到差一格处。
 
-**验收（不放宽）**：只认 `wd.journeyGetsAshoreBeforePouring` 从 `fail(optional)` 翻绿。
+**这一改判正好兑现了原判自己写下的代价**：垫一块会退掉引擎缺陷的最后一个常驻证人
+（唇场景在 J47c 之后已不作证）。不做 ⇒ ashore 常驻红**就是**那个证人。
+
+**验收（不放宽）**：只认 `wd.journeyGetsAshoreBeforePouring` 从 `fail(optional)` 翻绿，且**归引擎批**。
 **不认唇场景**——它已被 J47c 的绕行（开腿前 `aimBoth` 转身）修成 PASS，现在验证的是**那个绕行**，
 `within` 的垂直闸与指针推进**原样未动**，拿它的绿给 J47 结案是假结案（[[a-verdict-has-upstream-verdicts]]）。
 
-**⚠️ 代价，也是这一板真正要写下的那句**：**垫一块会让 ashore 翻绿，从而退掉引擎缺陷的最后一个常驻证人。**
-唇场景在 J47c 之后已经不再作证；ashore 一旦绿，`within`＋指针推进这条引擎缺陷就**零证人**在跑。所以：
+**重开条件**：某趟 ashore 的 `lava.lastStep.gotoEnd.1` 的 `end=` **不是** `path-consumed`
+（走行器真把身体交到 221 那一柱）**且**该趟仍红（`subject.endedAt` 仍写 `脚下=water`）
+⇒ 写死步骤重新有对象，重开。⛔ 只写前半会在引擎侧修好、场景通过的那一刻误开火。
 
-> **引擎侧那半（`within` ＋ 逐节点到达指针推进）在「引擎批」名下自带独立验收，
-> 与 J33 同批。ashore 翻绿 ≠ 这一笔结案。** 这一板只买这一句账，引擎侧的场景现在**不设计**
-> （零证据上设计场景是另一种「只能通过的判据」）。
+**代价**：判错＝ashore 多红一个引擎批的周期，症状是 C 断言 `subject.endedAt … 脚下=water` 照旧。
 
 **引擎侧那半 —— 判：排到 J33 之后**（引擎批，双 loader 闸）。⚠️ **前提已过期：不是垂直闸。**
 **凭什么**（两 loader **逐字相同**，就在 ashore 那条 FAIL 的前一行：
@@ -540,9 +546,8 @@ cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满�
 `cur2 < 0.45`，那是个恒假式，永远重开不了。）
 **代价**：判错＝引擎批去改一个没病的子句，而 ashore 仍红在 `lava.exit.ashore=没上岸`。
 
-**重开条件**（给「做」也写一条，因为写死步骤可能不生效）：ashore 场景落了垫一块之后**仍红**，
-且失败行仍是 `end=path-consumed`＋停在目标邻格 ⇒ **写死步骤不管用**，
-直接把引擎侧那半提到队首，不要再往写死步骤上加轮子。
+**⇒ 原来那条「写死步骤不管用就把引擎侧提到队首」已提前兑现**——几何算得出来，不用先跑一趟。
+排期见 [`ROADMAP.md` §6](ROADMAP.md)。
 
 **J47c 的边界（别再拿它的绿去解释客户端那边的红）**：客户端排练实测三次尝试，开腿前 yaw 已经是
 **−91.1° / −90.3° / −90.6°**，而末路点方位角**就是 −90°**，`aimBoth` 只改了 1.5°／0.3°／0.6°
@@ -567,6 +572,45 @@ cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满�
 
 **代价**：判错的暴露形式是布景阶段本身超时或把身体摆在错位姿上，症状是 `staged.*` 那一族前提断言红
 （而不是级别判词红）——**红在布景不红在被测对象**，不会被误读成产码缺陷。
+
+### 🆕 落地判据的新尺子只在**一具身体**上认证过（`finishTheFlight` 族在集成拓扑全跳过）
+
+**判词：先补测量。** 缺的读数＝**一趟修法后的 `runRehearsalIntegratedServer`**（真 `LocalPlayer`）里的
+`flightLastStepSettled`／`flightLastStepEnd`。⛔ 零代码，但**必须是 integrated 那一种**排练。
+
+**凭什么**：`5c1e1639` 改的是**下坠物理**（判据从格号改成身体离地板的高度 `SETTLED_SLACK`），
+而这条判据的四条场景（`wd.journeyJudgesTheLastStepAfterTheDropLands`、
+`wd.journeyWalksOffTheLipOntoTheDryStep`、`wd.crossingWaitsOutASurvivableDrop`、
+`wd.bridgeDescendPlaceLip`）在集成闸上**四条全跳过**（`COVERAGE: 103 executed, 223 skipped`），
+只在专用服闸上执行（`298 executed, 25 skipped`）⇒ 两趟闸都 GREEN **只等于服务端 avatar 那一具身体上认证过**。
+而真 `LocalPlayer` 那一侧：`5c1e1639` 是 **2026-08-26T19:23Z**，
+`run-rehearsal-integrated` 最新工件是 **07:19Z** ⇒ **修法后零样本**
+（那三趟兑现的排练写的是 `run-rehearsal`，即 `runRehearsalServer` 的假玩家，`fabric/build.gradle:526/582`）。
+⛔ 「身体种类是自变量」在同一段代码上量到过：`returnedY=57`×3 假玩家全落地 对 `58`×2 真客户端骑唇。
+
+**跳过本身不是缺陷，也不用查**：`SceneBody:212` 明写这条规则（集成服有真客户端就不许再造无头身体），
+它的对账条款是「每一条因此跳过的场景都在专用服闸上执行」——上面两个数**逐条兑现**了这个对账。
+
+**重开条件**：那一趟 integrated 排练读到的 `flightLastStepSettled`／`flightLastStepEnd`
+与专用服闸上同名读数**不是同一族**（例如真客户端仍在下坠途中判到达）⇒ 修法只对一具身体成立，当场开工单。
+
+**代价**：判错＝`SETTLED_SLACK` 在真客户端上没生效而全绿掩着，症状是 12 级又出
+`浇不到指定格` 而 `finishTheFlight` 一族的场景一条都不红。
+
+### ❌ 「跳过的场景在结果文件里写 PASS」——判：不做
+
+**凭什么**：判官**已经把两者分开**，不是没分——`Verdict:287-290` 的 `skipped(rec)` 双信号
+（`skipped` 字段 OR `reason` 前缀），`:235-241` 把跳过印成 `skip:` 而不是 `pass:`、
+不计进 `executed`（`:243`）、并汇进 `COVERAGE:` 行（`:254`）。实测行也带得全：
+四条跳过的记录都是 `outcome=PASS` + **`skipped:true`** + `ticks:0`。
+⛔ 而 `outcome` **不能改**：`Verdict:231` 用 `!"PASS".equals(outcome)` 判失败，
+写成 `SKIP` 会让**每一个跳过当场变成 required FAIL**。
+⇒ 要修的不是结果文件，是读它的协议——已写进上面「真梯」那节的读法。
+
+**重开条件**：某趟的 `COVERAGE:` 行与 `stagewright-results.jsonl` 里 `skipped:true` 的条数**对不上**
+⇒ 那才是判官真的把跳过算成了执行，重开。
+**代价**：判错＝又一次「绿的套件报告了它从未执行的科目」（[[skip-is-not-coverage]]），
+症状是某条场景在**每一个**拓扑上都跳过而没人发现——那一条归 `Coverage.java` 管，不归本条。
 
 ### 📋 队列里剩下的 📌／📐 行，一并拍板
 
@@ -648,7 +692,8 @@ cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满�
 - 两条常驻 `fail(optional)`：`wd.vineOverWaterClimb`（−711 藤蔓传感器，`pocketTicks=81`）、
   `wd.serverEscapeSealedShelter`（`y=221.0`，carve 超时）。**第三条
   `wd.journeyGetsAshoreBeforePouring` 仍在 optional 名单里**（`JourneyLandingScenes.java:55`
-  的 `.withRequired(false)`，而 J47 未落）⇒ **常驻就是三条**，都不单独翻红。
+  的 `.withRequired(false)`，而它的翻绿已排到**引擎批**（ROADMAP 13b）⇒ **常驻就是三条**，都不单独翻红。
+  ⛔ 别再等「写死步骤落地」——那条已判不做，等它就是等一个不会来的落地。
 - **Fabric ⇒ GREEN。**
 - **NeoForge ⇒ GREEN，或者只红在 `wd.serverEarnsAnEnderPearl`**（已量到的 1/4 翻红率，工单 J75，**判据不下调**）。
 - 新增风险面只有一个：`walkToColumn` 的**硬约束参数转发**（22 个调用点的共享助手）。
@@ -681,6 +726,9 @@ cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满�
 「**0 行 = 符合预期**」，不是「死在半路」。跑完的证据是 `wd.journey99Verdict` 出了行。
 ⚠️ 结果文件叫 **`stagewright-results.jsonl`**（不是 `results.jsonl`），按**插入序**读，字段是 **`outcome`** 不是 `status`
 （按 `status` 读会整列拿到 `None`，看起来像「一级都没跑」）。
+⚠️ **只读 `outcome` 会把跳过读成通过**：跳过的场景写的是 `outcome=PASS` + `skipped=true` + `ticks=0`。
+**每次都要连 `skipped` 一起读**（判官自己就是这么读的，`Verdict.skipped`）——
+「`skipped:true` 的 PASS ＝ 没跑」。
 ⚠️ 起跑前三件事：按**命令行**确认没有游戏 JVM（`architectury.main.class=`，**不能用 `jps`**）、
 `git status`、**先删掉 `fabric/run-journey-integrated/stagewright-results.jsonl`**
 （残留的结果文件照样能回答问题）。⚠️ **删之前先 `ls` 出这个任务上次写了哪个文件**，别凭记忆写文件名。
@@ -928,10 +976,23 @@ public static volatile boolean autoRetreat = false;
 
 `hp.trace` 校准通过（预登记 D 态），可以用。**还开着的**：
 
-- 📌 `hp.trace` **不记 food、不记伤害源**，所以 12 级那 11 次恒定 −1.0、零回血判不了
-  「摔落」还是「饥饿」。要加这两个字段。
-- 📌 `drain` 7/9（第 2 趟 8/8）：`drain.7`/`drain.8` 等满 200 tick 仍有流体，
-  而 `upstream` 证明周围 8 格无水源块 ⇒ **是预算不够，不是机制坏**。等待时长要重定。
+- ❌ **判：不做**（给 `hp.trace` 加 food／伤害源两个字段）。
+  **凭什么**：那 11 次已经被现有字段分开了——`ladder3-results-1007.jsonl` 的
+  `wd.journey12PortalLit.hp.trace` 是 `t228 / t308 / … / t948`，**9 个间隔恒为 80 tick**、
+  每次恒 −1.0、`脚下=stone`、y=56~58。**周期性本身就排除摔落**（80 tick 也正是 vanilla 饥饿伤害的间隔）。
+  food 那一半也已有仪器，只是在另一个键上：`JourneyRig:1815-1818` 的 `body.vitals` 逐级印
+  `饱食 N/20` ＋「饱食 <18，自然回血不会发生」，当前归档读 `wd.journey12PortalLit … 饱食 2/20`。
+  **重开条件**：某一族 `hp.trace` 行**间隔不规则**且 `脚下`／`身处`／`着火`／`泡岩浆` 四个字段
+  与同级 `body.vitals` 合起来仍指不出族 ⇒ 那时才补 `DamageSource`。
+  **代价**：判错＝某趟死因停在「掉了 N 点，不知道谁打的」，症状是判词只能写族不能写因。
+- 🟠 **判：先补测量**（修法已在 HEAD，欠的是修法后的读数）。
+  **凭什么**：那趟 `drain.7`/`drain.8` 印的「等了 200 tick」**是假的**——`JourneyDrain:179` 当时每腿只
+  hold `DRAIN_TICKS / 2`，实际只等了 100 tick。`f985dd17`（2026-08-26T19:23Z 那一批）改回整腿，
+  而第 3 趟收在 **07:19Z**，早 12 小时 ⇒ 「200 tick 不够」这个前提**从没在 200 tick 上量过**。
+  **缺的读数**：修法后任一趟的 `drain.*` ＋ 同 tag 的 `drain.*.upstream`（零代码）。
+  **重开条件**：修法后仍读到「等了 200 tick 仍有流体」**且** `upstream` 仍是「没有水源块」
+  ⇒ 才轮到动 `DRAIN_LEGS`／`DRAIN_TICKS`（`JourneyDrain:74-75`）。
+  **代价**：判错＝下一趟又在 `drain.*` 上烧 200 tick 然后照样湿；症状是 `cast{i+1}` 的 `stairFoot` 仍报积水。
 
 ##### 12 级真因：浇筑落在验过的排之上（修法已落 `36130011`，理由见 `JourneyPour.POUR_ROW_SLACK` 的 javadoc）
 
@@ -975,20 +1036,29 @@ lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
 ❓ **那堵墙是什么，日志答不了**——`2,64,18` 全份零命中。唯一间接证据是物理推论：
 `ramp.rampedY` 说身体曾停在 `2,65,18`，站着就意味着 `2,64,18` 实心；而起塔本该在 `3,19` 柱
 （`raiseOffTheFlight` 避开了 `2,19`），`raisedY` 却说身体停在 `2,18`。
-⇒ **下一步是加仪器不是改走法**：`standShort` 要能报出撞在哪一格、那格是什么、谁放的。
-仪器已加两笔。⚠️ **第一笔（`988f88aa`，复用 `JourneyCorridorProbe`）答不了这个问题**：
-`standY` 取的是 y 带里**最高**的可站面，身体在地表 63、壁龛在 56 ⇒ 目标柱印 `n`(=63)，
-底下七排整个被遮。机制判据全中而读数不可用——两件事。
-第二笔（`e1f582c2`，`.standShort.rows`）同印身体柱／目标柱逐格实心＋水平四邻（脚、头分开），
-**待下一趟排练读**；四态判据在 scratchpad 预登记里。
+🟠 **判：先补测量**（仪器已武装，等读数；⛔ 这一趟不动走法）。
+**凭什么**：`2,64,18` 在全份日志里**零命中**，撞哪一格没有读数；两笔仪器已落，
+⚠️ 第一笔（`988f88aa`，复用 `JourneyCorridorProbe`）**答不了这个问题**——`standY` 取 y 带里
+**最高**的可站面，身体在地表 63、壁龛在 56 ⇒ 目标柱印 `n`(=63)，底下七排整个被遮
+（机制判据全中而读数不可用，是两件事）。第二笔 `e1f582c2` 的 `.standShort.rows` 逐格印
+身体柱／目标柱实心＋水平四邻（脚、头分开），四态判据在 scratchpad 预登记里。
+**缺的读数**：下一趟排练的 `cast*.lift.standShort.rows`。
+**重开条件**：读到 `.standShort.rows` 之后仍指不出撞的是哪一格 ⇒ 仪器仍不对，先修仪器别碰走法。
+**代价**：判错＝又一趟排练白跑在这一段上，症状是 `.standShort` 仍只写「没走到」而 `.rows` 零行。
 ⚠️ 不是回归：ladder9 是 `65/60` 且**一级楼梯都没修**，`.ramp.*` 一行都没有。
 ⚠️ 双闸零回归已验（`637eb4b8`，Fabric GREEN／COVERAGE 298/25／失败集逐条同基线）。
 
 🟡 **同趟另一条，独立**：`cast7.1.settled.aimForked.1` —— 线段 clip 预言瞄 `5,59,21` 落进
 `4,59,21`，存成角度后实际射线落进 `2,58,20`，于是换候选。换候选的机制在工作。
-📌 **分子已量**：**28 次换候选／24 个瞄准场合**（cast 15、water 9，`rehearse-swing.log`）。
-　⛔ **分母仍缺**：「一共瞄了多少次」要读 `aimForked` 的写者才能定——`picks`(19)／
-　`atUseGate`(15)／`fromHere`(11) 是三个不同的量，随手挑一个当分母就是编一个分叉率。
+🟠 **判：排到 J72 第 1 笔之后**（分母由那一笔顺带产出，不另立仪器）。
+**凭什么**：分子已量＝**28 次换候选／24 个瞄准场合**（cast 15、water 9，`rehearse-swing.log`）；
+分母＝进到 `fire()` 的候选数，而 `aimThatLandsIn`（今在 `JourneyPour:990`，⚠️ 别处写的 `:879` 已过期）
+只在分叉时写行（`:1048`）。`picks`(19)／`atUseGate`(15)／`fromHere`(11) 是三个不同的量，
+随手挑一个当分母就是编一个分叉率。
+**重开条件**：J72 第 1 笔落地后**分母仍不可数**——那五个 `continue`（`:1011/:1017/:1024/:1030/:1036`）
+出声了，而成功那支 `:1044` 的 `return aim` **仍一行不写** ⇒ 当场重开，给成功那支也补一行。
+⛔ 不写这条，这一项会在 J72 落地那天静默变成孤儿。
+**代价**：判错＝继续拿一个编出来的分叉率去判「换候选机制在不在工作」。
 死因是 `lift.flightSkipped=0,65,15 …（落点 3,60,20，exactRow=false）—— 不用修楼梯`：
 `liftSideways` 刚说完「这一柱验不过这一浇，平移到验得过的那一柱」，`buildTo` 只比排号就跳过，
 横移没发生，`liftedY=65/60` 还把没动的身体记成抬升完成。
@@ -1029,8 +1099,14 @@ cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。
 身体在 3,70,16`——身体 **y=70**，`walkerFallback=true`。
 　塔那 40 个空转 course 已修（drift 的两次改写互为逆操作），**预测死因族不变**，验证在跑。
 　**别动浇筑闸**——它这趟判得对（从 `3,70,16` 瞄 `5,60,19` 确实落进 `3,69,15`）。
-🔍 **`drain.i=壁龛已排干` 只扫 `forgeCorridor`**（走廊格）；十二个框架格按设计留 SOLID、
-　castCell 时才开，所以浇线上 `3,59..61,19=water(壁龛内)` 从来不在这句断言里。待判是不是缺陷。
+❌ **判：不做**（「排干扫不到浇线」——前提是假的，与已撤回的 J80 同一条，别再开第三次）。
+**凭什么**：两处读的是**同一个集合**——`JourneyDrain:126` 扫的是
+`List.copyOf(JourneyPortalRung.forgeCorridor)`，而 `pourLine`（`JourneyPortalRung:1947`）的
+`(壁龛内)` 标签**就是** `forgeCorridor.contains(c)` ⇒ 一格既然印成 `壁龛内`，
+按构造就在排干的扫描集里。
+**重开条件**：某趟浇线积水行印的是 **`(壁龛外)`** 而同趟 `drain.i` 报「壁龛已排干」
+⇒ 那才是真的扫不到，重开。
+**代价**：判错＝去加宽一个本来就够宽的扫描；症状是加宽后 `drain.*` 读数一字不变。
 📌 **撞墙那条（`cast7.lift.standShort`）复现了 2 次，剖面已点名**：
 `身体柱 2,21=.#....... [63=grass_block]；目标柱 3,19=.#....... [63=grass_block]`
 ⇒ 两柱 y62..56 全空，各自只有 y63 一层**天然地表**盖着；身体站在盖子上、目标在盖子下，
@@ -1051,14 +1127,29 @@ cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。
 🔴 **同级上游：三次重走问的是同一个问题。** `water8.stand.1/2/3` 的否决计数逐项相同
 （`脚下不实心=51, 落脚格被占=74, 够不着 5,61,20=8` …）。楼梯没垒完是因：
 `water8.ramp.laid=3/4`、`wet.8.ramp.laid=0/4`，两次都卡在**身体压在自己要垫的那一格里**
-（`vanilla 的 isUnobstructed 会拒`）。`ramp.aside` 的「挪开再问一次」只问一次，不够。
+（`vanilla 的 isUnobstructed 会拒`）。
 
-📌 **`[expect] GEAR-degraded` 是恒假阳性，判据要改。** `WalkerExpectAlarms.ClientGearCheck.missing`
-的 `pick` 只认 `DIAMOND_PICKAXE`/`IRON_PICKAXE`，木镐石镐都不算，所以梯子拿到铁镐之前每 100 tick
-必报一次（ladder5 前六级 30 次，第 4 级「木镐 ×1 到手」PASS 之后措辞一字未变）。而它印的是
-「pickups crowded the gear out」——归因是编的。叫 degraded 就得以「装备存在」为前提：
-判据应是**背包里有而快捷栏里没有**；两者都没有是「还没造」，不该报警。水桶同理。
-**修法验证（先写在这）**：下一趟带仪器的运行，拿到铁镐之前 `GEAR-degraded` 应为 **0 行**；
+🟠 **判：先补测量**（⛔ 不许按「只问一次不够」去加次数——那个诊断读不出来）。
+**凭什么**：三行互斥地写，且都不带时序——`.aside` 只在 `to != null` 时写（`JourneyRamp:779`）、
+`.laid` 只在 `to == null` 时写（`:772`），而 `:768` 会把一次往返后的停因**一律重写成 `REFUSED`**，
+`stepAsideFor:727` 又只对 `BODY_IN_THE_WAY` 且 `!alreadyAside` 供货。归档实测两种形状并存：
+`wet.8` 有 `.aside` 且 `.laid=0/4 停在 REFUSED`，`water8` **没有 `.aside`** 而 `.laid=3/4 停在 REFUSED`。
+⇒ 「挪开后又问了一次还是不行」与「停因被改写成 `REFUSED` 所以根本没再问」**同样解释得通**，
+而 evidence map 在失败那一刻整个打印，排不出先后（[[a-lagging-reading-became-the-crime-scene]]）。
+**缺的读数**：给 `.aside`／`.step.N`／`.laid` 三行一个**共同的 pass 序号**（或 tick 戳），
+并让 `.laid` 印 `:768` **改写之前**的那个 `Stop`。
+**重开条件**：带序号之后读到同一 pass 里 `.aside` 在前、`.step.N` 在后且仍 `BODY_IN_THE_WAY`
+⇒ 那才是「次数不够」，届时按[[a-retry-that-changes-nothing]]**换问题不加次数**。
+**代价**：判错＝给一个从没被第二次问到的分支加重试，症状是加完 `.aside` 行数一条都不涨。
+
+❌ **判：不做**（`[expect] GEAR-degraded` 的判据——**修法已在 HEAD**，本项只剩预登记的验收）。
+**凭什么**：`WalkerExpectAlarms:219-225` 的 `PICKS` 现在列全六个材质档（木/石/铁/金/钻/下界合金），
+javadoc `:213-218` 自己记着这是 2026-08-26 从「只认 IRON/DIAMOND」改过来的、以及那样为什么
+把闸的门槛架在被测阶段之上；`missing`（`:234-241`）改判 `strandedSlot`＝**背包里有而快捷栏里没有**，
+并把槽位印进告警。⇒ 原判词点名的两处（材质表、归因）都已兑现。
+**重开条件**：下一趟带仪器的运行**拿到铁镐之前** `GEAR-degraded` 仍 ≥1 行 ⇒ 修法没生效，重开。
+**代价**：判错＝继续拿一个恒报的告警当信号，症状是它的行数与身体装备状态不相关。
+**验收（预登记，别删）**：下一趟带仪器的运行，拿到铁镐之前 `GEAR-degraded` 应为 **0 行**；
 之后出现的每一行都要能在 9–35 格找到它点名的那件东西——告警现在自带槽位就是为了让这条可查。
 ladder5 旧判据累计 108 行，其中拿到桶（第 10 级）之后只有 2 行，那 2 行大概率是真的。
 
@@ -1082,10 +1173,14 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
 
 📌 **还欠两件，都不是「补到岸检查」**（那件 `ccaf6861` 已落：`stepOntoTheBank` 重问 afloat + 容差 0 补一步）：
 1. ~~补一步之后仍浮着，`bankRow` 只记一笔就往下走，而那行键叫 `lava.exit.ashore`（上岸）在脚下是水时照打 ⇒ 判词撒谎。~~
-   ✅ 判词那一半已修（`ashore()` 现在自带 `noDryFooting` 判据，见其 javadoc）。**行为那一半仍开着**：
-   仍浮着时 `bankRow` 照样往下走。
-2. ⚠️ **「脚下垫一块」这个写死步骤的几何不成立**：浮体在 y=220、岸在 221，`at.below()` 是 219，
-   垫上去身体仍低岸一格。真几何要先读 `JourneyLandingScenes` 的布景再定，别照 J47 那句原文抄。
+   ✅ 判词那一半已修（`ashore()` 现在自带 `noDryFooting` 判据，见其 javadoc）。
+   ❌ **行为那一半——判：排到引擎侧那半之后**（与 🅹 同一笔，不单独开）。
+   **凭什么**：`bankRow`（`JourneyCast:157-165`）和它上游的 LAST_STEP（`:137-154`）**都在
+   `end=path-consumed` 的下游**——走行器只交到差一格处，再加一条腿是同一个问题问两遍。
+   **重开条件**／**代价**：同 🅹 那条（`gotoEnd.1` 的 `end=` 不是 `path-consumed` 且该趟仍红）。
+2. ❌ **「脚下垫一块」这个写死步骤——判：不做，几何不成立。** 四样写在「拍板」节 🅹，
+   一句话是：岸 y=**221**、身体 y=**220**、`at.below()`=**219**，垫上去仍低岸一排；
+   要够到 221 得垫身体自己那一格，`vanilla 的 isUnobstructed` 拒。⛔ 别照 J47 那句原文再抄一次。
 3. 🔴 **`ccaf6861` 那个「容差 0」根本没生效——它管的是报告诚实性，不是这个场景的上游。**
    （上游是 J47：2026-08-26 闸实测 `lava.lastStep.gotoEnd.1=end=path-consumed`，
    路本身就只到差 1 格处，所以收紧判据只会把「假上岸」换成「走不到」，见本条末尾。
