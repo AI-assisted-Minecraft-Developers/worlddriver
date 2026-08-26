@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **The drain waits as long as it says it does.** Every sentence `drainTheAlcove` prints quotes
+  `DRAIN_LEGS * DRAIN_TICKS` = 200 ticks, and the hold underneath them was `DRAIN_TICKS / 2` — so
+  a drain that timed out reported twice the wait it had taken, and 「等了 200 tick 仍有流体」was
+  false by a factor of two. The hold is now the full leg.
+
+  The bill arrived on the portal rung of 2026-08-26. Eight frame cells cast cleanly:
+  `water0..7` poured, `cast0..7` turned them to obsidian, `recover0..7` all took the source back,
+  and `drain.0` through `drain.6` each reported 「壁龛已排干」. Then `drain.7` timed out with
+  `2,56,20` still flowing, and its upstream scan answered the question the timeout raises:
+  「壁龛与楼梯底周围 8 格内没有水源块」— nothing was feeding it, the water was simply still on
+  its way out. The rung took that as permission to continue, poured the ninth source one row
+  higher at `4,61,20`, and the flow from it pinned the stair foot for good: the unstick tower
+  read `washedOffFed = 水在动（流速²=1.00000），但上游有源在喂 —— 它不会自己退`, the body never
+  got back to the pour row, and the rung failed at `4,60,20` from the surface at `0,65,20`.
+
+  A wait is the entire remedy when the upstream scan finds no source, and this one was never as
+  long as it claimed. Whether 200 is enough is a separate question the next run answers; what is
+  fixed here is that the number in the evidence row is now the number that was waited.
+
 - **The ladder eats.** Rung 9 mines iron down a shaft it digs itself, and on 2026-08-26 it fell
   three times on the way (−4, −7, −3, every `hp.trace` row reading `身处=air`), banked its three
   ingots and passed: its assertion asks for ingots, not for a body able to continue. Rung 10 then

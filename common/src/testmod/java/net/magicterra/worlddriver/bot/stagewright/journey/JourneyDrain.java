@@ -168,7 +168,15 @@ final class JourneyDrain {
             then.run();
             return;
         }
-        rig.settle(new HoldStill(DRAIN_TICKS / 2), DRAIN_TICKS,
+        // THE FULL LEG, not half of it. Every sentence above quotes `DRAIN_LEGS * DRAIN_TICKS` = 200,
+        // and this line used to hold for `DRAIN_TICKS / 2` — so a drain that timed out printed twice
+        // the wait it had actually taken, and「等了 200 tick 仍有流体」was false by a factor of two.
+        // j54's `drain.7` is why that mattered: it timed out with
+        //「壁龛与楼梯底周围 8 格内没有水源块」— pure recession, nothing feeding it — and the run then
+        // poured the next source onto the un-receded flow, which pinned the stair foot for good
+        // (`cast8#12.climb.0.washedOffFed`). When the upstream scan finds no source, a longer wait is
+        // the whole remedy, and the wait was never as long as it said.
+        rig.settle(new HoldStill(DRAIN_TICKS), DRAIN_TICKS * 2,
                 () -> drainTheAlcove(ctx, rig, i, legs - 1, then));
     }
 }
