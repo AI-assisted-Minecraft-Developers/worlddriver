@@ -166,12 +166,23 @@ final class JourneyCast {
         then.run();
     }
 
+    /**
+     * The row both exits land on — and it is named {@code ashore} on a path that has just printed
+     * 「脚下还是流体=true」, so it must carry the predicate that decides the word rather than a block
+     * name that only usually agrees with it.
+     *
+     * <p>{@link JourneyShaft#noDryFooting} asks {@code getFluidState(at.below())}; this row used to
+     * print {@code getBlock()} of the same cell. The two part company on a WATERLOGGED block, where
+     * the name answers「oak_stairs」for a cell that is still fluid — the one case where a reader
+     * checking the name alone sees dry land under a body that is on none.
+     */
     private static void ashore(JourneyRig rig) {
         BlockPos at = rig.player().blockPosition();
         ServerLevel lvl = rig.ctx().level();
-        rig.evidence("lava.exit.ashore", at.toShortString() + "，脚下="
-                + lvl.getBlockState(at.below()).getBlock() + "，血 " + rig.player().getHealth()
-                + "，空气 " + rig.player().getAirSupply());
+        boolean wet = JourneyShaft.noDryFooting(lvl, at);
+        rig.evidence("lava.exit.ashore", (wet ? "没上岸（仍无干立足）：" : "上岸：") + at.toShortString()
+                + "，脚下=" + lvl.getBlockState(at.below()).getBlock() + "，无干立足=" + wet
+                + "，血 " + rig.player().getHealth() + "，空气 " + rig.player().getAirSupply());
     }
 
     /** The nearest column with standing room at its own surface, by {@link JourneyTerrain#dryUnderfoot}
