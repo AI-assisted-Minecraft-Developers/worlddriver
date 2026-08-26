@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **The unaimed recovery hop is now gated on where its arc comes down, not on a ring around where
+  it launches.** Both consumers of the old guard — the stuck-wiggle jump and the unstuck
+  displacement burst — ask `WalkerGeometry.hopSuppressed`, which walks the drive bearing out to
+  four blocks in half-block steps and holds the jump only if one of those columns is a lethal drop.
+  `lethalDropWithinHopRange`, the Chebyshev-≤2 boolean it replaces, is deleted.
+
+  The old radius was 2 against an arc measured at **3.47** blocks, so it had a hole exactly one
+  ring wide — and a rung-12 ladder body rode a ring-3 hop into a lava lake through it. Widening the
+  radius was tried on paper and rejected by measurement: at ring 2 that gate already held through a
+  three-minute deterministic stall, sixteen consecutive suppressions repeating the same coordinates
+  every ~30 s, so a wider ring relocates the hole into the stall instead of closing it. Re-centring
+  the probe on the landing point closes both, and it has no half-angle to tune.
+
+  A cone on the bearing was the other candidate and it was measured against the WRONG ANGLE first:
+  the row that reported「92% of suppressed hops point away from the hazard」prints `p.getYRot()`,
+  the CAMERA, while the hop is pushed along `driveTargetYaw` — two channels this walker decouples
+  on purpose (`WalkerConstants`: *camera = aimYaw, movement = driveTargetYaw*). Printing both
+  showed them within 2° at the median over 208 stalled samples, so the earlier distribution was
+  approximately right by luck; the gate reads the drive channel regardless.
+
+  **Measured, three directed rehearsals** (`-Prehearse=PORTAL_LIT -PforgeAway=east
+  -PshaftColumn=-8,20`), 216 hop rows on the third: of the old gate's 131 suppressions the new rule
+  releases **129**, and of its 77 firings it suppresses **none** — what changes is the stall, not
+  the hops that already worked. **What is not measured is the death side**: that run produced no
+  firing hop pointed at a lethal cell, so the kill it is meant to prevent rests on two independent
+  reconstructions rather than a reading, and the row the gate prints stays so the next real
+  occasion files its own evidence. The probe also reads the bearing at LAUNCH while the walker
+  keeps steering through the arc, so a released hop can still be steered into the cell it was
+  cleared of; that limitation is in the javadoc, not worked around.
+
+  The burst path was fixed in the same commit rather than left for later — it is the second
+  consumer of the identical guard, and it now logs its decision, which it never did: one rehearsal
+  produced 216 rows from the wiggle path and zero from this one, so its first firing would have had
+  nothing to attribute it to.
+
 - **A bite that lasts two ticks out of thirty-two is now finished rather than abandoned.** With the
   hand fixed, the next run held the right item and the bar still did not move:
 
