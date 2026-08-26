@@ -992,9 +992,9 @@ final class WalkerTickDrive {
         // encodes edge TYPE, but the fatal case is footing GEOMETRY — walking an EXISTING
         // 1-wide strip is not `bridging`, and the wiggle there launched a sprint-jump arc
         // along a mid-slew heading clean over the deck (bridge battery, every shed).
-        // Hop-range (Chebyshev ≤2) because the arc travels ~3 blocks: the sheds launched
-        // from a floored cell one stride INSIDE the rim, so foot-adjacent scans stay blind.
-        boolean wiggle = wk.wiggleHop(world, p, foot, !bridging && !flatWaterWalk && !pivotForStepUp);
+        // Hop-range (Chebyshev ≤2) against an arc MEASURED at 3.47, launched from a floored cell one
+        // stride INSIDE the rim — foot-adjacent scans stay blind. driveTargetYaw, not the camera: WalkerGeometry.hopLandingRow.
+        boolean wiggle = wk.wiggleHop(world, p, foot, !bridging && !flatWaterWalk && !pivotForStepUp, driveTargetYaw);
         // Climbing a +1 ledge out of a SHALLOW water film needs a BALLISTIC,
         // GROUNDED jump: |Δy|=0.8 exceeds the 0.6 auto-step, and a *held* jump in
         // water just swims the bot up to bob at the surface (y+0.2, onGround=false)

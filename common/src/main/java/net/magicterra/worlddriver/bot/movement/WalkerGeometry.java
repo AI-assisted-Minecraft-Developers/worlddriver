@@ -390,6 +390,16 @@ public final class WalkerGeometry {
      * <p>Yaw and not the velocity vector: at the moment this fires the body is stalled by
      * definition — the measured speeds are 0.003–0.040 against a walk of ~0.13 — so the delta is
      * noise and the facing is the drive.
+     *
+     * <p>⚠️ <b>That last clause is wrong, and this row is the camera, not the drive.</b>
+     * {@code p.getYRot()} is the CAMERA channel; the body is pushed along {@code
+     * WalkerTickDrive}'s {@code driveTargetYaw}, and the two are decoupled ON PURPOSE — see
+     * {@link WalkerConstants} ("camera = aimYaw, movement = driveTargetYaw, decoupled by
+     * AvatarInput's impulse"), which exists precisely so a slewing camera does not drag the body.
+     * A distribution taken over this row therefore measures the wrong quantity: 2026-08-26's
+     * rehearsal split 137 suppressions 126-away/11-toward on THIS angle, which cannot license a
+     * gate on the OTHER one. {@link #hopLandingRow} prints the drive angle beside it; until a run
+     * has shown how far the two diverge at a stall, neither is a lever.
      */
     public static String hopBearingRow(Player p, BlockPos foot, BlockPos lethal) {
         if (lethal == null) return "无致命格，不算方位";
@@ -402,6 +412,62 @@ public final class WalkerGeometry {
                 "朝向 %.0f°，致命格 %s 在 %.0f°，夹角 %.0f°（%s）",
                 net.minecraft.util.Mth.wrapDegrees(p.getYRot()), lethal.toShortString(), bearing,
                 delta, delta <= 90 ? "朝着它" : "背着它");
+    }
+
+    /**
+     * The radii, in blocks along the drive bearing, that {@link #hopLandingRow} samples for a
+     * landing column.
+     *
+     * <p>Three and not one because the arc length is a MEASUREMENT with spread, not a constant.
+     * Measured 2026-08-26 off the ladder's rung 12: a hop logged at {@code (-4.854,66,22.577)} put
+     * the body at {@code (-8.257,66,23.234)} twelve ticks later — <b>3.47 blocks</b>, against the
+     * "~3" that {@link #lethalDropWithinHopRange}'s javadoc had carried in prose. A body that
+     * launches slowed lands short of that, one that launches sprinting lands past it, so a single
+     * point probe would be a coin flip on the one decision that costs a life.
+     */
+    private static final double[] HOP_ARC_SAMPLES = {2.0, 3.0, 4.0};
+
+    /**
+     * Where the unaimed hop would LAND, and whether those columns are lethal — the reading that
+     * {@link #lethalDropWithinHopRange}'s ring cannot give.
+     *
+     * <p><b>MEASUREMENT ONLY. Nothing branches on it</b>, by the same rule that turned this gate's
+     * boolean into a printed ring rather than simply widening it.
+     *
+     * <p><b>Why a landing probe and not a cone on the bearing.</b> The ring reading established the
+     * gate has a hole one ring wide (reach 2 against a throw of 3.47), and the obvious repair —
+     * widen {@link #HOP_RANGE} — was measured and rejected: at ring 2 the gate already holds
+     * through a three-minute deterministic stall, so widening RELOCATES the hole into the stall
+     * rather than closing it. The next obvious repair, a cone half-angle on {@link
+     * #hopBearingRow}'s delta, buys a free parameter AND leaves the deeper defect untouched: that
+     * scan is centred on the LAUNCH point while the danger is at the LANDING point. The rung-12 hop
+     * quoted above reported "no lethal cell within 4" and put the body 3.47 blocks away with a
+     * lethal column beside it. A probe along the bearing has no half-angle to tune and answers the
+     * launch-vs-landing question in the same stroke.
+     *
+     * <p><b>Drive bearing, not camera.</b> {@code driveYaw} must be {@code WalkerTickDrive}'s
+     * {@code driveTargetYaw} — the channel the impulse is actually rotated onto. Passing
+     * {@code p.getYRot()} here would reproduce {@link #hopBearingRow}'s mistake; the row prints
+     * both and their difference so a run can say how far apart they run at a stall.
+     */
+    public static String hopLandingRow(WorldView world, Player p, BlockPos foot, float driveYaw) {
+        double r = Math.toRadians(driveYaw);
+        double dx = -Math.sin(r), dz = Math.cos(r);           // Minecraft yaw: 0 = +Z, 90 = -X
+        int threshold = SurvivalMath.survivableFall(p.getHealth());
+        StringBuilder cells = new StringBuilder();
+        boolean anyLethal = false;
+        for (double d : HOP_ARC_SAMPLES) {
+            BlockPos cand = BlockPos.containing(p.getX() + dx * d, foot.getY(), p.getZ() + dz * d);
+            boolean lethal = isLethalDropColumn(world, cand, threshold);
+            anyLethal |= lethal;
+            if (cells.length() > 0) cells.append('，');
+            cells.append(String.format(java.util.Locale.ROOT, "%.0f格→%s %s", d, cand.toShortString(),
+                    lethal ? "致命" : "安全"));
+        }
+        return String.format(java.util.Locale.ROOT, "驱动 %.0f°（相机 %.0f°，两者差 %.0f°）；%s ⇒ 落点规则会：%s",
+                Mth.wrapDegrees(driveYaw), Mth.wrapDegrees(p.getYRot()),
+                Math.abs(Mth.wrapDegrees(driveYaw - p.getYRot())), cells,
+                anyLethal ? "压制" : "放行");
     }
 
     /** One column's worth of {@link #lethalDropWithinHopRange}: open foot cell, no floor, and the

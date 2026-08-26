@@ -1826,6 +1826,10 @@ public final class Walker {
      * through a three-minute stall. Direction is what separates them, so {@link
      * WalkerGeometry#hopBearingRow} prints where the body points against where the lethal cell is.
      * Nothing branches on it yet, by the same rule that turned this gate's boolean into a ring.
+     * ⚠️ That row prints the CAMERA; the body is pushed along {@code driveTargetYaw}, which is
+     * decoupled from it by design, so {@link WalkerGeometry#hopLandingRow} prints the drive angle,
+     * the columns the arc would land in, and what a landing rule would decide. Read its javadoc
+     * before treating either angle as a lever — and neither row is one yet.
      *
      * <p>Why this earns a line at all: rung 20's takeoff samples showed the body already airborne
      * with {@code 距上次起跳=7}, and eliminating the jump terms that need a riser or water leaves
@@ -1833,7 +1837,8 @@ public final class Walker {
      * REASONING, not a reading — the rehearsal log has no per-tick walker lines to check it against.
      * This is the reading.
      */
-    boolean wiggleHop(WorldView world, net.minecraft.world.entity.player.Player p, BlockPos foot, boolean precond) {
+    boolean wiggleHop(WorldView world, net.minecraft.world.entity.player.Player p, BlockPos foot,
+                      boolean precond, float driveYaw) {
         long call = ++wiggleCalls;   // bumped BEFORE the precondition: adjacency must count skipped calls too
         if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
         BlockPos lethal = WalkerGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
@@ -1841,13 +1846,14 @@ public final class Walker {
         boolean gated = BotConfig.walkerRecoveryHopFloorGate && ring >= 0 && ring <= WalkerGeometry.HOP_RANGE;
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
-            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={} {}",
+            LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 扫描半径={} 最近致命格={} 闸={} 起跳={} {} | {}",
                     wiggleEvents, WIGGLE_EVENTS,
                     p.level().getGameTime(), stuckTicks, foot.toShortString(),
                     String.format(java.util.Locale.ROOT, "%.3f,%.3f,%.3f", p.getX(), p.getY(), p.getZ()),
                     WalkerGeometry.HOP_RANGE, ring < 0 ? ">" + WIGGLE_SCAN_MAX : String.valueOf(ring),
                     BotConfig.walkerRecoveryHopFloorGate, !gated,
-                    WalkerGeometry.hopBearingRow(p, foot, lethal));
+                    WalkerGeometry.hopBearingRow(p, foot, lethal),
+                    WalkerGeometry.hopLandingRow(world, p, foot, driveYaw));
         } else if (wiggleEvents >= WIGGLE_EVENTS && !wiggleCapped && call - wiggleLastCall > 1) {
             // Same blind spot as the jump-source cap: "序=4/4" is the last line both when the body
             // entered the stall window exactly WIGGLE_EVENTS times and when it entered it forty
