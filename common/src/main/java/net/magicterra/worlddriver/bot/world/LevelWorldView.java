@@ -21,8 +21,26 @@ import net.minecraft.world.level.block.state.BlockState;
  * the Avatar places or breaks are observed on the next tick automatically.
  *
  * <p>Phase 0/1 harness view: faithful enough for the canopy-pillar arena. Costs
- * use the same {@code COST_PER_TICK} scale as the client view so A* behaves the
- * same. Mob avoidance / water flow use the interface defaults (no live HazardField).
+ * use the same {@code COST_PER_TICK} scale as the client view. Mob avoidance /
+ * water flow use the interface defaults (no live HazardField).
+ *
+ * <p><b>Same scale is not the same price, and the header used to conclude "so A* behaves
+ * the same" from it.</b> The constant matches; the TICK COUNT it multiplies does not.
+ * {@link #breakCost} asks {@code getDestroyProgress} with the controller's CURRENTLY HELD
+ * item and stops there. {@code ClientWorldView#breakCost} ranks the whole hotbar, then
+ * applies three adjustments this view has no equivalent of:
+ * <ul>
+ *   <li>{@code ×3} wrong-tool aversion (bare-hand stone repriced to ~97 walk-blocks),</li>
+ *   <li>{@code BotConfig.pathfinderLogBreakTax} (ships at 3.0),</li>
+ *   <li>{@code BotConfig.pathfinderBreakCostMultiplier} (ships at 2.5).</li>
+ * </ul>
+ * A grep for those two keys finds exactly one consumer each, both in {@code ClientWorldView}
+ * — so on every DEDICATED-server topology, including the journey ladder, both knobs are
+ * inert whatever their value, and a bare-handed body's A* will tunnel through stone the
+ * client planner detours around. Their own javadocs in {@code BotConfig} say "the planner's
+ * breakCost" with no qualifier; read them as "the CLIENT planner's". This is written down,
+ * not fixed: bringing the taxes over changes what the ladder's A* plans, which is a
+ * measurement with its own gate, not a tidy-up.
  */
 public final class LevelWorldView implements WorldView {
 
@@ -117,10 +135,22 @@ public final class LevelWorldView implements WorldView {
      * walking, which is what spends 100000 nodes on a hop a single bridge edge would have crossed.
      *
      * <p><b>Deliberately not mirrored in ClientWorldView.</b> Its executor
-     * ({@code BotInteract.ensureHoldingPlaceableAny}) really does stop at slot 8 in survival — a
-     * real client cannot move a bag stack to the hotbar without working the inventory menu — so
-     * widening the client's count would invert the asymmetry and promise placements the client
-     * body cannot make. The rule is that each planner counts its OWN executor's reach.
+     * ({@code BotInteract.ensureHoldingPlaceableAny}) really does stop at slot 8 in survival, so
+     * widening the client's count would invert the asymmetry and promise placements that
+     * particular executor cannot make. The rule is that each planner counts its OWN executor's
+     * reach.
+     *
+     * <p><b>The reason given for that stop was wrong and is removed.</b> It read "a real client
+     * cannot move a bag stack to the hotbar without working the inventory menu" — a client
+     * capability claim, and this repo's own client code refutes it:
+     * {@code BotInteract.swapFromMainInv} works the inventory menu exactly that way
+     * ({@code handleInventoryMouseClick(..., ClickType.SWAP, ...)} on {@code p.inventoryMenu}),
+     * and TWO survival client paths already call it — {@code ensureHoldingPillarBlock} and
+     * {@code selectBestToolFor}. {@code ensureHoldingPlaceableAny} stops at slot 8 because it
+     * alone was never given that tail (its own javadoc in {@code BotInteract} says so and calls
+     * the asymmetry deliberate), not because the client body is unable. That distinction decides
+     * whether the client's narrower count is a fact of the platform or a fixable choice — it is
+     * the second, and stating the first is how a fixable gap gets read as a law.
      */
     @Override public int placeableBlockCount() {
         if (controller == null) return 0;

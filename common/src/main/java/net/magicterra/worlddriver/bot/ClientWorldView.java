@@ -385,12 +385,23 @@ public final class ClientWorldView implements WorldView {
         float hardness = s.getDestroySpeed(lvl, bp);
         if (hardness < 0) return Double.POSITIVE_INFINITY;                 // unbreakable (bedrock/barrier)
         if (hardness == 0) return COST_PER_TICK;                           // instant-mine (≈1 tick: torch, plant)
-        // Best destroy speed across the hotbar (the Walker calls selectBestTool
-        // before actually mining, so estimate with the best available tool —
-        // bare-hand baseline 1.0 when nothing better). Mirrors the vanilla
+        // Best destroy speed across the HOTBAR ONLY (slots 0-8), bare-hand baseline
+        // 1.0 when nothing better. Mirrors the vanilla
         // Player.getDestroyProgress / getDestroySpeed path: per-tool Efficiency
         // enchant (+level²+1 once the tool already beats bare hand) and the
         // player-global Haste / Mining-Fatigue multiplier (cached per search).
+        //
+        // NOT the same search space as the actuator, and this comment claimed it was.
+        // It read "the Walker calls selectBestTool before actually mining, so estimate
+        // with the best available tool"; BotInteract.selectBestToolFor scans 0-8 AND
+        // menu slots 9-35 and SWAPs a bag tool up, so for a body whose pickaxes
+        // overflowed the hotbar the actuator is strictly faster than this estimate.
+        // The mismatch OVER-prices breaks (the planner detours around stone the body
+        // would in fact mine with a bag pickaxe) — the conservative direction, which is
+        // why it has never shown as a death. Closing it means widening this scan to
+        // 9-35, which makes A* dig MORE: a measurement, not a tidy-up. Written down
+        // rather than fixed, and the parity sentence removed so the next reader does
+        // not take the two for equal.
         // Situational water/not-on-ground ÷5 penalties are intentionally left
         // out — they reflect the player's *current* stance, not where this
         // future break happens; Baritone likewise prices breaks as mined
@@ -463,14 +474,34 @@ public final class ClientWorldView implements WorldView {
     }
     /** A placeable, NON-FALLING BlockItem is on the hotbar (creative can pull
      *  from anywhere). Falling blocks (sand/gravel/concrete_powder) are excluded:
-     *  the place moves (PillarUp, BridgePlace, ParkourPlace) all set a block over
-     *  air/water, where a falling block immediately drops away — so it can never
-     *  form the footing/bridge those moves rely on. Counting sand as placeable
-     *  made A* plan a pillar-up the bot then couldn't build (it bobbed in place
-     *  forever). Require a stable block so canPlace() only enables a place move
-     *  the actuator can actually complete; with none, A* falls back to the
+     *  a BRIDGE or PARKOUR place sets a block over air/water, where a falling block
+     *  immediately drops away — so it can never form the footing those moves rely on.
+     *  Counting sand as placeable made A* plan a pillar-up the bot then couldn't
+     *  build (it bobbed in place forever). With none, A* falls back to the
      *  break-to-ascend moves (StairUpBreak / SwimAshoreBreak), which need no
-     *  placed blocks. */
+     *  placed blocks.
+     *
+     *  <p><b>This list said PillarUp too, and for PillarUp the reason is false.</b> A
+     *  pillar sets its block on the solid rung the body is standing on, so nothing
+     *  drops away — {@code BotConfig#isUsablePillarBlock} exists precisely to say so
+     *  ("that hazard does not exist for an in-place pillar") and accepts sand/gravel.
+     *  Two separate things follow, and only the first is a real divergence:
+     *  <ul>
+     *    <li>{@code PillarUp.eval} gates on {@link #canPlace()}, i.e. on THIS scan, while
+     *        the walker's pillar actuators gate on {@code Avatar#holdPillarBlock} →
+     *        {@code BotInteract.ensureHoldingPillarBlock}, which accepts falling blocks
+     *        AND reaches menu slots 9-35 through {@code swapFromMainInv}. So a body
+     *        carrying only sand — deserts, beaches, rivers — gets zero planned PillarUp
+     *        edges for a climb its own recovery path would pillar out of.
+     *        {@code WalkerTickDrive} and {@code WalkerTickStallDetect} both already say
+     *        in so many words "gate on holdPillarBlock (not world.canPlace)"; that
+     *        knowledge simply never reached this javadoc.</li>
+     *    <li>The "bobbed in place forever" measurement is still real, but it dates from
+     *        before {@code isUsablePillarBlock} existed and does not license the stated
+     *        reason.</li>
+     *  </ul>
+     *  Left as-is: splitting this into a build scan and a pillar scan LOOSENS what A*
+     *  will plan, which is the direction that needs a gate run rather than a tidy-up. */
     private static boolean hasPlaceableBlock() {
         LocalPlayer pl = Minecraft.getInstance().player;
         if (pl == null) return false;

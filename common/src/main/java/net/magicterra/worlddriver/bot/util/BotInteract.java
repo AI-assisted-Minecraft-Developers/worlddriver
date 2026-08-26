@@ -411,9 +411,20 @@ public final class BotInteract {
         if (p == null || lvl == null) return;
         BlockState bs = lvl.getBlockState(pos);
         Inventory inv = p.getInventory();
-        // Resolve the Efficiency holder so this ranks tools the same way the A*
-        // breakCost did (a +Efficiency tool can out-mine a higher-base one); a
+        // Resolve the Efficiency holder so this SCORES a tool the same way the A*
+        // breakCost does (a +Efficiency tool can out-mine a higher-base one); a
         // data pack missing the vanilla enchant just falls back to raw speed.
+        //
+        // Scoring is all that matches — the two do NOT rank the same set. This method
+        // searches slots 0-8 AND menu slots 9-35 and swaps; ClientWorldView#breakCost
+        // reads 0-8 only. Its baseline is bare hand (1f, not-correct); this one's is
+        // whatever is currently held. So the planner's estimate is the pessimistic
+        // one, never the optimistic one, and a body with a bag pickaxe out-mines what
+        // A* budgeted for it. The third member of this family, AutoTool#tick, drops
+        // Efficiency entirely and adds a +0.01f anti-oscillation epsilon, so an
+        // Efficiency-V wood pick wins here and loses there — deliberate there (it
+        // re-decides every tick off mc.hitResult and must not flap), and named here so
+        // the three are read as three, not as one implementation copied twice.
         Holder<Enchantment> eff = null;
         try {
             eff = lvl.registryAccess()
