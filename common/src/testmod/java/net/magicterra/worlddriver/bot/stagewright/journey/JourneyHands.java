@@ -54,6 +54,36 @@ final class JourneyHands {
                 hitFluids ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
                           : net.minecraft.world.level.ClipContext.Fluid.NONE, fp));
     }
+
+    /**
+     * The ray that will ACTUALLY FIRE on a client-driven use: <b>the server body's eye, the client
+     * body's angles.</b> Neither body's own ray is that line.
+     *
+     * <p>{@code ServerboundUseItemPacket} carries yRot/xRot and the server adopts them before
+     * {@code Item.use} rays (see {@link #aimBoth}) — so the eye is the SERVER's and the angles are the
+     * CLIENT's. {@code aimBoth} aims each body from its own position, which is exact for each of them
+     * and produces a THIRD line for the use: a gate reading {@code aimedAt(rig.player(), …)} is
+     * judging a ray nobody fires.
+     *
+     * <p>Harmless while the two bodies sit a packet apart and the ray runs through open cell interiors
+     * — which is why this went unnoticed until a ray grazed a boundary. <b>Measured, ladder5 rung 12
+     * cell 4:</b> the bodies were 0.06 blocks apart and the two rays picked different FACES —
+     * client {@code 4,56,21 face=west}, server {@code 4,56,22 face=up} — so the pour that the gate
+     * cleared put its lava somewhere the cell check then reported as {@code air}. A small displacement
+     * does not imply a small difference: the answer here is discrete.
+     */
+    static net.minecraft.world.phys.BlockHitResult aimedAtAsUseWill(
+            net.minecraft.world.entity.player.Player eyeFrom,
+            net.minecraft.world.entity.player.Player anglesFrom, double range, boolean hitFluids) {
+        net.minecraft.world.phys.Vec3 eye = eyeFrom.getEyePosition();
+        net.minecraft.world.phys.Vec3 look = net.minecraft.world.phys.Vec3
+                .directionFromRotation(anglesFrom.getXRot(), anglesFrom.getYRot());
+        net.minecraft.world.phys.Vec3 end = eye.add(look.scale(range));
+        return eyeFrom.level().clip(new net.minecraft.world.level.ClipContext(eye, end,
+                net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                hitFluids ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
+                          : net.minecraft.world.level.ClipContext.Fluid.NONE, eyeFrom));
+    }
     /**
      * Hold still, THEN aim, then act — with nothing between the aim and the act.
      *

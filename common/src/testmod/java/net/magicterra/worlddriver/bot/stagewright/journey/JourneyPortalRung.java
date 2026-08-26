@@ -1626,7 +1626,14 @@ public final class JourneyPortalRung {
                 // the wrong cell is indistinguishable from a pour that did not work, which is the
                 // shape of the last three rounds of this rung's investigation. `pourInto` has had
                 // this instrument for a while; the ten casts that matter never did.
-                var hit = JourneyHands.aimedAt(rig.player(), JourneyFill.BUCKET_REACH, false);
+                // THE LINE THAT FIRES, not either body's own. `aimBoth` above aims each body from its
+                // own position — exact for each of them, and a THIRD ray for the use, which takes the
+                // server's eye and the client's angles. Ladder5 rung 12 cell 4 is what that costs: the
+                // bodies were 0.06 blocks apart, the two rays picked different faces (client
+                // `4,56,21 west`, server `4,56,22 up`), this gate cleared the server's, and the cell
+                // check afterwards read `air`. See JourneyHands#aimedAtAsUseWill.
+                var hit = JourneyHands.aimedAtAsUseWill(rig.player(), rig.avatar().player(),
+                        JourneyFill.BUCKET_REACH, false);
                 BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
                 rig.evidence(tag + ".picks." + tries, (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
