@@ -5,7 +5,11 @@ import java.util.Map;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
+import net.magicterra.worlddriver.bot.process.Intent;
+import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -148,22 +152,7 @@ final class JourneyPour {
             raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
             return;
         }
-        // THE EXACT COLUMN, radius 0. It was 1, and a radius-1 disk is not a rounding allowance here
-        // — it is a different ray. Worse, `walkToColumn` judges arrival against its own
-        // `ARRIVED_WITHIN` and not against the radius asked for, so the leg reports success from up
-        // to five cells out: `recover8.rise.raiseTo.arrivedDistance=1` was an ARRIVAL, and the
-        // pinned climb it handed over to then refused to place anything because the body was not in
-        // the column. Asking for radius 0 at least makes the walker try for the cell the aim was
-        // computed from; the tower's own drift correction is what finishes the job when it cannot.
-        // AND IT MAY NOT DIG ITS WAY IN. This leg runs inside the alcove, where the only thing between
-        // the body and the column is what this rung cut with its own pick — the same argument
-        // `walkTheStairs`, the water fetch, `JourneyRamp#walkTo` and the pour's own approach all make.
-        // A `Goal.XZ` makes it worse than the others: it ignores Y, so from atop the staircase the
-        // cheapest route into a column below is to sink a shaft, and the 2026-08-25 rehearsal shows it
-        // doing exactly that through `-1,58,20` — the support of the tread at `-1,59,20`.
-        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 0, 800,
-                WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, List.of(), List.of(new NoBreak()),
-                () -> {
+        Runnable arrived = () -> {
             // SAY SO WHEN THE ARRIVAL IS NOT AN ARRIVAL. `arrivedDistance` is a number nobody reads
             // as a verdict, and without this row a raise that started out of its own column looks
             // identical to one that started in it right up until `raisedY` reports a shortfall.
@@ -211,12 +200,66 @@ final class JourneyPour {
                         + " 高 " + over + " 排 —— 收水这一侧不走回程，交给下面 exactRow 的台阶处置");
             }
             raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
-        },
-                () -> {
+        };
+        Runnable stuck = () -> {
             rig.evidence(tag + ".raiseStuck", "走不到 " + col.getX() + "," + col.getZ()
                     + "，从当前高度浇（多半会被射线闸拦下）");
             then.run();
-        });
+        };
+        // A RETRY THAT ASKS THE SAME QUESTION IS NOT A RETRY. Until 2026-08-26 `raiseRowTooHigh`
+        // above walked the body all the way back to the forge and then called this method again with
+        // the same target, so the leg below re-ran with the same column, the same `walkToColumn` and
+        // the same `Goal.XZ`. Rung 12's rehearsal that day measured both halves: the descent worked
+        // — `raiseRowRetry.returnedY=57`, landing `1.83/57.00/19.52` — and the second ascent still
+        // ended at `3,64,20`, `arrivedY=64（起 57，净升 7）`, on grass_block, six rows above a wantY
+        // of 58. `Goal.XZ.ignoresY()` is the whole account: the surface belongs to the target column
+        // too, and from a shaft floor it is that column's cheapest cell. So the retry could only ever
+        // produce the answer that sent it back — it changed the body's position and nothing else the
+        // question depended on.
+        //
+        // ONLY THE RETRY, AND ONLY POURING. A first attempt starts wherever the rung left the body,
+        // often on the surface, and a 3D goal across that distance is a route nothing here has
+        // measured. The retry starts pinned at the stair foot, one or two cells out, where a 3D goal
+        // is short and well-formed. The scoop is excluded for the reason `raiseRowTooHigh` already
+        // argues above: it has a remedy that works, and a new one running first would take its turn.
+        //
+        // Goal.Near, NOT Goal.Block. `Walker.snapGoalToStandable` (Walker.java:797) pulls an
+        // unstandable Goal.Block to the nearest standable cell, and when `col` at wantY is occupied
+        // that cell is the surface — which would rebuild this very defect inside the goal itself.
+        // Near does no snapping. Its radius is POUR_ROW_SLACK so this leg and the `over` check above
+        // are one bar in one place; a leg that cannot get inside it spends its budget and falls
+        // through to `raiseRowGaveUp`, which is the honest outcome and the one that gate predicts.
+        if (pouring && attempt > 0) {
+            BlockPos want = new BlockPos(col.getX(), wantY, col.getZ());
+            rig.evidence(tag + ".raiseTo3D", "重来这一趟改用三维目标 " + want.toShortString()
+                    + "（半径 " + POUR_ROW_SLACK + "）—— 上一趟的 Goal.XZ 忽略 Y，"
+                    + "把身体送上了同一柱的地表");
+            rig.settle(new IntentProcess(new Intent(new Goal.Near(want, POUR_ROW_SLACK), List.of(),
+                    CapabilityProfile.ALL, List.of(new NoBreak()))), 800, () -> {
+                BlockPos landed3d = rig.player().blockPosition();
+                rig.evidence(tag + ".raiseTo3D.landed", landed3d.toShortString() + "（想去 "
+                        + want.toShortString() + "，距 " + String.format(java.util.Locale.ROOT, "%.2f",
+                        Math.sqrt(landed3d.distSqr(want))) + " 格）");
+                arrived.run();
+            });
+            return;
+        }
+        // THE EXACT COLUMN, radius 0. It was 1, and a radius-1 disk is not a rounding allowance here
+        // — it is a different ray. Worse, `walkToColumn` judges arrival against its own
+        // `ARRIVED_WITHIN` and not against the radius asked for, so the leg reports success from up
+        // to five cells out: `recover8.rise.raiseTo.arrivedDistance=1` was an ARRIVAL, and the
+        // pinned climb it handed over to then refused to place anything because the body was not in
+        // the column. Asking for radius 0 at least makes the walker try for the cell the aim was
+        // computed from; the tower's own drift correction is what finishes the job when it cannot.
+        // AND IT MAY NOT DIG ITS WAY IN. This leg runs inside the alcove, where the only thing between
+        // the body and the column is what this rung cut with its own pick — the same argument
+        // `walkTheStairs`, the water fetch, `JourneyRamp#walkTo` and the pour's own approach all make.
+        // A `Goal.XZ` makes it worse than the others: it ignores Y, so from atop the staircase the
+        // cheapest route into a column below is to sink a shaft, and the 2026-08-25 rehearsal shows it
+        // doing exactly that through `-1,58,20` — the support of the tread at `-1,59,20`.
+        WorldDriverJourneyScenes.walkToColumn(rig, tag + ".raiseTo", col.getX(), col.getZ(), 0, 800,
+                WorldDriverJourneyScenes.MAX_WALK_ATTEMPTS, List.of(), List.of(new NoBreak()),
+                arrived, stuck);
     }
 
     private static void raiseInColumn(JourneyRig rig, BlockPos target, BlockPos col, int wantY,
