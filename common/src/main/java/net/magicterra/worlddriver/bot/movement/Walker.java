@@ -2084,13 +2084,21 @@ public final class Walker {
      *  discard — and counted apart so it stops inflating {@link #guardForcedRepaths}. */
     public static volatile int guardPinnedWithNoPlan;
 
+    /** Names for {@link #strideGuardSkips}, in bucket order, so the instrument printing them and
+     *  the code filling them cannot drift apart. Declared FIRST because the array below is sized
+     *  from it: a bucket added to one and not the other then fails at the increment rather than
+     *  silently landing in a neighbour's tally. */
+    public static final String[] STRIDE_SKIP_REASONS = {
+            "关着/跑酷 tick", "没有身体", "在水里", "脚不在实心上", "没在平移 h<0.03",
+            "前方那格不可穿过（就是地）", "计划本来就要下到那一柱", "那一柱在危险之前就见底了"};
+
     /**
      * Why {@link #strideFloorGuard} said nothing this tick — one bucket per early return, plus the
      * fires, so a silent guard can be told apart from an absent one.
      *
      * <p><b>The reading a burn post-mortem could not get.</b> That guard's fire line is
      * unconditional and it is the right guard for「about to stride into lava」, so「0 lines」looks
-     * like a verdict. It is not: it collapses six unrelated states into one number. The 2026-08-23
+     * like a verdict. It is not: it collapses every one of these states into one number. The 2026-08-23
      * rehearsal walked into a source pool at −10,63,19 with the guard logging zero times, and
      * nothing on disk could say whether the flag was off, the sole was airborne, the stride cell
      * was solid ground, the plan had claimed that column, or the column really did floor out
@@ -2104,17 +2112,12 @@ public final class Walker {
      * <p>{@link java.util.concurrent.atomic.AtomicLongArray}, not a bare {@code long[]}: every
      * counter around this one is {@code volatile} precisely because the instruments reading them
      * hold no Walker and sit on another thread. A plain array's ELEMENTS carry no such guarantee,
-     * so「all six buckets are zero」would have had a second reading —「the writes are not visible
+     * so「every bucket is zero」would have had a second reading —「the writes are not visible
      * yet」— on the one occasion the row exists to settle. A reading that cannot distinguish its
      * own staleness from its subject is not a reading.
      */
     public static final java.util.concurrent.atomic.AtomicLongArray strideGuardSkips =
-            new java.util.concurrent.atomic.AtomicLongArray(6);
-    /** Names for {@link #strideGuardSkips}, in bucket order, so the instrument printing them and
-     *  the code filling them cannot drift apart. */
-    public static final String[] STRIDE_SKIP_REASONS = {
-            "关着/跑酷 tick", "脚不在实心上（或在水里）", "没在平移 h<0.03",
-            "前方那格不可穿过（就是地）", "计划本来就要下到那一柱", "那一柱在危险之前就见底了"};
+            new java.util.concurrent.atomic.AtomicLongArray(STRIDE_SKIP_REASONS.length);
     /** Ticks {@link #strideFloorGuard} actually pinned. Read beside the skips, never alone. */
     public static volatile int strideGuardFires;
 
@@ -2271,15 +2274,22 @@ public final class Walker {
         // guard whose job is to stop the body striding into a bottomless drop. Measured on journey
         // rung 20 (2026-08-18): a whole run over the End island — void on every side — logged the
         // guard ZERO times, and the body walked off the edge.
-        if (p == null || p.isInWater() || WalkerGeometry.soleOnSolid(world, p) <= 0.0) return skipStride(1);
+        // THREE BUCKETS, not one. These were a single `||` until 2026-08-26, when a ladder rung
+        // reported 「脚不在实心上（或在水里）=395」 for all 395 ticks it ran and that number could not
+        // say which: a body afloat and a body over a drop read alike here and want opposite
+        // remedies (get ashore vs. stop striding). One bucket per condition costs nothing and the
+        // sum is unchanged, so the contract above — exactly one bucket per tick — still holds.
+        if (p == null) return skipStride(1);
+        if (p.isInWater()) return skipStride(2);
+        if (WalkerGeometry.soleOnSolid(world, p) <= 0.0) return skipStride(3);
         Vec3 dm = p.getDeltaMovement();
         double h = Math.sqrt(dm.x * dm.x + dm.z * dm.z);
-        if (h < 0.03) return skipStride(2);                     // not translating
+        if (h < 0.03) return skipStride(4);                     // not translating
         double lead = Math.max(0.9, h * 4);                     // ~4 ticks of travel, min one cell
         BlockPos strideCell = BlockPos.containing(
                 p.getX() + dm.x / h * lead, p.getY() + 0.05, p.getZ() + dm.z / h * lead);
         BlockPos footCell = BlockPos.containing(p.getX(), p.getY() + 0.05, p.getZ());
-        if (strideCell.equals(footCell) || !world.isPassable(strideCell)) return skipStride(3);
+        if (strideCell.equals(footCell) || !world.isPassable(strideCell)) return skipStride(5);
         // Planned descent into that exact column (current or next few nodes — chained falls
         // put the landing node a step or two ahead of the pointer). Column must match
         // EXACTLY: a Chebyshev-1 slack would exempt the pit mouth beside a staircase and
@@ -2289,7 +2299,7 @@ public final class Walker {
             for (int i = Math.max(step, 0); i < end; i++) {
                 BlockPos n = path.get(i);
                 if (n.getY() < footCell.getY() && n.getX() == strideCell.getX() && n.getZ() == strideCell.getZ())
-                    return skipStride(4);
+                    return skipStride(6);
             }
         }
         // Hazard threshold is LETHALITY at current HP, not mere unplannability: fall damage is
@@ -2315,7 +2325,7 @@ public final class Walker {
             // exactly the stride this guard exists to refuse.
             if (world.isHazard(below)) break;
             if (!world.isPassable(below) || world.isWater(below))
-                return skipStride(5);                           // a floor or a water landing → safe
+                return skipStride(7);                           // a floor or a water landing → safe
         }
         strideGuardFires++;
         avatarSneak(a, true);
