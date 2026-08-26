@@ -129,41 +129,6 @@ final class JourneyPour {
      *  full {@code returnToTheForge}, and a second retry costs more budget than the cell is worth. */
     private static final int RAISE_ROW_TRIES = 1;
 
-    /**
-     * The largest row shortfall the SCOOP side hands straight to {@link JourneyRamp#buildTo}'s
-     * staircase without first walking the body back.
-     *
-     * <p><b>One, because one is the only size that remedy has ever been measured to answer.</b>
-     * {@code recover6.rise.raisedY = 59/58} is its verification: a body one row up, already inside
-     * the alcove, and a single course laid under it. The row above deliberately does not act on the
-     * shortfall for exactly that reason — {@code buildTo} owns it, and a remedy running first would
-     * take its turn and leave it dead.
-     *
-     * <p>What that argument assumed, and the rehearsals of 2026-08-26 disproved, is that the size
-     * does not matter. Three runs of rung 12 measured the scoop arriving <b>four</b> rows high and
-     * out of the shaft entirely:
-     *
-     * <pre>
-     * recover8.rise.raiseTo.arrivedY = 64（起 56，净升 8），脚下=grass_block   ← 壁龛地板 y=56，井口 y=66
-     * recover8.rise.scoopRowHigh     = 3, 64, 20 比要站的排 y=60 高 4 排
-     * recover8.rise.ramp.stand       = 3, 64, 20 → 2, 56, 19（现在不在足迹上）
-     * recover8.rise.ramp.standShort  = 没走到 2, 56, 19，停在 1, 65, 22
-     * recover8.rise.ramp.laid        = 0/4 级垫好了（… 停在 OUT_OF_REACH 2, 56, 18）
-     * </pre>
-     *
-     * <p>The staircase is planned from the alcove FLOOR up, so its first move is
-     * {@link JourneyRamp}'s {@code approach} — a walk down to a cell beside the bottom step. From
-     * one row up that walk is a step; from the surface it is the whole descent the body just failed
-     * to avoid making, and it laid none of its four courses. <b>0 of 4 is not a larger 0 of 1</b>:
-     * the same remedy at a different magnitude is a different problem.
-     *
-     * <p>So the bound is on the MAGNITUDE and not on which side asks. At or under it nothing changes
-     * and {@code buildTo} still gets its turn on the case it verified; above it the body is first
-     * walked back to within this many rows of its column — turning the size nobody measured into the
-     * one that was — and the staircase then runs as before whether or not that walk succeeded.
-     */
-    private static final int SCOOP_STAIRS_MAX_OVER = 1;
-
     private static void raiseTo(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                 int wantY, boolean pouring, String tag, int attempt, Runnable then) {
         BlockPos verified = raiseColumn(ctx.level(), rig, target, away, wantY, pouring, tag);
@@ -228,44 +193,27 @@ final class JourneyPour {
                         + " 次）—— 下面这一浇多半会被射线闸拦下，失败记在浇上而不是记在这一排上");
             }
             if (!pouring && over > 0) {
-                // The scoop's own row shortfall. Up to SCOOP_STAIRS_MAX_OVER it is still recorded and
-                // NOT acted on here — `buildTo` owns it, and that hand-off has to stay visible or a
-                // scoop that arrives high looks the same as one that arrives level.
+                // The scoop's own row shortfall, recorded and NOT acted on here: `buildTo` owns it.
+                // Without this row the hand-off is invisible and a scoop that arrives high looks
+                // the same as one that arrives level.
+                //
+                // A WALK BACK WAS TRIED HERE AND MEASURED WORSE. On 2026-08-26 this branch ran a 3D
+                // `Goal.Near(col at wantY, 1)` before handing over, on the theory that turning an
+                // unmeasured shortfall (4 rows, body on the surface) into the measured one (1 row,
+                // body in the alcove) would let `buildTo`'s staircase do its job. Three rehearsals:
+                // it fired once and made the position WORSE — `scoopRowWalkedBack = 3,64,20 →
+                // -2,66,18（比要站的排高 4 → 6 排，不在指定柱 3,20 上）` — never fired in the second,
+                // and was below its own bound in the third. Zero runs improved.
+                //
+                // The account is the same objection this file already makes about the pour's own 3D
+                // retry twenty lines down: that leg is well-formed because it starts PINNED AT THE
+                // STAIR FOOT, one or two cells out. A goal issued from the surface is neither short
+                // nor well-formed, and the walker answered it by leaving the column altogether. So
+                // the remedy for arriving high is not to walk back after the fact — it is to stop
+                // `walkToColumn`'s `Goal.XZ` from delivering the body to the surface in the first
+                // place, which is a change to the goal and not to this hand-off.
                 rig.evidence(tag + ".scoopRowHigh", landed.toShortString() + " 比要站的排 y=" + wantY
-                        + " 高 " + over + " 排 —— " + (over > SCOOP_STAIRS_MAX_OVER
-                                ? "超出台阶答得了的量级（" + SCOOP_STAIRS_MAX_OVER
-                                        + " 排），先用三维目标走回这一柱附近，走不回去仍旧交给 exactRow 的台阶"
-                                : "收水这一侧不走回程，交给下面 exactRow 的台阶处置"));
-            }
-            // WALK BACK BEFORE THE STAIRCASE, and only when the staircase cannot answer the size —
-            // see SCOOP_STAIRS_MAX_OVER for the readings. The goal is 3D on purpose: `walkToColumn`
-            // above is a `Goal.XZ`, and `Goal.XZ.ignoresY()` is what let the body arrive on the
-            // surface of the right column in the first place. Not `Goal.Block` either —
-            // `Walker.snapGoalToStandable` (Walker.java:797) pulls an unstandable one to the nearest
-            // standable cell, which from here is that same surface, rebuilding the defect inside the
-            // goal. The radius is SCOOP_STAIRS_MAX_OVER rather than 0 BECAUSE the staircase still
-            // runs afterwards: landing within one row hands `buildTo` the exact case it verified
-            // instead of asking this leg to be perfect. And it is not allowed to dig — the only
-            // thing between the body and the column is what this rung cut with its own pick.
-            if (!pouring && over > SCOOP_STAIRS_MAX_OVER) {
-                BlockPos want = new BlockPos(col.getX(), wantY, col.getZ());
-                rig.settle(new IntentProcess(new Intent(new Goal.Near(want, SCOOP_STAIRS_MAX_OVER),
-                        List.of(), CapabilityProfile.ALL, List.of(new NoBreak()))), 800, () -> {
-                    BlockPos back = rig.player().blockPosition();
-                    // THE VALUE, not「回来了/没回来」. Whether this leg helped is the difference
-                    // between the rows `buildTo` is about to face, so print them: a body that came
-                    // back to 1 row up is the measured case, one still 4 up is the unmeasured one and
-                    // the staircase below is expected to lay nothing again.
-                    rig.evidence(tag + ".scoopRowWalkedBack", landed.toShortString() + " → "
-                            + back.toShortString() + "（想去 " + want.toShortString() + "，半径 "
-                            + SCOOP_STAIRS_MAX_OVER + "）—— 比要站的排高 " + (landed.getY() - wantY)
-                            + " → " + (back.getY() - wantY) + " 排，"
-                            + (back.getX() == col.getX() && back.getZ() == col.getZ()
-                                    ? "在指定柱上" : "不在指定柱 " + col.getX() + "," + col.getZ() + " 上")
-                            + "；台阶照旧接着跑");
-                    raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
-                });
-                return;
+                        + " 高 " + over + " 排 —— 收水这一侧不走回程，交给下面 exactRow 的台阶处置");
             }
             raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
         };
