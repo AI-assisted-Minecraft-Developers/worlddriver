@@ -27,10 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   showed them within 2° at the median over 208 stalled samples, so the earlier distribution was
   approximately right by luck; the gate reads the drive channel regardless.
 
-  **Measured, three directed rehearsals** (`-Prehearse=PORTAL_LIT -PforgeAway=east
-  -PshaftColumn=-8,20`), 216 hop rows on the third: of the old gate's 131 suppressions the new rule
-  releases **129**, and of its 77 firings it suppresses **none** — what changes is the stall, not
-  the hops that already worked. **What is not measured is the death side**: that run produced no
+  **Backtested A/B**, same command both arms (`-Prehearse=PORTAL_LIT -PforgeAway=east
+  -PshaftColumn=-8,20`), both PASS: fired/held goes **77 / 131 → 183 / 5**, the longest run of
+  consecutive holds **37 → 1**, and the cell that ate 87 holds now takes 5. 146 of the released
+  hops are ones the ring would have held (123 at ring 2, 23 at ring 1) and the deterministic stall
+  is gone; zero deaths in either arm. ⚠️ The treatment arm also ran LONGER — 16214 ticks against
+  14478 / 14609 / 15019 — which is one sample against three and is recorded, not explained.
+
+  **What is not measured is the death side**: the control run produced no
   firing hop pointed at a lethal cell, so the kill it is meant to prevent rests on two independent
   reconstructions rather than a reading, and the row the gate prints stays so the next real
   occasion files its own evidence. The probe also reads the bearing at LAUNCH while the walker
