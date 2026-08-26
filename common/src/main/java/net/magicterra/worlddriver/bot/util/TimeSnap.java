@@ -6,6 +6,14 @@ import java.util.Map;
 /**
  * The one place a world's {@code dayTime} is turned into an API row.
  *
+ * <p><b>"API row" is load-bearing, and a fourth caller is the reason to say so.</b>
+ * {@code bot/world/WorldModel} also calls {@link #timeOfDay} — it shares the {@code % 24000}
+ * folding and deliberately keeps its OWN day phase, because the BOT's phase and the phase the
+ * agent is told are different questions (its javadoc tabulates the two side by side). So a grep
+ * finds four consumers, not the three below, and the fourth is a partial one ON PURPOSE. Do not
+ * "finish" the unification by pointing {@code WorldModel} at {@link #phase}: that would change
+ * what the bot decides on, not merely where a constant lives.
+ *
  * <p>Same reason {@link AttackSnap} exists, and the same three consumers were already
  * disagreeing before it did. The day-phase bucketing was written three times:
  *

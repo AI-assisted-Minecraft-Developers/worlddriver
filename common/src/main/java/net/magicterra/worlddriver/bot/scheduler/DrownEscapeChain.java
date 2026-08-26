@@ -355,12 +355,16 @@ public final class DrownEscapeChain implements Chain {
      *       {@link net.magicterra.worlddriver.bot.movement.AvatarInput#tick} actually left there on
      *       the previous tick — <b>not</b> what this class asked for. The command channel is
      *       last-writer-wins and heavily contended, so "we commanded it" is not the same claim.
-     *       This said "nine callers"; a repo-wide {@code grep -rn "commandJump("} (minus the
-     *       five plumbing lines in Avatar / AvatarInput / ClientPlayerAvatar / BotInput) returns
-     *       thirty-odd writes across thirteen behaviour classes. Nine is the count for
-     *       {@code AutoSwim} ALONE — one file was measured and reported as the whole. The
-     *       argument survives (more contention, not less); the number is the part a reader
-     *       would use to bound a race audit, so take it from the grep.</li>
+     *       This said "nine callers", which is {@code AutoSwim}'s count ALONE — one file measured
+     *       and reported as the whole. A repo-wide {@code grep -rn "commandJump(" common/src/main}
+     *       returned 41 lines on 2026-08-26, five of them plumbing (the declaration in
+     *       {@code Avatar}, the impl in {@code AvatarInput}, the forwarder in {@code BotInput},
+     *       and the {@code ClientPlayerAvatar} / {@code ServerPlayerAvatar} overrides), leaving
+     *       ~36 writes across 14 behaviour classes. The argument survives either way (more
+     *       contention, not less); the NUMBER is what a reader would use to bound a race audit,
+     *       and it has already drifted once since being corrected here, so re-run the grep. ⚠️ The
+     *       identical wrong nine also sat in {@code BotInteract} — two copies from one memory,
+     *       which is why the fix is a derivation rather than a better number.</li>
      *   <li>{@code 撞顶} ({@code verticalCollision}) is the one-row proof of "buoyancy IS applying
      *       and something is in the way" — the state every column scan in this class is blind to.
      *       A body that is neither rising nor sinking is pinned, and only this field says so

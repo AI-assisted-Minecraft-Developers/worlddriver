@@ -183,8 +183,15 @@ public final class BotInteract {
      * <ul>
      *   <li>{@code 跳读回} is read back off the player's own {@code Input} — what
      *       {@code AvatarInput#tick} actually left there last tick, <b>not</b> what the chain asked
-     *       for. That channel is last-writer-wins with nine writers, so "we commanded it" is a
-     *       different claim from "it landed".</li>
+     *       for. That channel is last-writer-wins and heavily contended, so "we commanded it" is
+     *       a different claim from "it landed". This said "nine writers", which is
+     *       {@code AutoSwim}'s count ALONE — one file measured and reported as the whole. Derive
+     *       it, do not quote it: {@code grep -rn "commandJump(" common/src/main} returned 41 lines
+     *       on 2026-08-26, five of them plumbing (the declaration in {@code Avatar}, the impl in
+     *       {@code AvatarInput}, the forwarder in {@code BotInput}, and the two avatar overrides),
+     *       leaving ~36 writes across 14 behaviour classes. ⚠️ The same wrong nine was written
+     *       into {@code DrownEscapeChain} as well, and both copies came from one memory rather
+     *       than from two greps — which is the whole reason to re-run it here.</li>
      *   <li>{@code 撞顶} ({@code verticalCollision}) is the one-row proof of "buoyancy IS applying
      *       and something is in the way" — the state every column scan in the chain is blind to. A
      *       body neither rising nor sinking is pinned, and only this says so without arithmetic on
@@ -256,10 +263,13 @@ public final class BotInteract {
      * waiting on the server.
      *
      * <p><b>The off-thread return is {@link InteractionResult#PASS} and means "deferred", never
-     * "refused".</b> Nothing may branch on it. All three call sites discard it today
+     * "refused".</b> Nothing may branch on it. All FOUR call sites discard it today
      * ({@code ClientPlayerAvatar.placeOn} and {@code useBlock} are {@code void};
-     * {@link #walkerPlace} ignores it) — a caller wanting an outcome must read the world after the
-     * round trip, exactly as the ramp does.
+     * {@link #walkerPlace} ignores it; and this method's own {@code mc.execute} re-dispatch below
+     * drops the result of the hop by construction) — a caller wanting an outcome must read the
+     * world after the round trip, exactly as the ramp does. This said "three" and named three,
+     * which is what a grep returning four leaves a reader unable to reconcile; the invariant is
+     * unchanged, only the count was short.
      *
      * <p>On the client thread this is byte-identical to the old body: the guard is the only added
      * statement, so BuildProcess / TowerProcess / BridgeProcess / SleepProcess are untouched.
