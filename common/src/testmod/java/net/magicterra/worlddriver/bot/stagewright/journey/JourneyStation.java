@@ -238,7 +238,13 @@ final class JourneyStation {
             }
             // Neither remedy applies: no ground to walk to and no wall to cut. The craft below will
             // report its own error, and this line is what says the body never had anywhere to begin.
-            rig.evidence("station.noGround", foot.toShortString());
+            // WITH WHAT IT WAS STANDING IN, because a bare coordinate cannot tell the two shapes
+            // this branch serves apart: a pillar top (too much air) and a shaft bottom (no air at
+            // all) both arrive here, and so does a body afloat — the ladder run of 2026-08-26 came
+            // through with `walkerCensus` reporting 「脚不在实心上（或在水里）」for all 395 ticks of
+            // the rung, a bucket that never got crafted, and no row anywhere saying which of the two
+            // that bucket was.
+            rig.evidence("station.noGround", foot.toShortString() + " " + standStory(rig, lvl, foot));
             then.run();
             return;
         }
@@ -257,10 +263,38 @@ final class JourneyStation {
         }
         // Indexed, because evidence overwrites by name and three attempts under one key describe
         // only the last — the same defect the pickup keys already had.
-        rig.evidence("station.steppingOff." + step, foot.toShortString() + " → " + spot.toShortString());
+        rig.evidence("station.steppingOff." + step, foot.toShortString() + " → " + spot.toShortString()
+                + " " + standStory(rig, lvl, foot));
         rig.attempting("离开放不下东西的地方，走到 " + spot.toShortString());
-        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot))), 900,
-                () -> makeRoomForAStation(rig, then, left - 1));
+        rig.settle(new IntentProcess(new Intent(new Goal.Block(spot))), 900, () -> {
+            // WHERE THE LEG ACTUALLY ENDED, which the row above does not say. Three attempts printed
+            // `67,63,60 → 67,61,60` byte-identically on 2026-08-26 and nothing said whether the body
+            // walked to a second bad cell or never moved at all — and those want opposite next steps
+            // (a better choice of `spot` vs. a body that cannot walk from where it is). The pair
+            // 「from」/「landed」 answers it in one row, and「一格都没挪」is the answer that means the
+            // retry was never a retry.
+            BlockPos landed = rig.player().blockPosition();
+            rig.evidence("station.steppingOff." + step + ".end", landed.equals(foot)
+                    ? "一格都没挪，还在 " + foot.toShortString()
+                      + " —— 这条腿没走成，不是走到了另一个坏格 " + standStory(rig, lvl, landed)
+                    : landed.toShortString() + (landed.equals(spot) ? "（到了）"
+                            : "（想去 " + spot.toShortString() + "，没到）") + " " + standStory(rig, lvl, landed));
+            makeRoomForAStation(rig, then, left - 1);
+        });
+    }
+
+    /** What the body is standing in and on, for the rows that record a place it could not leave.
+     *
+     *  <p>Four readings and not one: {@code onGround} answers a different question from「脚下是实心」
+     *  (it reports the last {@code move()}, so it lies in both directions on the tick a body leaves
+     *  or meets the floor), and a body afloat reads {@code onGround=false} with a perfectly solid
+     *  block below it. Naming all four means the next reader does not have to guess which of them
+     *  the coordinate was hiding. */
+    private static String standStory(JourneyRig rig, ServerLevel lvl, BlockPos foot) {
+        return "（脚格=" + lvl.getBlockState(foot).getBlock()
+                + "，脚下=" + lvl.getBlockState(foot.below()).getBlock()
+                + "，onGround=" + rig.player().onGround()
+                + "，inWater=" + rig.player().isInWater() + "）";
     }
 
     /** How many short legs the body gets to find ground a station can stand on. */
