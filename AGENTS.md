@@ -208,6 +208,36 @@ etc.) working in this project. Keep it short and authoritative.
     outside that one package, `javap -c` the class and count calls taking a `Player`
     parameter by hand. Full account: `docs/drown-escape-design.md` §5.
 
+13. **A scene that writes `BotConfig` must hold a pin.** Nothing resets config between
+    scenes — `applyGameTestBaseline()` runs once at server start — so whatever a scene
+    leaves changed is what the NEXT scene starts with, and scene order then decides a
+    reading. Two lines at the top of the body, and they beat an assignment at the end
+    because `cleanup` also runs when the scene FAILS, which is the path that leaks:
+
+    ```java
+    var pin = BotConfig.pinnedBaseline();
+    ctx.cleanup(pin::close);
+    ```
+
+    Gate: `ConfigPinDisciplineTest` (`./gradlew :common:test`, no game) reads the compiled
+    testmod bytecode and names any method that writes a `BotConfig` static with no
+    `pinnedBaseline()` on every path into it — counting a pin taken by a helper it calls,
+    which is how a rung inherits one from `rig.generousPathfinding()`. **Run it before
+    landing a scene that touches config.** Same slot discipline as #12: it recompiles
+    `:common`, so take the tree from main rather than starting it under a live run.
+
+    ⚠️ Its javadoc carries two named edits that MUST turn it red — one deleting a direct
+    pin, one deleting a delegated pin — each measured against the compiled tree before the
+    test was written. The second is the load-bearing one: counting delegated pins is the
+    loose direction, and without a sample proving that cut was earned, a green here would
+    only mean the reachability swallowed everything. Re-run both if you touch it.
+
+    ⚠️ Restoring by hand is legal, but only on a path a FAILURE also takes (`try/finally`,
+    or `ctx.cleanup`). Restoring at the end of the body is not — that is exactly the line a
+    failing scene skips. Methods that restore by hand are listed in the test's
+    `ACCOUNTED_FOR` beside the still-open ones, and the test also fails when an entry there
+    stops being needed, so the list cannot rot into a record of problems already fixed.
+
 ## Log locations
 
 Runtime output is local-only and must never appear at the project root:
