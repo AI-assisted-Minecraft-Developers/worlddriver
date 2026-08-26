@@ -1766,14 +1766,21 @@ public final class JourneyPortalRung {
                 // rows that disagree mean the INSTRUMENT is broken and nothing below may be read as a
                 // fact about the world. See JourneyHands#handTrace; rung 11's pour has carried this
                 // since j43b and rung 12's, the one that actually keeps failing, never had it.
-                // AND ASK WHERE IT LANDS ONE MORE TIME, HERE, with nothing but the use after it. The
-                // gate a hundred lines up ran BEFORE `regripBeforeUse`, and a regrip settles, which
-                // ticks. This rung pours from a body standing in the stair foot's own water
-                // (`cast3.stairFoot`:「不能挖也不能垫，只能等它退」), so it is SINKING across exactly
-                // that gap — and an aim is a pure function of eye position, so a body that moved has an
-                // aim that expired. Same reason `aimThenAct` puts the aim adjacent to the act; this
-                // applies it to the CHECK, which is the half that was still far away. A hold must be
-                // adjacent to the use, and so must the verification of where it points.
+                // AND ASK WHERE IT LANDS ONE MORE TIME, HERE, with nothing but the use after it.
+                //
+                // <b>This is an invariant assertion, not a fix — say so, because the obvious reading is
+                // wrong.</b> "The gate is a hundred lines up, so the body has moved since" does NOT hold
+                // on the normal path: `regripBeforeUse` opens with `if (actingHolds(…)) return true`,
+                // and everything else between the two points reads fields or writes evidence rows.
+                // Nothing there ticks the server — which is exactly what `handTrace`'s own contract
+                // asserts three lines below. Cell 4 of ladder5 was lost to the gate reading the wrong
+                // BODY, not to it reading at the wrong MOMENT, and the body swap above is the fix.
+                //
+                // So this row earns its place two ways and neither is「the body sank」: it covers the
+                // `handSlipped` branch, which DOES settle and therefore ticks, and it turns「something
+                // between the gate and the use moved the body」from an assumption into a measurement.
+                // If `.atUseGate` ever fires with `.handSlipped` absent, the no-tick claim above is
+                // false and every reading between them has to be re-dated. It costs no tick to ask.
                 //
                 // Re-aim, then re-ask, and no retry branch: `clearPourLine`/`liftInPlace` both need
                 // `BotConfig.allowPlace`, which is off from here down, so a repair launched from here
@@ -1797,9 +1804,10 @@ public final class JourneyPortalRung {
                             + (atUseLands == null ? String.valueOf(atUseHit.getType())
                                                   : atUseLands.toShortString())
                             + "，身体在 " + rig.player().blockPosition()
-                            + " —— 早闸放行到这里之间只隔了一次 regrip，身体在这几 tick 里动了"
-                            + "（多半是在楼梯脚的水里下沉）。没有倒：倒下去 use 照样报 CONSUME，"
-                            + "然后这一级会把失败写成「浇不出黑曜石」");
+                            + " —— 早闸放行过，两处之间本不该有任何一 tick："
+                            + "看这一级有没有 `.handSlipped`（有＝重新拿桶那次落定动了身体；"
+                            + "没有＝中间有别的东西在 tick 服务端，那么这两点之间所有读数的时刻都要重判）。"
+                            + "没有倒：倒下去 use 照样报 CONSUME，然后这一级会把失败写成「浇不出黑曜石」");
                     return;
                 }
                 JourneyHands.handTrace(rig, tag, -1);

@@ -889,9 +889,11 @@ public static volatile boolean autoRetreat = false;
 下一趟集成服梯子按四态判，**先算再读**：
 ① 第 12 级过 = 有效；
 ②a 早闸拒、三次重走耗尽、桶未花 = 闸对了，几何仍不行；
-②b `.atUseGate` 拒、桶未花 = regrip 那几 tick 身体沉了（`cast3.stairFoot` 说水积在楼梯脚只能等它退）；
+②b `.atUseGate` 拒、桶未花 = 早闸与 use 之间**有东西 tick 了**——`regripBeforeUse` 手上已是桶就
+　 立刻返回，正常路径一 tick 都不吃，所以这一态先验低。对照 `.handSlipped` 定性：
+　 有＝重拿桶那次落定动了身体；**没有＝「这中间不 tick」这个前提本身是假的**，那么早闸到 use
+　 之间所有读数的时刻都要重判（`handTrace` 的契约也建立在同一个前提上）。
 ③ 两道闸都放行、桶花了、格仍 air = 模型仍错，别再往瞄准上加仪器。
-⚠️ ②b 高发是预期内的，它是**有名字的失败**，好过烧桶说谎；这轮不扩 scope 去修沉降。
 
 📌 **`[expect] GEAR-degraded` 是恒假阳性，判据要改。** `WalkerExpectAlarms.ClientGearCheck.missing`
 的 `pick` 只认 `DIAMOND_PICKAXE`/`IRON_PICKAXE`，木镐石镐都不算，所以梯子拿到铁镐之前每 100 tick
