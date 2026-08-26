@@ -1113,7 +1113,7 @@ public final class JourneyRig {
             }, ticks + 100, () -> {
                 endLeg(d);
                 breakItWhereItStands(target);
-                sayIfStillThere(target, "客户端：走到 2 格内再挥（NoBreak）");
+                sayIfStillThere(target, "客户端：已走过 Goal.Near(2)+NoBreak 再就地挥，仍没开");
                 then.run();
             });
             return;
@@ -1179,6 +1179,16 @@ public final class JourneyRig {
      * <p>The halves are re-derived here rather than read from the avatar, which keeps them private.
      * That is deliberate and it is also the check: they are printed NEXT TO the authority, so a run
      * where they disagree with it has caught this row drifting away from the rule it describes.
+     */
+    /**
+     * @param how what this call ALREADY DID, in the past tense — never an imperative. The row this
+     *     writes carries every measurement the reader needs (eye distance against its ceiling, cell
+     *     distance, canBreak, exposure), and on 2026-08-26 the one thing that stopped those numbers
+     *     from being read together was this field: it said「走到 2 格内再挥」, which parses as advice
+     *     for a next step, so「格心距 4.00 格」sitting three clauses earlier — the direct
+     *     contradiction of it — went unexamined for a whole rehearsal. An imperative in an evidence
+     *     row is read as a TODO; a past-tense one is read as a record, and only the record invites
+     *     the reader to check it against the numbers beside it.
      */
     private void sayIfStillThere(BlockPos target, String how) {
         ServerLevel lvl = (ServerLevel) player().level();
