@@ -649,6 +649,10 @@ public final class JourneyShaft {
         // body and jumps; where the body lands after that is not pinned to anything, so a course
         // that ends a cell over is normal and only the next course makes it permanent.
         if (at.getX() != climbColX || at.getZ() != climbColZ) {
+            // Captured BEFORE the correction, because both writes below move `climbCol` and the
+            // loop check at the end of this course needs the value the correction was aimed at.
+            final int wasColX = climbColX;
+            final int wasColZ = climbColZ;
             rig.evidence(climbKey(step, ".drift"), at.toShortString() + " 偏离起塔柱 "
                     + climbColX + "," + climbColZ + "，先走回去再垒");
             // THE COLUMN, AT WHATEVER HEIGHT IT CAN BE ENTERED — not the cell level with the body.
@@ -713,6 +717,34 @@ public final class JourneyShaft {
                     rig.evidence(climbKey(step, ".driftOntoTheFlight"), climbColX + "," + climbColZ
                             + " 是楼梯那一柱，附近没有能改去的柱 —— 塔到此为止（垒下去就是把台阶砌死），"
                             + "交给 climbOut 的兜底腿" + pinNote);
+                    then.run();
+                    return;
+                }
+                // TWO WRITES THAT UNDO EACH OTHER ARE NOT A CORRECTION.
+                //
+                // `driftKept` adopts the column the body is standing in precisely BECAUSE the leg
+                // could not reach the old one; the flight check then rejects that column for being a
+                // staircase column and names another. When the other one is the column the leg just
+                // failed to reach, the two writes are inverses: the course ends in the exact state it
+                // began in, and the next course asks the identical question. Rung 12's rehearsal of
+                // 2026-08-26 spent its whole forty-course cap that way — `climb.0` through
+                // `climb.39` byte-identical, the body pinned at 1,57,19 with `driftGoto` timing out
+                // toward 2,56,18, `driftKept` naming 1,19 and `driftOffTheFlight` naming 2,18, forty
+                // times over. MAX_CLIMB_STEPS was the only thing that ended it.
+                //
+                // Bounded by the shape and not by a counter, because only this shape is a loop. A
+                // body that MOVED has changed the question even without arriving — the flight is
+                // then choosing between columns it has not been refused — and a flight naming a
+                // THIRD column has changed it too. Both keep the old behaviour. Only the exact
+                // inverse pair is refused, and it takes `driftOntoTheFlight`'s exit for the same
+                // reason: there is no column this course can both stand in and legally tower from,
+                // so the tower stops and climbOut's walker fallback carries the rest.
+                if (back.equals(at) && clear.getX() == wasColX && clear.getZ() == wasColZ) {
+                    rig.evidence(climbKey(step, ".driftLoop"), climbColX + "," + climbColZ
+                            + " 是楼梯那一柱，而航道要改回的 " + wasColX + "," + wasColZ
+                            + " 正是这一腿刚走不到的那一柱 —— 两次改写互为逆操作，"
+                            + "再垒一课还是停在 " + at.toShortString()
+                            + "；塔到此为止，交给 climbOut 的兜底腿");
                     then.run();
                     return;
                 }
