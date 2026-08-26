@@ -197,9 +197,60 @@ final class JourneyRamp {
      */
     static void buildTo(JourneyRig rig, Set<BlockPos> corridor, BlockPos landing, boolean exactRow,
                         String tag, Runnable then) {
+        buildTo(rig, corridor, landing, exactRow, Integer.MAX_VALUE, false, tag, then);
+    }
+
+    /**
+     * As above, with the {@code >=} arm bounded and optionally pinned to {@code landing}'s column.
+     *
+     * <p><b>Both bounds exist because the unbounded arm answered a body that had not moved.</b> Cell
+     * eight of the real ladder of 2026-08-26 is the reading. {@code liftInPlace} had already decided
+     * the body's own column could not fire this pour and said so — {@code water8.liftSideways.2 =
+     * 0,65,15 高度够了（y=60）但这一柱验不过这一浇 —— 平移到验得过的那一柱，不是往上垒} — then picked
+     * {@code 3,60,20} and asked for it. This method compared rows only, found {@code 65 >= 60}, and
+     * returned without building or walking anything:
+     *
+     * <pre>
+     * water8.lift               = 0,65,15 → 3,60,20（走不到选定的落脚格，修一段楼梯上到和 4,61,20 同高）
+     * water8.lift.flightSkipped = 0,65,15 已经到了落点那一排或更高（**高 5 排**）（落点 3,60,20，exactRow=false）
+     * water8.liftedY            = 65/60
+     * </pre>
+     *
+     * <p>The sideways move the caller asked for never happened, and {@code liftedY} recorded the
+     * non-move as a lift that finished. From three columns out and five rows up the only line to the
+     * backing is the steep one {@link JourneyPour#POUR_ROW_SLACK} already accounts for, so the pour
+     * then picked the body's own footing: {@code water8.picks.1 = 4,63,20 grass_block face=up → 落进
+     * 4,64,20}.
+     *
+     * <p><b>Neither bound is on by default, because one caller legitimately depends on the skip.</b>
+     * {@link JourneyPortalRung}'s {@code standBehind} follows this call with a {@code walkToStand} onto
+     * the very landing it passed — for that caller "high enough, wrong column" is a walk, not a
+     * staircase, and pinning the column would make it build flights it does not need. Only the pour
+     * side asks for the bounds, and it is the only side with a reading that wants them.
+     */
+    static void buildTo(JourneyRig rig, Set<BlockPos> corridor, BlockPos landing, boolean exactRow,
+                        int rowSlack, boolean sameColumn, String tag, Runnable then) {
         ServerLevel level = rig.ctx().level();
         BlockPos here = rig.player().blockPosition();
-        if (exactRow ? here.getY() == landing.getY() : here.getY() >= landing.getY()) {
+        int over = here.getY() - landing.getY();
+        boolean rowOk = exactRow ? over == 0 : (over >= 0 && over <= rowSlack);
+        boolean columnOk = !sameColumn
+                || (here.getX() == landing.getX() && here.getZ() == landing.getZ());
+        // WHY IT IS NOT SKIPPING, which the row below cannot say because it only ever runs when the
+        // skip is taken. 「修一段本来就要修的楼梯」and「修一段楼梯把一个已经够高的身体接回它的柱」are
+        // two different findings, and without this row the second reaches the results file wearing
+        // the first one's clothes — the same complaint 202-206 makes about the skip's own silence.
+        if (!rowOk || !columnOk) {
+            if (over >= 0 && (sameColumn || rowSlack != Integer.MAX_VALUE)) {
+                rig.evidence(tag + ".flightNotSkipped", here.toShortString() + " 够高了（高 " + over
+                        + " 排，容许 " + (rowSlack == Integer.MAX_VALUE ? "不限" : rowSlack) + "）但"
+                        + (columnOk ? "" : "不在落点那一柱 " + landing.getX() + "," + landing.getZ() + " 上")
+                        + (columnOk || rowOk ? "" : "，而且")
+                        + (rowOk ? "" : "高过了容许的排")
+                        + " —— 射线是照那一柱那一排验的，从这儿打出去的不是验过的那条；不跳过，修楼梯把身体接过去");
+            }
+        }
+        if (rowOk && columnOk) {
             //「不用修」和「修不出来」是两个发现，而这个出口一个都不写 —— 走这条路的一趟于是一行
             // `.ramp.*` 也没有，正是上面那段 javadoc 指认的「no .ramp.* row exists in that run at
             // all」：recover6 里门框替一个身体本就不该站的排背了黑锅。`.noFlight` 是「拒绝」的键，
@@ -209,11 +260,12 @@ final class JourneyRamp {
             // 「高了五排」cannot tell the two apart — and cell ten of 2026-08-26 was the second while
             // reading like the first. The number is free; it costs a subtraction and it is the only
             // way this exit ever admits it let a body through that could not fire its verified ray.
-            int above = here.getY() - landing.getY();
             rig.evidence(tag + ".flightSkipped", here.toShortString() + " 已经"
                     + (exactRow ? "在落点那一排" : "到了落点那一排或更高")
-                    + (above > 0 ? "（**高 " + above + " 排**）" : "")
+                    + (over > 0 ? "（**高 " + over + " 排**）" : "")
                     + "（落点 " + landing.toShortString() + "，exactRow=" + exactRow
+                    + (rowSlack == Integer.MAX_VALUE ? "" : "，容许 " + rowSlack + " 排")
+                    + (sameColumn ? "，同柱" : "")
                     + "）—— 不用修楼梯");
             then.run();
             return;

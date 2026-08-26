@@ -119,7 +119,7 @@ final class JourneyPour {
      * — flipping it would also kill the tolerance {@code JourneyRamp} argues for and I have no reading
      * against.
      */
-    private static final int POUR_ROW_SLACK = 1;
+    static final int POUR_ROW_SLACK = 1;
 
     /** How many times a raise may walk back down and try for its row again. One: the descent is a
      *  full {@code returnToTheForge}, and a second retry costs more budget than the cell is worth. */
@@ -687,9 +687,26 @@ final class JourneyPour {
             then.run();
             return;
         }
-        JourneyRamp.buildTo(rig, JourneyPortalRung.forgeCorridor, landing, tag + ".lift", () -> {
-            if (rig.player().blockPosition().getY() >= wantY) {
-                rig.evidence(tag + ".liftedY", rig.player().blockPosition().getY() + "/" + wantY);
+        // BOUNDED, AND PINNED TO THE COLUMN. The unbounded arm answered `liftSideways` — a body this
+        // method had just found unable to fire from its own column — with「已经到了落点那一排或更高」
+        // and built nothing, so the sideways move named one row above never happened and `liftedY`
+        // recorded it as a lift that finished. Both bounds are read from this rung's own evidence;
+        // see JourneyRamp#buildTo(…, rowSlack, sameColumn, …).
+        JourneyRamp.buildTo(rig, JourneyPortalRung.forgeCorridor, landing, false,
+                POUR_ROW_SLACK, true, tag + ".lift", () -> {
+            // THE COLUMN TOO, because this row is what the caller reads as「抬升成功了」and the row
+            // alone cannot carry that. A lift is asked for precisely when the body's own column
+            // cannot fire the pour, so a body that ends at the right height in the wrong column has
+            // not been lifted — it has been left. `liftedY=65/60` said only「排到了」for exactly such
+            // a body on 2026-08-26; the bounds above stop it happening, this says so when it does.
+            BlockPos ended = rig.player().blockPosition();
+            if (ended.getY() >= wantY) {
+                boolean inColumn = ended.getX() == landing.getX() && ended.getZ() == landing.getZ();
+                rig.evidence(tag + ".liftedY", ended.getY() + "/" + wantY
+                        + (inColumn ? "（在落点那一柱上）"
+                                : "（停在 " + ended.getX() + "," + ended.getZ() + "，落点柱 "
+                                        + landing.getX() + "," + landing.getZ()
+                                        + " —— 排够了但柱不对，射线是照那一柱验的）"));
                 then.run();
                 return;
             }
