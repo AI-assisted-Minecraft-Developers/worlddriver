@@ -877,19 +877,26 @@ public static volatile boolean autoRetreat = false;
 修法已落 `36130011`（`POUR_ROW_SLACK=1` / `RAISE_ROW_TRIES=1`，排不对就走回模腔重来）。
 完整因果链和「为什么是加上界而不是翻 `exactRow`」在 `JourneyPour.POUR_ROW_SLACK` 的 javadoc 里。
 
-📌 **这个修法还没被检验。** 两个闸都 GREEN（Fabric 298/25、NeoForge 299/24，`UNDECLARED: 0`，
-失败集合两边一致），但三个新证据键
-`raiseRowTooHigh`／`raiseRowGaveUp`／`raiseRowRetry` **各 0 次**——排检查一次没触发。
-触发率约 1/10（`cast0`–`cast8` 九次没过头），一趟真梯很可能也碰不到。
-⇒ **要写构造场景**：身体摆到高出 `wantY` 五排再调 `raiseTo`，断言 `raiseRowTooHigh` 开火、
-身体最终落回验过的那一排。⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
+📌 **排检查：`raiseRowTooHigh`／`raiseRowRetry` 已由 ladder9 检验（各 1 次），
+`raiseRowGaveUp` 仍 0 次。** 实测行：`raiseRowTooHigh=2,64,22 比要站的排 y=58 高 6 排（容许 1）
+… 走回模腔重来一次（第 1/1 次）`，之后没有 `GaveUp`——即「重来一次就成了」这条路走通了，
+而「重来仍不行」那条分支**从没跑过**。
+⇒ 构造场景的目标缩到 `raiseRowGaveUp`：要让重来之后仍然高出容许排（模腔本身就在高处）。
+⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
 ⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
 
-🔴 **第 12 级：射线闸已验证生效（ladder9），剩下的是几何——身体站得比目标高 4 格。**
-死因已从「第 N 格没浇成黑曜石」（放行错浇＋假报成功）变成「浇不到指定格」（拒绝＋说出真因）。
-`想浇 4,61,20（瞄 5,61,20），射线落进 4,64,20，身体在 2,65,20`。
-⚠️ 浇线上 `1,60~63,20` 是**四格高的 dirt**、`2/3,63,20` 是 grass_block，都标「壁龛外」
-——**先查这些土是不是这一趟自己垒的**（解卡塔／补救垫块），是的话属于「这一趟拆掉自己刚造的东西」那族。
+🔴 **第 12 级：`liftInPlace` 的 `flightSkipped` 短路没有排上界，也不判柱。**
+`lift.flightSkipped=0,65,15 已经到了落点那一排或更高（高 5 排）（落点 3,60,20，exactRow=false）
+—— 不用修楼梯`，于是射线从高 5 排、差 3 柱的地方打出去。同一道闸 `raiseTo` 那侧已经有了
+（`raiseRowTooHigh=… 高 6 排（容许 1）… 走回模腔重来一次`，ladder9 实测触发 1 次）。
+⇒ 照它给 `lift` 加同一道闸，并且判**同一柱**，不只判排号。
+（浇线上 `1,60~63,20` 的 dirt 已排除是这一趟垒的：`clear3` 印的是 grass_block 压 dirt 的原生剖面，
+「壁龛外」是 `clearPourLine` 拒绝清的理由，不是放置记录。）
+
+🔴 **同级上游：三次重走问的是同一个问题。** `water8.stand.1/2/3` 的否决计数逐项相同
+（`脚下不实心=51, 落脚格被占=74, 够不着 5,61,20=8` …）。楼梯没垒完是因：
+`water8.ramp.laid=3/4`、`wet.8.ramp.laid=0/4`，两次都卡在**身体压在自己要垫的那一格里**
+（`vanilla 的 isUnobstructed 会拒`）。`ramp.aside` 的「挪开再问一次」只问一次，不够。
 
 📌 **`[expect] GEAR-degraded` 是恒假阳性，判据要改。** `WalkerExpectAlarms.ClientGearCheck.missing`
 的 `pick` 只认 `DIAMOND_PICKAXE`/`IRON_PICKAXE`，木镐石镐都不算，所以梯子拿到铁镐之前每 100 tick
