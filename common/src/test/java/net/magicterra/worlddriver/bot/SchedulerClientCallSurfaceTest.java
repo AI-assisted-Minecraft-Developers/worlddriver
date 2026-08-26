@@ -70,6 +70,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * answer, not a verdict. That asymmetry is usable because the measured state today is empty; the
  * day it stops being empty, someone has to say why the argument is not a client body.
  *
+ * <p><b>2026-08-26: the widening scan was correct, in scope, and nobody ran it.</b> A tidy-up
+ * folded twelve hand-written foot-cell floors into {@code BotUtil.blockPosOf}, and one of the
+ * twelve was {@code RetreatChain}'s {@code blockPosOf(mc.player)} — a {@code LocalPlayer} handed
+ * to an {@code Entity} parameter, inside this package, which is precisely what
+ * {@link #wideBodyParams} reports and what the second assertion refuses. It went to
+ * {@code stagewrightDedicatedServer*} instead and killed {@code wd.retreatGateMatrix} and
+ * {@code wd.cancelRouting} at 0 ticks. Nothing about the scanner failed; the workflow never asked
+ * it. Two things follow, and the second is the one that keeps costing gates. First: this file is
+ * a seconds-long {@code :common:test} with no game attached, so a change that alters the SHAPE of
+ * a call — folding into a helper, extracting a method, adding a parameter — can be cleared before
+ * the gate rather than by it. Second: the reasoning that shipped it was "the expressions are
+ * byte-identical, so a mistake could only fail at COMPILE time". Byte-identical is an assertion
+ * about the expression; the call site is where a widening lives, and javac reports nothing at all
+ * about it. A refactor whose whole claim is "the diff is only a shape" is not the exception to
+ * this rule, it is its main occasion.
+ *
  * <p>Measured 2026-08-23 with {@code javap -c} over the compiled package, so the gap is recorded
  * rather than merely suspected: every client type in an invoked descriptor's PARAMETER position is
  * the exact type ({@code LocalPlayer} into a {@code LocalPlayer} parameter, {@code Minecraft} into

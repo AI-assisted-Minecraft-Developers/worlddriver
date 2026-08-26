@@ -186,8 +186,21 @@ etc.) working in this project. Keep it short and authoritative.
     with `invokestatic` (`BotInteract.riseBlockedCell` / `continueDestroy` are the models).
     `invokestatic` resolves its owner, not its owner's dependencies, and a chain whose
     `tick` opens with `if (mc == null) return` never loads that owner on a server.
-    Verify by measurement — `javap -c` the class and count calls that take a `Player`
-    parameter — not by reading the source. Full account: `docs/drown-escape-design.md` §5.
+    Verify by measurement, not by reading the source — and for `bot/scheduler/**` the
+    measurement is already written. `SchedulerClientCallSurfaceTest` parses the compiled
+    constant pool and fails on any call site in that package whose descriptor takes
+    `Player`/`LivingEntity`/`Entity`; it carries its own positive controls, so its green
+    means it looked rather than that it found nothing anywhere. `./gradlew :common:test`
+    runs it, needs no game, and finishes in seconds — **run it before landing any change
+    that alters the SHAPE of a call**: folding a duplicated expression into a shared helper,
+    extracting a method, adding a parameter. Those read as pure tidy-ups, which is exactly
+    the disguise this rule keeps being broken in.
+
+    ⚠️ **That test guards one package.** A widening in any other dual-loaded class is
+    outside it and reaches the gate unannounced — `BotApiImpl`, `GoalResolver`,
+    `GotoGoalResolver` and `ClutchController` all hand a `LocalPlayer` around today. There,
+    `javap -c` the class and count calls taking a `Player` parameter by hand. Full account:
+    `docs/drown-escape-design.md` §5.
 
 ## Log locations
 
