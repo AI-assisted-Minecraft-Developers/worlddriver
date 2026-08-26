@@ -888,10 +888,22 @@ public static volatile boolean autoRetreat = false;
 🟢 **第 12 级的界已确认生效**（`55fe4a42`，`runRehearsalIntegratedServer` 实测）：
 `water8.lift.flightNotSkipped` 开火，同 tag 下 `flightSkipped` 归零，而 `cell.7.ramp`／`cast7.ramp`
 两个不启用的调用方照旧 skip——界没漏到 dig 侧。
-🔴 **下游接手的那一段是新的死因**：楼梯修成了却没站上去。
-`lift.flight=4 级` → `lift.laid=4/4 级垫好了` → `lift.standShort=没走到` → `liftedY=64/60（停在 4…）`。
-⇒ 下一件是 `JourneyRamp` 走上楼梯那一腿（`walkTo`/`stand`），不是再动判据。
-⚠️ 不是回归：ladder9 是 `65/60` 且**一级楼梯都没修**。
+🔴 **下游接手的那一段是新的死因：身体从没下到壁龛里。**
+```
+lift.flight     = 4 级：2,56,17 → 3,57,17 → 3,58,18 → 3,59,19（壁龛地板 y=56，身体 2,64,20）
+lift.stand      = 2,64,20 → 2,56,18（现在不在足迹上）
+lift.standShort = 没走到 2,56,18，停在 3,64,18          ← 全程没离开 y=64
+lift.laid       = 4/4 级垫好了（身体 3,64,18，停在 FINISHED）
+lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
+```
+⚠️ **两处要先查，别急着改走法**：
+1. `laid=4/4` 是身体在 **8 格之上**报的。`placeInto` 走服务端，多半没有 reach 闸
+   （同 [[the-avatar-mined-through-rock]] 那族）⇒ **先确认那四级是不是真在世界里**，
+   `laid` 有可能数的是「调用成功」而不是「方块在那儿」。
+2. `walkTo` 用的是 `Goal.Block`（`JourneyRamp:418`），判 3D 精确格——**不是容差族**，
+   `standShort` 是诚实的「走了没到」。要查的是寻路器为什么下不去（NoBreak？无路？），
+   证据在同段的 `search-begin`/`end=` 行里。
+⚠️ 不是回归：ladder9 是 `65/60` 且**一级楼梯都没修**，`.ramp.*` 一行都没有。
 
 🟡 **同趟另一条，独立**：`cast7.1.settled.aimForked.1` —— 线段 clip 预言瞄 `5,59,21` 落进
 `4,59,21`，存成角度后实际射线落进 `2,58,20`，于是换候选。换候选的机制在工作，分叉率没量过。
