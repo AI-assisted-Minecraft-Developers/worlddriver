@@ -85,6 +85,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **The rung walks up the staircase it just built.** `JourneyRamp#lay` finished by issuing one
+  `Goal.Block` at the TOP of the flight, and out of a hollow alcove A* is free to answer a cell
+  three rows up by going over the rim instead of up the steps. Measured twice on the same shape.
+  2026-08-25, `wet.8`: five placements in, the flight complete, and the `goto 3,60,20` that followed
+  walked WEST out of the alcove and finished on the surface at `-5,65,20`, 9.85 blocks off — the
+  fold rule that came out of that run fixed the PLANNER and never touched this leg. 2026-08-27, the
+  real ladder's rung 12, cell nine of ten:
+
+  ```
+  cast8.lift.flight     = 3 级：2, 56, 18 → 3, 57, 18 → 3, 58, 19（壁龛地板 y=56，身体 1, 57, 19）
+  cast8.lift.laid       = 3/3 级垫好了（身体 1, 57, 19，停在 FINISHED）
+  cast8.lift.rampedY    = 57/59（停在 1, 57, 19，要的落脚格 3, 59, 19，不是同一柱）
+  cast8.liftTower       = 楼梯到 y=57 就修不上去了，交给塔兜底
+  cast8.lift#11.verdict = 没垒成 —— 落在 0,19 而不是指定柱 1,19；脚下 air 不是地板
+  ```
+
+  Every course went in and the body moved zero cells. Everything after that row is downstream of it:
+  the tower it escalated to drifted into `0,19` and deadlocked on two mutually inverse column
+  rewrites, and the pour that inherited the height fired three times from four cells outside the
+  alcove — all three correctly refused by the pour's own ray gate, and the ring stopped at nine
+  cells of ten. The single `walkTo(landing)` still runs first and is still what normally arrives
+  (`cast7.ramp.rampedY = 58/58（… 同一柱）` on that same run); only when it does not does the rung
+  now walk the courses one at a time, each of which is a single step from the one below it and so
+  has no room to leave the alcove. It stops at the first course it cannot reach and says which.
+
 - **Every aim row now says whether the body had landed.** A ray from an airborne eye is not the ray
   that was verified, and no other field in those rows could see it. Ladder-18's rung 12 died on
   exactly that: `recover6` aimed with eye y=60.48 while `blockPosition()` reported `3,58,19` —
