@@ -85,6 +85,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **The scoop's use now prints the hand it fired with and the ray it fired.** The pour has had
+  `atUse` all along — both bodies' selected slot, both eyes, and the ray in BOTH fluid modes, taken
+  at the instant of the use — and it is what makes a pour that did nothing debuggable. The scoop had
+  none of it. So ladder-18's `recover6.miss.3 = minecraft:water_bucket 0→0 … 射线停在 4, 59, 19
+  Block{minecraft:water}` had three authors and no row separated them: the acting hand was not the
+  bucket (`recover6.hand = minecraft:cobblestone`, `hand#2` the bucket, one settle apart), the cell
+  was water but not a source, or `BucketItem`'s own `SOURCE_ONLY` clip is not the ray this file's
+  instrument fires. `spendTheBucket` now calls the same `JourneyHands.handsAtUse` the pour calls,
+  and `.miss.*` prints the target cell's source flag and fluid level **as the use packet goes out**
+  beside the one three ticks later. The pair is the point: a fill that WORKED also removes the
+  source it took, so the old「现在是 …」reading gave success and failure the same answer. The row
+  says 发包 rather than 开火 because that is when it is sampled — the server runs `BucketItem.use`
+  a round trip later and water re-ticks every five, and a row that named a moment nobody sampled
+  would invite arithmetic on it.
+  The gate is `wd.journeyScoopPrintsTheHandItFiredWith`, and it drives the production entry
+  `JourneyFill.fillFrom` rather than a hand-rolled use — its neighbour
+  `wd.journeyScoopsPastItsOwnObsidian` calls `handsAtUse` itself, which is exactly why it stayed
+  green over this hole. Poisoned: RED with three failed checks and `实到 null`, while the two that
+  watch the path itself stayed green — the fill still ran and still filled.
+
 - **The step aside picks the nearest stand that is not the body's own cell, and picks it the same
   way every run.** `stepAsideFor` used to take the plain nearest stand and hand back null when it
   turned out to be the cell the body already stood in — throwing away every other legal stand in the
