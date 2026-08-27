@@ -14,6 +14,7 @@ import net.magicterra.worlddriver.bot.process.TowerProcess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
 
 /**
  * Getting a body down a shaft it digs and back up the one it dug.
@@ -226,8 +227,8 @@ public final class JourneyShaft {
         // Unconditional row: a climb nowhere near a staircase has to say so too, or a results file
         // cannot tell「不在楼梯上」from「没问过」.
         BlockPos want = new BlockPos(climbColX, rig.player().blockPosition().getY(), climbColZ);
-        BlockPos clear = climbPinned ? want : towerColumnClearOfTheFlight(lvlOf(rig), want);
-        rig.evidence(climbName + ".offTheFlight", offTheFlightRow(lvlOf(rig), want, clear));
+        BlockPos clear = climbPinned ? want : towerColumnClearOfTheFlight(sceneLevel(rig), want);
+        rig.evidence(climbName + ".offTheFlight", offTheFlightRow(sceneLevel(rig), want, clear));
         if (clear == null) {
             rig.evidence(climbName + ".column", climbColX + "," + climbColZ
                     + "（这一柱就是下井楼梯，不起塔，改走楼梯本身）");
@@ -460,7 +461,7 @@ public final class JourneyShaft {
         climbPinned = false;
         climbColX = at.getX();
         climbColZ = at.getZ();
-        BlockPos clear = towerColumnClearOfTheFlight(lvlOf(rig), at);
+        BlockPos clear = towerColumnClearOfTheFlight(sceneLevel(rig), at);
         if (clear == null) {
             rig.evidence(climbName + ".fallbackWentDown.stopped",
                     at.toShortString() + " 这一柱就是下井楼梯，附近没有能改去的柱 —— 不补垒");
@@ -507,11 +508,11 @@ public final class JourneyShaft {
         // it would report arrival and call this method anyway: the same question asked twice. Getting
         // out of water is a horizontal problem and it belongs to the caller, which is why the iron
         // rung now ends with a walk home. This row is what makes that decision checkable.
-        var atFeet = lvlOf(rig).getBlockState(end);
-        var below = lvlOf(rig).getBlockState(end.below());
+        var atFeet = sceneLevel(rig).getBlockState(end);
+        var below = sceneLevel(rig).getBlockState(end.below());
         // Wet is not the same as afloat — see afloat(), which is where that distinction lives now
         // and which JourneyCast's ashore walk asks with the same two cells.
-        boolean afloat = afloat(lvlOf(rig), end);
+        boolean afloat = afloat(sceneLevel(rig), end);
         rig.evidence(climbName + ".endedOn", "脚格=" + atFeet.getBlock() + "，脚下=" + below.getBlock()
                 + (afloat ? " —— 浮在水里，脚下没有地板；上面每一级都会从一个正在下沉的身体开始" : ""));
         // How much of the climb actually happened, as a fraction rather than as a landing height.
@@ -610,8 +611,8 @@ public final class JourneyShaft {
         // The same choice climbFrom makes, at the other entry point, because an invariant only one
         // entry enforces is not enforced — this method's own javadoc says exactly that about the
         // column and the pin, and the flight is the third static those two entries must agree about.
-        BlockPos clear = towerColumnClearOfTheFlight(lvlOf(rig), at);
-        rig.evidence(climbName + ".offTheFlight", offTheFlightRow(lvlOf(rig), at, clear));
+        BlockPos clear = towerColumnClearOfTheFlight(sceneLevel(rig), at);
+        rig.evidence(climbName + ".offTheFlight", offTheFlightRow(sceneLevel(rig), at, clear));
         if (clear == null) { then.run(); return; }
         climbColX = clear.getX();
         climbColZ = clear.getZ();
@@ -638,7 +639,7 @@ public final class JourneyShaft {
         BlockPos at = rig.player().blockPosition();
         if (at.getY() >= surfaceY || budget <= 0) { then.run(); return; }
         int step = cap - budget;
-        ServerLevel lvl = lvlOf(rig);
+        ServerLevel lvl = sceneLevel(rig);
         // Back onto the column before building another course.
         //
         // A tower that wanders is not a tower, and the wandering is not cosmetic. Measured on the
@@ -709,7 +710,7 @@ public final class JourneyShaft {
                 // rung-12 run where the column a DRIFT picked was a staircase column nobody ever
                 // checked. `adopted` is captured before the assignment because after it the two are
                 // equal by construction.
-                BlockPos clear = towerColumnAfterDrift(lvlOf(rig),
+                BlockPos clear = towerColumnAfterDrift(sceneLevel(rig),
                         new BlockPos(climbColX, back.getY(), climbColZ), climbPinned, adopted);
                 String pinNote = climbPinned && adopted
                         ? "（钉住的柱已经被漂移换掉了，所以这一次照样问航道）" : "";
@@ -1152,7 +1153,7 @@ public final class JourneyShaft {
         if (!Boolean.getBoolean("worlddriver.journey.wetShaft")) return;
         if (JourneyRehearsal.target() == null) return;
         flooded = true;
-        ServerLevel level = lvlOf(rig);
+        ServerLevel level = sceneLevel(rig);
         int cells = 0;
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -1; dz <= 1; dz++)
@@ -1207,15 +1208,26 @@ public final class JourneyShaft {
      * hole, and from then on this method answered "the support is the water" for twenty-eight
      * consecutive passes — mining a fluid is a no-op, so the digger reported "the block broke but
      * the body did not sink" while the corner cell actually carrying the body was never touched.
+     *
+     * <p>The footprint is 0.6 wide, so a body standing near a cell edge rests on TWO cells and
+     * breaking only the centre one leaves it on the neighbour — that is what the corner fallback is
+     * for, and it is why the caller has to print WHICH cell it got back rather than only what the
+     * cell is made of.
+     *
+     * <p><b>It reads the SCENE's level, not the body's</b>, and {@link #sceneLevel} is where that
+     * choice is stated. Its twin {@code JourneyEndRungs.supportUnder} is otherwise the same method
+     * and reads the body's level instead, because its body is in the end. The two are not mergeable
+     * as they stand: folding this one onto the twin's rule would be a behaviour change here, and
+     * folding the twin onto this one would point an end rung at overworld terrain.
      */
     static BlockPos supportUnder(JourneyRig rig, BlockPos at) {
-        ServerLevel lvl = rig.ctx().level();
+        ServerLevel lvl = sceneLevel(rig);
         BlockPos centre = at.below();
         if (lvl.getBlockState(centre).blocksMotion()) return centre;
         var box = rig.player().getBoundingBox();
         int y = centre.getY();
-        for (int x : new int[]{net.minecraft.util.Mth.floor(box.minX), net.minecraft.util.Mth.floor(box.maxX)})
-            for (int z : new int[]{net.minecraft.util.Mth.floor(box.minZ), net.minecraft.util.Mth.floor(box.maxZ)}) {
+        for (int x : new int[]{Mth.floor(box.minX), Mth.floor(box.maxX)})
+            for (int z : new int[]{Mth.floor(box.minZ), Mth.floor(box.maxZ)}) {
                 BlockPos corner = new BlockPos(x, y, z);
                 if (lvl.getBlockState(corner).blocksMotion()) return corner;
             }
@@ -1256,7 +1268,7 @@ public final class JourneyShaft {
     private static void walkBackToColumn(JourneyRig rig, int step, int tries, Runnable then) {
         BlockPos at = rig.player().blockPosition();
         if (tries <= 0 || (at.getX() == climbColX && at.getZ() == climbColZ)) { then.run(); return; }
-        ServerLevel lvl = lvlOf(rig);
+        ServerLevel lvl = sceneLevel(rig);
         // A 3D GOAL, NOT AN XZ ONE, whenever the column has a cell to name. `Goal.XZ` reports
         // `ignoresY`, and the pathfinder's own contract says what that costs: the descend-tax
         // applies ONLY to Y-ignoring goals, because for them going down reads as free progress.
@@ -1375,7 +1387,7 @@ public final class JourneyShaft {
      * {@code y}; a buoyed one does not, and the distinction is the whole question.
      */
     static String afloatWhy(JourneyRig rig, BlockPos at) {
-        ServerLevel lvl = lvlOf(rig);
+        ServerLevel lvl = sceneLevel(rig);
         BlockPos floor = at;
         int drop = 0;
         while (drop < 12 && !lvl.getBlockState(floor.below()).blocksMotion()) {
@@ -1396,7 +1408,26 @@ public final class JourneyShaft {
                 lvl.getBlockState(at.above()).getBlock(), lvl.getBlockState(at).getBlock());
     }
 
-    static ServerLevel lvlOf(JourneyRig rig) { return rig.ctx().level(); }
+    /**
+     * The SCENE's level — the arena this scene was laid out in — and deliberately not the level
+     * the body is standing in. Every block read in this file goes through here so the choice is
+     * made in ONE place, with the single exception below.
+     *
+     * <p><b>The two are the same world only until the body changes dimension.</b> The sibling
+     * helper next door, {@code JourneyEndRungs.levelOf}, is a near-homograph that returns the
+     * OTHER one ({@code (ServerLevel) rig.player().level()}), and the two files' method bodies are
+     * otherwise line-for-line twins — so「there is a level helper, use it」is not enough to tell
+     * which world a read lands in. The names are the only thing standing between a reader and a
+     * scan of overworld terrain at nether coordinates.
+     *
+     * <p><b>One site in this file deliberately does NOT use this</b> — the washed-off fluid read in
+     * {@code ascendByTowering}, which takes {@code rig.player().level()} because a fluid state is a
+     * fact about where the BODY is. Its comment says so at the call. Everything else here runs on
+     * rungs whose body is still in the scene's own world, which is what makes the choice moot
+     * today; the day any method here appears in a nether or end rung's call graph, the reads that
+     * should follow the body have to be split out of this one, not switched underneath it.
+     */
+    static ServerLevel sceneLevel(JourneyRig rig) { return rig.ctx().level(); }
 
     /** The fluid in {@code cell} or in any of its six neighbours, described — or null when there is
      *  none. Neighbours and not just the cell itself, because a dry block with lava behind it is
@@ -1457,20 +1488,20 @@ public final class JourneyShaft {
         // said where "below" was.
         rig.evidence("shaft." + step,
                 String.format("%d,%d,%d below=%s %s onGround=%s", at.getX(), at.getY(), at.getZ(),
-                        below.toShortString(), rig.ctx().level().getBlockState(below).getBlock(),
+                        below.toShortString(), sceneLevel(rig).getBlockState(below).getBlock(),
                         rig.player().onGround()));
         floodTheColumnOnce(rig, at, below, step);
         // Already open — the previous pass broke it and the body has not dropped in yet. Mining
         // air is a no-op that still costs an attempt, and three of those in a row is how a shaft
         // with budget for four blocks ran out after one. Fluid counts as open for the same reason
         // it does not count as support: there is nothing here left to break.
-        if (!lvlOf(rig).getBlockState(below).blocksMotion()) {
+        if (!sceneLevel(rig).getBlockState(below).blocksMotion()) {
             // …unless it is fluid and the body is IN it, which is not "about to fall" — it is
             // floating, and no number of settles fixes floating. Measured: the obsidian rung picked
             // a column under a swamp pond and spent all 122 of its attempts here, then reported
             // "the block broke but the body did not sink" about a body that was swimming. A shaft
             // that cannot start says so in one line instead of after seven thousand ticks.
-            if (!lvlOf(rig).getFluidState(below).isEmpty() && rig.player().isInWater()) {
+            if (!sceneLevel(rig).getFluidState(below).isEmpty() && rig.player().isInWater()) {
                 if (onWetColumn != null) {
                     onWetColumn.accept(at.immutable());
                     return;
@@ -1478,7 +1509,7 @@ public final class JourneyShaft {
                 // NO REMEDY IS NAMED HERE, because none runs. This rung digs the column its survey
                 // named and has no second one to move to; saying「换一根」would be the same lie the
                 // callback above exists to stop telling.
-                rig.ctx().fail("竖井挖不动：身体浮在" + lvlOf(rig).getBlockState(below).getBlock()
+                rig.ctx().fail("竖井挖不动：身体浮在" + sceneLevel(rig).getBlockState(below).getBlock()
                         + "里（" + at + "，脚下是流体不是地板）—— 这根柱子中段有水，"
                         + "而这一级的柱子是勘测定死的，换不了");
                 return;
@@ -1493,7 +1524,7 @@ public final class JourneyShaft {
                 // the body stayed up" (the walker will not step into its own hole), and from the
                 // outside those are the same sentence.
                 rig.evidence("shaft." + step + ".broke",
-                        String.format("%s body=%s", rig.ctx().level().getBlockState(below).getBlock(),
+                        String.format("%s body=%s", sceneLevel(rig).getBlockState(below).getBlock(),
                                 rig.player().blockPosition().toShortString()));
                 // Breaking the floor is not falling through it. This body has no free-running
                 // physics: it is stepped only while a driver is ticking it, and the single-block

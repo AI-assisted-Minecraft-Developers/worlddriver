@@ -2765,7 +2765,14 @@ public final class JourneyEndRungs {
      * {@code !isAir}: fluid is not air and it is not a floor either, and a support test that accepted
      * it once cost a whole run of "the block broke but the body did not sink" about a body that was
      * swimming.
-     */
+     *
+     * <p><b>Twin of {@code JourneyShaft.supportUnder}, and the one line that differs is the whole
+     * reason both exist.</b> That one reads {@code JourneyShaft.sceneLevel} — the scene's arena —
+     * while this one reads {@link #levelOf}, the level the BODY is in, because after rung 19 the
+     * body is in the end and the scene is not. Merging them onto either rule breaks the other
+     * caller: this one would scan overworld terrain at end coordinates, that one would change
+     * behaviour for callers that are correct today. Fix a bug in the SHARED part — the corner
+     * fallback, the {@code blocksMotion} rule — in both. */
     private static BlockPos supportUnder(JourneyRig rig, BlockPos at) {
         ServerLevel level = levelOf(rig);
         BlockPos centre = at.below();
