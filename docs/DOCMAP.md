@@ -101,22 +101,30 @@
 `2026-06-08-reading-command-results.md` ·
 `2026-07-10-gui-layout-regression-no-entity-interact.md`
 
-## 五、`docs/superpowers/` — 54 份，删除的主战场
+## 五、`docs/superpowers/` — 52 份，删除的主战场
 
 一次性实施计划与设计 spec。判据是**「这件事做完了没有」**，而做完了的计划应当删除——
 它描述的是一段已经走完的路，不是仓库现在的样子。⚠️ **逐份核实，不许整目录清**：
 其中有几份仍是唯一记录某个设计推理的地方。
 
-### `plans/` — 40 份
+⛔ **「自称 SUPERSEDED」不足以当删除判据——2026-08-27 实测两份两份都有例外条款。**
+横幅说「本文作废」，正文里却留着一节写明「这一节仍然有效」：
+travel-actuator 留的是给后续 in-place 相位重构的 Slice 0 特征化笔记，
+buoyant 留的是 Phase 0 的现场读数。**删之前要把横幅读完，再去核那节的效力是否已兑现**
+（前者已兑现 ⇒ 直接删；后者没有 ⇒ 先迁走再删）。
 
-自称 SUPERSEDED、可直接删的两份（**下轮之后的第一波**）：
+### `plans/` — 38 份
 
-| 文件 | 备注 |
-|---|---|
-| `2026-06-17-buoyant-water-navigation.md` | 顶部横幅：前提已被 live 诊断推翻 |
-| `2026-07-15-executor-travel-actuator-extract-A.md` | 顶部横幅：被 `2026-07-16-executor-b1-thin-machine.md` 取代 |
+~~自称 SUPERSEDED 的两份~~ **2026-08-27 已删**：`2026-06-17-buoyant-water-navigation.md`
+（Phase 0 现场读数已迁入同名 spec）与 `2026-07-15-executor-travel-actuator-extract-A.md`
+（Slice 0 笔记的去向 = `WalkerTick*` 相位类已落地，见 `docs/walker-tick-architecture.md`）。
 
-其余 38 份 = `delete-candidate`，**完成状态逐份未核实**。按主题分四族，供分波处置：
+⚠️ 删除留下两处**悬空引用**，均**有意不修**（两个引用者本身都是 `delete-candidate`，
+改它们是白工，且 `b1-thin-machine` 那句自带取代理由、悬空也仍然读得懂）：
+`plans/2026-07-16-executor-b1-thin-machine.md` 首行的 `Supersedes …` 与
+`handoffs/2026-07-16-b1-pause-for-test-framework.md` 第 22 行。
+
+剩下这 38 份 = `delete-candidate`，**完成状态逐份未核实**（14+2+9+13）。按主题分四族，供分波处置：
 
 - **stagewright 建设（14）** — `p0-suite-integrity`、`p1a-walking-skeleton`、`p1b-instrument-contract`、
   `p1c-dogfood-swallowed-trio`、`p15a-lottery-walker-family`、`p15b-lottery-driver-family`、
@@ -144,7 +152,9 @@
 
 `2026-06-04-perception-decision-boundary-design` · `2026-06-05-pathfinding-debug-charts-design` ·
 `2026-06-07-server-agent-avatar-phase0-1-design` · `2026-06-15-path-archive-replay-design` ·
-`2026-06-17-buoyant-water-navigation-design`（**自称 SUPERSEDED，仅留作推理存档**）·
+`2026-06-17-buoyant-water-navigation-design`（自称 SUPERSEDED，仅留作推理存档。
+⛔ **2026-08-27 起它不只是推理了**：同名 plan 删除时把「Phase 0 findings」的**现场一手读数**
+迁进了它的末尾附录——重跑一次 live 才能再得。**删它等于删那份读数，别照「已作废的设计」处置**）·
 `2026-06-28-pathfinding-conformance-loop-design` · `2026-07-04-llm-navigation-intent-layer-design` ·
 `2026-07-09-intent-supervisor-phase-b-design`（自述 DRAFT，**从未落地？待核**）·
 `2026-07-10-entity-interact-verb-design` · `2026-07-10-schema-single-source-validation-design` ·
@@ -176,7 +186,7 @@
 | **P2** | 修 `CLAUDE.md` 末句的「kept in sync」 | 核对 | **已核实假**；与 P1 同类（正典文档里的假陈述），且只改一句话 |
 | ~~P3~~ | ~~`docs/user/transports.md`~~ | 补 | **2026-08-26 已建**，见上方 `docs/user/` 一节 |
 | ~~P4~~ | ~~`docs/dev/architecture.md`~~ | 补 | **2026-08-27 已建**，见上方 `docs/dev/` 一节 |
-| P5 | 删除波 1：自称 SUPERSEDED 的 2 份 plan | 删 | 判据无歧义，不需要核实完成状态 |
+| ~~P5~~ | ~~删除波 1：自称 SUPERSEDED 的 2 份 plan~~ | 删 | **2026-08-27 已删**。⚠️ 当时写的「判据无歧义，不需要核实完成状态」**是错的**——两份都带例外条款，见上方第五节的 ⛔ |
 | P6 | `docs/user/capabilities.md` | 补 | 72 个 `mc.*` 方法按能力分族，让人知道能让 LLM 干什么 |
 | P7 | `docs/dev/bot-layering.md` | 补 | `pathfinder` / `Walker` / `process` / `settings` 四层与 3000 行预算 |
 | P8 | `docs/dev/adding-a-scene.md` | 补 | 场景与 `expected-scenes-*.txt` 的**同批纪律**（漏了就 `UNDECLARED:` 判红） |
@@ -298,7 +308,30 @@ S1/P1/P2 全在根级 ⇒ 再次跳过，**不降级**；顺位取 P4，`docs/de
 实为 `ScriptTest` / `TestContext`——`validation/*.js` 调的那个脚本测试壳。
 `ls` 一下就翻了。**包的用途别从包名猜。**
 
-**下一轮：S1** —— 但它整族在根级，**要先确认那一轮有 `docs/**` 之外的写权限**；
-没有就顺位取 **P5**（删自称 SUPERSEDED 的两份 plan，判据无歧义、在 `docs/` 内，
-适合塞给权限受限的一轮），再往后 P6（`docs/user/capabilities.md`）与
-P7（`docs/dev/bot-layering.md`，`architecture.md` 已给它留了指针位）。
+**2026-08-27 第二轮｜P5，删除线开张。** 删掉 `plans/` 下自称 SUPERSEDED 的两份，
+`docs/superpowers/` 54 → 52。**S1 已由协调方接手，不再挂在本角色名下。**
+
+⚠️ **本轮推翻了台账自己写的删除判据。** 建账时判「自称 SUPERSEDED ⇒ 判据无歧义、
+可直接删」，实测**两份都在横幅之外留了例外条款**：
+
+- travel-actuator 留 Slice 0 特征化笔记给后续 in-place 相位重构 ⇒ **已兑现**
+  （`WalkerTick*` 十个相位类已落地，其 `aimYaw` 正是笔记点名的跨 tick 字段）⇒ 直接删。
+- buoyant 留 Phase 0 现场读数 ⇒ **没兑现**，是重跑 live 才能再得的一手观测 ⇒
+  **先逐字迁进同名 spec 的末尾附录再删**（那份 spec 本就被策展为「设计推理存档」，
+  读数进去是同一个抽屉）。迁移与删除**同一个提交**，避免读数一度存在于零处或两处。
+
+迁移时补了一句迁移方注解，因为**横幅与它所描述的那一节互相矛盾**：横幅说
+Phase 0 findings 是「推翻 D1 的证据」，而那一节自己写着「这反而强化 D1」。
+真相是**观测留下、结论作废**——读数写于 06-18 支持 D1，06-19 的诊断把同一批读数
+重新解释成「churn 主在执行器层」。裸迁过去会给下一个读者造出一对自洽而互斥的说法。
+
+⚠️ 另：迁移前先 grep 了 `z2744` / `replay-0004` 验「是不是唯一记录」——**结论不是**：
+06-19 的**判词**已写在 spec 顶部横幅里，唯一的是**支撑它的那几个数**
+（坐标、~56s、y57 振荡、26d4ea2 已编入）。所以这次是**归并读数**，不是抢救孤本。
+（`replay-corpus-regression.md` 里的 replay-0004 是后来另一套语料，同名不同事。）
+
+**下一轮：P6（`docs/user/capabilities.md`）或 P7（`docs/dev/bot-layering.md`）**，
+两者都在 `docs/**` 内、不需要额外权限；P7 的指针位 `architecture.md` 已经留好。
+若想继续推删除线，**P11**（单份 `handoffs/`，判据清楚）比 P10（stagewright 14 份，
+需先验整族迁移完成）适合塞进一轮。⚠️ 无论挑哪份，**先读完横幅再删**——本轮的教训是
+例外条款不写在横幅里，写在正文中段。

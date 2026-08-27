@@ -99,3 +99,30 @@ z3034(河床 walk)、26d4ea2(下降)、cascade(薄流水水下 stepUp)全归 D1;
 - 不解决陡干山 stepUp 爬升 churn(独立的 dry-staircase 域)。
 - 不改水流方向阻力(`directionalCost`)等既有水域成本以外的调参。
 - 不追求「水下唯一通道」场景的丝滑(罕见;能潜过即可,允许慢)。
+
+---
+
+## 附:Phase 0 现场读数(自已删除的实施计划迁入)
+
+> **出处与效力。** 以下逐字迁自 `plans/2026-06-17-buoyant-water-navigation.md`
+> 的「Phase 0 findings」一节;该计划 2026-08-27 作为自称 SUPERSEDED 的一次性计划删除,
+> 而这几条是**现场量出来的一手读数**,重跑一次 live 才能再得,故迁到本存档留存。
+>
+> ⚠️ **读它的时候注意结论已经翻过一次。** 这几条写于 2026-06-18,当时的判读是
+> **「确认 D1、直进 Phase 1」**——下面第一条还明写着「这反而强化 D1」。
+> 2026-06-19 的决定性 live 诊断推翻的正是那个判读(见本文件顶部 banner):
+> **观测留下了,结论作废了。** 留下来的是两处观测——z3034 孤立全量搜索**干净**
+> (河床 sink 是切片/horizon 搜索 + 执行器 artifact,不是全量 A* 的偏好)、
+> 以及 z2744 在 26d4ea2 已编入运行码的情况下**照样沉底 churn**(即点修没根除)。
+> 后者正是「churn 主在执行器层而非 planner 层」的证据。
+> **别把当年那句「强化 D1」当成本仓库现在的立场。**
+
+## Phase 0 findings (executed 2026-06-18, live client on Mountains)
+
+> 环境注:本次为系统重启后的全栈恢复(JDK 存活;Xvfb/Mesa/ffmpeg/screen/`/tmp/launch_client.sh` 全部重装重建)。运行客户端经 gradle `:common:classes UP-TO-DATE` + `:fabric:compileJava UP-TO-DATE` 校验 = **含 4993f9d + a906814 + 26d4ea2**(StepDown.java:18 的 26d4ea2 门在编译产物里)。
+
+- **item 6(z3034 A* 路由河床原因)— 确认 + 修正认知**:`mc.observe.map zy@(1763,60,3034)` 实测:z3034 水面 = **y62(head y63 = 空气)= 合法 SURFACE 落脚**;河床 y54;东侧(+z)有 **submerged ramp**(foot y55-60、head 全水)。`mc.debug.plan` 从 SURFACE 脚(1762,62,3032)**和** submerged 脚(1763,59,3034)到 goal **都干净上爬到 y85、0 regression、不走河床**。→ **关键修正**:孤立全量搜索**不**复现河床 sink;z3034 残留是 **sliced/horizon 搜索 + 执行器 artifact**(live 切片提交了一段河床节点),不是全量 A* 的偏好。**这反而强化 D1**:硬有效性门能保证切片搜索**永不**提交 head-submerged 节点,而当前纯成本偏好在切片下无法保证。
+- **item 6(浅水涉水 head=air 不被误禁)— 确认**:z3034 的 SURFACE 脚 head=y63=空气 → `headSubmerged=false` → D1 不 fire → 水面 Walk 仍合法、有出水路 = **无 no-path 风险**。submerged ramp(head 全水)正是 D1 该禁的。`submergedFloorWalkArena` 已断言「SURFACE row Walk 仍 valid」覆盖此回归。
+- **live 复现(controlled replan replay-0004)— 确认残留类真实存在**:回放在 **z2744**(slot canyon,(1704-1710,**57**-62,2743-2746))出现 **~56s 沉底 churn**(沉到 y57 来回振荡);qwen3.6 视频成功窗实时报 ANOMALY:「Bot 在深水池岸边原地反复左右转向,未产生位移,疑似寻路卡死」。**重要**:运行码已含 26d4ea2,故 z2744 churn = **点修(26d4ea2)未根除该残留类**(或记忆中「peak5 顺过」过乐观)→ 直接佐证「需要 Surface-First 统一 D1 根治整类」。
+- **item 3(diveHold 基线)— 未取到(deferred 到 Phase 3 GameTest)**:本次未单独驱动一段纯 swimDown 取 diveHold 基线;视频管线中途退化为持续 `Could not open video stream`(clip 解码失败,非 endpoint 死 —— 有成功窗证明端点可解码),不利于细看 dive。Phase 3 的 `sealedUnderwaterPassageArena`(确定性 GameTest)是 diveHold 水平扩展的真验收门,不依赖 live diveHold 基线。
+- **决策 → 直进 Phase 1(不改 §4 设计)**:三个核心假设(SURFACE 出口存在、D1 精准命中 submerged、残留类 live 真实且点修不够)全部确认。Phase 1-4 代码用 subagent + GameTest 确定性把关;**live replan replay + 视频零异常 = 最终验收(Task 4.3)**,届时在**重新编译的客户端**上跑,并先重启整条视频栈修掉本次的 clip 解码退化(已知:push stream + run.py 干净重启;严禁 `run.py | head`——SIGPIPE 会杀 daemon)。
