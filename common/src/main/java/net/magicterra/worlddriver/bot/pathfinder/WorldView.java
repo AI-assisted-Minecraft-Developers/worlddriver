@@ -272,10 +272,6 @@ public interface WorldView {
     default double directionalCost(BlockPos from, BlockPos to) { return 0; }
 
     /**
-     * Combined check: the position is a legal place for the player's feet given
-     * a 2-block-tall hitbox. Default impl composes the primitives.
-     */
-    /**
      * Can the player stand on TOP of the block at {@code pos} — i.e. is it a valid
      * floor. Distinct from {@link #isSolid} (which means "blocks motion / is an
      * obstacle"): a cocoa pod or fence blocks motion but you can't stand on its
@@ -284,6 +280,10 @@ public interface WorldView {
      */
     default boolean canStandOn(BlockPos pos) { return isSolid(pos); }
 
+    /**
+     * Combined check: the position is a legal place for the player's feet given
+     * a 2-block-tall hitbox. Default impl composes the primitives.
+     */
     default boolean canStandAt(BlockPos foot) {
         if (!canStandOn(foot.offset(0, -1, 0)) && !isClimbable(foot) && !isWater(foot)) return false;
         if (isHazard(foot.offset(0, -1, 0))) return false;

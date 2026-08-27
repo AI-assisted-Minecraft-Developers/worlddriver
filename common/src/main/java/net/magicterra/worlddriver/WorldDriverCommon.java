@@ -292,7 +292,6 @@ public final class WorldDriverCommon {
         }
     }
 
-    /** Called by each loader when its server enters STARTING. */
     /** Set by the test run tasks to a millisecond budget; unset (and inert) in production. */
     public static final String STARTUP_WATCHDOG = "worlddriver.startupWatchdogMs";
     private static volatile boolean serverEverStarted;
@@ -330,6 +329,7 @@ public final class WorldDriverCommon {
         t.start();
     }
 
+    /** Called by each loader when its server enters STARTING. */
     public static void onServerStarting() {
         armStartupWatchdog();
         ensureRpcUp();

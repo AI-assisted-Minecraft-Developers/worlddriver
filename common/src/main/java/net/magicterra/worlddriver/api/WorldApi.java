@@ -89,13 +89,6 @@ public final class WorldApi {
     }
 
     /**
-     * Capture the inclusive box {@code from}..{@code to} under a caller-named
-     * {@code id} (auto-generated when omitted). Re-using an id overwrites it.
-     * {@code blockEntities:false} skips NBT capture (states only — cheaper, but
-     * a chest's contents won't survive a restore). Returns
-     * {@code {ok, id, from, to, blocks, nonAir, blockEntities}}.
-     */
-    /**
      * Read-only single-cell inspection: blockstate id + property map, light
      * levels, and (opt-in) block-entity NBT. External consumers had no
      * first-class way to answer "what blockstate is at this position?" or read
@@ -139,6 +132,13 @@ public final class WorldApi {
         return prop.getName(st.getValue(prop));
     }
 
+    /**
+     * Capture the inclusive box {@code from}..{@code to} under a caller-named
+     * {@code id} (auto-generated when omitted). Re-using an id overwrites it.
+     * {@code blockEntities:false} skips NBT capture (states only — cheaper, but
+     * a chest's contents won't survive a restore). Returns
+     * {@code {ok, id, from, to, blocks, nonAir, blockEntities}}.
+     */
     public Map<String, Object> snapshot(Map<String, Object> params) {
         Params p = Params.of(params);
         BlockPos from = p.getPos("from");

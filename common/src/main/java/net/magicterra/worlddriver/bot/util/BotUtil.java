@@ -572,12 +572,6 @@ public final class BotUtil {
     }
 
     /**
-     * Look at the centre of the face a placement clicks: {@code block} is where the new block is
-     * to appear and {@code face} is the side of the supporting neighbour it grows off, so the
-     * support sits opposite {@code face} and the point to aim at is half a block out from that
-     * support's centre along {@code face}.
-     */
-    /**
      * Walk the last fraction of a cell to the stand's centre before placing, or report that the
      * body is already centred enough to click.
      *
@@ -612,6 +606,12 @@ public final class BotUtil {
         return false;
     }
 
+    /**
+     * Look at the centre of the face a placement clicks: {@code block} is where the new block is
+     * to appear and {@code face} is the side of the supporting neighbour it grows off, so the
+     * support sits opposite {@code face} and the point to aim at is half a block out from that
+     * support's centre along {@code face}.
+     */
     public static void aimAtSupportFace(Player p, BlockPos block, Direction face) {
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
         aimAt(p, support.getX() + 0.5 + face.getStepX() * 0.5,

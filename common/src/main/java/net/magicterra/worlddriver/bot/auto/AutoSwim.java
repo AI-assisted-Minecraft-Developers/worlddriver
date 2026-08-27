@@ -62,31 +62,6 @@ public final class AutoSwim {
     /** Throttle counter for walkerDebug shore logging. */
     private static int DBG = 0;
 
-    /** Idle drowning REFLEX — must be called UNCONDITIONALLY every client tick, same as
-     *  its predecessor (NOT behind the autoSwim flag: with autoSwim off, an idle bot left
-     *  submerged after a cancelled goto has no walker and no DrowningEscape, and it
-     *  drowned silently twice live 2026-07-02).
-     *
-     *  <p><b>gap#70 (live death #18):</b> this used to be ALARM-only — it computed the
-     *  exact trigger condition every tick ({@code isUnderWater() && air<=100}) and just
-     *  WARNed, on the theory that any self-rescue here would violate "driver idle must be
-     *  passive". That theory was wrong: a bot tp'd into a ~29-block-deep river with no
-     *  task sank to the bottom and drowned air 16→0 in ~40 s while this method logged the
-     *  WARN the entire time and did nothing. <b>Controller ruling</b> (see also {@link
-     *  BotConfig#autoFloatWhenDrowning}, {@link DrowningFloatGate}, and the class doc
-     *  above): the idle-passive contract was always about forbidding UNCOMMANDED
-     *  HORIZONTAL movement/beaching, never about letting the bot drown — P1 already drew
-     *  this exact line for combat (hurt-entry retreat fires while idle, gap#68). A PURE
-     *  VERTICAL float — hold jump ONLY, never {@code keyUp}/{@code keyLeft}/{@code
-     *  keyRight}/yaw, never the shore-steer above — is the same class of survival reflex,
-     *  in-bounds for idle. So this now DRIVES {@code keyJump} once air is critical,
-     *  gated by {@link DrowningFloatGate#shouldFloat} (pure, matrix-tested) and {@link
-     *  BotConfig#autoFloatWhenDrowning} — independent of {@link BotConfig#autoSwim} on
-     *  purpose, since it's a bare reflex (the {@code AntiSuffocate} pattern), not the
-     *  autoSwim movement/beach feature.
-     *
-     *  @return true iff this call drove {@code keyJump} (so the caller can mark the
-     *          release gate dirty and avoid a trailing held jump). */
     /**
      * The bot's own per-tick input channel on this player, installed if vanilla replaced it.
      *
@@ -112,6 +87,31 @@ public final class AutoSwim {
         return (AvatarInput) p.input;
     }
 
+    /** Idle drowning REFLEX — must be called UNCONDITIONALLY every client tick, same as
+     *  its predecessor (NOT behind the autoSwim flag: with autoSwim off, an idle bot left
+     *  submerged after a cancelled goto has no walker and no DrowningEscape, and it
+     *  drowned silently twice live 2026-07-02).
+     *
+     *  <p><b>gap#70 (live death #18):</b> this used to be ALARM-only — it computed the
+     *  exact trigger condition every tick ({@code isUnderWater() && air<=100}) and just
+     *  WARNed, on the theory that any self-rescue here would violate "driver idle must be
+     *  passive". That theory was wrong: a bot tp'd into a ~29-block-deep river with no
+     *  task sank to the bottom and drowned air 16→0 in ~40 s while this method logged the
+     *  WARN the entire time and did nothing. <b>Controller ruling</b> (see also {@link
+     *  BotConfig#autoFloatWhenDrowning}, {@link DrowningFloatGate}, and the class doc
+     *  above): the idle-passive contract was always about forbidding UNCOMMANDED
+     *  HORIZONTAL movement/beaching, never about letting the bot drown — P1 already drew
+     *  this exact line for combat (hurt-entry retreat fires while idle, gap#68). A PURE
+     *  VERTICAL float — hold jump ONLY, never {@code keyUp}/{@code keyLeft}/{@code
+     *  keyRight}/yaw, never the shore-steer above — is the same class of survival reflex,
+     *  in-bounds for idle. So this now DRIVES {@code keyJump} once air is critical,
+     *  gated by {@link DrowningFloatGate#shouldFloat} (pure, matrix-tested) and {@link
+     *  BotConfig#autoFloatWhenDrowning} — independent of {@link BotConfig#autoSwim} on
+     *  purpose, since it's a bare reflex (the {@code AntiSuffocate} pattern), not the
+     *  autoSwim movement/beach feature.
+     *
+     *  @return true iff this call drove {@code keyJump} (so the caller can mark the
+     *          release gate dirty and avoid a trailing held jump). */
     public static boolean drowningSentinel(Minecraft mc, LocalPlayer p, boolean idle) {
         if (!idle || p == null) {
             // p may be null here (the old code released through mc.options and did not care).
