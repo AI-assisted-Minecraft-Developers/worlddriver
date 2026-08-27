@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **「The body is in the way」 is now asked of the body's box, not of its cell name.**
+  `JourneyRamp.layWhereItStands` classified with `support.equals(body)`, and a player's box is
+  0.6 wide against a 1.0 cell — so a body a fifth of a cell off centre is inside the cell next door
+  while `blockPosition()` still names the one it came from. Vanilla's `isUnobstructed` refuses the
+  placement either way; the loop then called it `REFUSED`, and `stepAsideFor` spends its one
+  step-aside on `BODY_IN_THE_WAY` and nothing else. The remedy was present, correct, covered by its
+  own scene — and unreachable from the case it was written for.
+
+  Measured on the third client rehearsal, 2026-08-26, at the tenth and last cell of the ring, with
+  the same run's cell six as the control:
+
+  ```
+  water9.ramp.step.0 = 3, 56, 18 垫不上（… 但身体自己的碰撞箱压在这一格里 …
+                       身体精确位置 2.88/56.00/18.78），身体 2, 56, 18
+  water9.ramp.laid   = 0/4 级垫好了（身体 2, 56, 18，停在 REFUSED 3, 56, 18）
+  cast6.ramp.laid    = 0/2 级垫好了（身体 2, 56, 17，停在 BODY_IN_THE_WAY 2, 56, 17）
+  ```
+
+  Cell six laid nothing, was named `BODY_IN_THE_WAY`, got its step aside and passed. Cell nine laid
+  nothing over an obstruction 0.18 of a block outside its own cell, got nothing, and the ring ended
+  9/10. The box question was already in this file — `whyNotLaid` has asked it since it was written —
+  but it asked it in an evidence STRING, downstream of a decision already made.
+
+  `wd.rampSeesABodyOnlyPartlyInTheCell` stages exactly that straddle and its control moves the same
+  body back to its own centre, where the same course lays: the refusal is a property of where the
+  body stands, not of the world.
+
 - **A lift now walks the body back down the staircase before planning one.** `JourneyPour`'s
   `liftInPlace` handed `JourneyRamp.buildTo` a landing whenever the body's own column could not fire
   the pour, and `buildTo` plans its flight from the alcove FLOOR — then walks the body to stand
