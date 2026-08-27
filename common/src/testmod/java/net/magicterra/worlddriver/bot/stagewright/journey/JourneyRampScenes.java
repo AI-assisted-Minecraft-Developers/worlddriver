@@ -474,6 +474,27 @@ public final class JourneyRampScenes implements SceneProvider {
             ctx.fail("THE RIG, not the subject: " + support.toShortString()
                     + " 的四邻里没有一个站得住的壁龛格，跨不出「压过界」这个前提");
 
+        // THE TIE WAS THE SUBJECT'S DICE, SO TAKE IT OUT OF THE ARENA. `support` has two or three
+        // corridor neighbours one cell away and `beside` is one of them, so which of them the search
+        // called 「nearest」 was decided by Set iteration order, salted per JVM by Set.copyOf. That
+        // made this arm a coin flip: nine runs, five red, with the two rows below byte-identical in
+        // all nine. Sealing the others leaves `beside` the unique nearest, so nearest-then-veto is
+        // now CERTAIN to hand back the body's own cell and certain to fail C — a poison that reads
+        // the same every run. The flight's own cells are left alone; sealing one would change what
+        // there is to lay, which is a different subject.
+        StringBuilder sealed = new StringBuilder();
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            BlockPos c = support.relative(d);
+            if (c.equals(beside) || !corridor.contains(c)) continue;
+            if (JourneyRamp.onTheFlight(flight, c) || JourneyRamp.onTheFlight(flight, c.above()))
+                continue;
+            level.setBlockAndUpdate(c, Blocks.STONE.defaultBlockState());
+            sealed.append(sealed.isEmpty() ? "" : "，").append(c.toShortString());
+        }
+        ctx.record("sealed", sealed.isEmpty()
+                ? "[没有与 " + beside.toShortString() + " 并列的邻格，本来就唯一]"
+                : "封实了与 " + beside.toShortString() + " 并列的 " + sealed);
+
         ServerWorldDriver driver = body(ctx, beside);
         ServerPlayer fp = driver.fakePlayer();
         double dx = (support.getX() - beside.getX()) * STRADDLE;
@@ -504,8 +525,23 @@ public final class JourneyRampScenes implements SceneProvider {
         ctx.check(straddling.stop()).as("B 判成「身体挡着」，不是「放不下」 —— 修复前这里是 REFUSED，"
                 + "而 REFUSED 一格也不给挪").isEqualTo(JourneyRamp.Stop.BODY_IN_THE_WAY);
         ctx.check(straddling.at()).as("B 而且挡的就是第一级的垫脚").isEqualTo(support);
-        ctx.check(JourneyRamp.stepAsideFor(level, fp, corridor, flight, straddling, 0, false))
-                .as("C 于是补救够得着了：给出一个挪开的落脚格 —— 加宽之前这里是 null").isNotNull();
+        // Printed by value, not as a verdict: null has two possible authors here — a corridor with no
+        // legal stand at all, and a search that found one and then vetoed it for being the cell the
+        // body stands in. Only the second was ever real, and reading `isNotNull` alone cost a session
+        // the exhaustion argument that told them apart.
+        BlockPos aside = JourneyRamp.stepAsideFor(level, fp, corridor, flight, straddling, 0, false);
+        BlockPos plain = JourneyRamp.builderStand(level, corridor, flight);
+        ctx.record("aside", (aside == null ? "null" : aside.toShortString())
+                + "；身体站在 " + fp.blockPosition().toShortString()
+                + "，不排除自身格时最近的是 " + (plain == null ? "null" : plain.toShortString()));
+        // The poison has to be armed for C's green to mean anything: with the tied neighbours sealed,
+        // the search that does NOT strike out the body's own cell must name exactly that cell. If it
+        // names another, `beside` was not the unique nearest and C would go green even under the old
+        // nearest-then-veto — a green that proves nothing.
+        ctx.check(plain).as("C0 毒上了膛：不排除自身格时，最近的落脚格就是身体站的那一格 —— "
+                + "上面 aside 那行是它的值").isEqualTo(fp.blockPosition());
+        ctx.check(aside)
+                .as("C 于是补救够得着了：给出一个挪开的落脚格 —— 排除自身格之前这里是 null").isNotNull();
 
         // ---- D/E the control: same cell, same world, body back on its own centre ----
         placeAt(driver, beside);
