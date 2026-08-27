@@ -1476,6 +1476,11 @@ public final class JourneyRig {
     private String driving;
     private int legTicks;
 
+    /** The last row {@link #evidence} was asked to write, and the leg tick it was written at — read
+     *  only by {@link #bodyDied}, which turns the pair into {@code death.leg}. */
+    private String lastEvidenceKey;
+    private int lastEvidenceLegTicks = -1;
+
     /**
      * <b>Called from {@link #await}, which is the only place any of this rig waits.</b>
      *
@@ -1665,6 +1670,9 @@ public final class JourneyRig {
         rememberTheBlow(fp);
         if (fp.getHealth() > 0f && !fp.isDeadOrDying()) return false;
         String how = fp.getCombatTracker().getDeathMessage().getString();
+        // READ BEFORE THIS METHOD WRITES ANYTHING, or the answer is `death.cause`.
+        String leg = lastEvidenceKey == null ? "整段还没写过任何一条证据"
+                : lastEvidenceKey + "（写它时是本段第 " + lastEvidenceLegTicks + " tick）";
         evidence("death.cause", how);
         evidence("death.blow", blows.isEmpty() ? "整段没有记到任何一次扣血 —— 掉血不是通过 hurt() 发生的" : String.join("；", blows));
         evidence("death.food", fp.getFoodData().getFoodLevel() + "/20，饱和度 "
@@ -1674,6 +1682,16 @@ public final class JourneyRig {
         evidence("death.stage", stage.name());
         evidence("death.legTicks", legTicks);
         evidence("death.driving", driving == null ? "无驱动器" : driving);
+        // WHICH LEG DIED — `death.driving` answers the verb (`goto`) and never the occasion, and the
+        // death chain CROSSES LEGS. Measured 2026-08-26 on the taxed rehearsal: the fire was lit
+        // 1519 ticks into one leg (`hp.trace … t1519 −4.0 @-14, 59, 14 着火300t 泡岩浆`) and the body
+        // died 38 ticks into the NEXT one (`death.legTicks = 38`), so「which leg walked into the
+        // lava」was answered by neither row. Deciding whether the change under test had priced that
+        // route cost a round of geometry against the pour column's coordinates; the leg's own
+        // evidence tag is one row and says it outright. A write tick LARGER than the death tick is
+        // the tell that the last deliberate row belongs to the previous leg.
+        evidence("death.leg", leg + "；死在本段第 " + legTicks
+                + " tick —— 写它的 tick 比这个大，就说明最后一条证据属于上一段，死因链跨了腿");
         // WHY THE STRIDE GUARD SAID NOTHING, on every rung, because死 is where it matters.
         // The buckets first shipped hanging off JourneyFlight.report(), and JourneyFlight is
         // constructed only by JourneyNetherRungs — so rung 12, which burned to death walking into
@@ -2772,6 +2790,12 @@ public final class JourneyRig {
      * that would otherwise have vanished.
      */
     public JourneyRig evidence(String key, Object value) {
+        // WHICH LEG IS LIVE, remembered here because this is the funnel every DELIBERATE row goes
+        // through — and the per-tick rows do not: `futileGate`, `walkerCensus` and `body.vitals`
+        // write into the map directly from #heartbeat, so a reading that would otherwise be
+        // overwritten every 200 ticks survives as the leg's own tag. See death.leg.
+        lastEvidenceKey = key;
+        lastEvidenceLegTicks = legTicks;
         Slot slot = slotFor(key, value);
         if (slot.clashed()) {
             WorldDriverCommon.LOG.warn(
