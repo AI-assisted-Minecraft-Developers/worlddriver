@@ -5,6 +5,43 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-28
+
+- **A drowning body is steered only at open water it can actually swim to.**
+  `DrownEscapeChain`'s lateral arm picked its target by scanning Chebyshev rings for a column that
+  can surface — a question about the DESTINATION, with nothing anywhere asking whether the body
+  could get there. It killed the real ladder of 2026-08-26 at rung 9. The body sat in a 1×1 pocket
+  at 81,59,82 under a dirt lid; the scan chose 81,59,80, which genuinely surfaces; 81,59,81, the
+  one cell between them, is stone. The picked column was not even standable — its head cell
+  81,60,80 is stone as well — so「can it surface there」had been answered for a body that could
+  never have stood there.
+
+  ```
+  [drownEscape] CAPPED lid — lateral swim to open water dir=0,-2 pos=81,59,82 air=100 水平速度=0.0000
+  … the same row for 532 ticks, position unchanged to the digit, air falling to −19
+  hp.trace  掉血 10 次、回血 0 次，10 次全部 @81,59,82 脚下=water 身处=water
+  ```
+
+  That row exists because the same arm did the same thing on 2026-08-23 and the log said only
+  `PREEMPT`; the field added then was horizontal speed, precisely because「held forward and did not
+  move」and「was never asked」read identically without it. This run answered it: asked, and did not
+  move.
+
+  A false positive here does not merely fail to help. `dir == null` is what sends the body to the
+  lid-break, the arm this class documents as always-escapable — so naming an unreachable target
+  withholds the fallback as well. The scan is now a four-way breadth-first search over the body's
+  own level, through cells the BODY fits in (foot and head, water or passable, non-hazard), bounded
+  by the same radius, returning the FIRST STEP of a route rather than the bearing of a destination.
+  No diagonals: a 0.6-wide body does not fit through the gap between two solid cells, so a diagonal
+  step is a direction no body can travel. Unreachable-but-breathable is now its own logged outcome,
+  naming the column, so the next reader of a drowning death does not have to open the region file
+  to learn which of the two dead ends it was.
+
+  ⚠️ What this does **not** claim: that the body would have survived. Underwater and unsupported
+  both multiply mining time by five, so the dirt lid is roughly 375 ticks of digging against a
+  survival window of roughly 290. Whether the lid-break wins that race is a separate measurement on
+  a live body; what changed here is that the race is now run at all.
+
 ## 2026-08-27
 
 - **「The body is in the way」 is now asked of the body's box, not of its cell name.**
