@@ -10,9 +10,13 @@ import net.minecraft.tags.FluidTags;
  *
  * <h2>Why the corridor needed a map before it needed another fix</h2>
  *
- * Rung 14 walks {@code JourneyNetherRungs.FORTRESS_WAYPOINTS}, eighteen cells baked from a run that
- * reached the fortress. Legs 8, 9 and 10 came back {@code {bridgePlace=15}}, {@code {bridgePlace=13}},
- * {@code {bridgePlace=14}} — and {@code walk=0}. Not one step on existing ground.
+ * Rung 14 walks the cells of {@code JourneyNetherRungs.FORTRESS_WAYPOINTS}, baked from a run that
+ * reached the fortress. (No count is written here on purpose: the table has been edited since — one
+ * waypoint was deleted on 2026-08-22 — and a spelled-out number in prose does not follow it. Ask the
+ * array, or read the legs, which print 「第 N/{@code length}」.) Legs 8, 9 and 10 came back
+ * {@code {bridgePlace=15}}, {@code {bridgePlace=13}}, {@code {bridgePlace=14}} — and {@code walk=0}.
+ * Not one step on existing ground. ⚠️ Those are readings from THAT run; the two ladder runs of
+ * 2026-08-28 carry no bridging reading at all, so they neither confirm nor refute them.
  *
  * <p>That is not a bug in the walker. The waypoints are body positions recorded AFTER that run
  * bridged, so <b>they describe a causeway, not terrain</b>, and a fresh world has none of it. Every
@@ -136,7 +140,11 @@ final class JourneyCorridorProbe {
                       + (lavaAt(level, cell.getX(), floor, cell.getZ()) ? "，**而且是岩浆面**" : "")
                       + "）");
         }
-        rig.evidence("fortress.waypointAudit", "十八个烘入路点在**全新世界**里的样子：本格空的 "
+        // COUNTED, NOT SPELLED. It said 「十八个」 while the table held seventeen — `wp4` was deleted
+        // on 2026-08-22 and this sentence was not, so for six days the row's own headline disagreed
+        // with the rows under it and with every leg's 「第 N/17 個」. A hard-coded count in an
+        // evidence row is a snapshot of what its author believed; the array is the measurement.
+        rig.evidence("fortress.waypointAudit", waypoints.length + " 个烘入路点在**全新世界**里的样子：本格空的 "
                 + hollow + " 个，其中 " + unstandable + " 个**脚下也是空的**。"
                 + "路点表是一趟【架过桥的】跑动记录，所以本格空且脚下空的那些是那一趟自己摆出来的"
                 + "石头，这个世界里没有——瞄准它们的段无论寻路怎么改都走不到，而它们只会报"
