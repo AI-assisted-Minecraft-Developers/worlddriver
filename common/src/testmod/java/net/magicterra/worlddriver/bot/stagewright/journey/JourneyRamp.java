@@ -480,23 +480,51 @@ final class JourneyRamp {
      */
     static BlockPos builderStand(ServerLevel level, Set<BlockPos> corridor,
                                  List<BlockPos> flight) {
+        return builderStand(level, corridor, flight, null);
+    }
+
+    /**
+     * The same search with one cell struck out — the cell a step-aside is trying to LEAVE.
+     *
+     * <p><b>Nearest-then-veto is a different search, and a worse one.</b> {@link #stepAsideFor} used
+     * to take the plain nearest stand and hand back null when it turned out to be the cell the body
+     * already stood in, throwing away every other legal stand in the corridor. In this alcove the
+     * body's own cell and two or three of its neighbours all sit one cell from the bottom step, so
+     * which of them 「nearest」 named was decided by {@code Set} iteration order, and
+     * {@code Set.copyOf} salts that per JVM. {@code wd.rampSeesABodyOnlyPartlyInTheCell} measured
+     * the result as a coin flip — nine runs, five red, with the staged body and the step it was
+     * blocking byte-identical in all nine.
+     */
+    static BlockPos builderStand(ServerLevel level, Set<BlockPos> corridor,
+                                 List<BlockPos> flight, BlockPos exclude) {
         BlockPos bottom = flight.get(0).below();
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
         for (BlockPos c : corridor) {
+            if (c.equals(exclude)) continue;
             if (!standable(level, corridor, c)) continue;
             if (!level.getBlockState(c.below()).blocksMotion()) continue;
             if (onTheFlight(flight, c) || onTheFlight(flight, c.above())) continue;
             double d = c.distSqr(bottom);
-            if (d < bestD) { bestD = d; best = c.immutable(); }
+            // Ties broken by position, not by iteration order. Two cells equally near the bottom
+            // step are both legal, so the old strict `<` was not wrong — it was unrepeatable, and a
+            // ladder that stands somewhere else each run cannot be compared with the run before it.
+            if (best == null || d < bestD || (d == bestD && c.compareTo(best) < 0)) {
+                bestD = d;
+                best = c.immutable();
+            }
         }
         return best;
     }
 
     /** Is this cell part of the flight's own footprint — a step, a shoulder, a stand or its head
      *  room? The one question {@link #approach} and {@link #lay} both have to ask about the body's
-     *  position, and asking it about only the step is what cost a course a run. */
-    private static boolean onTheFlight(List<BlockPos> flight, BlockPos c) {
+     *  position, and asking it about only the step is what cost a course a run.
+     *
+     *  <p>Package-private because an arena that wants to seal the cells tied with the body's own has
+     *  to leave the flight's cells alone, and a second copy of this definition in a scene would be a
+     *  second place for it to drift. */
+    static boolean onTheFlight(List<BlockPos> flight, BlockPos c) {
         for (BlockPos stand : flight)
             if (stand.equals(c) || stand.above().equals(c)
                     || stand.below().equals(c) || stand.below(2).equals(c)) return true;
@@ -718,17 +746,21 @@ final class JourneyRamp {
                                  List<BlockPos> flight, Pass pass, int from, boolean alreadyAside) {
         if (pass.stop() == Stop.FINISHED) return null;
         BlockPos body = player.blockPosition();
-        BlockPos aside = builderStand(level, corridor, flight);
+        // Struck out rather than vetoed afterwards: a step aside has to end somewhere the body is
+        // not, so the cell it stands in is not a candidate at all. Vetoing the winner instead threw
+        // away the rest of the corridor whenever the tie fell on the body's own cell.
+        BlockPos aside = builderStand(level, corridor, flight, body);
         if (pass.laid() > from) {
             // STEP ASIDE RATHER THAN CLIMB. Climbing onto the course below is what put the body's own
             // box inside the next step's cell — see approach's note for the two runs that measured
-            // it. A stand off the footprint is the same cell approach chose and is still legal; the
-            // climb stays only as the fallback for a corridor that has no such cell, where doing
-            // nothing would be worse than doing the thing that sometimes works.
-            return aside != null && !aside.equals(body) ? aside : flight.get(pass.laid() - 1);
+            // it. A stand off the footprint is still legal — the same cell approach chose, unless
+            // approach chose the one the body is in; the climb stays only as the fallback for a
+            // corridor that has no such cell, where doing nothing would be worse than doing the
+            // thing that sometimes works.
+            return aside != null ? aside : flight.get(pass.laid() - 1);
         }
         if (pass.stop() != Stop.BODY_IN_THE_WAY || alreadyAside) return null;
-        return aside != null && !aside.equals(body) ? aside : null;
+        return aside;
     }
 
     /**
