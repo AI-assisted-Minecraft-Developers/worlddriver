@@ -26,7 +26,6 @@ public final class AscendMovement implements Movement {
     // change (legacy advanced the step, or a repath swapped the edge) starts a fresh episode.
     private BlockPos episodeNode;
     private String episodeMove;
-    private int episodeTicks;
     private double episodeBestY;        // dy-progress high-water mark for this episode
     private double episodeBestCur2;     // horizontal gap-close low-water (squared dist to node center)
     private int ticksSinceProgress;     // dead-zone clock: ticks with no high-water gain and no active dig
@@ -35,13 +34,11 @@ public final class AscendMovement implements Movement {
         if (episodeNode == null || !episodeNode.equals(ctx.node) || !episodeMove.equals(ctx.edge.move)) {
             episodeNode = ctx.node.immutable();
             episodeMove = ctx.edge.move;
-            episodeTicks = 0;
             episodeBestY = ctx.p.getY();
             episodeBestCur2 = cur2(ctx);
             ticksSinceProgress = 0;
             return MovementStatus.PREP;
         }
-        episodeTicks++;
         boolean progressed = false;
         if (ctx.p.getY() > episodeBestY + PROGRESS_EPS_Y) { episodeBestY = ctx.p.getY(); progressed = true; }
         double cur2 = cur2(ctx);
