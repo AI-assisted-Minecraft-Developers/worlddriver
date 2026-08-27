@@ -838,15 +838,25 @@ public final class ClientWorldView implements WorldView {
                 // is the fix for "寻路太蠢/走进海里淹死".
                 if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
                     penalty += BotConfig.waterDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
-                    // SUBMERGED layer extra: a fully-underwater cell (water at head
-                    // height too — eyes below the surface) moves at ~2 b/s vs ~5.6 b/s
-                    // surface sprint-swim, yet Walk prices both 10, so A* hugs the lake
-                    // bed whenever the floor undulates and the executor see-saws
-                    // jump/sneak chasing waypoints that alternate bed/surface (round41
-                    // kelp field: 6 blocks in 95 s, the jump↔sneak "piston"). Tax the
-                    // submerged layer ≈ the real speed ratio so surface cruising wins;
+                    // SUBMERGED layer extra: a cell the body floats fully under moves at
+                    // ~2 b/s vs ~5.6 b/s surface sprint-swim, yet Walk prices both 10, so
+                    // A* hugs the lake bed whenever the floor undulates and the executor
+                    // see-saws jump/sneak chasing waypoints that alternate bed/surface
+                    // (round41 kelp field: 6 blocks in 95 s, the jump↔sneak "piston"). Tax
+                    // the submerged layer ≈ the real speed ratio so surface cruising wins;
                     // additive, so a genuine dive (cave entry, swim-under) still prices.
-                    if (isWater(foot.offset(0, 2, 0))) {
+                    //
+                    // WHICH cell decides "submerged" is WorldView#isSubmergedFoot's business,
+                    // and this line asks it rather than repeating the offset. It used to
+                    // carry the offset inline under a comment reading "water at head height
+                    // too — eyes below the surface", and that prose describes foot+1 while
+                    // the offset was and is foot+2 — one cell apart, and the stricter one.
+                    // A cell with water at the head and air above it is NOT taxed here, by
+                    // design: isSubmergedFoot's javadoc derives foot+2 from what a buoyant
+                    // body can still do (jump-mount a bank from within one cell of the
+                    // surface), so anyone tuning waterDangerPenalty off the old sentence was
+                    // tuning a gate one cell tighter than they thought.
+                    if (isSubmergedFoot(foot)) {
                         penalty += BotConfig.waterDangerPenalty * 4;
                     }
                 }
