@@ -509,3 +509,7 @@ wd.actuatorSplitThroughTheClientAvatar
 wd.drownEscapeClientRisesInOpenWater
 wd.drownEscapeClientPinnedByNeighbourColumn
 wd.drownEscapeClientStaysDownDisarmed
+# The capped-pocket arm. The three above never enter the lateral escape at all: measured on
+# stagewrightIntegratedServerFabric 2026-08-26, `CAPPED lid` rows = 0 across the whole run,
+# because cappedColumn is false in every arena they stage.
+wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff
