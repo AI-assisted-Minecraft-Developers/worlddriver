@@ -545,6 +545,28 @@ public final class PathFinder {
          *  here so the tax attribution cannot be attached to some of them only. */
         private void finish(Result r) {
             this.result = r;
+            // SEARCH-END, UNCONDITIONAL — the answer to the question `search-begin` already asks
+            // unconditionally. That asymmetry is the whole reason this line exists: the ladder of
+            // 2026-08-27 lost rung 11 with 229 `search-begin owner=goto goal=XZ[x=-10, z=51,
+            // radius=0]` lines in latest.log and NOT ONE line saying how any of them came out —
+            // 98 of the 229 fired from a byte-identical start. Both existing result rows are
+            // flag-gated (`tax-breakdown` on TAX_LOG||walkerDebug, `STOP` on walkerDebug) and no
+            // gate ever sets walkerDebug, so a reader could see every question and no answer.
+            //
+            // `reached` is the value the rung's failure turns on: `Goal.XZ(dig, 0)` has tolerance
+            // ZERO, so a leg that stops one cell short did not miss by a hair — the goal cell was
+            // never expanded, which points at the walker's own `canStandAt` rather than at any
+            // tolerance. `end` carries where the committed path actually stops, so「1 格之差」is a
+            // coordinate a reader can check rather than a claim to believe.
+            //
+            // Same volume as its sibling (one line per search, and this run's 1427 begins cost
+            // nothing measurable), and deliberately NOT throttled: throttling only one half of a
+            // begin/end pair makes the two impossible to match up, which is the failure being
+            // fixed, not a smaller version of it.
+            LOG.info("[pathfinder] search-end owner={} reached={} steps={} end={} expanded={} ms={}",
+                    owner, r.goalReached(), r.path().isEmpty() ? -1 : r.path().size() - 1,
+                    r.path().isEmpty() ? "none" : r.path().get(r.path().size() - 1).toShortString(),
+                    r.expanded(), r.ms());
             if ((TAX_LOG || BotConfig.walkerDebug) && !r.path().isEmpty()) {
                 LOG.info("[pathfinder] tax-breakdown owner={} reached={} steps={} finalCost={} onPath[{}] duringSearch[{}]",
                         owner, r.goalReached(), r.path().size() - 1,
