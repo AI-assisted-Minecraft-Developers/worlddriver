@@ -139,7 +139,9 @@ public final class WorldDriverCommon {
                     return evaluator.evaluate(src, to);
                 });
                 // Phase G — boss playbooks run on a background thread (long budget,
-                // cancellable) in the same Rhino sandbox as mc.script.eval.
+                // cancellable) under the same Rhino class-visibility policy as
+                // mc.script.eval, which is allow-everything unless -Dworlddriver.sandbox=on
+                // (see PlaybookRunner and ScriptClassFilter — nothing in the build sets it).
                 PlaybookRunner playbookRunner = new PlaybookRunner(evaluator);
                 api.setPlaybookHandler(playbookRunner::dispatch);
                 // Phase H — persistent skill library (Voyager) under scripts/skills/.

@@ -1,10 +1,40 @@
-// Sandbox: ScriptClassFilter should block dangerous JVM classes from JS, but
-// still let legitimate scripts reach console (System.out) and DriverApi
-// return values (java.util Map/List).
+// Sandbox: dangerous JVM classes must not be reachable from JS, while legitimate
+// scripts still reach console (System.out) and DriverApi return values
+// (java.util Map/List).
 //
-// In this Rhino fork (KubeJS-Mods), `java`, `javax`, `org` are top-level
-// JavaPackage globals; denied class names resolve back to JavaPackage objects
-// so invoking constructors / static methods throws TypeError.
+// ⚠️ THESE SIX GREENS ARE NOT EVIDENCE THAT ScriptClassFilter WORKS, AND AGENTS.md
+// HARD RULE #3 POINTS AT THIS FILE AS THOUGH THEY WERE. Read that rule ("don't
+// widen the Rhino sandbox without a matching negative test here") knowing the
+// following, all of it read off the code and off two run logs:
+//
+//   * ScriptClassFilter.isAllowed opens with `if (DISABLED) return true;`, and
+//     DISABLED is true unless -Dworlddriver.sandbox=on. Nothing in the build sets
+//     it (grep the *.gradle files; docs/dev/architecture.md says the same).
+//   * So in every gate run the filter denies NOTHING — every name is allowed.
+//   * And every check below still passes. Measured on both loaders' most recent
+//     dogfood runs: six PASS here plus "11_script_eval: sandbox still applies
+//     inside eval", zero failures, filter off throughout.
+//
+// Whatever is refusing `new java.io.File(...)`, it is not this filter, so a change
+// that widened the filter would not redden a single line of this file. The default
+// being off is a standing decision (see ScriptClassFilter's header — the caller
+// owns the trust boundary); what is wrong is only this suite's claim to guard it.
+//
+// WHAT IS NOT ESTABLISHED — and the one probe that would settle it. The scope is
+// built by `cx.initStandardObjects()` (ScriptManager.loadAll) with no LiveConnect
+// or Packages install, and ScriptClassFilter's own header says this Rhino fork
+// strips the Packages global. The leading hypothesis is therefore that `java`
+// never resolves at all, so each denied() below is catching a TypeError on
+// `undefined` rather than a refusal. Two checks cannot discriminate even in
+// principle: Runtime.exec("id") throws on any host without `id` on PATH, and
+// Socket("127.0.0.1", 1) throws on connection refused. The separating reading is
+// `typeof java` and `typeof java.io.File` inside this scope.
+//
+// ⛔ Do NOT simply add that probe as a seventh ScriptTest here.
+// WorldDriverCoreScenes pins the suite's EXACT check count on both topologies
+// (RPC_SMOKE_EXPECTED_TOTAL_DEDICATED / _INTEGRATED) as a coverage-drift guard, so
+// any added or removed check reddens wd.agentRpcSmoke until both constants move in
+// the same commit.
 
 function denied(thunk) {
     try { thunk(); return false; }

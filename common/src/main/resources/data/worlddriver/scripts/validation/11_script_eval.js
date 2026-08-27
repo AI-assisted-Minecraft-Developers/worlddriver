@@ -78,6 +78,13 @@ ScriptTest.run("11_script_eval: tight loop is interrupted by timeout", function(
         "error should mention timeout, got: " + out.error);
 });
 
+// ⚠️ The name is inherited and overclaims: this proves java.io.File is unreachable
+// from an eval scope, NOT that ScriptClassFilter is what makes it so. The filter is
+// off by default and nothing in the build turns it on, so it allows this name on
+// every gate run and the check passes anyway. See 08_sandbox.js's header for the
+// measurement and for the probe that would identify the real mechanism. Renaming
+// this check is safe (the count is what wd.agentRpcSmoke pins, not the names);
+// adding or removing one is not.
 ScriptTest.run("11_script_eval: sandbox still applies inside eval", function(t) {
     var out = call("try { new java.io.File('/etc/passwd'); 'NOT BLOCKED' } catch (e) { 'blocked' }");
     t.assertEqual(out.error, null);

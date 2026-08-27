@@ -16,10 +16,18 @@ import java.util.regex.Pattern;
  * thread, so {@code mc.bot.playbook} returns immediately and the multi-minute
  * fight loop survives past the 30 s {@link ScriptEvaluator} ad-hoc cap.
  *
- * <p>The playbook runs in the SAME Rhino sandbox as {@code mc.script.eval} —
- * it goes through {@link ScriptEvaluator#evaluateOnThread}, which reuses the
- * identical {@code ScriptClassFilter} class visibility — just with a longer
- * deadline and a cooperative abort flag (AGENTS.md #3: sandbox not relaxed).
+ * <p>The playbook runs under the SAME Rhino class-visibility policy as
+ * {@code mc.script.eval} — it goes through {@link ScriptEvaluator#evaluateOnThread},
+ * which reuses the identical {@code ScriptClassFilter} hook — just with a longer
+ * deadline and a cooperative abort flag (AGENTS.md #3: the policy is not relaxed here).
+ *
+ * <p><b>"The same sandbox" is the accurate claim only because there is no sandbox on
+ * either side by default.</b> {@code ScriptClassFilter} is off unless
+ * {@code -Dworlddriver.sandbox=on}, which nothing in the build passes, so what this
+ * class inherits from {@code mc.script.eval} is an allow-everything filter. That is
+ * deliberate (scripts are a first-party capability; the caller owns the trust
+ * boundary) — but a reader who took the word "sandbox" as a containment guarantee
+ * would be wrong about BOTH surfaces, not just this one.
  *
  * <p>One playbook at a time. {@code op} selects the action:
  * <ul>
