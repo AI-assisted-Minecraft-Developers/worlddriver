@@ -33,6 +33,7 @@
 一行一件，**状态在最左**。做完就把行删掉并把结论写进 `CHANGELOG.md`，不要在这里写细节。
 
 | 状态 | # | 事 | 归属 |
+| 🔴 判：查（影响所有闸的归因，先量再改） | J110 | **专用服与客户端跑的不是同一套通行判据。** `canStandOn` 全仓只有 `ClientWorldView:192` 覆写，`LevelWorldView` 用接口默认 `WorldView:285 = isSolid(pos)`；`isPassable` 两边各自覆写、方法体不同；`collisionAwarePathing` 出厂 `true`。两者都喂 `canStandAt`，而它是 Walk／StepUp／StepDown／Diagonal 族／Fall／Climb／全部 Parkour 的闸。⇒ **`wd.*` 与 `journeyServer` 在底半砖、栅栏、soul_sand/mud/snow、睡莲、薄雪、压力板这些地形上验过的路，不等于出货客户端会走的路**。⛔ 这比「跳过不算覆盖」更难看见：场景**真的跑了**，只是跑在另一套谓词上。缺的读数＝一张两实现逐格判词的差集表 | 我 |
 |---|---|---|---|
 | 🟠 判：先补测量 | Q15c | **缺的读数＝PREP 无条件写 `readyTicks`/`readyMs`**（落 `stagewright-scenes/pack.js`，只加仪器不改行为，随下一轮闸读分布）。两笔嫌疑提交 `19b18c2`／`a384733` 都被本行自己排除（那场反射风暴在集成日志里新旧都是 0 条）之后，`pack.placesAndReadsBack` ENV_FAIL(10001ms) → **PASS(3336ms)** 这个翻转只剩「**又慢又飘**」一个假设，没有分布判不动 | 我 |
 | 🟠 已量·修法挂 Q7c | Q7 | V1 冻屏**数出来了**：单秒最高 **20 次**搜索、**26%** 的秒 ≥3 次，全在 Render thread；最大单一来源是 **174 次起点目标全同的重问**（`owner=mine`）。「缺计数器」是错的——`search-begin` 一直无条件在打。**修法定形在 Q7c，本行只留测量** | 我 |
