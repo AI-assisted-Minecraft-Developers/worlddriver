@@ -85,6 +85,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **The step aside picks the nearest stand that is not the body's own cell, and picks it the same
+  way every run.** `stepAsideFor` used to take the plain nearest stand and hand back null when it
+  turned out to be the cell the body already stood in — throwing away every other legal stand in the
+  corridor. In the alcove the bottom step has two neighbours exactly one cell away, and the body
+  occupies one of them, so which one `builderStand` called「nearest」 was decided by `Set` iteration
+  order. The corridor arrives as `Set.copyOf(...)`, whose `SetN` iteration order is salted once per
+  JVM: the same code, the same world and the same staged body gave a different answer per run.
+  `wd.rampSeesABodyOnlyPartlyInTheCell` measured it as a coin flip — nine archived runs, five red,
+  with `staged=` and 要垫的是 byte-identical in all nine.
+
+  Two halves, because「set iteration order decides behaviour」is one defect: the body's cell is now
+  struck out of the search rather than vetoed after it wins, and ties are broken by `compareTo`
+  instead of by whichever cell the iterator reached first. The second half is what makes a ladder run
+  comparable with the one before it — this path used to stand somewhere else each time.
+
+  The arena stopped rolling the same dice: it seals the neighbours tied with the body's cell, so the
+  old nearest-then-veto is now certain to fail. Poisoned, the arm goes red at C with `aside=null`
+  and the liveness row reading `不排除自身格时最近的是 257696, 220, 99998` — the body's own cell.
+  Restored, `aside=257697, 220, 99998`.
+
 - **「The body is in the way」 is now asked of the body's box, not of its cell name.**
   `JourneyRamp.layWhereItStands` classified with `support.equals(body)`, and a player's box is
   0.6 wide against a 1.0 cell — so a body a fifth of a cell off centre is inside the cell next door
