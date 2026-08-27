@@ -64,7 +64,11 @@ import java.util.concurrent.ThreadFactory;
  * per call) receive nothing extra — zero regression.
  *
  * Threading: incoming frames arrive on Netty IO threads. {@code route()} internally
- * marshals work to the server tick via {@code server.execute() + future.get(30s)},
+ * marshals work to the server tick via {@code server.execute()} plus a bounded
+ * {@code future.get} — {@code DriverApi.SERVER_THREAD_TIMEOUT_MS}, 8s by default and
+ * settable with {@code -Dworlddriver.serverThreadTimeoutMs=N}. This said 30s, which was
+ * the budget before it was lowered; naming the constant instead of a number keeps the
+ * two from drifting apart again.
  * which would deadlock the IO thread if we ran it inline. We hop to a cached worker
  * pool before calling route().
  *
