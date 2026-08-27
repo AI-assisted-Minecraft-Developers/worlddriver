@@ -15,21 +15,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   satisfied. `74,41,95` is a standable cell two blocks from the waypoint, measured rather than
   surveyed, and it is available to a re-bake now.
 
-  What actually defeats the leg is COST. **113 of the 117 searches ran at the walker's inline budget
-  (`maxNodes=600 maxMs=80`) and every single one of them hit the node cap** — 103 returning
-  `steps=-1 end=none` and the other ten a stub of four or five steps. A hundred per cent, in 21–24 ms
-  apiece: the inline budget is not close, it is off by two orders of magnitude. The four full-budget
-  searches (`maxNodes=100000`, and `maxMs=Long.MAX_VALUE/2`, i.e. no clock at all) took
-  3.9–5.1 seconds each; three hit the 100 000 cap and the fourth reached at **88 646 expansions**.
-  Eighty-eight thousand nodes for a thirteen-block leg is the open-sky fan-out this file's probe
-  javadoc already describes, arriving one leg earlier than anyone had looked.
+  What actually defeats the leg is COST, and the two budgets in the log answer different questions.
+  **113 of the 117 searches ran at `maxNodes=600 maxMs=80` and every one hit the node cap** — but
+  that is `BotConfig.pathfinderQuickNodes`, the PROGRESSIVE QUICK-START STUB, a deliberately
+  frame-sized best-effort search that runs while the real re-plan time-slices behind it and is
+  superseded by `adoptPath` when that lands. A stub returning `end=none` on hard terrain is the stub
+  working, not a budget being wrong, and reading 113-of-113 as 「the inline budget is off by two
+  orders of magnitude」 mislabels the quantity. What it measures is that the terrain is hard.
 
-  **And the one answer that worked was never walked.** Leg 5's heartbeats show the longest path the
-  walker ever held was eighteen nodes, and `路=5/0` — a body pinned with no plan — appears in four of
-  the twelve. The successful search started from `65,43,78`; by the time it returned, 3 952 ms later,
-  the body was at `69,43,84`, and a plan computed from a cell the body has left is not a plan. ⚠️
-  That last step is ONE sample and is recorded as such; the 103-of-117 budget failure is a
-  distribution and is not.
+  **The defect-relevant number is the other four.** The full searches (`maxNodes=100000`, and
+  `maxMs=Long.MAX_VALUE/2`, i.e. no clock at all) ran 3.9–5.1 s; **three of the four hit the 100 000
+  cap and the fourth reached at 88 646 expansions.** The corridor's hardest leg needs 89 % of the
+  entire node budget, so it fails most times it is asked — that is the open-sky fan-out this file's
+  probe javadoc already describes, arriving one leg earlier than anyone had looked.
+
+  ⚠️ Two things this does NOT establish. The longest path leg 5's heartbeats show the walker holding
+  is eighteen nodes and the 36-node one never appears — but heartbeats sample every 200 ticks, so a
+  short-lived plan can fall between them, and `adoptPath` is explicitly built to fast-forward a plan
+  whose start the body has left. 「The successful plan was discarded」 is a hypothesis with one
+  sample and a documented mechanism against it. What is a distribution, and stands: three of four
+  full searches cannot solve this leg.
 
 - **The audit says where to aim instead, not just that the waypoint is broken.** Six of the
   seventeen corridor waypoints report 「本格空且脚下也空」, and that row is a claim about a COLUMN —
