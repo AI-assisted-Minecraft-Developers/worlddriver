@@ -1471,6 +1471,12 @@ public final class JourneyRig {
      */
     private int sinceHeartbeat;
 
+    /** Whether the head ever went under, how low the air got, and who held the channel while it did
+     *  — the reading that separates「a reflex held and still could not surface」from「a reflex never
+     *  got the channel」. Its own class because this file is at its budget; see it for why the
+     *  latch is per-tick and this heartbeat's 200 could not have seen the window. */
+    private final JourneyDrownWatch drownWatch = new JourneyDrownWatch();
+
     /** What is driving right now, and how long the current wait has run — set wherever a leg begins,
      *  read only by {@link #heartbeat}. */
     private String driving;
@@ -1492,11 +1498,15 @@ public final class JourneyRig {
      */
     private void heartbeat(int budget) {
         if (driver == null) return;
+        // EVERY TICK, above the throttle — see JourneyDrownWatch for why a 200-tick sampler cannot
+        // see the 100-tick window it is aimed at.
+        drownWatch.tick(driver.fakePlayer(), () -> botStatus().get("activeChain"));
         if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
         sinceHeartbeat = 0;
         recordFutileGate(futileGateLine());
         recordWalkerCensus(walkerCensus.line());
         recordBodyVitals(bodyVitalsLine());
+        recordDrown(drownWatch.line());
         ServerPlayer fp = driver.fakePlayer();
         WorldDriverCommon.LOG.info(
                 "[journey] 心跳 {} {} {} 本段第{}/{} tick 身体={},{},{} @{} 在关卡={} 进程完成={}",
@@ -1841,6 +1851,13 @@ public final class JourneyRig {
         evidence.put("body.vitals", line);
         ctx.record("body.vitals", line);
     }
+
+    /** Same two choke points and the same clash-detector bypass as {@link #recordWalkerCensus}. */
+    private void recordDrown(String line) {
+        evidence.put("water.drown", line);
+        ctx.record("water.drown", line);
+    }
+
 
     /** This rung's share of the futile gate, bucket by bucket. Buckets 0-5 are searches the gate
      *  never judged; 6-8 are what it did with the ones it judged. */
@@ -2862,6 +2879,9 @@ public final class JourneyRig {
         recordFutileGate(futileGateLine());
         recordWalkerCensus(walkerCensus.line());
         recordBodyVitals(bodyVitalsLine());
+        // ON THE PASS TOO. A rung that drowned nobody is the control this reading is judged
+        // against, and a control that only the failures carry is not a control.
+        recordDrown(drownWatch.line());
         evidence.put("body.invulnerable", bodyIsInvulnerable());
         int staged = JourneyLedger.stagingCalls().size();
         evidence.put("staging.calls", staged);
