@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-29
 
+- **Leg 5's waypoint is reachable, and 「the column has no floor」 was never a claim that it isn't.**
+  The corridor's fifth leg has been read as unwalkable because `wp5 74,41,97` audits as 「本格空且
+  脚下也空」. That row is about a COLUMN; the goal is `Goal.Near(74,41,97, radius=2)`, a SPHERE — two
+  different quantities, and the ladder log settles which one decides. Over that leg the pathfinder
+  ran **117 searches**, and one of them came back `reached=true steps=36 end=74,41,95`. The goal was
+  satisfied. `74,41,95` is a standable cell two blocks from the waypoint, measured rather than
+  surveyed, and it is available to a re-bake now.
+
+  What actually defeats the leg is COST. **103 of the 117 searches ran at the walker's inline budget
+  (`maxNodes=600 maxMs=80`) and returned `steps=-1 end=none` — the node cap, with nothing.** The four
+  full-budget searches (`maxNodes=100000`, and `maxMs=Long.MAX_VALUE/2`, i.e. no clock at all) took
+  3.9–5.1 seconds each; three hit the 100 000 cap and the fourth reached at **88 646 expansions**.
+  Eighty-eight thousand nodes for a thirteen-block leg is the open-sky fan-out this file's probe
+  javadoc already describes, arriving one leg earlier than anyone had looked.
+
+  **And the one answer that worked was never walked.** Leg 5's heartbeats show the longest path the
+  walker ever held was eighteen nodes, and `路=5/0` — a body pinned with no plan — appears in four of
+  the twelve. The successful search started from `65,43,78`; by the time it returned, 3 952 ms later,
+  the body was at `69,43,84`, and a plan computed from a cell the body has left is not a plan. ⚠️
+  That last step is ONE sample and is recorded as such; the 103-of-117 budget failure is a
+  distribution and is not.
+
 - **The audit says where to aim instead, not just that the waypoint is broken.** Six of the
   seventeen corridor waypoints report 「本格空且脚下也空」, and that row is a claim about a COLUMN —
   it was being read as 「无论寻路怎么改都走不到」, which is a claim about a neighbourhood nobody had
