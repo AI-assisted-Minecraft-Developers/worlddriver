@@ -892,24 +892,42 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         // because a non-null answer skips the lid-break, the false positive did not merely fail to
         // help: it withheld the one arm the class doc calls always-escapable.
         {
+            // The WHOLE floor of the scan's reach, not the cells I happened to think of. The first
+            // draft staged only the four orthogonal neighbours and left the diagonals unlisted —
+            // and in this grid world an unlisted cell is AIR, so the scan found a breathable
+            // column that does not exist in the world this case claims to reproduce, and named
+            // 80,59,83 (stone in the save). The staging committed the very error the case is about:
+            // answering for cells nobody asked about. Read as z rows (80..84) of x columns (79..83),
+            // origin = the body at 81,59,82; '#' solid, '~' water, '.' air.
+            String[] floorY59 = {
+                    "#~.##",   // z=80  81,59,80 is the '.' — the column the run steered at
+                    "#~###",   // z=81  81,59,81 is the '#' between it and the body
+                    "##~##",   // z=82  81,59,82 — the body's pocket
+                    "#####",   // z=83
+                    "#####",   // z=84
+            };
             Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
-            water.add(new BlockPos(0, 59, 0));                 // 81,59,82 — the body, in the pocket
+            for (int dz = -2; dz <= 2; dz++)
+                for (int dx = -2; dx <= 2; dx++) {
+                    char c = floorY59[dz + 2].charAt(dx + 2);
+                    if (c == '#') solid.add(new BlockPos(dx, 59, dz));
+                    else if (c == '~') water.add(new BlockPos(dx, 59, dz));
+                }
+            // The three columns that are not solid at y=59, carried up far enough for
+            // breathableColumn's four-cell scan to give the answer the live run gave. Each cell
+            // transcribed from fabric/run-journey-integrated/saves/JourneyClient.
             water.add(new BlockPos(0, 60, 0));                 // 81,60,82 — the source the tower guard named
             solid.add(new BlockPos(0, 61, 0));                 // 81,61,82 — dirt: the lid ⇒ capped
-            solid.add(new BlockPos(0, 59, -1));                // 81,59,81 — stone: THE CELL NOBODY ASKED ABOUT
-            solid.add(new BlockPos(0, 59, 1));                 // 81,59,83 — stone
-            solid.add(new BlockPos(-1, 59, 0));                // 80,59,82 — stone
-            solid.add(new BlockPos(1, 59, 0));                 // 82,59,82 — stone
-            solid.add(new BlockPos(0, 60, -2));                // 81,60,80 — stone: the picked column's head
-            // 81,59,80 (0,59,-2) is air — genuinely breathable, genuinely unreachable. That IS the
-            // cell the live run steered at.
-            // 80,59,81 (-1,59,-1) is the lake, water y59..62 with a grass_block at y63 — so it is
-            // NOT breathable within the scan, which is why the live run reached past ring 1 to ring
-            // 2. Staged with that cap because the first draft of this case guessed air up there,
-            // and a guessed cell would have made ring 1 breathable and quietly re-pointed the whole
-            // case at a geometry the run never had. Measured, not assumed.
-            for (int y = 59; y <= 62; y++) water.add(new BlockPos(-1, y, -1));
-            solid.add(new BlockPos(-1, 63, -1));
+            solid.add(new BlockPos(0, 60, -2));                // 81,60,80 — stone: so the picked column
+                                                               //   is not even standable for a 2-tall body
+            water.add(new BlockPos(-1, 60, -2));               // 80,60,80 — lake
+            solid.add(new BlockPos(-1, 61, -2));               // 80,61,80 — dirt caps it ⇒ not breathable
+            for (int y = 60; y <= 62; y++)
+                water.add(new BlockPos(-1, y, -1));            // 80,60..62,81 — lake
+            solid.add(new BlockPos(-1, 63, -1));               // 80,63,81 — grass_block caps it
+            // That grass_block is why the live run reached PAST ring 1 to ring 2. An earlier draft
+            // guessed air up there; the guess would have made ring 1 breathable and quietly
+            // re-pointed this case at a geometry the run never had.
             WorldView w = gridWorld(solid, water);
 
             int[] dir = DrownEscapeChain.lateralEscapeDir(w, 0, 59, 0);
