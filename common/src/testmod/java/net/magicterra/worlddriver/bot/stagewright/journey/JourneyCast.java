@@ -248,7 +248,18 @@ final class JourneyCast {
                     + "（深水没有落点，浇下去的岩浆会沉，铸出的黑曜石也拿不回来）");
             return;
         }
-        rig.evidence("cast.target", water.toShortString());
+        // NUMBERED, and counting FORWARD. Two reasons, and the run that needed both is ladder-14.
+        //
+        // `JourneyRig.slotFor` is deliberately idempotent: a row restated with the SAME value lands
+        // back on the row it already holds rather than growing a `#n`. Three approaches that all end
+        // in the same cell therefore collapse into ONE `cast.walk`, and the evidence then reads as a
+        // single walk when it was three. That is how the entire approach budget got spent on a retry
+        // that changed nothing while the row that would have said so was being overwritten by itself.
+        //
+        // Forward, because `tries` counts DOWN: a suffix taken straight from it numbers the last
+        // attempt 1 and reads the whole timeline backwards for anyone who did not write this line.
+        final int approach = CAST_APPROACHES - tries + 1;
+        rig.evidence("cast.target." + approach, water.toShortString());
         // Adjacent, not merely near. A pour is a ray, and a ray aimed at a cell below the bank's lip
         // hits the lip: measured in the arena, where a mould two cells away swallowed the bucket and
         // left the target empty while the use still reported CONSUME.
@@ -260,7 +271,7 @@ final class JourneyCast {
             // then re-picked a nearer pool and failed the pour — and the rung's verdict named the
             // AIMING LINE. The walk that never happened left no row at all, so the only account of
             // it was three heartbeat lines in the log. Same key shape the lava leg already uses.
-            rig.evidence("cast.walk", JourneyLeg.walkerEnd(rig) + "；停在 " + at.toShortString()
+            rig.evidence("cast.walk." + approach, JourneyLeg.walkerEnd(rig) + "；停在 " + at.toShortString()
                     + "，距计划的水面 " + water.toShortString() + " "
                     + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(at.distSqr(water)))
                     + " 格");
@@ -287,7 +298,7 @@ final class JourneyCast {
             // choosing exactly the cells the final guard must refuse.
             BlockPos rePickLands = again == null ? null : JourneyFill.bucketPourLandsIn(rig, again.below());
             if (again != null && !again.equals(water) && tries > 0 && !again.equals(rePickLands)) {
-                rig.evidence("cast.rePickBlocked", again.toShortString()
+                rig.evidence("cast.rePickBlocked." + approach, again.toShortString()
                         + " 更近，但从这儿以满桶自己的射线浇过去会落进 "
                         + (rePickLands == null ? "MISS（射线够不着）" : rePickLands.toShortString())
                         + "，不是它自己 —— 退回勘测到的 " + water.toShortString() + " 再走一趟");
@@ -308,7 +319,7 @@ final class JourneyCast {
             double range = rig.player().getEyePosition()
                     .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
             if (range > limit && tries > 0) {
-                rig.evidence("cast.tooFar", String.format(java.util.Locale.ROOT,
+                rig.evidence("cast.tooFar." + approach, String.format(java.util.Locale.ROOT,
                         "%.1fm > %.1fm，再走一次", range, limit));
                 approachAndPour(ctx, rig, aim, tries - 1, radius);
                 return;
@@ -324,8 +335,19 @@ final class JourneyCast {
             // thing left to try is digging — and the block in the way there is the bed itself, i.e.
             // the floor holding up the very water being poured into.
             BlockPos lands = JourneyFill.bucketPourLandsIn(rig, aim.below());
-            if (!aim.equals(lands) && tries > 0 && radius > 1) {
-                rig.evidence("cast.landsElsewhere", "站在 " + at.toShortString() + " 浇会落进 "
+            // NOT GATED ON `tries`, and that is the whole of ladder-14's rung eleven. This branch
+            // used to share the approach budget with the re-pick above it, and the re-pick spends
+            // that budget on a walk that changes nothing: three passes ended in the identical cell,
+            // three identical rows collapsed into one, and by the time the body's own stance was the
+            // question the counter read zero. The remedy was present, correct, and documented at
+            // CAST_APPROACH_RADIUS in the very terms of the geometry that killed the rung — feet two
+            // rows below the bed, eye under its top face, side hits only — and it never got a turn.
+            //
+            // `radius > 1` is the bound, and it is a better one: the radius only ever tightens, 2→1,
+            // so this can fire exactly once and then never again. A counter shared between two
+            // remedies is really one remedy, and it is whichever of them runs first.
+            if (!aim.equals(lands) && radius > 1) {
+                rig.evidence("cast.landsElsewhere." + approach, "站在 " + at.toShortString() + " 浇会落进 "
                         + (lands == null ? "MISS（射线够不着床格）" : lands.toShortString())
                         + "，不是要浇的 " + aim.toShortString()
                         + " —— 打中的块对、面不对，这是站位不是障碍物；收紧到半径 " + (radius - 1)
