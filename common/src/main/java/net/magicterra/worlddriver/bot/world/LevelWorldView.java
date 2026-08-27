@@ -52,8 +52,37 @@ import net.minecraft.world.level.block.state.BlockState;
  * variable: 13 logs / 2 914 ticks against 6 logs / 13 899 ticks) is that multiplication being
  * felt. Saying "inert on the ladder" without the task name inverts the answer for one of them.
  *
- * <p>Written down, not fixed: bringing the taxes over changes what a dedicated-server A* plans,
- * which is a measurement with its own gate, not a tidy-up.
+ * <p><b>The audit above listed only the COSTS, and the same split runs through the LEGALITY of a
+ * move.</b> This view overrides neither {@code canStandOn} nor the collision-aware half of
+ * {@code isPassable}, so it plans on {@link WorldView}'s coarse defaults while the client body
+ * plans on collision shapes — and {@code BotConfig.collisionAwarePathing} ships {@code true}, so
+ * that is the live client, not an opt-in. Both primitives feed {@code WorldView#canStandAt}, which
+ * gates Walk / StepUp / StepUp2 / StepDown / the Diagonal family / Fall / ClimbUp / ClimbDown and
+ * every Parkour move, plus {@code Walker#snapGoalToStandable} and {@code CoarseGoalField}. The two
+ * halves of the split lean OPPOSITE ways, which is why neither shows up as「the server view is
+ * just cruder」:
+ * <ul>
+ *   <li><b>{@code canStandOn} — this view is LOOSER.</b> Here it is {@code isSolid}, i.e.
+ *       {@code blocksMotion()}; {@code ClientWorldView} requires a full 1×1 top face on the real
+ *       collision shape. Everything that class's own comment lists as failing — cocoa, fences,
+ *       BOTTOM-half slabs, and the 14/16-tall family (soul_sand, soul_soil, mud, snow at every
+ *       layer count) — is a floor here and is not a floor there.</li>
+ *   <li><b>{@code isPassable} — this view is TIGHTER.</b> Here it is
+ *       {@code !blocksMotion() || water}; {@code ClientWorldView} additionally admits a cell whose
+ *       real shape misses the 0.6-wide body column (its examples: cocoa, a one-axis glass pane, a
+ *       wall nub) and a floor-resting shape no taller than
+ *       {@code BotConfig.pathfinderThinObstacleHeight} (its examples: lily pad, thin snow,
+ *       pressure plate). Those are walls here.</li>
+ * </ul>
+ * The consequence is the same shape as the tax one and worth stating in the same terms: a route
+ * the {@code wd.*} suite or {@code journeyServer} validated over mud/soul-sand/slab footing is not
+ * a route the shipping client planner will emit, and a corridor the client threads past a pane or
+ * a lily pad is one those topologies call blocked. A scene asserting either is asserting about
+ * this view, not about the product.
+ *
+ * <p>Written down, not fixed, and for one reason covering both: bringing the taxes over, or
+ * bringing the collision model over, changes what a dedicated-server A* plans. That is a
+ * measurement with its own gate, not a tidy-up.
  */
 public final class LevelWorldView implements WorldView {
 
