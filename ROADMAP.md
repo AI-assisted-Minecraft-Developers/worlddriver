@@ -155,6 +155,8 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 | 6 | **J40 的 ②**：`JourneyRig.await` 逐 tick 判活时顺手读 `getAirSupply()` 与血量，**无条件按腿落行** | 「过线中止去补救」的线画在哪要分布；量级＝每腿一行，不用节流 |
 | 7 | **Q15c**：PREP 无条件写 `readyTicks`/`readyMs`（`stagewright-scenes/pack.js`） | 只加仪器不改行为，随下一轮闸读分布 |
 | 8a | **判到达吃掉调用方容差的证据行**：`WorldDriverJourneyScenes:795`，`tolerance < away <= ARRIVED_WITHIN` 时打一条「按调用方容差本不算到达」 | 只是 a，不收紧判据、不会让任何场景变色。14 个调用点里 **8** 个传 0，一刀收紧会同时冒出一堆互相掩盖的红——先数出谁在吃这个宽松 |
+| 8b | **排水深度与耗时**：`JourneyDrain:140-141` 现在只写干／仍有流体，补「清掉了几格、实际花了多少 tick」 | 「先补测量」那条判词要的就是这一个量——第 8 格的水为什么比前八趟深一格，是径流更远还是上一趟留了底。零行为改动 |
+| 8c | **走丢与拆塔两条读数**：`strand` 支接进 `settleOntoHomeGround`（`WorldDriverJourneyScenes:1327-1333`）；`towerRecovered`（`:1420`）补上拆塔**前**的圆石数 | 判了做却一直没排期。走丢的身体正是最需要落地读数的那一具；拆塔只记一个数，「拆回来几块」只能靠净损间接推 |
 
 ⇒ 然后**一趟排练**把 1–6 的读数一次收齐；Q15c 的分布随下一轮全量闸收。
 **J71 不需要这个窗口**——它要的是「连跑 N 趟 `runRehearsalIntegratedServer` 列
