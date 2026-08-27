@@ -269,8 +269,8 @@ public final class JourneyEndRungs {
      *  unloaded chunks does not report that it was blind, it reports that there are no crystals. */
     private static final int END_SIGHT_CHUNKS = 5;
 
-    /** How far a search reaches for the dragon and its crystals. */
-    /** Half-extent of the box the duel looks for the dragon in.
+    /** How far a search reaches for the dragon and its crystals.
+     *  <p>Half-extent of the box the duel looks for the dragon in.
      *
      *  <p>Was 128, and 128 is why the bow never fired once across five runs holding it: the dragon
      *  circles the End far wider than that, the {@code dragon == null} branch returns before the
@@ -737,14 +737,6 @@ public final class JourneyEndRungs {
     }
 
     /**
-     * One leg of the march, then the next, until the stronghold's column is underfoot.
-     *
-     * <p>Recursive rather than looped, and that is not a style choice: each leg is its own
-     * {@code await} step, so the recursion queues a step and returns rather than nesting a stack.
-     * The body has to actually walk between legs, and a loop inside one scene tick would plan
-     * twenty-eight routes in a world that never advanced.
-     */
-    /**
      * One long walk to a fixed column: where to, how close counts, what to call the rows, what next.
      *
      * <p>Parameterised because there are two of these and they were one hardcoded route. The march
@@ -755,6 +747,14 @@ public final class JourneyEndRungs {
      */
     private record Trek(BlockPos goal, int arriveWithin, String key, String what, Runnable onArrive) {}
 
+    /**
+     * One leg of the march, then the next, until the stronghold's column is underfoot.
+     *
+     * <p>Recursive rather than looped, and that is not a style choice: each leg is its own
+     * {@code await} step, so the recursion queues a step and returns rather than nesting a stack.
+     * The body has to actually walk between legs, and a loop inside one scene tick would plan
+     * twenty-eight routes in a world that never advanced.
+     */
     private static void march(SceneContext ctx, JourneyRig rig, Trek trek, int leg) {
         march(ctx, rig, trek, leg, 0);
     }
@@ -1774,9 +1774,8 @@ public final class JourneyEndRungs {
 
     /** Top of the central bedrock fountain — where the dragon perches, and therefore the only cell
      *  a stand-still melee fight can be won from. Scanned rather than hard-coded so a world whose
-     *  podium sits at a different height still answers correctly. */
-    /**
-     * A cell on the fountain a body can actually STAND on.
+     *  podium sits at a different height still answers correctly.
+     *  <p>A cell on the fountain a body can actually STAND on.
      *
      * <p>The first cut scanned the column at exactly {@code x=0,z=0} and returned the first non-air
      * cell's {@code above()}. That column is the exit portal's own hole: it is not floor, and the

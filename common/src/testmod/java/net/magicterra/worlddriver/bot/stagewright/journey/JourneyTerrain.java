@@ -621,13 +621,6 @@ public final class JourneyTerrain {
     }
 
     /**
-     * The nearest water source standing on solid ground — a shore, not a lake bed.
-     *
-     * <p>The floor matters more than the water does. A pour aimed into deep water hits the bed
-     * several blocks down, so the fluid lands nowhere near the cell the rung named, and the obsidian
-     * it casts — if it casts any — is at the bottom of a lake.
-     */
-    /**
      * Is {@code c} a source of the fluid asked for, in a block a BUCKET can actually work with?
      *
      * <p><b>Three tests, and the third one is the one that keeps getting dropped.</b> A cell can
@@ -656,6 +649,13 @@ public final class JourneyTerrain {
         return level.getBlockState(c).is(lava ? Blocks.LAVA : Blocks.WATER);
     }
 
+    /**
+     * The nearest water source standing on solid ground — a shore, not a lake bed.
+     *
+     * <p>The floor matters more than the water does. A pour aimed into deep water hits the bed
+     * several blocks down, so the fluid lands nowhere near the cell the rung named, and the obsidian
+     * it casts — if it casts any — is at the bottom of a lake.
+     */
     public static BlockPos shallowWaterNear(JourneyRig rig, int radius) {
         ServerLevel level = rig.ctx().level();
         BlockPos from = rig.player().blockPosition();

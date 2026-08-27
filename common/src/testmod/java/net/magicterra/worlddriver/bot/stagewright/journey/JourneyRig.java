@@ -1317,6 +1317,18 @@ public final class JourneyRig {
      */
     public interface TickWatcher { void tick(); }
 
+    /** Which process was driving when the body left the world, and how far into its budget.
+     *
+     *  <p>Needed because the walker trace beside it can be arbitrarily stale: it is written on
+     *  WALKER ticks, and this rung spends much of its time under TowerProcess / SwingAt / HoldStill,
+     *  none of which tick a walker. A healthy walking line printed next to a fall therefore proves
+     *  nothing about the fall — it can be minutes old and from a different leg. Two straight arena
+     *  arms built on that line ({@code wd.serverStopsAtTheBridgeHead}, {@code …TurnsAtTheBridgeHead})
+     *  both passed, which is what forced this reading into existence. */
+    private String drivingWhenLost;
+
+    public String drivingWhenLost() { return drivingWhenLost; }
+
     /**
      * The same, with something watching the body while it runs.
      *
@@ -1330,18 +1342,6 @@ public final class JourneyRig {
      * finished is a tick the watcher sees — which is what lets it say whether the body was on the
      * ground when the walk decided it was done.
      */
-    /** Which process was driving when the body left the world, and how far into its budget.
-     *
-     *  <p>Needed because the walker trace beside it can be arbitrarily stale: it is written on
-     *  WALKER ticks, and this rung spends much of its time under TowerProcess / SwingAt / HoldStill,
-     *  none of which tick a walker. A healthy walking line printed next to a fall therefore proves
-     *  nothing about the fall — it can be minutes old and from a different leg. Two straight arena
-     *  arms built on that line ({@code wd.serverStopsAtTheBridgeHead}, {@code …TurnsAtTheBridgeHead})
-     *  both passed, which is what forced this reading into existence. */
-    private String drivingWhenLost;
-
-    public String drivingWhenLost() { return drivingWhenLost; }
-
     public void settle(BotProcess process, int ticks, TickWatcher watcher, Runnable then) {
         // THE one place that runs on every tick of every leg of every rung, which is why the
         // out-of-world check lives here and not at the call sites: there are dozens of settles and
@@ -1441,22 +1441,6 @@ public final class JourneyRig {
     private static final int HEARTBEAT_TICKS = 200;
 
     /**
-     * Say where the body is, every {@link #HEARTBEAT_TICKS} ticks of waiting, across however many
-     * legs those ticks fall in — see {@link #sinceHeartbeat} for why that distinction is the point.
-     *
-     * <p>A rung's evidence map is printed once, at the end. The legs in between are silent unless the
-     * walker happens to emit one of its own capped debug lines, and those caps are per body — once a
-     * long rung has spent them, it produces <b>no output at all</b>. Measured 2026-08-18: rung 20 ran
-     * 30 minutes without a single log line while the server ticked normally at 4.7% CPU, and the only
-     * way to learn that the body had vanished from the level was to query the live game over RPC.
-     * Distinguishing「still walking」from「wedged」has to be cheaper than that, because a rung whose
-     * budget is {@code DUEL_TICKS = 200_000} can otherwise burn hours before saying anything.
-     *
-     * <p>{@code 在关卡} is the reading that would have answered it in one line: a driver can keep
-     * ticking a body that {@code level.players()} no longer contains, and every other row —
-     * position, dimension, progress — looks perfectly healthy in that state.
-     */
-    /**
      * Ticks waited since the last heartbeat, <b>counted across legs, not within one</b>.
      *
      * <p>It used to be {@code waited % HEARTBEAT_TICKS == 0} against the per-leg counter, which
@@ -1487,7 +1471,22 @@ public final class JourneyRig {
     private int lastEvidenceLegTicks = -1;
 
     /**
-     * <b>Called from {@link #await}, which is the only place any of this rig waits.</b>
+     * Say where the body is, every {@link #HEARTBEAT_TICKS} ticks of waiting, across however many
+     * legs those ticks fall in — see {@link #sinceHeartbeat} for why that distinction is the point.
+     *
+     * <p>A rung's evidence map is printed once, at the end. The legs in between are silent unless the
+     * walker happens to emit one of its own capped debug lines, and those caps are per body — once a
+     * long rung has spent them, it produces <b>no output at all</b>. Measured 2026-08-18: rung 20 ran
+     * 30 minutes without a single log line while the server ticked normally at 4.7% CPU, and the only
+     * way to learn that the body had vanished from the level was to query the live game over RPC.
+     * Distinguishing「still walking」from「wedged」has to be cheaper than that, because a rung whose
+     * budget is {@code DUEL_TICKS = 200_000} can otherwise burn hours before saying anything.
+     *
+     * <p>{@code 在关卡} is the reading that would have answered it in one line: a driver can keep
+     * ticking a body that {@code level.players()} no longer contains, and every other row —
+     * position, dimension, progress — looks perfectly healthy in that state.
+     *
+     * <p><b>Called from {@link #await}, which is the only place any of this rig waits.</b>
      *
      * <p>It used to be called from {@link #settle} alone, and {@code settle} is not the only waiter:
      * {@link #mineCellOrGiveUp} runs its own {@code await} loop, and the comment beside that loop
@@ -2123,11 +2122,6 @@ public final class JourneyRig {
     // ---- reading the body ----
 
     /**
-     * An item id, resolved. Lives here because four call sites across two classes had written the
-     * same two lines out by hand, and one of them was private in a rung class where a second class
-     * that needed it could not reach it.
-     */
-    /**
      * Melee weapons this ladder knows, best first — swords, then axes, then pickaxes as a last
      * resort. A pickaxe is a bad weapon and belongs at the bottom, but a pickaxe in the hand still
      * beats a fist, and the ladder owns one from rung 4 onward.
@@ -2187,6 +2181,11 @@ public final class JourneyRig {
                 player().getMainHandItem().getItem()));
     }
 
+    /**
+     * An item id, resolved. Lives here because four call sites across two classes had written the
+     * same two lines out by hand, and one of them was private in a rung class where a second class
+     * that needed it could not reach it.
+     */
     public static net.minecraft.world.item.Item item(String itemId) {
         return net.minecraft.core.registries.BuiltInRegistries.ITEM
                 .get(net.minecraft.resources.ResourceLocation.parse(itemId));
