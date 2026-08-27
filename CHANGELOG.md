@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-27
+
+- **Every portal-ring cell now marks its own start, so a run that dies mid-ring says which cell it
+  never began.** `JourneyPortalRung.castCell` writes `frame.roll.{i}` at the head of cell `i`'s
+  chain — the lowest absent index is the answer, and it is written ten times or fewer, never zero.
+  Every other per-cell row (`cast{i}.*`, `recover{i}.*`, `tools.{i}`) is produced by a step that has
+  to succeed far enough to produce it, so a dead run used to leave a ragged key set and the reader
+  had to infer the distance from which rows happened to be missing — three different key shapes for
+  one question. `frame.cast` answers the same question only at the END, and a run that never reaches
+  the end never writes it.
+
+  First outing, on the real ladder: `frame.roll.0`–`.8` present, `.9` absent, and the rung's own
+  verdict named `4, 60, 19` — which is exactly the cell `frame.roll.8` had recorded starting on.
+
 ## 2026-08-26
 
 - **A pour is now judged by the cell the fluid lands in, not by the block the ray hits.**
