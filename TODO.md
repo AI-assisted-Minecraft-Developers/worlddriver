@@ -33,8 +33,9 @@
 一行一件，**状态在最左**。做完就把行删掉并把结论写进 `CHANGELOG.md`，不要在这里写细节。
 
 | 状态 | # | 事 | 归属 |
+| 🔴 判：先补测量（第 12 级的真死因，排在 J72 三笔之前） | J116 | **传送门顶排失去了侧柱赖以成功的那条瞄法，所以它不是「随机没浇上」。** 框架 10 格（`frame.roll.*`），侧柱正下方**也是框架格**，浇成黑曜石后可以瞄它的 `face=up`——`cast7` 就是这么成的（瞄 `4,58,22` 的 obsidian 顶面）。**顶排正下方是门洞**（`4,59,20`），永远不实心：`cast8.raiseVeto` 的最大一族否决就是 `4,59,20 不是实心的，弹不出流体 = 8`，全表**验得过 0**。于是只剩背板 `5,60,20` 一个候选，而它要求进壁龛到 4.5 格内，身体停在 `0,59,20`（**5.21 > 4.50**）。佐证：`castN.stand.*` 的「脚下不实心」随框架单调升 8→12→17→13→25→19→**36**，因为壁龛地板只有 y=56 一层。⛔ **不是水的错**：`4,61,20` 是 cast8 自己的水格（`frame.roll.8`），舀掉它 cast8 就不可能。⛔ **也不是容差 5 的错**：同一句 `raiseColumnMissed` 在**成了的** cast7 里逐字印过。**缺的读数＝顶排的落脚候选集里有没有「站在自己刚浇的黑曜石上」这一族**（`4,59,19`/`4,59,22` 是黑曜石，站上去脚在 `4,60,19`/`4,60,22`，到背板 1.4–2.2 格且脚下实心）——`raiseVeto` 的否决点名里没有任何 `4,60,22` 形状的条目，但**「没被否决」和「没被枚举」在这行读数里分不开**，先 grep 产码 | 我 |
 | 🟡 判：先补测量（前提已换，见下） | J114 | 原提法「关卡说合格的柱，walker **总是**只走到邻格」**已被 ladder-17 证伪**：同一份代码第 11 级 PASS，两腿中第 2 腿距 **0 格**。⇒ 问题不是「走不到」，是「**有时**走不到」。还开着的是同一个谓词分裂：选柱问 `whyNotDiggable`／`columnIsSafeToSink`，walker 问 `canStandAt`（J110 的发作现场）。**缺的读数仍是 `canStandAt(选定柱)` 各子句的值**（印值不印谓词），但现在要**成对采**：走到的那腿和没走到的那腿各一份 | 我 |
-| 🔴 判：做（机制已证，缺闸） | J115 | **从 `seg.commitEnd` 起的续接搜索几乎 100% 被丢弃后原样重发，活锁。** `WalkerTickStallDetect:248` 手抄了 `SegmentCommit.reset()` 的半份——只清 `activeSearch`／`searchFromEnd`，留着 `commitEnd`／`pathBestEffort`，正好把 `WalkerTickRepath:152` 的三个条件凑齐。ladder-17 前 10 级浪费 639 次搜索（`goto` 483／`mine` 156）。⛔ **不能直接换成 `reset()`**：它还清 `pendingSegment`，语义不同，要逐字段算变严还是变松。判修法用分布量（同 `(start,goal)` 对最大重复数 362→个位、`goto` 完成率），**不用级色**——真梯不可复现 | 我 |
+| 🔴 判：做（机制已证，缺闸） | J115 | **从 `seg.commitEnd` 起的续接搜索几乎 100% 被丢弃后原样重发，活锁。** `WalkerTickStallDetect:248` 手抄了 `SegmentCommit.reset()` 的半份——只清 `activeSearch`／`searchFromEnd`，留着 `commitEnd`／`pathBestEffort`，正好把 `WalkerTickRepath:152` 的三个条件凑齐。ladder-17 全程浪费 **807** 次（`goto` 672／`mine` 133／`mine.collect` 2／`combat` 0）。⛔ **不能直接换成 `reset()`**：它还清 `pendingSegment`，语义不同，要逐字段算变严还是变松。判修法用分布量（同 `(start,goal)` 对最大重复数 **545**→个位、`goto` 完成率 **60%**（剔掉第 12 级是 **32%**）），**不用级色**——不只因为真梯不可复现，更因为**按级分摊后丢弃率与级色反相关**：06Food 丢 334/370（90%）PASS，而唯一 FAIL 的第 12 级只丢 22/709（3%）⇒ **J115 明确不在第 12 级的路径上，修它买不到级号，只买时间** | 我 |
 | 🔴 判：改（要闸，与 J112 同批） | J113 | **唯一一个「声明了区间却没人校验」的设置键。** `SettingsDocs:202` 给 `lowHealthCareful` 打了 `[0,20]`，而全仓没有任何代码拒绝越界值。对照组：`fleeDangerBoost` 的 `[1,20]` 在 `SettingsCommand:271` 有拒绝分支——把 `SettingsDocs` 里所有声明区间的键逐个对过，只有这一个没闸。补钳方向是**变严**。⛔ 场景要能在补钳缺席时**红**，别写成「加了钳所以不越界」那种只能取一个值的判据 | 我 |
 | 🔴 判：改（先要一条场景，生存反射没闸不动） | J112 | **上岸扫描能把一具没气的身体瞄准岩浆。** `AutoSwim.nearestShore:284-286` 的判据是 `isSolid(below) && !isWater(foot) && isPassable(foot) && isPassable(head) && !isHazard(below)` —— **`isHazard` 只问了 `below`**，而 `canStandAt` 三格都问。已验：`ClientWorldView.isPassable:160` 第一句 `if (!s.blocksMotion() ...) return true`，**岩浆不 blocksMotion ⇒ 返回 true**；岩浆不是水 ⇒ `!isWater(foot)` 为真；石头底 ⇒ `isSolid`/`!isHazard(below)` 皆真。五句全过。修法方向是**变严**：`&& !w.isHazard(foot) && !w.isHazard(head)`，退化良性（调用方 `dir == null` 那支继续按住 jump 上浮） | 我 |
 | 🔴 判：先补测量（探针便宜、能搭车） | J111 | **沙箱那七条断言全绿，而它们守护的过滤器整趟没拒过一个名字。** `ScriptClassFilter.DISABLED = !"on".equals(getProperty("worlddriver.sandbox","off"))` 出厂为真，`isAllowed:87` 第一行就 `return true`，且 `*.gradle` 里零命中 ⇒ 每趟闸这个过滤器都是关的。AGENTS.md 硬规则 #3 点名 `08_sandbox.js` 作为放宽沙箱的守卫，而它在放宽发生时不会红一行。⛔ 别急着加断言——会撞覆盖漂移闸的两个精确总数。**缺的读数＝`typeof java` / `typeof java.io.File`**：若为 `undefined` 则七条当场证伪为空断言（`java` 根本解析不出来，`denied()` 抓的是 TypeError），**不需要开沙箱就能判**；只有解析得出来时才轮到 `-Dworlddriver.sandbox=on` 的对照趟。另：`Runtime.exec("id")` 与 `Socket("127.0.0.1",1)` 那两条**原理上分辨不了任何东西**（宿主没有 `id`、连接被拒都必抛） | 我 |
@@ -697,6 +698,17 @@ cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满�
 `JourneySight.blockersOnTheLine` 也从 `k=1` 起扫（`JourneySight:277`）。
 拒绝时唯一有判别力的是 `.picks.N` 里 `face=` 前面那个坐标：= 目标那一柱（k=0）⇒ J72；
 在 `k≥1` 且是壁龛内实心 ⇒ 才轮到 clear／淹水那条线。
+
+⚠️ **这个判别式漏了一支，而第 12 级正好落在那一支上。** ladder-17 的 `cast8.picks.1/3`
+点的是 `1,60,20`，**k=3 且壁龛外** ⇒ 上面两条都不是。缺的那一支是
+「**身体根本没站到它自己选的落脚格上**」——正是第 2 笔要让判词说出来的那句话。
+⇒ 第 2 笔的收益已经**在我身上兑现了一次**：现行判词写「浇线上是…」，
+把我送去查 `1,60,20` 那三格土是谁放的（答案：原生剖面，`TODO.md` 里早查过），
+整整一轮。**它预言的误导发生了。**
+
+⚠️ **`stand.1`≠`stand.3` 不是第 3 笔的痕迹。** ladder-17 里 `cast8.stand.1 = 3,59,20`
+而 `stand.3 = 3,56,21`，看着像「重试换了落脚格」；但 HEAD 三笔都没落（本节抬头那行），
+而同一组读数里「脚下不实心」也在 36/38/37 之间抖 ⇒ **变的是世界，不是候选表**。
 
 ---
 
