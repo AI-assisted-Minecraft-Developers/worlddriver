@@ -809,8 +809,18 @@ final class JourneyStairwell {
             ctx.fail("没有楼梯顶坐标：descendToTheForge 没有记下来，走不上去装岩浆");
             return;
         }
-        rig.evidence(tag + ".up", rig.player().blockPosition().toShortString() + " → 楼梯顶 "
-                + stairTop.toShortString());
+        // THE CELL THE ASCENT STARTS ON, told by the same function the DESCENT's end is told by.
+        // The descent gets a check here and the ascent does not: `flightEnd` lifts the down route's
+        // last waypoint OFF the stair foot when that cell cannot be stood on (「楼梯底站不了：…
+        // 身处 water …」), while this leg simply begins wherever the body is — and on the fatal
+        // shape of `lava2.upStopped` that is the very same flooded cell, 2,56,20. Whether starting
+        // there is what stops the climb is not yet decided; what IS decided is that the two ends of
+        // one staircase were reporting to different standards, so the ascent could not be compared
+        // with the descent that was fixed. ⛔ This is the READING only — do not copy the descent's
+        // lift up here before it has said something.
+        BlockPos from = rig.player().blockPosition();
+        rig.evidence(tag + ".up", from.toShortString() + " → 楼梯顶 " + stairTop.toShortString()
+                + "；起脚那格：" + cellStory(rig.ctx().level(), from, true));
         walkTheFlight(rig, tag, false, () -> {
             BlockPos here = rig.player().blockPosition();
             rig.evidence(tag + ".upEnded", here.toShortString() + "（楼梯顶 "
