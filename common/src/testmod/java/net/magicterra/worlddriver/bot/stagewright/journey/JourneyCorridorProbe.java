@@ -139,6 +139,12 @@ final class JourneyCorridorProbe {
                       + name(level, cell.getX(), floor, cell.getZ())
                       + (lavaAt(level, cell.getX(), floor, cell.getZ()) ? "，**而且是岩浆面**" : "")
                       + "）");
+            // ONLY FOR THE BROKEN ONES, and only because the row above is a NEGATIVE. 「本格空且脚下
+            // 也空」 says this COLUMN has no floor; it does not say no body could stand near here, and
+            // the corridor was read that way for a week — 「无论寻路怎么改都走不到」 is a claim about
+            // the neighbourhood, and nothing here had ever looked at the neighbourhood. This turns
+            // the negative into the input a re-bake needs: the cell to aim at instead.
+            if (!solidHere && !canStand) sb.append(nearestStandable(level, cell));
         }
         // COUNTED, NOT SPELLED. It said 「十八个」 while the table held seventeen — `wp4` was deleted
         // on 2026-08-22 and this sentence was not, so for six days the row's own headline disagreed
@@ -155,6 +161,72 @@ final class JourneyCorridorProbe {
     /** How far down a waypoint's own column is searched for a floor. Past this it is a shaft, and
      *  the exact depth stops mattering to the question being asked. */
     private static final int COLUMN_LOOK = 24;
+
+    /** Half-width of the cube searched around a broken waypoint for somewhere to stand. Eight is
+     *  what fits under the chunk-generation budget: the cube reaches at most one chunk past the
+     *  waypoint's own on each axis, and only the broken waypoints are searched at all. */
+    private static final int STAND_LOOK = 8;
+
+    /**
+     * The cell nearest {@code want} that a body could actually stand in — or, honestly, the fact
+     * that this radius did not find one.
+     *
+     * <h2>A cube is scanned; a SPHERE is what the answer means</h2>
+     *
+     * The loop bounds {@code |dx|,|dy|,|dz| ≤ STAND_LOOK}, which is a cube, but candidates are ranked
+     * by true 3D distance, and the row says which of the two shapes its answer belongs to. That is
+     * not pedantry — a dx/dz-bounded search has already reported 「最近的岩浆在 77 格下」 in this
+     * suite while a pool sat 36 away, because the bound was mistaken for the measurement. Here the
+     * two are reconciled by an arithmetic fact worth stating rather than trusting: <b>when the winner
+     * lands at distance {@code d ≤ STAND_LOOK}, the sphere of radius {@code d} is entirely inside the
+     * scanned cube, so nothing nearer can have been missed and 「最近」 is literally true.</b> Only
+     * when {@code d > STAND_LOOK} — possible, the cube's corners reach {@code 8√3 ≈ 13.9} — does the
+     * claim weaken to 「最近的，在扫过的这些格里」, and the row says so.
+     *
+     * <p>Standable means what {@code auditWaypoints} means by it and what a 1.8-tall body needs: the
+     * cell and the one above it clear, the one below solid. {@code solid} asks the COLLISION shape,
+     * so lava is never a floor here — which is right, and is also why the floor is NAMED and asked
+     * separately about lava: a netherrack ledge with lava lapping at it is standable and lethal, and
+     * a row that printed only 「可站」 would send a re-bake at it. Print the value, not the verdict.
+     *
+     * <p>The count is the SEARCH REGION's size, the same quantity {@code JourneyFireCensus.scanned}
+     * reports and for the same reason: a 「没找到」 from a search that never ran looks exactly like a
+     * 「没找到」 from a search that did. It is deliberately not a count of blocks read — the loop
+     * skips {@code solid} calls for candidates that already cannot beat the incumbent, so the two
+     * numbers differ, and the region's size is the one that makes a zero legible.
+     */
+    private static String nearestStandable(ServerLevel level, BlockPos want) {
+        BlockPos best = null;
+        long bestSq = Long.MAX_VALUE;
+        int scanned = 0;
+        for (int dx = -STAND_LOOK; dx <= STAND_LOOK; dx++)
+            for (int dy = -STAND_LOOK; dy <= STAND_LOOK; dy++)
+                for (int dz = -STAND_LOOK; dz <= STAND_LOOK; dz++) {
+                    int y = want.getY() + dy;
+                    if (y - 1 < Y_LO || y + 1 > Y_HI) continue;
+                    scanned++;
+                    long d2 = (long) dx * dx + (long) dy * dy + (long) dz * dz;
+                    if (d2 >= bestSq) continue;
+                    int x = want.getX() + dx, z = want.getZ() + dz;
+                    if (solid(level, x, y, z) || solid(level, x, y + 1, z)
+                            || !solid(level, x, y - 1, z)) continue;
+                    bestSq = d2;
+                    best = new BlockPos(x, y, z);
+                }
+        if (best == null)
+            return "\n      └ 最近的可站格：**半宽 " + STAND_LOOK + " 的立方体里一个都没有**（扫描区 "
+                    + scanned + " 格）—— 这是「这个半径里没有」，不是「没有」";
+        double d = Math.round(Math.sqrt(bestSq) * 10) / 10.0;
+        boolean floorLava = lavaAt(level, best.getX(), best.getY() - 1, best.getZ());
+        return "\n      └ 最近的可站格 " + best.toShortString() + "，真 3D 距离 " + d + " 格，脚下是 "
+                + name(level, best.getX(), best.getY() - 1, best.getZ())
+                + (floorLava ? "，**紧挨岩浆**（可站不等于能活）" : "")
+                + "（扫描区 " + scanned + " 格；"
+                + (d <= STAND_LOOK
+                        ? "半径 " + d + " 的球整个在扫描立方体内 ⇒ 这确实是最近的一格"
+                        : "⚠️ 距离超过立方体半宽 " + STAND_LOOK + " ⇒ 只是「扫过的格里最近的」，"
+                          + "立方体外可能还有更近的") + "）";
+    }
 
     /**
      * Probe the box spanning {@code from} and the next {@code legs} waypoints, and write the maps.
