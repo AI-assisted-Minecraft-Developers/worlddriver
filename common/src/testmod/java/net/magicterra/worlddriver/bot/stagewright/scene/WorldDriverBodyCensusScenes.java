@@ -738,16 +738,6 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     private static final int WALK_TICK_CAP = 60;
 
     /**
-     * How high one commanded jump actually goes, from a body that is standing still.
-     *
-     * <p>Only the plain-block arm is taken here. The honey-block and Jump-Boost arms that would
-     * expose the hardcoded {@code 0.42} belong to a scene that asserts, and this one does not: three
-     * arms recorded without a comparison would be three numbers a reader still has to interpret,
-     * whereas the single number here has an unambiguous vanilla counterpart (0.42 initial upward
-     * velocity, apex ≈ 1.25 blocks). What this row is FOR is the {@code Stats.JUMP} beside it — a
-     * jump that visibly happens while the statistic stays flat is the reading that matters.
-     */
-    /**
      * The OTHER half of {@code Player.jumpFromGround} — its own key, deliberately.
      *
      * <p>{@code jumpFromGround} has two side effects, {@code awardStat(Stats.JUMP)} and
@@ -790,6 +780,16 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
                 apex - startY, sprinting, before, after, after - before, sprinting ? 0.2f : 0.05f);
     }
 
+    /**
+     * How high one commanded jump actually goes, from a body that is standing still.
+     *
+     * <p>Only the plain-block arm is taken here. The honey-block and Jump-Boost arms that would
+     * expose the hardcoded {@code 0.42} belong to a scene that asserts, and this one does not: three
+     * arms recorded without a comparison would be three numbers a reader still has to interpret,
+     * whereas the single number here has an unambiguous vanilla counterpart (0.42 initial upward
+     * velocity, apex ≈ 1.25 blocks). What this row is FOR is the {@code Stats.JUMP} beside it — a
+     * jump that visibly happens while the statistic stays flat is the reading that matters.
+     */
     private static String jumpApex(ServerPlayer fp, ServerPlayerAvatar avatar, int floorY) {
         int jumpBefore = fp.getStats().getValue(Stats.CUSTOM.get(Stats.JUMP));
         double startY = fp.getY();

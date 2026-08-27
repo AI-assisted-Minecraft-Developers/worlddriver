@@ -806,20 +806,6 @@ final class JourneyRamp {
     }
 
     /**
-     * Why a placement that was attempted did not take — asked of the world, not assumed.
-     *
-     * <p>This row used to say「六邻没有能贴的实心面」unconditionally, and it was wrong often enough to
-     * end three rounds of this rung in the wrong place: {@code cell.6.ramp.step.1 = -8, 57, 37 垫不上
-     * （…六邻没有能贴的实心面？），身体 -8, 57, 37} was printed about a cell the BODY WAS STANDING IN,
-     * where the walls had nothing to do with it. Nine of the ten archived {@code .step.N} rows name a
-     * cell face-adjacent to the body at its own feet row, which is where vanilla's
-     * {@code isUnobstructed} refuses a placement it has every face it needs for — a player's box is
-     * 0.6 wide, so a body a fifth of a cell off centre is inside the cell next door.
-     *
-     * <p>So both states are measured and named separately. They want opposite work: no face wants a
-     * shoulder or a different route, a body in the way wants one step sideways.
-     */
-    /**
      * Whether the body's own box reaches into {@code cell} — vanilla's question, not a cell name.
      *
      * <p><b>A body is 0.6 wide and a cell is 1.0, so the two questions are different questions.</b>
@@ -853,6 +839,20 @@ final class JourneyRamp {
         return fp.getBoundingBox().intersects(new AABB(cell));
     }
 
+    /**
+     * Why a placement that was attempted did not take — asked of the world, not assumed.
+     *
+     * <p>This row used to say「六邻没有能贴的实心面」unconditionally, and it was wrong often enough to
+     * end three rounds of this rung in the wrong place: {@code cell.6.ramp.step.1 = -8, 57, 37 垫不上
+     * （…六邻没有能贴的实心面？），身体 -8, 57, 37} was printed about a cell the BODY WAS STANDING IN,
+     * where the walls had nothing to do with it. Nine of the ten archived {@code .step.N} rows name a
+     * cell face-adjacent to the body at its own feet row, which is where vanilla's
+     * {@code isUnobstructed} refuses a placement it has every face it needs for — a player's box is
+     * 0.6 wide, so a body a fifth of a cell off centre is inside the cell next door.
+     *
+     * <p>So both states are measured and named separately. They want opposite work: no face wants a
+     * shoulder or a different route, a body in the way wants one step sideways.
+     */
     private static String whyNotLaid(ServerLevel level, ServerPlayer fp, BlockPos cell) {
         String now = "现在是 " + level.getBlockState(cell).getBlock();
         if (!placeable(level, cell)) return now + "，六邻没有能贴的实心面（放方块要贴着一个面点）";

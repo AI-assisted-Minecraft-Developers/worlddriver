@@ -2094,7 +2094,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         });
     }
 
-    /** Walk to the surveyed gravel column, sink to it, break enough of it to roll a flint, climb out. */
     /**
      * Feed the body BEFORE the walk, not just before the dig.
      *
@@ -2112,6 +2111,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         JourneyFeed.eatIfLow(rig, "gravel", () -> gravelForFlintFed(ctx, rig, gravel));
     }
 
+    /** Walk to the surveyed gravel column, sink to it, break enough of it to roll a flint, climb out. */
     private static void gravelForFlintFed(SceneContext ctx, JourneyRig rig, BlockPos gravel) {
         rig.attempting("走到砾石堆的干燥柱");
         // Same bounded re-plan the ore rungs use, and this leg is where its absence showed last:
@@ -2343,6 +2343,11 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         });
     }
 
+    /** How far around the drowned cell to look for what is feeding it. Four, the width of a column
+     *  swap plus one: a source further away than the next column will be is not this column's
+     *  problem, and one closer is. */
+    private static final int WET_COLUMN_UPSTREAM = 4;
+
     /**
      * Abandon a column the descent drowned in, and sink the shaft in a different one.
      *
@@ -2355,11 +2360,6 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
      * which turns placing back on for the pillar. Recorded as {@code shaft.reColumn.N} with the cell
      * that drowned, so a run that swapped can never read as one that walked straight down.
      */
-    /** How far around the drowned cell to look for what is feeding it. Four, the width of a column
-     *  swap plus one: a source further away than the next column will be is not this column's
-     *  problem, and one closer is. */
-    private static final int WET_COLUMN_UPSTREAM = 4;
-
     private static void swapWetColumn(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY,
                                       List<BlockPos> wetColumns, int swapsLeft, BlockPos afloat) {
         int n = wetColumns.size() + 1;

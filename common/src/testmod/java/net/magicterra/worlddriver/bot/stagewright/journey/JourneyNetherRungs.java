@@ -614,19 +614,6 @@ public final class JourneyNetherRungs {
     private static final double BAND_TAX = 100.0;
 
     /**
-     * The Y ceiling leg {@code i} of the corridor is allowed to reach for free.
-     *
-     * <p>Both ends are read out of {@link #FORTRESS_WAYPOINTS} — the leg's own target and the
-     * waypoint before it — and never out of {@code rig.player()}. That is the whole point: the
-     * failure being taxed IS the body sitting one block above the route, so a ceiling derived from
-     * where the body currently stands raises itself to meet the drift and charges nothing. Leg 1 has
-     * no predecessor and gets its own target, which is the y=55 ridge, so its climb stays free.
-     *
-     * <p>A leg whose two surveyed ends differ (leg 1: 41→55, leg 2: 55→43) keeps the higher of the
-     * two, so descending legs pay nothing for the height they start with and only for height they
-     * ADD.
-     */
-    /**
      * Fail the corridor AT the cell the search gave up on, without letting the fallback move the
      * body first.
      *
@@ -692,6 +679,19 @@ public final class JourneyNetherRungs {
                 + "缺料会以「搜索失败」的样子出现 —— 架桥的边需要有东西可放 —— 所以这两个数要一起读";
     }
 
+    /**
+     * The Y ceiling leg {@code i} of the corridor is allowed to reach for free.
+     *
+     * <p>Both ends are read out of {@link #FORTRESS_WAYPOINTS} — the leg's own target and the
+     * waypoint before it — and never out of {@code rig.player()}. That is the whole point: the
+     * failure being taxed IS the body sitting one block above the route, so a ceiling derived from
+     * where the body currently stands raises itself to meet the drift and charges nothing. Leg 1 has
+     * no predecessor and gets its own target, which is the y=55 ridge, so its climb stays free.
+     *
+     * <p>A leg whose two surveyed ends differ (leg 1: 41→55, leg 2: 55→43) keeps the higher of the
+     * two, so descending legs pay nothing for the height they start with and only for height they
+     * ADD.
+     */
     private static int bandCeiling(int i) {
         int target = FORTRESS_WAYPOINTS[i][1];
         return i == 0 ? target : Math.max(target, FORTRESS_WAYPOINTS[i - 1][1]);
