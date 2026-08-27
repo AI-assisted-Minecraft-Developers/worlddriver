@@ -797,10 +797,13 @@ public final class BotConfig {
 
 
     /** Max DRY (no-water) fall the planner will take as a plain {@code Fall} move,
-     *  in blocks. Default 3 = Baritone's no-fall-damage cap (current behaviour;
-     *  {@code Fall(4)/Fall(5)} are catalogued but inert). Raising it (≤5) lets the
-     *  search descend a steep dry slope by taking a small-damage drop (4 blocks ≈
-     *  1.5 hearts, 5 ≈ 2) instead of building a dirt "天梯" staircase with
+     *  in blocks. <b>Default 4, which is one block PAST Baritone's no-fall-damage cap
+     *  of 3</b> — so {@code Fall(4)} is live on every default run and only
+     *  {@code Fall(5)} is catalogued-but-inert. Set it to 3 for damage-free routing.
+     *  Raising it (≤5) lets the
+     *  search descend a steep dry slope by taking a small-damage drop (vanilla
+     *  charges {@code ceil(distance - 3)} HP: 4 blocks = 1 HP = 0.5♥, 5 = 2 HP = 1♥)
+     *  instead of building a dirt "天梯" staircase with
      *  {@code BridgePlace} — the smooth-jungle-descent lever. A higher fall is
      *  cheaper than a place-bridge (Fall(5)=35 vs BridgePlace≈80), so once enabled
      *  A* prefers the natural drop. Survival-sensitive (the bot takes the damage).

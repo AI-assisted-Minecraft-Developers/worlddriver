@@ -8,11 +8,17 @@ import net.minecraft.core.BlockPos;
 /**
  * Step off a ledge and fall {@code drop} blocks. Each block adds a tick of
  * fall time + a damage check. Drops above {@link BotConfig#pathfinderMaxDryFall}
- * (default 3, the no-damage cap) are gated off so the search keeps Baritone's
- * conservative dry-fall behaviour by default. Raising the knob lets the planner
- * take a small-damage drop (4-5 blocks ≈ 1.5-2 hearts) instead of building a
- * dirt "天梯" staircase down a steep jungle slope — the smooth-descent lever.
- * Landing spot must be a safe stand position; the air column between must be empty.
+ * are gated off.
+ *
+ * <p><b>That cap ships at 4, not at the no-damage 3.</b> Baritone's conservative
+ * dry-fall behaviour is what the knob's LOWEST legal value (3) buys; the shipping
+ * default deliberately spends damage, so {@code Fall(4)} is LIVE on every default
+ * run and the planner takes a real 1 HP hit rather than build a dirt "天梯"
+ * staircase down a steep jungle slope — the smooth-descent lever. Only
+ * {@code Fall(5)} is inert by default. Vanilla charges {@code ceil(distance - 3)}
+ * HP, so fall4 = 1 HP = 0.5♥ and fall5 = 2 HP = 1♥.
+ *
+ * <p>Landing spot must be a safe stand position; the air column between must be empty.
  */
 public final class Fall extends Move {
     private final int drop;
@@ -21,9 +27,10 @@ public final class Fall extends Move {
         this.drop = drop;
     }
     public boolean valid(WorldView w, BlockPos from) {
-        // Live config gate (mirrors WaterBucketFall/FallIntoWater): Fall(4)/Fall(5)
-        // are always in the catalog but inert unless the dry-fall cap is raised, so
-        // the default (3) preserves the no-fall-damage routing exactly.
+        // Live config gate (mirrors WaterBucketFall/FallIntoWater). At the shipping
+        // cap of 4 this admits fall2..fall4 and rejects only Fall(5) — it is NOT the
+        // no-fall-damage gate it was written as: fall4 costs 1 HP every time it
+        // fires. Lower the knob to 3 to get damage-free routing back.
         if (drop > BotConfig.pathfinderMaxDryFall) return false;
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;

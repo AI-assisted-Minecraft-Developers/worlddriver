@@ -430,13 +430,14 @@ public abstract class Move {
         // which is stricter than the flat Diagonal's one-side rule.
         for (int[] d : DIAGONAL) ms.add(new DiagonalAscend(d[0], d[1]));
         for (int[] d : DIAGONAL) ms.add(new DiagonalDescend(d[0], d[1]));
-        // Dry falls 2-3 are Baritone's no-damage cap; 4-5 are catalogued too but
-        // inert unless BotConfig.pathfinderMaxDryFall is raised (Fall.valid gates
-        // live) — the "fall a small step instead of building a dirt 天梯" lever.
+        // Dry falls 2-3 are Baritone's no-damage cap, but the SHIPPING cap is 4, so
+        // fall4 (1 HP) is live on a default run and only fall5 is inert until
+        // BotConfig.pathfinderMaxDryFall is raised (Fall.valid gates live) — the
+        // "fall a small step instead of building a dirt 天梯" lever.
         for (int[] d : CARDINAL)
             for (int drop = 2; drop <= 5; drop++)
                 ms.add(new Fall(d[0], d[1], drop));
-        // Water-bucket (MLG) falls: drop further than the no-water cap (3) by
+        // Water-bucket (MLG) falls: drop further than the dry-fall cap by
         // placing a water source on the landing block to break the fall —
         // Baritone's maxFallHeightBucket. Registered up to a fixed ceiling;
         // each valid() further gates on the live BotConfig max + bucket
