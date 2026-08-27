@@ -1597,8 +1597,10 @@ public final class JourneyPortalRung {
         if (spot == null) {
             ctx.fail("模腔里没有能浇到 " + target.toShortString() + " 的落脚点："
                     + "要求脚下实心、头顶两格空、射线打在背板 " + target.relative(away).toShortString()
-                    + " 的近面或地板 " + target.below().toShortString()
-                    + " 的顶面上 —— 身体在 " + rig.player().blockPosition()
+                    + " 的近面、地板 " + target.below().toShortString()
+                    + " 的顶面，或同排侧邻 " + target.relative(away.getClockWise()).toShortString()
+                    + "／" + target.relative(away.getCounterClockWise()).toShortString()
+                    + " 的对面上 —— 身体在 " + rig.player().blockPosition()
                     + "，各项否决计数：" + why);
             return;
         }
@@ -1722,8 +1724,27 @@ public final class JourneyPortalRung {
                     // THE BLOCK THAT WAS ACTUALLY AIMED AT, not the one chosen before the walk. Those
                     // differ whenever the settled re-ask moved the aim, and quoting the stale one
                     // sends the reader to a geometry that was never fired.
-                    ctx.fail("浇不到指定格：想浇 " + target.toShortString() + "（瞄 "
-                            + at.toShortString()
+                    //
+                    // WHERE THE BODY IS RELATIVE TO THE STAND IT CHOSE, first, because that is the
+                    // answer in every run this verdict has been read in and it was the one thing the
+                    // verdict did not say. It used to open with the pour line, and a pour line is a
+                    // list of what is in the way — so a reader who trusts it goes looking for who put
+                    // a block there. Rung 12 of the 2026-08-27 ladder cost a full round exactly that
+                    // way: the line named dirt at `1,60,20`, the dirt turned out to be native terrain,
+                    // and the actual story was that the body stood at `0,59,20` while the stand it had
+                    // picked was `3,59,20` — three cells and two rows away, so no geometry computed at
+                    // the stand described the shot that was fired. The line stays, at the end, where a
+                    // secondary reading belongs.
+                    boolean onItsStand = rig.player().blockPosition().equals(goal);
+                    ctx.fail("浇不到指定格：想浇 " + target.toShortString()
+                            + (onItsStand ? "" : " —— 身体不在它自己选的落脚格上：选的是 "
+                                    + goal.toShortString() + "，实际站在 "
+                                    + rig.player().blockPosition().toShortString()
+                                    + "，差 " + String.format(java.util.Locale.ROOT, "%.2f",
+                                            Math.sqrt(rig.player().blockPosition().distSqr(goal)))
+                                    + " 格。"
+                                    + "落脚格上的射线验过、身体所在格的没有")
+                            + "（瞄 " + at.toShortString()
                             + (at.equals(backing) ? "" : "，选落脚点时瞄的是 " + backing.toShortString())
                             + "），射线会把流体放进 "
                             + (lands == null ? String.valueOf(hit.getType()) : lands.toShortString())
