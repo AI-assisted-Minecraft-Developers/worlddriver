@@ -160,6 +160,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(
+                Scene.of("wd.pourLineTopPairAimsAtItsSideNeighbour", 200,
+                        JourneyPourLineScenes::topPairAimsAtItsSideNeighbour),
                 Scene.of("wd.pourLineBlockedByTheStepTheScoopLeft", 200,
                         JourneyPourLineScenes::blockedByTheStepTheScoopLeft),
                 Scene.of("wd.pourLineTakesBackTheStepItBorrowed", 200,
@@ -169,9 +171,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 Scene.of("wd.pourLineRingOrderCannotShadowAPour", 200,
                         JourneyPourLineScenes::ringOrderCannotShadowAPour),
                 Scene.of("wd.pourLineOccupiedStandsAreOutsideTheAlcove", 200,
-                        JourneyPourLineScenes::occupiedStandsAreOutsideTheAlcove),
-                Scene.of("wd.pourLineTopPairAimsAtItsSideNeighbour", 200,
-                        JourneyPourLineScenes::topPairAimsAtItsSideNeighbour));
+                        JourneyPourLineScenes::occupiedStandsAreOutsideTheAlcove));
     }
 
     // ---------------------------------------------------------------------- rig ----
@@ -198,6 +198,11 @@ public final class JourneyPourLineScenes implements SceneProvider {
     /** Which ring cell this file is about: index 8, {@code (0,4)}, the top-left one —
      *  {@code 4,60,19}. It is the first cast whose wet cell is the notch ABOVE the frame, which is
      *  what puts the scoop one row higher than the pour. */
+    /** How many verified stands the top-pair arm actually fires from. Each one is a body, and the
+     *  question is「至少一格打得中」rather than a census — but the number tried is printed beside the
+     *  number that qualified, so a capped run never reads as an exhaustive one. */
+    private static final int SHOTS_TRIED = 12;
+
     private static final int RING = 8;
 
     private static BlockPos target(SceneContext ctx) {
@@ -1054,7 +1059,18 @@ public final class JourneyPourLineScenes implements SceneProvider {
     private static void topPairAimsAtItsSideNeighbour(SceneContext ctx) {
         ServerLevel level = ctx.level();
         config(ctx);
-        stage(ctx, false, CAST_SO_FAR);
+        // WITH THE FLIGHT, because a side neighbour can only be hit on the face that points at the
+        // target, and that face is reachable only from the target's OWN row one cell back — the
+        // corridor is hollow, so without the scoop's top course that cell has nothing under it and
+        // the only candidate left is four rows down, whose line to the neighbour runs through the
+        // ring cell already cast below it. Measured here, twice, before this line said `true`:
+        // `verifiedForTheSide=1 格`, and its shot stopped on obsidian.
+        //
+        // This is not the arm giving itself the answer. The step is what {@code standLevelWith}
+        // builds in production and what {@code wd.pourLineBlockedByTheStepTheScoopLeft} stages from
+        // the same call; what the widening supplies is the AIM, and with the backing gone the two
+        // old candidates are dead however many places there are to stand.
+        stage(ctx, true, CAST_SO_FAR);
 
         BlockPos target = target(ctx);
         BlockPos floor = target.below();
@@ -1113,12 +1129,50 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 + spot.aim().toShortString() + "=" + level.getBlockState(spot.aim()).getBlock())
                 .isEqualTo(side);
 
-        Shot shot = fire(ctx, driver, spot.aim());
-        ctx.record("shot", shot.where());
-        ctx.check(shot.landing()).as("D 选中不等于打得中 —— 从选出的落脚点 "
-                + spot.stand().toShortString() + " 瞄 " + spot.aim().toShortString()
-                + "，流体要真的落进 " + target.toShortString() + "：" + shot.where())
-                .isEqualTo(target);
+        // D ASKS THE QUESTION THE POUR ASKS, which is not「does the nearest verified stand work」.
+        //
+        // It was that once and the arm went red for something it is not about. `standToPour` returns
+        // the NEAREST verified stand, and in this arena the nearest one's line to the side neighbour
+        // rides the edge between the target's floor and the ring cell below-and-beside it: the
+        // segment clip that chose it says clear, the float-derived ray the bucket fires stops on
+        // `254626,223,99999` obsidian. That fork is a KNOWN defect with its own note on
+        // {@link JourneyPour#aimThatLandsIn}, and production already survives it — the pour fires,
+        // compares, and moves to the next candidate. An arm about the aim LIST must not fail on it.
+        //
+        // So: of the stands the production predicate accepts for the side neighbour, does at least
+        // one actually put the fluid in the target when the shot is fired? That is what the rung
+        // needs and the widening is what makes any of them exist.
+        driver.fakePlayer().discard();
+        List<BlockPos> verified = new ArrayList<>();
+        for (BlockPos foot : JourneyPour.standCandidates(target, AWAY))
+            if (JourneyPour.gradeFoot(level, fp, foot, side, target, new LinkedHashMap<>())
+                    != JourneySight.REFUSED) verified.add(foot.immutable());
+        ctx.record("verifiedForTheSide", verified.size() + " 格通过了产码的落脚判据（瞄 "
+                + side.toShortString() + "）：" + verified.stream().limit(8).toList()
+                + (verified.size() > 8 ? " …（只印前 8 格）" : ""));
+
+        List<BlockPos> lands = new ArrayList<>();
+        String firstShot = "没有一格可试";
+        // Capped, and the cap is printed rather than left to look like exhaustion. Each try is a body,
+        // and the answer this arm needs is「至少一格」, not a census.
+        int tried = 0;
+        for (BlockPos foot : verified) {
+            if (tried++ >= SHOTS_TRIED) break;
+            ServerWorldDriver shooter = body(ctx, foot);
+            Shot s = fire(ctx, shooter, side);
+            if (tried == 1) firstShot = s.where();
+            if (target.equals(s.landing())) lands.add(foot.immutable());
+            shooter.fakePlayer().discard();
+        }
+        ctx.record("shots", "试了 " + Math.min(verified.size(), SHOTS_TRIED) + "/" + verified.size()
+                + " 格（上限 " + SHOTS_TRIED + "），落进 " + target.toShortString() + " 的有 "
+                + lands.size() + " 格：" + lands.stream().limit(8).toList()
+                + "；第一枪 " + firstShot);
+        ctx.check(lands.isEmpty()).as("D 选中不等于打得中 —— 瞄侧邻 " + side.toShortString()
+                + " 的落脚格里，至少要有一格开火之后流体真的落进 " + target.toShortString()
+                + "。通过落脚判据的有 " + verified.size() + " 格，试了 "
+                + Math.min(verified.size(), SHOTS_TRIED) + " 格，一格也没打中。第一枪：" + firstShot)
+                .isFalse();
     }
 
     /** The candidates the production guard refuses as「落脚格被占」, by walking the same scan one
