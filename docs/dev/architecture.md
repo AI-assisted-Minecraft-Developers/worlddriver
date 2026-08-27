@@ -185,10 +185,11 @@ behind loses events silently, so treat the cursor as best-effort.
 
 `bot/` is the largest and most churned subsystem (A* pathfinder, `Walker`,
 per-verb processes, settings registry, replay instrumentation). Its internal
-layering is not covered here — see
-[`docs/walker-tick-architecture.md`](../walker-tick-architecture.md) for the
-`WalkerTick*` phase decomposition, and `docs/coverage-exemptions.md` for which
-uncovered branches are deliberate.
+layering has its own document — see [`bot-layering.md`](bot-layering.md) for the
+facade → scheduler → process → Walker → pathfinder spine and the seams between
+them, [`docs/walker-tick-architecture.md`](../walker-tick-architecture.md) for
+the `WalkerTick*` phase decomposition one level further down, and
+`docs/coverage-exemptions.md` for which uncovered branches are deliberate.
 
 ---
 

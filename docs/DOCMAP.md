@@ -78,6 +78,7 @@
 | 路径 | 读者 | 状态 | 最后核对 | 备注 |
 |---|---|---|---|---|
 | `docs/dev/architecture.md` | dev | current | 2026-08-27 | `route()` 单一分发点、两个注册缝、开机 schema 不变式、服务端线程跳转、包图。**逐条对着源码写的**；硬规则只给指针不复述 |
+| `docs/dev/bot-layering.md` | dev | current | 2026-08-27 | facade→scheduler→process→Walker→pathfinder 主干与各层的缝。**只写缝与不变式，不写清单**——`bot/` 周周变，列表比没有更糟。`sim/` 只给指针（归 parity 角色） |
 
 ## 三、`docs/design/` — 5 份，2026-06-04 的原始设计
 
@@ -197,7 +198,7 @@ buoyant 留的是 Phase 0 的现场读数。**删之前要把横幅读完，再�
 | ~~P4~~ | ~~`docs/dev/architecture.md`~~ | 补 | **2026-08-27 已建**，见上方 `docs/dev/` 一节 |
 | ~~P5~~ | ~~删除波 1：自称 SUPERSEDED 的 2 份 plan~~ | 删 | **2026-08-27 已删**。⚠️ 当时写的「判据无歧义，不需要核实完成状态」**是错的**——两份都带例外条款，见上方第五节的 ⛔ |
 | P6 | `docs/user/capabilities.md` | 补 | 72 个 `mc.*` 方法按能力分族，让人知道能让 LLM 干什么 |
-| P7 | `docs/dev/bot-layering.md` | 补 | `pathfinder` / `Walker` / `process` / `settings` 四层与 3000 行预算 |
+| ~~P7~~ | ~~`docs/dev/bot-layering.md`~~ | 补 | **2026-08-27 已建**，见上方 `docs/dev/` 一节 |
 | P8 | `docs/dev/adding-a-scene.md` | 补 | 场景与 `expected-scenes-*.txt` 的**同批纪律**（漏了就 `UNDECLARED:` 判红） |
 | P9 | `docs/user/troubleshooting.md` | 补 | 端口文件、连不上、bot 不动 |
 | P10 | 删除波 2+：stagewright 建设族 14 份 | 删 | 需先核实框架已完成迁移（很可能是，但要验） |
@@ -339,8 +340,34 @@ Phase 0 findings 是「推翻 D1 的证据」，而那一节自己写着「这�
 （坐标、~56s、y57 振荡、26d4ea2 已编入）。所以这次是**归并读数**，不是抢救孤本。
 （`replay-corpus-regression.md` 里的 replay-0004 是后来另一套语料，同名不同事。）
 
-**下一轮：P6（`docs/user/capabilities.md`）或 P7（`docs/dev/bot-layering.md`）**，
-两者都在 `docs/**` 内、不需要额外权限；P7 的指针位 `architecture.md` 已经留好。
-若想继续推删除线，**P11**（单份 `handoffs/`，判据清楚）比 P10（stagewright 14 份，
-需先验整族迁移完成）适合塞进一轮。⚠️ 无论挑哪份，**先读完横幅再删**——本轮的教训是
-例外条款不写在横幅里，写在正文中段。
+**2026-08-27 第三轮｜P11 + P7。** 删除线先走一步，再补开发者线。
+
+**P11**：删 `handoffs/` 唯一那份（`handoffs/` 现为空目录），逐节核过，判据确实清楚——
+待办 7 项全兑现、主题（GameTest）已退休、唯一值钱的第 4 节发现**已存进 `keep` 的
+`docs/stagewright/migration-log.md` 且比手记更全**（点名 swallowed trio + 迁移提交 +
+每波 `0 swallowed / 0 drifted`）。⇒ **不需要迁移，直接删**。
+与上一轮 buoyant 的差别正是那条判据：**先问结论与证据各自存在哪，再决定搬不搬。**
+
+**P7**：建 `docs/dev/bot-layering.md`。写之前核了三条**来自 javadoc 的散文**，三条都有问题：
+
+- `BotApi` 类级 javadoc 写「every method returns immediately with `{started:true}`」，
+  而它自己的方法级 javadoc 里有一族明写 `Synchronous`、`no process slot`
+  ——**类注释与方法注释互相矛盾**，与上一轮「横幅 vs 正文」同形。文档写「多数异步、
+  一族同步」并叫读者 grep `Synchronous`，不复述任何一句。
+- `Avatar` javadoc 写「`ServerPlayerAvatar`（neoforge）」，实际它在
+  `common/.../bot/sim/`——**loader 归属过时**，没有复述。
+- 同一段的「Later phases add `MobAvatar`」是**从未兑现的未来承诺**（`find` 零命中）。
+  ⛔ **javadoc 里的未来时一律不进文档。**
+
+⚠️ 这三条都在 `bot/sim/**` 与 `bot/BotApi.java`，**归 parity / 代码角色**，本角色只记账。
+
+⚠️ 写法上定了一条对 `bot/` 专用的规矩：**只写缝与不变式，不写清单**。
+`bot/` 是全仓库 churn 最重的子系统，任何「32 个 process」「优先级 1000/900/…」的枚举
+下周就旧；所以调度阶梯只说「反射压过深思、前台用户任务垫底」并指向
+`BotApiImpl` 的 `register(...)` 块，数字留在代码里。同理预算那条写成不变式
+（**`Walker.java` 与 `BotConfig.java` 双双顶在上限 ⇒ 要加必须先抽**）而不是写 2999。
+
+**下一轮：P6（`docs/user/capabilities.md`）**——`docs/dev/` 两份已成对，
+用户线却还只有 `transports.md` 一份，缺「能让 LLM 干什么」那张能力表。
+想继续推删除线就取 **P10 的 stagewright 14 份**，⛔ 但**必须逐份读正文**：
+连着两轮证明例外条款藏在正文中段，横幅判不了。
