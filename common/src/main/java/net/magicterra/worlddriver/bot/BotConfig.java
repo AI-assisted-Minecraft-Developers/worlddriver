@@ -129,8 +129,7 @@ public final class BotConfig {
 
     /** Decouple camera from movement on a dry descent: aim the CAMERA at a stable far-ahead
      *  path heading (kills the 下山转圈 yaw-wind) while the body keeps driving the immediate node.
-     *  See {@code WalkerConstants.DESCENT_CAM_FAR_DIST} (bot/movement, package-private —
-     *  not a member of {@code Walker}, which is where this used to point). Toggle for A/B. */
+     *  See {@code WalkerConstants.DESCENT_CAM_FAR_DIST} (not a {@code Walker} member). A/B toggle. */
     public static volatile boolean descentCameraDecouple = true;
 
     /** Extend {@link #descentCameraDecouple} to ALL dry launches (parkourDescend / parkour / fall):
@@ -797,14 +796,11 @@ public final class BotConfig {
     public static volatile double pathfinderPillarCost = 150;
 
 
-    /** Max DRY (no-water) fall the planner will take as a plain {@code Fall} move,
-     *  in blocks. <b>Default 4, which is one block PAST Baritone's no-fall-damage cap
-     *  of 3</b> — so {@code Fall(4)} is live on every default run and only
-     *  {@code Fall(5)} is catalogued-but-inert. Set it to 3 for damage-free routing.
-     *  Raising it (≤5) lets the
-     *  search descend a steep dry slope by taking a small-damage drop (vanilla
-     *  charges {@code ceil(distance - 3)} HP: 4 blocks = 1 HP = 0.5♥, 5 = 2 HP = 1♥)
-     *  instead of building a dirt "天梯" staircase with
+    /** Max DRY (no-water) fall the planner takes as a plain {@code Fall} move, in blocks.
+     *  <b>Default 4 — one block PAST Baritone's no-damage cap of 3</b>, so {@code Fall(4)} is live
+     *  on every default run and only {@code Fall(5)} is inert; set 3 for damage-free routing.
+     *  Raising it (≤5) buys a small-damage drop (vanilla charges {@code ceil(distance-3)} HP:
+     *  4 = 1 HP = 0.5♥, 5 = 2 HP = 1♥) instead of a dirt "天梯" staircase with
      *  {@code BridgePlace} — the smooth-jungle-descent lever. A higher fall is
      *  cheaper than a place-bridge (Fall(5)=35 vs BridgePlace≈80), so once enabled
      *  A* prefers the natural drop. Survival-sensitive (the bot takes the damage).
@@ -1338,8 +1334,7 @@ public final class BotConfig {
      *  it exceeds {@code survivableFall(health)} (see ClientWorldView) — a
      *  step-down the bot would walk away from unharmed is never penalised
      *  (lethal-only refinement, 2026-06-06), so harmless descents stay cheap.
-     *  <p><b>Default 200 (on).</b> NOTE (validated 2026-06-06, when the default was still
-     *  15 — the raise is recorded below): this penalty is
+     *  <p><b>Default 200 (on).</b> NOTE (validated 2026-06-06, at the then-default 15): this is
      *  load-bearing — it keeps the planner on the traversable ridge instead of
      *  committing a best-effort segment that DIVES into a deep ravine "toward
      *  the goal". With it at 0 the bot fell ~29 blocks into a pit at the spawn
