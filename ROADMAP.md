@@ -154,6 +154,7 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 | 5 | **J75 的 `enderman.stall.*` 一行** | 不占排练槽，只占编译窗口 |
 | 6 | **J40 的 ②**：`JourneyRig.await` 逐 tick 判活时顺手读 `getAirSupply()` 与血量，**无条件按腿落行** | 「过线中止去补救」的线画在哪要分布；量级＝每腿一行，不用节流 |
 | 7 | **Q15c**：PREP 无条件写 `readyTicks`/`readyMs`（`stagewright-scenes/pack.js`） | 只加仪器不改行为，随下一轮闸读分布 |
+| 8a | **判到达吃掉调用方容差的证据行**：`WorldDriverJourneyScenes:795`，`tolerance < away <= ARRIVED_WITHIN` 时打一条「按调用方容差本不算到达」 | 只是 a，不收紧判据、不会让任何场景变色。14 个调用点里 **8** 个传 0，一刀收紧会同时冒出一堆互相掩盖的红——先数出谁在吃这个宽松 |
 
 ⇒ 然后**一趟排练**把 1–6 的读数一次收齐；Q15c 的分布随下一轮全量闸收。
 **J71 不需要这个窗口**——它要的是「连跑 N 趟 `runRehearsalIntegratedServer` 列

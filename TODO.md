@@ -1211,6 +1211,8 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
 且 `JourneyCast.java` 不经过 `36130011` 改的任何一处（grep 零命中）。
 ⚠️ 踩的是 `JourneyPour:115-117` 注释**早就写明**的坑：`walkToColumn` 判到达用自己的
 `ARRIVED_WITHIN`（5 格），**不是调用方传的 `tolerance`**。
+⇒ **判词不在这里**：行为那一半已判「排到引擎侧那半之后」（下面第 1 条，与 🅹 同一笔），
+判到达那一半判「做——只做 a」（下面第 3 条）。⛔ 别在这里再开第三块，两处各说各的正是本节警告过的。
 
 📌 **还欠两件，都不是「补到岸检查」**（那件 `ccaf6861` 已落：`stepOntoTheBank` 重问 afloat + 容差 0 补一步）：
 1. ~~补一步之后仍浮着，`bankRow` 只记一笔就往下走，而那行键叫 `lava.exit.ashore`（上岸）在脚下是水时照打 ⇒ 判词撒谎。~~
@@ -1238,6 +1240,16 @@ WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ()
    c. 其余调用点按 a 的读数逐个处理，别批量动。
    ⚠️ 收紧之后 ashore 场景**不会立刻翻绿**：`end=path-consumed` 说明走行器自己也停在 244892，
    795 只是第二道闸；届时死因应从「假上岸」变成「走不到那一柱」——那是对的红。
+
+   🟠 **判：做——只做 a**（纯仪器，归窗口 1 仪器批，见 [`ROADMAP.md` §6.2](ROADMAP.md)）；**b／c 等 a 的读数**。
+   **凭什么**：`WorldDriverJourneyScenes:778/795` 把判到达写死成 `away <= ARRIVED_WITHIN`（**5 格**），
+   `tolerance` 只喂给 `Goal.XZ`；实测 `lava.lastStep` 传 **0** 而 `gotoEnd.1` 照印「容差 5」、**距 1 格**判到达。
+   14 个调用点里传 0 的有 **8** 个 ⇒ 一刀收紧是 8 处同时变色、互相掩盖、归不了因。
+   a 不改判据、不会让任何场景变色，所以它可以与别的仪器同窗口。
+   **重开条件**：a 的证据行跑一趟之后**零行**（没有任何调用点落在 `tolerance < away <= ARRIVED_WITHIN` 区间）
+   ⇒ 「有人在吃这个宽松」的前提被证伪，b／c 整条作废，本条收案。
+   **代价**：判错＝多一行永不开火的证据行，一趟的噪声。反方向判错（现在就一刀改 795）＝8 处
+   同时从「5 格算到」变成「必须精确到柱」，症状是一趟里冒出一堆红且互相掩盖——那正是不许一刀切的理由。
 
 ### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
 
