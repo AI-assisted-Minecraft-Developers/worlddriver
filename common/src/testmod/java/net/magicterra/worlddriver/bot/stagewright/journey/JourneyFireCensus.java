@@ -45,6 +45,36 @@ import net.minecraft.tags.BlockTags;
  * <p>One reading already rules out a third candidate: the body's first burn stamp is exactly
  * {@code 160t}, the value vanilla assigns on entering a fire block, so it was not ignited at range.
  *
+ * <h2>The answer, from the first run that carried this instrument (2026-08-28)</h2>
+ *
+ * <b>(b).</b> That run took four {@code inFire} blows at {@code 66,43,66}, {@code 70,43,69} twice and
+ * {@code 71,43,69}. Every cell a 0.6-wide box at those positions can overlap — x±1, z±1, y 43–44 —
+ * lies inside the census box of leg 3 ({@code x 60–72 / y 42–44 / z 65–70}) or of leg 4
+ * ({@code x 69–73 / y 41–44 / z 67–86}), and <b>both of those rows were written before their leg
+ * moved and both read {@code 0 个火格}</b>, over 234 and 400 scanned cells. Whichever leg owns the
+ * blows, a census that PRECEDES them says the fire was not there. So the repair is a replan trigger,
+ * not a cost — and taxing the cells beside fire, which is what (a) would have asked for, would have
+ * been work aimed at a world that did not exist.
+ *
+ * <p>Two cautions that came with the answer, both about what it does NOT say:
+ *
+ * <ul>
+ *   <li><b>Which side of the audit this settles is fire, not the corridor.</b> That run still failed
+ *       rung 14, and it failed by walking leg 5 for 2 403 ticks and dying of accumulated fall damage.
+ *       Fire cost it four points of twenty.</li>
+ *   <li><b>Nothing here names the igniter.</b> {@code inFire} in the Nether can only come from
+ *       {@link BlockTags#FIRE} — lava is {@code lava} and magma is {@code hotFloor} — so the damage
+ *       type is unambiguous about WHAT hurt the body and silent about WHO lit it. A ghast is one
+ *       candidate; fire spreading across netherrack, which never burns out, is another.</li>
+ * </ul>
+ *
+ * <p><b>And the trace field that looks like the fire signal is not it.</b> All four of those blows
+ * appear in {@code hp.trace} as {@code 身处=air} with no {@code 着火} stamp: the body's CENTRE was in
+ * air while its BOX was in the fire, and it was never set alight. A reader keyed on {@code 身处=fire}
+ * — which is how the trace read on the death above — sees none of them. {@code 身处} answers 「which
+ * block is the body's centre in」; only the damage TYPE in {@code death.blow} answers 「did fire hurt
+ * it」.
+ *
  * <h2>What this is NOT</h2>
  *
  * <b>It scans the axis-aligned BOX spanned by the two endpoints, not the route the body walks.</b>
