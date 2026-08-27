@@ -304,21 +304,29 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
             // instead of inheriting mine. `底下` distinguishes「had a floor and never stood on it」
             // (a fix at the jump) from「the pocket is deeper than 2」(a fix somewhere else entirely).
             final int[] grounded = { 0 };
+            final int[] samples = { 0 };
             final double[] riseSum = { 0.0 };
             ctx.await(() -> {
                 body.setAirSupply(PINNED_AIR);           // latched, never drowning — see PINNED_AIR
                 maxY[0] = Math.max(maxY[0], body.getY());
+                // COUNTED AGAINST ITS OWN DENOMINATOR, not against `t`. The tick counter is
+                // incremented in the return expression and skipped on the tick that breaks out, so
+                // a rate written over `t` can exceed 1 — the first run of this row printed
+                // 「80/79 采样着地」, a ratio the world cannot produce. The numbers around it were
+                // right, which is exactly why the impossible one had to go: a row that cannot be
+                // true invites doubt about the readings that can.
+                samples[0]++;
                 if (body.onGround()) grounded[0]++;
                 riseSum[0] += body.getDeltaMovement().y;
                 if (!level.getBlockState(lid).is(Blocks.DIRT)) broke[0] = true;
                 return broke[0] || ++t[0] >= LID_BUDGET;
             }).within(LID_BUDGET + 100).then(() -> {
                 BlockPos under = body.blockPosition().below();
-                ctx.record("盖.着地率", grounded[0] + "/" + t[0] + " 采样着地"
+                ctx.record("盖.着地率", grounded[0] + "/" + samples[0] + " 采样着地"
                         + "（挖速腐蚀：不着地 ÷5，眼在水里再 ÷5）");
                 ctx.record("盖.脚下", under.toShortString() + " = " + level.getBlockState(under).getBlock());
                 ctx.record("盖.竖直速度均值", String.format(Locale.ROOT, "%.5f 格/tick（%d 个采样求和 %.3f）",
-                        t[0] == 0 ? 0.0 : riseSum[0] / t[0], t[0], riseSum[0]));
+                        samples[0] == 0 ? 0.0 : riseSum[0] / samples[0], samples[0], riseSum[0]));
                 ctx.record("盖.破了", broke[0] + "（用了 " + t[0] + "/" + LID_BUDGET + " tick）");
                 ctx.record("盖.末态", lid.toShortString() + " = " + level.getBlockState(lid).getBlock());
                 ctx.record("升.净升", String.format(Locale.ROOT, "%.3f 格", maxY[0] - startY));
