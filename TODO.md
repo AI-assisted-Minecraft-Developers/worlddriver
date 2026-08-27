@@ -33,6 +33,7 @@
 一行一件，**状态在最左**。做完就把行删掉并把结论写进 `CHANGELOG.md`，不要在这里写细节。
 
 | 状态 | # | 事 | 归属 |
+| 🔴 判：先补测量（探针便宜、能搭车） | J111 | **沙箱那七条断言全绿，而它们守护的过滤器整趟没拒过一个名字。** `ScriptClassFilter.DISABLED = !"on".equals(getProperty("worlddriver.sandbox","off"))` 出厂为真，`isAllowed:87` 第一行就 `return true`，且 `*.gradle` 里零命中 ⇒ 每趟闸这个过滤器都是关的。AGENTS.md 硬规则 #3 点名 `08_sandbox.js` 作为放宽沙箱的守卫，而它在放宽发生时不会红一行。⛔ 别急着加断言——会撞覆盖漂移闸的两个精确总数。**缺的读数＝`typeof java` / `typeof java.io.File`**：若为 `undefined` 则七条当场证伪为空断言（`java` 根本解析不出来，`denied()` 抓的是 TypeError），**不需要开沙箱就能判**；只有解析得出来时才轮到 `-Dworlddriver.sandbox=on` 的对照趟。另：`Runtime.exec("id")` 与 `Socket("127.0.0.1",1)` 那两条**原理上分辨不了任何东西**（宿主没有 `id`、连接被拒都必抛） | 我 |
 | 🔴 判：查（影响所有闸的归因，先量再改） | J110 | **专用服与客户端跑的不是同一套通行判据。** `canStandOn` 全仓只有 `ClientWorldView:192` 覆写，`LevelWorldView` 用接口默认 `WorldView:285 = isSolid(pos)`；`isPassable` 两边各自覆写、方法体不同；`collisionAwarePathing` 出厂 `true`。两者都喂 `canStandAt`，而它是 Walk／StepUp／StepDown／Diagonal 族／Fall／Climb／全部 Parkour 的闸。⇒ **`wd.*` 与 `journeyServer` 在底半砖、栅栏、soul_sand/mud/snow、睡莲、薄雪、压力板这些地形上验过的路，不等于出货客户端会走的路**。⛔ 这比「跳过不算覆盖」更难看见：场景**真的跑了**，只是跑在另一套谓词上。缺的读数＝一张两实现逐格判词的差集表 | 我 |
 |---|---|---|---|
 | 🟠 判：先补测量 | Q15c | **缺的读数＝PREP 无条件写 `readyTicks`/`readyMs`**（落 `stagewright-scenes/pack.js`，只加仪器不改行为，随下一轮闸读分布）。两笔嫌疑提交 `19b18c2`／`a384733` 都被本行自己排除（那场反射风暴在集成日志里新旧都是 0 条）之后，`pack.placesAndReadsBack` ENV_FAIL(10001ms) → **PASS(3336ms)** 这个翻转只剩「**又慢又飘**」一个假设，没有分布判不动 | 我 |
