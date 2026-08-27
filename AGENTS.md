@@ -83,11 +83,24 @@ etc.) working in this project. Keep it short and authoritative.
 
 1. **Never put behavior in a transport handler.** New methods go in DriverApi.
    MCP, RPC and the script bridge each only translate parameters and call
-   `DriverApi.route(...)`. The validation suite asserts the three return
-   byte-identical results — if they diverge, the regression is yours to fix.
-2. **All write paths bounce through `server.execute()`.** Reads outside the
-   server thread use the snapshot helpers in `DriverApi`, never `Level`
-   directly.
+   `DriverApi.route(...)`. If the three diverge, the regression is yours to fix.
+
+   ⚠️ **The suite does not prove this — it samples it.** `06_rpc_parity.js` and
+   `07_mcp_parity.js` compare `mc.query` and `mc.system.version` only, canonicalise
+   both sides with a key-sorted `jsonStable()`, and `delete` time-varying fields
+   (`uptimeMs`) before comparing. That is two verbs out of the whole surface. This
+   line used to read「the validation suite asserts the three return byte-identical
+   results」, which is the kind of promise that gets a green gate trusted for a
+   question it never asked. Rule #1 is a rule because it is not checked, not because
+   it is.
+2. **All write paths bounce through `server.execute()`.** Reads that touch the
+   level hop through the same `DriverApi.onServerThread` as writes; never reach
+   for `Level` directly off-thread.
+
+   ⚠️ This used to say reads「use the snapshot helpers in `DriverApi`」. There is no
+   such helper family — the name survived whatever once carried it, and a reader
+   looking for it finds route names like `mc.world.snapshot` instead. The classes
+   that make no hop at all are the ones that genuinely never touch `Level`.
 3. **Don't widen the Rhino sandbox** without adding a matching negative test
    in `common/src/main/resources/data/worlddriver/scripts/validation/08_sandbox.js`.
 4. **MCP spec citations are load-bearing.** When changing `McpServer.java`,
