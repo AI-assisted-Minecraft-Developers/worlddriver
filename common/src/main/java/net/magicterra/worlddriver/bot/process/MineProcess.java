@@ -565,6 +565,18 @@ public final class MineProcess implements BotProcess {
                     // 1.4 blocks (bounding box inflated 1.0). Measured on the three-ore rig, the
                     // sweep reported ARRIVED standing 1.6 blocks from a drop and then stood there
                     // for the whole collect budget: a goal satisfied and an item not picked up.
+                    //
+                    // ⚠️ THE OTHER COLLECT LOOP IN THIS PACKAGE CONCLUDED THE OPPOSITE.
+                    // CombatProcess#collectDrops sets Goal.Near(ib, 1) and its comment argues
+                    // "pickup touch reaches an adjacent cell" — the exact claim the measurement
+                    // above refuted. Goal.Near(t,1).reached is `distSqr <= 1`, satisfied at any of
+                    // the six orthogonal neighbours, so it admits the 1.6-block stand this site
+                    // saw fail; Goal.Block.reached is `equals`, which cannot. Neither site is
+                    // being changed here, because "it failed on the mine rig" is not evidence
+                    // about the combat rig — but the two must not be read as independent
+                    // opinions. What would settle it is one reading, taken on the COMBAT sweep:
+                    // eye-to-item distance on the tick the walker reports its terminal, against
+                    // the ~1.4 magnet radius. Until someone takes it, fix one, look at the other.
                     collectWalker.setGoal(new Goal.Block(goal));
                 }
                 Walker.Step step = collectWalker.tick(a, w);

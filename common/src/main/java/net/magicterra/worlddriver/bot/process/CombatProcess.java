@@ -378,6 +378,21 @@ public final class CombatProcess implements BotProcess {
             // with a fresh path. Near radius 1 (not 0): pickup touch reaches an
             // adjacent cell, and radius-0 exact-cell goals are the rarely-driven
             // shape goto itself abandoned (near=2 default).
+            //
+            // ⚠️ "PICKUP TOUCH REACHES AN ADJACENT CELL" IS AN UNMEASURED CLAIM, AND THE
+            // OTHER COLLECT LOOP MEASURED IT FALSE. MineProcess's collect goal (search for
+            // `currentCollectGoal`) uses Goal.Block — the drop's own cell — after an
+            // adjacency goal on the three-ore rig reported ARRIVED standing 1.6 blocks out
+            // and then sat there for the whole budget, against a magnet radius of ~1.4.
+            // Note what that predicts HERE: a Near(ib,1) satisfied at an orthogonal
+            // neighbour, a terminal step, and no pickup — which is the same surface as the
+            // `sweepTicks=101, 0.8 blocks moved, lastStep=ARRIVED` reading above, currently
+            // attributed entirely to the missing goal reset. The reset is real and stays;
+            // what is NOT established is that it was the only cause, because the diag round
+            // never recorded the eye-to-item distance that would separate "parked in a
+            // terminal" from "arrived and still out of reach". Take that reading before
+            // changing the radius in either direction — widening to Block here without it
+            // would trade one unmeasured claim for another.
             lastGoalBlock = null;
         }
         return false;
