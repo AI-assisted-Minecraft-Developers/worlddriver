@@ -257,12 +257,36 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
             final int[] t = { 0 };
             final boolean[] broke = { false };
             final double[] maxY = { startY };
+            // WHY THE DIG COSTS WHAT IT COSTS — the stance, sampled, because the tick count alone
+            // cannot say. Vanilla's Player#getDestroySpeed divides by 5 when the body is off the
+            // ground and again by 5 when its eyes are in water, and this arm measured 379 ticks for
+            // ONE dirt block: bare-hand dirt is ~15 ticks, and 15 × 25 = 375. That arithmetic makes
+            // the ×25 look proved, but nothing here recorded `onGround`, so the off-ground half was
+            // inferred. The repo has measured both factors before — WalkerTickClimb's hopelessness
+            // gate notes「the same stone bank cell is 150t dug grounded ashore yet 750-3750t sampled
+            // mid-bob」— and that same gate PRICES digs assuming「the bot can always ground」, while
+            // DrownEscapeChain#tick holds jump unconditionally and never does. These two rows decide
+            // whether that gap is what this arm is paying for.
+            //
+            // Values, not predicates: a rate and a block id, so a later reader can redo the judgement
+            // instead of inheriting mine. `底下` distinguishes「had a floor and never stood on it」
+            // (a fix at the jump) from「the pocket is deeper than 2」(a fix somewhere else entirely).
+            final int[] grounded = { 0 };
+            final double[] riseSum = { 0.0 };
             ctx.await(() -> {
                 body.setAirSupply(PINNED_AIR);           // latched, never drowning — see PINNED_AIR
                 maxY[0] = Math.max(maxY[0], body.getY());
+                if (body.onGround()) grounded[0]++;
+                riseSum[0] += body.getDeltaMovement().y;
                 if (!level.getBlockState(lid).is(Blocks.DIRT)) broke[0] = true;
                 return broke[0] || ++t[0] >= LID_BUDGET;
             }).within(LID_BUDGET + 100).then(() -> {
+                BlockPos under = body.blockPosition().below();
+                ctx.record("盖.着地率", grounded[0] + "/" + t[0] + " 采样着地"
+                        + "（挖速腐蚀：不着地 ÷5，眼在水里再 ÷5）");
+                ctx.record("盖.脚下", under.toShortString() + " = " + level.getBlockState(under).getBlock());
+                ctx.record("盖.竖直速度均值", String.format(Locale.ROOT, "%.5f 格/tick（%d 个采样求和 %.3f）",
+                        t[0] == 0 ? 0.0 : riseSum[0] / t[0], t[0], riseSum[0]));
                 ctx.record("盖.破了", broke[0] + "（用了 " + t[0] + "/" + LID_BUDGET + " tick）");
                 ctx.record("盖.末态", lid.toShortString() + " = " + level.getBlockState(lid).getBlock());
                 ctx.record("升.净升", String.format(Locale.ROOT, "%.3f 格", maxY[0] - startY));
