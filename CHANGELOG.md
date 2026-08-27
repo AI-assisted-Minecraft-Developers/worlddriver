@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **A pour is now judged by the cell the fluid lands in, not by the block the ray hits.**
+  `JourneyCast.pourInto`'s line guard compared `hit.getBlockPos()` against the bed under the target
+  and nothing else, while the comment fifteen lines above it stated the assumption it never
+  checked —「the fluid goes into the cell in front of the face it hit — which is the water cell
+  above」. Vanilla `BucketItem.use` empties every non-water fluid at
+  `blockpos.relative(direction)`, so the hit FACE is half the answer and the guard only ever read
+  the other half.
+
+  Measured on the real ladder: rung 11 stood at `3,60,63` — two rows BELOW its target `3,62,63`,
+  which `Goal.Near(water, 2)` admits because it measures in 3D — read
+  `cast.picks = 3,61,62 dirt face=south`, was waved through, spent the run's only bucket, and cast
+  obsidian at `3,61,63`. `obsidian.anywhere` recorded that cell byte for byte while the assertion
+  read the chosen one and found water, so the rung reported「casts obsidian in the chosen cell
+  (false)」 — the failure mode this very method's javadoc names as the worst one. The passing control
+  differs in exactly one row: `face=up`.
+
+  Three changes, and the second is the one that matters. `JourneyFill.bucketPourLandsIn` is a new
+  pour-side predicate returning the landing cell; its javadoc says why it must NOT be merged with
+  `bucketLineLandsOn` (filling takes fluid out of the hit block, so the face is irrelevant there
+  and comparing the block is right). The re-pick guard in `approachAndPour` now asks the pour's
+  question instead of the fill's — it was calling `bucketLineLandsOn`, which is what approved
+  `3,62,62` in the first place, so leaving it would have kept it choosing exactly the cells the
+  new final guard must refuse. And `pourInto` gets the hard check adjacent to the use, because
+  `approachAndPour` falls through to a pour once its retries run out.
+
+  A mismatch routes to a WALK, never to the clearing branch: when the ray lands on the bed with
+  the wrong face the block in the way IS the floor holding up the target water, and mining it
+  would drain the pool being poured into. The bed therefore joins `bed.below()` in the
+  never-clear set, and the retry tightens `Goal.Near` from radius 2 to radius 1 — which is not a
+  guess but the geometry: radius 1 admits feet no lower than the bed's own row, hence an eye above
+  the bed's top face, hence an `up` hit. A retry at the same radius settles in the same cell.
+
 - **The raise that walks to a pour column now pays a toll for leaving the alcove.**
   `JourneyPour.raiseTo` hands `walkToColumn` a `CostModifier` charging `JourneyTerrain.LIP_TAX`
   (300, against 10 for a plain walk edge) for every step above the alcove's own ceiling —
