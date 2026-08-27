@@ -129,7 +129,8 @@ public final class BotConfig {
 
     /** Decouple camera from movement on a dry descent: aim the CAMERA at a stable far-ahead
      *  path heading (kills the 下山转圈 yaw-wind) while the body keeps driving the immediate node.
-     *  See {@code Walker.DESCENT_CAM_FAR_DIST}. Toggle for A/B. */
+     *  See {@code WalkerConstants.DESCENT_CAM_FAR_DIST} (bot/movement, package-private —
+     *  not a member of {@code Walker}, which is where this used to point). Toggle for A/B. */
     public static volatile boolean descentCameraDecouple = true;
 
     /** Extend {@link #descentCameraDecouple} to ALL dry launches (parkourDescend / parkour / fall):
@@ -1337,7 +1338,8 @@ public final class BotConfig {
      *  it exceeds {@code survivableFall(health)} (see ClientWorldView) — a
      *  step-down the bot would walk away from unharmed is never penalised
      *  (lethal-only refinement, 2026-06-06), so harmless descents stay cheap.
-     *  <p><b>Default 15 (on).</b> NOTE (validated 2026-06-06): this penalty is
+     *  <p><b>Default 200 (on).</b> NOTE (validated 2026-06-06, when the default was still
+     *  15 — the raise is recorded below): this penalty is
      *  load-bearing — it keeps the planner on the traversable ridge instead of
      *  committing a best-effort segment that DIVES into a deep ravine "toward
      *  the goal". With it at 0 the bot fell ~29 blocks into a pit at the spawn
@@ -1775,7 +1777,7 @@ public final class BotConfig {
 
     /** Walker WATER-SURFACE walk relaxed-advance: the turn / terminal / WALL-CORNER freeze breaker for a
      *  buoyant surface swimmer. A flat {@code walk} water-surface node sits the bot ~0.67 b out (cur2 floor
-     *  ~0.455, just over the tight {@link Walker#REACH_DIST_SQ}=0.45) so {@code within} never closes; a
+     *  ~0.455, just over the tight {@code WalkerConstants.REACH_DIST_SQ}=0.45) so {@code within} never closes; a
      *  straight crossing advances each node via {@code passed} (forward momentum carries the body past), but at
      *  a TURN / terminal / wall-corner node the bot is not crossing toward the next node so {@code passed}
      *  can't fire either — the flat water walk node then has NO relaxed-advance and the bot orbits / freezes
@@ -2258,7 +2260,7 @@ public final class BotConfig {
      *  finally expires ~50 s later and lets the (already-working) back-off burst free it.
      *  <p><b>The fix</b>: when ON, release the latched riser EARLY (latch {@code climbPillarGaveUp},
      *  drop {@code waterClimbDigging} so {@code breakingEdge} falls, penalize the pocket cell) once the
-     *  dig has committed to one still-fully-solid riser for {@link Walker#FUTILE_BANK_DIG_TICKS} ticks
+     *  dig has committed to one still-fully-solid riser for {@code WalkerConstants.FUTILE_BANK_DIG_TICKS} ticks
      *  WHILE the bot stayed afloat the whole time AND the riser sits {@code >= FUTILE_BANK_DIG_MIN_RISE}
      *  above the foot — the unreachable-overhang signature. The existing reactive charge + anti-stuck
      *  burst then fire ~40 s sooner.

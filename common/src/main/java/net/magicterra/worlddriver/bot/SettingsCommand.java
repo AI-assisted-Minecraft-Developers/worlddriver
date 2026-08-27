@@ -440,7 +440,8 @@ public final class SettingsCommand {
      *
      * <p>Both guards used to be {@code rejected.stream().anyMatch(r -> r.startsWith(k))},
      * which conflates a key with every key that has it as a PREFIX. Nine such prefix pairs
-     * exist on the 244-key surface (autoBackfill/autoBackfillBlock, autoEat/autoEatFoodThreshold,
+     * exist on the key surface — the nine are named, the surface's size is not, because that
+     * number grows with every added flag (autoBackfill/autoBackfillBlock, autoEat/autoEatFoodThreshold,
      * cameraSlew, duskUrgent, mouseYield, pathDebug, riskBias, smoothLook, autoFight). The
      * live case was {@code {riskBias:true, "riskBias.scale":500}}: the out-of-range sibling
      * produced {@code "riskBias.scale out of range [0,400]"}, whose prefix matched

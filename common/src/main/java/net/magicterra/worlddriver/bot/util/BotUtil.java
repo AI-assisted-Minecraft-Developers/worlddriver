@@ -581,7 +581,7 @@ public final class BotUtil {
      * Walk the last fraction of a cell to the stand's centre before placing, or report that the
      * body is already centred enough to click.
      *
-     * <p>{@code Walker.REACH_DIST_SQ = 0.45} lets a leg ARRIVE ~0.67 short of the stand cell's
+     * <p>{@code WalkerConstants.REACH_DIST_SQ = 0.45} lets a leg ARRIVE ~0.67 short of the stand cell's
      * centre. Even sneaking — hull half-width 0.3 — that is not enough clearance from the placement
      * target when the stand is adjacent to it, and vanilla's {@code Level.isUnobstructed} refuses.
      * So the last quarter of a block is walked here, by the placer, rather than asked of the

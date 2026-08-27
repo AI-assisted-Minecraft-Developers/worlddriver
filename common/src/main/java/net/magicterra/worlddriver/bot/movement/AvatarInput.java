@@ -11,7 +11,7 @@ import net.minecraft.client.player.KeyboardInput;
  *
  * <p><b>Why.</b> With key-based control the body moves along the CAMERA yaw
  * ({@code LocalPlayer.travel} rotates the forward impulse by {@code getYRot()}). The
- * Walker slews the camera toward the heading at only {@link Walker#WALKER_MAX_YAW_SLEW_DEG}
+ * Walker slews the camera toward the heading at only {@link WalkerConstants#WALKER_MAX_YAW_SLEW_DEG}
  * °/tick for smooth, jump-free framing — so during a turn the camera lags the intended
  * heading and the forward key drives the body into a wall (the "被面前的方块挡住不动 / no
  * 动态纠偏" stall). Decoupling fixes this: the Walker computes the impulse that, AFTER

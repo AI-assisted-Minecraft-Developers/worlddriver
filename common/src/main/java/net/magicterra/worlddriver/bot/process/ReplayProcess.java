@@ -15,7 +15,8 @@ import java.util.List;
  * replay mode (no A*, no repath, no quick-start). Used by {@code mc.debug.replay}
  * so a recorded pathfinding wedge reproduces deterministically.
  *
- * <p>The caller ({@code BotApiImpl.replay}) has already restored the recorded
+ * <p>The caller ({@code ReplayInstaller.startReplay}, which {@code BotApiImpl.startReplay}
+ * delegates to — there is no {@code BotApiImpl.replay}) has already restored the recorded
  * block envelope and teleported the bot to the plan start. This process owns the
  * SAME {@link Walker} class the live goto uses; on its first tick it hands the
  * concatenated plan + edges to {@link Walker#beginReplay} and from then on just

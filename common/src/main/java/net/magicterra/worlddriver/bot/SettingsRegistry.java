@@ -63,8 +63,11 @@ public final class SettingsRegistry {
      * with nothing tying the two together — which is how it ended up documenting 125 of 241
      * keys with two rows whose "key" had swallowed its own range spec.
      *
-     * <p>Deliberately one-directional: an UNDOCUMENTED key is allowed (116 have no row yet,
-     * and demanding one would block adding a flag), but an ORPHANED row is not, because that
+     * <p>Deliberately one-directional: an UNDOCUMENTED key is allowed (demanding a row would
+     * block adding a flag). How many lack one is deliberately not written here, for the reason
+     * the class javadoc gives above: a total in prose outlives its own accuracy — count them
+     * from {@link #knownKeys()} and {@link SettingsDocs#documentedKeys()} instead. An ORPHANED
+     * row, on the other hand, is not allowed, because that
      * means a key was renamed or deleted and its prose was left pointing at nothing.
      */
     static void assertDocsResolve() {
