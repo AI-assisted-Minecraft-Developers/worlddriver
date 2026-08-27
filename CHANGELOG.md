@@ -85,6 +85,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **Every aim row now says whether the body had landed.** A ray from an airborne eye is not the ray
+  that was verified, and no other field in those rows could see it. Ladder-18's rung 12 died on
+  exactly that: `recover6` aimed with eye y=60.48 while `blockPosition()` reported `3,58,19` —
+  60.48 − 1.62 = 58.86, most of a block above the row it thought it was on and still falling — and
+  the extra 0.86 put the frame cell `4,60,19` on the line to the water in `4,59,19`, which from a
+  resting eye at 59.62 is not on the line at all. The row that already existed,「settle 这两 tick
+  里眼睛挪了 0.25 格」, cannot answer it: eleven of that run's twelve aims drifted 0.10–0.30 too and
+  every one of them ended on an integer row. **Drift is not the discriminator; where the feet ended
+  is.** `eyeNow` now prints the feet's y, whether it is on an integer row, and `onGround` — the pair
+  deliberately, because they disagree: `onGround` describes the last `move()` and lies in both
+  directions, while an integer feet-y is geometry and says nothing about support over a slab.
+  Gated by two more checks on `wd.journeyScoopPrintsTheHandItFiredWith`; poisoned, exactly those two
+  went red.
+
 - **The scoop's use now prints the hand it fired with and the ray it fired.** The pour has had
   `atUse` all along — both bodies' selected slot, both eyes, and the ray in BOTH fluid modes, taken
   at the instant of the use — and it is what makes a pour that did nothing debuggable. The scoop had
