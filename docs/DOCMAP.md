@@ -359,7 +359,10 @@ Phase 0 findings 是「推翻 D1 的证据」，而那一节自己写着「这�
 - 同一段的「Later phases add `MobAvatar`」是**从未兑现的未来承诺**（`find` 零命中）。
   ⛔ **javadoc 里的未来时一律不进文档。**
 
-⚠️ 这三条都在 `bot/sim/**` 与 `bot/BotApi.java`，**归 parity / 代码角色**，本角色只记账。
+⚠️ 三条的**归属**：一条在 `bot/BotApi.java`，两条在 **`bot/movement/Avatar.java`**
+——它们**讲的是 sim 的事，字却写在 `movement/`**。parity 角色拥有的是 `bot/sim/**`，
+不含 `movement/`，所以别按「讲谁就归谁」派活（同「存在不等于归属」：
+一句话的主语不是它所在的位置）。本角色只记账，两处都不动。
 
 ⚠️ 写法上定了一条对 `bot/` 专用的规矩：**只写缝与不变式，不写清单**。
 `bot/` 是全仓库 churn 最重的子系统，任何「32 个 process」「优先级 1000/900/…」的枚举
