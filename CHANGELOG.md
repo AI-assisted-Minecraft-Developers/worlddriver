@@ -37,10 +37,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   naming the column, so the next reader of a drowning death does not have to open the region file
   to learn which of the two dead ends it was.
 
-  ⚠️ What this does **not** claim: that the body would have survived. Underwater and unsupported
-  both multiply mining time by five, so the dirt lid is roughly 375 ticks of digging against a
-  survival window of roughly 290. Whether the lid-break wins that race is a separate measurement on
-  a live body; what changed here is that the race is now run at all.
+  ⚠️ What this does **not** claim: that the body would have survived. That race has since been
+  measured on a live body and the escape **loses it**.
+  `wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff` stages the death's own geometry — 1×1
+  pocket, dirt lid, a breathable column two cells away with stone in between — and the body does
+  turn to the lid and does break it, in **379 ticks**.
+  From the moment this reflex arms (`drownEscapeAirThreshold` = 100) a body has about 290: 100 ticks
+  of air, then 19 hit points at 2 per 20 ticks. So the same body in the same pocket still dies; what
+  changed is the manner, from pressed motionless against rock to digging and running out of breath.
+  Closing that gap is a separate change — the entry threshold is deliberately far below the idle
+  float's 240 so a planned dive is not preempted, and it can only be raised for a body that is
+  capped with no lateral route, which is precisely the case this release taught the scan to name.
+
+  The scene pins air below the threshold for its whole run, so its 379 is a DIG time and never a
+  survival result; the arithmetic against 290 is recorded beside it as a value, not asserted.
 
 ## 2026-08-27
 
