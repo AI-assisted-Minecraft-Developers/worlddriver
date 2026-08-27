@@ -50,11 +50,27 @@ import net.minecraft.tags.BlockTags;
  * <b>(b).</b> That run took four {@code inFire} blows at {@code 66,43,66}, {@code 70,43,69} twice and
  * {@code 71,43,69}. Every cell a 0.6-wide box at those positions can overlap — x±1, z±1, y 43–44 —
  * lies inside the census box of leg 3 ({@code x 60–72 / y 42–44 / z 65–70}) or of leg 4
- * ({@code x 69–73 / y 41–44 / z 67–86}), and <b>both of those rows were written before their leg
- * moved and both read {@code 0 个火格}</b>, over 234 and 400 scanned cells. Whichever leg owns the
- * blows, a census that PRECEDES them says the fire was not there. So the repair is a replan trigger,
- * not a cost — and taxing the cells beside fire, which is what (a) would have asked for, would have
- * been work aimed at a world that did not exist.
+ * ({@code x 69–73 / y 41–44 / z 67–86}), both of which read {@code 0 个火格} over 234 and 400 scanned
+ * cells. So the repair is a replan trigger, not a cost — and taxing the cells beside fire, which is
+ * what (a) would have asked for, would have been work aimed at a world that did not exist.
+ *
+ * <p><b>A census only answers this if it precedes the blow, so the blows have to be attributed to a
+ * leg — 「whichever leg owns them, some census precedes them」 is not an argument.</b> It reads like
+ * one and it was how this paragraph first stated the case, but it is false in the direction that
+ * matters: had {@code 66,43,66} belonged to leg 2, leg 3's census would have been written AFTER it,
+ * and leg 2's own box ({@code x 31–63}) does not reach x=66 — the blow would have had no census at
+ * all. The attribution, from two independent fields:
+ *
+ * <ul>
+ *   <li><b>Position.</b> {@code wp2.at} is {@code 61,43,66} and {@code wp2.track.direct}'s furthest
+ *       east sample is {@code 57,43,55}: leg 2 was never at x=66. Leg 3 runs {@code 61,43,66 →
+ *       71,43,69}, so {@code 66,43,66} is on it, and the other three sit at leg 4's start cell.</li>
+ *   <li><b>The clock.</b> {@code death.blow}'s {@code @N} is a SEGMENT tick, and {@code hp.trace}'s
+ *       write order runs {@code t161 → t28 → t12}: it resets twice, so those three blows are in
+ *       three different segments. Combined with the positions that fixes {@code t28} on leg 3 and
+ *       {@code t12/t52/t114} on leg 4 — and each leg's census is written from {@code .from}, which
+ *       is the PREVIOUS leg's arrival, i.e. before this leg's body has moved.</li>
+ * </ul>
  *
  * <p>Two cautions that came with the answer, both about what it does NOT say:
  *
