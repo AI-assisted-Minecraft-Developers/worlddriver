@@ -222,6 +222,27 @@ final class JourneyCast {
     private static final int CAST_APPROACHES = 3;
 
     private static void approachAndPour(SceneContext ctx, JourneyRig rig, BlockPos water, int tries) {
+        approachAndPour(ctx, rig, water, tries, CAST_APPROACH_RADIUS);
+    }
+
+    /**
+     * How near the walk is asked to end, and why the retry is allowed to tighten it to 1.
+     *
+     * <p>Two is what「adjacent, not merely near」bought — but {@code Goal.Near} measures in 3D, so
+     * radius 2 also admits standing two rows BELOW the target, which is where ladder-1 poured from
+     * ({@code 3,60,63} for a target at {@code 3,62,63}). From there the eye sits at y≈61.6, under
+     * the bed's own top face at y=62, and the ray can only reach that bed through a SIDE — so the
+     * lava lands beside the target no matter how many times the same goal is re-run.
+     *
+     * <p>Radius 1 is not a guess. It admits feet at y ≥ {@code target.y - 1} = the bed's own row,
+     * hence an eye at ≥ bed.y + 1.62, hence above the bed's top face — which is what makes an `up`
+     * hit geometrically available again. A retry at the SAME radius would settle instantly in the
+     * same cell and change nothing ([[a-retry-that-changes-nothing]] is this exact shape).
+     */
+    private static final int CAST_APPROACH_RADIUS = 2;
+
+    private static void approachAndPour(SceneContext ctx, JourneyRig rig, BlockPos water, int tries,
+                                        int radius) {
         if (water == null) {
             ctx.fail("附近没有底下实心的水面：身体在 " + rig.player().blockPosition()
                     + "（深水没有落点，浇下去的岩浆会沉，铸出的黑曜石也拿不回来）");
@@ -231,7 +252,7 @@ final class JourneyCast {
         // Adjacent, not merely near. A pour is a ray, and a ray aimed at a cell below the bank's lip
         // hits the lip: measured in the arena, where a mould two cells away swallowed the bucket and
         // left the target empty while the use still reported CONSUME.
-        rig.settle(new IntentProcess(new Intent(new Goal.Near(water, 2))), 2_000, () -> {
+        rig.settle(new IntentProcess(new Intent(new Goal.Near(water, radius))), 2_000, () -> {
             BlockPos at = rig.player().blockPosition();
             // HOW THIS LEG ENDED, on both branches. `rig.settle` runs its callback when the budget
             // is spent just as it does when the process finishes, and nothing here told them apart:
@@ -256,12 +277,23 @@ final class JourneyCast {
             // surveyed pool and walk again rather than dig upward into the pool's own floor: that
             // pool is above the body, so clearing the line means removing what holds the water,
             // and the reward for succeeding is water on the body's head.
-            if (again != null && !again.equals(water) && tries > 0
-                    && !JourneyFill.bucketLineLandsOn(rig, again.below(), false)) {
+            //
+            // ⚠️ ASK THE POUR'S QUESTION, NOT THE FILL'S. This guard used to call
+            // `bucketLineLandsOn`, which compares the hit BLOCK — the right question for an empty
+            // bucket, which takes the fluid out of whatever it lands on, and the wrong one here. It
+            // is the door that admitted ladder-1's `3,62,62`: the ray did land on that cell's bed,
+            // so the fill predicate approved it, and the pour then went one cell south of it. The
+            // re-pick has to be judged by the same invariant the pour is judged by or it will keep
+            // choosing exactly the cells the final guard must refuse.
+            BlockPos rePickLands = again == null ? null : JourneyFill.bucketPourLandsIn(rig, again.below());
+            if (again != null && !again.equals(water) && tries > 0 && !again.equals(rePickLands)) {
                 rig.evidence("cast.rePickBlocked", again.toShortString()
-                        + " 更近，但以满桶自己的射线打不到它的床格 " + again.below().toShortString()
-                        + " —— 退回勘测到的 " + water.toShortString() + " 再走一趟");
-                approachAndPour(ctx, rig, water, tries - 1);
+                        + " 更近，但从这儿以满桶自己的射线浇过去会落进 "
+                        + (rePickLands == null ? "MISS（射线够不着）" : rePickLands.toShortString())
+                        + "，不是它自己 —— 退回勘测到的 " + water.toShortString() + " 再走一趟");
+                // Radius carried, never reset: it only ever tightens, and handing a later leg the
+                // loose default would undo a tightening some earlier leg paid a walk for.
+                approachAndPour(ctx, rig, water, tries - 1, radius);
                 return;
             }
             // Did the walk actually ARRIVE? `Goal.Near` reporting done is not the same as being in
@@ -278,7 +310,27 @@ final class JourneyCast {
             if (range > limit && tries > 0) {
                 rig.evidence("cast.tooFar", String.format(java.util.Locale.ROOT,
                         "%.1fm > %.1fm，再走一次", range, limit));
-                approachAndPour(ctx, rig, aim, tries - 1);
+                approachAndPour(ctx, rig, aim, tries - 1, radius);
+                return;
+            }
+            // WHICH CELL THE POUR WOULD LAND IN — asked here, where a walk is still affordable.
+            // Everything above answers「can the ray REACH it」: `cast.range` measures a distance and
+            // the re-pick measures a line. Neither answers「where does the fluid GO」, and vanilla
+            // decides that with the hit FACE, not the hit block. ladder-1 stood at `3,60,63` — two
+            // rows under its target — read `cast.picks = 3,61,62 dirt face=south`, poured, and cast
+            // its one bucket of obsidian at `3,61,63`.
+            //
+            // The remedy is to MOVE, and it has to be here, because down in `pourInto` the only
+            // thing left to try is digging — and the block in the way there is the bed itself, i.e.
+            // the floor holding up the very water being poured into.
+            BlockPos lands = JourneyFill.bucketPourLandsIn(rig, aim.below());
+            if (!aim.equals(lands) && tries > 0 && radius > 1) {
+                rig.evidence("cast.landsElsewhere", "站在 " + at.toShortString() + " 浇会落进 "
+                        + (lands == null ? "MISS（射线够不着床格）" : lands.toShortString())
+                        + "，不是要浇的 " + aim.toShortString()
+                        + " —— 打中的块对、面不对，这是站位不是障碍物；收紧到半径 " + (radius - 1)
+                        + " 再走一趟（半径 1 才逼得脚不低于床格那一排，眼才越过床格顶面）");
+                approachAndPour(ctx, rig, aim, tries - 1, radius - 1);
                 return;
             }
             pourInto(ctx, rig, aim);
@@ -334,8 +386,26 @@ final class JourneyCast {
             // not a failed pour: it is a SUCCESSFUL pour into the wrong cell, and by the time the
             // assertion reads the chosen cell the lava is gone.
             BlockPos bed = target.below();
-            boolean onLine = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                    && hit.getBlockPos().equals(bed);
+            // AND THE FACE, NOT ONLY THE BLOCK. Vanilla `BucketItem.use` empties a non-water fluid
+            // at `blockpos.relative(direction)` — the block the ray hit PLUS the face it hit. This
+            // guard compared `getBlockPos()` alone for its whole life, while the comment fifteen
+            // lines above stated the assumption it never checked («the fluid goes into the cell in
+            // front of the face it hit — which is the water cell above»). ladder-1 lost rung 11 in
+            // that gap: hit `3,61,62` from the south, guard said「right block」, bucket spent,
+            // obsidian at `3,61,63`, and the rung reported「casts obsidian in the chosen cell
+            // (false)」 — the failure mode this method's own comment names as the worst one.
+            //
+            // NOT `face == UP`. A ray that hits the target's NEIGHBOUR on a side face and lands in
+            // the target is a perfectly good pour; the invariant is the landing CELL, so the landing
+            // cell is what is compared. (Asking for UP would refuse a whole class of legal pours —
+            // the mirror mistake of the one being fixed.)
+            BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                    ? hit.getBlockPos().relative(hit.getDirection()) : null;
+            rig.evidence("cast.lands", (lands == null ? "MISS" : lands.toShortString())
+                    + "（打中的块 + 打中的面，香草 BucketItem 就是这么落的）；要浇的是 "
+                    + target.toShortString()
+                    + (target.equals(lands) ? " ✓ 一致" : " ✗ 不一致 —— 不倒"));
+            boolean onLine = target.equals(lands);
             if (!onLine) {
                 BlockPos inTheWay = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos() : null;
@@ -348,7 +418,20 @@ final class JourneyCast {
                 if (holdsThePool)
                     rig.evidence("cast.wontClear", inTheWay.toShortString()
                             + " 撑着要浇的那格水，清掉它等于把水放到自己头上 —— 不清");
-                if (clearings > 0 && inTheWay != null && !holdsThePool) {
+                // ⛔ NOR THE BED. The bed is what the aim ASKS the ray to hit, so「the ray hit the
+                // bed」can never be an obstruction — reaching this line with `inTheWay == bed` means
+                // the block was right and the FACE was wrong, which is a standing position and not
+                // something in the way. Mining it would remove the floor under the target water and
+                // drain the pool this pour needs, i.e. the fix for one defect opening a worse one.
+                // Read `cast.lands` for where the fluid would have gone; `cast.landsElsewhere`
+                // upstream is where a body still has the budget to move instead.
+                boolean isTheBed = inTheWay != null && inTheWay.equals(bed);
+                if (isTheBed)
+                    rig.evidence("cast.wrongFace", inTheWay.toShortString()
+                            + " 正是瞄的床格，打中的面是 " + hit.getDirection() + " ⇒ 流体会落进 "
+                            + (lands == null ? "MISS" : lands.toShortString())
+                            + "。这是站位不是障碍 —— 挖掉它等于抽走那格水的地板，不清");
+                if (clearings > 0 && inTheWay != null && !holdsThePool && !isTheBed) {
                     // A plant stops the RAY but not the BODY. short_grass and seagrass have no
                     // collider — the body walks through them — yet `getPlayerPOVHitResult` clips on
                     // Block.OUTLINE, which a plant has, so they land square on the aiming line. And
@@ -391,10 +474,14 @@ final class JourneyCast {
                 // (Measured: two clearings in a row failed to remove the same seagrass, so the
                 // third attempt poured blind. Why mineBlock cannot break it is a separate finding;
                 // not choosing that cell in the first place is the fix, and this is the backstop.)
-                ctx.fail("浇筑瞄准线被挡住，且清不掉：想浇 " + target.toShortString()
+                ctx.fail((isTheBed ? "浇筑站位不对（不是被挡）：" : "浇筑瞄准线被挡住，且清不掉：")
+                        + "想浇 " + target.toShortString()
                         + "（瞄 " + bed.toShortString() + "），射线停在 "
                         + (inTheWay == null ? String.valueOf(hit.getType())
-                            : inTheWay.toShortString() + " " + level.getBlockState(inTheWay).getBlock())
+                            : inTheWay.toShortString() + " " + level.getBlockState(inTheWay).getBlock()
+                              + " face=" + hit.getDirection())
+                        + "，流体会落进 " + (lands == null ? "MISS" : lands.toShortString())
+                        + "，身体在 " + fp.blockPosition().toShortString()
                         + "。没有倒 —— 一桶岩浆只有一次机会，倒下去只会浇歪并且把失败写成"
                         + "\"浇不出黑曜石\"");
                 return;

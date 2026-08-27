@@ -1060,19 +1060,54 @@ public final class JourneyFill {
      *                  on different cells 1.4 blocks apart from one eye in one tick.
      */
     static boolean bucketLineLandsOn(JourneyRig rig, BlockPos cell, boolean hitFluids) {
+        var hit = bucketClip(rig, cell, hitFluids);
+        // null is the degenerate zero-length segment — the eye is INSIDE the cell, which this
+        // predicate has always answered true and which the extraction refactor must not silently
+        // turn into false.
+        if (hit == null) return true;
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
+                && hit.getBlockPos().equals(cell);
+    }
+
+    /**
+     * The cell a FULL bucket used from here, aimed at {@code bed}, would actually empty into — or
+     * null if its ray reaches nothing.
+     *
+     * <p>NOT the same question as {@link #bucketLineLandsOn}, and the difference is the whole
+     * finding. Filling takes the fluid OUT of the block the ray lands on, so which face was hit is
+     * irrelevant and comparing {@code getBlockPos()} is right. Pouring puts the fluid in front of
+     * that face: vanilla {@code BucketItem.use} computes {@code blockpos.relative(direction)} and,
+     * for every non-water fluid, empties there unconditionally. So the two predicates look alike and
+     * one of them must add the face — do not "unify" them back.
+     *
+     * <p>Measured: ladder-1 lost rung 11 to exactly this. The body stood two rows BELOW the target
+     * water, its ray hit the bed `3,61,62` on its `south` face, the block-only check said「right
+     * block」, the run's one bucket poured, and obsidian appeared at `3,61,63` while the assertion
+     * read `3,62,62` and found water. A pour into the wrong cell is worse than a pour that never
+     * fires, because the lava is gone by the time anything can tell.
+     */
+    static BlockPos bucketPourLandsIn(JourneyRig rig, BlockPos bed) {
+        var hit = bucketClip(rig, bed, false);
+        return hit == null || hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK
+                ? null : hit.getBlockPos().relative(hit.getDirection());
+    }
+
+    /** The one clip both bucket predicates ask, so they can never disagree about the ray while
+     *  disagreeing about what to read off it. Null only for a degenerate zero-length segment, which
+     *  {@link #bucketLineLandsOn} answers true and a pour cannot answer at all. */
+    private static net.minecraft.world.phys.BlockHitResult bucketClip(
+            JourneyRig rig, BlockPos cell, boolean hitFluids) {
         var p = rig.player();
         var eye = p.getEyePosition();
         var centre = net.minecraft.world.phys.Vec3.atCenterOf(cell);
         var dir = centre.subtract(eye);
         double len = dir.length();
-        if (len < 1.0e-4) return true;
+        if (len < 1.0e-4) return null;
         var to = len <= BUCKET_REACH ? centre : eye.add(dir.scale(BUCKET_REACH / len));
-        var hit = p.level().clip(new net.minecraft.world.level.ClipContext(eye, to,
+        return p.level().clip(new net.minecraft.world.level.ClipContext(eye, to,
                 net.minecraft.world.level.ClipContext.Block.OUTLINE,
                 hitFluids ? net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY
                           : net.minecraft.world.level.ClipContext.Fluid.NONE, p));
-        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
-                && hit.getBlockPos().equals(cell);
     }
 
     /**
