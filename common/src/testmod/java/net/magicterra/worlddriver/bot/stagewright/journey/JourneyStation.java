@@ -129,25 +129,23 @@ final class JourneyStation {
     }
 
     /**
-     * The question {@code PlaceNearby.place} actually asks — eight horizontal offsets across three
-     * vertical layers, {@code canBeReplaced} over a support that is neither air nor replaceable.
-     *
-     * <p>This helper used to ask a different, stricter one: four orthogonal neighbours, foot level
-     * only, {@code !blocksMotion()} over {@code blocksMotion()}. Twenty-four cells versus four. So it
-     * declared {@code station.noGround} and sent the body walking in places where the real placer
-     * would have succeeded immediately — visible in two green runs that carry `station.noGround`
-     * beside a craft that worked anyway — and, worse, its walk could leave a good spot for a bad one.
-     *
-     * <p>Asking the same question as the code that will actually do the placing is the whole fix.
-     * Two tests of the same condition that disagree are a bug generator: one of them is always wrong,
-     * and which one is not knowable from the failure.
-     */
-    /**
      * Would the placer find somewhere to put a station from this cell?
      *
      * <p>Mirrors {@code PlaceNearby.place}'s scan — the same eight offsets over the same three
      * {@code dy} rows — but its support test is <b>stricter on purpose</b>, and the difference is a
      * measured one.
+     *
+     * <p><b>The two halves are treated differently on purpose, and an earlier generation of this
+     * doc argued the opposite</b> — that mirroring the placer exactly was the whole fix. Read it
+     * as a rule and you would delete the {@code isFaceSturdy} line below and put the lily pad back.
+     * The OFFSETS mirror because a narrower scan produces false negatives: this helper once asked
+     * four orthogonal neighbours at foot level only — four cells against these twenty-four — and
+     * declared {@code station.noGround} where the real placer would have succeeded immediately,
+     * visible in two green runs carrying a {@code station.noGround} row beside a craft that worked
+     * anyway, and its walk could leave a good spot for a bad one. The SUPPORT test tightens because
+     * a looser one produces false positives, which is the lily pad below. Widening the offsets and
+     * tightening the support are the same correction applied to two halves that fail in opposite
+     * directions, not a contradiction.
      *
      * <p>{@code PlaceNearby} accepts any support that is not air and not replaceable, and then
      * clicks its top face. A LILY PAD satisfies that and cannot be built on. Ladder j47's furnace

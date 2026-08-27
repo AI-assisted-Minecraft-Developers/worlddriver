@@ -161,10 +161,11 @@ public final class JourneyPortalRung {
      * the pool and the mould's face is cut on the same side, which is what keeps the two of them from
      * meeting: the alcove sits at the foot of the last step, and every step above it is both higher
      * and further back.
+     *
+     * <p>Package-visible so a rehearsal can pick a standing spot BY the answer this returns, rather
+     * than re-deriving it. A second copy of this rule is a second thing to keep in step, and the
+     * whole point of the orientation parameter is that the staged side and the carved side agree.
      */
-    /** Package-visible so a rehearsal can pick a standing spot BY the answer this returns, rather
-     *  than re-deriving it. A second copy of this rule is a second thing to keep in step, and the
-     *  whole point of the orientation parameter is that the staged side and the carved side agree. */
     static Direction awayFrom(BlockPos lava, BlockPos at) {
         int dx = Integer.signum(at.getX() - lava.getX());
         int dz = Integer.signum(at.getZ() - lava.getZ());

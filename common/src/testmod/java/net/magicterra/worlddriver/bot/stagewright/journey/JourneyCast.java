@@ -86,6 +86,9 @@ final class JourneyCast {
                   + "，先上岸再浇"
                 : "否 —— " + at.toShortString() + "，脚下=" + lvl.getBlockState(at.below()).getBlock());
         if (!afloat) { then.run(); return; }
+        // dryUnderfoot is the descent's own predicate for REFUSING a wet column; it is asked here
+        // for the opposite reason — the nearest column that PASSES it is where the body gets ashore.
+        // Ranked by horizontal distance only: the y is whatever that column's daylight is.
         BlockPos dry = JourneyTerrain.nearestDryColumn(lvl, at, DRY_LAND_SEARCH);
         rig.evidence("lava.exit.dryLand", dry == null
                 ? DRY_LAND_SEARCH + " 格内没有一柱是干的" : dry.toShortString());
@@ -184,10 +187,6 @@ final class JourneyCast {
                 + "，脚下=" + lvl.getBlockState(at.below()).getBlock() + "，无干立足=" + wet
                 + "，血 " + rig.player().getHealth() + "，空气 " + rig.player().getAirSupply());
     }
-
-    /** The nearest column with standing room at its own surface, by {@link JourneyTerrain#dryUnderfoot}
-     *  — the same predicate the descent uses to refuse a wet column, asked here for the opposite
-     *  reason. Ranked by horizontal distance only: the y is whatever that column's daylight is. */
 
     /**
      * Pour the lava into standing water, at a cell chosen before the pour.

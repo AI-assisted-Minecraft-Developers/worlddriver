@@ -101,8 +101,6 @@ public final class JourneyTerrain {
         return sb.toString();
     }
 
-    /** The interior (or, for the top pair, the notch above) that the water goes into for this cell. */
-
     /**
      * A column a shaft may sink beside the lava: solid at the fluid's own level, and lava-free from
      * there to the surface.

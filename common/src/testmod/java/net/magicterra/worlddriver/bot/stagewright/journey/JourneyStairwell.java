@@ -40,10 +40,11 @@ final class JourneyStairwell {
      * <p>Both ends are walked to BY NAME — {@link #goUpToThePool} asks for {@link #stairTop} and
      * {@link #returnToTheForge} for {@link #stairBottom} — which is the whole point of cutting a
      * staircase instead of a shaft: the two legs of every cast become one {@code IntentProcess} walk
-     * each, with no scripted climb and no scripted descent to go wrong between them. */
-    /** Package-private since the drain moved to {@link JourneyDrain}: the stair foot is the one
-     *  coordinate every file that reads it has to agree on, and a copy would be a second author
-     *  for it. */
+     * each, with no scripted climb and no scripted descent to go wrong between them.
+     *
+     * <p>Package-private since the drain moved to {@link JourneyDrain}: the stair foot is the one
+     * coordinate every file that reads it has to agree on, and a copy would be a second author
+     * for it. */
     static BlockPos stairTop, stairBottom;
 
     /** Package-private since the mould moved to {@link JourneyPortalRung}: the carve takes the
