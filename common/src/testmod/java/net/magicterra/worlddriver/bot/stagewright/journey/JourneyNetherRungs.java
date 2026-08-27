@@ -289,6 +289,10 @@ public final class JourneyNetherRungs {
         rig.evidence(leg + ".band", "这一段的免税天花板 y=" + ceiling
                 + "（取自路点表，不取自身体所在高度）；每高出一格加价 " + (int) BAND_TAX
                 + "，一格平走是 10");
+        // BEFORE THE BODY MOVES. See JourneyFireCensus: the planner already refuses fire as a foot
+        // cell, so a body that ends up centred in one either left its plan or met fire that was not
+        // there when the plan was made — and only a reading taken at THIS instant can tell which.
+        rig.evidence(leg + ".fire", JourneyFireCensus.line(rig.ctx().level(), at, want, FIRE_PAD));
         JourneyFlight flight = JourneyFlight.watching(rig, at, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
                         lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
@@ -446,6 +450,12 @@ public final class JourneyNetherRungs {
         // plans under different rules than the thing it is falling back from is a second mechanism
         // wearing the first one's name, and this file has already paid for one of those.
         int ceiling = bandCeiling(i);
+        // A SECOND CENSUS, AND NOT OF THE SAME BOX. `.fire` was drawn from the leg's start; this one
+        // starts where the detour left the body, so the two spans overlap rather than coincide and a
+        // cell present in one and absent from the other may simply be outside the other's bounds.
+        // What the pair is good for is a cell inside BOTH: fire there in the second row and not the
+        // first is dated after the plan, which is family (b). See JourneyFireCensus.
+        rig.evidence(leg + ".fireAgain", JourneyFireCensus.line(rig.ctx().level(), over, want, FIRE_PAD));
         JourneyFlight flight = JourneyFlight.watching(rig, over, want.getX(), want.getZ());
         rig.settle(new IntentProcess(new Intent(new Goal.Near(want, WAYPOINT_ARRIVE_WITHIN),
                         lipAndBandTax(ceiling), NO_PARKOUR, List.of())),
@@ -612,6 +622,22 @@ public final class JourneyNetherRungs {
 
     /** Per block above a corridor leg's own Y band. See {@link #lipAndBandTax}. */
     private static final double BAND_TAX = 100.0;
+
+    /**
+     * How far outside the two endpoints the fire census looks.
+     *
+     * <p>One, because a leg finishes inside {@link #WAYPOINT_ARRIVE_WITHIN} of its waypoint and walks
+     * the span a cell or so off its nodes; a pad of one keeps the body's actual line inside the box
+     * without turning the box into the whole region.
+     *
+     * <p>⚠️ <b>The box is not the route</b>, and no pad makes it one — a corner the search cuts wide
+     * leaves it. So a census that comes back empty says「no fire in this neighbourhood when the plan
+     * was made」and NOT「the body met no fire」, and the row says so in as many words. Widening this
+     * to cover every possible bulge would answer a question nobody asked at the cost of making every
+     * corridor read as fiery; the reading that discriminates is a cell that appears in a LATER census
+     * of a box that already contained its position.
+     */
+    private static final int FIRE_PAD = 1;
 
     /**
      * Fail the corridor AT the cell the search gave up on, without letting the fallback move the

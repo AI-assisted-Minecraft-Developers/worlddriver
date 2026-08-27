@@ -504,6 +504,10 @@ wd.rampSeparatesAFaceThatExistsFromOneItCanHit
 # then `cast8.lift.rampedY = 57/59（停在 1, 57, 19，要的落脚格 3, 59, 19）`. Judges the decision,
 # not the walk — a settle needs a JourneyRig and a scene cannot host one.
 wd.rampClimbsTheFlightItJustLaid
+# Calibration for the corridor fire census. Rung 14 burnt off ten hit points and the archive has
+# no column that separates「the fire was there when the leg was planned」from「it appeared after」.
+# The census is that column; this pins that it can say yes (B) AND still say no (A, C, D).
+wd.netherCensusNamesTheFireInTheCorridorBox
 # A ruler, not a test: zero assertions, only ctx.record. Permanently optional — it has no
 # verdict to give. Its readings compare the loader's factory body against a JoinedBody in the
 # same run, which is the only way to tell a FakePlayer-specific difference (retiring that body
