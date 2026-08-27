@@ -25,6 +25,27 @@ public final class SettingsCommand {
 
     private SettingsCommand() {}
 
+    /**
+     * Apply the param map to {@link BotConfig} / per-bot state and return the resulting snapshot.
+     *
+     * <p><b>Why {@code lowHealthCareful} has no branch of its own.</b> It used to have one, sitting
+     * just above the {@code pathfinder.*} clamps: a bare write plus {@code applied.add()} — no
+     * clamp, no alias, no list validation, no side effect. That is the exact shape of the ~100
+     * plain toggles already deleted from this method, and while it stood, the comment claiming
+     * only un-mechanizable keys remained was false. Dropping it hands the key to the reflective
+     * write at the bottom. Two facts make that substitution behaviour-preserving rather than
+     * merely plausible: the reflective loop skips a key only when it is ALREADY in {@code applied}
+     * (so nothing else was suppressing this one), and {@link SettingsNumericWrites} does not claim
+     * the key, so no second, range-checked writer was being shadowed — which is precisely what HAD
+     * been happening to the four pathfinder budget keys, and is recorded further down.
+     *
+     * <p><b>What that did not fix.</b> {@link SettingsDocs} advertises {@code [0,20]} for
+     * {@code lowHealthCareful} and nothing enforces it, before this change or after. It is the
+     * only documented range on this surface with no check — contrast {@code fleeDangerBoost}'s
+     * {@code [1,20]}, which is rejected below — so {@code {lowHealthCareful: 999}} is accepted and
+     * echoed back as applied. Closing that is a behaviour change and wants a scene that goes red
+     * without it; it is not a cleanup and was deliberately not folded in here.
+     */
     public static Map<String, Object> apply(BotApiImpl bot, Map<String, Object> params) {
         // Write path: any params keys that match a known setting + are in range are applied to
         // BotConfig immediately. #280 fix: an UNKNOWN key (one not in the single-source
@@ -71,11 +92,8 @@ public final class SettingsCommand {
             // which is exactly why they were mechanizable. What REMAINS below is only what
             // the reflective path genuinely cannot do: range clamps, aliased keys whose wire
             // name differs from the field name, list/registry validation, and the three
-            // side-effecting keys (paused, debugFly, autoBackfill).
-            if (params.get("lowHealthCareful") instanceof Number lhc) {
-                BotConfig.lowHealthCareful = lhc.doubleValue();
-                applied.add("lowHealthCareful");
-            }
+            // side-effecting keys (paused, debugFly, autoBackfill). lowHealthCareful had a branch
+            // here that was none of those and no longer does — see this method's javadoc.
             if (params.get("pathfinder.dangerPenalty") instanceof Number dp) {
                 double v = dp.doubleValue();
                 if (v < 0 || v > 1000) {
