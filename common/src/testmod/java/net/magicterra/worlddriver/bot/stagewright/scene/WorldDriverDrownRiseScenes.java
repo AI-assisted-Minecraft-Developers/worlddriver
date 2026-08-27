@@ -83,7 +83,21 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                 // one — measured on the integrated gate the day this went in: `CAPPED lid` rows = 0
                 // across the whole run, because `cappedColumn` is false in every arena above.
                 Scene.of("wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff", 900,
-                        WorldDriverDrownRiseScenes::breaksTheLidWhenOpenWaterIsWalledOff));
+                        ctx -> breaksTheLid(ctx, 0)),
+                // THE SAME ARM OVER WATER, and it is the control the pair above cannot be read
+                // without. Standing up to dig is guarded on「the cell under the feet can be stood
+                // on」, and a guard is only worth what its NEGATIVE arm is worth: over water the
+                // jump must stay held, because a body that sinks in a deep pocket drifts out of
+                // RISE_PROBE's half-block reach, loses the lid, and starts a jump/sink oscillation
+                // that resets the break progress every cycle. Three water cells under the foot is
+                // the shallowest staging that is unambiguously「deeper than two」.
+                //
+                // Read the two `盖.破了` numbers side by side: the shallow arm should fall to about
+                // a fifth once the body grounds, and THIS one should not move at all. A single
+                // number cannot tell「the fix worked」from「the dig got cheaper for some other
+                // reason」; two numbers whose ratio is predicted in advance can.
+                Scene.of("wd.drownEscapeClientKeepsFloatingWhenThePocketIsDeep", 900,
+                        ctx -> breaksTheLid(ctx, 3)));
     }
 
     /** Ticks the body is given to reach air. Ten times the ~20 ticks a free rise over this column
@@ -161,7 +175,12 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      * number against ~290 ticks (100 of air, then 19 HP at 2 per 20), and it is recorded as such —
      * this scene deliberately asserts nothing about it, because nobody has measured it.
      */
-    private static void breaksTheLidWhenOpenWaterIsWalledOff(SceneContext ctx) {
+    /**
+     * @param underFoot how many water cells sit BELOW the pocket's foot cell. Zero puts the body on
+     *        rock and lets the dig ground itself; three puts it over water, where the stand-up
+     *        guard must decline and the arm must behave exactly as it did before the guard existed.
+     */
+    private static void breaksTheLid(SceneContext ctx, int underFoot) {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("topology", (integrated ? "integratedServer" : "dedicatedServer")
@@ -185,16 +204,29 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         // itself. Same order as the other arms.
         // Same footprint as run()'s basin (±4, y0-1..y0+7) on purpose: the arenas sit side by side
         // and a scene that reaches further than its neighbours is a scene that stages theirs.
+        // Deep enough to hold the variant's own water column — the shell has to reach BELOW the
+        // deepest water cell or the pocket drains out of its own floor and the body is judged in
+        // air it made itself.
         for (int dx = -4; dx <= 4; dx++)
             for (int dz = -4; dz <= 4; dz++)
-                for (int y = y0 - 1; y <= y0 + 7; y++)
+                for (int y = y0 - 1 - underFoot; y <= y0 + 7; y++)
                     level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
 
         // The pocket: 1×1, two cells of water, so the eye is submerged with the feet on the floor.
+        // `underFoot` extends it DOWNWARD only: the lid, the bait and the body's entry cell are the
+        // same in both variants, so the one thing that differs between them is what the stand-up
+        // guard reads under the feet.
         final BlockPos foot = new BlockPos(ox, y0, oz);
         final BlockPos head = new BlockPos(ox, y0 + 1, oz);
         level.setBlockAndUpdate(foot, Blocks.WATER.defaultBlockState());
         level.setBlockAndUpdate(head, Blocks.WATER.defaultBlockState());
+        for (int d = 1; d <= underFoot; d++)
+            level.setBlockAndUpdate(new BlockPos(ox, y0 - d, oz), Blocks.WATER.defaultBlockState());
+        ctx.record("布景.脚下", underFoot == 0
+                ? "脚下 " + new BlockPos(ox, y0 - 1, oz).toShortString() + " 是石头 —— 站得住，"
+                  + "破盖时应当松跳落地"
+                : "脚下 " + underFoot + " 格是水（到 " + new BlockPos(ox, y0 - underFoot, oz).toShortString()
+                  + "）—— 站不住，破盖时应当保持按跳，读数应与修法之前一致");
 
         // The lid: DIRT, as it was in the death. Dirt and not stone on purpose — stone cannot be
         // chewed inside any breath at all, so a stone lid would make every reading a timeout and
