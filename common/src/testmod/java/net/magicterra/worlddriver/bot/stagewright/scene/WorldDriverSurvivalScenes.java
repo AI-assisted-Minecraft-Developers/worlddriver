@@ -880,6 +880,54 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
             check.accept(DrownEscapeChain.lateralEscapeDir(gridWorld(solid, water), 0, 60, 0) == null,
                     "death#27(d): capped with no open neighbour in range → null (lid-break fallback)");
         }
+        // (e) live death #31, the real ladder of 2026-08-26 rung 9. A column that CAN surface,
+        // with rock in between. Every cell below was transcribed from that run's own saved region
+        // file (fabric/run-journey-integrated/saves/JourneyClient), origin = the body's cell
+        // 81,59,82; the run's log shows this arm holding `forward` at 水平速度=0.0000 for 532
+        // ticks and the body drowning without moving one block.
+        //
+        // The old ring scan answered「can 81,59,80 surface?」— yes, it is air — and steered there.
+        // 81,59,81, the single cell between, is stone; 81,60,80, the picked column's HEAD cell, is
+        // stone too, so it was steering at a cell no two-block-tall body could ever occupy. And
+        // because a non-null answer skips the lid-break, the false positive did not merely fail to
+        // help: it withheld the one arm the class doc calls always-escapable.
+        {
+            Set<BlockPos> solid = new HashSet<>(), water = new HashSet<>();
+            water.add(new BlockPos(0, 59, 0));                 // 81,59,82 — the body, in the pocket
+            water.add(new BlockPos(0, 60, 0));                 // 81,60,82 — the source the tower guard named
+            solid.add(new BlockPos(0, 61, 0));                 // 81,61,82 — dirt: the lid ⇒ capped
+            solid.add(new BlockPos(0, 59, -1));                // 81,59,81 — stone: THE CELL NOBODY ASKED ABOUT
+            solid.add(new BlockPos(0, 59, 1));                 // 81,59,83 — stone
+            solid.add(new BlockPos(-1, 59, 0));                // 80,59,82 — stone
+            solid.add(new BlockPos(1, 59, 0));                 // 82,59,82 — stone
+            solid.add(new BlockPos(0, 60, -2));                // 81,60,80 — stone: the picked column's head
+            // 81,59,80 (0,59,-2) is air — genuinely breathable, genuinely unreachable. That IS the
+            // cell the live run steered at.
+            // 80,59,81 (-1,59,-1) is the lake, water y59..62 with a grass_block at y63 — so it is
+            // NOT breathable within the scan, which is why the live run reached past ring 1 to ring
+            // 2. Staged with that cap because the first draft of this case guessed air up there,
+            // and a guessed cell would have made ring 1 breathable and quietly re-pointed the whole
+            // case at a geometry the run never had. Measured, not assumed.
+            for (int y = 59; y <= 62; y++) water.add(new BlockPos(-1, y, -1));
+            solid.add(new BlockPos(-1, 63, -1));
+            WorldView w = gridWorld(solid, water);
+
+            int[] dir = DrownEscapeChain.lateralEscapeDir(w, 0, 59, 0);
+            check.accept(dir == null,
+                    "death#31(e): breathable column behind solid rock → null, so the lid-break runs "
+                    + "(got " + (dir == null ? "null" : dir[0] + "," + dir[1]) + ")");
+
+            // The positive control, and it is not decoration: `unreachable` is the OLD ring scan,
+            // verbatim. Requiring it to name a cell is requiring this staging to still contain the
+            // false positive — without it (e) would pass for the trivial reason that nothing is
+            // breathable anywhere, which is case (d), not this one. It must name 81,59,80 (0,59,-2),
+            // the very cell the live log printed as `dir=0,-2`.
+            DrownEscapeChain.LateralEscape scan = DrownEscapeChain.lateralEscapeScan(w, 0, 59, 0);
+            check.accept(scan.unreachable() != null && scan.unreachable().getZ() == -2
+                            && scan.unreachable().getX() == 0,
+                    "death#31(e): the dead end is named, and it is the cell the live run steered at "
+                    + "— expected 0,59,-2, got " + scan.unreachable());
+        }
     }
 
     private static void drownEscapeGateMatrixScene(SceneContext ctx) {

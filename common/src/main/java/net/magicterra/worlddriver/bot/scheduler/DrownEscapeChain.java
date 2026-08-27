@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
@@ -51,6 +52,11 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
  * {@code BotInteract#riseBlockedCell}, NOT by naming one cell above one column — break it,
  * {@code allowBreak} permitting, in the {@link BunkerChain} aim+attack style
  * ({@code AntiSuffocate} owns the eye-cell case; the lid here is above it).
+ *
+ * <p>The lateral arm steers only along a route it has walked in the scan — see
+ * {@link #lateralEscapeScan}. Until 2026-08-26 it steered at any column that could
+ * surface within five cells, whether or not the body could get there, and a body that
+ * cannot get there is a body denied the lid-break as well.
  *
  * <p>The one horizontal exception to「zero horizontal」, and it is smaller than the
  * lateral arm's: when the rise is blocked but the body's own column is clear to
@@ -171,7 +177,15 @@ public final class DrownEscapeChain implements Chain {
             int bx = (int) Math.floor(p.getX());
             int by = (int) Math.floor(p.getY());
             int bz = (int) Math.floor(p.getZ());
-            int[] dir = lateralEscapeDir(w, bx, by, bz);
+            LateralEscape lateral = lateralEscapeScan(w, bx, by, bz);
+            int[] dir = lateral.step();
+            if (dir == null && lateral.unreachable() != null && dbgV % 10 == 0)
+                // Same %10 window as the vertical row below (read, never incremented here — the
+                // two are one arm and must land on the same ticks, unlike the lateral row's own
+                // clock). This is the row whose absence sent a reader to the region file.
+                LOG.info("[drownEscape] CAPPED lid — 有能换气的柱 {} 但游不过去（{} 内无通路），"
+                                + "落回破盖 pos={},{},{}",
+                        lateral.unreachable().toShortString(), LATERAL_SCAN_R, bx, by, bz);
             if (dir != null) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(0f);
@@ -199,7 +213,13 @@ public final class DrownEscapeChain implements Chain {
                 // ticks without moving reads identically to one that was never asked. Bounded by
                 // the drowning episode itself, so the volume is ten rows per near-death.
                 if (dbg++ % 10 == 0)
-                    LOG.info("[drownEscape] CAPPED lid — lateral swim to open water dir={},{} "
+                    // `第一步` is the whole point of the field's name: it used to be the
+                    // DESTINATION, and a destination on this row cannot be told apart from a
+                    // reachable one — the row that read `dir=0,-2` on 2026-08-26 was naming a
+                    // column two cells away with stone in between. A first step is a cell the
+                    // scan has already asserted the body fits in, so a stalled body on this row
+                    // is now a physics question, not a routing one.
+                    LOG.info("[drownEscape] CAPPED lid — lateral swim to open water 第一步={},{} "
                                     + "pos={},{},{} air={} 水平速度={} y={}",
                             dir[0], dir[1], bx, by, bz, p.getAirSupply(),
                             String.format(java.util.Locale.ROOT, "%.4f",
@@ -415,8 +435,105 @@ public final class DrownEscapeChain implements Chain {
      *  pure-vertical) or capped-but-boxed-in with no open neighbour in range
      *  (caller falls back to lid-break). */
     public static int[] lateralEscapeDir(WorldView w, int bx, int by, int bz) {
-        if (!cappedColumn(w, bx, by, bz)) return null;
-        return nearestBreathable(w, bx, by, bz);
+        return lateralEscapeScan(w, bx, by, bz).step();
+    }
+
+    /**
+     * What the lateral scan found — {@link #lateralEscapeDir} is this, minus the half that
+     * only the log wants.
+     *
+     * @param step        {dx,dz} of the FIRST step of a route to open water, or null if there
+     *                    is none. Always one cell and always axis-aligned: a 0.6-wide body does
+     *                    not fit through the diagonal gap between two solid cells, so a diagonal
+     *                    "step" is a direction no body can travel.
+     * @param unreachable a column that CAN surface, within range, that no route reaches — or
+     *                    null when the scan found nothing at all. Both fields null is「boxed in,
+     *                    nothing anywhere」; this one set is「open water is right there, behind
+     *                    rock」. The caller falls back to the lid-break either way, but a human
+     *                    reading a death needs to tell them apart, and until 2026-08-26 could
+     *                    not: the answer had to be dug out of the saved region file.
+     */
+    public record LateralEscape(int[] step, BlockPos unreachable) { }
+
+    private static final LateralEscape NO_LATERAL = new LateralEscape(null, null);
+
+    /** Four-way steps. See {@link LateralEscape#step} for why no diagonals. */
+    private static final int[][] STEPS = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+    /**
+     * The capped-column lateral decision, in full.
+     *
+     * <p><b>A route, not a radius.</b> This used to be「scan outward in Chebyshev rings, take the
+     * first column that can surface」— a test on the DESTINATION alone, with nothing anywhere
+     * asking whether the body can get there. It killed the ladder of 2026-08-26 at rung 9: body in
+     * a 1×1 pocket at 81,59,82 under a dirt lid; the scan picked 81,59,80, which genuinely can
+     * surface; 81,59,81, the one cell between them, is stone. The body held {@code forward} into
+     * that stone for 532 ticks at a horizontal speed of exactly 0.0000 and drowned. The picked
+     * column was not even standable — its head cell 81,60,80 is stone too, so「can surface there」
+     * was answered for a body that could never have been there.
+     *
+     * <p>Worse than useless: {@code step == null} is what sends the caller to the lid-break, the
+     * arm the class doc calls always-escapable. A false-positive lateral target does not merely
+     * fail to help — it withholds the fallback. See {@code a-fix-that-cannot-reach-its-own-occasion}.
+     *
+     * <p>So: breadth-first over the body's own level, four-way, bounded to
+     * {@link #LATERAL_SCAN_R}, through cells the BODY fits in — foot AND head, water or passable,
+     * non-hazard. Asking only the foot is how a one-block-high crack reads as a corridor.
+     *
+     * <p>Deliberately 2-D. A route that needs the body to change level is a swim this reflex does
+     * not steer (it holds jump the whole time), so admitting one would put a target behind a
+     * manoeuvre the arm cannot perform — the same class of promise this method was just fixed for.
+     */
+    public static LateralEscape lateralEscapeScan(WorldView w, int bx, int by, int bz) {
+        if (!cappedColumn(w, bx, by, bz)) return NO_LATERAL;
+
+        final int span = 2 * LATERAL_SCAN_R + 1, o = LATERAL_SCAN_R;
+        boolean[][] seen = new boolean[span][span];
+        int[][][] firstStep = new int[span][span][];
+        ArrayDeque<int[]> queue = new ArrayDeque<>();
+        seen[o][o] = true;
+        queue.add(new int[]{0, 0});
+        while (!queue.isEmpty()) {
+            int[] cur = queue.poll();
+            for (int[] s : STEPS) {
+                int dx = cur[0] + s[0], dz = cur[1] + s[1];
+                if (Math.max(Math.abs(dx), Math.abs(dz)) > LATERAL_SCAN_R) continue;
+                if (seen[dx + o][dz + o]) continue;
+                seen[dx + o][dz + o] = true;
+                if (!bodyFits(w, bx + dx, by, bz + dz)) continue;   // the cell the old scan never asked about
+                // The first step of the route that reached here: our own step when we came
+                // straight off the body's cell, otherwise whatever got us to the cell we came from.
+                int[] step = (cur[0] == 0 && cur[1] == 0) ? s : firstStep[cur[0] + o][cur[1] + o];
+                firstStep[dx + o][dz + o] = step;
+                if (breathableColumn(w, bx + dx, by, bz + dz))
+                    return new LateralEscape(step, null);
+                queue.add(new int[]{dx, dz});
+            }
+        }
+        return new LateralEscape(null, firstBreathableInRange(w, bx, by, bz));
+    }
+
+    /** A cell this BODY can occupy at this level: foot and head both open and neither a hazard.
+     *  Two cells, because the body is two tall — see {@code the-collision-box-is-not-the-cell}. */
+    private static boolean bodyFits(WorldView w, int x, int y, int z) {
+        return cellOpen(w, new BlockPos(x, y, z)) && cellOpen(w, new BlockPos(x, y + 1, z));
+    }
+
+    private static boolean cellOpen(WorldView w, BlockPos c) {
+        return !w.isHazard(c) && (w.isWater(c) || w.isPassable(c));
+    }
+
+    /** The old scan, kept for exactly one purpose: naming the column the body could see and not
+     *  reach, so a death record says which of the two dead ends it was. Never steers anything. */
+    private static BlockPos firstBreathableInRange(WorldView w, int bx, int by, int bz) {
+        for (int r = 1; r <= LATERAL_SCAN_R; r++)
+            for (int dx = -r; dx <= r; dx++)
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue;
+                    if (breathableColumn(w, bx + dx, by, bz + dz))
+                        return new BlockPos(bx + dx, by, bz + dz);
+                }
+        return null;
     }
 
     /** True iff a SOLID cap blocks this column's ascent to air: scanning up from
@@ -442,25 +559,6 @@ public final class DrownEscapeChain implements Chain {
             return w.isPassable(c) && !w.isHazard(c);
         }
         return false;
-    }
-
-    /** Nearest horizontal neighbour column (Chebyshev rings, nearest first) the bot
-     *  can surface in. Returns {dx,dz} toward it, or null within {@link #LATERAL_SCAN_R}. */
-    private static int[] nearestBreathable(WorldView w, int bx, int by, int bz) {
-        for (int r = 1; r <= LATERAL_SCAN_R; r++) {
-            int bestD = Integer.MAX_VALUE, bdx = 0, bdz = 0;
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) continue; // this ring only
-                    if (breathableColumn(w, bx + dx, by, bz + dz)) {
-                        int d = dx * dx + dz * dz;
-                        if (d < bestD) { bestD = d; bdx = dx; bdz = dz; }
-                    }
-                }
-            }
-            if (bestD != Integer.MAX_VALUE) return new int[]{bdx, bdz};
-        }
-        return null;
     }
 
     /** Release exactly what OUR tick() drove. Guarded on {@link #keysHeld}
