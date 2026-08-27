@@ -210,14 +210,9 @@ public final class SettingsCommand {
                 else rejected.add("pathfinderQuickNodes out of range [0,10000]");
             }
             if (params.get("debugFly") instanceof Boolean dfly) {
-                // Test affordance: toggle creative flight on the CLIENT thread. Lets the
-                // flight-handling path be exercised live.
-                //
-                // ⚠️ This used to justify itself with「a real Java Runnable — the Rhino sandbox
-                // blocks this from eval」. That is not true by default: ScriptClassFilter reads
-                // System.getProperty("worlddriver.sandbox", "off") and, off, allows every class.
-                // Whether the affordance is still needed with the sandbox ON has not been
-                // measured — the false claim is what was removed, not the affordance.
+                // Test affordance: toggle creative flight on the CLIENT thread, exercising the
+                // flight-handling path live. ⚠️ Its old reason「the Rhino sandbox blocks this from
+                // eval」was false and is gone — see ScriptTools' javadoc; the affordance stays.
                 Minecraft mcf = Minecraft.getInstance();
                 mcf.execute(() -> {
                     LocalPlayer pf = mcf.player;
