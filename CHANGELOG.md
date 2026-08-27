@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-29
 
+- **The audit says where to aim instead, not just that the waypoint is broken.** Six of the
+  seventeen corridor waypoints report 「本格空且脚下也空」, and that row is a claim about a COLUMN —
+  it was being read as 「无论寻路怎么改都走不到」, which is a claim about a neighbourhood nobody had
+  looked at. Each broken waypoint now also gets its nearest standable cell, its true 3D distance,
+  and the name of the block under it. A cube of half-width 8 is scanned and candidates are ranked by
+  3D distance, which reconciles the two shapes with an arithmetic fact rather than a hope: **when
+  the winner lands at `d ≤ 8`, the sphere of radius `d` is entirely inside the scanned cube, so
+  「最近」 is literally true**; past that the row demotes itself to 「扫过的格里最近的」. The floor is
+  named and asked about lava separately, because a netherrack ledge with lava lapping at it is
+  standable and lethal, and 「可站」 alone would send a re-bake at it.
+
+- **The fire verdict's argument was right by luck, and now is not.** 「Whichever leg owns the blows,
+  some census precedes them」 reads like an argument and is false in the direction that matters: had
+  `66,43,66` belonged to leg 2, leg 3's census would have been written *after* it, and leg 2's own
+  box (`x 31–63`) does not reach x=66 — that blow would have had no census at all. The attribution
+  now comes from two independent fields. **Position:** `wp2.at` is `61,43,66` and `wp2.track.direct`
+  reaches no further east than `57,43,55`, so leg 2 was never at x=66; leg 3 runs `61,43,66 →
+  71,43,69`. **The clock:** `death.blow`'s `@N` is a segment tick and `hp.trace`'s write order runs
+  `t161 → t28 → t12`, resetting twice, so those three blows are in three different segments. That
+  fixes `t28` on leg 3 and `t12/t52/t114` on leg 4, and each leg's census is written from `.from`,
+  which is the previous leg's arrival. The verdict is unchanged; only now it is earned.
+
 - **The corridor's fire is lit after the leg is planned, not before.** The census added yesterday
   got its first ladder run, and it answers the question it was built for: **(b)**. That run took
   four `inFire` blows at `66,43,66`, `70,43,69` twice and `71,43,69`; every cell a 0.6-wide box at
