@@ -87,20 +87,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The real ladder reached the Nether — thirteen rungs, ten frame cells of ten, no staging.** The
   three runs before it all stalled at eleven with the ring eight cells cast. What moved is the top
-  pair's aim, and the same mould site produced both halves of the comparison — the run of
-  2026-08-25 and this one both began at `4,56,20`:
+  pair's aim, and the mould site is picked per run, so the comparison is only readable because one
+  of those stalled runs happened to draw the same one — both began at `4,56,20`:
 
   ```
-  2026-08-25  cast8.here.noAim      2 候选（5,60,20 / 4,59,20）
+  8/10, red   cast8.here.noAim      2 候选（5,60,20 / 4,59,20）
               cast8.raiseVeto       验得过 0
               cast8.raiseOffTheFlight  只有楼梯那一柱 2,20 …别无选择 —— 抬升多半会被冲下来
-              → 塔在水里 → raisedY = 59/59（不是同一柱）→ picks 落进 0,60,20 → 8/10，红
+              → 塔在水里 → raisedY = 59/59（不是同一柱）→ picks 落进 0,60,20
 
-  2026-08-27  cast8.here.noAim      4 候选（多出侧邻 4,60,21、4,60,19）
+  10/10,green cast8.here.noAim      4 候选（多出侧邻 4,60,21、4,60,19）
               cast8.raiseVeto       验得过 1
               cast8.raiseOffTheFlight  楼梯那一柱 2,20 也验得过…改用 3,20（落脚 3, 59, 20）
-              → 台阶垒在水外 → raisedY = 60/59（同一柱）→ stand.3 否决计数 {} → 10/10，绿
+              → 台阶垒在水外 → raisedY = 60/59（同一柱）→ stand.3 否决计数 {}
   ```
+
+  More than one commit separates the two, so this is a same-site comparison with the mechanism
+  visible end to end, not a single-variable experiment.
 
   The two extra candidates are the side neighbours the pour gained when its two candidate tables
   merged into `JourneyPour.aimCandidates`; until now that widening had a gate and no run that
@@ -112,6 +115,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`t21 −1.0→13.0 @71, 43, 70 … 身处=fire 着火160t`), seven hit points burned off with
   `回血 0 次` because `death.food = 6/20` is below the 18 that natural regeneration needs, and a
   piglin took the last four.
+
+  The hunger half of that is not a missing call. Rung six hunted one cow for five raw beef, and
+  rung ten ate all five to clear the gravel (`gravel.feed.bite0` … `bite4`, 饱食 7→20, the last
+  trace ending `手里=minecraft:air`). Nothing between there and the Nether restocks, so by rung
+  thirteen the body is already reading `饱食 9/20 ⚠️ <18，自然回血不会发生` with an empty larder —
+  the ladder spends its whole food supply four rungs before the one that needs it.
+
+  `death.leg` is worth reading beside `hp.trace`, because it says so itself:
+  `fortress.wp5.band（写它时是本段第 173 tick）；死在本段第 8 tick —— 写它的 tick 比这个大，就说明
+  最后一条证据属于上一段`. The fire was taken on an earlier leg than the blow that finished it,
+  and the row that carries the death is not the row that explains it.
 
 - **The rung walks up the staircase it just built.** `JourneyRamp#lay` finished by issuing one
   `Goal.Block` at the TOP of the flight, and out of a hollow alcove A* is free to answer a cell
