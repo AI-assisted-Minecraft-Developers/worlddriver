@@ -169,7 +169,9 @@ public final class JourneyPourLineScenes implements SceneProvider {
                 Scene.of("wd.pourLineRingOrderCannotShadowAPour", 200,
                         JourneyPourLineScenes::ringOrderCannotShadowAPour),
                 Scene.of("wd.pourLineOccupiedStandsAreOutsideTheAlcove", 200,
-                        JourneyPourLineScenes::occupiedStandsAreOutsideTheAlcove));
+                        JourneyPourLineScenes::occupiedStandsAreOutsideTheAlcove),
+                Scene.of("wd.pourLineTopPairAimsAtItsSideNeighbour", 200,
+                        JourneyPourLineScenes::topPairAimsAtItsSideNeighbour));
     }
 
     // ---------------------------------------------------------------------- rig ----
@@ -1011,6 +1013,112 @@ public final class JourneyPourLineScenes implements SceneProvider {
                     + occupied.size() + " → " + after.size());
         ctx.check(after.contains(plant)).as("D 对照那一格要真的出现在投票人名单里（同一张候选表，"
                 + "同一个谓词）：" + plant.toShortString()).isTrue();
+    }
+
+    /**
+     * <b>The top pair of the frame has no floor to aim at, so the aim list has to reach sideways —
+     * and the cell it reaches for is solid by the casting order, not by luck.</b>
+     *
+     * <p>{@link #stage}'s own comment names the defect this arm guards: with the interior opened,
+     * {@code target.below()} is air, "which is why the pour has only ONE aim left (the backing)".
+     * The 2026-08-27 ladder is what one aim costs. Its cell eight vetoed every candidate — eight of
+     * them naming {@code 4,59,20 不是实心的，弹不出流体} — fell back to a stand outside the alcove,
+     * measured {@code 5.21 > 4.50} to the backing, and put the lava in {@code 0,60,20}. Eight of ten
+     * cells cast, and the ninth is where twenty rungs stopped.
+     *
+     * <h2>判据</h2>
+     *
+     * <ol>
+     *   <li><b>THE RIG</b> — the staged cell really is a top-pair cell: its floor is not solid. A
+     *       solid floor means the mould was staged at some other rank and every row below measures
+     *       something else.</li>
+     *   <li><b>THE RIG</b> — at least one in-plane side neighbour IS solid. That is
+     *       {@code JourneyPortalRung}'s casting invariant (two cells opened per cast, the rest of the
+     *       ring left standing), and if the staged world does not have it, the arm is asking for
+     *       something production is not entitled to.</li>
+     *   <li>With the backing taken away, {@code standToPour} still finds a spot, and the block it
+     *       aims at is the side neighbour.</li>
+     *   <li>The shot fired from that spot lands in the target. Choosing the candidate is not the
+     *       same as it working, and only the second one is worth anything.</li>
+     * </ol>
+     *
+     * <h2>Why the backing is removed rather than moved out of reach</h2>
+     *
+     * The ladder exhausted the two-aim list by DISTANCE — the backing was solid the whole time and
+     * simply too far from anywhere the body could stand. Reproducing that needs a floor plan that
+     * denies every standable cell within {@code BUCKET_REACH}, which makes the arm a test of this
+     * arena's shape. Removing the backing exhausts the same list by SOLIDITY, in one line, and what
+     * is under test is the list — not which of the two ways it runs out. The removal is recorded, so
+     * a reader is never left to infer that the mould came that way.
+     */
+    private static void topPairAimsAtItsSideNeighbour(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        stage(ctx, false, CAST_SO_FAR);
+
+        BlockPos target = target(ctx);
+        BlockPos floor = target.below();
+        BlockPos backing = backing(ctx);
+        BlockPos cw = target.relative(AWAY.getClockWise());
+        BlockPos ccw = target.relative(AWAY.getCounterClockWise());
+
+        ctx.record("staged.topPair", "浇 " + target.toShortString() + "（第 " + RING + " 格）"
+                + "；地板 " + floor.toShortString() + "=" + level.getBlockState(floor).getBlock()
+                + "，背板 " + backing.toShortString() + "=" + level.getBlockState(backing).getBlock()
+                + "，同排侧邻 " + cw.toShortString() + "=" + level.getBlockState(cw).getBlock()
+                + " / " + ccw.toShortString() + "=" + level.getBlockState(ccw).getBlock());
+
+        ctx.check(level.getBlockState(floor).isSolidRender(level, floor))
+                .as("A THE RIG: 顶排的定义就是地板不实心 —— 它是门洞内部，三浇之前就开了。"
+                        + "这一格实心就说明布景摆的不是顶排，下面每一行量的都是别的东西："
+                        + floor.toShortString() + "=" + level.getBlockState(floor).getBlock())
+                .isFalse();
+
+        boolean cwSolid = level.getBlockState(cw).isSolidRender(level, cw);
+        boolean ccwSolid = level.getBlockState(ccw).isSolidRender(level, ccw);
+        ctx.check(cwSolid || ccwSolid)
+                .as("B THE RIG: 至少一个同排侧邻要是实心的 —— 每一浇只开「门框格＋水位格」两格、"
+                        + "其余框架格留实心，这是投料顺序的不变量。布景里没有它，这一臂要的就是"
+                        + "产码无权指望的东西：" + cw.toShortString() + "="
+                        + level.getBlockState(cw).getBlock() + "，" + ccw.toShortString() + "="
+                        + level.getBlockState(ccw).getBlock())
+                .isTrue();
+        BlockPos side = cwSolid ? cw : ccw;
+
+        // The list runs out. Recorded, because a mould does not come this way and a reader who
+        // assumed it did would read every row below as being about a different alcove.
+        level.setBlockAndUpdate(backing, Blocks.AIR.defaultBlockState());
+        ctx.record("staged.backingRemoved", "把背板 " + backing.toShortString()
+                + " 改成空气 —— 旧的两条候选（背板、地板）到此全灭，而侧邻 "
+                + side.toShortString() + " 还实心。真梯是靠距离走到同一步的（5.21>4.50），"
+                + "这里靠实心度，量的是候选表本身而不是它耗尽的方式");
+
+        ServerWorldDriver driver = body(ctx, stand(ctx));
+        ServerPlayer fp = driver.fakePlayer();
+
+        Map<String, Integer> why = new LinkedHashMap<>();
+        JourneyPour.PourSpot spot = JourneyPour.standToPour(level, fp, target, AWAY, why);
+        ctx.record("spot", spot == null ? "null，否决计数 " + why
+                : spot.stand().toShortString() + " 瞄 " + spot.aim().toShortString() + "="
+                  + level.getBlockState(spot.aim()).getBlock() + "，否决计数 " + why);
+        if (spot == null)
+            ctx.fail("C 候选表耗尽之后一个落脚点也没有 —— 侧邻 " + side.toShortString() + "="
+                    + level.getBlockState(side).getBlock() + " 是实心的，瞄它的对面就落进 "
+                    + target.toShortString() + "，而它不在候选表里。否决计数：" + why);
+
+        ctx.check(spot.aim()).as("C 瞄的必须是同排侧邻 " + side.toShortString()
+                + "：背板已经是空气、地板是门洞内部，两条老候选都验不过，"
+                + "所以任何别的答案都是那个兜底 —— 它把背板原样递回来，而背板现在是 "
+                + level.getBlockState(backing).getBlock() + "。实际瞄的是 "
+                + spot.aim().toShortString() + "=" + level.getBlockState(spot.aim()).getBlock())
+                .isEqualTo(side);
+
+        Shot shot = fire(ctx, driver, spot.aim());
+        ctx.record("shot", shot.where());
+        ctx.check(shot.landing()).as("D 选中不等于打得中 —— 从选出的落脚点 "
+                + spot.stand().toShortString() + " 瞄 " + spot.aim().toShortString()
+                + "，流体要真的落进 " + target.toShortString() + "：" + shot.where())
+                .isEqualTo(target);
     }
 
     /** The candidates the production guard refuses as「落脚格被占」, by walking the same scan one

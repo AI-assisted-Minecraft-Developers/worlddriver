@@ -941,14 +941,16 @@ final class JourneyPour {
      * the fluid still lands in the target, and looking down at a block one row below is precisely
      * what a body standing a block too high can do. That the floor is solid is not an assumption —
      * it is {@link JourneyForge}'s first invariant, which is why the ring is cast in the order it is.
-     * The exception is the top pair, whose floor is an interior cell opened three casts earlier;
-     * there this finds nothing and {@link #standLevelWith} still has to build the step.
+     * The exception is the top pair, whose floor is an interior cell opened three casts earlier —
+     * and that exception is why the list runs to four; see {@link #aimCandidates}. Building the step
+     * through {@link #standLevelWith} is still the last resort, but it is no longer the only answer
+     * the top pair has.
      */
     private static PourSpot standToPour(ServerLevel level, ServerPlayer body, BlockPos target,
                                         Direction away, Map<String, Integer> why,
                                         boolean verifiedOnly) {
         BlockPos standable = firstStandable(level, body, target, away);
-        for (BlockPos aim : List.of(target.relative(away), target.below())) {
+        for (BlockPos aim : aimCandidates(target, away)) {
             if (!level.getBlockState(aim).isSolidRender(level, aim)) {
                 why.merge(aim.toShortString() + " 不是实心的，弹不出流体", 1, Integer::sum);
                 continue;
@@ -963,10 +965,10 @@ final class JourneyPour {
     /**
      * Which block, aimed at from where the body is STANDING RIGHT NOW, puts the fluid in the target.
      *
-     * <p>The same two candidates {@link #standToPour} weighs — the backing's near face and the
-     * target's own floor — and the answer is decided by <b>the ray the bucket is actually going to
-     * fire</b>, not by the segment that chose the candidate. Null when neither survives that, so the
-     * caller's own gate can refuse to spend the bucket.
+     * <p>The same candidates {@link #standToPour} weighs — both read {@link #aimCandidates}, so the
+     * two questions cannot drift apart — and the answer is decided by <b>the ray the bucket is
+     * actually going to fire</b>, not by the segment that chose the candidate. Null when none
+     * survives that, so the caller's own gate can refuse to spend the bucket.
      *
      * <h2>Why the two rays are not the same ray, even standing still</h2>
      *
@@ -1008,6 +1010,35 @@ final class JourneyPour {
      * backing is a nearly horizontal shot and the floor is a steep one, and an edge-riding geometry
      * is very unlikely to be shared by both.
      */
+    /**
+     * Every block whose face, hit from the right side, empties a bucket into {@code target}.
+     *
+     * <h2>Why there are four and not two, and why the order is not negotiable</h2>
+     *
+     * The backing and the floor come first because they are what every cell below the top pair is
+     * cast from, and they were the whole list for forty-odd runs. The two IN-PLANE SIDE NEIGHBOURS
+     * are appended, never inserted: a reordering would change the shot for cells that already work,
+     * and cells 0–7 of the 2026-08-27 ladder all fired through the first two.
+     *
+     * <p>They exist because the top pair has no floor to aim at. Its floor is the portal's own
+     * interior — {@code 4,59,20} for a frame at {@code x=4} — which is opened three casts earlier and
+     * stays open, so {@code isSolidRender} rejects it every time; that ladder recorded the rejection
+     * eight times in one cell's veto census, with nothing verified left over. The backing alone then
+     * demands an eye almost level with the target and inside a bucket's reach, which in a flooded
+     * alcove means a tower that the mould's own water washes down. The run stopped at
+     * {@code 0,59,20}, {@code 5.21 > 4.50}, one cell short of a portal.
+     *
+     * <p>A side neighbour is solid by INVARIANT, not by luck. {@code JourneyPortalRung} opens exactly
+     * two cells per cast — this cell and its water cell — and deliberately leaves the rest of the
+     * ring solid so each cast has a floor; carving the ring up front cast 0/10. So an uncast side
+     * neighbour is still native rock and a cast one is obsidian, and either takes a click. For a cell
+     * that has neither, {@code isSolidRender} drops it and the list is the old list.
+     */
+    private static List<BlockPos> aimCandidates(BlockPos target, Direction away) {
+        return List.of(target.relative(away), target.below(),
+                target.relative(away.getClockWise()), target.relative(away.getCounterClockWise()));
+    }
+
     static BlockPos aimThatLandsIn(ServerLevel level, JourneyRig rig, BlockPos target,
                                            Direction away, String tag) {
         var eye = rig.player().getEyePosition();
@@ -1023,7 +1054,7 @@ final class JourneyPour {
         // JourneyPortalRung's stairs audit gives: a diagnosis that only speaks when someone already
         // suspects it is not evidence.
         StringBuilder no = new StringBuilder();
-        for (BlockPos aim : List.of(target.relative(away), target.below())) {
+        for (BlockPos aim : aimCandidates(target, away)) {
             candidate++;
             String what = "候选" + candidate + " " + aim.toShortString();
             if (!level.getBlockState(aim).isSolidRender(level, aim)) {

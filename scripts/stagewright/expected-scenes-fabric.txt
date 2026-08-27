@@ -466,6 +466,11 @@ wd.pourLineHasNoOtherWayUp
 wd.pourLineRingOrderCannotShadowAPour
 wd.pourLineOccupiedStandsAreOutsideTheAlcove
 
+# The top pair has no floor to aim at — its floor is the portal's own interior, opened three casts
+# earlier — so two aims were one aim, and the 2026-08-27 ladder stopped there with 8 of 10 cells
+# cast. The third aim is the in-plane side neighbour, solid by the casting order rather than by luck.
+wd.pourLineTopPairAimsAtItsSideNeighbour
+
 # Rung 14's crossing stopped 141 blocks short with 18 of 24 hops unspent, because a hop's verdict was
 # taken from a body one tick above netherrack (脚下到实心 0). One shelf, one bay, and how far it is to
 # the floor as the only variable: a survivable step-down must be waited out, a fall past the allowance
