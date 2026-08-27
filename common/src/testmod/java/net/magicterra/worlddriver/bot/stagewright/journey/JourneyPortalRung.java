@@ -738,6 +738,20 @@ public final class JourneyPortalRung {
         }
         BlockPos cell = frameCell(base, away, RING[i][0], RING[i][1]);
         BlockPos wet = wetCellFor(base, away, RING[i][0], RING[i][1]);
+        // WHERE THE ROLL STOPPED — written at the START of each cell's chain, unconditionally, and
+        // that ordering is the whole point. Every other per-cell row (`cast{i}.*`, `recover{i}.*`,
+        // `tools.{i}`) is written by a step that has to SUCCEED far enough to write it, so a run
+        // that dies mid-cell leaves a ragged set of keys and the reader has to infer how far the
+        // ring got from which rows happen to be missing. Measured on the archived rung-12 ladder:
+        // cells 0–7 were complete, `recover8` was ABSENT, and cell 9 had nothing at all — three
+        // different key shapes for one question. With this row the answer is a subtraction: the
+        // LOWEST absent index is the cell the run never began.
+        //
+        // `frame.cast` answers the same question only at the END, and a run that never reaches the
+        // end never writes it. This one is written ten times or fewer, never zero.
+        rig.evidence("frame.roll." + i, "开工 " + cell.toShortString() + "（水格 "
+                + wet.toShortString() + "）；此前浇成 " + frameCast.size() + "/" + RING.length
+                + " 格，浇成后又丢 " + frameLosses + " 格");
         // What the rung has left to dig with, per cell. A snapped pickaxe and a cell the body cannot
         // reach produce the same line — `opened.N=…=stone` — and they want opposite fixes. The kit is
         // two stone pickaxes (262 uses) on purpose, and this rung breaks roughly a hundred cells plus
