@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **A lift now walks the body back down the staircase before planning one.** `JourneyPour`'s
+  `liftInPlace` handed `JourneyRamp.buildTo` a landing whenever the body's own column could not fire
+  the pour, and `buildTo` plans its flight from the alcove FLOOR — then walks the body to stand
+  beside the bottom step. That walk asks for a coordinate, and from the surface it does not arrive.
+  Both client rehearsals of 2026-08-26 died that way, one at ring cell 8 and one at cell 9:
+
+  ```
+  cast9.lift.stand      1,64,22 → 2,56,20（现在不在足迹上）
+  cast9.lift.standShort 没走到 2,56,20，停在 -2,65,23      ← further away than it started
+  cast9.lift.laid       0/3 级垫好了（… 停在 OUT_OF_REACH 2,56,22）
+  cast9.picks.1         1,65,26 oak_log face=south → 落进 1,65,27   ← the ray hits the body's own feet
+  ```
+
+  Not a budget: `standShort.probe.head` prints a solid field of `+`, so headroom is not the refusal.
+  The descent has a NAMED route — the same distinction `JourneyStairwell.goUpToThePool`'s javadoc
+  draws for the ascent — and the raise side already takes it: in the same run, `raiseRowTooHigh` sent
+  its body through `returnToTheForge` and got it back to `raiseRowRetry.returnedY = 57`.
+
+  The bound is the pour's own `POUR_ROW_SLACK`, and three measured cells separate on it cleanly:
+  cell 8 of run 1 (+5, failed), cell 9 of run 2 (+5, failed), and cell 8 of run 2 (−3, **passed**,
+  and must not be disturbed). That passing cell is also what retired three long-standing suspects —
+  `here.noAim`, `raiseVeto 验得过 0` and `ceilingTax` all appear in it byte for byte, on the same
+  body, in the same run, so none of them is a cause.
+
 - **A rung now says whether the head ever went under, how low the air got, and who held the channel
   while it did.** `JourneyDrownWatch` latches those three per tick and `JourneyRig` writes them as
   `water.drown` on every heartbeat and again at `reach`. The question it answers —「did a drowning
