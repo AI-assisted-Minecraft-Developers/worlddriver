@@ -15,9 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   satisfied. `74,41,95` is a standable cell two blocks from the waypoint, measured rather than
   surveyed, and it is available to a re-bake now.
 
-  What actually defeats the leg is COST. **103 of the 117 searches ran at the walker's inline budget
-  (`maxNodes=600 maxMs=80`) and returned `steps=-1 end=none` — the node cap, with nothing.** The four
-  full-budget searches (`maxNodes=100000`, and `maxMs=Long.MAX_VALUE/2`, i.e. no clock at all) took
+  What actually defeats the leg is COST. **113 of the 117 searches ran at the walker's inline budget
+  (`maxNodes=600 maxMs=80`) and every single one of them hit the node cap** — 103 returning
+  `steps=-1 end=none` and the other ten a stub of four or five steps. A hundred per cent, in 21–24 ms
+  apiece: the inline budget is not close, it is off by two orders of magnitude. The four full-budget
+  searches (`maxNodes=100000`, and `maxMs=Long.MAX_VALUE/2`, i.e. no clock at all) took
   3.9–5.1 seconds each; three hit the 100 000 cap and the fourth reached at **88 646 expansions**.
   Eighty-eight thousand nodes for a thirteen-block leg is the open-sky fan-out this file's probe
   javadoc already describes, arriving one leg earlier than anyone had looked.
