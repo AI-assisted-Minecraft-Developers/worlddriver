@@ -13,16 +13,20 @@ type `python scripts/check_stacked_javadoc.py`. Do not read a green build as a g
 here, and do not assume a later reader knows that -- an instrument nobody calls is
 not an instrument.
 
-STATUS WHEN LANDED: reads 17, all in common/src/testmod (main is already 0). Those
-17 are classified and queued, not unknown; they are held only because a journey
-ladder run had the tree and testmod edits would have gone into it mid-flight. They
-go to 0 in this same round. If you are reading this and it still says 17 while the
-scan says something else, believe the scan.
+BASELINE: this family was 51 blocks when first measured (main 22 / testmod 29), and
+is 0 now. The gate exists so it stays at 0: the sites were created one at a time, by
+inserting a member between a doc and the member it belonged to, and nothing warned
+about any of them. Do not take a number written in this header as the current count
+-- run the scan. A count in prose is a claim about the past.
 
-BASELINE: this family was 51 blocks when first measured (main 22 / testmod 29). The
-gate exists so it stays at 0: the sites were created one at a time, by inserting a
-member between a doc and the member it belonged to, and nothing warned about any of
-them.
+WHAT THE 51 TURNED OUT TO BE, since the shape decides the repair: a doc separated
+from its member by an inserted member (move it back); one document cut in half, the
+second half opening with <p> or @param (rejoin the halves); two generations of doc
+for the same member (merge, and say which generation the code follows -- one pair
+argued OPPOSITE rules, and reattaching the loser would have reintroduced the defect
+it was written before); and a superseded copy whose member had moved away entirely
+(delete, after checking the new home carries the same text). Only the last is a
+deletion, and it is the one to be slowest about.
 
 TODO -- THE WORSE FORM OF THIS DEFECT HAS NO INSTRUMENT YET.
     An abandoned block that lands above an UNDOCUMENTED member is not discarded:

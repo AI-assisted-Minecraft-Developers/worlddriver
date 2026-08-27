@@ -132,40 +132,6 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     // agentRpcSmoke — the JS RPC validation face, ported with an await-continuation poll.
     // ==================================================================================
 
-    /** Ported from {@code AgentGameTest#agentRpcSmoke}: wraps the JS validation suite
-     *  ({@link WorldDriverCommon#runValidation}) as a dogfood scene. Kicks validation onto a worker
-     *  thread and polls completion from the tick path via {@link SceneContext#await} — the faithful
-     *  analogue of the legacy {@code startSequence().thenWaitUntil} (which is the only surface with
-     *  proper retry semantics; a bare poll would treat the first "still running" as a hard failure).
-     *  The harness ticks the server between polls, so the suite's {@code server.execute()}-marshalled
-     *  RPC/MCP round-trips drain exactly as under the GameTest tick loop.
-     *
-     *  <p><b>Topology-portable (task#92).</b> The JS RPC validation suite runs on BOTH the
-     *  dedicated (T0) and the integrated / client-hosted (T1/T2) topologies as REQUIRED coverage.
-     *  task#92 removed the old blanket dedicated-only early-PASS: the divergences it papered over were
-     *  a STALE validation-harness prelude (missing {@code Driver.observe.player}/{@code Driver.bot.*}
-     *  sugar — now loaded from the canonical {@code prelude.js}), a couple of non-defensive script
-     *  shapes ({@code applied} compact array; the {@code mc.debug.replay} replan shape), and a stale
-     *  scheduler determinism trick (RetreatChain needs a real threat to bid — the scripts now summon
-     *  one). One check ({@code 42_combat: melee engage}) is a NAMED, cited topology-skip on the
-     *  integrated path (it needs the flat GameTest arena the dedicated dogfood provides; its offence is
-     *  covered by {@code wd.serverCombat*}) — it records a {@code SKIP(task#92)} PASS, still counted.
-     *
-     *  <p>The gate here is: the suite MUST run (no early return), TOTAL must equal the topology's
-     *  expected count (coverage-drift guard), FAIL must be 0, and every {@code SKIP(task#92)} entry must
-     *  match the {@link #RPC_SMOKE_NAMED_SKIPS} allow-list — anything else skipping is a regression.
-     *  {@link SceneContext#passNote} reports the topology, TOTAL, and skip count, so the run's shape is
-     *  visible in the results JSONL.
-     *
-     *  <p><b>Why the total is topology-dependent</b> (measured, not assumed — the old scene only asserted
-     *  FAIL==0 and never counted): the ~35 client-face scripts each register ONE "skipped (no client)"
-     *  placeholder on the DEDICATED path (no client to drive the real branch) but their FULL real branch
-     *  on the INTEGRATED path — so the dedicated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_DEDICATED}
-     *  checks and the integrated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED} (the integrated
-     *  set is a strict superset). Both run REQUIRED with FAIL==0; the count guard just pins each
-     *  topology's own number so a silently-dropped check (a stale-prelude script-load failure, an #85
-     *  swallow) still trips. This is a topology-aware assertion of each topology's correct value, NOT a
-     *  blanket skip — the suite executes in full on both. */
     /**
      * Put the player on the pad {@code seedTestArea()} just built.
      *
@@ -225,6 +191,40 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         }
     }
 
+    /** Ported from {@code AgentGameTest#agentRpcSmoke}: wraps the JS validation suite
+     *  ({@link WorldDriverCommon#runValidation}) as a dogfood scene. Kicks validation onto a worker
+     *  thread and polls completion from the tick path via {@link SceneContext#await} — the faithful
+     *  analogue of the legacy {@code startSequence().thenWaitUntil} (which is the only surface with
+     *  proper retry semantics; a bare poll would treat the first "still running" as a hard failure).
+     *  The harness ticks the server between polls, so the suite's {@code server.execute()}-marshalled
+     *  RPC/MCP round-trips drain exactly as under the GameTest tick loop.
+     *
+     *  <p><b>Topology-portable (task#92).</b> The JS RPC validation suite runs on BOTH the
+     *  dedicated (T0) and the integrated / client-hosted (T1/T2) topologies as REQUIRED coverage.
+     *  task#92 removed the old blanket dedicated-only early-PASS: the divergences it papered over were
+     *  a STALE validation-harness prelude (missing {@code Driver.observe.player}/{@code Driver.bot.*}
+     *  sugar — now loaded from the canonical {@code prelude.js}), a couple of non-defensive script
+     *  shapes ({@code applied} compact array; the {@code mc.debug.replay} replan shape), and a stale
+     *  scheduler determinism trick (RetreatChain needs a real threat to bid — the scripts now summon
+     *  one). One check ({@code 42_combat: melee engage}) is a NAMED, cited topology-skip on the
+     *  integrated path (it needs the flat GameTest arena the dedicated dogfood provides; its offence is
+     *  covered by {@code wd.serverCombat*}) — it records a {@code SKIP(task#92)} PASS, still counted.
+     *
+     *  <p>The gate here is: the suite MUST run (no early return), TOTAL must equal the topology's
+     *  expected count (coverage-drift guard), FAIL must be 0, and every {@code SKIP(task#92)} entry must
+     *  match the {@link #RPC_SMOKE_NAMED_SKIPS} allow-list — anything else skipping is a regression.
+     *  {@link SceneContext#passNote} reports the topology, TOTAL, and skip count, so the run's shape is
+     *  visible in the results JSONL.
+     *
+     *  <p><b>Why the total is topology-dependent</b> (measured, not assumed — the old scene only asserted
+     *  FAIL==0 and never counted): the ~35 client-face scripts each register ONE "skipped (no client)"
+     *  placeholder on the DEDICATED path (no client to drive the real branch) but their FULL real branch
+     *  on the INTEGRATED path — so the dedicated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_DEDICATED}
+     *  checks and the integrated suite is {@value #RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED} (the integrated
+     *  set is a strict superset). Both run REQUIRED with FAIL==0; the count guard just pins each
+     *  topology's own number so a silently-dropped check (a stale-prelude script-load failure, an #85
+     *  swallow) still trips. This is a topology-aware assertion of each topology's correct value, NOT a
+     *  blanket skip — the suite executes in full on both. */
     private static void agentRpcSmoke(SceneContext ctx) {
         if (WorldDriverCommon.api() == null) {
             ctx.fail("agentRpcSmoke: DriverApi not initialized — was the mod loaded?");

@@ -645,30 +645,6 @@ public final class JourneyLandingScenes implements SceneProvider {
     }
 
     /**
-     * The body balanced on the lip above the terminal, and whether the last-step leg gets it off.
-     *
-     * <p><b>The pose is the whole scene.</b> The ladder of 2026-08-25 died twice in it and both
-     * readings agree to the centimetre: {@code cast0.landing = 精确 1.20/58.00/19.49，onGround=true}
-     * with the terminal at {@code 1,57,19}. A 0.6-wide box centred a fifth of a cell past the
-     * boundary overlaps the previous step's tread by a tenth of a block — enough to stand on, three
-     * tenths short of falling in. {@code blockPosition()} rounds into the terminal's column, so every
-     * cell-granular row in the run says the body is where it needs to be.
-     *
-     * <p>That pose turns up about one return in three on the ladder and costs forty minutes to reach.
-     * Staged here it is deterministic, which is the only reason the second leg can be judged at all —
-     * see {@code landOnFloor}, the rehearsal lever written when this coin was first noticed.
-     *
-     * <p><b>Staged to the losing side, and checked that it IS the losing side before anything else.</b>
-     * A body that simply falls into the terminal on its own would satisfy the outcome check while
-     * testing nothing, so the control asserts the pose held: above the terminal's row, on the ground,
-     * in the terminal's column.
-     *
-     * <p><b>The outcome is asserted; which leg bought it is recorded.</b> An isolated arena is not the
-     * ladder and the walker may well land it in one leg here — demanding two would be a red that says
-     * nothing about the production path. What IS asserted is the implication: if the first leg missed,
-     * the second must have fired. That is the branch the ladder never had.
-     */
-    /**
      * The flooded flight both lip arms are read against, and the raised terminal it produces.
      *
      * <p>THREE CELLS PER STEP, the same three {@code digStairsDown} cuts — the step, its head room,
@@ -822,6 +798,30 @@ public final class JourneyLandingScenes implements SceneProvider {
         });
     }
 
+    /**
+     * The body balanced on the lip above the terminal, and whether the last-step leg gets it off.
+     *
+     * <p><b>The pose is the whole scene.</b> The ladder of 2026-08-25 died twice in it and both
+     * readings agree to the centimetre: {@code cast0.landing = 精确 1.20/58.00/19.49，onGround=true}
+     * with the terminal at {@code 1,57,19}. A 0.6-wide box centred a fifth of a cell past the
+     * boundary overlaps the previous step's tread by a tenth of a block — enough to stand on, three
+     * tenths short of falling in. {@code blockPosition()} rounds into the terminal's column, so every
+     * cell-granular row in the run says the body is where it needs to be.
+     *
+     * <p>That pose turns up about one return in three on the ladder and costs forty minutes to reach.
+     * Staged here it is deterministic, which is the only reason the second leg can be judged at all —
+     * see {@code landOnFloor}, the rehearsal lever written when this coin was first noticed.
+     *
+     * <p><b>Staged to the losing side, and checked that it IS the losing side before anything else.</b>
+     * A body that simply falls into the terminal on its own would satisfy the outcome check while
+     * testing nothing, so the control asserts the pose held: above the terminal's row, on the ground,
+     * in the terminal's column.
+     *
+     * <p><b>The outcome is asserted; which leg bought it is recorded.</b> An isolated arena is not the
+     * ladder and the walker may well land it in one leg here — demanding two would be a red that says
+     * nothing about the production path. What IS asserted is the implication: if the first leg missed,
+     * the second must have fired. That is the branch the ladder never had.
+     */
     private static void walksOffTheLipOntoTheDryStep(SceneContext ctx) {
         BlockPos ends = stageLipArena(ctx);
 

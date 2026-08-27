@@ -718,20 +718,6 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     }
 
     /**
-     * Walk to the bottom of a two-deep, one-wide pit six blocks away.
-     *
-     * <p>The navigation half of {@code wd.serverMineHarvestBuried}, on its own. That scene mines
-     * three ores, two of them buried, and then fails to collect the drops that fell into the holes;
-     * its verdict reads {@code collect timed out after 240 ticks} with {@code collectPath=0/0} —
-     * the collect walker searched for the whole budget and never produced a path, and never said
-     * FAILED either. "Cannot path into a pit" and "can path but the collect logic asks for the
-     * wrong cell" produce exactly that same line, and they live in different files.
-     *
-     * <p>So the pit is dug by the harness rather than by the bot, there is no item and no mining,
-     * and the only verb under test is {@code IntentProcess} against {@code Goal.Block} on the pit
-     * floor. Whatever this scene says is unambiguous.
-     */
-    /**
      * The avatar must not mine what a player could not have touched.
      *
      * <p>Three targets in one slab, at once, so a fix that trades one for another cannot pass:
@@ -1010,6 +996,20 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         });
     }
 
+    /**
+     * Walk to the bottom of a two-deep, one-wide pit six blocks away.
+     *
+     * <p>The navigation half of {@code wd.serverMineHarvestBuried}, on its own. That scene mines
+     * three ores, two of them buried, and then fails to collect the drops that fell into the holes;
+     * its verdict reads {@code collect timed out after 240 ticks} with {@code collectPath=0/0} —
+     * the collect walker searched for the whole budget and never produced a path, and never said
+     * FAILED either. "Cannot path into a pit" and "can path but the collect logic asks for the
+     * wrong cell" produce exactly that same line, and they live in different files.
+     *
+     * <p>So the pit is dug by the harness rather than by the bot, there is no item and no mining,
+     * and the only verb under test is {@code IntentProcess} against {@code Goal.Block} on the pit
+     * floor. Whatever this scene says is unambiguous.
+     */
     private static void serverWalkIntoAPit(SceneContext ctx) { walkIntoAPit(ctx, false); }
 
     /** {@link #serverWalkIntoAPit} with the permissions {@code MineProcess} actually sweeps under. */

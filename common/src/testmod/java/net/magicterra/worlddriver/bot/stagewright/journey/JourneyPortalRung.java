@@ -126,7 +126,6 @@ public final class JourneyPortalRung {
     }
 
 
-    /** Walk to the surveyed lava and sink to its level, reusing OBSIDIAN's own descent. */
     /**
      * The floor the mould is carved on — deliberately NOT the lava's own level.
      *
@@ -234,6 +233,7 @@ public final class JourneyPortalRung {
         return bank == null ? lava : bank;
     }
 
+    /** Walk to the surveyed lava and sink to its level, reusing OBSIDIAN's own descent. */
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
         rig.attempting("背着一桶水走到岩浆湖边站得住的一格，挖一段楼梯下到岩浆层");
         BlockPos bank = pinTheApproach(ctx, rig, lava);
