@@ -85,6 +85,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **The real ladder reached the Nether — thirteen rungs, ten frame cells of ten, no staging.** The
+  three runs before it all stalled at eleven with the ring eight cells cast. What moved is the top
+  pair's aim, and the same mould site produced both halves of the comparison — the run of
+  2026-08-25 and this one both began at `4,56,20`:
+
+  ```
+  2026-08-25  cast8.here.noAim      2 候选（5,60,20 / 4,59,20）
+              cast8.raiseVeto       验得过 0
+              cast8.raiseOffTheFlight  只有楼梯那一柱 2,20 …别无选择 —— 抬升多半会被冲下来
+              → 塔在水里 → raisedY = 59/59（不是同一柱）→ picks 落进 0,60,20 → 8/10，红
+
+  2026-08-27  cast8.here.noAim      4 候选（多出侧邻 4,60,21、4,60,19）
+              cast8.raiseVeto       验得过 1
+              cast8.raiseOffTheFlight  楼梯那一柱 2,20 也验得过…改用 3,20（落脚 3, 59, 20）
+              → 台阶垒在水外 → raisedY = 60/59（同一柱）→ stand.3 否决计数 {} → 10/10，绿
+  ```
+
+  The two extra candidates are the side neighbours the pour gained when its two candidate tables
+  merged into `JourneyPour.aimCandidates`; until now that widening had a gate and no run that
+  exercised it. `POUR_ROW_SLACK` also earned its keep for the first time on a real climb: the body
+  finished a row high (`60/59`), which the bound allows, and the stand it then found had an empty
+  veto census.
+
+  Rung fourteen died in the Nether and its evidence is complete: the route crossed fire
+  (`t21 −1.0→13.0 @71, 43, 70 … 身处=fire 着火160t`), seven hit points burned off with
+  `回血 0 次` because `death.food = 6/20` is below the 18 that natural regeneration needs, and a
+  piglin took the last four.
+
 - **The rung walks up the staircase it just built.** `JourneyRamp#lay` finished by issuing one
   `Goal.Block` at the TOP of the flight, and out of a hollow alcove A* is free to answer a cell
   three rows up by going over the rim instead of up the steps. Measured twice on the same shape.
