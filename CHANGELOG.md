@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-26
 
+- **The raise that walks to a pour column now pays a toll for leaving the alcove.**
+  `JourneyPour.raiseTo` hands `walkToColumn` a `CostModifier` charging `JourneyTerrain.LIP_TAX`
+  (300, against 10 for a plain walk edge) for every step above the alcove's own ceiling —
+  `JourneyRamp.floorOf(forgeCorridor) + JourneyForge.ALCOVE_HEIGHT`, which is y=63 for rung 12.
+  Nothing is forbidden: it is a tax for the reason `JourneyTerrain#avoidTheRim` already argues at
+  length, that a constraint turns「expensive」into「no path」and the recoveries downstream are
+  written for a body that arrived badly, not for one that never arrived.
+
+  The occasion is that `Goal.XZ` ignores Y, so the surface cell of the target column belongs to
+  that column and — seen from a shaft floor twelve rows down — is its cheapest cell. The body was
+  taking it: three separate bodies ended a raise on grass. Measured over four runs of
+  `runRehearsalIntegratedServer` on the real client player, counting raises that ended above the
+  ceiling: **2 of 4 without the tax (`cast7 = 64`, `cast8 = 65`, both net +7/+8 and both followed
+  by a `raiseRowRetry`), 1 of 14 with it.** The legs the tax is not attached to did not move —
+  `lava.arrivedY = 66（起 63，净升 3），脚下=grass_block` is byte-identical across all four runs.
+
+  Two runs of the three taxed ones died (drowning at `2,56,18`, lava at `-15,61,14`) where the
+  single control run did not, and that comparison is **not** attributable either way: one control
+  run cannot carry a rate, and the lava death's chain crosses legs — the fire was lit 1519 ticks
+  into one leg and the body died 38 ticks into the next. That is what `death.leg` (below) exists to
+  answer next time.
+
+- **A death now records which leg it happened in.** `JourneyRig#bodyDied` writes `death.leg`: the
+  last row `evidence` was deliberately asked to write, plus the leg tick it was written at.
+  `death.driving` only ever answered the verb (`goto`), never the occasion. The per-tick heartbeat
+  rows (`futileGate`, `walkerCensus`, `body.vitals`) write into the map directly rather than through
+  `evidence`, so they cannot overwrite the leg's own tag every 200 ticks. A write tick larger than
+  the death tick is the tell that the last deliberate row belongs to the previous leg.
+
 - **A body falling into the stairwell's terminal cell now waits out the fall instead of being
   declared arrived the moment its feet cross the row.** `JourneyStairwell.finishTheFlight` used to
   end the leg on `down(got, ends)` alone — a pure block-row test — and the `SETTLED_SLACK` check
