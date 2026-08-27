@@ -214,8 +214,7 @@ public final class JourneyNetherRungs {
      * {60,85} to {74,97} did not make it」— which is a route edit, not a mechanism hunt. That is the
      * whole of what a scripted route buys: it cannot fix the executor's drift and does not try, it
      * removes the case where a waypoint dead-reckoned along a bearing lands in the sea.
-     */
-    /**
+     *
      * @param bridged how many cells the corridor has PLACED to stand on so far, carried across legs.
      *                Threaded rather than kept in a field: these scenes are static and a static
      *                counter would survive into the next run of the suite, which is the shape of

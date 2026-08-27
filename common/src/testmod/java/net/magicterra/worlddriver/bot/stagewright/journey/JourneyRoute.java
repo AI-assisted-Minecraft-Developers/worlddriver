@@ -213,7 +213,6 @@ public final class JourneyRoute {
      */
     public static BlockPos firstLava = new BlockPos(-6, 26, 54);
 
-    /** The stronghold's location, from {@code /locate} — 1745 blocks out, across open world. */
     /**
      * A lava LAKE — ten or more source blocks in one place — as opposed to {@link #firstLava}, which
      * is the single cell the obsidian rung fills its bucket from.
@@ -230,6 +229,7 @@ public final class JourneyRoute {
      *  is a claim with a number in it, and the rung's whole bill is that number. */
     public static int lavaLakeSources = 0;
 
+    /** The stronghold's location, from {@code /locate} — 1745 blocks out, across open world. */
     public static BlockPos stronghold = new BlockPos(-1168, 64, 1296);
 
     /** The nearest ruined portal — 620 blocks out. Not on the critical path, but it is obsidian
@@ -258,7 +258,6 @@ public final class JourneyRoute {
      *  one. Kept because {@link Located} makes the price part of the answer — see its note. */
     public static long netherFortressMs = -1;
 
-    /** Whether every constant above has been filled in. */
     /**
      * Find the densest cluster of lava SOURCE blocks near spawn, and how many cells it has.
      *
@@ -299,6 +298,7 @@ public final class JourneyRoute {
         return java.util.Map.entry(best, bestN);
     }
 
+    /** Whether every constant above has been filled in. */
     public static boolean surveyed() {
         return !spawn.equals(UNSURVEYED) && !firstTree.equals(UNSURVEYED);
     }

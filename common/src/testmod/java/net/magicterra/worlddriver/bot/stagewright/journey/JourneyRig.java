@@ -1183,8 +1183,7 @@ public final class JourneyRig {
      * <p>The halves are re-derived here rather than read from the avatar, which keeps them private.
      * That is deliberate and it is also the check: they are printed NEXT TO the authority, so a run
      * where they disagree with it has caught this row drifting away from the rule it describes.
-     */
-    /**
+     *
      * @param how what this call ALREADY DID, in the past tense — never an imperative. The row this
      *     writes carries every measurement the reader needs (eye distance against its ceiling, cell
      *     distance, canBreak, exposure), and on 2026-08-26 the one thing that stopped those numbers

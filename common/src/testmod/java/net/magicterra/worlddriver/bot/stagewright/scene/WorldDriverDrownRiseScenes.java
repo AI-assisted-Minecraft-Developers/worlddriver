@@ -174,8 +174,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      * a dig, not a race. Whether the dig fits inside a real breath is arithmetic on the recorded
      * number against ~290 ticks (100 of air, then 19 HP at 2 per 20), and it is recorded as such —
      * this scene deliberately asserts nothing about it, because nobody has measured it.
-     */
-    /**
+     *
      * @param underFoot how many water cells sit BELOW the pocket's foot cell. Zero puts the body on
      *        rock and lets the dig ground itself; three puts it over water, where the stand-up
      *        guard must decline and the arm must behave exactly as it did before the guard existed.
