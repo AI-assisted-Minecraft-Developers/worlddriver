@@ -118,7 +118,9 @@ public final class JourneyRampScenes implements SceneProvider {
                 Scene.of("wd.rampNeverFoldsBackIntoItsOwnHeadroom", 400,
                         JourneyRampScenes::neverFoldsBackIntoItsOwnHeadroom),
                 Scene.of("wd.rampSeparatesAFaceThatExistsFromOneItCanHit", 200,
-                        JourneyRampScenes::separatesAFaceThatExistsFromOneItCanHit));
+                        JourneyRampScenes::separatesAFaceThatExistsFromOneItCanHit),
+                Scene.of("wd.rampClimbsTheFlightItJustLaid", 200,
+                        JourneyRampScenes::climbsTheFlightItJustLaid));
     }
 
     // ---------------------------------------------------------------------- arena ----
@@ -227,6 +229,126 @@ public final class JourneyRampScenes implements SceneProvider {
      *  own {@code ramp.flight} row are printed by one formatter rather than by two that agree. */
     private static String supports(List<BlockPos> flight) {
         return JourneyRamp.supports(flight);
+    }
+
+    /**
+     * The staircase was complete and the body never got on it.
+     *
+     * <h2>The run, in five rows</h2>
+     *
+     * <p>Real ladder of 2026-08-27, rung 12, cell {@code 4,60,19} — the ninth of ten, and the one the
+     * ring stopped on:
+     *
+     * <pre>
+     * cast8.lift.flight     = 3 级：2, 56, 18 → 3, 57, 18 → 3, 58, 19（壁龛地板 y=56，身体 1, 57, 19）
+     * cast8.lift.laid       = 3/3 级垫好了（身体 1, 57, 19，停在 FINISHED）
+     * cast8.lift.rampedY    = 57/59（停在 1, 57, 19，要的落脚格 3, 59, 19，不是同一柱）
+     * cast8.liftTower       = 楼梯到 y=57 就修不上去了，交给塔兜底
+     * cast8.lift#11.verdict = 没垒成 —— 落在 0,19 而不是指定柱 1,19；脚下 air 不是地板
+     * </pre>
+     *
+     * <p>Every course went in, and the single {@code Goal.Block(landing)} that {@link JourneyRamp#lay}
+     * issues at the TOP of the flight moved the body zero cells. {@link JourneyRamp#walkDown}'s note
+     * records the same shape measured on 2026-08-25, where that goal instead walked the body out of
+     * the alcove and finished 9.85 blocks off on the surface. Out of a hollow alcove, A* is free to
+     * answer a cell four rows up by going over the rim — the staircase is not the route it has to
+     * take.
+     *
+     * <h2>What this scene judges, and why it is the pure half</h2>
+     *
+     * <p>The walk needs a {@link JourneyRig} and a scene cannot host one — the constraint
+     * {@code wd.rampStepsAsideWhenTheBodyIsInItsOwnStep} already works around by substituting for the
+     * walk. So this arm drives the DECISION, {@link JourneyRamp#coursesToClimb}, on a real planned
+     * flight in a real alcove, and prints the cells rather than a verdict about them.
+     *
+     * <p>The five checks are chosen so that the three implementations that would look right all go
+     * red on one of them: returning the whole flight always fails D; a row test instead of a cell test
+     * fails E; and returning something when the body is already home fails A, which is the control
+     * that keeps the ordinary path — {@code cast7.ramp.rampedY = 58/58（… 同一柱）} on the same run —
+     * paying nothing for this leg.
+     */
+    private static void climbsTheFlightItJustLaid(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        stage(ctx);
+
+        Set<BlockPos> corridor = corridor(ctx);
+        BlockPos landing = landing(ctx);
+        int floorY = JourneyRamp.floorOf(corridor);
+        List<BlockPos> flight = JourneyRamp.planKeeping(level, corridor, floorY, landing, false);
+        if (flight == null || flight.size() < 2)
+            ctx.fail("THE RIG, not the subject: 修不出至少两级的楼梯，「逐级走」就没有级可走");
+        ctx.record("flight", flight.size() + " 级，落脚格：" + join(flight)
+                + "（垫的是 " + supports(flight) + "）");
+        if (!flight.get(flight.size() - 1).equals(landing))
+            ctx.fail("THE RIG, not the subject: 顶级 " + flight.get(flight.size() - 1).toShortString()
+                    + " 不是落脚格 " + landing.toShortString() + " —— 下面 B 的判据就不成立了");
+
+        // ---- A the control: already home, so the ordinary path pays nothing ----
+        List<BlockPos> home = JourneyRamp.coursesToClimb(flight, landing);
+        ctx.record("home", "身体站在落脚格 " + landing.toShortString() + " 上，还要走 "
+                + home.size() + " 级：" + join(home));
+        ctx.check(home.size()).as("A 身体已经在落脚格上就一级都不走 —— 走得成的那一趟"
+                + "（cast7.ramp.rampedY = 58/58）不为这条腿付任何代价").isEqualTo(0);
+
+        // ---- B the occasion: off the flight entirely, so every course is still to be walked ----
+        BlockPos off = offTheFlightAtRowOf(flight, flight.get(0));
+        if (off == null)
+            ctx.fail("THE RIG, not the subject: 找不到一格「跟第 0 级同排、又不是这道楼梯的任何一级」"
+                    + " —— 那 E 量的就不是行判据的漏洞");
+        BlockPos foot = at(ctx);
+        if (flight.contains(foot))
+            ctx.fail("THE RIG, not the subject: 井底那一格 " + foot.toShortString()
+                    + " 本身就是这道楼梯的一级 —— 那 B 的前提「身体不在楼梯上」不成立");
+        List<BlockPos> all = JourneyRamp.coursesToClimb(flight, foot);
+        ctx.record("all", "身体在井底 " + foot.toShortString() + "（楼梯之外），还要走 "
+                + all.size() + " 级：" + join(all));
+        ctx.check(all.size()).as("B 身体不在这道楼梯上，就一级都不能跳过 —— 这正是 "
+                + "cast8.lift.rampedY「停在 1, 57, 19，要的落脚格 3, 59, 19」那一趟的处境")
+                .isEqualTo(flight.size());
+        ctx.check(all.isEmpty() ? null : all.get(all.size() - 1))
+                .as("C 而最后一级就是落脚格 —— 走完这一串身体就在 rampedY 要的那一格上")
+                .isEqualTo(landing);
+
+        // ---- D partial progress: on course 0, so only what is above it is left ----
+        List<BlockPos> above = JourneyRamp.coursesToClimb(flight, flight.get(0));
+        ctx.record("above", "身体站在第 0 级 " + flight.get(0).toShortString() + " 上，还要走 "
+                + above.size() + " 级：" + join(above));
+        ctx.check(above.isEmpty() ? null : above.get(0))
+                .as("D 身体已经站上第 0 级，就从第 1 级 " + flight.get(1).toShortString()
+                        + " 接着走 —— 每次都从头走一遍会把身体送回它刚离开的那一格")
+                .isEqualTo(flight.get(1));
+
+        // ---- E the trap the javadoc names: same row as course 0, different column ----
+        List<BlockPos> sameRow = JourneyRamp.coursesToClimb(flight, off);
+        ctx.record("sameRow", "身体在 " + (off == null ? "无" : off.toShortString()) + "（跟第 0 级 "
+                + flight.get(0).toShortString() + " 同排 y=" + flight.get(0).getY()
+                + "，不同柱），还要走 " + sameRow.size() + " 级：" + join(sameRow));
+        ctx.check(sameRow.isEmpty() ? null : sameRow.get(0))
+                .as("E 同一排但不是同一柱，第 0 级 " + flight.get(0).toShortString()
+                        + " 照样要走 —— 按「排」判会把它跳掉，而 cast8 的身体正是这个处境"
+                        + "（1, 57, 19 对第 0 级 2, 56, 18 的落脚格 2, 57, 18）")
+                .isEqualTo(flight.get(0));
+    }
+
+    /** The courses as the cells the body walks INTO — {@link JourneyRamp#supports} prints
+     *  {@code below()} of each, and this scene's whole subject is where the feet go. */
+    private static String join(List<BlockPos> cells) {
+        StringBuilder out = new StringBuilder();
+        for (BlockPos c : cells)
+            out.append(out.isEmpty() ? "" : " → ").append(c.toShortString());
+        return out.isEmpty() ? "（空）" : out.toString();
+    }
+
+    /** A cell on {@code course}'s own row that is not any course of {@code flight} — the position the
+     *  run's body was actually in, and the one a row test would silently skip a course for. */
+    private static BlockPos offTheFlightAtRowOf(List<BlockPos> flight, BlockPos course) {
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dz = -3; dz <= 3; dz++) {
+                BlockPos c = course.offset(dx, 0, dz);
+                if (!flight.contains(c)) return c;
+            }
+        return null;
     }
 
     /** How many courses of this flight the WORLD is holding up — not how many the loop claimed. */

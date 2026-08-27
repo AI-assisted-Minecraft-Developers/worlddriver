@@ -808,7 +808,8 @@ final class JourneyRamp {
             rig.evidence(tag + ".laid", pass.laid() + "/" + flight.size() + " 级垫好了（身体 "
                     + rig.player().blockPosition().toShortString() + "，停在 " + pass.stop()
                     + (pass.at() == null ? "" : " " + pass.at().toShortString()) + "）");
-            walkTo(rig, landing, () -> done(rig, landing, tag, then));
+            walkTo(rig, landing, () -> climbTheFlight(rig, flight, landing,
+                    pass.stop() == Stop.FINISHED, tag, then));
             return;
         }
         if (pass.laid() == from)
@@ -1261,6 +1262,131 @@ final class JourneyRamp {
         for (BlockPos s : flight)
             out.append(out.isEmpty() ? "" : " → ").append(s.below().toShortString());
         return out.toString();
+    }
+
+    /**
+     * The courses still to be walked, in order — <b>the decision {@link #climbTheFlight} makes</b>,
+     * separated out so a scene can drive it. Returns the tail of {@code flight} above the highest
+     * course the body is already standing on, and an EMPTY list when it is already on the last one.
+     *
+     * <p>Package-private and pure for the reason {@link #stepAsideFor} is: a settle needs a
+     * {@link JourneyRig} and a scene cannot host one, so the only part of this leg a scene can judge
+     * is the part that decides. {@code wd.rampClimbsTheFlightItJustLaid} asserts against this.
+     *
+     * <p>Exact-cell matching, deliberately, and not「every course at or below the body's row」. The
+     * body that this leg exists for is one row up and several columns OUT — {@code cast8.lift.rampedY
+     * = 57/59（停在 1, 57, 19，要的落脚格 3, 59, 19，不是同一柱）} — so a row test would skip course 0
+     * ({@code 2,57,18}, the same row) and send the body at the course above it, which is the one cell
+     * it cannot reach in a single step. The cell it is in is the only thing that says it is on the
+     * staircase.
+     */
+    static List<BlockPos> coursesToClimb(List<BlockPos> flight, BlockPos body) {
+        int start = 0;
+        for (int i = 0; i < flight.size(); i++)
+            if (flight.get(i).equals(body)) start = i + 1;
+        return new ArrayList<>(flight.subList(start, flight.size()));
+    }
+
+    /**
+     * Walk UP the staircase this rung just built, one course at a time.
+     *
+     * <h2>The flight was complete and the body never got on it</h2>
+     *
+     * <p>{@link #lay} finishes by issuing one {@code Goal.Block(landing)} at the TOP of the flight.
+     * That goal is answered by A*, which is free to route anywhere — and out of a hollow alcove the
+     * cheapest route to a cell four rows up is very often over the rim and back down, i.e. not the
+     * staircase at all. {@link #walkDown}'s own note records the first measurement of this on
+     * 2026-08-25: five placements in, the flight complete, and the {@code goto 3,60,20} that followed
+     * 「walked WEST out of the alcove and finished on the surface at {@code -5,65,20}, 9.85 blocks
+     * off」. The fold rule that came out of that run fixed the PLANNER; this leg was never touched.
+     *
+     * <p>The real ladder of 2026-08-27 produced the second instance, and it is the one that stopped
+     * the ring at nine cells of ten:
+     *
+     * <pre>
+     * cast8.lift.flight   = 3 级：2, 56, 18 → 3, 57, 18 → 3, 58, 19（壁龛地板 y=56，身体 1, 57, 19）
+     * cast8.lift.laid     = 3/3 级垫好了（身体 1, 57, 19，停在 FINISHED）
+     * cast8.lift.rampedY  = 57/59（停在 1, 57, 19，要的落脚格 3, 59, 19，不是同一柱）
+     * cast8.liftTower     = 楼梯到 y=57 就修不上去了，交给塔兜底
+     * cast8.lift#11.verdict = 没垒成 —— 落在 0,19 而不是指定柱 1,19；脚下 air 不是地板
+     * </pre>
+     *
+     * <p>Every course went in and the body did not move one cell. The escalation to a tower that
+     * follows is downstream of that: the tower drifted into {@code 0,19}, deadlocked on two mutually
+     * inverse column rewrites, and the pour that inherited it fired from four cells outside the
+     * alcove — three times, all three correctly refused by the pour's own ray gate.
+     *
+     * <p><b>Why a course at a time answers a question the single goal cannot.</b> Each course is one
+     * step from the one below it, so the goal is a cell the walker either steps onto or does not; it
+     * has no room to leave the alcove looking for a cheaper approach. It is the same argument
+     * {@code JourneyStairwell}'s {@code flightLastStep} already makes about the last step of a
+     * descent, and {@link JourneyPour#raiseTo}'s {@code ceilingTax} makes about {@code Goal.XZ}.
+     *
+     * <p><b>It costs nothing when the ordinary path works.</b> The single {@code walkTo(landing)}
+     * still runs first and is still what normally arrives — {@code cast7.ramp.laid = 2/2 … FINISHED}
+     * then {@code cast7.ramp.rampedY = 58/58（… 同一柱）} on the same run — and this leg only starts
+     * when that one did not. A flight that is not {@link Stop#FINISHED} is not climbed at all: the
+     * missing course is where the walk would stop anyway, and saying so is cheaper than walking into
+     * it.
+     *
+     * <p><b>It stops at the first course it cannot reach</b>, rather than trying the rest from below
+     * it. A course above an unreachable one is further away, not nearer, so continuing would be the
+     * retry that asks the same question — and the row that says which course stopped it is what the
+     * next run needs. {@link #done} then reports the position honestly, exactly as before.
+     */
+    private static void climbTheFlight(JourneyRig rig, List<BlockPos> flight, BlockPos landing,
+                                       boolean complete, String tag, Runnable then) {
+        BlockPos now = rig.player().blockPosition();
+        if (now.equals(landing) || flight.isEmpty()) {
+            done(rig, landing, tag, then);
+            return;
+        }
+        if (!complete) {
+            // NAMED, not silent. Without this row a flight that was never finished and one whose
+            // climb was not attempted reach the results file as the same thing — a `laid` short of
+            // the total and a `rampedY` shortfall — and they want different work.
+            rig.evidence(tag + ".climbSkipped", now.toShortString() + " 不在落脚格 "
+                    + landing.toShortString() + " 上，但这道楼梯没垒全 —— 不逐级走，缺的那一级"
+                    + "本来就是走到会停下的地方");
+            done(rig, landing, tag, then);
+            return;
+        }
+        List<BlockPos> courses = coursesToClimb(flight, now);
+        StringBuilder route = new StringBuilder();
+        for (BlockPos c : courses)
+            route.append(route.isEmpty() ? "" : " → ").append(c.toShortString());
+        // THE STANDS, not `supports()`. That printer takes `below()` of each entry because a
+        // `[place]` row can be lined up against a support, and these are the cells the body walks
+        // INTO — reading one row off is the mistake `supports`'s own javadoc says costs a round.
+        rig.evidence(tag + ".climbFlight", now.toShortString() + " 不在落脚格 "
+                + landing.toShortString() + " 上，而 " + flight.size()
+                + " 级全垫好了 —— 改成一级一级走上去（还剩 " + courses.size() + " 级，落脚格："
+                + route + "）");
+        climbCourse(rig, courses, 0, landing, tag, then);
+    }
+
+    /** One course of {@link #climbTheFlight}, and the recursion that stops at the first miss. */
+    private static void climbCourse(JourneyRig rig, List<BlockPos> courses, int i, BlockPos landing,
+                                    String tag, Runnable then) {
+        if (i >= courses.size()) {
+            done(rig, landing, tag, then);
+            return;
+        }
+        BlockPos course = courses.get(i);
+        walkTo(rig, course, () -> {
+            BlockPos now = rig.player().blockPosition();
+            if (!now.equals(course)) {
+                rig.evidence(tag + ".climbStopped." + i, "第 " + i + " 级 " + course.toShortString()
+                        + " 没走上去，停在 " + now.toShortString() + "（脚下 "
+                        + rig.ctx().level().getBlockState(now.below()).getBlock() + "，身处 "
+                        + rig.ctx().level().getBlockState(now).getBlock()
+                        + "）—— 上面的几级只会更远，不再往上问");
+                done(rig, landing, tag, then);
+                return;
+            }
+            rig.evidence(tag + ".climbed." + i, course.toShortString() + " 站上了");
+            climbCourse(rig, courses, i + 1, landing, tag, then);
+        });
     }
 
     /** How far the flight got, as a fraction — the number to grep across runs. A raise that stopped
