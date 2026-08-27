@@ -647,6 +647,28 @@ public final class JourneyFill {
         // and walks a full bucket short to a pour that will report「浇不出黑曜石」. Measure the
         // DELTA and that is impossible at any bucket count.
         int before = rig.carrying(id);
+        // THE READING THE POUR HAS AND THE SCOOP DID NOT. {@code cast6.atUse} is what makes a pour
+        // that did nothing debuggable: both bodies' selected slot, both eyes, and the ray in BOTH
+        // fluid modes, all at the instant of the use. The scoop had none of it, so ladder-18's
+        // `recover6.miss.3 = minecraft:water_bucket 0→0 … 射线停在 4, 59, 19 Block{minecraft:water}`
+        // had three authors and no row could separate them: the acting hand was not the bucket
+        // (`recover6.hand = minecraft:cobblestone`, `hand#2` the bucket, one settle apart), the cell
+        // was water but not a source, or `BucketItem`'s own SOURCE_ONLY clip is simply not the ray
+        // this file's instrument fires. One call answers all three, and it is the same call the
+        // pour makes, so the two sides stay comparable.
+        JourneyHands.handsAtUse(rig, tag);
+        // AND THE TARGET CELL, AS IT IS WHEN THE PACKET GOES OUT. `.miss` is written three ticks
+        // later, inside the settle below, so its「现在是」describes the world AFTER the use — the
+        // wrong moment to ask whether there was ever a source to pick up. A fill that worked
+        // removes the source it took, so「现在不是源块」is what SUCCESS looks like too. Take the
+        // reading here and print the pair; the difference between the two is the answer.
+        //
+        // The row says 发包 and not 开火 on purpose. The server runs `BucketItem.use` a round trip
+        // after this line, and water re-ticks every 5, so this is the cell as the CLIENT saw it
+        // when it sent — near the use, not identical to it. Naming the moment it was actually
+        // taken is what keeps the next reader from doing arithmetic on a moment nobody sampled.
+        var aimAtUse = level.getFluidState(aim);
+        var blockAtUse = level.getBlockState(aim).getBlock();
         rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
         // WAIT FOR THE ROUND TRIP BEFORE JUDGING — the mirror of aiming, not a contradiction of it.
         // The aim must be adjacent to the act on the body that ACTS; the OUTCOME is produced by
@@ -667,10 +689,14 @@ public final class JourneyFill {
             var hit = JourneyHands.aimedAt(rig.player(), BUCKET_REACH, true);
             double range = rig.player().getEyePosition()
                     .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
+            var aimNow = level.getFluidState(aim);
             rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
-                    "这一次没装上（%s %d→%d，已等过 3 tick 往返）；瞄 %s（现在是 %s），距 %.1fm，射线停在 %s",
+                    "这一次没装上（%s %d→%d，已等过 3 tick 往返）；瞄 %s（发包那一刻 %s 源块=%b 液位=%d，"
+                            + "3 tick 后 %s 源块=%b 液位=%d），距 %.1fm，射线停在 %s",
                     id, before, after,
-                    aim.toShortString(), level.getBlockState(aim).getBlock(), range,
+                    aim.toShortString(),
+                    blockAtUse, aimAtUse.isSource(), aimAtUse.getAmount(),
+                    level.getBlockState(aim).getBlock(), aimNow.isSource(), aimNow.getAmount(), range,
                     hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                             ? hit.getBlockPos().toShortString() + " "
                               + level.getBlockState(hit.getBlockPos()).getBlock()

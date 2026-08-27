@@ -55,6 +55,8 @@ public final class JourneyLandingScenes implements SceneProvider {
                         JourneyLandingScenes::getsAshoreBeforePouring).withRequired(false),
                 Scene.of("wd.journeyScoopsPastItsOwnObsidian", 6_000,
                         JourneyLandingScenes::scoopsPastItsOwnObsidian),
+                Scene.of("wd.journeyScoopPrintsTheHandItFiredWith", 6_000,
+                        JourneyLandingScenes::scoopPrintsTheHandItFiredWith),
                 Scene.of("wd.journeyReseatsWhenItCanSeeNoWater", 6_000,
                         JourneyLandingScenes::reseatsWhenItCanSeeNoWater),
                 Scene.of("wd.journeyKeepsTheSeatItMovedTo", 6_000,
@@ -347,6 +349,81 @@ public final class JourneyLandingScenes implements SceneProvider {
                         + "两者都不动存量）：" + before + " → " + after
                         + "；那一刻的手与两条射线：" + rig.evidenceOf("waterFill.atUse")).isTrue();
             });
+        });
+    }
+
+    /**
+     * The scoop's own use has to print the reading the pour has had all along.
+     *
+     * <p><b>Why the scene right above this one does not catch it.</b>
+     * {@link #scoopsPastItsOwnObsidian} calls {@link JourneyHands#handsAtUse} ITSELF, two lines
+     * before its own {@code useItemInHand} — so it stays green whether or not the production path
+     * takes that reading, and the production path did not. Ladder-18 paid for the gap:
+     * {@code recover6.miss.3 = minecraft:water_bucket 0→0 …射线停在 4, 59, 19
+     * Block{minecraft:water}} has three authors and no row could separate them — the acting hand was
+     * not the bucket ({@code recover6.hand = minecraft:cobblestone}, {@code hand#2} the bucket, one
+     * settle apart), the cell was water and not a source, or {@code BucketItem}'s own
+     * {@code SOURCE_ONLY} clip is simply not the ray this file's instrument fires.
+     *
+     * <p>So this one drives {@link JourneyFill#fillFrom} — the entry the rung calls — and then asks
+     * the EVIDENCE what it recorded, not the world what it looks like. The world looks the same
+     * either way; that is the whole point of an instrument.
+     *
+     * <p>Every assertion carries its own value in the message. A row that merely「exists」would go
+     * green on an empty string, and the field that answers the third author is the PAIR of rays:
+     * an empty bucket clips {@code SOURCE_ONLY} and a full one clips {@code NONE}, and over water
+     * the two answers differ.
+     */
+    private static void scoopPrintsTheHandItFiredWith(SceneContext ctx) {
+        ctx.cleanup(() -> clearBox(ctx));
+        flatGround(ctx);
+
+        // Cut into the stone for the reason every pool in this file is cut in: water proud of the
+        // surface flows away, and a scene whose source drains before it measures anything has
+        // staged nothing.
+        BlockPos open = ctx.rel(2, GROUND, 0);
+        ctx.setBlock(2, GROUND, 0, Blocks.WATER);
+
+        ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND + 1, 0));
+        ServerPlayer fp = driver.fakePlayer();
+        fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
+        fp.getInventory().selected = 0;
+        ServerPlayerAvatar av = driver.avatar();
+        for (int i = 0; i < 3; i++) av.step();
+
+        JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
+        int before = fp.getInventory().countItem(Items.WATER_BUCKET);
+        ctx.record("staged", "水源 " + open.toShortString() + "，源块="
+                + ctx.level().getFluidState(open).isSource() + "；身体 "
+                + fp.blockPosition().toShortString() + "，手里 minecraft:bucket ×"
+                + fp.getInventory().countItem(Items.BUCKET));
+
+        JourneyFill.fillFrom(ctx, rig, open, "probe", Items.WATER_BUCKET, () -> {
+            String atUse = String.valueOf(rig.evidenceOf("probe.atUse"));
+            String result = String.valueOf(rig.evidenceOf("probe.result"));
+            int after = fp.getInventory().countItem(Items.WATER_BUCKET);
+            ctx.record("probe.result", result);
+            ctx.record("probe.atUse", atUse);
+            ctx.record("probe.waterBucket", before + " → " + after);
+
+            // A FIRST, because everything below reads rows this path writes. If the production path
+            // never reached its own use, B–D would be asking an empty transcript and would fail for
+            // a reason that has nothing to do with the instrument.
+            ctx.check(!"null".equals(result)).as("A 控制组：生产路径真的走到了自己那一枪 —— "
+                    + "probe.result 实到 " + result).isTrue();
+            ctx.check(after > before).as("B 而且那一枪真的装上了水（判存量，不判 use 的返回值：空桶 use "
+                    + "落到非 BucketPickup 方块上返 FAIL、落空返 PASS，两者都不动存量）："
+                    + before + " → " + after).isTrue();
+
+            ctx.check(!"null".equals(atUse)).as("C 收水这一枪印出了 use 那一刻的读数 —— "
+                    + "补仪器之前这一行根本不存在，浇筑侧却一直有（cast6.atUse）。实到 "
+                    + atUse).isTrue();
+            ctx.check(atUse.contains("minecraft:bucket")).as("D 而且它读的是**动手那只手**、在**动手之前**："
+                    + "这一刻手里该是空桶 minecraft:bucket，装完之后才是 minecraft:water_bucket —— "
+                    + "读到 water_bucket 就说明这一行取晚了。实到 " + atUse).isTrue();
+            ctx.check(atUse.contains("满桶线") && atUse.contains("空桶线")).as(
+                    "E 两种流体模式的射线都在（这一对正是分开「桶自己的 SOURCE_ONLY 射线」和"
+                    + "「场景仪器那条射线」的字段，少一条就分不开）。实到 " + atUse).isTrue();
         });
     }
 

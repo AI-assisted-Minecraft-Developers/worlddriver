@@ -357,6 +357,9 @@ wd.journeyStepsDownOffItsOwnTower
 wd.journeyClimbsOutOfItsOwnPit
 wd.journeyGetsAshoreBeforePouring
 wd.journeyScoopsPastItsOwnObsidian
+# The scene above calls handsAtUse itself, so it was green while the production path took no such
+# reading at all. This one drives JourneyFill.fillFrom and asks the evidence, not the world.
+wd.journeyScoopPrintsTheHandItFiredWith
 # The other branch of the same chooser: nothing visible from the seat, so the seat is what moves.
 wd.journeyReseatsWhenItCanSeeNoWater
 # Same trap, bank stacked out of reach, so the seat lands past the approach's radius and the guard
