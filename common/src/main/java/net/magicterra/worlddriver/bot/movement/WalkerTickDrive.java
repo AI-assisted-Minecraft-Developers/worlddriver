@@ -1361,26 +1361,6 @@ final class WalkerTickDrive {
     }
 
     /**
-     * Count an ascent dead-zone, and give up the leg once re-routing provably cannot help.
-     *
-     * <p>{@code UNREACHABLE} folds into a re-route, which is right when the next plan can differ.
-     * Measured on journey rung 20 (2026-08-18) it could not: a body perched on a 0.16 sole beside the
-     * void re-routed for 2400 ticks — the leg's entire budget — and every single re-route returned
-     * the identical {@code diagUp} to the identical node, while the footing guard, the stride
-     * floor-guard and the recovery hop each correctly declined to move it. Four right answers and no
-     * legal move, in total silence, ending as a plain timeout with {@code end=null}.
-     *
-     * <p>{@link BotConfig#walkerFutileSearchCap} structurally cannot cover it: that counter is gated
-     * on the search NOT reaching the goal, and here the search reaches it every time — the plan is
-     * fine and the body cannot perform it. That is what the message says, because「no route
-     * progress」would be a lie about which half failed.
-     *
-     * <p>The counter advances only while BOTH the foot cell and the target node are unchanged, so a
-     * body that genuinely shifts keeps its full allowance and a transient dead-zone still re-routes.
-     *
-     * @return a terminal {@code FAILED} step to return from {@code run()}, or null to carry on
-     */
-    /**
      * LAST WORD on any jump: a body on a graze beside the void does not leave the ground.
      *
      * <p>Every gate above rules on the PLAN; this one rules on the BODY, which is why closing all
@@ -1419,6 +1399,26 @@ final class WalkerTickDrive {
      *  how fast is fast enough, and a bar set at sprint speed would refuse leaps that work. */
     private static final double PARKOUR_MIN_TAKEOFF_SPEED = 0.08;
 
+    /**
+     * Count an ascent dead-zone, and give up the leg once re-routing provably cannot help.
+     *
+     * <p>{@code UNREACHABLE} folds into a re-route, which is right when the next plan can differ.
+     * Measured on journey rung 20 (2026-08-18) it could not: a body perched on a 0.16 sole beside the
+     * void re-routed for 2400 ticks — the leg's entire budget — and every single re-route returned
+     * the identical {@code diagUp} to the identical node, while the footing guard, the stride
+     * floor-guard and the recovery hop each correctly declined to move it. Four right answers and no
+     * legal move, in total silence, ending as a plain timeout with {@code end=null}.
+     *
+     * <p>{@link BotConfig#walkerFutileSearchCap} structurally cannot cover it: that counter is gated
+     * on the search NOT reaching the goal, and here the search reaches it every time — the plan is
+     * fine and the body cannot perform it. That is what the message says, because「no route
+     * progress」would be a lie about which half failed.
+     *
+     * <p>The counter advances only while BOTH the foot cell and the target node are unchanged, so a
+     * body that genuinely shifts keeps its full allowance and a transient dead-zone still re-routes.
+     *
+     * @return a terminal {@code FAILED} step to return from {@code run()}, or null to carry on
+     */
     private static Walker.Step noteDeadZone(Walker wk, Player p, BlockPos foot, Move.Edge edge) {
         wk.forceFellOffPath = true;
         BlockPos node = wk.path.get(wk.step);

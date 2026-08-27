@@ -61,8 +61,8 @@ public final class Walker {
     /** gap#72-④: the chain/verb this walker moves for (e.g. "mine", "retreat",
      *  "goto") — threaded into every {@link PathFinder} it launches so latest.log's
      *  search-begin lines are attributable. "?" = an untagged caller (test rigs,
-     *  direct arena walkers). Telemetry only; never read by planning/steering. */
-    /** Who owns this Walker's searches, for telemetry. Defaults to a name that at least says WHAT
+     *  direct arena walkers). Telemetry only; never read by planning/steering.
+     *  <p>Who owns this Walker's searches, for telemetry. Defaults to a name that at least says WHAT
      *  it is: a thread dump reading {@code owner=?} cost a round of this investigation, because "?"
      *  reads as "not a Walker's" when it actually means "a Walker nobody named". Scenes that drive
      *  the bot directly never call {@link #setOwner}, so this default is what they get. */
@@ -159,8 +159,8 @@ public final class Walker {
      *  away, attack=false the whole time) is the third occurrence of this class
      *  (§71 wall-pin, §80 pin were the first two, masked there because the path
      *  happened to be stable). Anchor resets on >1.5 XZ blocks moved; vertical
-     *  bob (jump-ram) deliberately does not count as movement. */
-    /** Physical-stall anchor (task#96 step B7), owned by WalkerTickProgress; the stall
+     *  bob (jump-ram) deliberately does not count as movement.
+     *  <p>Physical-stall anchor (task#96 step B7), owned by WalkerTickProgress; the stall
      *  verdict is read by the aim/drive gates. Self-managing (re-anchors on real motion)
      *  — no journey reset ever touched it. */
     final PhysicalStall physStall = new PhysicalStall();
@@ -963,29 +963,6 @@ public final class Walker {
     public int pathStep() { return step; }
 
     /**
-     * The shape of the whole current plan, for a caller that can only otherwise see the ONE move
-     * entering the current node.
-     *
-     * <p>Reports the last node, whether the search actually reached the goal, and a count of every
-     * move name in the path. That last part is what separates「the planner routed a bridge and the
-     * body never executed it」from「the planner never planned one」— two diagnoses that
-     * {@link #pathMove()} alone reports identically whenever the step pointer happens to sit on a
-     * walk.
-     *
-     * <p><b>A move count is not a block count, and the gap is large.</b> {@link #adoptPath} runs
-     * {@code PathSmoothing.stringPull} before the path is ever driven, and that collapses a whole run
-     * of flat same-Y {@code walk}/{@code diag} edges into ONE edge spanning the straight line between
-     * its endpoints; only vertical, parkour, climb, break and place edges survive as hard waypoints.
-     * So {@code walk×7} may be seven cells or seventy. Measured 2026-08-17: {@code {walk=7,
-     * parkour3=1, stepUp=8}} — 18 cells if every move were one cell — spanned x 98→51, forty-seven
-     * blocks. Nothing was inconsistent; the eight {@code stepUp} and one {@code parkour3} are
-     * per-cell waypoints and the seven smoothed walks carried the remaining thirty-six.
-     *
-     * <p>That is the third reading in this family to be mistaken for a distance, after
-     * {@link #pathLen()} (nodes, not blocks) and {@link #pathMove()} (one edge, not the plan). The
-     * rule they share: <b>ask what a path reading counts before dividing by it.</b>
-     */
-    /**
      * What the world looks like UNDER the plan, sampled along it — the reading that separates a
      * broken support check from a world that was never there to check.
      *
@@ -1021,6 +998,29 @@ public final class Walker {
                 + " known=" + w.isKnown(c) + "/" + w.isKnown(under);
     }
 
+    /**
+     * The shape of the whole current plan, for a caller that can only otherwise see the ONE move
+     * entering the current node.
+     *
+     * <p>Reports the last node, whether the search actually reached the goal, and a count of every
+     * move name in the path. That last part is what separates「the planner routed a bridge and the
+     * body never executed it」from「the planner never planned one」— two diagnoses that
+     * {@link #pathMove()} alone reports identically whenever the step pointer happens to sit on a
+     * walk.
+     *
+     * <p><b>A move count is not a block count, and the gap is large.</b> {@link #adoptPath} runs
+     * {@code PathSmoothing.stringPull} before the path is ever driven, and that collapses a whole run
+     * of flat same-Y {@code walk}/{@code diag} edges into ONE edge spanning the straight line between
+     * its endpoints; only vertical, parkour, climb, break and place edges survive as hard waypoints.
+     * So {@code walk×7} may be seven cells or seventy. Measured 2026-08-17: {@code {walk=7,
+     * parkour3=1, stepUp=8}} — 18 cells if every move were one cell — spanned x 98→51, forty-seven
+     * blocks. Nothing was inconsistent; the eight {@code stepUp} and one {@code parkour3} are
+     * per-cell waypoints and the seven smoothed walks carried the remaining thirty-six.
+     *
+     * <p>That is the third reading in this family to be mistaken for a distance, after
+     * {@link #pathLen()} (nodes, not blocks) and {@link #pathMove()} (one edge, not the plan). The
+     * rule they share: <b>ask what a path reading counts before dividing by it.</b>
+     */
     public String planTally() {
         return tallyOf(path, edges) + " 到得了目标=" + !seg.pathBestEffort;
     }
@@ -1469,8 +1469,8 @@ public final class Walker {
      *  avatar {@link Avatar#breakHold} only rides vanilla's continueAttack pipeline, which a driven
      *  client never reaches because the mouse is never grabbed — so the key by itself breaks
      *  nothing. Server avatars break on the key and take the destroy as an inherited no-op, which is
-     *  why every wd.server* dig scene passed for as long as the walker drove the key alone. */
-    /** <p>THE ONE DOOR. Every walker dig routes through here, and here is where the cell is decided:
+     *  why every wd.server* dig scene passed for as long as the walker drove the key alone.
+     *  <p>THE ONE DOOR. Every walker dig routes through here, and here is where the cell is decided:
      *  the caller's cell is a <i>request</i>, the returned cell is what was actually driven. Vanilla's
      *  {@code MultiPlayerGameMode} tracks exactly ONE destroy target, so a phase that drives a second
      *  cell does not merely wait its turn — it runs {@code startDestroyBlock} and throws the other
@@ -1688,22 +1688,6 @@ public final class Walker {
     }
 
     /**
-     * Fill the empty column under the overhanging half of the sole.
-     *
-     * <p>The stride guard plugs the cell AHEAD; nothing has ever plugged the cell the body is
-     * already half off. That gap is what makes rung 20's lip a dead end: measured across two runs at
-     * the identical cell {@code (-32,85,27)}, the body stood on 16% of its sole beside the void with
-     * 500+ cobblestone in the bag while the footing guard pinned it, the stride guard refused the
-     * next step, the recovery hop refused to jump (a lethal drop one cell away) and the ascent
-     * executor called the plan's own next node UNREACHABLE. Four correct refusals and no legal move.
-     * One block under the body turns the perch into a floor and every one of those guards releases.
-     *
-     * <p>Only over a BOTTOMLESS column, for the same reason the stride guard's instant arming is:
-     * over an ordinary drop a thin sole is a graze the body walks off, and spending blocks on every
-     * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
-     * continuing and falling forever.
-     */
-    /**
      * True when this body is on a graze with the void beside it — the state from which no jump can
      * be allowed to leave the ground.
      *
@@ -1759,6 +1743,22 @@ public final class Walker {
         return false;
     }
 
+    /**
+     * Fill the empty column under the overhanging half of the sole.
+     *
+     * <p>The stride guard plugs the cell AHEAD; nothing has ever plugged the cell the body is
+     * already half off. That gap is what makes rung 20's lip a dead end: measured across two runs at
+     * the identical cell {@code (-32,85,27)}, the body stood on 16% of its sole beside the void with
+     * 500+ cobblestone in the bag while the footing guard pinned it, the stride guard refused the
+     * next step, the recovery hop refused to jump (a lethal drop one cell away) and the ascent
+     * executor called the plan's own next node UNREACHABLE. Four correct refusals and no legal move.
+     * One block under the body turns the perch into a floor and every one of those guards releases.
+     *
+     * <p>Only over a BOTTOMLESS column, for the same reason the stride guard's instant arming is:
+     * over an ordinary drop a thin sole is a graze the body walks off, and spending blocks on every
+     * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
+     * continuing and falling forever.
+     */
     private void widenFooting(Avatar a, WorldView world, Player p, BlockPos foot) {
         if (!BotConfig.allowPlace || a.breakHeld() || !a.holdPlaceable()) return;
         var box = p.getBoundingBox();
@@ -2272,9 +2272,8 @@ public final class Walker {
      *  becomes real (backfill-as-you-go). Velocity, not the commanded yaw, is used: the fatal
      *  strides (live well-mouth crossing; arena pillar-top drift) moved the body along headings
      *  the drive variables did not predict. Planned descents (current waypoint below foot in
-     *  the stride column) and parkour launches are exempt; water has its own physics. */
-    /**
-     * <b>Recorded, not acted on: this guard is also an unplanned bridge-builder.</b>
+     *  the stride column) and parkour launches are exempt; water has its own physics.
+     * <p><b>Recorded, not acted on: this guard is also an unplanned bridge-builder.</b>
      *
      * <p>Rung 14's crossing of 2026-08-20 was read back out of its own region files, and the box it
      * shuttled in is a lava sea — 18 458 lava cells against 2 543 netherrack in the walk band. The
@@ -2477,11 +2476,6 @@ public final class Walker {
         PathTraceHolder.SINK.onTerminal(PathTrace.Outcome.CANCELLED, reason);
     }
 
-    /** Splice in a freshly-searched route: string-pull it, reset the per-path
-     *  follow state, and record whether it's a best-effort partial (so the next
-     *  segment is precomputed from its end — see the kickoff/splice logic in
-     *  {@link #tick}). {@code seg.commitEnd} is the segment's last node, the launch
-     *  point for that continuation search. */
     /** At a loaded-chunk frontier the (stale) eager continuation from seg.commitEnd —
      *  computed before the bot arrived — found no onward route. Re-search FRESH from
      *  the frontier: now that the bot stands there, chunks ~render-distance further
@@ -2653,7 +2647,13 @@ public final class Walker {
     }
 
 
-    /** @return false if the segment was REJECTED because its start is nowhere
+    /** Splice in a freshly-searched route: string-pull it, reset the per-path
+     *  follow state, and record whether it's a best-effort partial (so the next
+     *  segment is precomputed from its end — see the kickoff/splice logic in
+     *  {@link #tick}). {@code seg.commitEnd} is the segment's last node, the launch
+     *  point for that continuation search.
+     *
+     *  @return false if the segment was REJECTED because its start is nowhere
      *  near the feet. A continuation is computed from the previous segment's
      *  seg.commitEnd; when the bot never actually made it there (fumbled the climb,
      *  fell off the route) the spliced path STARTS in mid-air several blocks

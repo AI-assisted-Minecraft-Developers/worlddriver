@@ -27,40 +27,6 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
  */
 final class WalkerTickClimb {
     /**
-     * Latch the pillar takeover's column, heading and safety ceiling — <b>once, at engage</b>.
-     *
-     * <p>The takeover pillars the bot's own column STRAIGHT UP, pinned to one bank, until it tops
-     * out of the water onto dry ground. Following the live (repathing) node instead made the bot
-     * wander between columns — chasing dive-to-floor and other-column pillar nodes A* kept
-     * replanning — and lose the wall-supported foothold (live round76c: engaged toward y145 pool
-     * floor + x2438→2441 drift, never climbed out).
-     *
-     * <p><b>⚠️ Everything here is a LATCH, and it is a separate method so that it has exactly one
-     * call site and that call site is behind the engage transition.</b> The caller's condition is
-     * satisfied on every tick of a pillar that is already running — {@code waterClimb.stall} is
-     * cleared only when the climb context is LEFT, and a body busy pillaring is still in the
-     * context, so {@code stall} only grows and the branch re-enters every tick. Running these four
-     * assignments on each of those ticks is what the missing gate used to do, and it silently
-     * undid BOTH of the things they exist for:
-     *
-     * <ul>
-     *   <li>the column/heading re-locked onto wherever the body had drifted to — which IS the
-     *       round76c drift the lock was written to stop; the latch followed the body instead of
-     *       pinning it;</li>
-     *   <li>the safety ceiling re-anchored to the current foot, so the caller's
-     *       {@code tooHigh = foot.getY() > targetY} read {@code foot.getY() > foot.getY() + 5}
-     *       (one {@code foot} per tick, from {@code cx.frame.foot}) and was UNCONDITIONALLY FALSE.
-     *       The bail could not fire, and it failed hardest exactly when it was needed most: the
-     *       longer the body stayed wedged, the larger {@code stall} grew and the more reliably the
-     *       ceiling was pushed back out of reach.</li>
-     * </ul>
-     *
-     * <p>Both are one defect: <b>a guard whose threshold is computed from the very quantity it is
-     * meant to bound can never bind it.</b> Keeping the assignment of {@link WalkerState#targetY}
-     * to a single call site inside a method named for the transition is the structural half of the
-     * fix — a future "just refresh it each tick" has to go through this name first.
-     */
-    /**
      * Is this pillarUp destination a FLOODED shaft — one the body floats straight up through —
      * rather than a water SURFACE it must place a support to leave?
      *
@@ -204,6 +170,40 @@ final class WalkerTickClimb {
         }
     }
 
+    /**
+     * Latch the pillar takeover's column, heading and safety ceiling — <b>once, at engage</b>.
+     *
+     * <p>The takeover pillars the bot's own column STRAIGHT UP, pinned to one bank, until it tops
+     * out of the water onto dry ground. Following the live (repathing) node instead made the bot
+     * wander between columns — chasing dive-to-floor and other-column pillar nodes A* kept
+     * replanning — and lose the wall-supported foothold (live round76c: engaged toward y145 pool
+     * floor + x2438→2441 drift, never climbed out).
+     *
+     * <p><b>⚠️ Everything here is a LATCH, and it is a separate method so that it has exactly one
+     * call site and that call site is behind the engage transition.</b> The caller's condition is
+     * satisfied on every tick of a pillar that is already running — {@code waterClimb.stall} is
+     * cleared only when the climb context is LEFT, and a body busy pillaring is still in the
+     * context, so {@code stall} only grows and the branch re-enters every tick. Running these four
+     * assignments on each of those ticks is what the missing gate used to do, and it silently
+     * undid BOTH of the things they exist for:
+     *
+     * <ul>
+     *   <li>the column/heading re-locked onto wherever the body had drifted to — which IS the
+     *       round76c drift the lock was written to stop; the latch followed the body instead of
+     *       pinning it;</li>
+     *   <li>the safety ceiling re-anchored to the current foot, so the caller's
+     *       {@code tooHigh = foot.getY() > targetY} read {@code foot.getY() > foot.getY() + 5}
+     *       (one {@code foot} per tick, from {@code cx.frame.foot}) and was UNCONDITIONALLY FALSE.
+     *       The bail could not fire, and it failed hardest exactly when it was needed most: the
+     *       longer the body stayed wedged, the larger {@code stall} grew and the more reliably the
+     *       ceiling was pushed back out of reach.</li>
+     * </ul>
+     *
+     * <p>Both are one defect: <b>a guard whose threshold is computed from the very quantity it is
+     * meant to bound can never bind it.</b> Keeping the assignment of {@link WalkerState#targetY}
+     * to a single call site inside a method named for the transition is the structural half of the
+     * fix — a future "just refresh it each tick" has to go through this name first.
+     */
     private static void engagePillar(Walker wk, Player p, BlockPos foot, BlockPos cwp) {
         Walker.waterPillarEngages++;
         wk.waterClimb.colX = foot.getX();
