@@ -197,23 +197,8 @@ public final class BlastFooting {
     }
 
     /**
-     * One sentence naming the qualifying stands within {@link #STAND_SURVEY_RADIUS}, so the refusal
-     * says「有没有别的地方可站」rather than only「这里不行」.
-     *
-     * <p><b>Diagnostic, and it says so.</b> A candidate here is a cell with head-room whose floor
-     * is blast-proof; nothing checks that the body could actually WALK there, and in the geometry
-     * this guard was written for it provably cannot (vanilla's cage lid is a solid 5x5 of iron bars
-     * over the only qualifying floor). Reporting these as「可以站」would be exactly the kind of
-     * false yes this repo has paid for before, so the wording is {@code 可达性未验证} and no caller
-     * may branch on it. The coarser {@code blocksMotion} head-room test lives ONLY here, inside a
-     * message — the criterion above is the sole row and nothing else. That test is deliberately the
-     * same shape {@code LavaProximityEscape} already uses to look for a cell to stand in (floor
-     * blocks motion, the two body cells do not), so this survey and the escape's agree about what a
-     * candidate looks like even though neither decides anything with it.
-     */
-    /**
-     * The qualifying stands themselves, nearest first — the survey above as a value instead of a
-     * sentence.
+     * The qualifying stands themselves, nearest first — {@code surveyStands}'s survey as a value
+     * instead of a sentence.
      *
      * <p>The survey's javadoc says no caller may branch on it because reachability is unverified,
      * and that stays true of this list: <b>a caller must treat each entry as a candidate to WALK
@@ -244,6 +229,21 @@ public final class BlastFooting {
         return blastProofResistance(blastPowerOnHurt(target));
     }
 
+    /**
+     * One sentence naming the qualifying stands within {@link #STAND_SURVEY_RADIUS}, so the refusal
+     * says「有没有别的地方可站」rather than only「这里不行」.
+     *
+     * <p><b>Diagnostic, and it says so.</b> A candidate here is a cell with head-room whose floor
+     * is blast-proof; nothing checks that the body could actually WALK there, and in the geometry
+     * this guard was written for it provably cannot (vanilla's cage lid is a solid 5x5 of iron bars
+     * over the only qualifying floor). Reporting these as「可以站」would be exactly the kind of
+     * false yes this repo has paid for before, so the wording is {@code 可达性未验证} and no caller
+     * may branch on it. The coarser {@code blocksMotion} head-room test lives ONLY here, inside a
+     * message — the criterion above is the sole row and nothing else. That test is deliberately the
+     * same shape {@code LavaProximityEscape} already uses to look for a cell to stand in (floor
+     * blocks motion, the two body cells do not), so this survey and the escape's agree about what a
+     * candidate looks like even though neither decides anything with it.
+     */
     private static String surveyStands(Level level, BlockPos from, double need) {
         List<BlockPos> stands = qualifyingStands(level, from, need);
         int found = stands.size();

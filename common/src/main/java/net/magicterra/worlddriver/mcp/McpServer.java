@@ -286,8 +286,9 @@ public final class McpServer implements Closeable {
     }
 
     /** One open SSE connection: its output stream + a latch the parked handler
-     *  thread waits on. Writes are synchronized and fail-closed. */
-    /** Package-private rather than private so {@code SseBackpressureTest} can drive one
+     *  thread waits on. Writes are synchronized and fail-closed.
+     *
+     *  <p>Package-private rather than private so {@code SseBackpressureTest} can drive one
      *  against a deliberately-stalled stream; there is no other way to prove the event
      *  dispatcher stops blocking without wedging a real TCP receive window. */
     static final class SseSubscriber {

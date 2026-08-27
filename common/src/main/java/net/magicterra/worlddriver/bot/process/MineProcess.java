@@ -193,10 +193,10 @@ public final class MineProcess implements BotProcess {
     /** What the collect walker last said. Read only by {@link #finish} — a terminal verdict that
      *  cannot name the sweep's own behaviour makes the reader guess between three bugs. */
     private Walker.Step lastCollectStep;
-    /** Retirement causes, split. See the COLLECT stuck-handler for why the split matters. */
     /** Re-plans spent on the current collect goal after an ARRIVED that was not at it. */
     private int collectRepaths;
     private static final int COLLECT_MAX_REPATHS = 3;
+    /** Retirement causes, split. See the COLLECT stuck-handler for why the split matters. */
     private int retiredUnpathable;
     private int retiredArrivedShort;
     /** Mining targets blacklisted this sweep — see {@link #retireTarget}. A different ledger from

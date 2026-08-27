@@ -389,10 +389,6 @@ public final class PathFinder {
         /** Obstacle-aware goal-distance field, or null when disabled / unusable
          *  (then the heuristic is the plain Euclidean {@link Goal#estimate}). */
         private final CoarseGoalField goalField;
-        /** Ordered stack of per-edge cost taxes, summed in the neighbor loop.
-         *  A0 seeds it with the eight legacy taxes IN THEIR ORIGINAL ORDER so
-         *  the floating-point sum is bit-identical to the old inline expression;
-         *  later phases add/remove modifiers per intent. */
         /** Tax attribution is a PER-SEARCH diagnostic, so it gets its own switch
          *  ({@code -Dworlddriver.pathfinderTaxLog=true}) rather than riding walkerDebug —
          *  which scenes flip off to silence the per-TICK walker spam. Eight of the
@@ -402,6 +398,10 @@ public final class PathFinder {
          *  stops printing. */
         private static final boolean TAX_LOG = Boolean.getBoolean("worlddriver.pathfinderTaxLog");
 
+        /** Ordered stack of per-edge cost taxes, summed in the neighbor loop.
+         *  A0 seeds it with the eight legacy taxes IN THEIR ORIGINAL ORDER so
+         *  the floating-point sum is bit-identical to the old inline expression;
+         *  later phases add/remove modifiers per intent. */
         private final List<CostModifier> costModifiers = new ArrayList<>();
         /** Display name per entry of {@link #costModifiers}, same index. Written only
          *  through {@link #tax}, so the two lists cannot drift apart. */
@@ -577,16 +577,6 @@ public final class PathFinder {
             return h;
         }
 
-        /** REAL edge cost (added to g, not h) for descending IN WATER or by BREAKING
-         *  a block, below {@code startY − slack}. This is what actually makes a
-         *  dive-and-tunnel path cost more than a climb-ashore one — a heuristic bias
-         *  can only reorder the search, never change which reachable path is cheapest,
-         *  so an XZ goal at a sheer-walled water pit still drilled underground / bobbed
-         *  until the descent paid its true cost. GATED to watery-or-breaking descents:
-         *  a dry stepped descent over solid ground (StepDown/Fall/DiagonalDescend, no
-         *  block broken, not in water) is a legitimate downhill walk and pays nothing,
-         *  so normal terrain pathing is byte-for-byte unchanged. Only the portion of
-         *  the step below the slack threshold is charged, and only when going down. */
         /** True when the goal converges on an UNDERWATER target — a deliberate dive
          *  (seabed monument / shipwreck). The buoyancy water-taxes (descend / per-cell /
          *  submerged / climb-out) are suppressed for such a goal so the intended descent
@@ -673,6 +663,16 @@ public final class PathFinder {
             return sb.length() == 0 ? "none" : sb.toString();
         }
 
+        /** REAL edge cost (added to g, not h) for descending IN WATER or by BREAKING
+         *  a block, below {@code startY − slack}. This is what actually makes a
+         *  dive-and-tunnel path cost more than a climb-ashore one — a heuristic bias
+         *  can only reorder the search, never change which reachable path is cheapest,
+         *  so an XZ goal at a sheer-walled water pit still drilled underground / bobbed
+         *  until the descent paid its true cost. GATED to watery-or-breaking descents:
+         *  a dry stepped descent over solid ground (StepDown/Fall/DiagonalDescend, no
+         *  block broken, not in water) is a legitimate downhill walk and pays nothing,
+         *  so normal terrain pathing is byte-for-byte unchanged. Only the portion of
+         *  the step below the slack threshold is charged, and only when going down. */
         private double descendTax(BlockPos from, BlockPos to, Move.Edge edge) {
             double per = BotConfig.pathfinderDescendCost;
             if (per <= 0 || to.getY() >= from.getY()) return 0;        // off, or not descending
@@ -948,14 +948,14 @@ public final class PathFinder {
             return 0;
         }
 
-        /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
-         *  the search finishes / hits its total budget). Returns true once done;
-         *  the {@link Result} is then available from {@link #result()}. */
         /** How many runaway expansions one search may report before it stops repeating itself.
          *  Enough to see whether it is one bad cell or a whole region. */
         private static final int RUNAWAY_LOG_CAP = 8;
         private int runawayLogged;
 
+        /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
+         *  the search finishes / hits its total budget). Returns true once done;
+         *  the {@link Result} is then available from {@link #result()}. */
         public boolean advance(long sliceMs) {
             if (result != null) return true;
             long sliceStart = System.nanoTime();
@@ -1343,16 +1343,6 @@ public final class PathFinder {
         }
 
         /**
-         * Adds this slice's wall-clock to the current tick's account and reports when the total
-         * crosses each {@link #TICK_REPORT_NANOS} boundary. See {@link #TICK_SPEND}.
-         *
-         * <p>Charged in the {@code finally} beside {@code elapsedNanos} deliberately: that is the
-         * one place every exit from {@code advance()} passes through — the yield return, the
-         * goal-reached return, the best-effort return and any throw alike. An instrument attached
-         * to a normal-return path would under-report exactly the pathological searches, which is
-         * the mistake the HEARTBEAT note above was written about.
-         */
-        /**
          * What this tick has already been charged, plus the slice currently in flight.
          *
          * <p>The in-flight term is not a refinement — it is the point. A slice is charged in the
@@ -1387,6 +1377,16 @@ public final class PathFinder {
                     Thread.currentThread().getName(), CEILING_MS);
         }
 
+        /**
+         * Adds this slice's wall-clock to the current tick's account and reports when the total
+         * crosses each {@link #TICK_REPORT_NANOS} boundary. See {@link #TICK_SPEND}.
+         *
+         * <p>Charged in the {@code finally} beside {@code elapsedNanos} deliberately: that is the
+         * one place every exit from {@code advance()} passes through — the yield return, the
+         * goal-reached return, the best-effort return and any throw alike. An instrument attached
+         * to a normal-return path would under-report exactly the pathological searches, which is
+         * the mistake the HEARTBEAT note above was written about.
+         */
         private void chargeTick(long spentNanos) {
             long marker = world.tickMarker();
             if (marker == Long.MIN_VALUE) return;      // view has no clock; do not invent one
