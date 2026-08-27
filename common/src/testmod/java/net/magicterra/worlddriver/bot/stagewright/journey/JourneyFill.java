@@ -419,8 +419,27 @@ public final class JourneyFill {
     static String eyeNow(JourneyRig rig) {
         var fp = rig.player();
         var eye = fp.getEyePosition();
-        return String.format(java.util.Locale.ROOT, "眼睛 %.2f/%.2f/%.2f 朝 yaw=%.2f pitch=%.2f",
-                eye.x, eye.y, eye.z, fp.getYRot(), fp.getXRot());
+        // AND WHETHER THE BODY IS STANDING ON ANYTHING, because a ray from an airborne eye is not
+        // the ray that was verified — and no other field in these rows can see it.
+        //
+        // Ladder-18, rung 12, `recover6`: eye y=60.48 with `blockPosition()` reporting 3,58,19.
+        // 60.48 − 1.62 = 58.86, so the body was most of a block above the row it thought it was on,
+        // still falling toward it, and the extra 0.86 put the frame cell 4,60,19 on the line to the
+        // water in 4,59,19 — from a resting eye at 59.62 that cell is not on the line at all. The
+        // row that DID exist,「settle 这两 tick 里眼睛挪了 0.25 格」, cannot answer this: eleven of
+        // that run's twelve aims drifted 0.10–0.30 too and every one of them ended on an integer
+        // row. Drift is not the discriminator; where the feet ENDED is.
+        //
+        // Both readings, deliberately, because they disagree. `onGround` describes the last
+        // {@code move()} and lies in both directions, while an integer feet-y is geometry and says
+        // nothing about support over a slab or a fence. Printing the pair lets the next reader see
+        // the disagreement instead of inheriting whichever one this line had picked.
+        double feet = fp.getY();
+        boolean onRow = Math.abs(feet - Math.round(feet)) < 0.01;
+        return String.format(java.util.Locale.ROOT,
+                "眼睛 %.2f/%.2f/%.2f 朝 yaw=%.2f pitch=%.2f（脚 y=%.2f，%s，onGround=%b）",
+                eye.x, eye.y, eye.z, fp.getYRot(), fp.getXRot(), feet,
+                onRow ? "落在整数排上" : "★ 不在整数排上，身体还在坠", fp.onGround());
     }
 
     /** How far the eye may drift across a settle before the drift itself is worth printing. Five

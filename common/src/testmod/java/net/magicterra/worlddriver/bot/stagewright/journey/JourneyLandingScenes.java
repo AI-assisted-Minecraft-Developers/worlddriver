@@ -424,6 +424,19 @@ public final class JourneyLandingScenes implements SceneProvider {
             ctx.check(atUse.contains("满桶线") && atUse.contains("空桶线")).as(
                     "E 两种流体模式的射线都在（这一对正是分开「桶自己的 SOURCE_ONLY 射线」和"
                     + "「场景仪器那条射线」的字段，少一条就分不开）。实到 " + atUse).isTrue();
+
+            // F/G — the OTHER reading ladder-18 needed and did not have. Same scene rather than a
+            // second one: both are「这一枪的现场读数够不够判因」, and this arena already produces
+            // the aim row for free.
+            String aimsAt = String.valueOf(rig.evidenceOf("probe.aimsAt"));
+            ctx.record("probe.aimsAt", aimsAt);
+            ctx.check(aimsAt.contains("脚 y=") && aimsAt.contains("onGround=")).as(
+                    "F 瞄准那一行说得出身体落地没有 —— 补这个字段之前它只印眼睛，而一具还在坠的身体"
+                    + "打出去的射线不是验过的那条（ladder-18 recover6：眼睛 60.48 ⇒ 脚 58.86，"
+                    + "而 blockPosition() 报 58）。实到 " + aimsAt).isTrue();
+            ctx.check(aimsAt.contains("落在整数排上")).as(
+                    "G 而且这一趟它答的是「落地了」—— 本场景的身体站在实地上，若印出 ★ 那一支，"
+                    + "说明这个判据恒真或恒假，而不是在读身体。实到 " + aimsAt).isTrue();
         });
     }
 
