@@ -85,6 +85,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **A corridor leg now records the fire that was there before it moved.** Rung fourteen burnt off ten
+  of its eighteen hit points and the archive cannot say why, because the two explanations left call
+  for opposite repairs and no column separates them. The planner is not one of them: `isHazardState`
+  answers true for the `#minecraft:fire` tag, every real `WorldView` delegates to it, and
+  `canStandAt` refuses a hazard foot cell — so a body whose `blockPosition` was a fire block either
+  left its plan or met fire that postdated it. A ghast fireball places fire blocks, which folds
+  「a ghast did it」into the second family rather than adding a third.
+
+  `JourneyFireCensus` is that column. It is read on the server thread before the settle, so it
+  describes the world the search planned against, and it prints the CELLS: a coordinate can be
+  compared against a burn coordinate and a yes/no cannot. The detour re-ask takes a second census,
+  and because it starts where the detour left the body the two boxes overlap rather than coincide —
+  a cell inside both, absent from the first and present in the second, is dated after the plan.
+
+  It scans a box, not a route, and says so in the row. No pad makes a box into a path, so an empty
+  census means「no fire in this neighbourhood when the plan was made」and never「the body met no
+  fire」. Its gate is four arms, because the failure that matters is silence: an instrument that
+  always came back empty would pass three of them and would answer, every time, the family whose
+  repair is a replan trigger.
+
+  Poisoning it published its own arithmetic error. The positive control asserts the number of cells
+  looked at, the pre-registered value was 7×3×3, and the census answered 81 — the pad grows the long
+  axis on both ends too. The instrument was right; the expectation was not, which is what a control
+  carrying a NUMBER rather than a `> 0` is for.
+
 - **The real ladder reached the Nether — thirteen rungs, ten frame cells of ten, no staging.** The
   three runs before it all stalled at eleven with the ring eight cells cast. What moved is the top
   pair's aim, and the mould site is picked per run, so the comparison is only readable because one
