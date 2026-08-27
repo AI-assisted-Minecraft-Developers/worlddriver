@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-08-29
+
+- **A drowning body stands up before it digs its way out.**
+  `DrownEscapeChain`'s vertical arm held jump on every tick and broke the lid in the same tick, so
+  the body hovered instead of resting on whatever it stood over. Vanilla's `Player#getDestroySpeed`
+  divides the rate by 5 off the ground and by 5 again with the eyes in water, and this arm was
+  paying both. Measured on the real client body, integrated topology, in
+  `wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff`:
+  one dirt lid cost **380 ticks** at `盖.着地率 = 3/380`, with
+  the floor right there: `盖.脚下 = stone`, body parked at y=208.235 over a floor whose top is
+  y=208.0. **0.235 blocks of hover**, and bare-hand dirt is ~15 ticks, so 15 × 25 = 375.
+
+  The air budget is what made that fatal rather than merely slow. Latching at
+  `drownEscapeAirThreshold` (100) buys roughly 300 ticks of life — 100 air, then 20 HP at 2 damage
+  per 20 ticks — so a 380-tick escape loses the race it exists to win. Releasing the jump while a
+  break is in progress drops the body those 0.235 blocks, `onGround` becomes true, and the same dig
+  costs a fifth.
+
+  The walker had been pricing digs this way the whole time. `WalkerTickClimb`'s hopelessness gate
+  normalises stance with「off-ground ÷5 always undone (the bot can always ground — ashore or on the
+  basin floor)」, and its own note records the field measurement behind it: the same stone bank cell
+  is 150t dug grounded ashore yet 750–3750t sampled mid-bob. One subsystem priced digs assuming the
+  body can ground; the other never grounded.
+
+  Guarded on the cell under the feet, and the guard is geometry rather than caution. `RISE_PROBE` is
+  half a block and it lifts the body's own box, so in a two-tall pocket a grounded body still finds
+  the lid and the release costs nothing. Over deeper water the body would sink out of that reach,
+  lose the lid, and oscillate with the break progress reset every cycle — so there the jump stays
+  held. `wd.drownEscapeClientKeepsFloatingWhenThePocketIsDeep` is that negative arm's control: its
+  dig time must not move while its shallow twin's falls to about a fifth.
+
 ## 2026-08-28
 
 - **A drowning body is steered only at open water it can actually swim to.**
