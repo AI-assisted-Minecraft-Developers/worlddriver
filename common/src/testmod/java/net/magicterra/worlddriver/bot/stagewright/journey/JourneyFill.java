@@ -853,21 +853,6 @@ public final class JourneyFill {
     private static final int FILL_SOURCES_TRIED = 16;
 
     /**
-     * A cell beside the pool the body can STAND in, and a source it can provably reach from there.
-     *
-     * <p>The exact counterpart of {@link #standToPour}, and it is missing for the same reason that
-     * one was: the rung asked the walker to get NEAR a coordinate and then hoped the geometry worked
-     * out. It does not, at a lake's edge — a bucket clips from the eyes with {@code Fluid.SOURCE_ONLY}
-     * and a finger of bank one cell wide is enough to stop it, so "there is lava two blocks away" and
-     * "this bucket will fill" are different claims. Measured twice at 2.1 m and 1.9 m from live lava:
-     * {@code 射线停在 -10,63,21 Block{minecraft:stone}}, bucket still empty.
-     *
-     * <p>So both halves are decided before the walk: a cell that is standable (feet and head clear of
-     * blocks AND of fluid — this one stands next to lava) and from which the clip vanilla is about to
-     * run lands on the source. Sources are tried nearest-first by how far the BODY must walk, so the
-     * answer is also the cheapest trip.
-     */
-    /**
      * Is the straight line from the body to this stand over the pool?
      *
      * <p>A stand is chosen by how far the BODY has to go, and straight-line distance is the only
@@ -938,6 +923,22 @@ public final class JourneyFill {
         return spot == null ? null : spot.stand();
     }
 
+    /**
+     * A cell beside the pool the body can STAND in, and a source it can provably reach from there.
+     *
+     * <p>The exact counterpart of {@link JourneyPour#standToPour}, and it is missing for the same
+     * reason that one was: the rung asked the walker to get NEAR a coordinate and then hoped the
+     * geometry worked out. It does not, at a lake's edge — a bucket clips from the eyes with
+     * {@code Fluid.SOURCE_ONLY} and a finger of bank one cell wide is enough to stop it, so "there
+     * is lava two blocks away" and "this bucket will fill" are different claims. Measured twice at
+     * 2.1 m and 1.9 m from live lava: {@code 射线停在 -10,63,21 Block{minecraft:stone}}, bucket
+     * still empty.
+     *
+     * <p>So both halves are decided before the walk: a cell that is standable (feet and head clear of
+     * blocks AND of fluid — this one stands next to lava) and from which the clip vanilla is about to
+     * run lands on the source. Sources are tried nearest-first by how far the BODY must walk, so the
+     * answer is also the cheapest trip.
+     */
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
                                         int radius, Map<String, Integer> why) {
         // PREFERENCE, not a rule. Asked as a rule it removed the only stands there were — run 37

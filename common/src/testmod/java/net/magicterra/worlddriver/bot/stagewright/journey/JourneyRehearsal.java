@@ -1823,35 +1823,6 @@ public final class JourneyRehearsal {
 
 
     /**
-     * Somewhere beside the lake a body can be set down: solid floor, two cells of air, no fluid.
-     *
-     * <p>Rings outward from {@code min} so the body lands close enough for the rung's own walk to be
-     * short and far enough that it is not standing in the pool. The fluid checks are the whole point:
-     * dropping a body into a surface lava lake is invisible on an invulnerable avatar and turns every
-     * later reading into nonsense.
-     */
-    /**
-     * Which side of the lake this rehearsal must stand on, or null for whichever comes first.
-     *
-     * <p><b>A rehearsal that always stands in one place tests one geometry.</b> The real ladder picks
-     * its forge orientation from wherever eleven rungs left the body relative to the pool, and it is
-     * a different one nearly every run: two consecutive ladder runs carved {@code forge.away=east}
-     * and {@code forge.away=south}, and the second failed in a way the first could not reach — the
-     * body could not walk back out of the alcove to the staircase. Thirty rehearsals had never once
-     * been in that geometry, so the rehearsal was structurally blind to it, which is the same
-     * blindness the inventory difference had (cobblestone here, dirt on the climb).
-     *
-     * <p><b>The side is staged, not the direction.</b> Forcing {@code stairDir} outright would let
-     * the mould be carved TOWARD the lake — the one mistake that ends a run rather than costing it a
-     * retry, and a state the real ladder can never be in, so anything found that way would not be a
-     * finding. Standing the body on the requested side makes {@link JourneyPortalRung#awayFrom} return
-     * that direction on its own, and every geometric invariant the rung relies on still holds. A seed
-     * with no dry ground on one side simply cannot rehearse that orientation, and says so.
-     *
-     * <p>Rehearsal-only twice over, like {@code breakAStair}: this is read only from the staging step,
-     * which only runs when {@link #target()} is set, and the choice goes into the staging ledger.
-     */
-    /**
      * The side a rehearsal staged, for {@code JourneyTerrain.pickDigColumn} to honour — {@code null}
      * on every real climb, which is what makes this inert there.
      *
@@ -1944,6 +1915,27 @@ public final class JourneyRehearsal {
         }
     }
 
+    /**
+     * Which side of the lake this rehearsal must stand on, or null for whichever comes first.
+     *
+     * <p><b>A rehearsal that always stands in one place tests one geometry.</b> The real ladder picks
+     * its forge orientation from wherever eleven rungs left the body relative to the pool, and it is
+     * a different one nearly every run: two consecutive ladder runs carved {@code forge.away=east}
+     * and {@code forge.away=south}, and the second failed in a way the first could not reach — the
+     * body could not walk back out of the alcove to the staircase. Thirty rehearsals had never once
+     * been in that geometry, so the rehearsal was structurally blind to it, which is the same
+     * blindness the inventory difference had (cobblestone here, dirt on the climb).
+     *
+     * <p><b>The side is staged, not the direction.</b> Forcing {@code stairDir} outright would let
+     * the mould be carved TOWARD the lake — the one mistake that ends a run rather than costing it a
+     * retry, and a state the real ladder can never be in, so anything found that way would not be a
+     * finding. Standing the body on the requested side makes {@link JourneyPortalRung#awayFrom} return
+     * that direction on its own, and every geometric invariant the rung relies on still holds. A seed
+     * with no dry ground on one side simply cannot rehearse that orientation, and says so.
+     *
+     * <p>Rehearsal-only twice over, like {@code breakAStair}: this is read only from the staging step,
+     * which only runs when {@link #target()} is set, and the choice goes into the staging ledger.
+     */
     private static Direction forcedSide(SceneContext ctx) {
         String want = System.getProperty("worlddriver.journey.forgeAway", "").trim();
         if (want.isEmpty()) return null;
@@ -1997,6 +1989,14 @@ public final class JourneyRehearsal {
         return n;
     }
 
+    /**
+     * Somewhere beside the lake a body can be set down: solid floor, two cells of air, no fluid.
+     *
+     * <p>Rings outward from {@code min} so the body lands close enough for the rung's own walk to be
+     * short and far enough that it is not standing in the pool. The fluid checks are the whole point:
+     * dropping a body into a surface lava lake is invisible on an invulnerable avatar and turns every
+     * later reading into nonsense.
+     */
     private static BlockPos dryStandNear(ServerLevel level, BlockPos lake, int min, int max) {
         return dryStandNear(level, lake, min, max, null);
     }
