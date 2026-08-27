@@ -111,6 +111,8 @@ public final class JourneyRampScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.rampStepsAsideWhenTheBodyIsInItsOwnStep", 200,
                         JourneyRampScenes::stepsAsideWhenTheBodyIsInItsOwnStep),
+                Scene.of("wd.rampSeesABodyOnlyPartlyInTheCell", 200,
+                        JourneyRampScenes::seesABodyOnlyPartlyInTheCell),
                 Scene.of("wd.rampFootholdRisesWithTheFlightItLaid", 200,
                         JourneyRampScenes::footholdRisesWithTheFlightItLaid),
                 Scene.of("wd.rampNeverFoldsBackIntoItsOwnHeadroom", 400,
@@ -389,6 +391,143 @@ public final class JourneyRampScenes implements SceneProvider {
                 .as("H 挪开之后同一个循环把整道楼梯垫完").isEqualTo(JourneyRamp.Stop.FINISHED);
         ctx.check(standing(level, flight)).as("I 而且是世界里真的立着 " + flight.size()
                 + " 级，不是循环自己说的").isEqualTo(flight.size());
+    }
+
+    // ------------------------------ the body that is in the cell without being in the cell ----
+
+    /** How far toward the neighbouring cell the straddling body stands, from its own cell's centre.
+     *  0.38 puts its box 0.18 into the cell next door — the overlap the run measured, to two
+     *  decimals — while {@code blockPosition()} still names the cell it came from. */
+    private static final double STRADDLE = 0.38;
+
+    /**
+     * A body 0.18 of a cell over the line is in the way, and the cell name does not say so.
+     *
+     * <h2>The remedy that could not reach its own occasion</h2>
+     *
+     * <p>{@link JourneyRamp.Stop#BODY_IN_THE_WAY} buys exactly one step-aside from
+     * {@link JourneyRamp#stepAsideFor}, and {@code wd.rampStepsAsideWhenTheBodyIsInItsOwnStep} drives
+     * that. What neither drove was the door: {@link JourneyRamp#layWhereItStands} classified with
+     * {@code support.equals(body)} — a CELL NAME — while the obstruction vanilla refuses over is a
+     * <b>0.6-wide box</b>. The two disagree for every body that is not on its cell's centre line, and
+     * the sibling arm cannot see it because it stages the body in the cell.
+     *
+     * <p>Measured, client rehearsal 2026-08-26, on the tenth and last cell of the ring:
+     *
+     * <pre>
+     * water9.ramp.step.0 = 3, 56, 18 垫不上（… 但身体自己的碰撞箱压在这一格里 …
+     *                      身体精确位置 2.88/56.00/18.78），身体 2, 56, 18
+     * water9.ramp.laid   = 0/4 级垫好了（身体 2, 56, 18，停在 REFUSED 3, 56, 18）
+     * cast6.ramp.laid    = 0/2 级垫好了（身体 2, 56, 17，停在 BODY_IN_THE_WAY 2, 56, 17）
+     * </pre>
+     *
+     * <p>Same run, same rung: cell six laid nothing, was named {@code BODY_IN_THE_WAY}, got its step
+     * aside and PASSED. Cell nine laid nothing, was named {@code REFUSED} over an obstruction 0.18 of
+     * a block outside its own cell, got nothing, and the ring ended 9/10. The row already said the
+     * right thing — {@code whyNotLaid} has asked the box question since it was written — but it said
+     * it in an evidence STRING, downstream of the decision that had already been made.
+     *
+     * <h2>判据</h2>
+     *
+     * <ol>
+     *   <li><b>THE RIG</b> the body's cell is NOT the support, and not the support's cell below it
+     *       either — so the old test says no and every reading below is about the new one;</li>
+     *   <li><b>A</b> the predicate says yes: the box reaches into the support. Printed as the box
+     *       and the cell, not as「true」— a ruler prints values;</li>
+     *   <li><b>B</b> the classification agrees — one pass stops on {@code BODY_IN_THE_WAY} <i>at that
+     *       support</i>, not merely somewhere;</li>
+     *   <li><b>C</b> and the remedy is now reachable: the decision hands back a cell. This is the
+     *       whole point — before the widening this arm's {@code stepAsideFor} returned null;</li>
+     *   <li><b>D/E the control</b> — the SAME body, the SAME cell, the SAME world, moved
+     *       {@value #STRADDLE} of a block back to its own centre: the predicate says no and the pass
+     *       lays the course. Without it A is satisfied by a predicate that answers yes to
+     *       everything, and it is the claim in one line: <b>the refusal is a property of where the
+     *       body stands, not of the world</b>. It runs LAST because it is the arm that changes the
+     *       world — a control that lays the course first would leave B nothing to refuse.</li>
+     * </ol>
+     */
+    private static void seesABodyOnlyPartlyInTheCell(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        config(ctx);
+        stage(ctx);
+
+        Set<BlockPos> corridor = corridor(ctx);
+        BlockPos landing = landing(ctx);
+        int floorY = JourneyRamp.floorOf(corridor);
+        List<BlockPos> flight = JourneyRamp.planKeeping(level, corridor, floorY, landing, false);
+        if (flight == null || flight.isEmpty())
+            ctx.fail("THE RIG, not the subject: 这个壁龛里规划器修不出通往 " + landing.toShortString()
+                    + " 的楼梯");
+        BlockPos support = flight.get(0).below();
+
+        // The cell to straddle FROM: hollow, in the corridor, with a floor under it and room above.
+        // Found rather than named, so the arm survives a change to JourneyForge's alcove shape.
+        BlockPos beside = null;
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            BlockPos c = support.relative(d);
+            if (!corridor.contains(c)) continue;
+            if (level.getBlockState(c.below()).blocksMotion()
+                    && !level.getBlockState(c).blocksMotion()
+                    && !level.getBlockState(c.above()).blocksMotion()) { beside = c; break; }
+        }
+        if (beside == null)
+            ctx.fail("THE RIG, not the subject: " + support.toShortString()
+                    + " 的四邻里没有一个站得住的壁龛格，跨不出「压过界」这个前提");
+
+        ServerWorldDriver driver = body(ctx, beside);
+        ServerPlayer fp = driver.fakePlayer();
+        double dx = (support.getX() - beside.getX()) * STRADDLE;
+        double dz = (support.getZ() - beside.getZ()) * STRADDLE;
+        fp.moveTo(beside.getX() + 0.5 + dx, beside.getY(), beside.getZ() + 0.5 + dz);
+
+        ctx.record("staged", "身体精确 " + round(fp.getX()) + "/" + round(fp.getY()) + "/"
+                + round(fp.getZ()) + "，格号 " + fp.blockPosition().toShortString()
+                + "；要垫的是 " + support.toShortString() + "（从 " + beside.toShortString()
+                + " 往它挪了 " + STRADDLE + " 格）");
+        ctx.record("box", "碰撞箱 x " + round(fp.getBoundingBox().minX) + ".."
+                + round(fp.getBoundingBox().maxX) + "，z " + round(fp.getBoundingBox().minZ) + ".."
+                + round(fp.getBoundingBox().maxZ) + "；那一格 x " + support.getX() + ".."
+                + (support.getX() + 1) + "，z " + support.getZ() + ".." + (support.getZ() + 1));
+        ctx.check(support.equals(fp.blockPosition()) || support.equals(fp.blockPosition().above()))
+                .as("THE RIG: 身体的格号不能就是 " + support.toShortString()
+                        + " —— 那是姐妹场景的前提，这一条要的是「格号不同而箱子压过界」").isFalse();
+        ctx.check(JourneyRamp.bodyIsInTheWay(fp, support))
+                .as("A 箱子压进了 " + support.toShortString() + " —— 上面 box 那行是它的值").isTrue();
+
+        Map<String, Object> rows = new LinkedHashMap<>();
+        JourneyRamp.Pass straddling = JourneyRamp.layWhereItStands(level, fp, driver.avatar(),
+                corridor, flight, 0, rows::put, "straddle");
+        for (Map.Entry<String, Object> e : rows.entrySet()) ctx.record(e.getKey(), e.getValue());
+        ctx.record("straddle", straddling.laid() + "/" + flight.size() + " 级，停在 "
+                + straddling.stop() + (straddling.at() == null ? "" : " "
+                + straddling.at().toShortString()));
+        ctx.check(straddling.stop()).as("B 判成「身体挡着」，不是「放不下」 —— 修复前这里是 REFUSED，"
+                + "而 REFUSED 一格也不给挪").isEqualTo(JourneyRamp.Stop.BODY_IN_THE_WAY);
+        ctx.check(straddling.at()).as("B 而且挡的就是第一级的垫脚").isEqualTo(support);
+        ctx.check(JourneyRamp.stepAsideFor(level, fp, corridor, flight, straddling, 0, false))
+                .as("C 于是补救够得着了：给出一个挪开的落脚格 —— 加宽之前这里是 null").isNotNull();
+
+        // ---- D/E the control: same cell, same world, body back on its own centre ----
+        placeAt(driver, beside);
+        ctx.record("control", "身体精确 " + round(fp.getX()) + "/" + round(fp.getY()) + "/"
+                + round(fp.getZ()) + "，碰撞箱 x " + round(fp.getBoundingBox().minX) + ".."
+                + round(fp.getBoundingBox().maxX));
+        ctx.check(JourneyRamp.bodyIsInTheWay(fp, support))
+                .as("D 挪回自己格心，箱子就不压过界了 —— 否则 A 是一个对什么都说是的谓词").isFalse();
+        Map<String, Object> clean = new LinkedHashMap<>();
+        JourneyRamp.Pass control = JourneyRamp.layWhereItStands(level, fp, driver.avatar(),
+                corridor, flight, 0, clean::put, "control");
+        for (Map.Entry<String, Object> e : clean.entrySet()) ctx.record(e.getKey(), e.getValue());
+        ctx.record("control.pass", control.laid() + "/" + flight.size() + " 级，停在 "
+                + control.stop() + (control.at() == null ? "" : " " + control.at().toShortString()));
+        ctx.check(level.getBlockState(support).blocksMotion())
+                .as("E 同一格、同一个世界，只是身体挪了 " + STRADDLE
+                        + " 格，这一级就垫上了 —— 拒绝的是站位，不是世界").isTrue();
+    }
+
+    /** Two decimals, so a stand's row is a number a reader can compare with the run's own. */
+    private static String round(double v) {
+        return String.format(java.util.Locale.ROOT, "%.2f", v);
     }
 
     // --------------------------------------------- what the flight was holding up ----

@@ -482,6 +482,10 @@ wd.guardRepathSeparatesARimWalkFromALivelock
 # defect: the column had one foothold because the staircase that would have given it three was never
 # built.
 wd.rampStepsAsideWhenTheBodyIsInItsOwnStep
+# The same remedy, reached through the door the cell-name test could not open: a body 0.18 of a
+# block over the line is in the way and blockPosition() does not say so. Its control moves the
+# same body back to its own centre and lays the course, so the refusal is pinned to the stand.
+wd.rampSeesABodyOnlyPartlyInTheCell
 wd.rampFootholdRisesWithTheFlightItLaid
 wd.rampNeverFoldsBackIntoItsOwnHeadroom
 wd.rampSeparatesAFaceThatExistsFromOneItCanHit

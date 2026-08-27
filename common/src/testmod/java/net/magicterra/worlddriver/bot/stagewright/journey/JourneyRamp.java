@@ -543,8 +543,11 @@ final class JourneyRamp {
     enum Stop {
         /** Every course is solid. Nothing left to lay from anywhere. */
         FINISHED,
-        /** The next support is the cell the body occupies. Vanilla's {@code isUnobstructed} refuses
-         *  a placement into it, and a body is the one obstacle that can walk away. */
+        /** The next support is a cell the body's own box reaches into — see
+         *  {@link #bodyIsInTheWay}, which is vanilla's question and NOT「the cell it stands in」.
+         *  Asking the narrower one cost the ring its tenth cell on 2026-08-26. Vanilla's
+         *  {@code isUnobstructed} refuses a placement into it, and a body is the one obstacle that
+         *  can walk away. */
         BODY_IN_THE_WAY,
         /** The next support is further than {@link JourneyStairs#MEND_REACH}. */
         OUT_OF_REACH,
@@ -638,7 +641,7 @@ final class JourneyRamp {
         while (laid < flight.size()) {
             BlockPos support = flight.get(laid).below();
             if (level.getBlockState(support).blocksMotion()) { laid++; continue; }
-            if (support.equals(body) || support.equals(body.above()))
+            if (bodyIsInTheWay(player, support))
                 return new Pass(laid, Stop.BODY_IN_THE_WAY, support.immutable());
             if (Math.sqrt(body.distSqr(support)) > JourneyStairs.MEND_REACH)
                 return new Pass(laid, Stop.OUT_OF_REACH, support.immutable());
@@ -650,7 +653,7 @@ final class JourneyRamp {
             BlockPos shoulder = support.below();
             if (!placeable(level, support) && fillable(level, corridor, shoulder)
                     && !walkedThrough(flight, shoulder)
-                    && !shoulder.equals(body) && !shoulder.equals(body.above())
+                    && !bodyIsInTheWay(player, shoulder)
                     && Math.sqrt(body.distSqr(shoulder)) <= JourneyStairs.MEND_REACH
                     && av.holdItem(Items.COBBLESTONE)) {
                 JourneyStairs.placeInto(level, av, shoulder);
@@ -816,10 +819,44 @@ final class JourneyRamp {
      * <p>So both states are measured and named separately. They want opposite work: no face wants a
      * shoulder or a different route, a body in the way wants one step sideways.
      */
+    /**
+     * Whether the body's own box reaches into {@code cell} — vanilla's question, not a cell name.
+     *
+     * <p><b>A body is 0.6 wide and a cell is 1.0, so the two questions are different questions.</b>
+     * {@code isUnobstructed} refuses a placement whose block shape intersects an entity's bounding
+     * box; for the full cube this lays, that is exactly「box ∩ cell ≠ ∅」. A body standing at
+     * {@code x=2.88} has its box over {@code x∈[2.58, 3.18]} and is therefore inside the cell at
+     * {@code x=3} while {@code blockPosition()} still says {@code x=2}.
+     *
+     * <p>This predicate was already here, and only {@link #whyNotLaid} — an evidence STRING — asked
+     * it. {@link #layWhereItStands} classified with {@code support.equals(body)} instead, so a body
+     * a fifth of a cell off centre was reported {@link Stop#REFUSED}, and {@link #stepAsideFor}
+     * spends its one step-aside on {@link Stop#BODY_IN_THE_WAY} and nothing else. The remedy was
+     * present, correct, and unreachable from the case it was written for. Measured, rehearsal
+     * 2026-08-26, the last cell of the ring:
+     *
+     * <pre>
+     * water9.ramp.step.0 = 3, 56, 18 垫不上（现在是 air，贴得到实心面（但身体自己的碰撞箱压在
+     *                      这一格里 —— vanilla 的 isUnobstructed 会拒，身体精确位置
+     *                      2.88/56.00/18.78）），身体 2, 56, 18
+     * water9.ramp.laid   = 0/4 级垫好了（身体 2, 56, 18，停在 REFUSED 3, 56, 18）
+     * </pre>
+     *
+     * <p>The same run's cell six is the control: it stopped on {@link Stop#BODY_IN_THE_WAY} at
+     * {@code 0/2}, got its step-aside, and the cell went on to pass. Nine of ten cells cast; the
+     * one that did not is the one whose obstruction was 0.18 of a block outside its own cell.
+     *
+     * <p>The box is 1.8 tall, so this subsumes the {@code body.above()} term the cell test carried
+     * separately — a standing body's box always reaches its head cell.
+     */
+    static boolean bodyIsInTheWay(ServerPlayer fp, BlockPos cell) {
+        return fp.getBoundingBox().intersects(new AABB(cell));
+    }
+
     private static String whyNotLaid(ServerLevel level, ServerPlayer fp, BlockPos cell) {
         String now = "现在是 " + level.getBlockState(cell).getBlock();
         if (!placeable(level, cell)) return now + "，六邻没有能贴的实心面（放方块要贴着一个面点）";
-        boolean inTheWay = fp.getBoundingBox().intersects(new AABB(cell));
+        boolean inTheWay = bodyIsInTheWay(fp, cell);
         if (inTheWay)
             return now + "，贴得到实心面（但身体自己的碰撞箱压在这一格里 —— vanilla 的 isUnobstructed"
                     + " 会拒，身体精确位置 " + String.format("%.2f/%.2f/%.2f",
