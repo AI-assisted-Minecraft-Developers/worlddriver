@@ -297,6 +297,35 @@ public final class DrownEscapeChain implements Chain {
             breaking = true;
         }
         if (!breaking) mc.options.keyAttack.setDown(false);
+        // STAND UP TO DIG. Vanilla's Player#getDestroySpeed divides the rate by 5 when the body is
+        // off the ground and by 5 AGAIN when its eyes are in water, and this arm was paying both:
+        // the jump above is held every tick, so the body hovers instead of resting on whatever it
+        // is standing over. Measured 2026-08-27 on the real client body
+        // (wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff, integrated topology):
+        // one dirt lid cost 380 ticks, `盖.着地率 = 3/380`, and the floor was RIGHT THERE —
+        // `盖.脚下 = stone` with the body parked at y=208.235 over a floor whose top is y=208.0.
+        // 0.235 blocks of hover, and bare-hand dirt is ~15 ticks: 15 × 25 = 375.
+        //
+        // Releasing the jump drops those 0.235 blocks, `onGround` becomes true, and the same dig
+        // costs a fifth. The number that makes this worth doing is the air budget: latching at
+        // `drownEscapeAirThreshold` (100) buys roughly 300 ticks of life (100 air + 20 HP at 2 per
+        // 20 ticks), so a 380-tick escape LOSES and a ~76-tick one wins with room to spare. The
+        // walker's own hopelessness gate has priced digs this way all along — WalkerTickClimb notes
+        // 「off-ground ÷5 always undone (the bot can always ground)」 — while this reflex never
+        // grounded. That gap is what the fix closes.
+        //
+        // GUARDED BY THE FLOOR, and the guard is geometry rather than caution. `RISE_PROBE` is 0.5
+        // and it lifts the body's OWN box: feet at y, box top y+1.8, probe reaching y+2.3 — so in a
+        // two-tall pocket a GROUNDED body still finds the lid, and the release costs nothing. In a
+        // deeper pocket the body would sink away from the lid, `riseBlockedCell` would return null,
+        // the jump would go straight back on, and the pair would oscillate with the break progress
+        // reset every cycle. Asking whether the cell under the feet can be stood on separates the
+        // pocket this helps from the pocket it would wreck.
+        if (breaking && w != null) {
+            BlockPos below = new BlockPos(Mth.floor(p.getX()), Mth.floor(p.getY()) - 1,
+                    Mth.floor(p.getZ()));
+            if (!cellOpen(w, below)) BotInput.jump(mc, false);
+        }
         // UNCONDITIONAL — it used to be gated on walkerDebug, and that gate cost a whole gate slot.
         // 2026-08-23, stagewrightIntegratedServerNeoforge: both armed arms of the drown scenes came
         // back 净升 0.000 while the very same code passed on Fabric an hour earlier (2.291 / 2.320).
