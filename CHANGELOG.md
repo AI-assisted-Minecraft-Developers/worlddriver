@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-29
 
+- **The corridor's fire is lit after the leg is planned, not before.** The census added yesterday
+  got its first ladder run, and it answers the question it was built for: **(b)**. That run took
+  four `inFire` blows at `66,43,66`, `70,43,69` twice and `71,43,69`; every cell a 0.6-wide box at
+  those positions can overlap lies inside leg 3's census box (`x 60–72 / y 42–44 / z 65–70`) or
+  leg 4's (`x 69–73 / y 41–44 / z 67–86`), and **both rows were written before their leg moved and
+  both read `0 个火格`**, over 234 and 400 scanned cells. So the repair is a replan trigger. Taxing
+  the cells beside fire — what family (a) would have asked for — would have been aimed at a world
+  that was not there.
+
+  Two things the answer does not carry. It does not name the igniter: `inFire` in the Nether can
+  only come from `BlockTags.FIRE` (lava is `lava`, magma is `hotFloor`), so the damage type settles
+  *what* hurt the body and says nothing about *who* lit it — a ghast and fire spreading over
+  netherrack are both still open. And it does not explain the rung: that run still failed rung 14,
+  by walking leg 5 for 2 403 ticks and dying of accumulated fall damage. Fire cost it four of
+  twenty points.
+
+  **The field that looks like the fire signal is not it.** All four blows appear in `hp.trace` as
+  `身处=air` with no `着火` stamp — centre in air, box in the fire, never set alight. `身处` answers
+  「which block is the body's centre in」; only the damage TYPE answers 「did fire hurt it」. A reader
+  keyed on `身处=fire` (which is how the earlier death read) sees none of them.
+
+- **`death.blow` says when it is showing you a subset.** It keeps the most recent eight and dropped
+  the rest without a word. The run above had nine drops in `hp.trace` and eight rows here, and the
+  one that fell off the front was `−8.0→12.0@161`, **the largest single hit of the run** — the one
+  that began the decline the other eight finished. The end that gets dropped is the oldest, which
+  is where an initiating hit lives, so the new 「更早还有 N 次没列出」 clause is the pointer that
+  sends a reader to `hp.trace`. Same discipline the fire census already followed.
+
+- **The waypoint audit counts its own table instead of spelling the number.** Its headline said
+  「十八个」 while the table had held seventeen since a waypoint was deleted on 2026-08-22, so for six
+  days the row disagreed with the rows beneath it and with every leg's 「第 N/17 個」. A hard-coded
+  count in an evidence row is a snapshot of what its author believed; the array is the measurement.
+
 - **A drowning body stands up before it digs its way out.**
   `DrownEscapeChain`'s vertical arm held jump on every tick and broke the lid in the same tick, so
   the body hovered instead of resting on whatever it stood over. Vanilla's `Player#getDestroySpeed`
