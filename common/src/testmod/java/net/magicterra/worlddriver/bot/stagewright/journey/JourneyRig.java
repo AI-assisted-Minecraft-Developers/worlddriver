@@ -1683,7 +1683,10 @@ public final class JourneyRig {
         String leg = lastEvidenceKey == null ? "整段还没写过任何一条证据"
                 : lastEvidenceKey + "（写它时是本段第 " + lastEvidenceLegTicks + " tick）";
         evidence("death.cause", how);
-        evidence("death.blow", blows.isEmpty() ? "整段没有记到任何一次扣血 —— 掉血不是通过 hurt() 发生的" : String.join("；", blows));
+        evidence("death.blow", blows.isEmpty() ? "整段没有记到任何一次扣血 —— 掉血不是通过 hurt() 发生的"
+                : String.join("；", blows) + (blowsDropped == 0 ? ""
+                        : "。⚠️ 更早还有 " + blowsDropped + " 次没列出（只留最近 " + BLOWS_KEPT
+                          + " 次），要全部就读 hp.trace"));
         evidence("death.food", fp.getFoodData().getFoodLevel() + "/20，饱和度 "
                 + String.format(java.util.Locale.ROOT, "%.1f", fp.getFoodData().getSaturationLevel()));
         evidence("death.standingIn", deathCell(fp));
@@ -1885,6 +1888,22 @@ public final class JourneyRig {
     /** The last few times this body lost health, newest last. Never cleared — a rung does not recover. */
     private final java.util.List<String> blows = new java.util.ArrayList<>();
 
+    /**
+     * Blows dropped off the front to stay inside {@link #BLOWS_KEPT}, so the row can say so.
+     *
+     * <p>Silently is how it used to go, and the run of 2026-08-28 shows what that costs: nine drops
+     * in {@code hp.trace}, eight rows in {@code death.blow}, and the one that fell off was
+     * {@code −8.0→12.0@161} — <b>the largest single hit of the run</b>, the one that started the
+     * decline the other eight merely finished. A reader comparing the two rows had no way to know
+     * one was a subset, because the shorter row did not say it was short.
+     *
+     * <p>The end that gets dropped is the OLDEST, which is where an initiating hit lives, so the
+     * clause is not decoration — it is the pointer that sends a reader to {@code hp.trace}, which
+     * keeps them all. Same discipline as {@code JourneyFireCensus}'s 「另有 N 个没列出」: a reading
+     * that truncates has to announce it, or every later reader treats a subset as the whole.
+     */
+    private int blowsDropped = 0;
+
     /** Health as of the previous tick, so a DROP can be noticed at the tick it happens. */
     private float healthSeen = Float.NaN;
 
@@ -1918,7 +1937,7 @@ public final class JourneyRig {
         String named = src == null ? "来源已过期（超过 40 tick）" : src.getMsgId()
                 + (src.getEntity() == null ? "" : "（" + src.getEntity().getName().getString() + "）");
         blows.add(String.format(java.util.Locale.ROOT, "%s −%.1f→%.1f@%d", named, healthSeen - now, now, legTicks));
-        while (blows.size() > BLOWS_KEPT) blows.remove(0);
+        while (blows.size() > BLOWS_KEPT) { blows.remove(0); blowsDropped++; }
         healthSeen = now;
     }
 
