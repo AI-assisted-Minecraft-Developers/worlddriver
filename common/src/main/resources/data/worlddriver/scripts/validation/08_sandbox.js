@@ -36,16 +36,47 @@
 // any added or removed check reddens wd.agentRpcSmoke until both constants move in
 // the same commit.
 
+// The discriminating reading, printed rather than asserted — on EVERY run, whatever
+// the checks below do. It needs no -Dworlddriver.sandbox=on: if `java` does not
+// resolve in this scope at all, that alone proves the six checks are vacuous, because
+// then every denied() below is catching a TypeError on `undefined` and would keep
+// passing with the filter in any state. Only if `java` DOES resolve is a sandbox=on
+// arm worth running, to ask whether the filter refuses what it claims to.
+//
+// Printed, not asserted, for two reasons: an assertion would move the check count
+// wd.agentRpcSmoke pins, and this reading has no known-correct value to assert — it
+// is here to be READ. Wrapped whole, because a throw at load time would drop this
+// file's six registrations and redden that same count guard. `typeof java.io.File`
+// needs the guard on its own: typeof only tolerates an undefined OUTERMOST name, so
+// it throws rather than answering when `java` itself is missing.
+try {
+    var __probe = function(label, thunk) {
+        try { return label + "=" + thunk(); } catch (e) { return label + "->threw:" + e; }
+    };
+    console.log("08_sandbox mechanism probe: "
+        + __probe("typeof java", function() { return typeof java; })
+        + " " + __probe("typeof Packages", function() { return typeof Packages; })
+        + " " + __probe("typeof java.io.File", function() { return typeof java.io.File; })
+        + " (ScriptClassFilter is OFF unless -Dworlddriver.sandbox=on)");
+} catch (e) { /* never let the probe cost the six registrations below */ }
+
 function denied(thunk) {
     try { thunk(); return false; }
     catch (e) { return true; }
 }
 
+// ⚠️ CANNOT DISCRIMINATE, EVEN IN PRINCIPLE. `id` is absent on any Windows host, so
+// exec throws IOException there whether or not the filter is involved. This check can
+// only ever be green on such a host; treat its colour as carrying no information.
 ScriptTest.run("08_sandbox: java.lang.Runtime is denied", function(t) {
     t.assertTrue(denied(function() { java.lang.Runtime.getRuntime().exec("id"); }),
         "Runtime.getRuntime().exec must throw");
 });
 
+// The only check here whose subject cannot throw for an unrelated reason: with the
+// filter off and `java` resolvable, `new java.io.File(...)` succeeds and exists()
+// merely returns false, so this one WOULD go red. It does not — which is the whole
+// basis for the header's claim that something other than the filter is refusing it.
 ScriptTest.run("08_sandbox: java.io.File is denied", function(t) {
     t.assertTrue(denied(function() {
         var f = new java.io.File("/etc/passwd");
@@ -53,6 +84,8 @@ ScriptTest.run("08_sandbox: java.io.File is denied", function(t) {
     }), "java.io.File construction must throw");
 });
 
+// ⚠️ CANNOT DISCRIMINATE, EVEN IN PRINCIPLE. Nothing listens on port 1, so the
+// constructor throws ConnectException on any host regardless of the filter.
 ScriptTest.run("08_sandbox: java.net.Socket is denied", function(t) {
     t.assertTrue(denied(function() { new java.net.Socket("127.0.0.1", 1); }),
         "java.net.Socket must throw");
