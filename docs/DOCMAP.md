@@ -101,7 +101,7 @@
 `2026-06-08-reading-command-results.md` ·
 `2026-07-10-gui-layout-regression-no-entity-interact.md`
 
-## 五、`docs/superpowers/` — 52 份，删除的主战场
+## 五、`docs/superpowers/` — 51 份，删除的主战场
 
 一次性实施计划与设计 spec。判据是**「这件事做完了没有」**，而做完了的计划应当删除——
 它描述的是一段已经走完的路，不是仓库现在的样子。⚠️ **逐份核实，不许整目录清**：
@@ -161,10 +161,19 @@ buoyant 留的是 Phase 0 的现场读数。**删之前要把横幅读完，再�
 `2026-07-14-scheduler-semantics-phase1-design` · `2026-07-15-executor-permove-statemachine-ascend` ·
 `2026-07-16-stagewright-design`（框架已独立成仓库，**该仓库的 `README.md` 是否已取代它？待核**）
 
-### `handoffs/` — 1 份
+### `handoffs/` — 0 份（空目录）
 
-`2026-07-16-b1-pause-for-test-framework.md` — 一次暂停的恢复点，而那件事早已恢复并完成。
-`delete-candidate`。
+~~`2026-07-16-b1-pause-for-test-framework.md`~~ **2026-08-27 已删**。逐节核过，无一节仍有效：
+
+- 待办表 **7 项全部兑现**——B1-3 已翻转（`BotConfig.walkerAscendMovement = true`，
+  javadoc 写「Default ON since 2026-07-20 (B1-3)」，连 A/B 证据都记在原地）；
+  task#84 = `WalkerTick*` 相位类；**task#52「自造测试框架」= StageWright 本身**，已独立成仓库。
+- 第 4 节 task#85「套件静默吞测试」——它描述的 **GameTest 通道已在 P4-final 退休**，
+  且**结论与细节都已存进 `docs/stagewright/migration-log.md`**（那份是 `keep`）：
+  被吞的三份点名为「swallowed trio」并附迁移提交，每一波都对账 `0 swallowed / 0 drifted`，
+  取代它的 `GameTestManifest.java` 也记了删除。**存档比手记更全 ⇒ 不需要迁移，直接删。**
+- 第三节「恢复时的关键状态」= 一个 `/tick freeze` 冻着的世界、一个 stash、一个分支 tip，
+  写给几周前的那一次恢复；彩票失败名单也与今日的三条常驻失败对不上了。
 
 ---
 
@@ -192,7 +201,7 @@ buoyant 留的是 Phase 0 的现场读数。**删之前要把横幅读完，再�
 | P8 | `docs/dev/adding-a-scene.md` | 补 | 场景与 `expected-scenes-*.txt` 的**同批纪律**（漏了就 `UNDECLARED:` 判红） |
 | P9 | `docs/user/troubleshooting.md` | 补 | 端口文件、连不上、bot 不动 |
 | P10 | 删除波 2+：stagewright 建设族 14 份 | 删 | 需先核实框架已完成迁移（很可能是，但要验） |
-| P11 | 删 `handoffs/2026-07-16-…` | 删 | 单份，判据清楚 |
+| ~~P11~~ | ~~删 `handoffs/2026-07-16-…`~~ | 删 | **2026-08-27 已删**，判据确实清楚：待办全兑现、主题（GameTest）已退休、唯一值钱的发现已存进 `keep` 的 migration-log |
 | P12 | 删除波 3+：导航意图层 9 份 + 其余 13 份 | 删 | 逐份核实，最慢 |
 | P13 | `coverage-exemptions.md` 标题去掉 `task#95b` | 核对 | 违反禁编号，顺手 |
 | P14 | `scripts/agent-driver-channel.mcp.json.example` 的旧项目名 | 核对 | `agent-driver` 已改名 WorldDriver；文件名与内容都要看 |
