@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-29
 
+- **A ladder that did not finish reported success, and the rung it dropped left no trace.**
+  ladder-22 passed rungs 1–13, entered rung 14, walked the corridor's first leg for four minutes,
+  and then the suite logged `suite over (finished=false, connected=false) — closing client`. The
+  build printed BUILD SUCCESSFUL and exited 0. The archive holds no `wd.journey14BlazeRod` row at
+  all — not a FAIL, not a timeout, nothing — so every reader keyed on that scene reports 「这一趟没
+  走到走廊」, which is indistinguishable from a run that never got there. Two separate defects sit
+  behind one line: the suite knows it is unfinished (`finished=false`) and does not redden the
+  build, and the client dropped its connection partway through rung 14. Until the first is fixed a
+  green ladder is not evidence the ladder ran, and until the second is, the corridor work below has
+  never had one complete pass to be judged on. Per-rung wall-clock for the record: rung 12 at
+  649 766 ms and rung 11 at 518 423 ms account for 27 of the run's 42 minutes.
+
 - **Leg 5's waypoint is reachable, and 「the column has no floor」 was never a claim that it isn't.**
   The corridor's fifth leg has been read as unwalkable because `wp5 74,41,97` audits as 「本格空且
   脚下也空」. That row is about a COLUMN; the goal is `Goal.Near(74,41,97, radius=2)`, a SPHERE — two
