@@ -290,7 +290,12 @@ public final class JourneyPortalRung {
                     carveTheForge(ctx, rig, lava, surfaceY);
                 });
             }, () -> ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
-                    + "，停在 " + rig.player().blockPosition()));
+                    + "，停在 " + rig.player().blockPosition()
+                    // Deliberately asserts NOTHING about why. Its twin in WorldDriverJourneyScenes
+                    // used to guess「该柱在岩浆层不是实心」and was wrong on ladder-15; the four values
+                    // that actually decide it are on shaft.stepStuck, and what each walk leg did is
+                    // on shaft.stepEnd.*.
+                    + "（为什么：看 shaft.stepStuck 的四项与 shaft.stepEnd.* 的每腿 end）"));
         }, () -> ctx.fail("走不到岩浆湖边：目标 " + bank.getX() + "," + bank.getZ()
                 + "（岩浆柱 " + lava.getX() + "," + lava.getZ() + "，见 lava.bank 是怎么选的），停在 "
                 + rig.player().blockPosition()));

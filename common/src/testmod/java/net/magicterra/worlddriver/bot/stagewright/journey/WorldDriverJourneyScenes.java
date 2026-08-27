@@ -2326,9 +2326,21 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                 rig.evidence("shaft.landedY", rig.player().blockPosition().getY());
                 reachLava(ctx, rig, MAX_TUNNEL_STEPS, () -> JourneyCast.leaveWithTheLava(ctx, rig, surfaceY));
             }, afloat -> swapWetColumn(ctx, rig, lava, surfaceY, wetColumns, swapsLeft, afloat));
-        }, () -> ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
-                + "，停在 " + rig.player().blockPosition()
-                + "（该柱在岩浆层不是实心, 或柱子里还有岩浆）"));
+        }, () -> {
+            // MEASURED, NOT GUESSED. This sentence used to assert「该柱在岩浆层不是实心, 或柱子里还有
+            // 岩浆」about the chosen column, and on ladder-15 (2026-08-27) that column's own
+            // `whyNotDiggable` was NULL — the column was fine and the body had simply never got onto
+            // it. The guess contradicted the evidence row two fields away and sent the reader down to
+            // the lava layer to look for rock that was not the problem. `shaft.stepStuck`'s note at
+            // 2450 was added for exactly this trap on the row below; the headline kept guessing.
+            String why = JourneyTerrain.whyNotDiggable(rig.ctx().level(),
+                    new BlockPos(dig.getX(), lava.getY(), dig.getZ()), surfaceY);
+            ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
+                    + "，停在 " + rig.player().blockPosition()
+                    + (why == null
+                            ? "（选定柱本身合格 —— 是走位没把身体送上去，看 shaft.stepEnd.* 与 shaft.stepStuck）"
+                            : "（选定柱不合格：" + why + "）"));
+        });
     }
 
     /**
@@ -2468,7 +2480,20 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
                     + "；选定柱 " + dig.getX() + "," + dig.getZ() + " 的理由="
                     + JourneyTerrain.whyNotDiggable(lvl,
                             new BlockPos(dig.getX(), lava.getY(), dig.getZ()), surfaceY)
-                    + "（理由=null 表示那一柱本身合格，于是拒绝来自它前面那三个布尔之一）");
+                    // THE NOTE NAMES ALL FOUR, because naming three of four is worse than naming
+                    // none. It used to read「拒绝来自它前面那三个布尔之一」, and on ladder-15 all three
+                    // WERE false while the refusal was real — the fourth conjunct, this method's own
+                    // `columnIsSafeToSink` on the cell the body occupies, had answered「邻柱地表是水」
+                    // two fields earlier on this very row. A reader who trusts the note goes looking
+                    // for a cause that is not missing. The values were complete; the prose was not.
+                    //
+                    // And the two reasons guard DIFFERENT columns: the one before it is the body's
+                    // OWN column (the adopt short-circuit), this one is the column that was chosen.
+                    // A null here says the target is fine — which, when the body is standing
+                    // somewhere else, is the normal state of a leg that simply never arrived.
+                    + "（这四项是拒绝的全集：三个布尔，加上「脚下这一柱不能下挖的理由」那一项——"
+                    + "它测的是身体占着的那一柱，不是选定柱。选定柱理由=null 只说明目标本身合格，"
+                    + "身体没站上去是走位的事，看 shaft.stepEnd.*）");
             onStuck.run();
             return;
         }
@@ -2544,10 +2569,39 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
         // been planned there in the first place. Recomputed here rather than passed in, for the
         // reason JourneyTerrain#avoidTheRim gives: the lake this leg walks beside is not the one the
         // approach measured.
+        int attempt = MAX_WALK_ATTEMPTS - left + 1;
         rig.settle(new IntentProcess(new Intent(new Goal.XZ(dig.getX(), dig.getZ(), 0),
                 JourneyTerrain.avoidTheRim(rig.ctx().level(), lava).bias())), 1_200,
-                () -> stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, from,
-                        then, onStuck));
+                () -> {
+                    // WHAT THIS LEG'S WALK ACTUALLY DID — the row `walkToColumn` has carried since
+                    // 2026-08-17 and this path never got, though it is the one that decides the rung.
+                    // Ladder-15 (2026-08-27) failed here with three `shaft.stepping.N` rows and no way
+                    // to tell the two halves apart: legs 2 and 3 left from a byte-identical
+                    // `-10, 66, 50` and moved nothing (a pin), while the leg after the back-off
+                    // crossed eight blocks and stopped ONE cell short (a tolerance/judge mismatch).
+                    // Those two want opposite fixes, so a run that cannot separate them can only
+                    // guess. The end reason existed the whole time; nobody wrote it down.
+                    //
+                    // Both numbers, for the reason the arrival branch above gives: the goal is built
+                    // with radius 0 and this leg genuinely needs 0 (the body must stand ON the
+                    // column, `columnIsSafeToSink` asks about the cell it occupies), so printing the
+                    // distance without the bar it is judged against reads as if 1 were close enough.
+                    BlockPos landed = rig.player().blockPosition();
+                    double away = Math.hypot(landed.getX() - dig.getX(), landed.getZ() - dig.getZ());
+                    rig.evidence("shaft.stepEnd." + attempt,
+                            JourneyLeg.walkerEnd(rig)
+                                    + "；停在 " + landed.toShortString() + "，距 "
+                                    + dig.getX() + "," + dig.getZ() + " "
+                                    + String.format(java.util.Locale.ROOT, "%.0f", away)
+                                    + " 格，容差 0，而这一腿要的是 0 格（身体必须站在那一格上）"
+                                    + "；这一腿从 " + from.toShortString() + " 起，净挪 "
+                                    + String.format(java.util.Locale.ROOT, "%.0f",
+                                            Math.hypot(landed.getX() - from.getX(),
+                                                    landed.getZ() - from.getZ()))
+                                    + " 格");
+                    stepOntoDiggableColumn(rig, dig, lava, surfaceY, left - 1, banned, from,
+                            then, onStuck);
+                });
     }
 
     /**
