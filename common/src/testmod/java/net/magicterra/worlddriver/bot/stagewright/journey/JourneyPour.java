@@ -824,6 +824,44 @@ final class JourneyPour {
             then.run();
             return;
         }
+        // COME BACK DOWN THE STAIRCASE BEFORE ASKING FOR A STAIRCASE.
+        //
+        // `buildTo` plans its flight from the alcove FLOOR and then walks the body to stand beside
+        // the bottom step. That walk is「go to this coordinate」, and from the surface it does not
+        // arrive — measured on both failures of 2026-08-26's two client rehearsals:
+        //
+        //   cast9.lift.stand      1,64,22 → 2,56,20（现在不在足迹上）
+        //   cast9.lift.standShort 没走到 2,56,20，停在 -2,65,23      ← further away than it started
+        //   cast9.lift.laid       0/3 级垫好了（… 停在 OUT_OF_REACH 2,56,22）
+        //
+        // The remedy is not a bigger budget: `standShort.probe.head` prints a solid field of `+`,
+        // so headroom is not the refusal. It is that the descent has a NAMED route and this asked
+        // for a coordinate instead — the same distinction JourneyStairwell#goUpToThePool's javadoc
+        // draws for the ascent, and the same call `raiseRowTooHigh` already makes on the raise side,
+        // which DID get its body back into the shaft in the same run (`raiseRowRetry.returnedY=57`).
+        //
+        // The bound is the pour's own slack, and it separates the three cells measured: cell 8 of
+        // run 1 (+5, failed), cell 9 of run 2 (+5, failed), cell 8 of run 2 (−3, PASSED and must
+        // not be disturbed). ⛔ It is not a retry — there is no recursion here, the walk happens at
+        // most once per lift, and a body that is already low enough never sees it.
+        int above = here.getY() - landing.getY();
+        if (above > POUR_ROW_SLACK) {
+            rig.evidence(tag + ".liftTooHigh." + tries, here.toShortString() + " 比落脚格 "
+                    + landing.toShortString() + " 高 " + above + " 排（容许 " + POUR_ROW_SLACK
+                    + "）—— 楼梯是从壁龛地板往上修的，从这么高「走到那个坐标」两趟都没走到；"
+                    + "先按名字走楼梯回井里，再修");
+            JourneyStairwell.returnToTheForge(ctx, rig,
+                    JourneyRamp.floorOf(JourneyPortalRung.forgeCorridor), tag + ".liftReturn",
+                    () -> liftFlight(ctx, rig, target, away, wantY, landing, tries, tag, then));
+            return;
+        }
+        liftFlight(ctx, rig, target, away, wantY, landing, tries, tag, then);
+    }
+
+    /** The staircase half of {@link #liftInPlace}, reached either directly or after the body has
+     *  been walked back down to the alcove floor — see the {@code liftTooHigh} branch there. */
+    private static void liftFlight(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
+                                   int wantY, BlockPos landing, int tries, String tag, Runnable then) {
         // BOUNDED, AND PINNED TO THE COLUMN. The unbounded arm answered `liftSideways` — a body this
         // method had just found unable to fire from its own column — with「已经到了落点那一排或更高」
         // and built nothing, so the sideways move named one row above never happened and `liftedY`
