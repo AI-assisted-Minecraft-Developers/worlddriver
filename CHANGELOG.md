@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-27
 
+- **A rung now says whether the head ever went under, how low the air got, and who held the channel
+  while it did.** `JourneyDrownWatch` latches those three per tick and `JourneyRig` writes them as
+  `water.drown` on every heartbeat and again at `reach`. The question it answers —「did a drowning
+  reflex ever drive?」— had been asked of `BotApiImpl.armedReflexes()`, which enumerates six COMBAT
+  flags and says nothing about drowning at all; its silence was read as an answer. Registration was
+  never the doubt (`DrownEscapeChain` is registered in the very scheduler the rig drives through);
+  OCCUPANCY was, and the two want opposite fixes.
+
+  Latched per tick rather than sampled per heartbeat because the heartbeat is 200 ticks and the
+  window is the 100 between `drownEscapeAirThreshold` and an empty bar — a 200-tick sampler over a
+  100-tick window misses more often than it catches, and the miss reads exactly like「the reflex
+  never held」. The channel is polled at 5 Hz, the rate `mc.bot.status` is already answered at over
+  RPC. The row is written even when the body never went under, because「从没没过顶」is the positive
+  control that separates「the instrument ran and saw nothing」from「the instrument was not in this
+  build」 — a confusion that had just cost rung 12's post-mortem its only discriminating field.
+
+  Its own class rather than four more fields on `JourneyRig`, which sits at the 3000-line budget the
+  gate only lets shrink; paying for an instrument with the readability of unrelated code is the
+  trade that budget exists to refuse.
+
+- **The ascent out of the stairwell now tells its start cell, with the same function the descent's
+  end is told by.** `JourneyStairwell.goUpToThePool`'s `.up` row printed only「here → stair top」.
+  The two ends of one staircase were reporting to different standards: `walkTheFlight`'s `flightEnd`
+  LIFTS the down route's last waypoint off the stair foot when that cell cannot be stood on
+  (「楼梯底站不了：… 身处 water …」), while the ascent simply begins wherever the body is — and on
+  the fatal shape of `lava2.upStopped` that is the very same flooded cell, `2,56,20`. Whether
+  starting there is what stops the climb is not decided by this; what is decided is that the two
+  ends can now be compared.
+
 - **Every portal-ring cell now marks its own start, so a run that dies mid-ring says which cell it
   never began.** `JourneyPortalRung.castCell` writes `frame.roll.{i}` at the head of cell `i`'s
   chain — the lowest absent index is the answer, and it is written ten times or fewer, never zero.
