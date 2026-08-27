@@ -1959,6 +1959,15 @@ public final class JourneyPortalRung {
                 out.append(out.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
                         .append(level.getBlockState(c).getBlock())
                         .append(forgeCorridor.contains(c) ? "(壁龛内)" : "(壁龛外)");
+                // SOURCE OR FLOW, because 「the pour line is flooded」 and 「something upstream is
+                // still feeding it」 are different problems with opposite remedies: a flow with no
+                // source retreats on its own and the leg only has to wait, while a source has to be
+                // taken back before anything downstream can stand. The same distinction
+                // `JourneyStairs.report` prints for the stair foot, and the reading rung 12's cell
+                // eight has been missing — its alcove is water at pour time and no row says whose.
+                var fl = level.getFluidState(c);
+                if (!fl.isEmpty())
+                    out.append(fl.isSource() ? "(源)" : "(流 level=" + fl.getAmount() + ")");
             }
         return out.isEmpty() ? "全是空气" : out.toString();
     }

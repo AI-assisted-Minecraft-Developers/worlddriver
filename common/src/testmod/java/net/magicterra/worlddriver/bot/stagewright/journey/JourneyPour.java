@@ -63,7 +63,18 @@ final class JourneyPour {
     static void standLevelWith(SceneContext ctx, JourneyRig rig, BlockPos target,
                                        Direction away, String tag, Runnable then) {
         int wantY = target.getY() - 1;
-        if (rig.player().blockPosition().getY() >= wantY) { then.run(); return; }
+        if (rig.player().blockPosition().getY() >= wantY) {
+            // SAY THAT THE QUESTION WAS NEVER PUT. Without this row, this early return and「the
+            // very first candidate aimed true」produce byte-identical evidence — neither writes any
+            // `.here.*` line — so the joint state (no `.noAim`, no `.raiseVeto`) has two sources and
+            // nothing to separate them. Measured 2026-08-26: rung 12's post-mortem spent a round
+            // treating that absence as「an aim existed from where the body stood」.
+            rig.evidence(tag + ".hereSkipped", "身体 y=" + rig.player().blockPosition().getY()
+                    + " ≥ wantY=" + wantY + "（浇 " + target.toShortString()
+                    + "）—— 没提出「从这儿瞄得到吗」这一问，所以 " + tag + ".here.* 一行都不会有");
+            then.run();
+            return;
+        }
         // THE REAL RAY FROM HERE FIRST, before any prediction about anywhere else — see the javadoc.
         if (aimThatLandsIn(ctx.level(), rig, target, away, tag + ".here") != null) {
             then.run();
