@@ -73,6 +73,12 @@
 `docs/claude_desktop_config.example.json` 都按现路径链接它，而那三份都在本角色写权限之外。
 `transports.md` 的 MCP 一节只留指针，不复述——**两份 MCP 文档必然分叉**。
 
+## 二之三、`docs/dev/` — 开发者线，2026-08-27 起
+
+| 路径 | 读者 | 状态 | 最后核对 | 备注 |
+|---|---|---|---|---|
+| `docs/dev/architecture.md` | dev | current | 2026-08-27 | `route()` 单一分发点、两个注册缝、开机 schema 不变式、服务端线程跳转、包图。**逐条对着源码写的**；硬规则只给指针不复述 |
+
 ## 三、`docs/design/` — 5 份，2026-06-04 的原始设计
 
 今日（`ed5914e2`）刚被逐份加上「Historical，已被某某实现取代」的抬头。
@@ -167,7 +173,7 @@
 | **P1** | 修 `AGENTS.md` 的场景数 | 核对 | **已核实错**，且这句话历史上错过三次 |
 | **P2** | 修 `CLAUDE.md` 末句的「kept in sync」 | 核对 | **已核实假**；与 P1 同类（正典文档里的假陈述），且只改一句话 |
 | ~~P3~~ | ~~`docs/user/transports.md`~~ | 补 | **2026-08-26 已建**，见上方 `docs/user/` 一节 |
-| P4 | `docs/dev/architecture.md` | 补 | `DriverApi` 单一真相 / transport 只翻译 / 写路径过 `server.execute()` |
+| ~~P4~~ | ~~`docs/dev/architecture.md`~~ | 补 | **2026-08-27 已建**，见上方 `docs/dev/` 一节 |
 | P5 | 删除波 1：自称 SUPERSEDED 的 2 份 plan | 删 | 判据无歧义，不需要核实完成状态 |
 | P6 | `docs/user/capabilities.md` | 补 | 72 个 `mc.*` 方法按能力分族，让人知道能让 LLM 干什么 |
 | P7 | `docs/dev/bot-layering.md` | 补 | `pathfinder` / `Walker` / `process` / `settings` 四层与 3000 行预算 |
@@ -269,6 +275,28 @@ harness extras、`McpServer` 的三个协议版本与 Origin 校验、`/agent` �
 所以只捞到 Java 里的开关、一处散文都没捞到——差点只在新文档里写对、把六处旧散文漏掉。
 `-i` 加裸词重跑才出全。**查一个说法散布在哪，别拿实现细节的名字去 grep。**
 
+**2026-08-27｜建 `docs/dev/architecture.md`。** 本轮写范围仍只有 `docs/**`，
+S1/P1/P2 全在根级 ⇒ 再次跳过，**不降级**；顺位取 P4，`docs/dev/` 两条读者线至此都开了张。
+
+写之前核了两条**来自散文而非源码**的说法，两条都需要修正：
+
+- 「验证套件断言三条通道字节相同」——机制是真的（`06_rpc_parity.js` /
+  `07_mcp_parity.js`），但它比那句话窄：本地 `jsonStable()` 递归排序键之后比字符串、
+  先删掉 `uptimeMs` 这类随时间变的字段、且只覆盖 `mc.query` / `mc.system.version` 等
+  几个方法，不是全动词面的扫描。文档按实测写法落，没照抄 `AGENTS.md`。
+- 「线程外读走 snapshot helpers」——**没有这么一族符号**。实际是 `onServerThread`
+  连读带写一起跳；不跳的六个类（`SystemApi`/`WaitApi`/`EventsApi`/`ApiSupport`/
+  `ParamsValidator`/`QueryParams`）是真的不碰 level。文档按调用点计数写。
+
+⚠️ 顺带撞见一条**不是文档问题**，只记不动：`RpcServer` 的 Threading javadoc 写
+`server.execute() + future.get(30s)`，而 `DriverApi.SERVER_THREAD_TIMEOUT_MS` 默认
+**8000 ms** 且注释明写「Lowered from 30s」。产码是对的、注释是旧的，**归代码角色**。
+
+⚠️ 还有一条差点写错：包图里 `test/` 被顺手写成「StageWright harness attachment」，
+实为 `ScriptTest` / `TestContext`——`validation/*.js` 调的那个脚本测试壳。
+`ls` 一下就翻了。**包的用途别从包名猜。**
+
 **下一轮：S1** —— 但它整族在根级，**要先确认那一轮有 `docs/**` 之外的写权限**；
-没有就顺位取 P4（`docs/dev/architecture.md`，素材同样已在源码 javadoc 里）。
-P5（删自称 SUPERSEDED 的两份 plan）在 `docs/` 内，随时可做，适合塞给权限受限的一轮。
+没有就顺位取 **P5**（删自称 SUPERSEDED 的两份 plan，判据无歧义、在 `docs/` 内，
+适合塞给权限受限的一轮），再往后 P6（`docs/user/capabilities.md`）与
+P7（`docs/dev/bot-layering.md`，`architecture.md` 已给它留了指针位）。
