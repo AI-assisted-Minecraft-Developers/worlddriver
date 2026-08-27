@@ -59,13 +59,16 @@ final class JourneyDrownWatch {
      *
      * @param activeChain read lazily so the poll cost is paid only on the 5 Hz ticks, not on every
      *                    underwater tick.
+     * @param chainIsReadable false when this body's status route cannot carry a chain name at all —
+     *                    see {@link #UNREADABLE} for why that is not the same as「no chain」.
      */
-    void tick(ServerPlayer fp, Supplier<Object> activeChain) {
+    void tick(ServerPlayer fp, Supplier<Object> activeChain, boolean chainIsReadable) {
         if (!fp.isUnderWater()) { sinceChannelSample = 0; return; }
         underwaterTicks++;
         airLowest = Math.min(airLowest, fp.getAirSupply());
         if (++sinceChannelSample < CHANNEL_SAMPLE_TICKS) return;
         sinceChannelSample = 0;
+        if (!chainIsReadable) { channelsWhileUnder.merge(UNREADABLE, 1, Integer::sum); return; }
         // THE VALUE, NOT A PREDICATE. 「is it the drown chain」answers the question I already think
         // I am asking; the name is what separates「a reflex held」from「the walk held」from
         //「nothing held」. A null chain is a real third state and gets its own bucket rather than
@@ -74,6 +77,19 @@ final class JourneyDrownWatch {
         channelsWhileUnder.merge(chain == null ? "（无链，用户任务在跑）" : String.valueOf(chain),
                 1, Integer::sum);
     }
+
+    /**
+     * The bucket for「this body's read cannot see a chain」, kept apart from「no chain was running」.
+     *
+     * <p>{@code JourneyRig#botStatus} falls back to {@code BotState.snapshot()} whenever a real
+     * player is not at the helm, and that map publishes the thirteen process slots plus {@code
+     * combat} — <b>no {@code activeChain}</b>. Folding its null into the no-chain bucket would weld
+     * 「nothing held the channel」to「this reading is structurally blind」, which is the shape that
+     * kept thirty-four readings in this repo reading null with zero counterexamples to raise
+     * suspicion.
+     */
+    private static final String UNREADABLE =
+            "（这具身体读不到链：服务端 BotState 不发 activeChain，不是「没有链」）";
 
     /**
      * The latch as one row.

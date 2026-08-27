@@ -1500,7 +1500,8 @@ public final class JourneyRig {
         if (driver == null) return;
         // EVERY TICK, above the throttle — see JourneyDrownWatch for why a 200-tick sampler cannot
         // see the 100-tick window it is aimed at.
-        drownWatch.tick(driver.fakePlayer(), () -> botStatus().get("activeChain"));
+        drownWatch.tick(driver.fakePlayer(), () -> botStatus().get("activeChain"),
+                realPlayerHelm(ctx));
         if (++sinceHeartbeat < HEARTBEAT_TICKS) return;
         sinceHeartbeat = 0;
         recordFutileGate(futileGateLine());
@@ -1688,6 +1689,11 @@ public final class JourneyRig {
         evidence("death.food", fp.getFoodData().getFoodLevel() + "/20，饱和度 "
                 + String.format(java.util.Locale.ROOT, "%.1f", fp.getFoodData().getSaturationLevel()));
         evidence("death.standingIn", deathCell(fp));
+        // FLUSH THE DROWNING LATCH AT THE DEATH, not at the next heartbeat that will never come.
+        // The 200 ticks before a death are this instrument's whole subject, and `reach` — the other
+        // writer — is precisely what a rung that died never gets to. Reading a latch through a row
+        // stamped up to 200 ticks earlier is how a lagging reading becomes the crime scene.
+        recordDrown(drownWatch.line());
         evidence("death.at", fp.blockPosition().toShortString());
         evidence("death.stage", stage.name());
         evidence("death.legTicks", legTicks);
