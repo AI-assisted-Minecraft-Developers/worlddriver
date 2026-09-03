@@ -317,5 +317,12 @@ subprojects {
                 vmArg "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:${jdwp.get()}"
             }
         }
+        // -PworlddriverVmArgs="-Da=b -Dc=d": extra JVM flags for every loom game JVM (e.g. a system GLFW).
+        def extra = providers.gradleProperty('worlddriverVmArgs')
+        if (extra.isPresent()) {
+            loom.runs.configureEach {
+                extra.get().trim().split(/\s+/).each { vmArg it }
+            }
+        }
     }
 }
