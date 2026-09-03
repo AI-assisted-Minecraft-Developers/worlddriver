@@ -52,8 +52,11 @@ dependencies {
     // succeeds, and the run behaves like the old code. That failure mode cost a 45-minute gate run
     // to find — the suite completed, the fix that was supposed to end the JVM was simply not in the
     // jar that ran. See the matching resolutionStrategy in the root build.
-    modLocalRuntime("net.magicterra:mc_stagewright-neoforge:${rootProject.stagewright_version}") {
-        changing = true
+    // -PworlddriverBootstrap skips it: a clean box publishes :common before StageWright exists.
+    if (!providers.gradleProperty('worlddriverBootstrap').isPresent()) {
+        modLocalRuntime("net.magicterra:mc_stagewright-neoforge:${rootProject.stagewright_version}") {
+            changing = true
+        }
     }
 
     // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what

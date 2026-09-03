@@ -46,8 +46,11 @@ dependencies {
     // `changing = true` — see the note beside the neoforge twin. mavenLocal keeps the version while
     // the contents move, and loom's remap cache is keyed on coordinates, so without this a
     // republished harness is invisible to the dev run.
-    modLocalRuntime("net.magicterra:mc_stagewright-fabric:${rootProject.stagewright_version}") {
-        changing = true
+    // -PworlddriverBootstrap skips it: a clean box publishes :common before StageWright exists.
+    if (!providers.gradleProperty('worlddriverBootstrap').isPresent()) {
+        modLocalRuntime("net.magicterra:mc_stagewright-fabric:${rootProject.stagewright_version}") {
+            changing = true
+        }
     }
 
     // NOTE: stagewright-common is deliberately NOT bundled here. It used to be, which is what
