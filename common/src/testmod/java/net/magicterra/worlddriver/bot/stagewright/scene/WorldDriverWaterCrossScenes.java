@@ -234,10 +234,14 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     + " penalty0.reached=" + b0.goalReached() + " penalty6.reached=" + b6.goalReached());
     }
 
-    /** Ported from {@code AgentGameTestWaterCross#waterClimbOutRouteArena}: a buoyant bot is never routed
-     *  to JUMP out of deep water onto a higher +1 bank — the structural floating-water gate. Two exits at
-     *  equal crossing distance: a +1 bank (jump-needed) and a surface-level (+0) flush bank. The gate makes
-     *  the +1 exit STRUCTURALLY unavailable; both A/B legs (tax off / default) must stay flush (maxY ≤ wsurf).
+    /** Ported from {@code AgentGameTestWaterCross#waterClimbOutRouteArena}. Two exits at equal crossing
+     *  distance: a +1 bank (jump-needed) and a surface-level (+0) flush bank.
+     *
+     *  <p>This used to pin the +1 exit as STRUCTURALLY unavailable to a floating body. It no longer is: a
+     *  surface floater mounts a +1 dry bank on vanilla's collision boost, measured on the real client by
+     *  {@code wd.clientFlushBankClimbOut}, and {@code StepUp} now offers that edge from the surface cell.
+     *  What remains pinned is the PREFERENCE: with the climb-out tax at its default the flush exit must
+     *  win (maxY ≤ wsurf); with the tax off the +1 exit is merely allowed, and both routes must reach.
      *  Pure planner. */
     private static void waterClimbOutRoute(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -287,7 +291,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
 
-        // With the tax both OFF and at its default, neither route may climb the +1 bank (maxY ≤ wsurf).
+        // Tax OFF: the +1 exit is allowed (its maxY is recorded, not judged). Tax default: flush wins.
         BotConfig.pathfinderWaterClimbOutCost = 0;
         var rOff = runSearch(w, start, goal);
         int maxYOff = maxPathY(rOff);
@@ -299,9 +303,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         if (!rOff.goalReached() || !rOn.goalReached())
             ctx.fail("waterClimbOutRoute: a climb-out route failed to reach: off=" + rOff.goalReached()
                     + " on=" + rOn.goalReached());
-        if (maxYOff > wsurf)
-            ctx.fail("waterClimbOutRoute: floating-water +1 climb-out was NOT forbidden (tax off): maxY="
-                    + maxYOff + " (expected ≤" + wsurf + " — buoyant bot must take the flush exit, not jump the +1 bank)");
+        ctx.record("taxOff.maxY", maxYOff + " (wsurf=" + wsurf + "; the +1 exit is allowed here, only the tax steers)");
         if (maxYOn > wsurf)
             ctx.fail("waterClimbOutRoute: floating-water +1 climb-out was NOT forbidden (tax default): maxY="
                     + maxYOn + " (expected ≤" + wsurf + ")");

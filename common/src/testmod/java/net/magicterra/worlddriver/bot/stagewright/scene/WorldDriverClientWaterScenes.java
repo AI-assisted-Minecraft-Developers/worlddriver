@@ -33,7 +33,14 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 Scene.of("wd.clientFlushBankClimbOutEmptyHanded", 2_000,
                         WorldDriverClientWaterScenes::flushBankClimbOutEmptyHanded),
                 Scene.of("wd.clientOneHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::oneHighBankPlaceOut),
-                Scene.of("wd.clientOneHighBankDigOut", 2_000, WorldDriverClientWaterScenes::oneHighBankDigOut));
+                Scene.of("wd.clientOneHighBankDigOut", 2_000, WorldDriverClientWaterScenes::oneHighBankDigOut),
+                Scene.of("wd.clientTwoHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::twoHighBankPlaceOut),
+                Scene.of("wd.clientThreeHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::threeHighBankPlaceOut),
+                Scene.of("wd.clientTwoHighBankDigOut", 2_000, WorldDriverClientWaterScenes::twoHighBankDigOut),
+                Scene.of("wd.clientOneHighStoneBankPickaxeOut", 2_000,
+                        WorldDriverClientWaterScenes::oneHighStoneBankPickaxeOut),
+                Scene.of("wd.clientFlowingChannelPlaceOut", 2_000,
+                        WorldDriverClientWaterScenes::flowingChannelPlaceOut));
     }
 
     /** Top of the slab: the ground's foot cell is {@code GROUND + 1}. */
@@ -79,6 +86,104 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     private static void oneHighBankDigOut(SceneContext ctx) {
         climbOut(ctx, "empty", 1, Blocks.DIRT, 900);
     }
+
+    /**
+     * Two above the surface: one foothold lifts the feet only to the rim's lower course, so the
+     * pillar has to keep going up its own wall-supported column and top out with a walk. Two
+     * placements and their hops fit in 250 ticks.
+     */
+    private static void twoHighBankPlaceOut(SceneContext ctx) {
+        climbOut(ctx, "dirt", 2, Blocks.DIRT, 250, new ItemStack(Items.DIRT, 30));
+    }
+
+    /** Three above: the same column, one rung taller — the river-cliff shape the ladder meets. */
+    private static void threeHighBankPlaceOut(SceneContext ctx) {
+        climbOut(ctx, "dirt", 3, Blocks.DIRT, 350, new ItemStack(Items.DIRT, 30));
+    }
+
+    /**
+     * Two above with nothing to place: a staircase of two dirt cells, each dug afloat. The budget
+     * is two floating dirt digs plus the hops between them, nothing more.
+     */
+    private static void twoHighBankDigOut(SceneContext ctx) {
+        climbOut(ctx, "empty", 2, Blocks.DIRT, 900);
+    }
+
+    /**
+     * A STONE rim one above the surface and an iron pickaxe in the hand: the dig must pick the
+     * tool and still finish afloat. Bare-handed this rim is hopeless (the walker poisons it), so
+     * a body that ends up digging by hand has not selected its tool.
+     */
+    private static void oneHighStoneBankPickaxeOut(SceneContext ctx) {
+        climbOut(ctx, "pickaxe", 1, Blocks.STONE, 400, new ItemStack(Items.IRON_PICKAXE));
+    }
+
+    /**
+     * A one-deep channel fed by a single source, so the water the body stands in is FLOWING toward
+     * the far end; the east bank is one course above the water. The body holds dirt. Getting out
+     * means placing a block into a flowing cell while the current pushes the body off its column,
+     * which is the river-edge shape the ladder's towers kept losing blocks to.
+     */
+    private static void flowingChannelPlaceOut(SceneContext ctx) {
+        stageSlab(ctx, 1, Blocks.DIRT);
+        // Channel x∈[-1,1], z∈[-CHANNEL_HALF,CHANNEL_HALF-1]: floor at GROUND-1, water layer GROUND, air above.
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dz = -CHANNEL_HALF; dz < CHANNEL_HALF; dz++) {
+                ctx.setBlock(dx, GROUND + 1, dz, Blocks.AIR);
+                ctx.setBlock(dx, GROUND, dz, dz == -CHANNEL_HALF ? Blocks.WATER : Blocks.AIR);
+            }
+        int goalY = GROUND + 2;
+        BlockPos start = ctx.rel(0, GROUND, 0);
+        BlockPos goal = ctx.rel(4, goalY, 0);
+        ctx.record("布景", "一格深水道，源头在 z=" + (-CHANNEL_HALF) + " 往 +z 流；东岸脚格 y=" + goalY + "（土）；起点 "
+                + start.toShortString() + "，目标 " + goal.toShortString() + "，手里=dirt");
+
+        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
+        helm.hold(new ItemStack(Items.DIRT, 30));
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerFootholdBeforeBankDig = true;
+        ServerPlayer body = helm.player();
+
+        // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
+        helm.sync(FLOW_SYNC_TICKS, () -> {
+            var flow = ctx.level().getFluidState(start).getFlow(ctx.level(), start);
+            ctx.record("起点.同步后", helm.where() + String.format(Locale.ROOT, "，脚格水流 (%.2f, %.2f)", flow.x, flow.z));
+            if (!body.isInWater()) ctx.fail("布景没成立：同步后身体不在水里 —— " + helm.where());
+            if (flow.length() < 0.01) ctx.fail("布景没成立：脚格没有水流 —— " + flow);
+            final int[] inWaterTicks = { 0 };
+            final int[] firstDryTick = { -1 };
+            final int[] legTicks = { 0 };
+            final double[] maxDrift = { 0 };
+            ClientHelm.TickWatcher watch = t -> {
+                legTicks[0] = t;
+                if (body.isInWater()) inWaterTicks[0]++;
+                else if (firstDryTick[0] < 0 && body.onGround()) firstDryTick[0] = t;
+                maxDrift[0] = Math.max(maxDrift[0], Math.abs(body.getZ() - (start.getZ() + 0.5)));
+            };
+            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+                ctx.record("腿末", helm.where());
+                helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
+                    ctx.record("过程", String.format(Locale.ROOT,
+                            "水里 %d tick，第一次干地着地在第 %s tick，顺流最远漂了 %.2f 格",
+                            inWaterTicks[0], firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]), maxDrift[0]));
+                    double flat = helm.flatDistance(goal);
+                    boolean ashore = body.onGround() && !body.isInWater() && body.getY() >= goalY - 0.05;
+                    ctx.record("终点", helm.where());
+                    ctx.check(ashore).as("A 身体最后站在干地上：" + helm.where()).isTrue();
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "B 停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
+                    ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= FLOW_DRY_BY).as("C 上岸要在 " + FLOW_DRY_BY
+                            + " tick 内：第一次干地着地在第 " + (firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]))
+                            + " tick").isTrue();
+                });
+            });
+        });
+    }
+
+    private static final int CHANNEL_HALF = 4;
+    private static final int FLOW_SYNC_TICKS = 80;
+    private static final int FLOW_DRY_BY = 200;
 
     /**
      * @param rimRaise how many blocks the slab around the pool rises above the water surface cell

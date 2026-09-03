@@ -541,3 +541,10 @@ wd.clientFlushBankClimbOut
 wd.clientFlushBankClimbOutEmptyHanded
 wd.clientOneHighBankPlaceOut
 wd.clientOneHighBankDigOut
+wd.clientTwoHighBankPlaceOut
+wd.clientThreeHighBankPlaceOut
+wd.clientTwoHighBankDigOut
+wd.clientOneHighStoneBankPickaxeOut
+wd.clientFlowingChannelPlaceOut
+wd.clientGotoStartsMidAir
+wd.clientGotoStartsMidAirOverWater
