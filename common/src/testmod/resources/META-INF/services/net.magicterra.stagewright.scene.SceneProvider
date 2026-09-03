@@ -31,3 +31,4 @@ net.magicterra.worlddriver.bot.stagewright.journey.JourneyFireCensusScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverBodyCensusScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverActuatorSplitScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverDrownRiseScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientWaterScenes

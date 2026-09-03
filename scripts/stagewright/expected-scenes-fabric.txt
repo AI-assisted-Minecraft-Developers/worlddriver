@@ -536,3 +536,8 @@ wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff
 # Same arm staged over water instead of rock: the control for the stand-up-to-dig guard's
 # negative side, whose 盖.破了 must NOT move while its shallow twin's falls to about a fifth.
 wd.drownEscapeClientKeepsFloatingWhenThePocketIsDeep
+# Water legs driven on the client's real player (ClientHelm). Skip on the dedicated server by design.
+wd.clientFlushBankClimbOut
+wd.clientFlushBankClimbOutEmptyHanded
+wd.clientOneHighBankPlaceOut
+wd.clientOneHighBankDigOut

@@ -1,0 +1,154 @@
+package net.magicterra.worlddriver.bot.stagewright.scene;
+
+import java.util.List;
+import java.util.Locale;
+
+import net.magicterra.stagewright.scene.Scene;
+import net.magicterra.stagewright.scene.SceneContext;
+import net.magicterra.stagewright.scene.SceneProvider;
+import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+
+/**
+ * Water legs driven on the client's REAL player — the walker, the physics and the reflexes that
+ * actually ship. Every scene here is red until the engine can do the thing; none is softened to
+ * what the walker can already satisfy.
+ *
+ * <p>Each arena is a flat slab with a pool cut INTO it (water piled above the surface flows away
+ * between staging and measuring), a body in the water, and one leg to a cell on dry ground.
+ */
+public final class WorldDriverClientWaterScenes implements SceneProvider {
+
+    @Override
+    public List<Scene> scenes() {
+        return List.of(
+                Scene.of("wd.clientFlushBankClimbOut", 2_000, WorldDriverClientWaterScenes::flushBankClimbOut),
+                Scene.of("wd.clientFlushBankClimbOutEmptyHanded", 2_000,
+                        WorldDriverClientWaterScenes::flushBankClimbOutEmptyHanded),
+                Scene.of("wd.clientOneHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::oneHighBankPlaceOut),
+                Scene.of("wd.clientOneHighBankDigOut", 2_000, WorldDriverClientWaterScenes::oneHighBankDigOut));
+    }
+
+    /** Top of the slab: the ground's foot cell is {@code GROUND + 1}. */
+    private static final int GROUND = 20;
+    private static final int HALF = 12;
+    private static final int POOL_HALF = 4;
+    private static final int POOL_DEPTH = 6;
+    private static final int SYNC_TICKS = 30;
+    private static final int SETTLE_TICKS = 10;
+    private static final int LEG_TICKS = 1_200;
+
+    /**
+     * A body floating in a pool whose rim is FLUSH with the water surface walks the leg to a cell on
+     * the rim and ends standing on it. Staged with dirt in hand, as the ladder's body always has.
+     *
+     * <p>This is TODO J47 on the real client: the headless twin ends {@code end=path-consumed} one
+     * cell short with water under its feet, and the ladder's landing scene stands red on it.
+     */
+    private static void flushBankClimbOut(SceneContext ctx) {
+        climbOut(ctx, "dirt", 0, Blocks.STONE, 400, new ItemStack(Items.DIRT, 30));
+    }
+
+    /** The same leg with nothing to place: the bank is flush, so nothing should NEED placing. */
+    private static void flushBankClimbOutEmptyHanded(SceneContext ctx) {
+        climbOut(ctx, "empty", 0, Blocks.STONE, 400);
+    }
+
+    /**
+     * The rim stands ONE block above the water surface: vanilla's swim-out boost cannot mount it, so
+     * the body must place a foothold (it holds dirt) or dig the rim down. Either is fine; taking
+     * longer than a swim plus one placement is not.
+     */
+    private static void oneHighBankPlaceOut(SceneContext ctx) {
+        climbOut(ctx, "dirt", 1, Blocks.DIRT, 600, new ItemStack(Items.DIRT, 30));
+    }
+
+    /**
+     * The same rim with nothing to place: the only way up is to dig the DIRT rim down to flush. A
+     * floating body mines at a fifth of a fifth of its grounded speed (vanilla: off the ground, eyes
+     * in water), which is exactly why this arm has a budget of its own.
+     */
+    private static void oneHighBankDigOut(SceneContext ctx) {
+        climbOut(ctx, "empty", 1, Blocks.DIRT, 900);
+    }
+
+    /**
+     * @param rimRaise how many blocks the slab around the pool rises above the water surface cell
+     * @param rim      the block the slab's top course is made of (what a dig arm has to chew)
+     * @param dryBy    tick by which the body must first stand on dry ground
+     */
+    private static void climbOut(SceneContext ctx, String arm, int rimRaise, Block rim, int dryBy, ItemStack... hand) {
+        stageSlab(ctx, rimRaise, rim);
+        for (int dx = -POOL_HALF; dx <= POOL_HALF; dx++)
+            for (int dz = -POOL_HALF; dz <= POOL_HALF; dz++) {
+                for (int dy = 0; dy > -POOL_DEPTH; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
+                for (int dy = 1; dy <= rimRaise; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
+            }
+        int goalY = GROUND + 1 + rimRaise;
+        BlockPos start = ctx.rel(0, GROUND - 1, 0);
+        BlockPos goal = ctx.rel(POOL_HALF + 2, goalY, 0);
+        ctx.record("布景", "水面格 y=" + GROUND + "，岸顶比水面高 " + rimRaise + " 格（岸脚格 y=" + goalY + "，岸材质 "
+                + rim + "）；池 ±" + POOL_HALF + " 深 " + POOL_DEPTH + "；起点 " + start.toShortString()
+                + "，目标 " + goal.toShortString() + "，手里=" + arm);
+
+        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
+        if (hand.length > 0) helm.hold(hand);
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        ServerPlayer body = helm.player();
+
+        helm.sync(SYNC_TICKS, () -> {
+            ctx.record("起点.同步后", helm.where());
+            if (!body.isInWater()) {
+                ctx.fail("布景没成立：同步 " + SYNC_TICKS + " tick 后身体不在水里 —— " + helm.where());
+            }
+            final int[] inWaterTicks = { 0 };
+            final int[] firstDryTick = { -1 };
+            final double[] maxY = { body.getY() };
+            final double[] minGap = { Double.MAX_VALUE };
+            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, t -> {
+                if (body.isInWater()) inWaterTicks[0]++;
+                else if (firstDryTick[0] < 0 && body.onGround()) firstDryTick[0] = t;
+                maxY[0] = Math.max(maxY[0], body.getY());
+                minGap[0] = Math.min(minGap[0], helm.flatDistance(goal));
+            }, () -> {
+                ctx.record("腿末", helm.where());
+                ctx.record("过程", String.format(Locale.ROOT,
+                        "水里 %d tick，第一次干地着地在第 %s tick，最高 y=%.2f，离目标最近 %.2f 格",
+                        inWaterTicks[0], firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]),
+                        maxY[0], minGap[0]));
+                // Judged once the body has come to rest: a leg that ends on the last hop of a step-up
+                // is still in the air for a few ticks, and「arrived」is about where it lands.
+                helm.sync(SETTLE_TICKS, () -> {
+                    double flat = helm.flatDistance(goal);
+                    boolean ashore = body.onGround() && !body.isInWater() && body.getY() >= goalY - 0.05;
+                    ctx.record("终点", helm.where());
+                    ctx.check(ashore).as("A 身体最后站在干地上（onGround、不在水里、脚在岸脚格高度）：" + helm.where()).isTrue();
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT,
+                            "B 身体停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
+                    ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= dryBy).as(
+                            "C 上岸要在 " + dryBy + " tick 内：第一次干地着地在第 "
+                            + (firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0])) + " tick").isTrue();
+                });
+            });
+        });
+    }
+
+    /** Stone from {@code GROUND-8} to {@code GROUND}, then {@code rimRaise} courses of {@code rim}, air above. */
+    private static void stageSlab(SceneContext ctx, int rimRaise, Block rim) {
+        for (int dx = -HALF; dx <= HALF; dx++)
+            for (int dz = -HALF; dz <= HALF; dz++) {
+                for (int dy = -POOL_DEPTH - 2; dy <= 0; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.STONE);
+                for (int dy = 1; dy <= rimRaise; dy++) ctx.setBlock(dx, GROUND + dy, dz, rim);
+                for (int dy = rimRaise + 1; dy <= rimRaise + 6; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
+            }
+    }
+}
