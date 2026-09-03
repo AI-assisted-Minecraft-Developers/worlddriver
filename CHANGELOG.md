@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-04
+
+- **Every loom game JVM can be started with a JDWP agent, StageWright gates included.**
+  Setting the project property `worlddriverJdwp` (`-PworlddriverJdwp=5005`, or the env var
+  `ORG_GRADLE_PROJECT_worlddriverJdwp`) adds `-agentlib:jdwp=…,server=y,suspend=n` to every
+  `loom.runs` entry. StageWright copies the run's `jvmArguments` into the game processes it
+  launches, so the same switch reaches `runClient`, the `journey*`/`rehearsal*` tasks and the
+  dedicated-server gates. Off by default; `0` lets the OS pick the port, which the two-process
+  topologies need. It is a Gradle property rather than `JAVA_TOOL_OPTIONS` because that variable
+  also hits the Gradle daemon (port clash) and never reaches a game forked by a daemon that was
+  already running — the coverage hook measured that as 0% on 2026-07-19. Attaching, the
+  dedicated-server watchdog, and the two debugger front-ends are written up in
+  `docs/dev/debugging.md`.
+
 ## 2026-08-29
 
 - **A ladder that did not finish reported success, and the rung it dropped left no trace.**
