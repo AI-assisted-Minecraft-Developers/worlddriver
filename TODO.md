@@ -444,6 +444,11 @@ water8.liftedY=64/60
 
 ### 工程债
 
+- **`wd.agentRpcSmoke` 在本机专用服闸上稳定红**（2026-09-04，两趟全闸加一趟单跑，改动前的提交也红）：
+  `seedTestArea` 在 `addFreshEntity` 之后立刻用 `getEntities` 回读，读到 0/2 只 prop 就抛
+  「chunk is loaded for blocks but not for entities」。`getChunk` 只把区块推到 FULL，实体分区的可见性
+  要等区块源自己的 tick 更新过 ENTITY_TICKING 才有，同一 tick 内回读读不到。待判：是在这里等一个
+  tick 再回读，还是让回读走 `entityManager` 的待处理队列。
 - **代码注释引用的编号已没有定义**：`WorldDriverWaterBankScenes` 的 J31（4 处）与 J24b、`JourneyRamp:908` 的 J50，
   定义全在 08-26 重写前的 `fb94af03…:TODO.md`；`WorldDriverScenes.java:1410` 写「TODO.md line 79」，
   那一行现在是 J46。改法是把编号换成它指的那件事。

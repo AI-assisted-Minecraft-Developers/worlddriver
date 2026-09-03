@@ -17,6 +17,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default ON) lets the pillar go first whenever a block is in hand; the pillar's own futility
   bail still hands a bank the place cannot land on to the dig.
 
+- **The last path node is aimed at directly and approached at a walk.** Every earlier node is
+  spent by crossing its plane, so the bob-immune path tangent that carries the body past it is
+  the right heading; the last node is spent only by closing to within ~0.67 of its centre, and a
+  sprinting body still on the previous segment's heading passes wider than that.
+  `wd.clientGotoStartsMidAir` measured a diagonal approach at yaw 91° off the node bearing, a
+  nearest pass of 0.8, and then 400 ticks of unstuck bursts and repaths around a goal the body
+  had already reached. `walkerFinalNodeDirectAim` (default ON) drops the tangent on the last
+  node and the sprint over its final two blocks.
+
+- **The water pillar takeover tops out only on a rung with a flush exit beside it.** The rise
+  test alone read「topped out」on a 1×1 rung one course under the rim whenever the latched
+  climb node sat in the pool wall; A* then asked for a diagonal step-up off that rung and the
+  body walked off it back into the pool. `wd.clientOneHighBankPlaceOut` measured a second
+  climb-out and 500 ticks. `walkerPillarTopsOutAtFlushExit` (default ON) keeps the column going
+  until a dry cell beside the rung can be stepped onto flush or down.
+
+- **The water climb-out intent is read against the surface cell, not the bobbing foot.** The
+  climb context armed on `cwp.y > foot.y`, which is true at the bottom of a bob and false at its
+  top; a body pressed into a bank rides the collision boost through a two-and-a-half-block bob
+  whose top outlasts the intent's twelve-tick sticky window, so the context was left and its
+  stall counter zeroed once per cycle and the takeover never engaged.
+  `wd.clientTwoHighBankPlaceOut` bobbed 180 ticks at the wall with no event in the log. With
+  `walkerClimbIntentFromSurface` (default ON) a dry waypoint beside the body at or above its
+  column's surface cell is a climb-out on every tick of the bob. The per-tick debug trace now
+  prints the climb context's inputs on every wet tick, so the next such stall names its gate.
+
 - **The water pillar takeover fills the column's surface cell, not whatever cell the bob is in.**
   The fill target was the foot cell whenever the locked column's foot-level cell was not water,
   which is every tick the collision boost lifts the body into the air above the surface, so the
