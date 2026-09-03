@@ -9,7 +9,7 @@
 
 set -uo pipefail
 
-REPO=/home/coder/AI-assisted-Minecraft-Developers/worlddriver
+REPO=/home/gardel/source/minecraft/AI-assisted-Minecraft-Developers/worlddriver
 RUN=$REPO/fabric/run
 SHOTS=$RUN/smoke
 mkdir -p "$SHOTS"
