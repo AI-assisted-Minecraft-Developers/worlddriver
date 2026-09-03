@@ -111,8 +111,26 @@ public final class ClientHelm {
 
     /** Let the client catch up with a teleport before anything is judged. */
     public void sync(int ticks, Runnable then) {
+        sync(ticks, null, then);
+    }
+
+    /**
+     * {@link #sync(int, Runnable)} with a per-tick reader. The server's copy of the body trails the
+     * client by however many move packets the server thread has not consumed yet — measured at six
+     * ticks on this box while a scene was staging — so a leg can report itself over before the
+     * server has seen the body land. A watcher that keeps reading through the settle window sees
+     * the landing the leg's own watcher missed. {@code tick} continues from {@code from}.
+     */
+    public void sync(int ticks, int from, TickWatcher watcher, Runnable then) {
         final int[] waited = { 0 };
-        ctx.await(() -> ++waited[0] >= ticks).within(ticks + 100).then(then);
+        ctx.await(() -> {
+            if (watcher != null) watcher.tick(from + waited[0]);
+            return ++waited[0] >= ticks;
+        }).within(ticks + 100).then(then);
+    }
+
+    private void sync(int ticks, TickWatcher watcher, Runnable then) {
+        sync(ticks, 0, watcher, then);
     }
 
     /** Something that reads the body on every tick of a leg. */

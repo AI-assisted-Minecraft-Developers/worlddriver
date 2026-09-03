@@ -89,6 +89,7 @@ class GameTestBaselineManifestTest {
             e("walkerWaterStepDownFloat", "§78 — step-advance for a stepDown onto a shallow water-surface foothold"),
             e("walkerWallCornerFastChurn", "§78 — wall-corner fast-churn recovery"),
             e("walkerSwimAshorePillarDespiteDeepDig", "§78 — pillar-place fallback for a +2 bank the bank-dig skips"),
+            e("walkerFootholdBeforeBankDig", "foothold first — a body holding a block pillars before it digs the bank"),
             e("walkerFutileBankDigRelease", "§78 — early-release a provably futile block-less bank dig"),
             e("walkerBankDigForwardExit", "§78 — forward-hemisphere guard on bank-dig riser selection"),
             e("walkerFloatingBankBobFreeze", "§78 — floating +1 water-bank climb-out freeze"),

@@ -63,11 +63,12 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
     /**
      * The rim stands ONE block above the water surface: vanilla's swim-out boost cannot mount it, so
-     * the body must place a foothold (it holds dirt) or dig the rim down. Either is fine; taking
-     * longer than a swim plus one placement is not.
+     * the body must place a foothold (it holds dirt). Digging the dirt rim instead is not a failure
+     * of geometry but of judgment, and the budget is what says so: a swim to the wall, thirty ticks
+     * of stall, one placement and one hop fit in 150 ticks; the shortest floating dig does not.
      */
     private static void oneHighBankPlaceOut(SceneContext ctx) {
-        climbOut(ctx, "dirt", 1, Blocks.DIRT, 600, new ItemStack(Items.DIRT, 30));
+        climbOut(ctx, "dirt", 1, Blocks.DIRT, 150, new ItemStack(Items.DIRT, 30));
     }
 
     /**
@@ -103,6 +104,9 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
         BotConfig.walkerDebug = true;
+        // Shipped default, restored over the pinned baseline: the place arm is the scene that
+        // exercises it, and the budget above is what would notice it going missing.
+        BotConfig.walkerFootholdBeforeBankDig = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
@@ -112,22 +116,27 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
             }
             final int[] inWaterTicks = { 0 };
             final int[] firstDryTick = { -1 };
+            final int[] legTicks = { 0 };
             final double[] maxY = { body.getY() };
             final double[] minGap = { Double.MAX_VALUE };
-            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, t -> {
+            ClientHelm.TickWatcher watch = t -> {
+                legTicks[0] = t;
                 if (body.isInWater()) inWaterTicks[0]++;
                 else if (firstDryTick[0] < 0 && body.onGround()) firstDryTick[0] = t;
                 maxY[0] = Math.max(maxY[0], body.getY());
                 minGap[0] = Math.min(minGap[0], helm.flatDistance(goal));
-            }, () -> {
+            };
+            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
                 ctx.record("腿末", helm.where());
-                ctx.record("过程", String.format(Locale.ROOT,
-                        "水里 %d tick，第一次干地着地在第 %s tick，最高 y=%.2f，离目标最近 %.2f 格",
-                        inWaterTicks[0], firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]),
-                        maxY[0], minGap[0]));
-                // Judged once the body has come to rest: a leg that ends on the last hop of a step-up
-                // is still in the air for a few ticks, and「arrived」is about where it lands.
-                helm.sync(SETTLE_TICKS, () -> {
+                // Judged once the body has come to rest, and SAMPLED until then: a leg that ends on
+                // the last hop of a step-up is still in the air for a few ticks, the server's copy
+                // of the body can trail the client by several more, and「arrived」is about where
+                // it lands. The watcher keeps counting so the landing tick is not lost to the gap.
+                helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
+                    ctx.record("过程", String.format(Locale.ROOT,
+                            "水里 %d tick，第一次干地着地在第 %s tick，最高 y=%.2f，离目标最近 %.2f 格",
+                            inWaterTicks[0], firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]),
+                            maxY[0], minGap[0]));
                     double flat = helm.flatDistance(goal);
                     boolean ashore = body.onGround() && !body.isInWater() && body.getY() >= goalY - 0.05;
                     ctx.record("终点", helm.where());
