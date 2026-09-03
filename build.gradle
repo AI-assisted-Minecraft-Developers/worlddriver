@@ -306,3 +306,16 @@ subprojects {
         }
     }
 }
+
+// ---- Debugger hook: opt-in JDWP agent for every loom game JVM, gates included; see docs/dev/debugging.md ----
+// -PworlddriverJdwp=<port> (or env ORG_GRADLE_PROJECT_worlddriverJdwp); `0` lets the OS pick a port.
+subprojects {
+    plugins.withId('dev.architectury.loom') {
+        def jdwp = providers.gradleProperty('worlddriverJdwp')
+        if (jdwp.isPresent()) {
+            loom.runs.configureEach {
+                vmArg "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:${jdwp.get()}"
+            }
+        }
+    }
+}
