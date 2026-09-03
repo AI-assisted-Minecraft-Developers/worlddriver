@@ -223,6 +223,18 @@ final class WalkerTickClimb {
         wk.waterClimb.targetY = foot.getY() + PILLAR_CEILING_RISE;
     }
 
+    /** A dry cell beside {@code foot} that the body can step onto without climbing: standable at
+     *  the same level or one below, and neither it nor its floor is water. */
+    private static boolean flushExitBeside(WorldView world, BlockPos foot) {
+        for (BlockPos n : new BlockPos[] { foot.east(), foot.west(), foot.north(), foot.south() }) {
+            if (world.isWater(n) || world.isWater(n.below())) continue;
+            if (world.canStandAt(n)) return true;
+            BlockPos d = n.below();
+            if (!world.isWater(d.below()) && world.canStandAt(d)) return true;
+        }
+        return false;
+    }
+
     /** How far above the engage foot the pillar may climb before bailing to the fallback
      *  actuators. Named so the ceiling and the rise reported by {@link Walker#waterPillarTopRise}
      *  cannot drift apart, and so the reader can see it is a CONSTANT above a FIXED anchor —
@@ -438,9 +450,24 @@ final class WalkerTickClimb {
             int cwpLatDist = Math.max(Math.abs(cwp.getX() - foot.getX()), Math.abs(cwp.getZ() - foot.getZ()));
             boolean climbTargetBeside = !BotConfig.walkerWaterClimbLateralGate
                     || cwpLatDist <= WATER_CLIMB_LATERAL_MAX;
-            boolean wantClimbNow = edge != null
-                    && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam);
             boolean touchingWater = p.isInWater() || world.isWater(foot) || world.isWater(foot.below());
+            // THE INTENT IS MEASURED AGAINST THE SURFACE, NOT THE BOBBING FOOT. `cwp.y > foot.y` is
+            // true at the bottom of a bob and false at its top, and a body pressed into a bank rides
+            // the collision boost through a two-and-a-half-block bob whose top lasts longer than
+            // WANT_CLIMB_STICKY — so the context was left and `stall` zeroed once per cycle and the
+            // takeover never armed. wd.clientTwoHighBankPlaceOut: 180 ticks of that, no event at all.
+            // A dry waypoint beside the body at or above its column's surface cell is a climb-out
+            // whatever the foot reads this tick.
+            boolean surfaceClimbIntent = false;
+            if (BotConfig.walkerClimbIntentFromSurface && edge != null && touchingWater && climbTargetBeside
+                    && !world.isWater(cwp)) {
+                int surfY = foot.getY();
+                while (world.isWater(new BlockPos(foot.getX(), surfY + 1, foot.getZ()))) surfY++;
+                while (surfY > foot.getY() - 3 && !world.isWater(new BlockPos(foot.getX(), surfY, foot.getZ()))) surfY--;
+                surfaceClimbIntent = cwp.getY() >= surfY;
+            }
+            boolean wantClimbNow = edge != null
+                    && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam || surfaceClimbIntent);
             if (touchingWater) wk.waterClimb.touchRecent = WATER_TOUCH_STICKY;
             else if (wk.waterClimb.touchRecent > 0) wk.waterClimb.touchRecent--;
             boolean nearWater = touchingWater || wk.waterClimb.touchRecent > 0;
@@ -482,6 +509,13 @@ final class WalkerTickClimb {
             boolean buoyantFloat = !p.onGround() && (p.isInWater() || wk.surfaceWaterLatch > 0);
             boolean deepDig = (world.isWater(foot.below()) || buoyantFloat)
                     && wk.mayBreak() && BotConfig.allowSwimEscapeBreak;   // mayBreak(): honor per-goto forbidDig, not just the global switch
+            // The climb context's inputs, one row per wet tick: the takeover and the bank dig are
+            // gated on these, and a bob-stall with no event in the log is unreadable without them.
+            if (BotConfig.walkerDebug && nearWater)
+                LOG.info("[walker] climb-ctx cwp={},{},{} wantNow={} (foot={} ram={} surface={}) want={} near={} climbing={} stall={} deepDig={} pillaring={} gaveUp={} digging={} riser={}",
+                        cwp.getX(), cwp.getY(), cwp.getZ(), wantClimbNow, cwp.getY() > foot.getY() && climbTargetBeside,
+                        floatingBankRam, surfaceClimbIntent, wantClimb, nearWater, waterClimbing, wk.waterClimb.stall,
+                        deepDig, wk.waterClimb.pillaring, wk.waterClimb.pillarGaveUp, wk.waterClimb.digging, wk.waterClimb.digRiser);
             if ((!wantClimb || !nearWater) && !digCommitted) {
                 // Left the climb context (grounded on the bank, or A* now routes
                 // down/along) → clear the per-attempt accounting AND the "pillar
@@ -599,7 +633,15 @@ final class WalkerTickClimb {
                         // reached only y-mid-wall, onPlateau=false). While the climb node is
                         // still ≥2 above the foot the wall continues up; only a node at ~foot
                         // level is the real bank top.
-                        && !(wantClimbNow && cwp.getY() - foot.getY() >= 2);
+                        && !(wantClimbNow && cwp.getY() - foot.getY() >= 2)
+                        // ...AND there is somewhere to WALK to. The climb node the takeover latched
+                        // can sit BELOW the bank top (a swimAshore break target in the pool wall),
+                        // so the rise test above read「topped out」on a 1×1 rung one course under
+                        // the rim, A* then asked for a diagonal step-up off that rung, and the body
+                        // walked off it back into the pool (wd.clientOneHighBankPlaceOut: a second
+                        // climb-out, 500 ticks). A rung is the top only when a dry cell beside it
+                        // can be stepped onto flush or down; otherwise the column keeps going up.
+                        && (!BotConfig.walkerPillarTopsOutAtFlushExit || flushExitBeside(world, foot));
                 boolean tooHigh = foot.getY() > wk.waterClimb.targetY;
                 // Reported whether or not it fires: this bail was unconditionally false until the
                 // engage latch was fixed, and the water-climb family records no evidence at all, so

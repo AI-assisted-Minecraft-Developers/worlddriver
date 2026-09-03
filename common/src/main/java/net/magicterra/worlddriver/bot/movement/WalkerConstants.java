@@ -221,6 +221,9 @@ final class WalkerConstants {
     public static final int STAIR_TREND_LOOKAHEAD = 5;
 
     public static final double REACH_DIST_SQ = 0.45;
+    /** Squared distance to the LAST node inside which the body walks instead of sprinting: two
+     *  blocks, one more than a sprint needs to bleed to walking speed under ground friction. */
+    public static final double FINAL_APPROACH_WALK_SQ = 4.0;
     public static final int STUCK_TICKS = 60;
     /** Ticks a buoyant body may stay pinned ABOVE an in-water below-node before the
      *  step-advance gate surface-crosses past it. A* routes a deep-water crossing

@@ -2381,6 +2381,32 @@ public final class BotConfig {
      *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
     public static volatile boolean walkerFootholdBeforeBankDig = true;
 
+    /** The water climb-out INTENT is read against the column's surface cell, not the bobbing foot.
+     *  {@code cwp.y > foot.y} flickers with the bob, and a body pressed into a bank rides the collision
+     *  boost through a bob whose top outlasts the intent's sticky window, so the climb context was
+     *  left and its stall counter zeroed every cycle — {@code wd.clientTwoHighBankPlaceOut} bobbed
+     *  180 ticks at the wall with no takeover. With this ON, a dry waypoint beside the body at or
+     *  above the surface cell counts as a climb-out on every tick of the bob. Default ON; the
+     *  gametest baseline pins it OFF like every other walker flag. */
+    public static volatile boolean walkerClimbIntentFromSurface = true;
+
+    /** The water pillar takeover declares「topped out」only on a rung with a dry cell beside it
+     *  that can be stepped onto flush or down. The rise test alone read the top on a 1×1 rung one
+     *  course under the rim whenever the latched climb node sat in the pool wall, A* then asked for
+     *  a diagonal step-up off that rung, and the body walked off it back into the pool
+     *  ({@code wd.clientOneHighBankPlaceOut}: a second climb-out, 500 ticks). Default ON; the
+     *  gametest baseline pins it OFF like every other walker flag. */
+    public static volatile boolean walkerPillarTopsOutAtFlushExit = true;
+
+    /** The LAST path node is aimed at directly (no path tangent) and approached at a walk over its
+     *  final two blocks. Every earlier node is spent by crossing its plane, so the bob-immune
+     *  tangent that carries the body past it is right there; the last one is spent only by
+     *  closing to within ~0.67 of its centre, and a sprinting body on the previous segment's
+     *  heading passes wider than that ({@code wd.clientGotoStartsMidAir}: nearest pass 0.8, then
+     *  400 ticks of unstuck bursts around a goal already reached). Default ON; the gametest
+     *  baseline pins it OFF like every other walker flag. */
+    public static volatile boolean walkerFinalNodeDirectAim = true;
+
     /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
      *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
      *  y62.7(water)↔63.65(air) every 2-3 t, onGround NEVER true, doing stepUp but XZ frozen. ALL three
@@ -2989,6 +3015,9 @@ public final class BotConfig {
         walkerWallCornerFastChurn = false;
         walkerSwimAshorePillarDespiteDeepDig = false;
         walkerFootholdBeforeBankDig = false;
+        walkerClimbIntentFromSurface = false;
+        walkerPillarTopsOutAtFlushExit = false;
+        walkerFinalNodeDirectAim = false;
         walkerFutileBankDigRelease = false;
         walkerBankDigForwardExit = false;
         walkerFloatingBankBobFreeze = false;
