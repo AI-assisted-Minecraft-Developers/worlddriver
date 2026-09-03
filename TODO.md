@@ -18,6 +18,8 @@
   待办是「还欠什么」，路线图是「按什么顺序做」，两件事不该住在一起。
   **这里不留副本**——两处各存一份，过几天就会分叉。
 - **已结的行为变更搬进 [`CHANGELOG.md`](CHANGELOG.md)。** 「为什么这个行为变了」归那里。
+- **2026-09-04 把散落在外面的开着条目收拢进来。** 旁边三份 `TODO-*.md`、`ROADMAP.md` §4、几份 docs
+  正文与 javadoc 里的待办并入「🧹」一节；三份旁文件同日删除，推理留在各自原处。
 
 ⚠️ **两条从旧版继承下来、代价已经付过的纪律，别丢**：
 
@@ -369,6 +371,102 @@ water8.liftedY=64/60
   分叉（脚本通道吞 `2.7`／`"8"`／回绕，MCP/RPC 会拒——**行为变更，必须配闸**，排在 ROADMAP §6.5 序 17）；
   `neoforge.sim` 三个 shim 整体可删（包外零 import）——⚠️ **别写成纯删**：`neoforge.sim` 里
   `ServerAvatarCommand`（`/agentserver`）还站在它们后面，删除要连命令一起判。
+
+---
+
+## 🧹 从散落处收拢进来的待办（2026-09-04）
+
+2026-09-04 普查：开着的活散在旁边三份 `TODO-*.md`、`ROADMAP.md` §4、几份 docs 的正文、
+`AGENTS.md` 与 javadoc 里。**这里只收「还开着什么」**，每条的推理留在原处并给出指针。
+三份旁文件同日删除，全文在删除提交的父提交里：
+`git log --diff-filter=D --format=%H -- TODO-janitor-2026-08-22.md`（另两份同法）。
+括号里的 K／F 代号是那份文件里的小节号，只为回溯，不再新分配。
+
+### 引擎侧（`src/main`）
+
+- **起跳头顶格的 hazard 闸只有三个成员带**（janitor K3）：`ParkourAscend`／`ParkourDescend`／`DiagonalAscend`
+  查 `isHazard(from.offset(0,2,0))`，`Parkour2`／`Parkour2Diagonal`／`Parkour3`／`Parkour3Diagonal`／`Parkour4`／
+  `ParkourPlace` 只查 passable。`isHazard` 与 `isPassable` 不互斥（火、浆果丛、细雪都可通行）。
+  改的是 A* 可行边集合，要闸、单独归因。
+- **助跑三种算法，只有 `Parkour3` 用严格版**（janitor F9）：`Move.hasRunway` 两个重载要身后 0／2 格，
+  `ParkourAscend` 内联一份要 1 格；四个最长的 leap 全用 0 格版。与 K3 同一趟闸。
+- **`commandForward` 是比 `commandMove` 严格弱的通道**（janitor F1，要拍板）：`AvatarInput.tick` 写死
+  `moveCommanded` 压过 `rawMoveCommanded`，walker 每 tick 下 `commandMove`，于是同 tick 的 `BotInput.stop`
+  一类后备被静默丢弃，其 javadoc「Stop horizontal movement this tick」在 walker 活跃时是假的。
+  升级通道会改后备与进程的仲裁语义，所有拓扑都受影响。
+- **到同一个 `AvatarInput` 有四条路**（janitor F3）：`Avatar` 接口、`BotInput`、`AutoSwim:86` 自抄的一份、
+  `mc.options.key*`（只剩 `keyAttack`／`keyUse`）。只有 `Avatar` 能驱动服务端身体；把四个反射搬上
+  `Avatar` 是架构决定，不是清理。
+- **进程的 `attach()` 不清上一趟的终局字段**（janitor F14）：`goalReached`／`endReason`／`finalDist` 由
+  `reset()` 故意保留、该由 `attach()` 清，`bot/process/` 下只有 1 个文件写 `goalReached = false`。
+  `mc.bot.status` 于是把上一趟的判词挂在活着的运行上。收成一个 `beginRun()`，要闸。
+- **从没被真运行翻开过的默认 OFF flag**（janitor F10，数出 14 个）：`allowParkour4` 关着，其后的移动成员
+  从没在真导航里跑过一步。判词：要么给它一条能跑的场景，要么删掉；别当「待启用的功能」。
+- **两个 MCP 工具对昼夜给出不同词表和边界**（janitor F13）：`mc.observe.player.time.phase` 与
+  `mc.client.scene.dayPhase` 在 `[13000,13800)` 与 `[22200,23000)` 互相矛盾。**判：暂不做**，理由在
+  `WorldModel.dayPhase` 的 javadoc；重开条件＝动 `DuskSecureChain` 开火窗口的那一笔。
+- **线段采样器三份**（janitor）：`losWalkable`／`straightLineBias`／`isOpenWaterLine` 共用同一段
+  「steps = max(|dx|,|dz|) + 四舍五入插值」。只抽 `lineCell(a,b,s,steps)` 这一层算术，不抽成返回
+  `List<BlockPos>` 的迭代器：实测 98% 的切片寻路压在单 tick 预算里，多分配贵在次数。
+- **`SmeltProcess.smeltWait` 不验身体在场**（rung10 配套一）：每 tick 读 `furnacePos` 的方块却不读距离，
+  60 格外 `COLLECT` 照样成功过。超出交互距离写 `lastError` 或 fail。
+- **`activeProcessDetail` 对 DuskSecure 托管的 bunker 为 null**（原在 `ROADMAP.md` §4）：`BotApiImpl` 只读
+  前台用户任务的 `statusDetail()`；DuskSecure 托管时 agent 只能由 `activeChain:duskSecure` + `skyExposed`
+  推断 SEALED／DIG_DOWN。
+- **`clientAvatar()` 的单发动作从服务端线程发起**（`AGENTS.md` actuator-split 段、`BotApi.clientAvatar()`
+  javadoc）：正确形状是从客户端 tick 链发起、场景经世界观察结局，**尚未做**。判这条缝只能用
+  `wd.actuatorSplitThroughTheClientAvatar`，真梯拓扑够不着它。
+
+### 身体等价性（`bot/sim/**`，归 wd-parity）
+
+- **`Inventory.selected` 一节的三条残留**（`docs/fake-player-parity.md` §6.9「残留」）：`stopUsingItem` 的
+  客户端孪生半边、一个来回的窗口、背包→手「内容晚一 tick」的逐位不一致。那一节写明别把 T4 顺手塞进同一笔。
+- **60 格外的熔炉菜单没被 `stillValid` 关掉**（rung10 公开问题）：真玩家的 `Player.tick()` 会关容器，
+  `JoinedBody` 漂了 60 格菜单一直开着。只观察到现象，原因未验。
+
+### 账本与仪器（testmod 侧）
+
+- **坠落自报只记进程名，不记动作**（rung20 下一步）：`JourneyRig` 的离场报告写「离场时在跑的进程」，
+  没有 walker 当时执行的边（move 名）和 `jumpTag`。「满脚底走下桥头」那一族四个坐标查了五轮仍在猜，
+  因为读数只有地点没有动作。
+- **水平漂移是残留输入还是水流**（rung10 公开问题）：心跳里没有 `getDeltaMovement()`、输入标志、
+  `getFluidState().getFlow()` 任何一项，第 9 级那 61 格漂移因此判不了。
+- **`check_stacked_javadoc.py` 抓不到更坏的那种形态**（脚本第 31 行自带的 TODO）：被抛弃的 javadoc 落在
+  没有文档的成员上时被 javac 静默收养。缺的读数是块与所附声明的失配（`@param` 点名不存在的形参、
+  `void` 上的 `@return`），不需要自然语言。
+
+### 真梯第 14 级
+
+- **客户端在第 14 级中途断连**（`CHANGELOG.md` 2026-08-29）：ladder-22 走廊第一腿四分钟后
+  `suite over (finished=false, connected=false)`。与 J125 是两条缺陷；J125 修好之前，断连那半连一行 FAIL 都不会留。
+- **走廊里的火是谁点的**（同上）：`inFire` 只说 `BlockTags.FIRE`，恶魂与火沿地狱岩蔓延两条都没排除。
+  J124a 的重规划触发不依赖这个答案。
+
+### 工程债
+
+- **代码注释引用的编号已没有定义**：`WorldDriverWaterBankScenes` 的 J31（4 处）与 J24b、`JourneyRamp:908` 的 J50，
+  定义全在 08-26 重写前的 `fb94af03…:TODO.md`；`WorldDriverScenes.java:1410` 写「TODO.md line 79」，
+  那一行现在是 J46。改法是把编号换成它指的那件事。
+  ⚠️ `C28-J1`／`live J5`／`live J8` 一类是 AgentDriver 时期的现场案号，不是这套编号，别改。
+
+### 只是线索（未对 HEAD 核）
+
+- `pack.measuresItsOwnTickCost` 一场每 tick 一条 `invalid dist DEDICATED_SERVER`（NeoForge，点的是 `Minecraft`）：
+  `docs/drown-escape-design.md` §5.5 说「在 TODO.md 单独立条」，从未立过。
+- `docs/drown-escape-design.md` §1.5.3：出路 A 被哪个常量关掉没判定，`SURFACE_SCAN_UP=4` 与
+  `LATERAL_SCAN_R=5` 两个嫌疑并存。
+- 进度键 `progress.*` 加单位、旧 `pathLen` 留一轮（janitor J9 后续）。
+
+### 指针（不复制）
+
+- **文档债**在 `docs/DOCMAP.md`「还缺什么」：沙箱假陈述六处还剩五处（`README.md`／`README-zh_CN.md`／
+  `CONTRIBUTING.md`／`AGENTS.md`／`methods.md`）、`AGENTS.md` 场景数仍写 222、`CLAUDE.md` 末句「kept in sync」、
+  `coverage-exemptions.md` 标题带编号、`agent-driver-channel.mcp.json.example` 旧名。台账归文档角色。
+- **工作区根的 `TODO.md`／`SURVIVAL_TEST_GAPS.md`**（不在任何 git 仓库里，2026-08-02 后没动过）：25 个方框
+  与 7 条「待修」全是 AgentDriver 时期的账，没有一条对 HEAD 复核过。要捡先 grep 它自己会写的那一行。
+- janitor 两轮「**确认过不是问题、别再查**」的清单在被删的 `TODO-janitor-2026-08-22.md` 第 3 节。
+- `docs/replay-corpus-regression.md` 里的三处 TODO（gate 增强、`walkerDigAimPriority` 待验、判定未决）
+  引用的 GameTest 通道已退役，**不算待办**。
 
 ---
 
@@ -1394,7 +1492,7 @@ radius=2 ⇒ 眼到格心最多约 **2.3**，而上限是 **5.00** ⇒ **真到�
 
 ### 身体等价性（`bot/sim/**`，归 wd-parity）
 
-- `stopUsingItem` 的**客户端孪生还没落**（N8/T4）。[12036–12037]；瞄准两侧分裂的孪生同样未落 [12067–12073]。
+- 瞄准两侧分裂的孪生未落 [12067–12073]。（`stopUsingItem` 那半已按 parity 文档 §6.9 收进上方「🧹」节。）
 - 写 `selected` 的是**四个方法五行**，不是三处。[11801–11809]
 - V2 向下挖不低头（pitch 有两个主人）／V3 不挥手（要一次专门探针）／V4 `holdBestWeapon` **只在下界级被调**／
   V5 工作台不回收·掉落物不捡／V7 一开始像晚上（加一行 `spawn.dayTime`）。[13622–13693]
@@ -1430,7 +1528,6 @@ radius=2 ⇒ 眼到格心最多约 **2.3**，而上限是 **5.00** ⇒ **真到�
 - `rehearsalIntegratedServer` 的 **115 行 `-P` 开关**必须抽成共享闭包。[15076–15083]
 - `SchedulerClientCallSurfaceTest` 的扫描要**从 owner 扩到描述符形参**
   （＝[[a-scheduler-class-may-pass-a-client-type-not-call-one]]）。[10603–10604]
-- `docs/drown-escape-design.md` §5 结案纪要：**触发条件（两个闸都绿）早已满足，到期未做**。[12729]
 
 ### 三条已经确认作废的，别再捡回来（也是这一节为什么只能当线索的三个活证）
 

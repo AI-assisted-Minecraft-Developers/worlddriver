@@ -88,12 +88,10 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
 来自 doc 04 §5 + 生存实测 + 本切片 live-cert：
 
 - 🧊 **裸装反骷髅 / 反蜘蛛无 L0 反射** → 一个生存决策仍卡在 L2。延后到**战斗切片**。
-- ⬜ **`retreatHpThreshold` 不可 MCP 写** → L2 调不动一个 L0 旋钮（接线 gap）。
 - 🧊 **`cornered` 不自动 bunker**：本切片刻意不做（尊重历史 + 围 melee bunker = 死）；作为事件上报，
   由 L2 决定 bunker / 打 / 搭柱。
-- ⬜ **`activeProcessDetail` 对 DuskSecure 托管的 bunker 为 null**：`BunkerProcess.statusDetail()`
-  （SEALED/DIG_DOWN）只在 UserTaskChain 托管时被 status 暴露；DuskSecure 托管时 agent 只能由
-  `activeChain:duskSecure` + `skyExposed` 推断。（本切片 cert 新发现，非 latch 修复回归。）
+
+这里只留延后决定；开着的缺口记在 [`TODO.md`](TODO.md)「🧹」节。
 
 ---
 
