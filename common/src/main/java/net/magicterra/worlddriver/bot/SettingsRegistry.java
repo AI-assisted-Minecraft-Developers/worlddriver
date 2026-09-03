@@ -195,6 +195,7 @@ public final class SettingsRegistry {
         field("walkerBankDigSkipWhenCwpSwims"),
         field("walkerTraverseBreakOvershootResync"),
         field("walkerSwimAshorePillarDespiteDeepDig"),
+        field("walkerFootholdBeforeBankDig"),
         field("walkerFloatingBankBobFreeze"),
         field("walkerFloatingBankFollow"),
         field("walkerFasterChurnRepath"),

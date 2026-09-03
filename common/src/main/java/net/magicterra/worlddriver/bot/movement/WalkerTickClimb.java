@@ -552,8 +552,17 @@ final class WalkerTickClimb {
             // placeable lifts the bot onto the bank. Flag-gated; default OFF keeps this byte-identical.
             boolean swimAshorePillarFallback = BotConfig.walkerSwimAshorePillarDespiteDeepDig
                     && deepDig && !wk.waterClimb.digging && wk.waterClimb.stall > WATER_CLIMB_DIG_STALL;
+            // FOOTHOLD FIRST. `deepDig` used to send a body holding a block to the dig before the
+            // pillar, on the belief that a buoyant bob can never lift its feet clear of the surface
+            // fill cell. The real client refutes it: a body pressed INTO the bank rides vanilla's
+            // +0.3 collision boost (LivingEntity.travel) to feet ≈ +1.8 above the surface cell, and
+            // wd.clientOneHighBankPlaceOut measured the takeover placing its foothold six ticks after
+            // engaging — after sixteen seconds of hopeless bare-hand stone digging that deepDig had
+            // put in front of it. So the pillar goes first whenever a block is in hand; a bank where
+            // the place really cannot land hands over to the dig through `placeFutile` (50 ticks),
+            // which is still seven times cheaper than the shortest floating dig.
             if (waterClimbing && wk.waterClimb.stall > WATER_CLIMB_STALL && !wk.waterClimb.pillarGaveUp
-                    && (!deepDig || swimAshorePillarFallback)
+                    && (!deepDig || swimAshorePillarFallback || BotConfig.walkerFootholdBeforeBankDig)
                     && BotConfig.allowSwimEscapePlace && a.holdPlaceable()) {
                 // THIS CONDITION IS SATISFIED ON EVERY TICK OF A PILLAR THAT IS ALREADY RUNNING,
                 // so everything latched below has to be gated on the transition rather than on
@@ -664,7 +673,20 @@ final class WalkerTickClimb {
                     // cell (grounded on the fresh rung) — not the live foot column, which
                     // drifts off the wall-supported pillar.
                     BlockPos colFoot = new BlockPos(wk.waterClimb.colX, foot.getY(), wk.waterClimb.colZ);
-                    BlockPos fillCell = world.isWater(colFoot) ? colFoot : foot;
+                    // THE TOP WATER CELL OF THE COLUMN, wherever the bob has carried the foot. This
+                    // used to fill `foot` whenever the column's foot-level cell was not water — which
+                    // is every tick the boost lifts the body INTO THE AIR above the surface, i.e.
+                    // exactly the ticks the place could land. The target then followed the bob: at
+                    // y 221.2 it asked for cell 221 and「cleared」at 221.9, back at 220.6 it asked for
+                    // 220, and the one-tick window where 220 was both the target and cleared was
+                    // skipped by the rise itself. wd.clientOneHighBankPlaceOut: 130 ticks of that
+                    // cycle, no block. Reaching DOWN to the water under the foot pins the target to
+                    // the surface cell; a body grounded on its fresh rung (solid below, not water)
+                    // still fills its own foot cell as before.
+                    BlockPos fillCell = colFoot;
+                    while (!world.isWater(fillCell) && world.isWater(fillCell.below())
+                            && fillCell.getY() > foot.getY() - 2) fillCell = fillCell.below();
+                    if (!world.isWater(fillCell)) fillCell = foot;
                     while (world.isWater(fillCell.above())) fillCell = fillCell.above();
                     climboutPlaceTick(wk, a, world, p, fillCell, foot, dryGrounded);
                     return Walker.Step.WALKING;
@@ -705,7 +727,10 @@ final class WalkerTickClimb {
             if (!wk.waterClimb.pillaring && waterClimbing && wk.waterClimb.stall > digStall
                     && wk.waterClimb.futileBankDigCooldown <= 0 && !cwpSwims
                     && wk.mayBreak() && BotConfig.allowSwimEscapeBreak   // mayBreak(): honor per-goto forbidDig, not just the global switch
-                    && (!a.holdPlaceable() || wk.waterClimb.pillarGaveUp || deepDig)) {
+                    // deepDig no longer jumps the queue past a block in hand — see the foothold-first
+                    // note at the pillar takeover; the pillar's own `placeFutile` bail sets pillarGaveUp.
+                    && (!a.holdPlaceable() || wk.waterClimb.pillarGaveUp
+                        || (deepDig && !BotConfig.walkerFootholdBeforeBankDig))) {
                 // Keep digging the LATCHED riser while it's still solid — a buoyant bob
                 // (foot.y flickering ±1) or lateral drift (foot.z wandering) must NOT
                 // re-target a lower block of the same column or a neighbouring column

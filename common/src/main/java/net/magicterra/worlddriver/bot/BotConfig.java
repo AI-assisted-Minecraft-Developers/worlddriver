@@ -2371,6 +2371,16 @@ public final class BotConfig {
      *  replay-0012 ×N OFF/ON measuring the -612 churn before flipping. */
     public static volatile boolean walkerSwimAshorePillarDespiteDeepDig = true;
 
+    /** FOOTHOLD FIRST at a water bank: a floating body holding a placeable block tries the pillar
+     *  takeover BEFORE the bank dig, whatever {@code deepDig} says. The dig-first order rested on
+     *  the belief that a buoyant bob can never lift its feet clear of the surface fill cell; the
+     *  real client shows a body pressed into the bank riding vanilla's collision boost to +1.8
+     *  and placing within six ticks of engaging ({@code wd.clientOneHighBankPlaceOut}), where the
+     *  dig-first order spent sixteen seconds on a hopeless bare-hand stone dig. The pillar's own
+     *  {@code placeFutile} bail (50 ticks) still hands a bank the place cannot land on to the dig.
+     *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
+    public static volatile boolean walkerFootholdBeforeBankDig = true;
+
     /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
      *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
      *  y62.7(water)↔63.65(air) every 2-3 t, onGround NEVER true, doing stepUp but XZ frozen. ALL three
@@ -2978,6 +2988,7 @@ public final class BotConfig {
         walkerWaterStepDownFloat = false;
         walkerWallCornerFastChurn = false;
         walkerSwimAshorePillarDespiteDeepDig = false;
+        walkerFootholdBeforeBankDig = false;
         walkerFutileBankDigRelease = false;
         walkerBankDigForwardExit = false;
         walkerFloatingBankBobFreeze = false;
