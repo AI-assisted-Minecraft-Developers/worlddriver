@@ -41,9 +41,9 @@
 | `ROADMAP.md` | dev·history | — | — | N0–N5 里程碑梯 + E1/E2；排期归它 |
 | `CHANGELOG.md` | history | **keep** | — | ⛔ 行为变更史，**永不删**（543KB） |
 | `TODO.md` | meta | — | — | 主线活工作日志（119KB）。**他人所有，本角色不动** |
-| `TODO-janitor-2026-08-22.md` | meta | delete-candidate | — | wd-janitor 的判读日志（127KB）。**归 janitor 处置，本角色只记账** |
-| `TODO-rung10-forensics.md` | meta | delete-candidate | — | 一次调查的判读日志；违反「TODO 只放还开着什么」。**他人所有** |
-| `TODO-rung20-stand.md` | meta | delete-candidate | — | 同上 |
+| ~~`TODO-janitor-2026-08-22.md`~~ | meta | — | — | **2026-09-04 已删**。开着的条目迁入 `TODO.md`「🧹」节；全文在删除提交的父提交里（`git log --diff-filter=D -- <文件>`） |
+| ~~`TODO-rung10-forensics.md`~~ | meta | — | — | 同上 |
+| ~~`TODO-rung20-stand.md`~~ | meta | — | — | 同上 |
 | `path-replay/README.md` | dev | — | — | replay 工具链用法（record / replay / analyze） |
 | `scripts/.claude/skills/worlddriver-rpc/SKILL.md` | user·dev | — | — | ⚠️ 跨平台，Linux 主机也读它——别写 Windows 专用指令 |
 | `scripts/.claude/skills/worlddriver-rpc/references/methods.md` | user·dev | **stale** | 2026-08-26 | 72 方法 RPC 参考。⚠️ 296 行 `mc.script.eval` 写「sandboxed…No file/network/reflection」同 S1，且「server thread」与 `ScriptEvaluator` 的 worker 线程相反 |
