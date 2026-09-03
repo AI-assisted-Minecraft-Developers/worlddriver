@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-04
 
+- **A floating body holding a block places its foothold before it digs the bank.** The water
+  climb-out used to send a body over deep water to the bank dig first, on the belief that a
+  buoyant bob can never lift its feet clear of the surface fill cell, and only fell back to the
+  pillar takeover once the dig had been given up. On the real client the belief is false: a body
+  pressed into the bank rides vanilla's collision boost to feet ≈ +1.8 and the takeover places
+  within six ticks of engaging. `wd.clientOneHighBankPlaceOut` measured the old order spending
+  sixteen seconds on a hopeless bare-hand stone dig before that. `walkerFootholdBeforeBankDig`
+  (default ON) lets the pillar go first whenever a block is in hand; the pillar's own futility
+  bail still hands a bank the place cannot land on to the dig.
+
+- **The water pillar takeover fills the column's surface cell, not whatever cell the bob is in.**
+  The fill target was the foot cell whenever the locked column's foot-level cell was not water,
+  which is every tick the collision boost lifts the body into the air above the surface, so the
+  target climbed with the body (cell 221 wanted feet at 221.9) and dropped back with it, and the
+  one tick where the surface cell was both the target and cleared was skipped by the rise
+  itself. `wd.clientOneHighBankPlaceOut` measured 130 ticks of that cycle with no block placed.
+  The takeover now reaches down to the water under the foot and pins the target to the surface
+  cell; a body grounded on its fresh rung still fills its own foot cell.
+
 - **A floating body may plan a step-up onto a flush bank.** `StepUp` refused every source cell
   that was floating water, so the only way A* could leave a pool whose rim sits level with the
   surface was to dig the rim down, which a floating body does at a fraction of its grounded
