@@ -148,6 +148,33 @@ final class WalkerTickProgress {
     }
 
     /**
+     * A body that is not standing must not spend a DRY final node — spending it reports an arrival
+     * for a body still in the air or still in the water.
+     *
+     * <p>Measured on the real client, {@code wd.clientFlushBankClimbOut} (2026-09-04): the stepUp out
+     * of the pool consumed the bank node mid-jump —
+     *
+     * <pre>
+     * 步进 因=within 旧步=2 新步=3 w=102566,221,100000 nx=无(末节点) 精确=(102565.835,221.549,100000.500)
+     *      cur2=0.442 |w.y-p.y|=0.549 onGround=false 脚底实心=0.0000 落速=0.1012
+     * </pre>
+     *
+     * and the leg ended {@code path-consumed} with the body hanging over the water's edge, which is
+     * the shape TODO J47 describes. {@link #airborneClimbConsume} cannot see it: that guard is scoped
+     * to a RISING continuation and excludes water. This one is scoped the way
+     * {@link #unwalkedDescentConsume}'s final-node arm is — only when spending the node would report
+     * an arrival ({@code goal.reached(w) && !goal.reached(foot)}) — so a best-effort tail and a body
+     * already in its goal are untouched, and a water final node keeps the floating arrival it has
+     * always had. Holding costs nothing here: the body lands within a few ticks, on the bank or back
+     * in the water, and the stepUp drive simply continues.
+     */
+    private static boolean airborneDryArrival(Walker wk, WorldView world, Player p, BlockPos foot, BlockPos w, BlockPos nx) {
+        return nx == null && !world.isWater(w)
+                && wk.goal.reached(w) && !wk.goal.reached(foot)
+                && WalkerGeometry.soleOnSolid(world, p) < FOOTING_MIN;
+    }
+
+    /**
      * A body standing on a floor must not spend a path node that lies below that floor.
      *
      * <p>The descending twin of {@link #airborneClimbConsume}, and the sibling that helper's javadoc
@@ -966,7 +993,9 @@ final class WalkerTickProgress {
             boolean doAdvance = (legacyAdvance || (BotConfig.walkerArcLengthAdvance && wk.arc.proj.segIdx > wk.step))
                     && !airborneClimbConsume(world, p, w, wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)   // ONE outlet for all nine gates — an airborne body must not spend a node on a climb; see the helper's javadoc for the wd.buriedOre reading
                     && !unwalkedDescentConsume(wk, world, p, foot, w,
-                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a standing body must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
+                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null)                                                           // …and a standing body must not spend one on a descent — the LAST node too when spending it would fake an arrival; see that helper for the rung-14 and rung-13 readings
+                    && !airborneDryArrival(wk, world, p, foot, w,
+                            wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a body that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
             if (doAdvance) {
                 // Don't CONSUME the final node of a disk goal while it sits inside the goal
                 // radius but the bot's FOOT cell is still one block short of it. The node-reach
