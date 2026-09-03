@@ -72,7 +72,6 @@ UNEXERCISED = {
     "walkerFloatingBankBobFreeze",
     "walkerFutileBankDigRelease",
     "walkerPhysicalStallClock",
-    "walkerPillarSurfacePlace",
     "walkerRamNodeAimRelease",
     "walkerRouteHysteresis",
     "walkerStuckStepMonotonic",
