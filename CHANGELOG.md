@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-04
 
+- **A floating body may plan a step-up onto a flush bank.** `StepUp` refused every source cell
+  that was floating water, so the only way A* could leave a pool whose rim sits level with the
+  surface was to dig the rim down, which a floating body does at a fraction of its grounded
+  speed. Vanilla boosts a swimming body that collides with a block (`LivingEntity.travel`,
+  +0.3 up), and `wd.clientFlushBankClimbOut` measured the real client mounting the bank with it.
+  The move is allowed from the SURFACE cell only, onto a dry cell with dry head room; submerged
+  ascents stay forbidden. Paired with it, the walker no longer consumes the final node while the
+  body is still airborne over it with water behind: `WalkerTickProgress` waits for a sole on solid
+  before reporting arrival, so a leg that ends in the last hop of the step-up lands before it
+  says『arrived』.
+
+- **Any JVM flag can be handed to every loom game JVM, gates included.** `-PworlddriverVmArgs="…"`
+  splits on whitespace and adds each token to every `loom.runs` entry, the way the JDWP hook does.
+  The occasion was a client that never opened its window on a Wayland desktop: LWJGL's bundled
+  GLFW spins forever in `waitForVisibilityNotify` under Xwayland, and the fix is a patched
+  `libglfw.so` selected with `-Dorg.lwjgl.glfw.libname=…` — a flag the run configurations had no
+  way to take. Written up in `docs/dev/client-on-wayland.md`.
+
 - **Every loom game JVM can be started with a JDWP agent, StageWright gates included.**
   Setting the project property `worlddriverJdwp` (`-PworlddriverJdwp=5005`, or the env var
   `ORG_GRADLE_PROJECT_worlddriverJdwp`) adds `-agentlib:jdwp=…,server=y,suspend=n` to every
