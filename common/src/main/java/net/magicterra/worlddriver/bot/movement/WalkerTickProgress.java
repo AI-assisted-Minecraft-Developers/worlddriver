@@ -167,9 +167,18 @@ final class WalkerTickProgress {
      * already in its goal are untouched, and a water final node keeps the floating arrival it has
      * always had. Holding costs nothing here: the body lands within a few ticks, on the bank or back
      * in the water, and the stepUp drive simply continues.
+     *
+     * <p><b>Scoped to a hop OUT OF WATER</b> — the foot cell or the cell under it is water. The first
+     * version held every dry final node whose sole read empty, and {@code wd.serverMineProcess} showed
+     * what that costs on land: a body stepping from one stone top across a one-cell gap to the next
+     * reads {@code onGround} true and a sole of 0 for three ticks while {@code within} is true, the
+     * hold ate those three ticks, the body overshot the node by a block and never came back —
+     * {@code no reachable target}. Over water the hold is cheap because the body cannot go anywhere
+     * but down; over land the same hold turns a consumed node into a missed one.
      */
     private static boolean airborneDryArrival(Walker wk, WorldView world, Player p, BlockPos foot, BlockPos w, BlockPos nx) {
         return nx == null && !world.isWater(w)
+                && (world.isWater(foot) || world.isWater(foot.below()))
                 && wk.goal.reached(w) && !wk.goal.reached(foot)
                 && WalkerGeometry.soleOnSolid(world, p) < FOOTING_MIN;
     }
