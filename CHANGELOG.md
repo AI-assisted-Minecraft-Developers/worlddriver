@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default ON) lets the pillar go first whenever a block is in hand; the pillar's own futility
   bail still hands a bank the place cannot land on to the dig.
 
+- **A pillar rung no longer pre-lists ceiling neighbours the body is walled off from.** The
+  head-sweep that prices a breakable cell beside the rising head (a canopy gap the off-centre body
+  clips) listed the cell whether or not the body could be off-centre toward it. In a one-wide
+  shaft all four are walls, so one rung cost 150 plus four bare-hand stone breaks and A* preferred
+  a staircase of dug notches and bridge placements; `wd.clientPillarOutOfShaft` never left the
+  shaft. A side whose wall stands beside the foot or the head is skipped: the box cannot drift
+  into a wall.
+
 - **A last node that is the goal cell is spent only once the foot stands in it.** Spending it
   from 0.67 away or from the air ended the leg「path-consumed goalReached=false」with the body
   standing in the goal cell a few ticks later; half the client water scenes read that way, and
@@ -105,6 +113,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   already running — the coverage hook measured that as 0% on 2026-07-19. Attaching, the
   dedicated-server watchdog, and the two debugger front-ends are written up in
   `docs/dev/debugging.md`.
+
+- **Afloat in one-deep water the pillar takeover places its first rung beside the body.** In a
+  flowing layer higher than 0.4 the jump key swims rather than jumps (LivingEntity.aiStep: in
+  water and not grounded → jumpInLiquid), so the body hovers between y+0.24 and y+0.96 and vanilla
+  refuses a block that meets its box; `wd.clientFlowingTrenchPlaceOut` measured fifty ticks of
+  「cleared」at .95 and no rung, then 646 ticks to the bank through the dig fallback. A neighbour
+  cell at foot level is clear of the body's box (chosen with a 0.1 clearance margin — a click on a
+  cell the body already overlaps by 0.09 never lands), its floor is the click support, and once it
+  is solid the forward press rides the collision boost onto it; standing dry the ordinary
+  ground-jump pillar continues under the body's own centre. The keys turn anticipatory from that
+  point — a key read this tick is the state set last tick — so a body landing on its rung does
+  not jump again with the swim's momentum still in it, and the climb intent is allowed to flicker
+  until a flush exit, the ceiling or futility ends the mode. `walkerShallowWaterSideFoothold`
+  (default ON); the scene now reaches the bank in ~235 ticks.
+
+- **A flush exit has to lead somewhere.** The top-out test accepted any dry standable neighbour,
+  so two side footholds a tick apart read as shore one course up and the takeover let go three
+  courses under the bank. An exit cell now needs a dry standable neighbour of its own beyond the
+  body, and a rung this climb-out placed itself never counts.
+
+- **Topping out of a water climb-out resets the aim's low-pass state.** The takeover pins the
+  heading for the whole climb while the EMA keeps smoothing toward nodes the body never faced, so
+  the first dry walk started up to 180° off; on dry land the tangent drive follows the camera EMA
+  (α 0.08), which closed on a node bearing that rotated as fast as it turned, and the body orbited
+  the node a block out for four hundred ticks (`wd.clientFlowingChannelPlaceOut`: yaw wound from
+  69 to -817). `walkerClimbOutResyncsAim` (default ON).
 
 ## 2026-08-29
 

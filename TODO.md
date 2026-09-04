@@ -416,6 +416,17 @@ water8.liftedY=64/60
 - **`clientAvatar()` 的单发动作从服务端线程发起**（`AGENTS.md` actuator-split 段、`BotApi.clientAvatar()`
   javadoc）：正确形状是从客户端 tick 链发起、场景经世界观察结局，**尚未做**。判这条缝只能用
   `wd.actuatorSplitThroughTheClientAvatar`，真梯拓扑够不着它。
+- **规划器对一格深水的两处虚构**：`SwimUp` 从有地板的一格水「浮出」到空气；`PillarUp`／`StepUp` 从水位 > 0.4
+  的浅水原地起跳（vanilla 只会游）。执行器靠水中接管兜底。收紧 `SwimUp` 试过一次即撤回（注释在 `SwimUp`）：
+  计划变成原地 `pillarUp`，湿身体瞄不进节点 0.45 格，`wd.clientFlowingChannelPlaceOut` 从 56 tick 变失败。
+  要 `WorldView` 拿到流体高度，并配一个湿身体能执行的原地搭柱，两者一起改。
+- **干地转向 EMA 的公转陷阱**：tangent 模式下驱动直接跟摄像机 EMA（α 0.08），航向误差 > 90° 时身体绕节点
+  一格外公转、误差恒定。出水那一处已用 `walkerClimbOutResyncsAim` 兜住；任何 180° 航向突变（坠落着地、被推）
+  都可能再触发。改法要避开 r30／r31 反证过的「换驱动源」，候选是误差大时驻停转向或临时加快 α。
+- **沟上岸后又掉回去**：`wd.clientFlowingTrenchPlaceOut` 到顶后 A* 绕沟端走 `parkour2d`，落短掉回沟里再爬一次
+  （腿 454 tick，其中上岸 234）。跑酷落点与刚放的柱子／沟口的关系没进落点规则。
+- **浮着徒手挖岸一块土 370 tick**：bob 让 `continueDestroy` 的进度反复清零（同一 riser 连挖 8 段）。属水中挖掘家族，
+  与 `wd.clientOneHighBankDigOut`／`TwoHighBankDigOut` 的 250～320 tick 同源。
 
 ### 身体等价性（`bot/sim/**`，归 wd-parity）
 
