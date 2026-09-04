@@ -61,6 +61,7 @@
 | `docs/fake-player-parity.md` | dev | — | — | 假人保真度边界表（2201 行）。**wd-parity 角色所有，本角色不动** |
 | `docs/parity-setpos-centre-snap.md` | dev·history | — | — | 一次格心吸附审计的结论 |
 | `docs/drown-escape-design.md` | dev | — | — | drownEscape 调研；自述 §4 已建成、§5 未建 |
+| `docs/world-view-parity.md` | dev | current | 2026-09-04 | 三份 `WorldView` 共用 `CellRules` 的规则与 `wd.clientWorldViewParity` 的量法 |
 | `docs/stagewright/migration-log.md` | history | **keep** | — | 自述为 migrate-then-delete 的**永久审计记录**——名字像日志，实为存档 |
 
 ## 二之二、`docs/user/` — 用户线，2026-08-26 起

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-04
 
+- **The server planner and the client planner now read the same cell rules.** `ClientWorldView`,
+  `LevelWorldView` and `ServerWorldView` each carried their own passability, footing and break
+  pricing; `wd.clientWorldViewParity` measured 67 disagreements over 50 terrains before the
+  change. All three now delegate to `CellRules`. What moved: a block that needs no tool is priced
+  as vanilla prices it (dirt, logs, leaves and sand were ten times too dear on the client); the
+  best tool is taken from the whole inventory, which is where both executors take it from; soul
+  sand, mud, farmland, dirt path, honey and bottom slabs are floors on both sides while fences,
+  walls and stairs are floors on neither; pressure plates and closed bottom trapdoors are
+  passable on both. The dedicated-server suite therefore validates routes the shipped client
+  would plan. `docs/world-view-parity.md` has the rules and the measurement.
+
 - **A floating body holding a block places its foothold before it digs the bank.** The water
   climb-out used to send a body over deep water to the bank dig first, on the belief that a
   buoyant bob can never lift its feet clear of the surface fill cell, and only fell back to the
