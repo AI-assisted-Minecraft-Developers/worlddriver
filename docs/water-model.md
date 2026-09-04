@@ -80,3 +80,71 @@
 四个浮力判据和八种税都还在，开关关掉时它们仍是旧模型的一部分；开关开着时其中大半成了死码
 （`submergedTax` 只剩 `swimDown` 链能碰到，`isSubmergedAscent` 被 `canStandAt` 先一步拒掉）。
 先在两个模型之间量一段时间，再决定删哪些。
+
+## 开阔水面：原版的俯卧冲刺游泳（`walkerSurfaceSprintSwim`，出厂 ON）
+
+「水面慢」的账先量后改。新模型下 A* 过 52 格的湖只要 458 个节点、39 ms，规划不是瓶颈；
+慢在两处：规划器把深水当死区（`HazardField` 对深度 ≥2 的水格加 10000，路线贴着岸沿绕），
+执行器在水面永远只能踩水（约 2 格/秒）——原版 `LocalPlayer.aiStep` 只在眼睛没入水时接受冲刺，
+而水面颠簸靠一直按跳把头托在水面上，于是每 tick 请求的冲刺在 `travel` 之前就被取消。
+
+### 原版的规则（反编译核过，1.21.1）
+
+- 冲刺在水里只有 `isUnderWater()` 时才被接受；`isInWater && !isUnderWater` 时取消，除非已经是 SWIMMING 姿态。
+- 姿态由 `Entity.updateSwimming` 决定：从「冲刺 且 眼睛入水 且 脚格是水」进入，之后只要「冲刺 且 在水里」就保持。
+- 姿态里的冲刺只在两种情况下被客户端取消：没有前进冲量（`forwardImpulse > 1e-5`，**按着潜行时豁免**）、离开水。
+- 姿态的眼高 0.4；`Player.travel` 在 y+0.9 那格还是水时把竖直速度推向视线的 y 分量；
+  `jumpInLiquid` 每 tick +0.04；冲刺中的游泳者没有重力，水阻 0.9（不冲刺 0.8）。
+- 服务器把玩家自己的实体数据也回发给他（`ServerEntity.broadcastAndSend`），
+  共享旗标那一个字节里同时装着潜行、冲刺、游泳三个位。
+
+### 巡航状态机（`WalkerTickDrive.surfaceCruise`）
+
+1. **进入**：当前节点是水面格、横向至少 1 格、脚下是深水、头顶无实心、眼睛露出、
+   往后 8 个节点里没有 3 格内的岸。冲刺由巡航直接给出，只让危险和低血量压过它；
+   台阶跳、水面跳都关掉；`AutoSwim` 的溺水兜底和 `WalkerTickClimb` 的出水接管都给它让路。
+2. **下潜**：按潜行（原版 `goDownInWater`，每 tick −0.04）直到姿态出现；
+   40 tick 还没有姿态就退回颠簸 100 tick（`CRUISE_DIP_MAX_TICKS` / `CRUISE_COOLDOWN_TICKS`）。
+3. **确认窗**：姿态出现后再沉 3 tick（`CRUISE_SINK_TICKS`），然后悬停到第 12 tick（`CRUISE_CONFIRM_TICKS`）。
+   这一段是给服务器的：客户端翻起冲刺后下一 tick 才发 START_SPRINTING，服务器套用它时自己的游泳位还没算出来，
+   紧接着把整个旗标字节回发，客户端的游泳位被盖成 0、姿态退回 CROUCHING/STANDING，
+   眼高变成 1.27/1.62——身体若已回到水线，眼睛就露出，原版按「在水里、没入水」取消冲刺。
+   原版玩家不中招是因为他们入水那一刻还在深处；巡航把身体按在深处等这次回发过去。
+   这条链是用 JDWP 在 `Entity.setSprinting` 上打 logpoint 抓到的（调用栈 `LocalPlayer.aiStep`，
+   那一刻 `isSwimming()` 已是 false、姿态 CROUCHING）。
+4. **贴水线**：脉冲式按跳。按住不放会被 `jumpInLiquid` 对着 0.9 的水阻顶出水面（`inW=false` 直接退出巡航）；
+   一次脉冲滑行约 9 倍当时的竖直速度。眼睛离水面 0.3 格以上时只要上升慢就点，最后 0.3 格只在静止时点，
+   停下来时眼睛刚好露出（0.4 眼高对 8/9 的源方块水面），air 回满并保持。
+5. **换气闩**：air 低于 130 就退出巡航颠簸换气，回到 280 以上再进；眼睛贴水线后这条几乎不触发。
+
+### 执行器其它几处配套
+
+- **到达判横向**（`WalkerTickProgress` 的 `cruiseUnder`）：巡航身体在节点下方 1–2 格，
+  `within`／`passed` 的高差门槛把每个节点都读成没爬上去的台阶，指针只剩弧长投影在身体越过下一节点后补一步，
+  永远落后一个节点；驱动朝身后的节点掉头，前进冲量变成 −1，原版按「没有前进冲量」取消冲刺——每两格重演一次。
+- **偏离判横向**（`WalkerTickStallDetect` 的 `offPath`）：三维格距把沉着的身体每隔几格判成偏离，
+  重规划从沉底的脚起一串 `swimUp`，把巡航打断。
+- **拉直上限**（`PathSmoothing.stringPull`，`WATER_PULL_SPAN`=2）：一条 49 格的拉直边让指针永远不前进，
+  卡死后水中预占把路清空；上限 3 又会让沉着的脚（三维距离多算一格 y）每 tick 偏离。
+- **直线先于快启**（`tryWaterBeeline` 从脚所在列的水面格起算，排在 `tryQuickStart` 之前）。
+- **规划器**：`pathfinderDeepWaterPriced`（深水只按水税计价，不再是 `HazardField` 的致死格，接触伤害除外）；
+  `waterDangerPenalty` 12 → 3：巡航约 0.19 格/tick，对走路 0.22 格/tick 的代价 10，加上每次下潜的开销。
+
+### 量到的结果（`wd.clientOpenWaterCross`，52 格湖，真客户端）
+
+| 版本 | 上岸 tick |
+|---|---|
+| 改前（踩水） | 550 |
+| 巡航但沉在节点下方（指针落后、冲刺反复丢） | 1140–1339 |
+| 到达判横向、按住跳 | 510 |
+| 脉冲跳、偏离判横向 | 390 |
+| 两档脉冲 | **348** |
+
+最后一趟从第 3 步到第 26 步一次连续巡航，y=220.60、眼睛露出、air=300、冲刺不掉，约 0.19 格/tick。
+
+### 用 JDWP 调真客户端时
+
+客户端线程一挂起，集成服务器照样走，水里的身体十几秒就淹死（`error=player-death`）；
+在热路径上评估条件的 logpoint 同样把客户端拖慢到淹死。行号要从 Fabric 侧的命名 jar 取
+（`.gradle/loom-cache/minecraftMaven/net/minecraft/minecraft-merged-<hash>/…jar`），
+NeoForge 补丁 jar 的行号不一样，挂上去是空的；条件表达式碰不到私有字段。

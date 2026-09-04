@@ -422,6 +422,10 @@ water8.liftedY=64/60
   （腿 454 tick，其中上岸 234）。跑酷落点与刚放的柱子／沟口的关系没进落点规则。
 - **浮着徒手挖岸一块土 370 tick**：bob 让 `continueDestroy` 的进度反复清零（同一 riser 连挖 8 段）。属水中挖掘家族，
   与 `wd.clientOneHighBankDigOut`／`TwoHighBankDigOut` 的 250～320 tick 同源。
+- **干地上超过 3 格的拉直边每 tick 触发 `offPath` 重规划**：`WalkerTickStallDetect` 的 3 格三维判距对着拉直边的远端量，
+  水上已用 `WATER_PULL_SPAN` 限到 2 格、巡航改判横向，干地的长拉直边还在吃这个风暴。
+- **`walkerDeepWaterDriftBrake` 在 2 格宽的岸沿上把冲刺关掉**：`wd.clientOpenWaterCross` 早期贴岸绕行的那几趟量到，
+  沿岸走 vs 游过去的价差现在由它决定一半。
 
 ### 身体等价性（`bot/sim/**`，归 wd-parity）
 

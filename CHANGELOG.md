@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-04
 
+- **Open water is crossed in vanilla's prone sprint-swim.** The walker used to tread every
+  surface crossing at ~2 blocks/s: the held surface jump keeps the eyes out, and vanilla accepts
+  a sprint in water only while the eyes are under. Under `walkerSurfaceSprintSwim` (default ON)
+  a body with a surface node ahead over deep water sneaks under until the SWIMMING pose appears,
+  keeps sinking three ticks and hovers until the twelfth so the server's echo of the shared-flags
+  byte (its swim bit still off when it applies START_SPRINTING) cannot knock the pose off, then
+  pulses the jump up to the waterline and cruises at ~0.19 block/tick with the eyes out. The
+  cruise owns the sprint, suppresses the surface and step-up jumps, and the drowning backstop and
+  the climb-out takeover yield to it. Under the cruise the step pointer and the off-path test read
+  distance horizontally, since the body rides one to two cells under its nodes on purpose; the
+  vertical gates had left the pointer one node behind, and the backward drive's negative impulse
+  cost the sprint every two blocks. String-pulled water edges are capped at two cells, the water
+  bee-line runs before the quick start. On the planner side `pathfinderDeepWaterPriced` (default
+  ON) stops `HazardField` charging deep water its lethal penalty, and `waterDangerPenalty` drops
+  from 12 to 3 to match the cruise. `wd.clientOpenWaterCross` (a 52-block lake) lands in 348
+  ticks against 550 before; `docs/water-model.md` has the mechanism and the failure ladder.
+
 - **Only the surface water cell is a lateral path node.** `canStandAt` used to accept water at
   any depth as a floor, so every submerged cell was a node A* could walk between, and four
   buoyancy predicates, eight taxes and dozens of per-move guards existed to keep it from planning

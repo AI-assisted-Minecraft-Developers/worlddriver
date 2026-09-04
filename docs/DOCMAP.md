@@ -62,7 +62,7 @@
 | `docs/parity-setpos-centre-snap.md` | dev·history | — | — | 一次格心吸附审计的结论 |
 | `docs/drown-escape-design.md` | dev | — | — | drownEscape 调研；自述 §4 已建成、§5 未建 |
 | `docs/world-view-parity.md` | dev | current | 2026-09-04 | 三份 `WorldView` 共用 `CellRules` 的规则与 `wd.clientWorldViewParity` 的量法 |
-| `docs/water-model.md` | dev | current | 2026-09-04 | 规划器只把水面格当横向节点、出水走 `climbOutPlace` 边；改前后客户端场景的 tick 表 |
+| `docs/water-model.md` | dev | current | 2026-09-04 | 规划器只把水面格当横向节点、出水走 `climbOutPlace` 边；开阔水面的俯卧冲刺游泳巡航与服务器旗标回发；改前后客户端场景的 tick 表 |
 | `docs/stagewright/migration-log.md` | history | **keep** | — | 自述为 migrate-then-delete 的**永久审计记录**——名字像日志，实为存档 |
 
 ## 二之二、`docs/user/` — 用户线，2026-08-26 起
