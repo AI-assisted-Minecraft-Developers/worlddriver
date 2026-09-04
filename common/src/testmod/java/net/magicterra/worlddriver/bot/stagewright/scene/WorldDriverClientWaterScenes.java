@@ -146,6 +146,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerFootholdBeforeBankDig = true;
         BotConfig.walkerClimbIntentFromSurface = true;
         BotConfig.walkerPillarTopsOutAtFlushExit = true;
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
         ServerPlayer body = helm.player();
 
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
@@ -216,6 +217,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerFootholdBeforeBankDig = true;
         BotConfig.walkerClimbIntentFromSurface = true;
         BotConfig.walkerPillarTopsOutAtFlushExit = true;
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {

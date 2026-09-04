@@ -73,6 +73,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         // Shipped default, restored over the pinned baseline: the stone landing is the scene that
         // measured the diagonal overshoot of the last node, and its budget is what notices it.
         BotConfig.walkerFinalNodeDirectAim = true;
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
         ServerPlayer body = helm.player();
 
         // Two ticks, not the usual thirty: the body is falling, and the point is to order the leg
