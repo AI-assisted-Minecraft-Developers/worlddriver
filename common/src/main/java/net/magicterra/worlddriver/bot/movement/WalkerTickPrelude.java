@@ -199,14 +199,22 @@ final class WalkerTickPrelude {
         // search start to the surface cell so the plan extends FORWARD from where the body floats.
         // Global `foot` (actuators/sampling) is untouched. Gated to surface-floating (eye above water)
         // so deep underwater navigation is unaffected.
+        // Also for a body still UNDER the surface but within a couple of cells of it: it is on its
+        // way up (buoyancy, or a fresh drop into the pool) and every plan from the submerged cell
+        // starts with a dig it will never make — wd.clientFlushBankClimbOutEmptyHanded planned a
+        // bare-hand break of the stone pool wall from one cell under, wedged three times on it,
+        // and only then repathed from the surface to the plain stepUp. Deep water keeps its own
+        // start: the lift is capped at two cells, so a diver's route is still planned from where
+        // the diver is.
         BlockPos searchFoot = foot;
-        if (BotConfig.walkerBuoyantSearchFromSurface
-                && p.isInWater() && !p.onGround() && !p.isUnderWater()) {
+        if (BotConfig.walkerBuoyantSearchFromSurface && p.isInWater() && !p.onGround()) {
             int sy = foot.getY();
             while (world.isWater(new BlockPos(foot.getX(), sy, foot.getZ()))) sy++;
             // sy = first non-water cell above the column; the top water cell (sy-1) is where the body
             // floats. Clamp >= foot.y so this only ever LIFTS the start, never sinks it.
-            searchFoot = new BlockPos(foot.getX(), Math.max(foot.getY(), sy - 1), foot.getZ());
+            int lifted = Math.max(foot.getY(), sy - 1);
+            if (!p.isUnderWater() || lifted - foot.getY() <= SURFACE_SEARCH_LIFT_MAX)
+                searchFoot = new BlockPos(foot.getX(), lifted, foot.getZ());
         }
         wk.sampleTick(p);
         // One-shot goal snap (needs a live WorldView, so here not in setGoal): a random

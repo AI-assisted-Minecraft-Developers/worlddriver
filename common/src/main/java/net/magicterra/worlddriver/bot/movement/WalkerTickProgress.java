@@ -705,9 +705,23 @@ final class WalkerTickProgress {
             double floatOverFloor = diveEdge ? -2.5 : -FLOATOVER_NONDIVE_MAX_DROP;
             boolean floatOverSubmerged = p.isInWater() && dyNode < -0.5 && dyNode > floatOverFloor
                     && (!diveEdge || wk.stepProg.noStepProgressTicks > WATER_DESCEND_GIVEUP);
+            // A node STRAIGHT ABOVE THE BODY'S OWN COLUMN as the next one. Both spend-gates below
+            // admit a +1 current node because a jump reaches a +1 beside the body; neither can
+            // tell that from a +1 the body has not climbed whose successor sits over its head,
+            // which nothing reaches without a block under the feet. wd.clientThreeHighBankPlaceOut:
+            // w was a +1 stepUp beside the body, nx the goal one block straight up; `within` read
+            // the stepUp as reached at cur2 0.449 / |dY| 1.0 with the body still below it, and the
+            // pointer sat on a bridgePlace whose support cell was the body's own foot cell — 400
+            // ticks of placing into itself. The stacked-above-w tie-break in the passed block
+            // protects the pillar BASE; this protects the pillar itself, in both gates.
+            BlockPos nxNode = wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null;
+            boolean nxOverhead = nxNode != null && nxNode.getY() > foot.getY()
+                    && nxNode.getX() == foot.getX() && nxNode.getZ() == foot.getZ();
+            boolean unclimbedUnderOverhead = nxOverhead && w.getY() > foot.getY();
             boolean within = cur2 < REACH_DIST_SQ
                     && (Math.abs(dyNode) < 1.2 || floatOverSubmerged)
-                    && !(p.isInWater() && dyNode > 0.5);
+                    && !(p.isInWater() && dyNode > 0.5)
+                    && !unclimbedUnderOverhead;
             // Pure-pursuit re-sync: also advance past a node we've already gone
             // by — the next node being closer than this one means the player is
             // beyond it. Without this, sprinting toward a far carrot (or a
@@ -776,6 +790,7 @@ final class WalkerTickProgress {
                 passed = (overshot ? nd2 <= cur2 : nd2 < cur2)
                         && (Math.abs(w.getY() - p.getY()) < 1.5 || droppedPastDescend)
                         && Math.abs(nx.getY() - p.getY()) < 1.2
+                        && !unclimbedUnderOverhead   // see the note at `within`
                         && !(!overshot && p.isInWater() && nx.getY() - p.getY() > 0.5);
             }
             // TAIL overshoot: the foot blew past the FINAL node of a best-effort

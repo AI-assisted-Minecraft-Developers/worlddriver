@@ -224,6 +224,9 @@ final class WalkerConstants {
     /** Squared distance to the LAST node inside which the body walks instead of sprinting: two
      *  blocks, one more than a sprint needs to bleed to walking speed under ground friction. */
     public static final double FINAL_APPROACH_WALK_SQ = 4.0;
+    /** How far under the surface a submerged body's search start may still be lifted to the
+     *  surface cell: two cells, the depth a fresh drop into a pool sinks to before it floats. */
+    public static final int SURFACE_SEARCH_LIFT_MAX = 2;
     public static final int STUCK_TICKS = 60;
     /** Ticks a buoyant body may stay pinned ABOVE an in-water below-node before the
      *  step-advance gate surface-crosses past it. A* routes a deep-water crossing
