@@ -551,3 +551,4 @@ wd.clientGotoStartsMidAirOverWater
 wd.clientParkourOverChasm
 wd.clientPillarOutOfShaft
 wd.clientFlowingTrenchPlaceOut
+wd.clientWorldViewParity
