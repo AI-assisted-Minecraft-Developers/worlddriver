@@ -548,3 +548,6 @@ wd.clientOneHighStoneBankPickaxeOut
 wd.clientFlowingChannelPlaceOut
 wd.clientGotoStartsMidAir
 wd.clientGotoStartsMidAirOverWater
+wd.clientParkourOverChasm
+wd.clientPillarOutOfShaft
+wd.clientFlowingTrenchPlaceOut

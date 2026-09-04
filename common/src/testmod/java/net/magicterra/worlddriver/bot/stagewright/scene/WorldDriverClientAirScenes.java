@@ -11,6 +11,8 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
@@ -26,8 +28,109 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.clientGotoStartsMidAir", 2_000, WorldDriverClientAirScenes::gotoStartsMidAir),
                 Scene.of("wd.clientGotoStartsMidAirOverWater", 2_000,
-                        WorldDriverClientAirScenes::gotoStartsMidAirOverWater));
+                        WorldDriverClientAirScenes::gotoStartsMidAirOverWater),
+                Scene.of("wd.clientParkourOverChasm", 2_000, WorldDriverClientAirScenes::parkourOverChasm),
+                Scene.of("wd.clientPillarOutOfShaft", 2_000, WorldDriverClientAirScenes::pillarOutOfShaft));
     }
+
+    /**
+     * A two-wide chasm across the only way to the goal, deep enough to hurt and with nothing to
+     * place. The leg is a run-up, one leap and a landing; the budget is that plus a walk, and the
+     * floor of the chasm is the line the body must never reach.
+     */
+    private static void parkourOverChasm(SceneContext ctx) {
+        stageSlab(ctx);
+        for (int dz = -HALF; dz <= HALF; dz++)
+            for (int dx = 2; dx <= 3; dx++)
+                for (int dy = 0; dy > -6; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
+        BlockPos start = ctx.rel(-2, GROUND + 1, 0);
+        BlockPos goal = ctx.rel(7, GROUND + 1, 0);
+        ctx.record("布景", "深沟 x∈[2,3] 深 6，起点 " + start.toShortString() + "，目标 " + goal.toShortString() + "，空手");
+        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
+        BotConfig.allowBreak = false;
+        BotConfig.allowPlace = false;
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerFinalNodeDirectAim = true;
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
+        ServerPlayer body = helm.player();
+        helm.sync(30, () -> {
+            ctx.record("起点.同步后", helm.where());
+            final int[] arrivedTick = { -1 };
+            final int[] legTicks = { 0 };
+            final double[] minY = { body.getY() };
+            ClientHelm.TickWatcher watch = t -> {
+                legTicks[0] = t;
+                if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
+                minY[0] = Math.min(minY[0], body.getY());
+            };
+            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+                ctx.record("腿末", helm.where());
+                helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
+                    ctx.record("过程", String.format(Locale.ROOT, "到达目标在第 %s tick，最低 y=%.2f，血 %.1f",
+                            arrivedTick[0] < 0 ? "从没" : String.valueOf(arrivedTick[0]), minY[0], body.getHealth()));
+                    ctx.record("终点", helm.where());
+                    double flat = helm.flatDistance(goal);
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A 停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
+                    ctx.check(minY[0] >= GROUND + 1 - 0.05).as(String.format(Locale.ROOT,
+                            "B 从没掉进沟里：最低 y=%.2f（地面脚格 %d）", minY[0], GROUND + 1)).isTrue();
+                    ctx.check(arrivedTick[0] >= 0 && arrivedTick[0] <= 150).as("C 要在 150 tick 内到达：到达在第 "
+                            + (arrivedTick[0] < 0 ? "从没" : String.valueOf(arrivedTick[0])) + " tick").isTrue();
+                });
+            });
+        });
+    }
+
+    /**
+     * The body stands at the bottom of a one-wide shaft six deep with dirt in hand; the goal is on
+     * the surface three cells from the mouth. The only way out is six pillar rungs. Each rung is a
+     * jump and a placement, a dozen ticks; the budget is those plus the walk, not a search that
+     * rediscovers the shaft every rung.
+     */
+    private static void pillarOutOfShaft(SceneContext ctx) {
+        stageSlab(ctx);
+        for (int dy = 0; dy > -SHAFT_DEPTH; dy--) ctx.setBlock(0, GROUND + dy, 0, Blocks.AIR);
+        BlockPos start = ctx.rel(0, GROUND + 1 - SHAFT_DEPTH, 0);
+        BlockPos goal = ctx.rel(3, GROUND + 1, 0);
+        ctx.record("布景", "1×1 竖井深 " + SHAFT_DEPTH + "，起点 " + start.toShortString() + "，目标 " + goal.toShortString() + "，手里 30 土");
+        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
+        helm.hold(new ItemStack(Items.DIRT, 30));
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerFinalNodeDirectAim = true;
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
+        ServerPlayer body = helm.player();
+        helm.sync(30, () -> {
+            ctx.record("起点.同步后", helm.where());
+            final int[] arrivedTick = { -1 };
+            final int[] surfacedTick = { -1 };
+            final int[] legTicks = { 0 };
+            ClientHelm.TickWatcher watch = t -> {
+                legTicks[0] = t;
+                // t > 5: the server's copy of the body can still show the pre-teleport surface
+                // position on the leg's first ticks, which read as「surfaced at 0」.
+                if (t > 5 && surfacedTick[0] < 0 && body.onGround() && body.getY() >= GROUND + 1 - 0.05) surfacedTick[0] = t;
+                if (arrivedTick[0] < 0 && body.onGround() && helm.flatDistance(goal) <= 1.0) arrivedTick[0] = t;
+            };
+            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
+                ctx.record("腿末", helm.where());
+                helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
+                    int dirtLeft = body.getInventory().countItem(Items.DIRT);
+                    ctx.record("过程", String.format(Locale.ROOT, "出井在第 %s tick，到达目标在第 %s tick，剩土 %d",
+                            surfacedTick[0] < 0 ? "从没" : String.valueOf(surfacedTick[0]),
+                            arrivedTick[0] < 0 ? "从没" : String.valueOf(arrivedTick[0]), dirtLeft));
+                    ctx.record("终点", helm.where());
+                    double flat = helm.flatDistance(goal);
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A 停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
+                    ctx.check(arrivedTick[0] >= 0 && arrivedTick[0] <= 300).as("B 要在 300 tick 内到达：到达在第 "
+                            + (arrivedTick[0] < 0 ? "从没" : String.valueOf(arrivedTick[0])) + " tick").isTrue();
+                    ctx.check(30 - dirtLeft <= SHAFT_DEPTH + 1).as("C 用掉的土不超过井深加一：用了 " + (30 - dirtLeft)).isTrue();
+                });
+            });
+        });
+    }
+
+    private static final int SHAFT_DEPTH = 6;
 
     private static final int GROUND = 20;
     private static final int HALF = 12;

@@ -40,7 +40,9 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 Scene.of("wd.clientOneHighStoneBankPickaxeOut", 2_000,
                         WorldDriverClientWaterScenes::oneHighStoneBankPickaxeOut),
                 Scene.of("wd.clientFlowingChannelPlaceOut", 2_000,
-                        WorldDriverClientWaterScenes::flowingChannelPlaceOut));
+                        WorldDriverClientWaterScenes::flowingChannelPlaceOut),
+                Scene.of("wd.clientFlowingTrenchPlaceOut", 2_000,
+                        WorldDriverClientWaterScenes::flowingTrenchPlaceOut));
     }
 
     /** Top of the slab: the ground's foot cell is {@code GROUND + 1}. */
@@ -125,18 +127,35 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
      * which is the river-edge shape the ladder's towers kept losing blocks to.
      */
     private static void flowingChannelPlaceOut(SceneContext ctx) {
+        flowingOut(ctx, 1, FLOW_DRY_BY);
+    }
+
+    /**
+     * The same current at the bottom of a trench two deep: the body stands on the trench floor in
+     * one block of flowing water (a deeper FLOWING river is not a vanilla shape — water over water
+     * does not spread), and the east bank is three above its feet. Three rungs in a current, or a
+     * staircase dug wet; the budget is the rungs.
+     */
+    private static void flowingTrenchPlaceOut(SceneContext ctx) {
+        flowingOut(ctx, 2, FLOW_DRY_BY + 100);
+    }
+
+    /** @param depth how far the trench floor lies under the surface cell {@code GROUND}; the water is
+     *              one flowing layer on that floor either way */
+    private static void flowingOut(SceneContext ctx, int depth, int dryBy) {
         stageSlab(ctx, 1, Blocks.DIRT);
-        // Channel x∈[-1,1], z∈[-CHANNEL_HALF,CHANNEL_HALF-1]: floor at GROUND-1, water layer GROUND, air above.
+        // Channel x∈[-1,1], z∈[-CHANNEL_HALF,CHANNEL_HALF-1]: floor at GROUND-depth, air above it up to
+        // GROUND+1, one source column at the far end whose water runs along the floor.
         for (int dx = -1; dx <= 1; dx++)
             for (int dz = -CHANNEL_HALF; dz < CHANNEL_HALF; dz++) {
-                ctx.setBlock(dx, GROUND + 1, dz, Blocks.AIR);
-                ctx.setBlock(dx, GROUND, dz, dz == -CHANNEL_HALF ? Blocks.WATER : Blocks.AIR);
+                for (int dy = 1; dy > -depth; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
+                if (dz == -CHANNEL_HALF) ctx.setBlock(dx, GROUND + 1 - depth, dz, Blocks.WATER);
             }
         int goalY = GROUND + 2;
-        BlockPos start = ctx.rel(0, GROUND, 0);
+        BlockPos start = ctx.rel(0, GROUND + 1 - depth, 0);
         BlockPos goal = ctx.rel(4, goalY, 0);
-        ctx.record("布景", "一格深水道，源头在 z=" + (-CHANNEL_HALF) + " 往 +z 流；东岸脚格 y=" + goalY + "（土）；起点 "
-                + start.toShortString() + "，目标 " + goal.toShortString() + "，手里=dirt");
+        ctx.record("布景", "沟底 y=" + (GROUND - depth) + "、一层流水，源头在 z=" + (-CHANNEL_HALF) + " 往 +z 流；东岸脚格 y=" + goalY
+                + "（土），比脚高 " + (goal.getY() - start.getY()) + "；起点 " + start.toShortString() + "，目标 " + goal.toShortString() + "，手里=dirt");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.hold(new ItemStack(Items.DIRT, 30));
@@ -147,6 +166,8 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerClimbIntentFromSurface = true;
         BotConfig.walkerPillarTopsOutAtFlushExit = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
+        BotConfig.walkerShallowWaterSideFoothold = true;
+        BotConfig.walkerClimbOutResyncsAim = true;
         ServerPlayer body = helm.player();
 
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
@@ -162,7 +183,11 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
             ClientHelm.TickWatcher watch = t -> {
                 legTicks[0] = t;
                 if (body.isInWater()) inWaterTicks[0]++;
-                else if (firstDryTick[0] < 0 && body.onGround()) firstDryTick[0] = t;
+                // Ashore = standing at the bank's level. `isInWater` reads false in a shallow flowing
+                // layer far from its source, so「not in water and on the ground」is true on the floor
+                // of the trench itself, which is where the leg starts.
+                if (firstDryTick[0] < 0 && body.onGround() && !body.isInWater() && body.getY() >= goalY - 0.05)
+                    firstDryTick[0] = t;
                 maxDrift[0] = Math.max(maxDrift[0], Math.abs(body.getZ() - (start.getZ() + 0.5)));
             };
             helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, watch, () -> {
@@ -176,7 +201,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                     ctx.record("终点", helm.where());
                     ctx.check(ashore).as("A 身体最后站在干地上：" + helm.where()).isTrue();
                     ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "B 停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
-                    ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= FLOW_DRY_BY).as("C 上岸要在 " + FLOW_DRY_BY
+                    ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= dryBy).as("C 上岸要在 " + dryBy
                             + " tick 内：第一次干地着地在第 " + (firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]))
                             + " tick").isTrue();
                 });
@@ -218,6 +243,8 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerClimbIntentFromSurface = true;
         BotConfig.walkerPillarTopsOutAtFlushExit = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
+        BotConfig.walkerShallowWaterSideFoothold = true;
+        BotConfig.walkerClimbOutResyncsAim = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {

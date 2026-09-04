@@ -126,7 +126,11 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;   // legacy floorY 220 = origin.y(200)+20
         SceneArena.buildFloor(level, cx, cz, floorY);
-        for (int y = standY + 1; y <= standY + 4; y++)
+        // A CANOPY: leaves only in the rows the rising head meets (the first rung's ceiling and the
+        // one above). The column used to run down to foot level, which is a wall, not a canopy —
+        // a body cannot be off-centre into a wall beside its own feet, so PillarUp rightly stops
+        // listing that side once the wall reaches the foot or the head (wd.clientPillarOutOfShaft).
+        for (int y = standY + 3; y <= standY + 4; y++)
             level.setBlockAndUpdate(new BlockPos(cx - 1, y, cz), Blocks.OAK_LEAVES.defaultBlockState());
         BlockPos goal = new BlockPos(cx, standY + 3, cz);   // 3 pillars up
 
