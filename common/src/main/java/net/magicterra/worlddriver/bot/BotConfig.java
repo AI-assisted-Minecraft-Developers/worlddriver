@@ -998,104 +998,12 @@ public final class BotConfig {
      *  Whole-list replace; pass [] to clear. */
     public static volatile Set<String> buildBlockWhitelist = Set.of();
 
-    /** Whether {@code block} may be used as a PLACED build block (pillar/bridge/parkour
-     *  footing). Default heuristic, in body order: not a
-     *  {@link net.minecraft.world.level.block.FallingBlock}, not an {@link #isInteractiveBlock}
-     *  (a GUI block placed as filler booby-traps every later place-click), motion-blocking, and
-     *  — the actual shape test — a STURDY top face. Sturdy, NOT "full collision cube": that
-     *  older test rejected mud/soul_sand/soul_soil for being 14/16 tall though the bot stands
-     *  on them fine. It still rejects the thin/partial blocks this exists for (bottom slabs,
-     *  fences, carpets, bamboo, saplings) that would "搭路卡死". A non-empty
-     *  {@link #buildBlockWhitelist} overrides the SHAPE test ONLY — the other three still
-     *  apply. Dist-neutral: callable from both client and dedicated-server WorldViews. */
-    public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) {
-        if (block instanceof net.minecraft.world.level.block.FallingBlock) return false;
-        // Interactive blocks are resources, not dirt. Placing one both spends a
-        // crafted station as filler AND booby-traps every later place-click against
-        // it: right-click on a menu block OPENS ITS GUI instead of placing, and an
-        // open screen swallows all movement input (gap #57/#58 — live death #3:
-        // the walker plugged with the bot's fresh furnace, re-clicked it, and the
-        // FurnaceScreen paralysed the engine while a zombie chewed). Safety-class
-        // rejection: applies even under a buildBlockWhitelist.
-        if (isInteractiveBlock(block)) return false;
-        net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
-        if (!st.blocksMotion()) return false;
-        Set<String> wl = buildBlockWhitelist;
-        if (!wl.isEmpty()) {
-            net.minecraft.resources.ResourceLocation id =
-                    net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block);
-            return id != null && wl.contains(id.toString());
-        }
-        // Sturdy top face, not geometric full cube — see the javadoc. The old
-        // isCollisionShapeFullBlock rejected mud/soul_sand/soul_soil (14/16 tall) though they
-        // are standable: live round69, a bot holding ONLY 17 mud + 9 sand + 37 gravel (sand and
-        // gravel fall, rejected above) had no foothold, so the +2 climb-out from water deadlocked.
-        return st.isFaceSturdy(
-                net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO,
-                net.minecraft.core.Direction.UP);
-    }
-
-    /** A block whose use-click opens a GUI (block-entity holders + the menu-opening
-     *  work-station family). Shared by {@link #isUsableBuildBlock} (never place one
-     *  as filler) and the walker's place actuator (never CLICK one as a support —
-     *  the click opens the GUI instead of placing; gap #57/#58). */
-    public static boolean isInteractiveBlock(net.minecraft.world.level.block.Block block) {
-        return block instanceof net.minecraft.world.level.block.EntityBlock
-                || block instanceof net.minecraft.world.level.block.CraftingTableBlock
-                || block instanceof net.minecraft.world.level.block.SmithingTableBlock
-                || block instanceof net.minecraft.world.level.block.CartographyTableBlock
-                || block instanceof net.minecraft.world.level.block.FletchingTableBlock
-                || block instanceof net.minecraft.world.level.block.LoomBlock;
-    }
-
-    /** Like {@link #isUsableBuildBlock} but ALSO accepts FallingBlocks (sand/gravel) — for a
-     *  strictly VERTICAL pillar-up where the placed block rests ON the solid rung directly
-     *  below it (supported, so it never falls). {@link #isUsableBuildBlock} excludes falling
-     *  blocks because a BRIDGE places them over a gap (unsupported → they drop); that hazard
-     *  does not exist for an in-place pillar. A bot carrying ONLY sand/gravel (deserts, beaches,
-     *  rivers — very common) otherwise has NO usable foothold and bob-stalls a +2/+3 ascent ram
-     *  it could trivially pillar out of (live 2026-06-24 -1987,111: holdPlaceable rejected the
-     *  bot's 11 sand + 8 gravel → 332-tick stall). Use ONLY where the placement is provably
-     *  supported below (the pillar-recovery actuator); never for bridges/parkour-place. */
-    public static boolean isUsablePillarBlock(net.minecraft.world.level.block.Block block) {
-        if (isUsableBuildBlock(block)) return true;
-        if (!(block instanceof net.minecraft.world.level.block.FallingBlock)) return false;
-        net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
-        if (!st.blocksMotion()) return false;
-        Set<String> wl = buildBlockWhitelist;
-        if (!wl.isEmpty()) {
-            net.minecraft.resources.ResourceLocation id =
-                    net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(block);
-            return id != null && wl.contains(id.toString());
-        }
-        return st.isFaceSturdy(
-                net.minecraft.world.level.EmptyBlockGetter.INSTANCE, net.minecraft.core.BlockPos.ZERO,
-                net.minecraft.core.Direction.UP);
-    }
-
-    /** Resources the bot deliberately gathered — must not be spent as disposable
-     *  pillar/scaffold filler (gap#81). Deliberately NARROW (wood family, the
-     *  observed waste); extend by adding tags if a run surfaces another wasted
-     *  resource — do not speculate now. */
-    public static boolean isValuablePlacementBlock(net.minecraft.world.level.block.Block block) {
-        net.minecraft.world.level.block.state.BlockState st = block.defaultBlockState();
-        return st.is(net.minecraft.tags.BlockTags.LOGS) || st.is(net.minecraft.tags.BlockTags.PLANKS);
-    }
-
-    /** Pure ItemStack-level core of a "throwaway" support block — a usable build block (see
-     *  {@link #isUsableBuildBlock}) that is NOT a gathered resource (see
-     *  {@link #isValuablePlacementBlock}); gap#81. Hosted here (not in
-     *  {@code BotInteract}, the client-facing caller) so it stays dist-neutral: {@code
-     *  BotInteract} mixes in unrelated client-only methods (LocalPlayer/Minecraft), and the
-     *  NeoForge RuntimeDistCleaner refuses to load THAT class at all on a dedicated server
-     *  (confirmed live via GameTestServer — "Attempted to load class LocalPlayer for invalid
-     *  dist DEDICATED_SERVER" — even though this predicate itself never touches a client type),
-     *  so the gametest matrix calls this dist-neutral entry point instead. {@code
-     *  BotInteract.isThrowawaySupportBlock} delegates here for production use. */
-    public static boolean isThrowawaySupportBlock(net.minecraft.world.item.ItemStack stk) {
-        if (stk.isEmpty() || !(stk.getItem() instanceof net.minecraft.world.item.BlockItem bi)) return false;
-        return isUsableBuildBlock(bi.getBlock()) && !isValuablePlacementBlock(bi.getBlock());
-    }
+    // Block-placement policy lives in BuildBlocks; these delegates keep the historical call sites.
+    public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isUsableBuildBlock(block); }
+    public static boolean isInteractiveBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isInteractiveBlock(block); }
+    public static boolean isUsablePillarBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isUsablePillarBlock(block); }
+    public static boolean isValuablePlacementBlock(net.minecraft.world.level.block.Block block) { return BuildBlocks.isValuablePlacementBlock(block); }
+    public static boolean isThrowawaySupportBlock(net.minecraft.world.item.ItemStack stk) { return BuildBlocks.isThrowawaySupportBlock(stk); }
 
     /** Event types muted from the live PUSH channel via
      *  {@code mc.bot.setting{mutedEvents:[type,...]}}. By default EVERY driver event
@@ -2415,6 +2323,22 @@ public final class BotConfig {
      *  flag. */
     public static volatile boolean walkerHoldLastNodeUntilStanding = true;
 
+    /** The water pillar takeover, afloat in ONE-DEEP water over a solid floor, places its first rung
+     *  in a neighbour cell instead of under its own feet. A layer higher than 0.4 turns the jump key
+     *  into a swim, so the feet never clear the foot cell and the own-column place is refused
+     *  forever ({@code wd.clientFlowingTrenchPlaceOut}: 646 ticks to the bank). The side rung is
+     *  clear of the body, the +0.3 collision boost mounts it, and the dry ground-jump pillar
+     *  continues from there. Default ON; the gametest baseline pins it OFF like every other walker
+     *  flag. */
+    public static volatile boolean walkerShallowWaterSideFoothold = true;
+
+    /** Topping out of a water climb-out resets the aim's low-pass state. The takeover pins the
+     *  heading for the whole climb while the EMA keeps smoothing toward nodes the body never faced,
+     *  so the first dry walk started up to 180° off and the dry-land EMA then orbited the node for
+     *  hundreds of ticks ({@code wd.clientFlowingChannelPlaceOut}: yaw wound from 69 to -817).
+     *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
+    public static volatile boolean walkerClimbOutResyncsAim = true;
+
     /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
      *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
      *  y62.7(water)↔63.65(air) every 2-3 t, onGround NEVER true, doing stepUp but XZ frozen. ALL three
@@ -3027,6 +2951,8 @@ public final class BotConfig {
         walkerPillarTopsOutAtFlushExit = false;
         walkerFinalNodeDirectAim = false;
         walkerHoldLastNodeUntilStanding = false;
+        walkerShallowWaterSideFoothold = false;
+        walkerClimbOutResyncsAim = false;
         walkerFutileBankDigRelease = false;
         walkerBankDigForwardExit = false;
         walkerFloatingBankBobFreeze = false;

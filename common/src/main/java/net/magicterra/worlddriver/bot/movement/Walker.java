@@ -290,6 +290,8 @@ public final class Walker {
         int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
         int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
         float yaw;                // LOCKED heading toward the bank at engage (no horizontal chase → no wander)
+        boolean sideRung;         // this takeover has placed a side foothold: keys are anticipatory from here (forward only while wet, jump only wet or settled on the ground) — see WalkerTickClimb; cleared at engage
+        final java.util.Set<BlockPos> placedRungs = new java.util.HashSet<>();   // every cell a climb-out click has aimed at; a rung of our own beside the body is not an exit, however dry (walkerShallowWaterSideFoothold)
         int digGroundedStreak;    // consecutive grounded ticks during a committed bank dig — a bob bottom-blip (<=5) must not break the dig commit (walkerBankDigGroundBlip)
         void reset() {
             stall = 0;
@@ -515,33 +517,8 @@ public final class Walker {
     }
     float freeHangDriveYaw = Float.NaN;             // slew-limited world heading of the free-hang vine DRIVE (NaN = resync); smooths the step-jitter ±180° flips that would circle the body off a narrow column — EdgeGuards-owned, self-resyncing (no journey reset)
     int surfaceWaterLatch = 0;                      // ticks the open-water swim stays latched after a surface bob lifts the foot out of the fluid (rides out the isInWater blink) — read across Aim/Climb/Progress; belongs to a future water-state family
-    /** Aim/heading smoothing state (task#96 step B5), owned by WalkerTickAim
-     *  (smoothWaterDriveYaw is also read by WalkerTickDrive; lastAimYaw by
-     *  WalkerTickClimb's dig telemetry). {@link AimSmoothing#reset()} resyncs the EMA
-     *  chain + the yaw-thrash detector — exactly the four fields both journey resets
-     *  cleared; the remaining fields self-manage (NaN resync / decay / streak logic). */
+    /** Aim/heading smoothing state — see {@link AimSmoothing}. */
     final AimSmoothing aimSmooth = new AimSmoothing();
-    static final class AimSmoothing {
-        float smoothTargetYaw = Float.NaN;          // EMA-low-passed target heading (NaN = uninitialised; resync on launch/new goal)
-        float smoothWaterDriveYaw = Float.NaN;      // EMA-low-passed water DRIVE heading (separate from the camera trend)
-        float lastCarrotBearing = Float.NaN;        // previous tick's raw carrot bearing — feeds the in-water yaw-thrash detector
-        int lastCarrotBearingSign = 0;              // sign of the last meaningful carrot-bearing turn (for reversal detection)
-        int yawThrashTicks = 0;                     // decaying score: +4 per carrot-bearing reversal in water (cap 12), −1/tick → steady turn winds to 0, oscillation holds high
-        float lastAimYaw = Float.NaN;               // previous tick's smoothed aim heading — feeds the anti-spin target-stability gate (a flipping target winds; a stable one converges)
-        int aimStableTicks = 0;                     // consecutive ticks the smoothed aim target barely moved; once past AIM_STABLE_TICKS the anti-spin freeze releases (a stable target can't wind the camera)
-        float rawLastTargetYaw = Float.NaN;         // previous tick's RAW (pre-EMA) target heading — the antipode-proof stability signal (see WalkerTickAim reversal fix)
-        int rawStableTicks = 0;                     // consecutive ticks the RAW target barely moved; releases the anti-spin freeze even when the EMA oscillates at the ±180° antipode
-        double freezeAnchorX, freezeAnchorZ;       // body pos when the frozen-press stall window opened (spinFreeze deadlock valve)
-        int frozenStallTicks = 0;                   // consecutive frozen ticks with <FREEZE_PRESS_MOVE displacement — valve trips past FREEZE_PRESS_STALL_TICKS
-        int reversalStreak = 0;                     // consecutive ticks the EMA target sat >AIM_REVERSAL_DEG from the smooth value — snap after AIM_REVERSAL_SNAP_TICKS (a true course reversal cannot be EMA-chased)
-        int waterDriveRejectStreak = 0;             // consecutive flip-rejections of the water drive heading (escape-hatch snaps after WATER_DRIVE_MAX_REJECT)
-        void reset() {
-            smoothTargetYaw = Float.NaN;
-            lastCarrotBearing = Float.NaN;
-            lastCarrotBearingSign = 0;
-            yawThrashTicks = 0;
-        }
-    }
     /** Descent/water sprint-brake latches + drive debouncers (task#96 step B5), owned by
      *  WalkerTickDrive. {@link DriveLatches#reset()} clears only the two sprint-brake
      *  latches (exactly what both journey resets cleared); the debounce counters

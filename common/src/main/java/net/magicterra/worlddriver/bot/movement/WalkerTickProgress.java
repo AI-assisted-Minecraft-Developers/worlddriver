@@ -358,6 +358,51 @@ final class WalkerTickProgress {
         return held;
     }
 
+    /**
+     * A node STRAIGHT ABOVE THE BODY'S OWN COLUMN as the next one. Both spend-gates admit a +1
+     * current node because a jump reaches a +1 beside the body; neither can tell that from a +1 the
+     * body has not climbed whose successor sits over its head, which nothing reaches without a
+     * block under the feet. wd.clientThreeHighBankPlaceOut: w was a +1 stepUp beside the body, nx
+     * the goal one block straight up; `within` read the stepUp as reached at cur2 0.449 / |dY| 1.0
+     * with the body still below it, and the pointer sat on a bridgePlace whose support cell was the
+     * body's own foot cell — 400 ticks of placing into itself. The stacked-above-w tie-break in the
+     * passed block protects the pillar BASE; this protects the pillar itself, in both gates.
+     */
+    private static boolean unclimbedUnderOverhead(Walker wk, BlockPos foot, BlockPos w) {
+        BlockPos nx = wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null;
+        boolean nxOverhead = nx != null && nx.getY() > foot.getY()
+                && nx.getX() == foot.getX() && nx.getZ() == foot.getZ();
+        return nxOverhead && w.getY() > foot.getY();
+    }
+
+    /**
+     * Hold the pointer on the LAST node instead of spending it while the foot is still short of
+     * the goal. Disk goals: the node sits inside the goal radius but the FOOT cell is one block
+     * short; the node-reach gate (~0.67 blk) fires ~1 block out, so consuming here ends the path
+     * with goal.reached(foot) still FALSE — the segment-end handler hits frontierHoldOrArrive,
+     * STOPS the drive and declares ARRIVED a block short (live 2026-06-23: XZ -1700,900 r6 pinned
+     * the bot at foot -1693, dx=7, OUTSIDE r6, then fake-ARRIVED). Exact goals, bounded
+     * ({@code walkerHoldLastNodeUntilStanding}): spending the last node from 0.67 away or from the
+     * air ends the leg「path-consumed goalReached=false」with the body about to stand in the goal
+     * cell a few ticks later — a reading the ladder acts on. Either way the normal pure-pursuit
+     * walks the foot ONTO the node and the goal.reached check at the top of the tick fires for
+     * real; the exact hold gives up after FINAL_NODE_HOLD_TICKS so a cell the body genuinely
+     * cannot stand in still ends the leg the honest way.
+     */
+    private static boolean holdLastNode(Walker wk, BlockPos foot, BlockPos w) {
+        if (wk.step + 1 < wk.path.size() || wk.goal.reached(foot)) return false;
+        boolean diskGoal = (wk.goal instanceof Goal.XZ xz && xz.radius() > 0)
+                || (wk.goal instanceof Goal.Near nr && nr.radius() > 0);
+        if (diskGoal) return wk.goal.reached(wk.path.get(wk.path.size() - 1));
+        if (!BotConfig.walkerHoldLastNodeUntilStanding || wk.seg.pathBestEffort || !wk.goal.reached(w)) return false;
+        if (wk.finalNodeHoldPath != wk.path || wk.finalNodeHoldStep != wk.step) {
+            wk.finalNodeHoldPath = wk.path;
+            wk.finalNodeHoldStep = wk.step;
+            wk.finalNodeHold = 0;
+        }
+        return wk.finalNodeHold++ < FINAL_NODE_HOLD_TICKS;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -705,19 +750,7 @@ final class WalkerTickProgress {
             double floatOverFloor = diveEdge ? -2.5 : -FLOATOVER_NONDIVE_MAX_DROP;
             boolean floatOverSubmerged = p.isInWater() && dyNode < -0.5 && dyNode > floatOverFloor
                     && (!diveEdge || wk.stepProg.noStepProgressTicks > WATER_DESCEND_GIVEUP);
-            // A node STRAIGHT ABOVE THE BODY'S OWN COLUMN as the next one. Both spend-gates below
-            // admit a +1 current node because a jump reaches a +1 beside the body; neither can
-            // tell that from a +1 the body has not climbed whose successor sits over its head,
-            // which nothing reaches without a block under the feet. wd.clientThreeHighBankPlaceOut:
-            // w was a +1 stepUp beside the body, nx the goal one block straight up; `within` read
-            // the stepUp as reached at cur2 0.449 / |dY| 1.0 with the body still below it, and the
-            // pointer sat on a bridgePlace whose support cell was the body's own foot cell — 400
-            // ticks of placing into itself. The stacked-above-w tie-break in the passed block
-            // protects the pillar BASE; this protects the pillar itself, in both gates.
-            BlockPos nxNode = wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null;
-            boolean nxOverhead = nxNode != null && nxNode.getY() > foot.getY()
-                    && nxNode.getX() == foot.getX() && nxNode.getZ() == foot.getZ();
-            boolean unclimbedUnderOverhead = nxOverhead && w.getY() > foot.getY();
+            boolean unclimbedUnderOverhead = unclimbedUnderOverhead(wk, foot, w);
             boolean within = cur2 < REACH_DIST_SQ
                     && (Math.abs(dyNode) < 1.2 || floatOverSubmerged)
                     && !(p.isInWater() && dyNode > 0.5)
@@ -1021,39 +1054,7 @@ final class WalkerTickProgress {
                     && !airborneDryArrival(wk, world, p, foot, w,
                             wk.step + 1 < wk.path.size() ? wk.path.get(wk.step + 1) : null);                                                          // …and a body that is not standing must not spend a dry LAST node — the flush-bank reading on the real client
             if (doAdvance) {
-                // Don't CONSUME the final node of a disk goal while it sits inside the goal
-                // radius but the bot's FOOT cell is still one block short of it. The node-reach
-                // gate (~0.67 blk) fires ~1 block out, so consuming here ends the path with
-                // goal.reached(foot) still FALSE: the segment-end handler hits frontierHoldOrArrive,
-                // which STOPS the drive and declares ARRIVED a block short — the bot freezes at
-                // the radius edge and only autoSwim drift carries it in (the near-goal open-water
-                // "stall"; live 2026-06-23: XZ -1700,900 r6 pinned the bot at foot -1693, dx=7,
-                // OUTSIDE r6, then fake-ARRIVED). Hold on the last node so the normal pure-pursuit
-                // walks the foot ONTO it and the goal.reached check at the top of step() fires for
-                // real. Scoped to radius>0 disk goals (XZ/Near) so an exact-cell goal's
-                // long-standing within-arrival — and a floating bot's radius-0 water arrival —
-                // are unchanged.
-                boolean diskGoal = (wk.goal instanceof Goal.XZ xz && xz.radius() > 0)
-                        || (wk.goal instanceof Goal.Near nr && nr.radius() > 0);
-                if (wk.step + 1 >= wk.path.size() && diskGoal
-                        && !wk.goal.reached(foot) && wk.goal.reached(wk.path.get(wk.path.size() - 1)))
-                    break;
-                // The same hold for an EXACT goal, bounded. Spending the last node from 0.67 away
-                // or from the air ends the leg「path-consumed goalReached=false」with the body about
-                // to stand in the goal cell a few ticks later — a reading the ladder acts on. Hold
-                // the pointer so the drive keeps closing onto the cell and the arrival check at the
-                // top of the tick fires for real; give up after FINAL_NODE_HOLD_TICKS so a cell the
-                // body genuinely cannot stand in still ends the leg the honest way.
-                if (BotConfig.walkerHoldLastNodeUntilStanding
-                        && wk.step + 1 >= wk.path.size() && !diskGoal && !wk.seg.pathBestEffort
-                        && !wk.goal.reached(foot) && wk.goal.reached(w)) {
-                    if (wk.finalNodeHoldPath != wk.path || wk.finalNodeHoldStep != wk.step) {
-                        wk.finalNodeHoldPath = wk.path;
-                        wk.finalNodeHoldStep = wk.step;
-                        wk.finalNodeHold = 0;
-                    }
-                    if (wk.finalNodeHold++ < FINAL_NODE_HOLD_TICKS) break;
-                }
+                if (holdLastNode(wk, foot, w)) break;
                 // The step-advance reading, at the ONE `step++` in the walker (so within/passed/tail
                 // are all covered here) and AFTER the disk-goal hold — see Walker#noteStepAdvance.
                 wk.noteStepAdvance(world, p, foot, w,

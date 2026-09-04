@@ -100,6 +100,17 @@ final class WalkerTickDrive {
                 < BotConfig.walkerNoLaunchWithin;
     }
 
+    /**
+     * The LAST node is spent by closing to within ~0.67 of its centre, and a sprinting body turning
+     * onto it from a diagonal passes wider than that (see WalkerTickAim's last-node note). Walk the
+     * final two blocks; there is nothing after them to carry momentum into.
+     */
+    private static boolean finalApproach(Walker wk, Player p, BlockPos wp, boolean parkourEdge) {
+        double dx = (wp.getX() + 0.5) - p.getX(), dz = (wp.getZ() + 0.5) - p.getZ();
+        return BotConfig.walkerFinalNodeDirectAim && !p.isInWater() && !parkourEdge
+                && wk.step == wk.path.size() - 1 && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -1213,13 +1224,7 @@ final class WalkerTickDrive {
         // sprint ON to JUMP a diagonal; this drops it to stop drift). A/B vs the 292-pillar baseline.
         boolean diagAscent = !parkourEdge && !p.isInWater()
                 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ() && wp.getY() > foot.getY();
-        // The LAST node is spent by closing to within ~0.67 of its centre, and a sprinting body
-        // turning onto it from a diagonal passes wider than that (see WalkerTickAim's last-node
-        // note). Walk the final two blocks; there is nothing after them to carry momentum into.
-        double lastDx = (wp.getX() + 0.5) - p.getX(), lastDz = (wp.getZ() + 0.5) - p.getZ();
-        boolean finalApproach = BotConfig.walkerFinalNodeDirectAim && !p.isInWater() && !parkourEdge
-                && wk.step == wk.path.size() - 1 && lastDx * lastDx + lastDz * lastDz < FINAL_APPROACH_WALK_SQ;
-        boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall && !diagAscent && !finalApproach
+        boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall && !diagAscent && !finalApproach(wk, p, wp, parkourEdge)
                 && !lowHpCareful  // low-HP care: sprint is the drift amplifier behind every unplanned fall — at ≤lowHealthCareful HP walk everything (DEATH #3)
                 && !hazardAhead   // never carry sprint momentum INTO a lava/hazard cell — in water too (no sneak there, but dropping sprint kills the drift that pushed the swimmer in)
                 && !descendBrake && (!lethalNear || parkourEdge) && !steepDescentNear && !deepWaterDriftNear && !descentStepSkip && (!needJumpForStep || parkourAscend || sprintAscend)   // parkourEdge (was parkourAscend): a FLAT leap over an abyss is exactly the case parkourAscend excludes, and lethalNear is only ever true over an abyss — measured 0.1563→0.1400 (no impulse, fell in) vs 0.1232→0.2475 one cell back; narrowed to parkourEdge, NOT loosened to a blanket !lethalNear, so wd.bridgeLethalGapStop's walk-off lip still loses its sprint. Full evidence: this class's javadoc. !descentStepSkip: pointer ran ahead down the staircase (wp >maxDryFall below the grounded foot) — kill sprint so no residual momentum launches the body off the stair edge while sneak (brakeSneak) edge-guards it down. !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. !deepWaterDriftNear: same, for a deep-water pocket bordering a descent/edge-walk (drift-in bob-stall). Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint

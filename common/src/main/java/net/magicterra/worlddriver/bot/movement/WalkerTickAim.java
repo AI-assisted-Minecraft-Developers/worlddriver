@@ -26,6 +26,18 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
 final class WalkerTickAim {
     private WalkerTickAim() {}
 
+    /**
+     * The tangent aim never applies on the LAST node. Every earlier node is spent by crossing its
+     * plane, so a tangent that carries the body past it is fine; the last one is spent only by
+     * CLOSING to within ~0.67 of its centre, and a tangent is by construction the direction that
+     * does not close — it is the previous segment's heading. wd.clientGotoStartsMidAir measured
+     * it: a diagonal approach at sprint, yaw 91° off the node bearing, nearest pass 0.8, then 400
+     * ticks of unstuck bursts and repaths around a goal the body had already reached.
+     */
+    private static boolean onLastNode(Walker wk) {
+        return BotConfig.walkerFinalNodeDirectAim && wk.path != null && wk.step == wk.path.size() - 1;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -349,15 +361,7 @@ final class WalkerTickAim {
         // historical tangent override.
         boolean pinnedRecovery = (p.horizontalCollision || wk.guardSneakLatch)
                 && (reCentre || "nodeAim".equals(aimSrc));
-        // ...and never on the LAST node. Every earlier node is spent by crossing its plane, so a
-        // tangent that carries the body past it is fine; the last one is spent only by CLOSING to
-        // within ~0.67 of its centre, and a tangent is by construction the direction that does not
-        // close — it is the previous segment's heading. wd.clientGotoStartsMidAir measured it: a
-        // diagonal approach at sprint, yaw 91° off the node bearing, nearest pass 0.8, then 400
-        // ticks of unstuck bursts and repaths around a goal the body had already reached.
-        boolean onLastNode = BotConfig.walkerFinalNodeDirectAim
-                && wk.path != null && wk.step == wk.path.size() - 1;
-        if (BotConfig.walkerTangentAim && !launch && !pinnedRecovery && !onLastNode
+        if (BotConfig.walkerTangentAim && !launch && !pinnedRecovery && !onLastNode(wk)
                 && aim2 >= aimDeadzone
                 && wk.path != null && wk.step < wk.path.size()
                 && wk.path.get(wk.step).getY() <= foot.getY()) {

@@ -628,6 +628,16 @@ final class WalkerConstants {
      *  last-resort window as WATER_CLIMB_DIG_STALL, so place-banks and dig-banks converge
      *  on the dig at the same patience. */
     public static final int PILLAR_FUTILE_TICKS = 50;
+    /** Ticks a body that swam INTO its own pending side foothold treads water for the server's
+     *  verdict on that click before the takeover asks for a rung elsewhere; the server judged the
+     *  click at its lagging copy of the body and often lands it (walkerShallowWaterSideFoothold). */
+    public static final int PENDING_RUNG_WAIT_TICKS = 6;
+    /** Horizontal speed² under which a body standing dry on its rung may jump for the next one; a
+     *  jump taken with the swim's momentum still in it carries the body off a 1×1 rung. */
+    public static final double SETTLED_SPEED_SQ = 0.05 * 0.05;
+    /** Horizontal margin the body's box must keep from a candidate side foothold cell; vanilla
+     *  refuses a block that meets the body, and the body drifts a tick or two before the answer. */
+    public static final double SIDE_RUNG_CLEARANCE = 0.1;
     /** Grace ticks the "in a water climb-out" state stays LATCHED after the last
      *  water contact. A bob-cycling climb-out breaches the surface every cycle (head
      *  clears water, feet top a just-placed foothold), so the per-tick water test

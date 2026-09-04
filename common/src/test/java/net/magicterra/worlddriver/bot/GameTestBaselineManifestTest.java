@@ -94,6 +94,8 @@ class GameTestBaselineManifestTest {
             e("walkerPillarTopsOutAtFlushExit", "the water pillar tops out only on a rung with a flush exit beside it"),
             e("walkerFinalNodeDirectAim", "the last path node is aimed at directly and approached at a walk"),
             e("walkerHoldLastNodeUntilStanding", "a last node that is the goal is spent only once the foot stands in it"),
+            e("walkerShallowWaterSideFoothold", "afloat in one-deep water the pillar takeover places its first rung beside the body"),
+            e("walkerClimbOutResyncsAim", "topping out of a water climb-out resets the aim's low-pass state"),
             e("walkerFutileBankDigRelease", "§78 — early-release a provably futile block-less bank dig"),
             e("walkerBankDigForwardExit", "§78 — forward-hemisphere guard on bank-dig riser selection"),
             e("walkerFloatingBankBobFreeze", "§78 — floating +1 water-bank climb-out freeze"),
