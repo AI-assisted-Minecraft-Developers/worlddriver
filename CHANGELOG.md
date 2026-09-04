@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default ON) lets the pillar go first whenever a block is in hand; the pillar's own futility
   bail still hands a bank the place cannot land on to the dig.
 
+- **A last node that is the goal cell is spent only once the foot stands in it.** Spending it
+  from 0.67 away or from the air ended the leg「path-consumed goalReached=false」with the body
+  standing in the goal cell a few ticks later; half the client water scenes read that way, and
+  the ladder acts on the field. `walkerHoldLastNodeUntilStanding` (default ON) holds the pointer
+  on the node so the drive keeps closing onto the cell and the arrival check fires for real,
+  for at most 30 ticks; a cell the body genuinely cannot stand in still ends the leg the old way.
+
 - **An unclimbed +1 node is never spent while the next node sits straight over the body.** Both
   step-advance gates admit a +1 current node because a jump reaches a +1 beside the body, and
   could not tell that from a +1 the body has not climbed whose successor is over its head, which
