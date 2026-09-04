@@ -148,6 +148,7 @@ class GameTestBaselineManifestTest {
             // it is executed, so an arena running without them would be planning a different world
             e("collisionAwarePathing", "collision-shape solidity instead of the coarse blocksMotion()"),
             e("pathfinderSurfaceWaterNodes", "only the surface water cell is a lateral node; water exits are the climbOutPlace edge"),
+            e("pathfinderDeepWaterPriced", "deep water is priced by the water taxes, not charged the HazardField's lethal penalty"),
             e("pathfinderCacheEnabled", "per-search blockstate memoisation"),
             e("pathfinderProgressive", "progressive pathfinding"),
             e("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),

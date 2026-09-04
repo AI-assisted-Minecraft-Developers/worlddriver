@@ -480,6 +480,11 @@ public final class BotConfig {
      *  {@code climbOutPlace} edge instead of swimUp「into the air」. Off = every water cell is a floor. */
     public static volatile boolean pathfinderSurfaceWaterNodes = true;
 
+    /** Deep water is priced by the water taxes, not charged the HazardField's 10 000 lethal
+     *  penalty (which sent every lake crossing to the nearest rim). The lethal verdict stays for
+     *  the panic chain, the survival facts and the map. See docs/water-model.md. Not pinned. */
+    public static volatile boolean pathfinderDeepWaterPriced = true;
+
     /** Per-search blockstate memoisation in {@link net.magicterra.worlddriver.bot.ClientWorldView}.
      *  ON = cache getBlockState within a search slice (static-world assumption); the
      *  Walker's per-tick reads always bypass it. Exposed as a knob purely so the
@@ -1307,13 +1312,13 @@ public final class BotConfig {
     public static volatile int ledgeDangerMinDrop = 4;
 
     /** Cost added per node where the bot's foot is in water, when {@link
-     *  #avoidDanger} is on. Makes A* prefer a dry-land route over swimming —
-     *  the planner used to happily route straight across the ocean (slow, and
-     *  a drowning risk), the "寻路太蠢/走进海里" complaint. Additive, not a ban:
-     *  a short ford or a sole water crossing is still taken, just at a cost, so
-     *  a long open-water swim loses to any reasonable land detour. Set 0 to
-     *  disable. */
-    public static volatile double waterDangerPenalty = 12;
+     *  #avoidDanger} is on. Additive, not a ban: a short ford or a sole crossing is
+     *  still taken, and a long swim loses to a comparable land detour. Sized from the
+     *  surface sprint-swim cruise (docs/water-model.md): ~0.19 block/tick against a
+     *  walk's ~0.22 on cost 10, plus the dip that starts each cruise. The old 12 was
+     *  priced for the 2 block/s tread it replaced and pushed A* onto any rim it
+     *  could find. Set 0 to disable. */
+    public static volatile double waterDangerPenalty = 3;
 
     /** Cost for FLOWING water (a current), on top of {@link #waterDangerPenalty}.
      *  Vanilla water pushes the body ~0.014/tick per flow unit, so crossing a

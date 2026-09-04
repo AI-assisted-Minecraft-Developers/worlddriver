@@ -238,6 +238,7 @@ public final class SettingsRegistry {
         field("pathfinderCacheEnabled"),
         field("collisionAwarePathing"),
         field("pathfinderSurfaceWaterNodes"),
+        field("pathfinderDeepWaterPriced"),
         field("pathfinderGoalField"),
         field("goalFieldCellSize"),
         field("goalFieldRadius"),
