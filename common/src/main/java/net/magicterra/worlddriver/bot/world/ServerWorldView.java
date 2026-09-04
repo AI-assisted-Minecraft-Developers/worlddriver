@@ -40,8 +40,17 @@ public final class ServerWorldView implements WorldView {
 
     @Override
     public boolean isPassable(BlockPos pos) {
-        BlockState s = level.getBlockState(pos);
-        return !s.blocksMotion() || s.getFluidState().is(FluidTags.WATER);
+        return CellRules.isPassable(level, pos, level.getBlockState(pos));
+    }
+
+    @Override
+    public boolean canStandOn(BlockPos pos) {
+        return CellRules.canStandOn(level, pos, level.getBlockState(pos));
+    }
+
+    @Override
+    public boolean isBreakableObstruction(BlockPos pos) {
+        return CellRules.isBreakableObstruction(level, pos, level.getBlockState(pos));
     }
 
     /** The shared policy, not a server opinion about it — {@link BotUtil#isHazardState} carries the

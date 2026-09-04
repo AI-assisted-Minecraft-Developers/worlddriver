@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.magicterra.worlddriver.bot.process.MineProcess;
+import net.magicterra.worlddriver.bot.world.CellRules;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.magicterra.worlddriver.bot.world.ThreatAvoidance;
@@ -10,7 +10,6 @@ import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Inventory;
@@ -18,11 +17,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.shapes.VoxelShape;
-import net.minecraft.world.phys.shapes.Shapes;
-import net.minecraft.world.phys.shapes.BooleanOp;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.phys.Vec3;
@@ -39,19 +34,13 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.RangedAttackMob;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.core.Holder;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.effect.MobEffectUtil;
 import net.minecraft.world.effect.MobEffectInstance;
 import java.util.ArrayList;
 
@@ -66,16 +55,10 @@ public final class ClientWorldView implements WorldView {
     // same scale instead of pricing every mining tick as a whole block-walk —
     // the old `10 * ticks` made the planner ~4.6× too reluctant to dig, taking
     // absurd detours around a single thin wall it could have tunnelled.
-    private static final double COST_PER_TICK = 10.0 / (20.0 / 4.317); // ≈ 2.158
-    // Player-global mining-speed multiplier (Haste boosts, Mining Fatigue
-    // slows), snapshotted once per search like bucketFallReady/mobXyz so
-    // breakCost doesn't re-read potion effects on each of the ~68 candidate
-    // breaks per node. Mirrors vanilla Player.getDestroySpeed's potion path.
-    private volatile float digSpeedMul = 1f;
-    // Efficiency enchantment holder, resolved once per search (it needs a
-    // registry lookup). Efficiency is per-tool, so the *level* is read per
-    // stack inside breakCost; this just caches the holder to look it up with.
-    private volatile Holder<Enchantment> efficiencyEnchant = null;
+    private static final double COST_PER_TICK = CellRules.COST_PER_TICK;
+    // Player-global dig modifiers (Haste / Mining Fatigue, the Efficiency holder), taken once
+    // per search like bucketFallReady/mobXyz so pricing does not re-read them per candidate.
+    private volatile CellRules.DigSnapshot dig = CellRules.DigSnapshot.BARE;
     /** WorldModel injected from BotApiImpl so dangerCost can query the
      *  per-tick HazardField; null until wired (headless / unit tests). */
     private WorldModel worldModel;
@@ -153,67 +136,22 @@ public final class ClientWorldView implements WorldView {
         // very ambiguity isKnown disambiguates for the long-distance planner).
         return lvl.getChunkSource().hasChunk(p.getX() >> 4, p.getZ() >> 4);
     }
-    /** The player's standing body column, cell-local (≈0.6 wide, full cell height),
-     *  used to test whether a block's collision shape actually obstructs the body. */
-    private static final VoxelShape PLAYER_COLUMN = Shapes.box(0.2, 0.0, 0.2, 0.8, 1.0, 0.8);
+    // Passability, footing and obstruction are CellRules' answers, shared with the server views
+    // so the wd.* suite plans on the rules the shipped client plans on (wd.clientWorldViewParity).
     public boolean isPassable(BlockPos p) {
-        BlockState s = state(p);
-        if (!s.blocksMotion() || s.getFluidState().is(FluidTags.WATER)) return true;
-        if (!BotConfig.collisionAwarePathing) return false;
-        // Collision-aware: a block that "blocks motion" may still leave room for the
-        // body if its real shape is partial/offset (cocoa pod, glass pane on one axis,
-        // wall nub). Passable iff the player's centred column doesn't intersect the
-        // actual collision shape. Empty shape (rare with blocksMotion) → passable.
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
-        VoxelShape shape = s.getCollisionShape(lvl, p);
-        if (shape.isEmpty()) return true;
-        // Thin floor-resting obstacle (lily pad ≈0.094, thin snow, pressure plate):
-        // a low slab at the cell bottom that the body steps over (vanilla auto-step)
-        // on land and a swimming body slides under. Treat as passable so a lily pad
-        // in the surface cell over water stops walling off the swimmable water cell
-        // below it ("被浮萍/荷叶挡住"). Gated: the shape must START at the floor
-        // (minY≈0 — a block hanging at body height is a real obstacle) and rise no
-        // higher than the knob (default 0.2, below a 0.5 slab). See
-        // BotConfig.pathfinderThinObstacleHeight.
-        double thin = BotConfig.pathfinderThinObstacleHeight;
-        if (thin > 0 && shape.min(Direction.Axis.Y) <= 0.001
-                && shape.max(Direction.Axis.Y) <= thin) return true;
-        return !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
+        return CellRules.isPassable(lvl, p, state(p));
     }
     @Override public boolean isBreakableObstruction(BlockPos p) {
-        BlockState s = state(p);
-        if (s.isAir() || !s.getFluidState().isEmpty()) return false;
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
-        if (s.getCollisionShape(lvl, p).isEmpty()) return false;
-        return s.getDestroySpeed(lvl, p) == 0f;   // instabreak by hand (lily pad…)
+        return CellRules.isBreakableObstruction(lvl, p, state(p));
     }
     @Override public boolean canStandOn(BlockPos p) {
-        if (!BotConfig.collisionAwarePathing) return isSolid(p);
-        BlockState s = state(p);
-        if (!s.blocksMotion()) return false;                 // air / plants / non-collidable
         Level lvl = Minecraft.getInstance().level;
         if (lvl == null) return false;
-        VoxelShape shape = s.getCollisionShape(lvl, p);
-        if (shape.isEmpty()) return false;
-        // A valid floor needs a FULL 1×1 top face on the COLLISION shape.
-        //   pass: full cubes (leaves included), TOP-half slabs, double slabs
-        //   fail: cocoa, fences, BOTTOM-half slabs, and — despite being walkable —
-        //         the 14/16-tall family: soul_sand, soul_soil, mud, and snow at EVERY
-        //         layer count. SnowLayerBlock.getCollisionShape indexes
-        //         SHAPE_BY_LAYER[layers - 1], so even layers=8 yields the 14/16 box;
-        //         vanilla itself works around this with an explicit LAYERS == 8 case
-        //         in SnowLayerBlock.canSurvive.
-        // This is STRICTER than BotConfig.isUsableBuildBlock's isFaceSturdy(UP), which
-        // accepts that same 14/16 family as placeable footing. So one question — "can a
-        // body stand on this?" — has two answers here, and NEITHER side's comment names
-        // the other. Whether that is intended is not recorded anywhere: round69 documents
-        // only why PLACEMENT moved to isFaceSturdy; nothing says the planner was
-        // considered and left on isFaceFull. Treat it as open, not as design. Aligning
-        // them would make the planner route over mud/soul_sand/soul_soil it currently
-        // refuses outright, which is a behaviour change and wants its own gate run.
-        return Block.isFaceFull(shape, Direction.UP);
+        return CellRules.canStandOn(lvl, p, state(p));
     }
     @Override public Vec3 waterFlow(BlockPos p) {
         Level lvl = Minecraft.getInstance().level;
@@ -392,93 +330,7 @@ public final class ClientWorldView implements WorldView {
         Level lvl = mc.level;
         LocalPlayer pl = mc.player;
         if (lvl == null || pl == null) return Double.POSITIVE_INFINITY;
-        BlockPos bp = p;
-        BlockState s = state(bp);
-        if (s.isAir()) return 0;
-        if (!s.getFluidState().isEmpty()) return Double.POSITIVE_INFINITY; // never "break" a fluid
-        float hardness = s.getDestroySpeed(lvl, bp);
-        if (hardness < 0) return Double.POSITIVE_INFINITY;                 // unbreakable (bedrock/barrier)
-        if (hardness == 0) return COST_PER_TICK;                           // instant-mine (≈1 tick: torch, plant)
-        // Best destroy speed across the HOTBAR ONLY (slots 0-8), bare-hand baseline
-        // 1.0 when nothing better. Mirrors the vanilla
-        // Player.getDestroyProgress / getDestroySpeed path: per-tool Efficiency
-        // enchant (+level²+1 once the tool already beats bare hand) and the
-        // player-global Haste / Mining-Fatigue multiplier (cached per search).
-        //
-        // NOT the same search space as the actuator, and this comment claimed it was.
-        // It read "the Walker calls selectBestTool before actually mining, so estimate
-        // with the best available tool"; BotInteract.selectBestToolFor scans 0-8 AND
-        // menu slots 9-35 and SWAPs a bag tool up, so for a body whose pickaxes
-        // overflowed the hotbar the actuator is strictly faster than this estimate.
-        // The mismatch OVER-prices breaks (the planner detours around stone the body
-        // would in fact mine with a bag pickaxe) — the conservative direction, which is
-        // why it has never shown as a death. Closing it means widening this scan to
-        // 9-35, which makes A* dig MORE: a measurement, not a tidy-up. Written down
-        // rather than fixed, and the parity sentence removed so the next reader does
-        // not take the two for equal.
-        // Situational water/not-on-ground ÷5 penalties are intentionally left
-        // out — they reflect the player's *current* stance, not where this
-        // future break happens; Baritone likewise prices breaks as mined
-        // standing on ground, and omitting a slowdown keeps the cost admissible.
-        Inventory inv = pl.getInventory();
-        float bestSpeed = 1f;
-        boolean bestCorrect = false;
-        for (int slot = 0; slot < 9; slot++) {
-            ItemStack stk = inv.items.get(slot);
-            if (stk.isEmpty()) continue;
-            float sp = stk.getDestroySpeed(s);
-            if (sp > 1f && efficiencyEnchant != null) {
-                int el = EnchantmentHelper
-                        .getItemEnchantmentLevel(efficiencyEnchant, stk);
-                if (el > 0) sp += el * el + 1;
-            }
-            boolean cor = stk.isCorrectToolForDrops(s);
-            if ((cor && !bestCorrect) || (cor == bestCorrect && sp > bestSpeed)) {
-                bestSpeed = sp;
-                bestCorrect = cor;
-            }
-        }
-        bestSpeed *= digSpeedMul;                                          // Haste / Mining Fatigue (player-global)
-        float damage = bestSpeed / hardness / (bestCorrect ? 30f : 100f);
-        if (damage <= 0) return Double.POSITIVE_INFINITY;
-        int ticks = Math.max(1, (int) Math.ceil(1.0 / damage));
-        double cost = COST_PER_TICK * ticks;
-        // Wrong-tool aversion: the per-block tick estimate is accurate, but a
-        // wrong-tool dig (no pickaxe vs stone) drags hidden costs the planner
-        // can't see — per-block approach/aim/anti-stuck retries, and a repath
-        // burning the relaxed node ceiling every few blocks because the bot is
-        // now entombed with no committable surface segment. Round44 live: A*
-        // tunneled a toolless bot INTO a jungle-ridge massif at 0.07 blk/s
-        // (5 min → 6 blocks, 24k-node searches every 10s) when any detour
-        // would have won. ×3 reprices bare-hand stone to ~97 walk-blocks per
-        // dig, so a visible detour always wins; blocks that need no tool
-        // (logs/dirt/leaves: isCorrectToolForDrops=true bare-handed) and digs
-        // with the proper tool keep their true price.
-        if (!bestCorrect) cost *= 3;
-        // Trunk-aversion tax (§81): a log is cheap to break (hardness 2, bare-hand
-        // correct-tool), so in dense forest "chop through the tree" out-prices a
-        // 10-20-block walk-around and A* legally routes THROUGH trunks — the user-visible
-        // "寻路走到树里" (both ultra-journey churns started at a trunk on the path).
-        // Like the leaf cell tax this prices the hidden approach/aim/canopy-snag cost;
-        // 1.0 = byte-identical.
-        // ...EXCEPT on the one leg whose whole job is to chew through a tree. Reaching the fifth log
-        // of a trunk means breaking the four under it, so at 3× those paths price out — measured on
-        // the ladder's wood rung, same seed, one variable: 13 logs / 2 914 ticks at 1.0 against
-        // 6 logs / 13 899 ticks at 3.0, with 49 rows of `[mine] no approach to stand` (that wording
-        // is HISTORICAL — `86f59fde` renamed it; today the same event prints as `[mine] blacklist
-        // <pos>（<why>）`, see MineProcess#logWaiverOwner). The waiver is
-        // scoped to a log mine goal rather than turned off globally, so a leg that is merely
-        // PASSING a forest still pays 3× and keeps what this tax was added for.
-        if (BotConfig.pathfinderLogBreakTax != 1.0 && s.is(BlockTags.LOGS)
-                && !MineProcess.miningALog())
-            cost *= BotConfig.pathfinderLogBreakTax;
-        // Dig-aversion multiplier (§74): the per-block tick estimate is honest, yet a
-        // dig-dense route drags the same hidden costs as the wrong-tool case in miniature
-        // (approach/aim per block, stall-recovery churn between digs) — C53/C58/C59 all
-        // broke on 50-65s worst-stall mineshaft/cave legs the planner CHOSE over an open
-        // detour. >1 biases A* toward walking around; executor fallback digs are unpriced
-        // and unaffected. 1.0 = byte-identical.
-        return cost * BotConfig.pathfinderBreakCostMultiplier;
+        return CellRules.breakCost(lvl, p, state(p), pl, dig);
     }
     @Override public boolean canPlace() {
         return BotConfig.allowPlace && hasPlaceableBlock();
@@ -687,37 +539,7 @@ public final class ClientWorldView implements WorldView {
                 && Minecraft.getInstance().player != null
                 && hotbarSlotOf(Minecraft.getInstance().player,
                                 Items.WATER_BUCKET) >= 0;
-        // Snapshot the player-global dig-speed multiplier (Haste / Mining
-        // Fatigue) and resolve the Efficiency enchant holder for this search.
-        digSpeedMul = 1f;
-        efficiencyEnchant = null;
-        {
-            LocalPlayer dp = Minecraft.getInstance().player;
-            if (dp != null) {
-                if (MobEffectUtil.hasDigSpeed(dp))
-                    digSpeedMul *= 1f + (MobEffectUtil.getDigSpeedAmplification(dp) + 1) * 0.2f;
-                MobEffectInstance slow =
-                        dp.getEffect(MobEffects.DIG_SLOWDOWN);
-                if (slow != null) {
-                    digSpeedMul *= switch (slow.getAmplifier()) {
-                        case 0 -> 0.3f;
-                        case 1 -> 0.09f;
-                        case 2 -> 0.0027f;
-                        default -> 8.1E-4f;
-                    };
-                }
-            }
-            Level dl = Minecraft.getInstance().level;
-            if (dl != null) {
-                try {
-                    efficiencyEnchant = dl.registryAccess()
-                            .lookupOrThrow(Registries.ENCHANTMENT)
-                            .getOrThrow(Enchantments.EFFICIENCY);
-                } catch (Exception ignored) {
-                    efficiencyEnchant = null;   // data pack without the vanilla enchant → skip the bonus
-                }
-            }
-        }
+        dig = CellRules.DigSnapshot.of(Minecraft.getInstance().player, Minecraft.getInstance().level);
         // Mob snapshot (stride-4: x,y,z,r; ranged mobs get the wider radius). Gated
         // on avoidMobs — but NO early return: fleeSearch + hazardSnapshot below must
         // ALWAYS be refreshed (a prior bug left them stale when avoidMobs was off).
