@@ -52,6 +52,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         BotConfig.walkerDebug = true;
         BotConfig.walkerFinalNodeDirectAim = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
+        BotConfig.walkerOrbitBreaksAimLag = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("起点.同步后", helm.where());
@@ -99,6 +100,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         BotConfig.walkerDebug = true;
         BotConfig.walkerFinalNodeDirectAim = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
+        BotConfig.walkerOrbitBreaksAimLag = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("起点.同步后", helm.where());
@@ -177,6 +179,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         // measured the diagonal overshoot of the last node, and its budget is what notices it.
         BotConfig.walkerFinalNodeDirectAim = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
+        BotConfig.walkerOrbitBreaksAimLag = true;
         ServerPlayer body = helm.player();
 
         // Two ticks, not the usual thirty: the body is falling, and the point is to order the leg

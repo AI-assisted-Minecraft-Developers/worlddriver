@@ -1024,11 +1024,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
         Walker.Step s = Walker.Step.WALKING;
-        // Tight budget: an isolated +1 dirt climb-out is a ~22-tick swim-jump; 200 ticks (10 s) is a
-        // smoothness guard that still fails loudly on a bob-stall regression.
+        // Block-less, the +2 bank is a dig on both bodies now that the planner no longer swims into
+        // the air cell above the surface; 200 ticks (10 s) still fails loudly on a bob-stall
+        // regression. The body arrives airborne off the last dug step, so the walk is followed for
+        // a few settle ticks after ARRIVED before its landing is judged.
         int ashoreTick = -1;
-        for (int t = 0; t < 200 && s == Walker.Step.WALKING; t++) {
-            s = walker.tick(av, w);
+        int settle = 0;
+        for (int t = 0; t < 200 && (s == Walker.Step.WALKING || (s == Walker.Step.ARRIVED && settle++ < 20)); t++) {
+            if (s == Walker.Step.WALKING) s = walker.tick(av, w);
             av.step();
             if (ashoreTick < 0 && !fp.isInWater() && fp.onGround()
                     && fp.getX() >= cx + span - 0.5 && fp.getY() >= bankTop + 1 - 0.4) {

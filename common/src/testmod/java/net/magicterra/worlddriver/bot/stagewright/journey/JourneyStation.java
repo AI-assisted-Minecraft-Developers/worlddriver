@@ -198,6 +198,10 @@ final class JourneyStation {
                     if (lvl.getBlockState(c).blocksMotion()) continue;              // stand here
                     if (lvl.getBlockState(c.above()).blocksMotion()) continue;      // head room
                     if (!lvl.getBlockState(c.below()).blocksMotion()) continue;     // solid underfoot
+                    // Dry: a pool floor has a solid under it and room beside it, and the old planner
+                    // would walk a body down to it and craft there. A real body floats; the planner no
+                    // longer treats a submerged cell as a place to stand, so neither may this.
+                    if (!lvl.getFluidState(c).isEmpty() || !lvl.getFluidState(c.above()).isEmpty()) continue;
                     if (!placerWouldFindRoom(lvl, c)) continue;                     // and room to place
                     double d = foot.distSqr(c);
                     if (d < bestD) { bestD = d; best = c; }

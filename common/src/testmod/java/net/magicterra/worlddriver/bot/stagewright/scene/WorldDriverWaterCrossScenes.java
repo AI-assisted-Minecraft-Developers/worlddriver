@@ -512,9 +512,10 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
     /** Ported from {@code AgentGameTestWaterCross#deepWaterSubmergedCrossArena}: deep-water submerged-crossing
      *  surface-bias ({@code pathfinderFloatingSurfaceCross}). A deep (9-block) open-water channel; the search
-     *  is seeded submerged (surface-1) for a Y-aware Near goal on the far bank. Leg A (planner A/B): OFF threads
-     *  MANY submerged crossing nodes (the bug), ON surfaces immediately. Leg B (integration): with the flag ON
-     *  the floating Walker crosses and reaches the far bank, spending almost no ticks below the surface. */
+     *  is seeded submerged (surface-1) for a Y-aware Near goal on the far bank. Leg A (planner A/B): the legacy
+     *  water model with the bias OFF threads MANY submerged crossing nodes (the bug); the surface-node model
+     *  with the bias ON surfaces immediately. Leg B (integration): the floating Walker crosses and reaches the
+     *  far bank, spending almost no ticks below the surface. */
     private static void deepWaterSubmergedCross(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -570,6 +571,9 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
         boolean[] reached = new boolean[2];
         for (int leg = 0; leg < 2; leg++) {
             BotConfig.pathfinderFloatingSurfaceCross = (leg == 1);
+            // The bug lives in the legacy model, where every water cell is a node; leg 0 reproduces it
+            // there. Under the surface-node model (leg 1) a submerged crossing cannot be planned at all.
+            BotConfig.pathfinderSurfaceWaterNodes = (leg == 1);
             ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
             ServerPlayer fp = av.fakePlayer();
             final ServerPlayer fpc = fp;
@@ -602,6 +606,7 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
 
         // ---- Leg B: integration — the floating Walker crosses cleanly with the flag ON ----
         BotConfig.pathfinderFloatingSurfaceCross = true;
+        BotConfig.pathfinderSurfaceWaterNodes = true;
         BotConfig.walkerDebug = true;
         ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, surface - 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();

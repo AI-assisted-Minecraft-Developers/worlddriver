@@ -37,6 +37,9 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 Scene.of("wd.clientTwoHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::twoHighBankPlaceOut),
                 Scene.of("wd.clientThreeHighBankPlaceOut", 2_000, WorldDriverClientWaterScenes::threeHighBankPlaceOut),
                 Scene.of("wd.clientTwoHighBankDigOut", 2_000, WorldDriverClientWaterScenes::twoHighBankDigOut),
+                Scene.of("wd.clientShallowPoolStepOut", 2_000, WorldDriverClientWaterScenes::shallowPoolStepOut),
+                Scene.of("wd.clientShallowPoolStepOutEmptyHanded", 2_000,
+                        WorldDriverClientWaterScenes::shallowPoolStepOutEmptyHanded),
                 Scene.of("wd.clientOneHighStoneBankPickaxeOut", 2_000,
                         WorldDriverClientWaterScenes::oneHighStoneBankPickaxeOut),
                 Scene.of("wd.clientFlowingChannelPlaceOut", 2_000,
@@ -112,6 +115,22 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     }
 
     /**
+     * A ONE-DEEP pool with a dirt rim one above the surface, dirt in hand. The body stands on the
+     * floor with its eyes out of the water, yet vanilla still swims it (fluid over 0.4 high), so a
+     * ground jump onto the rim is not available; the exit is the swim boost against the rim or a
+     * foothold. The old planner called this cell a floor and jumped; this leg measures what the
+     * real body does with the honest plan.
+     */
+    private static void shallowPoolStepOut(SceneContext ctx) {
+        climbOut(ctx, "dirt", 1, Blocks.DIRT, 1, 200, new ItemStack(Items.DIRT, 30));
+    }
+
+    /** The same one-deep pool with nothing in hand: the swim boost against the rim, or the dig. */
+    private static void shallowPoolStepOutEmptyHanded(SceneContext ctx) {
+        climbOut(ctx, "empty", 1, Blocks.DIRT, 1, 600);
+    }
+
+    /**
      * A STONE rim one above the surface and an iron pickaxe in the hand: the dig must pick the
      * tool and still finish afloat. Bare-handed this rim is hopeless (the walker poisons it), so
      * a body that ends up digging by hand has not selected its tool.
@@ -168,6 +187,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerHoldLastNodeUntilStanding = true;
         BotConfig.walkerShallowWaterSideFoothold = true;
         BotConfig.walkerClimbOutResyncsAim = true;
+        BotConfig.walkerOrbitBreaksAimLag = true;
         ServerPlayer body = helm.player();
 
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
@@ -219,17 +239,25 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
      * @param dryBy    tick by which the body must first stand on dry ground
      */
     private static void climbOut(SceneContext ctx, String arm, int rimRaise, Block rim, int dryBy, ItemStack... hand) {
+        climbOut(ctx, arm, rimRaise, rim, POOL_DEPTH, dryBy, hand);
+    }
+
+    /** As above with the pool {@code poolDepth} cells deep; a one-deep pool stands the body on
+     *  the floor with its eyes out of the water, the shape the planner used to treat as a floor
+     *  it could jump off. */
+    private static void climbOut(SceneContext ctx, String arm, int rimRaise, Block rim, int poolDepth, int dryBy, ItemStack... hand) {
         stageSlab(ctx, rimRaise, rim);
         for (int dx = -POOL_HALF; dx <= POOL_HALF; dx++)
             for (int dz = -POOL_HALF; dz <= POOL_HALF; dz++) {
-                for (int dy = 0; dy > -POOL_DEPTH; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
+                for (int dy = 0; dy > -poolDepth; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
                 for (int dy = 1; dy <= rimRaise; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
             }
         int goalY = GROUND + 1 + rimRaise;
-        BlockPos start = ctx.rel(0, GROUND - 1, 0);
+        // One cell under the surface where the pool allows it, so the body starts wet either way.
+        BlockPos start = ctx.rel(0, GROUND - Math.min(poolDepth - 1, 1), 0);
         BlockPos goal = ctx.rel(POOL_HALF + 2, goalY, 0);
         ctx.record("布景", "水面格 y=" + GROUND + "，岸顶比水面高 " + rimRaise + " 格（岸脚格 y=" + goalY + "，岸材质 "
-                + rim + "）；池 ±" + POOL_HALF + " 深 " + POOL_DEPTH + "；起点 " + start.toShortString()
+                + rim + "）；池 ±" + POOL_HALF + " 深 " + poolDepth + "；起点 " + start.toShortString()
                 + "，目标 " + goal.toShortString() + "，手里=" + arm);
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
@@ -245,6 +273,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerHoldLastNodeUntilStanding = true;
         BotConfig.walkerShallowWaterSideFoothold = true;
         BotConfig.walkerClimbOutResyncsAim = true;
+        BotConfig.walkerOrbitBreaksAimLag = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
