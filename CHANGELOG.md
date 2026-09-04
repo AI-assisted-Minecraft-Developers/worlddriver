@@ -17,6 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default ON) lets the pillar go first whenever a block is in hand; the pillar's own futility
   bail still hands a bank the place cannot land on to the dig.
 
+- **An unclimbed +1 node is never spent while the next node sits straight over the body.** Both
+  step-advance gates admit a +1 current node because a jump reaches a +1 beside the body, and
+  could not tell that from a +1 the body has not climbed whose successor is over its head, which
+  nothing reaches without a block under the feet. `wd.clientThreeHighBankPlaceOut` measured it:
+  the current node was a +1 step-up beside the body and the next was the goal one block straight
+  up; `within` read the step-up as reached at 0.449 horizontal and 1.0 vertical with the body
+  still below it, and the pointer sat on a bridge placement whose support cell was the body's own
+  foot cell, for 400 ticks.
+
+- **A body just under the surface plans from the surface cell.** The surface search-start lift
+  applied only while the eyes were above water, so a body that had just dropped into a pool
+  planned from one cell under and every such plan began with a dig it would never make.
+  `wd.clientFlushBankClimbOutEmptyHanded` planned a bare-hand break of the stone pool wall from
+  one cell under, wedged three times on it, and only then repathed from the surface to the plain
+  step-up. The lift now also applies to a submerged body within two cells of the surface; a
+  diver's route is still planned from where the diver is.
+
 - **The last path node is aimed at directly and approached at a walk.** Every earlier node is
   spent by crossing its plane, so the bob-immune path tangent that carries the body past it is
   the right heading; the last node is spent only by closing to within ~0.67 of its centre, and a
