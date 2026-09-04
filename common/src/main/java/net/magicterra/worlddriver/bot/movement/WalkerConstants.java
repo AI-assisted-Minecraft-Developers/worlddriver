@@ -108,6 +108,20 @@ final class WalkerConstants {
      *  ONLY because the descent drive is camera-decoupled (driveTargetYaw=node) — the body keeps
      *  taking every step while the camera eases onto the trend. See DESCENT_CAM_LOOKAHEAD. */
     public static final float YAW_SMOOTH_ALPHA_DESCENT = 0.08f;
+    /** The orbit signature the trend camera cannot converge out of: a heading error this wide, held
+     *  this long while the body keeps moving, means the bearing rotates as fast as the slow EMA
+     *  follows it (wd.clientGotoStartsMidAirOverWater: 300 ticks at ~90°, yaw wound 52→2453). Below
+     *  the floor is ordinary tracking; above the ceiling is the per-repath ±180° flip that must stay
+     *  damped (the antipode snap was tried and reverted). See BotConfig.walkerOrbitBreaksAimLag. */
+    public static final float ORBIT_ERR_MIN_DEG = 45f;
+    public static final float ORBIT_ERR_MAX_DEG = 170f;
+    public static final int ORBIT_TICKS = 12;
+    public static final double ORBIT_MOVE_SQ = 0.05 * 0.05;
+    /** …and the body's own yaw must have wound this far in ONE direction meanwhile. A corridor
+     *  detour whose trend centroid points elsewhere also holds a steady 90° error while moving
+     *  (wd.bridgeStepTwoBypassNoPlace: centroid east, plan north), but its body turns at corners
+     *  and then stops; only a circling body keeps turning the same way. */
+    public static final float ORBIT_WINDING_DEG = 180f;
     public static final float WATER_DRIVE_ALPHA = 0.3f;   // EMA on the water drive heading (damps ±180° node flip)
     /** Max one-tick turn (deg) the flat-water DRIVE heading will chase. A real swim turn — even the
      *  carrot rounding a corner — moves the heading gradually; a SUDDEN ±180° jump is a transient

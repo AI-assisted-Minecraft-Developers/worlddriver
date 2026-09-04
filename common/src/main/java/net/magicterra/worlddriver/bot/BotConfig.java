@@ -2344,6 +2344,12 @@ public final class BotConfig {
      *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
     public static volatile boolean walkerClimbOutResyncsAim = true;
 
+    /** Break the dry-land orbit: when the heading error sits between 45° and 170° for a dozen ticks
+     *  while the body moves, the trend camera's slow EMA is chasing a bearing that rotates as fast as
+     *  it converges (the body circles the node one cell out); switch to the cruise alpha until the
+     *  error closes. Default ON; the gametest baseline pins it OFF like every other walker flag. */
+    public static volatile boolean walkerOrbitBreaksAimLag = true;
+
     /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
      *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
      *  y62.7(water)↔63.65(air) every 2-3 t, onGround NEVER true, doing stepUp but XZ frozen. ALL three
@@ -2958,6 +2964,7 @@ public final class BotConfig {
         walkerHoldLastNodeUntilStanding = false;
         walkerShallowWaterSideFoothold = false;
         walkerClimbOutResyncsAim = false;
+        walkerOrbitBreaksAimLag = false;
         walkerFutileBankDigRelease = false;
         walkerBankDigForwardExit = false;
         walkerFloatingBankBobFreeze = false;

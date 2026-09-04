@@ -34,6 +34,49 @@ final class WalkerTickAim {
      * it: a diagonal approach at sprint, yaw 91° off the node bearing, nearest pass 0.8, then 400
      * ticks of unstuck bursts and repaths around a goal the body had already reached.
      */
+    /**
+     * The EMA rate for the target heading: the slow trend-camera alpha, or — under
+     * {@code walkerOrbitBreaksAimLag} — the cruise alpha once the body has spent {@code ORBIT_TICKS}
+     * moving with a mid-range heading error. Under tangent drive the body follows this EMA, and an
+     * error that neither closes nor flips while the body moves is the body circling its node one cell
+     * out: the slow alpha can never catch a bearing that rotates at its own convergence rate. Dry
+     * only — water has its own drive heading.
+     */
+    private static float smoothingAlpha(Walker wk, Player p, boolean trendCam, float targetYaw) {
+        float alpha = trendCam ? YAW_SMOOTH_ALPHA_DESCENT : YAW_SMOOTH_ALPHA;
+        AimSmoothing a = wk.aimSmooth;
+        float turn = Float.isNaN(a.orbitLastYaw) ? 0f : angleDiff(a.orbitLastYaw, p.getYRot());
+        a.orbitLastYaw = p.getYRot();
+        if (!BotConfig.walkerOrbitBreaksAimLag || !trendCam || p.isInWater()) {
+            a.orbitTicks = 0;
+            a.orbitWinding = 0;
+            a.orbitBreaking = false;
+            return alpha;
+        }
+        float err = Math.abs(angleDiff(a.smoothTargetYaw, targetYaw));
+        boolean moving = p.getDeltaMovement().horizontalDistanceSqr() > ORBIT_MOVE_SQ;
+        // A detour turns at its corners and then walks straight; a circling body turns the same
+        // way every tick. Winding in one direction is the signature: a direction change or a
+        // standstill ends it, a tick whose error happens to dip low (the raw bearing sweeps as the
+        // body passes the node) merely does not add to it.
+        if (!moving || turn * a.orbitWinding < 0) {
+            a.orbitTicks = 0;
+            a.orbitWinding = 0;
+            a.orbitBreaking = false;
+            return alpha;
+        }
+        if (err > ORBIT_ERR_MIN_DEG && err < ORBIT_ERR_MAX_DEG) {
+            a.orbitWinding += turn;
+            a.orbitTicks++;
+        }
+        if (a.orbitTicks <= ORBIT_TICKS || Math.abs(a.orbitWinding) < ORBIT_WINDING_DEG) return alpha;
+        if (BotConfig.walkerDebug && !a.orbitBreaking)
+            LOG.info("[walker] orbit-break: heading error {}° over {} ticks, wound {}° — cruise alpha",
+                    String.format("%.0f", err), a.orbitTicks, String.format("%.0f", a.orbitWinding));
+        a.orbitBreaking = true;
+        return YAW_SMOOTH_ALPHA;
+    }
+
     private static boolean onLastNode(Walker wk) {
         return BotConfig.walkerFinalNodeDirectAim && wk.path != null && wk.step == wk.path.size() - 1;
     }
@@ -580,7 +623,7 @@ final class WalkerTickAim {
             wk.aimSmooth.smoothTargetYaw = targetYaw;
             wk.aimSmooth.reversalStreak = 0;
         } else {
-            float alpha = trendCam ? YAW_SMOOTH_ALPHA_DESCENT : YAW_SMOOTH_ALPHA;
+            float alpha = smoothingAlpha(wk, p, trendCam, targetYaw);
             // (An antipode EMA-snap here — snap after 6 consecutive >170° ticks —
             // was tried and REVERTED: it regressed wd.vineOverWaterClimb and
             // wd.bridgeStepTwoBypassNoPlace, where per-repath ±180° target flips

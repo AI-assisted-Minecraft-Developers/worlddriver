@@ -96,6 +96,7 @@ class GameTestBaselineManifestTest {
             e("walkerHoldLastNodeUntilStanding", "a last node that is the goal is spent only once the foot stands in it"),
             e("walkerShallowWaterSideFoothold", "afloat in one-deep water the pillar takeover places its first rung beside the body"),
             e("walkerClimbOutResyncsAim", "topping out of a water climb-out resets the aim's low-pass state"),
+            e("walkerOrbitBreaksAimLag", "a sustained mid-range heading error on dry land switches the aim EMA to the cruise alpha"),
             e("walkerFutileBankDigRelease", "§78 — early-release a provably futile block-less bank dig"),
             e("walkerBankDigForwardExit", "§78 — forward-hemisphere guard on bank-dig riser selection"),
             e("walkerFloatingBankBobFreeze", "§78 — floating +1 water-bank climb-out freeze"),

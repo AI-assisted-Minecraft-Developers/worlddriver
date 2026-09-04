@@ -21,9 +21,17 @@ final class AimSmoothing {
     int frozenStallTicks = 0;                   // consecutive frozen ticks with <FREEZE_PRESS_MOVE displacement — valve trips past FREEZE_PRESS_STALL_TICKS
     int reversalStreak = 0;                     // consecutive ticks the EMA target sat >AIM_REVERSAL_DEG from the smooth value — snap after AIM_REVERSAL_SNAP_TICKS (a true course reversal cannot be EMA-chased)
     int waterDriveRejectStreak = 0;             // consecutive flip-rejections of the water drive heading (escape-hatch snaps after WATER_DRIVE_MAX_REJECT)
+    int orbitTicks = 0;                         // dry moving ticks with a mid-range heading error since the last direction change or standstill — past ORBIT_TICKS the EMA takes the cruise alpha
+    float orbitWinding = 0;                     // the body's own yaw turn accumulated over those ticks — an orbit winds past ORBIT_WINDING_DEG, a detour does not
+    float orbitLastYaw = Float.NaN;             // previous tick's body yaw, for the winding
+    boolean orbitBreaking = false;              // the break is active (logged once on entry)
 
     void reset() {
         smoothTargetYaw = Float.NaN;
+        orbitTicks = 0;
+        orbitWinding = 0;
+        orbitLastYaw = Float.NaN;
+        orbitBreaking = false;
         lastCarrotBearing = Float.NaN;
         lastCarrotBearingSign = 0;
         yawThrashTicks = 0;
