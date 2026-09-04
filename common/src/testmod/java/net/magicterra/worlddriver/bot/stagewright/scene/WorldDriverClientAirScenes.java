@@ -53,6 +53,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         BotConfig.walkerFinalNodeDirectAim = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
         BotConfig.walkerOrbitBreaksAimLag = true;
+        BotConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("起点.同步后", helm.where());
@@ -101,6 +102,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         BotConfig.walkerFinalNodeDirectAim = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
         BotConfig.walkerOrbitBreaksAimLag = true;
+        BotConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
         helm.sync(30, () -> {
             ctx.record("起点.同步后", helm.where());
@@ -180,6 +182,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         BotConfig.walkerFinalNodeDirectAim = true;
         BotConfig.walkerHoldLastNodeUntilStanding = true;
         BotConfig.walkerOrbitBreaksAimLag = true;
+        BotConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         // Two ticks, not the usual thirty: the body is falling, and the point is to order the leg

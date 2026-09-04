@@ -554,3 +554,4 @@ wd.clientFlowingTrenchPlaceOut
 wd.clientWorldViewParity
 wd.clientShallowPoolStepOut
 wd.clientShallowPoolStepOutEmptyHanded
+wd.clientOpenWaterCross

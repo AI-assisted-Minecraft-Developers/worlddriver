@@ -45,7 +45,8 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 Scene.of("wd.clientFlowingChannelPlaceOut", 2_000,
                         WorldDriverClientWaterScenes::flowingChannelPlaceOut),
                 Scene.of("wd.clientFlowingTrenchPlaceOut", 2_000,
-                        WorldDriverClientWaterScenes::flowingTrenchPlaceOut));
+                        WorldDriverClientWaterScenes::flowingTrenchPlaceOut),
+                Scene.of("wd.clientOpenWaterCross", 2_400, WorldDriverClientWaterScenes::openWaterCross));
     }
 
     /** Top of the slab: the ground's foot cell is {@code GROUND + 1}. */
@@ -188,6 +189,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerShallowWaterSideFoothold = true;
         BotConfig.walkerClimbOutResyncsAim = true;
         BotConfig.walkerOrbitBreaksAimLag = true;
+        BotConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         // The source needs ~5 ticks per cell to reach the far end; wait for the current to exist.
@@ -234,6 +236,82 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     private static final int FLOW_DRY_BY = 200;
 
     /**
+     * A body in a long, deep lake swims its whole length to a cell on the far bank, flush with the
+     * water. Nothing to climb, nothing to avoid: the leg measures how the planner and the walker
+     * handle open water by itself — how many ticks a straight crossing costs and how many times the
+     * plan is redone on the way.
+     */
+    private static void openWaterCross(SceneContext ctx) {
+        for (int dx = -4; dx <= LAKE_LEN + 6; dx++)
+            for (int dz = -LAKE_HALF - 2; dz <= LAKE_HALF + 2; dz++) {
+                for (int dy = -POOL_DEPTH - 2; dy <= 0; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.STONE);
+                for (int dy = 1; dy <= 6; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
+            }
+        for (int dx = -2; dx <= LAKE_LEN + 2; dx++)
+            for (int dz = -LAKE_HALF; dz <= LAKE_HALF; dz++)
+                for (int dy = 0; dy > -POOL_DEPTH; dy--) ctx.setBlock(dx, GROUND + dy, dz, Blocks.WATER);
+        BlockPos start = ctx.rel(0, GROUND - 1, 0);
+        BlockPos goal = ctx.rel(LAKE_LEN + 4, GROUND + 1, 0);
+        ctx.record("布景", "湖 x∈[-2," + (LAKE_LEN + 2) + "] z∈±" + LAKE_HALF + " 深 " + POOL_DEPTH + "，水面格 y=" + GROUND
+                + "，两岸与水面齐平；起点 " + start.toShortString() + "，目标 " + goal.toShortString());
+
+        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
+        helm.hold(new ItemStack(Items.DIRT, 16));
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = true;
+        BotConfig.walkerDebug = true;
+        BotConfig.walkerFootholdBeforeBankDig = true;
+        BotConfig.walkerClimbIntentFromSurface = true;
+        BotConfig.walkerPillarTopsOutAtFlushExit = true;
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
+        BotConfig.walkerShallowWaterSideFoothold = true;
+        BotConfig.walkerClimbOutResyncsAim = true;
+        BotConfig.walkerOrbitBreaksAimLag = true;
+        BotConfig.walkerSurfaceSprintSwim = true;
+        ServerPlayer body = helm.player();
+
+        helm.sync(SYNC_TICKS, () -> {
+            ctx.record("起点.同步后", helm.where());
+            if (!body.isInWater()) {
+                ctx.fail("布景没成立：同步 " + SYNC_TICKS + " tick 后身体不在水里 —— " + helm.where());
+            }
+            final int[] legTicks = { 0 };
+            final int[] firstDryTick = { -1 };
+            final double[] minGap = { Double.MAX_VALUE };
+            final double[] maxSide = { 0 };
+            ClientHelm.TickWatcher watch = t -> {
+                legTicks[0] = t;
+                if (!body.isInWater() && body.onGround() && firstDryTick[0] < 0) firstDryTick[0] = t;
+                minGap[0] = Math.min(minGap[0], helm.flatDistance(goal));
+                maxSide[0] = Math.max(maxSide[0], Math.abs(body.getZ() - (goal.getZ() + 0.5)));
+            };
+            helm.goTo("leg", new Goal.Block(goal), goal, 2 * LEG_TICKS, watch, () -> {
+                ctx.record("腿末", helm.where());
+                helm.sync(SETTLE_TICKS, legTicks[0] + 1, watch, () -> {
+                    ctx.record("过程", String.format(Locale.ROOT,
+                            "第一次干地着地在第 %s tick，离目标最近 %.2f 格，偏离直线最多 %.2f 格",
+                            firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0]), minGap[0], maxSide[0]));
+                    double flat = helm.flatDistance(goal);
+                    boolean ashore = body.onGround() && !body.isInWater() && body.getY() >= GROUND + 1 - 0.05;
+                    ctx.record("终点", helm.where());
+                    ctx.check(ashore).as("A 身体最后站在对岸干地上：" + helm.where()).isTrue();
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT,
+                            "B 身体停在目标格 1.5 格以内：水平差 %.2f", flat)).isTrue();
+                    ctx.check(firstDryTick[0] >= 0 && firstDryTick[0] <= LAKE_DRY_BY).as(
+                            "C 上岸要在 " + LAKE_DRY_BY + " tick 内：第一次干地着地在第 "
+                            + (firstDryTick[0] < 0 ? "从没" : String.valueOf(firstDryTick[0])) + " tick").isTrue();
+                });
+            });
+        });
+    }
+
+    private static final int LAKE_LEN = 48;
+    private static final int LAKE_HALF = 6;
+    /** The sprint-swim cruise lands in ~350 ticks and one breath bob costs ~150 more; the pre-cruise
+     *  tread took 550, so the budget separates the two. */
+    private static final int LAKE_DRY_BY = 600;
+
+    /**
      * @param rimRaise how many blocks the slab around the pool rises above the water surface cell
      * @param rim      the block the slab's top course is made of (what a dig arm has to chew)
      * @param dryBy    tick by which the body must first stand on dry ground
@@ -274,6 +352,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         BotConfig.walkerShallowWaterSideFoothold = true;
         BotConfig.walkerClimbOutResyncsAim = true;
         BotConfig.walkerOrbitBreaksAimLag = true;
+        BotConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
         helm.sync(SYNC_TICKS, () -> {
