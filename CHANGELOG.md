@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-04
 
+- **Only the surface water cell is a lateral path node.** `canStandAt` used to accept water at
+  any depth as a floor, so every submerged cell was a node A* could walk between, and four
+  buoyancy predicates, eight taxes and dozens of per-move guards existed to keep it from planning
+  what a floating body cannot do. Under `pathfinderSurfaceWaterNodes` (default ON) a cell with
+  water over its head is reached only on a swimUp/swimDown chain; the exit out of water is the
+  new `climbOutPlace` edge, legal only where the walker's climb-out takeover can really place a
+  foothold (one-deep water, a floor beside, or a bank to press against) and only with a block in
+  hand. `swimUp` no longer rises into the air cell above the surface, `pillarUp` no longer starts
+  from water, and a dive goal is no longer snapped to the nearest standable cell. A search that
+  opted into `DIVE` keeps the legacy model, since its purpose is to swim the body through with its
+  head under. The executor is unchanged. Four dedicated-server scenes had staged the legacy
+  fiction as their premise (a block-less swim up a +2 bank, a craft on a pool floor, a submerged
+  crossing as the bug to reproduce) and were restaged. `docs/water-model.md` has the rules and
+  the before/after table.
+
+- **A body circling its node on dry land now turns onto it.** Under tangent drive the body
+  follows the trend camera's slow heading EMA, and a heading error near 90° rotates the bearing
+  exactly as fast as the EMA converges: `wd.clientGotoStartsMidAirOverWater` spent 390 ticks a
+  cell away from a goal it had already reached, yaw winding from 52 to 2453. `walkerOrbitBreaksAimLag`
+  (default ON) switches the EMA to the cruise alpha once twelve moving ticks have shown an error
+  between 45° and 170° and the body's own yaw has wound 180° the same way; only a direction change
+  or a standstill resets the count, a tick whose error dips as the raw bearing sweeps past the node
+  does not (an earlier draft reset there and never fired on a 929-tick trench orbit). The
+  per-repath ±180° flip stays damped as before, and a corridor detour whose trend centroid points
+  elsewhere (`wd.bridgeStepTwoBypassNoPlace`) turns once at its corner and never winds.
+
 - **The server planner and the client planner now read the same cell rules.** `ClientWorldView`,
   `LevelWorldView` and `ServerWorldView` each carried their own passability, footing and break
   pricing; `wd.clientWorldViewParity` measured 67 disagreements over 50 terrains before the
