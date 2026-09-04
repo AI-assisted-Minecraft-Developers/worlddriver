@@ -826,6 +826,10 @@ public final class Walker {
         if (!(goal instanceof Goal.Block b)) return;
         BlockPos t = b.target();
         if (world.canStandAt(t)) return;                 // already fine — leave it
+        // A dive goal sits under the surface on purpose. Under the surface-node model that cell is
+        // not standable, and snapping it up would walk the diver to the wrong place.
+        if (BotConfig.pathfinderSurfaceWaterNodes && world.isWater(t)
+                && profile.capability().allowsOptIn(net.magicterra.worlddriver.bot.pathfinder.Capability.DIVE)) return;
         // walkerPillarReachGoalNoSnap: don't snap an elevated AIR goal DOWN when it's reachable
         // by PILLARING up. canStandAt(t) here fails only because t's floor is air — but pillaring
         // creates that floor, so the goal IS reachable. Snapping it to the highest currently-

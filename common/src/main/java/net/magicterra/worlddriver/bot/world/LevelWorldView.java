@@ -37,6 +37,10 @@ public final class LevelWorldView implements WorldView {
     /** Refreshed per {@link #beginSearch}; the constructor takes one so a view asked to price a
      *  break before any search (probes, scenes) prices with the body's real effects. */
     private volatile CellRules.DigSnapshot dig;
+    /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
+    private volatile boolean diveSearch;
+    @Override public void diveSearch(boolean on) { diveSearch = on; }
+    @Override public boolean surfaceWaterNodes() { return BotConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
 
     /** The level this view reads. Exposed so a holder can notice the body has left it — a view
      *  outlives a dimension change silently otherwise, and then plans over the wrong terrain. */

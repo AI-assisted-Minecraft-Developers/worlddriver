@@ -145,6 +145,7 @@ class GameTestBaselineManifestTest {
             // pathfinder core — turning any of these off changes what a route IS, not how well
             // it is executed, so an arena running without them would be planning a different world
             e("collisionAwarePathing", "collision-shape solidity instead of the coarse blocksMotion()"),
+            e("pathfinderSurfaceWaterNodes", "only the surface water cell is a lateral node; water exits are the climbOutPlace edge"),
             e("pathfinderCacheEnabled", "per-search blockstate memoisation"),
             e("pathfinderProgressive", "progressive pathfinding"),
             e("pathfinderFrontierCommit", "segmented planning to the loaded-chunk frontier"),

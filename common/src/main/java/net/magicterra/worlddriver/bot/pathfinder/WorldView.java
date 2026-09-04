@@ -289,8 +289,24 @@ public interface WorldView {
         if (isHazard(foot.offset(0, -1, 0))) return false;
         if (!isPassable(foot) || isHazard(foot)) return false;
         BlockPos head = foot.offset(0, 1, 0);
+        // A buoyant body rests only in the top water cell. A cell with water over its head is
+        // where the body passes on a swimUp/swimDown chain, never where it stands or turns, so
+        // no lateral move may land there — unless this search is a deliberate dive.
+        if (surfaceWaterNodes() && isWater(foot) && isWater(head)) return false;
         return isPassable(head) && !isHazard(head);
     }
+
+    /**
+     * Whether submerged cells are refused as lateral nodes: {@code BotConfig.pathfinderSurfaceWaterNodes}
+     * unless the current search opted into {@code Capability.DIVE} (see {@link #diveSearch}), whose
+     * whole purpose is to route the body through water with its head under. Live views hold the
+     * dive flag; the interface default only knows the config.
+     */
+    default boolean surfaceWaterNodes() { return net.magicterra.worlddriver.bot.BotConfig.pathfinderSurfaceWaterNodes; }
+
+    /** Told by {@code PathFinder.Search} whether the search it is about to run has the DIVE opt-in.
+     *  The interface default forgets it; a live view keeps it so {@link #surfaceWaterNodes} can answer. */
+    default void diveSearch(boolean on) {}
 
     /**
      * A buoyant bot occupying this cell FLOATS at the surface and cannot push off a

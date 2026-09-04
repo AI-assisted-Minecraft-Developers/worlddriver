@@ -490,6 +490,7 @@ public final class PathFinder {
             // g-side tax keeps every edge cost ≥ its base, so the heuristic (which
             // never counted taxes) stays an underestimate — admissibility holds.
             diveRelief = this.capability.allowsOptIn(Capability.DIVE);
+            world.diveSearch(diveRelief);   // a dive keeps the submerged cells as nodes (WorldView#surfaceWaterNodes)
             if (!diveRelief) tax("descend", (f, t, e, g, w) -> descendTax(f, t, e));
             if (!diveRelief) tax("waterCell", (f, t, e, g, w) -> waterCellTax(t));
             tax("leafCell", (f, t, e, g, w) -> leafCellTax(t));

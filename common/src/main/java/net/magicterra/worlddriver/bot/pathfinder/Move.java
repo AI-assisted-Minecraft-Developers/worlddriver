@@ -457,6 +457,7 @@ public abstract class Move {
         ms.add(new ClimbDown());
         ms.add(new SwimUp());
         ms.add(new SwimDown());
+        ms.add(new SurfaceClimbOut());   // the honest wet exit (BotConfig.pathfinderSurfaceWaterNodes)
         ms.add(new SurfaceDive());   // A5: opt-in-only planned surface dive (Capability.DIVE)
         // Parkour: 2-block cardinal leap at same Y. Only emitted when there's
         // a real gap (no stand-able cell between) so A* doesn't pick it over

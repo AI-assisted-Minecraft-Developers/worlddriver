@@ -59,6 +59,10 @@ public final class ClientWorldView implements WorldView {
     // Player-global dig modifiers (Haste / Mining Fatigue, the Efficiency holder), taken once
     // per search like bucketFallReady/mobXyz so pricing does not re-read them per candidate.
     private volatile CellRules.DigSnapshot dig = CellRules.DigSnapshot.BARE;
+    /** Set per search by PathFinder: a DIVE search keeps submerged cells as nodes. */
+    private volatile boolean diveSearch;
+    @Override public void diveSearch(boolean on) { diveSearch = on; }
+    @Override public boolean surfaceWaterNodes() { return BotConfig.pathfinderSurfaceWaterNodes && !diveSearch; }
     /** WorldModel injected from BotApiImpl so dangerCost can query the
      *  per-tick HazardField; null until wired (headless / unit tests). */
     private WorldModel worldModel;

@@ -59,6 +59,11 @@ public final class PillarUp extends Move {
         // evidence refutes that — buoyantWallArena's +5 climb-out comes from the break-out
         // move, not a placeable floating pillar.)
         if (w.isFloatingWater(from)) return null;
+        // Under the surface-node model every wet exit is SurfaceClimbOut's: a pillar planned from
+        // grounded shallow water is executed by the dry pillar actuator, which waits for a landing
+        // the buoyant body never makes (wd.clientFlowingChannelPlaceOut went from 56 ticks to a
+        // failed leg on exactly that plan).
+        if (w.surfaceWaterNodes() && w.isWater(from)) return null;
         // No world-solidity check on the support below: every standing node
         // A* reaches already has a real-or-placed solid block beneath it
         // (canStandAt guarantees it for walked nodes; a preceding PillarUp

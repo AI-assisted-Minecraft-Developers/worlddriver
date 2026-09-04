@@ -475,6 +475,11 @@ public final class BotConfig {
      *  {@code blocksMotion()} model. */
     public static volatile boolean collisionAwarePathing = true;
 
+    /** Only the SURFACE water cell (water at the foot, none at the head) is a lateral node; a
+     *  submerged cell is reached only through swimUp/swimDown chains. Water exits are the honest
+     *  {@code climbOutPlace} edge instead of swimUp「into the air」. Off = every water cell is a floor. */
+    public static volatile boolean pathfinderSurfaceWaterNodes = true;
+
     /** Per-search blockstate memoisation in {@link net.magicterra.worlddriver.bot.ClientWorldView}.
      *  ON = cache getBlockState within a search slice (static-world assumption); the
      *  Walker's per-tick reads always bypass it. Exposed as a knob purely so the

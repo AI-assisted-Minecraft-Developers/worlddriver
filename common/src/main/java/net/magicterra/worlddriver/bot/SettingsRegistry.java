@@ -235,6 +235,7 @@ public final class SettingsRegistry {
         field("pathfinder.heuristicWeight", "pathfinderHeuristicWeight"),
         field("pathfinderCacheEnabled"),
         field("collisionAwarePathing"),
+        field("pathfinderSurfaceWaterNodes"),
         field("pathfinderGoalField"),
         field("goalFieldCellSize"),
         field("goalFieldRadius"),
