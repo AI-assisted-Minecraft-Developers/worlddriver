@@ -139,6 +139,11 @@ public final class Walker {
     boolean mayBreak() {
         return BotConfig.allowBreak && !profileForbidsBreak;
     }
+    /** Ticks the pointer has been HELD on a final node that is the goal while the foot is not yet
+     *  in it (walkerHoldLastNodeUntilStanding); keyed to the path and step it counts for. */
+    int finalNodeHold;
+    Object finalNodeHoldPath;
+    int finalNodeHoldStep = -1;
     boolean goalSnapChecked;   // one-shot per goal: snap an unstandable Goal.Block target to the nearest standable cell (see snapGoalToStandable) — needs a live WorldView so it runs on the first tick, not at setGoal
     List<BlockPos> path;
     List<Move.Edge> edges;   // aligned with path; edges.get(i) enters path.get(i)

@@ -1038,6 +1038,22 @@ final class WalkerTickProgress {
                 if (wk.step + 1 >= wk.path.size() && diskGoal
                         && !wk.goal.reached(foot) && wk.goal.reached(wk.path.get(wk.path.size() - 1)))
                     break;
+                // The same hold for an EXACT goal, bounded. Spending the last node from 0.67 away
+                // or from the air ends the leg「path-consumed goalReached=false」with the body about
+                // to stand in the goal cell a few ticks later — a reading the ladder acts on. Hold
+                // the pointer so the drive keeps closing onto the cell and the arrival check at the
+                // top of the tick fires for real; give up after FINAL_NODE_HOLD_TICKS so a cell the
+                // body genuinely cannot stand in still ends the leg the honest way.
+                if (BotConfig.walkerHoldLastNodeUntilStanding
+                        && wk.step + 1 >= wk.path.size() && !diskGoal && !wk.seg.pathBestEffort
+                        && !wk.goal.reached(foot) && wk.goal.reached(w)) {
+                    if (wk.finalNodeHoldPath != wk.path || wk.finalNodeHoldStep != wk.step) {
+                        wk.finalNodeHoldPath = wk.path;
+                        wk.finalNodeHoldStep = wk.step;
+                        wk.finalNodeHold = 0;
+                    }
+                    if (wk.finalNodeHold++ < FINAL_NODE_HOLD_TICKS) break;
+                }
                 // The step-advance reading, at the ONE `step++` in the walker (so within/passed/tail
                 // are all covered here) and AFTER the disk-goal hold — see Walker#noteStepAdvance.
                 wk.noteStepAdvance(world, p, foot, w,

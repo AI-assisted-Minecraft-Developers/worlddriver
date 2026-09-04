@@ -2407,6 +2407,14 @@ public final class BotConfig {
      *  baseline pins it OFF like every other walker flag. */
     public static volatile boolean walkerFinalNodeDirectAim = true;
 
+    /** The last path node, when it IS the goal cell, is not spent until the foot stands in it
+     *  (bounded by {@code FINAL_NODE_HOLD_TICKS}). Spending it from 0.67 away or from the air
+     *  ended the leg「path-consumed goalReached=false」with the body standing in the goal cell a few
+     *  ticks later — half the client water scenes read that way on 2026-09-04, and the ladder
+     *  acts on the field. Default ON; the gametest baseline pins it OFF like every other walker
+     *  flag. */
+    public static volatile boolean walkerHoldLastNodeUntilStanding = true;
+
     /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
      *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
      *  y62.7(water)↔63.65(air) every 2-3 t, onGround NEVER true, doing stepUp but XZ frozen. ALL three
@@ -3018,6 +3026,7 @@ public final class BotConfig {
         walkerClimbIntentFromSurface = false;
         walkerPillarTopsOutAtFlushExit = false;
         walkerFinalNodeDirectAim = false;
+        walkerHoldLastNodeUntilStanding = false;
         walkerFutileBankDigRelease = false;
         walkerBankDigForwardExit = false;
         walkerFloatingBankBobFreeze = false;

@@ -199,6 +199,7 @@ public final class SettingsRegistry {
         field("walkerClimbIntentFromSurface"),
         field("walkerPillarTopsOutAtFlushExit"),
         field("walkerFinalNodeDirectAim"),
+        field("walkerHoldLastNodeUntilStanding"),
         field("walkerFloatingBankBobFreeze"),
         field("walkerFloatingBankFollow"),
         field("walkerFasterChurnRepath"),

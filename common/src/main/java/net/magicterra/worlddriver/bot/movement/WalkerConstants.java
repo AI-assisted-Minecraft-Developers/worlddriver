@@ -227,6 +227,9 @@ final class WalkerConstants {
     /** How far under the surface a submerged body's search start may still be lifted to the
      *  surface cell: two cells, the depth a fresh drop into a pool sinks to before it floats. */
     public static final int SURFACE_SEARCH_LIFT_MAX = 2;
+    /** How long the pointer may be held on a final node that is the goal while the foot is not
+     *  yet in it: a landing plus a walk of a block, with room for one bounce. */
+    public static final int FINAL_NODE_HOLD_TICKS = 30;
     public static final int STUCK_TICKS = 60;
     /** Ticks a buoyant body may stay pinned ABOVE an in-water below-node before the
      *  step-advance gate surface-crosses past it. A* routes a deep-water crossing
