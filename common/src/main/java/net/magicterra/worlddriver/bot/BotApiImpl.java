@@ -1215,6 +1215,7 @@ public final class BotApiImpl implements BotApi {
         // snapshots true only for an active flee and is never stuck-true.
         BotConfig.fleeActive = false;
         BotConfig.walkerDigActive = false;   // same per-tick reset contract as fleeActive: the Walker re-sets it below while holding a dig
+        BotConfig.walkerCruiseActive = false;   // likewise: the Walker re-sets it below while its surface cruise holds the eyes under
         // Capture BEFORE the tick: a chain that runs this tick presses movement
         // keys even if it finishes mid-tick (current() then nulls) — its trailing
         // presses still need the one-shot cleanup below.

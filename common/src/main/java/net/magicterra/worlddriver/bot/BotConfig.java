@@ -1357,6 +1357,7 @@ public final class BotConfig {
     public static volatile int rangedAvoidRadius = 16;   // wider berth for ranged mobs (skeleton/witch) — Baritone Avoidance, AltoClef-style ranged split
     public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
     public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
+    public static volatile boolean walkerCruiseActive = false; // RUNTIME: the Walker's surface sprint-swim cruise holds the eyes under on purpose this frame; NOT persisted. AutoSwim's drowning backstop yields to it while air is healthy, as it does to a dig.
     public static volatile boolean walkerDigActive = false; // RUNTIME dig-context flag (the Walker held a block-break this frame); NOT persisted, NOT in MCP schema. Read by AutoSwim so the in-process drowning backstop yields to an active dig while air is healthy (2026-07-21 live: deep-ascent had NO air gate and fought every underwater dig from full lungs, resetting destroyProgress each bob).
 
     /** Walker sneak-brake guard: while walking, if a LETHAL drop (fall deeper than
@@ -2350,6 +2351,12 @@ public final class BotConfig {
      *  error closes. Default ON; the gametest baseline pins it OFF like every other walker flag. */
     public static volatile boolean walkerOrbitBreaksAimLag = true;
 
+    /** Cruise open water in vanilla's prone sprint-swim: dip for the pose, then sprint with a slight
+     *  look-up, bobbing up to breathe. The held surface jump had kept the head out, so the sprint was
+     *  cancelled every tick and the body treaded at ~2 blocks/s. See docs/water-model.md.
+     *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
+    public static volatile boolean walkerSurfaceSprintSwim = true;
+
     /** FLOATING +1 water-bank climb-out freeze (live #47 2026-06-28, journey#1 replay-0023 dominant
      *  residual: -646,63 bank ~23.5s churn). A buoyant bot floating at a +1 water bank (node y64) bobs
      *  y62.7(water)↔63.65(air) every 2-3 t, onGround NEVER true, doing stepUp but XZ frozen. ALL three
@@ -2827,7 +2834,7 @@ public final class BotConfig {
      *  a per-frame flee-context flag (set true by RunAwayProcess.tick, reset each
      *  clientTick) — if saved it would reload {@code true} and wrongly boost every
      *  goto's terrain cost. Keep this in sync with any other transient scalar. */
-    private static final Set<String> NON_PERSISTED = Set.of("fleeActive", "walkerDigActive", "pathfinderBoxedEscalate");
+    private static final Set<String> NON_PERSISTED = Set.of("fleeActive", "walkerDigActive", "walkerCruiseActive", "pathfinderBoxedEscalate");
 
     /** A static, non-final field of a scalar type (or the hazard-block Set) — the
      *  set we round-trip. Arrays (avoidZones), runtime-only flags ({@link
@@ -2965,6 +2972,7 @@ public final class BotConfig {
         walkerShallowWaterSideFoothold = false;
         walkerClimbOutResyncsAim = false;
         walkerOrbitBreaksAimLag = false;
+        walkerSurfaceSprintSwim = false;
         walkerFutileBankDigRelease = false;
         walkerBankDigForwardExit = false;
         walkerFloatingBankBobFreeze = false;

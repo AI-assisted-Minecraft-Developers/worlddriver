@@ -752,7 +752,9 @@ final class WalkerTickClimb {
                 while (surfY > foot.getY() - 3 && !world.isWater(new BlockPos(foot.getX(), surfY, foot.getZ()))) surfY--;
                 surfaceClimbIntent = cwp.getY() >= surfY;
             }
-            boolean wantClimbNow = edge != null
+            // The surface cruise's dip sinks the foot under its (water) node on purpose; that is not a
+            // climb-out, and this takeover's jump + sprint cancel would undo the pose every stroke.
+            boolean wantClimbNow = edge != null && !wk.driveLatch.cruiseOn
                     && ((cwp.getY() > foot.getY() && climbTargetBeside) || floatingBankRam || surfaceClimbIntent);
             if (touchingWater) wk.waterClimb.touchRecent = WATER_TOUCH_STICKY;
             else if (wk.waterClimb.touchRecent > 0) wk.waterClimb.touchRecent--;

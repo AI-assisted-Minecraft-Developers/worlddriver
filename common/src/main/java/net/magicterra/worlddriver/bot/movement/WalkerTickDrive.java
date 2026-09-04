@@ -111,6 +111,111 @@ final class WalkerTickDrive {
                 && wk.step == wk.path.size() - 1 && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
     }
 
+    /** The surface sprint-swim cruise's verdict for this tick: {@code on} suppresses the surface
+     *  jump and forces sprint, {@code dip} sneaks the body under (for the pose, then through the
+     *  server-confirm hold), {@code swimming} is the pose; swimming without dip holds the jump that
+     *  keeps the prone eyes at the waterline. */
+    record Cruise(boolean on, boolean dip, boolean swimming, boolean jump) {
+        static final Cruise OFF = new Cruise(false, false, false, false);
+    }
+
+    /** SURFACE SPRINT-SWIM CRUISE ({@link BotConfig#walkerSurfaceSprintSwim}). Vanilla accepts a sprint in
+     *  water only while the eyes are under ({@code LocalPlayer.aiStep}) and keeps it once the SWIMMING pose
+     *  is on; the pose itself starts only from sprint + eyes under ({@code Entity.updateSwimming}). The
+     *  surface bob's held jump keeps the head out, so the sprint the drive asks for every tick was cancelled
+     *  before travel and the body treaded at ~2 blocks/s. Over deep water with no bank within reach: release
+     *  the jump and sneak-sink until the eyes go under, hold sprint, keep sinking for CRUISE_CONFIRM_TICKS
+     *  once the pose is on (the server's flag sync lags; see WalkerConstants), then hold the jump: vanilla's
+     *  jumpInLiquid lifts the prone body until the water over the feet is shallower than 0.4, i.e. the eyes
+     *  at the waterline. A breath latch bobs the body up when the air still runs low and rejoins once it
+     *  has refilled; a dip that never gets the pose backs off for a while. */
+    private static Cruise surfaceCruise(Walker wk, WorldView world, Player p, Avatar a, BlockPos foot, BlockPos wp,
+                                        boolean diving, boolean diveUnderCap) {
+        Cruise c = cruiseVerdict(wk, world, p, a, foot, wp, diving, diveUnderCap);
+        BotConfig.walkerCruiseActive = c.on();   // AutoSwim's drowning backstop yields to it (per-tick reset in BotApiImpl)
+        return c;
+    }
+
+    private static Cruise cruiseVerdict(Walker wk, WorldView world, Player p, Avatar a, BlockPos foot, BlockPos wp,
+                                        boolean diving, boolean diveUnderCap) {
+        Walker.DriveLatches l = wk.driveLatch;
+        double wdx = wp.getX() + 0.5 - p.getX(), wdz = wp.getZ() + 0.5 - p.getZ();
+        // A node straight above a cruising body is the swimUp a fresh plan puts over a sunk foot:
+        // the pose surfaces on its own, so read the node after it. Uncommitted, it is a rise.
+        if (wdx * wdx + wdz * wdz < 1.0 && l.cruiseOn && wk.path != null && wk.step + 1 < wk.path.size()) {
+            wp = wk.path.get(wk.step + 1);
+            wdx = wp.getX() + 0.5 - p.getX();
+            wdz = wp.getZ() + 0.5 - p.getZ();
+        }
+        // A surface cell one step or more away, over deep water, nothing solid overhead. The dip
+        // sinks the foot to two cells under the surface node before the eyes go under (standing
+        // eye height 1.62 against a 0.89 surface), so an engaged cruise tolerates that.
+        int dy = wp.getY() - foot.getY();
+        boolean surfaceNode = p.isInWater() && !diving && !diveUnderCap && !p.onGround()
+                && world.isWater(wp) && !world.isWater(wp.above()) && dy >= -1 && dy <= (l.cruiseOn ? 3 : 1)
+                && wdx * wdx + wdz * wdz >= 1.0
+                && world.isWater(foot.below()) && !world.isSolid(foot.offset(0, 2, 0));
+        // Engage only from the surface (eyes out): a body still rising from a sunken start keeps
+        // its swim-up; once engaged the dip takes the eyes under on purpose.
+        if (!BotConfig.walkerSurfaceSprintSwim || !surfaceNode || wk.path == null
+                || (!l.cruiseOn && p.isUnderWater())) {
+            if (BotConfig.walkerDebug && l.cruiseOn)
+                LOG.info("[walker] surface cruise: off — node {} dy={} lat2={} inW={} onG={} diving={} deepBelow={} capped={} pos=({},{},{})",
+                        wp.toShortString(), dy, String.format("%.1f", wdx * wdx + wdz * wdz), p.isInWater(), p.onGround(),
+                        diving, world.isWater(foot.below()), world.isSolid(foot.offset(0, 2, 0)),
+                        String.format("%.2f", p.getX()), String.format("%.2f", p.getY()), String.format("%.2f", p.getZ()));
+            l.cruiseDipTicks = 0;
+            l.cruiseSwimTicks = 0;
+            l.cruiseOn = false;
+            return Cruise.OFF;
+        }
+        if (l.cruiseCooldown > 0) { l.cruiseCooldown--; l.cruiseOn = false; return Cruise.OFF; }
+        if (p.getAirSupply() < CRUISE_AIR_LOW && !l.cruiseBreath) {
+            l.cruiseBreath = true;
+            if (BotConfig.walkerDebug) LOG.info("[walker] surface cruise: air {} — bobbing up to breathe", p.getAirSupply());
+        } else if (p.getAirSupply() >= CRUISE_AIR_OK) {
+            l.cruiseBreath = false;
+        }
+        if (l.cruiseBreath) { l.cruiseOn = false; return Cruise.OFF; }
+        // A bank ahead: the climb-out needs the upright pose and the surface bob, so hand over early.
+        for (int i = wk.step, n = Math.min(wk.path.size(), wk.step + CRUISE_LOOKAHEAD); i < n; i++) {
+            BlockPos node = wk.path.get(i);
+            if (world.isWater(node)) continue;
+            double dx = node.getX() + 0.5 - p.getX(), dz = node.getZ() + 0.5 - p.getZ();
+            if (dx * dx + dz * dz < CRUISE_BANK_DIST_SQ) { l.cruiseOn = false; return Cruise.OFF; }
+            break;
+        }
+        l.cruiseOn = true;
+        boolean swimming = p.isSwimming();
+        if (BotConfig.walkerDebug && (swimming != (l.cruiseSwimTicks > 0) || p.tickCount % 20 == 0))
+            LOG.info("[walker] surface cruise: {} step={}/{} seg={} y={} vy={} pitch={} yaw={} sprint={} eyesUnder={} air={} dip={} swimT={} pose={} inW={} onG={} fwd={} sneak={} jump={} food={} using={} drive[{}]",
+                    swimming ? "swimming" : "dipping", wk.step, wk.path.size(), wk.arc.proj.segIdx, String.format("%.2f", p.getY()),
+                    String.format("%.3f", p.getDeltaMovement().y), String.format("%.0f", p.getXRot()), String.format("%.0f", p.getYRot()),
+                    p.isSprinting(), p.isUnderWater(), p.getAirSupply(), l.cruiseDipTicks, l.cruiseSwimTicks, p.getPose(), p.isInWater(),
+                    p.onGround(), a.dbgForwardImpulse(), a.dbgSneak(), a.dbgJumping(), p.getFoodData().getFoodLevel(), p.isUsingItem(), wk.driveTag);
+        if (swimming) {
+            l.cruiseDipTicks = 0;
+            l.cruiseSwimTicks++;
+        } else if (++l.cruiseDipTicks > CRUISE_DIP_MAX_TICKS) {
+            // The body would not go under, or the pose was refused: bob as before for a while.
+            l.cruiseDipTicks = 0;
+            l.cruiseCooldown = CRUISE_COOLDOWN_TICKS;
+            l.cruiseOn = false;
+            if (BotConfig.walkerDebug) LOG.info("[walker] surface cruise: no swim pose after the dip — backing off");
+            return Cruise.OFF;
+        }
+        if (!swimming) l.cruiseSwimTicks = 0;
+        // Sneak a few ticks past the pose (deep enough for standing eyes to stay under), hover through the
+        // server-confirm window, then pulse the jump up to the waterline: a held jump (jumpInLiquid +0.04/tick
+        // against the sprint's 0.9 drag) launches the body clear out of the water, while a pulse coasts ~9× its
+        // vy. Deep under, pulse whenever the rise is slow; within the last 0.3 block, only from a standstill,
+        // so the coast ends with the prone eyes (0.4) just above the source block's 8/9 surface.
+        double eyeGap = wp.getY() + 0.889 - (p.getY() + 0.4), vy = p.getDeltaMovement().y;
+        boolean lift = swimming && l.cruiseSwimTicks > CRUISE_CONFIRM_TICKS && p.isUnderWater()
+                && (eyeGap > 0.3 ? vy < 0.05 : vy <= 0.005);
+        return new Cruise(true, !swimming || l.cruiseSwimTicks <= CRUISE_SINK_TICKS, swimming, lift);
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -957,7 +1062,8 @@ final class WalkerTickDrive {
                 && world.isWater(wp) && world.isWater(wp.above())
                 && wp.getY() <= foot.getY();
         boolean underwaterSink = underwaterDepthHold && wp.getY() < foot.getY();
-        Walker.avatarSneak(a, brakeSneak || diving || lavaBrake || underwaterSink);
+        Cruise cruise = surfaceCruise(wk, world, p, a, foot, wp, diving, diveUnderCap);
+        Walker.avatarSneak(a, brakeSneak || diving || lavaBrake || underwaterSink || cruise.dip());
         p.setShiftKeyDown(brakeSneak || lavaBrake);
         // Jump for a real upward step, a parkour-leap edge (by move type, not
         // raw distance — string-pulling makes plain walk waypoints far apart
@@ -1045,7 +1151,7 @@ final class WalkerTickDrive {
         // Jump a step only when a jump is actually needed (beyond auto-step) AND the
         // step is within reach (≤ maxJumpUp) — never bob-jump an unreachable height —
         // and, for the +1 cardinal case, only once Baritone-aligned.
-        boolean stepUpJump = needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady) && !pivotForStepUp;
+        boolean stepUpJump = needJumpForStep && upDy <= maxJumpUp && (!dryStepUp || ascendJumpReady) && !pivotForStepUp && !cruise.on();
         // Y-MISLABELED-RISER RAM (executor riser-detection). A* can emit an edge it labels a LEVEL
         // {@code walk} (the Move has dy=0) whose DESTINATION floor is actually +1 — a mislabeled
         // ridge step. The bot, told the ground is level, SPRINTS into it (a walk edge keeps sprint),
@@ -1160,7 +1266,7 @@ final class WalkerTickDrive {
                     // and every surface behavior keep their jump. —
                     // the bot hovered at constant depth (hSpd 0.02, jump+sneak both
                     // down) while the burst storm wound yaw 4.5 turns (mangrove live).
-                    || ((swimUp || swimColumn || deepWaterRise) && !cappedHead && !diving && !underwaterDepthHold) || wiggle);
+                    || ((swimUp || swimColumn || deepWaterRise) && !cappedHead && !diving && !underwaterDepthHold && !cruise.on()) || cruise.jump() || wiggle);   // a confirmed cruise holds jump: vanilla's jumpInLiquid keeps the prone eyes at the waterline
         // TEMP-DIAG (sunken-start deadlock): dump every jump term while submerged & stuck
         if (BotConfig.walkerDebug && p.isInWater() && p.isUnderWater() && wk.stuckTicks > 20 && wk.stuckTicks % 20 == 1) {
             LOG.info("[walker] JUMP-DIAG jump={} swimUp={} swimCol={} dwRise={} capped={} diving={} descBrake={} fbMis={} belowRam={} stepUpJump={} wiggle={} uwT={} wp={},{},{} foot={},{},{}",
@@ -1224,7 +1330,8 @@ final class WalkerTickDrive {
         // sprint ON to JUMP a diagonal; this drops it to stop drift). A/B vs the 292-pillar baseline.
         boolean diagAscent = !parkourEdge && !p.isInWater()
                 && wp.getX() != foot.getX() && wp.getZ() != foot.getZ() && wp.getY() > foot.getY();
-        boolean sprint = !bridging && !steppingOffFall && !steppingOffWaterFall && !diagAscent && !finalApproach(wk, p, wp, parkourEdge)
+        boolean sprint = (cruise.on() && !hazardAhead && !lowHpCareful)   // the cruise IS its sprint: only hazard and low HP outrank it (see surfaceCruise)
+                || !bridging && !steppingOffFall && !steppingOffWaterFall && !diagAscent && !finalApproach(wk, p, wp, parkourEdge)
                 && !lowHpCareful  // low-HP care: sprint is the drift amplifier behind every unplanned fall — at ≤lowHealthCareful HP walk everything (DEATH #3)
                 && !hazardAhead   // never carry sprint momentum INTO a lava/hazard cell — in water too (no sneak there, but dropping sprint kills the drift that pushed the swimmer in)
                 && !descendBrake && (!lethalNear || parkourEdge) && !steepDescentNear && !deepWaterDriftNear && !descentStepSkip && (!needJumpForStep || parkourAscend || sprintAscend)   // parkourEdge (was parkourAscend): a FLAT leap over an abyss is exactly the case parkourAscend excludes, and lethalNear is only ever true over an abyss — measured 0.1563→0.1400 (no impulse, fell in) vs 0.1232→0.2475 one cell back; narrowed to parkourEdge, NOT loosened to a blanket !lethalNear, so wd.bridgeLethalGapStop's walk-off lip still loses its sprint. Full evidence: this class's javadoc. !descentStepSkip: pointer ran ahead down the staircase (wp >maxDryFall below the grounded foot) — kill sprint so no residual momentum launches the body off the stair edge while sneak (brakeSneak) edge-guards it down. !lethalNear (not !edgeBrake): never sprint NEAR a lethal edge — incl. a planned descent past it — so no drift/overshoot momentum off the lip while sneak is released for the step-down. !deepWaterDriftNear: same, for a deep-water pocket bordering a descent/edge-walk (drift-in bob-stall). Baritone doesn't sprint a jumped CARDINAL ascend (overshoots/bonks) but DOES sprint a parkour leap; a horse auto-walk-up keeps sprint

@@ -72,7 +72,7 @@ final class WalkerTickStallDetect {
         //     the walk and the result is ready to splice the instant we arrive.
         //     Adoption is DEFERRED to the segment end (see below) so the new path
         //     always starts where the bot will be — no backward yaw flip.
-        boolean offPath = wk.path != null && wk.step < wk.path.size() && wk.path.get(wk.step).distSqr(foot) > 9;
+        boolean offPath = offPath(wk, foot);
         // Jitter-immune wedge: stuck on a node the Walker can't complete (e.g. a
         // ground-blocked fallN). An edge that's legitimately BREAKING blocks gets a
         // far longer leash: bare-handed stone takes ~150 ticks/block — well past
@@ -415,5 +415,17 @@ final class WalkerTickStallDetect {
         cx.stall.fellOffPath = fellOffPath;
         cx.stall.fellBelowRoute = fellBelowRoute;
         return null;
+    }
+
+    /** More than 3 cells from the tracked node. A surface sprint-swim cruise rides 1-3 cells UNDER its
+     *  surface nodes on purpose (WalkerTickDrive.surfaceCruise), which the 3D distance read as off-path
+     *  every few blocks; the replan then started with a swim-up chain from the sunk foot and broke the
+     *  cruise. Under the cruise the distance is horizontal. */
+    private static boolean offPath(Walker wk, BlockPos foot) {
+        if (wk.path == null || wk.step >= wk.path.size()) return false;
+        BlockPos node = wk.path.get(wk.step);
+        if (!wk.driveLatch.cruiseOn) return node.distSqr(foot) > 9;
+        int dx = node.getX() - foot.getX(), dz = node.getZ() - foot.getZ();
+        return dx * dx + dz * dz > 9;
     }
 }

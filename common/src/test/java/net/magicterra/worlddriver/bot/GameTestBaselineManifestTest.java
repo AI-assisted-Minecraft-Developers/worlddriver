@@ -97,6 +97,7 @@ class GameTestBaselineManifestTest {
             e("walkerShallowWaterSideFoothold", "afloat in one-deep water the pillar takeover places its first rung beside the body"),
             e("walkerClimbOutResyncsAim", "topping out of a water climb-out resets the aim's low-pass state"),
             e("walkerOrbitBreaksAimLag", "a sustained mid-range heading error on dry land switches the aim EMA to the cruise alpha"),
+            e("walkerSurfaceSprintSwim", "open water is crossed in the prone sprint-swim pose"),
             e("walkerFutileBankDigRelease", "§78 — early-release a provably futile block-less bank dig"),
             e("walkerBankDigForwardExit", "§78 — forward-hemisphere guard on bank-dig riser selection"),
             e("walkerFloatingBankBobFreeze", "§78 — floating +1 water-bank climb-out freeze"),
@@ -185,10 +186,10 @@ class GameTestBaselineManifestTest {
      * Named here so that "missing from the universe" is a decision too — a new flag that lands in
      * NON_PERSISTED would otherwise slip past this test entirely.
      *
-     * <p>All three happen to be booleans; the assertion below does not assume that.
+     * <p>All four happen to be booleans; the assertion below does not assume that.
      */
     private static final Set<String> RUNTIME_ONLY = Set.of(
-            "fleeActive", "walkerDigActive", "pathfinderBoxedEscalate");
+            "fleeActive", "walkerDigActive", "walkerCruiseActive", "pathfinderBoxedEscalate");
 
     // ------------------------------------------------------------------ the assertions
 

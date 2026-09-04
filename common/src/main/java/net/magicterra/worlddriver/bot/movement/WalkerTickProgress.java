@@ -751,9 +751,16 @@ final class WalkerTickProgress {
             boolean floatOverSubmerged = p.isInWater() && dyNode < -0.5 && dyNode > floatOverFloor
                     && (!diveEdge || wk.stepProg.noStepProgressTicks > WATER_DESCEND_GIVEUP);
             boolean unclimbedUnderOverhead = unclimbedUnderOverhead(wk, foot, w);
+            // A surface sprint-swim cruise (WalkerTickDrive.surfaceCruise) rides 1-2 blocks UNDER its
+            // surface nodes on purpose, so the vertical gates here and in `passed` read every node as an
+            // unclimbed rise and the pointer only crawls after the arc projection — one node BEHIND the
+            // body, whose bearing then drives it backward (the impulse goes negative and vanilla drops
+            // the sprint for "no forward impulse"). Under the cruise, reach is horizontal: the body is
+            // at the surface for every purpose the gates protect.
+            boolean cruiseUnder = wk.driveLatch.cruiseOn && p.isInWater() && dyNode > 0 && dyNode <= 3.0;
             boolean within = cur2 < REACH_DIST_SQ
-                    && (Math.abs(dyNode) < 1.2 || floatOverSubmerged)
-                    && !(p.isInWater() && dyNode > 0.5)
+                    && (Math.abs(dyNode) < 1.2 || floatOverSubmerged || cruiseUnder)
+                    && !(p.isInWater() && dyNode > 0.5 && !cruiseUnder)
                     && !unclimbedUnderOverhead;
             // Pure-pursuit re-sync: also advance past a node we've already gone
             // by — the next node being closer than this one means the player is
@@ -820,11 +827,12 @@ final class WalkerTickProgress {
                 boolean droppedPastDescend = !p.isInWater()
                         && w.getY() - p.getY() >= 1.5
                         && nx.getY() <= w.getY();
+                boolean cruisePassed = cruiseUnder && nx.getY() <= w.getY();   // the next surface node is no higher: see cruiseUnder at `within`
                 passed = (overshot ? nd2 <= cur2 : nd2 < cur2)
-                        && (Math.abs(w.getY() - p.getY()) < 1.5 || droppedPastDescend)
-                        && Math.abs(nx.getY() - p.getY()) < 1.2
+                        && (Math.abs(w.getY() - p.getY()) < 1.5 || droppedPastDescend || cruisePassed)
+                        && (Math.abs(nx.getY() - p.getY()) < 1.2 || cruisePassed)
                         && !unclimbedUnderOverhead   // see the note at `within`
-                        && !(!overshot && p.isInWater() && nx.getY() - p.getY() > 0.5);
+                        && !(!overshot && p.isInWater() && nx.getY() - p.getY() > 0.5 && !cruisePassed);
             }
             // TAIL overshoot: the foot blew past the FINAL node of a best-effort
             // (sliced / progressive quick-start-stub) segment. There is no next
@@ -1115,7 +1123,7 @@ final class WalkerTickProgress {
                 // at the segment end until it does.
                 if (wk.replayMode || wk.seg.activeSearch == null
                         || (!wk.tryLandBeeline(world, foot, wk.goal)
-                            && !wk.tryQuickStart(world, foot, wk.goal) && !wk.tryWaterBeeline(world, foot, wk.goal))) {
+                            && !wk.tryWaterBeeline(world, foot, wk.goal) && !wk.tryQuickStart(world, foot, wk.goal))) {
                     Walker.avatarForward(a, false);
                     wk.avatarJump(a, false);
                     p.setSprinting(false);

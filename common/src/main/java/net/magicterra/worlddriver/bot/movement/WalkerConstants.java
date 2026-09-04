@@ -122,6 +122,26 @@ final class WalkerConstants {
      *  (wd.bridgeStepTwoBypassNoPlace: centroid east, plan north), but its body turns at corners
      *  and then stops; only a circling body keeps turning the same way. */
     public static final float ORBIT_WINDING_DEG = 180f;
+    /** Surface sprint-swim cruise (walkerSurfaceSprintSwim): how long the dip keeps sinking after the
+     *  pose appears so the server's lagging flag sync cannot knock it off (START_SPRINTING reaches the
+     *  server a tick after the client's flip; its next flush of the shared-flags byte carries its own,
+     *  still-off swim bit, and a body already back at the waterline then loses the sprint to
+     *  {@code LocalPlayer.aiStep}'s "in water, not under" cancel — so the eyes stay under at crouch
+     *  height until that flush has come and gone), the air band it breathes in, how far ahead a bank
+     *  ends the cruise, and how long a dip may try for the pose before backing off. The sink runs a few
+     *  ticks past the pose (0.36 block, standing eyes under), the hover lasts until the confirm tick. */
+    public static final int CRUISE_SINK_TICKS = 3;
+    public static final int CRUISE_CONFIRM_TICKS = 12;
+    public static final int CRUISE_AIR_LOW = 130;    // above AutoSwim's yield floor (drownEscapeAirThreshold + its reserve), so the cruise breathes before the backstop takes over
+    public static final int CRUISE_AIR_OK = 280;
+    public static final int CRUISE_LOOKAHEAD = 8;
+    public static final double CRUISE_BANK_DIST_SQ = 3.0 * 3.0;
+    public static final int CRUISE_DIP_MAX_TICKS = 40;
+    public static final int CRUISE_COOLDOWN_TICKS = 100;
+    /** Longest string-pulled edge over water (cells). The off-path test is a 3-block cell distance
+     *  that counts the sunk foot's extra y, so two cells keeps a cruising body on its path and
+     *  passes a node every few strokes. */
+    public static final int WATER_PULL_SPAN = 2;
     public static final float WATER_DRIVE_ALPHA = 0.3f;   // EMA on the water drive heading (damps ±180° node flip)
     /** Max one-tick turn (deg) the flat-water DRIVE heading will chase. A real swim turn — even the
      *  carrot rounding a corner — moves the heading gradually; a SUDDEN ±180° jump is a transient

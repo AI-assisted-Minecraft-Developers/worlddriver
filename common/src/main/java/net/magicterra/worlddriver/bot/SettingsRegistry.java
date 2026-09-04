@@ -203,6 +203,7 @@ public final class SettingsRegistry {
         field("walkerShallowWaterSideFoothold"),
         field("walkerClimbOutResyncsAim"),
         field("walkerOrbitBreaksAimLag"),
+        field("walkerSurfaceSprintSwim"),
         field("walkerFloatingBankBobFreeze"),
         field("walkerFloatingBankFollow"),
         field("walkerFasterChurnRepath"),

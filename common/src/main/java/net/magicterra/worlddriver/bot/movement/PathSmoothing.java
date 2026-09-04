@@ -79,9 +79,15 @@ public final class PathSmoothing {
                 continue;
             }
             int j = next;
+            // A surface swim keeps a node every few cells: the step pointer over water advances
+            // only by passing nodes (the buoyant body never closes the reach gate), so one long
+            // pulled edge reads as a wedge a hundred ticks in and the crossing is churned.
+            boolean afloat = w.isWater(path.get(i));
             while (j + 1 < path.size()
                     && plainFlatWalk(edges.get(j + 1))
                     && path.get(j + 1).getY() == path.get(i).getY()
+                    && (!afloat || Math.max(Math.abs(path.get(j + 1).getX() - path.get(i).getX()),
+                            Math.abs(path.get(j + 1).getZ() - path.get(i).getZ())) <= WalkerConstants.WATER_PULL_SPAN)
                     // Only straighten genuinely AXIS-ALIGNED corridors (the merged
                     // segment shares an x or z with the start). Collapsing a zigzag
                     // into a multi-block DIAGONAL fabricates a long corner-cut the

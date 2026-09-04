@@ -530,6 +530,11 @@ public final class Walker {
         int climbPressConsec = 0;                   // consecutive ticks the buoyant-climb-press raw condition has held (debounces the surface-bob false trigger)
         int descentDriveRejectStreak = 0;           // consecutive back-hop rejections on a dry diagDown slope (escape-hatch snaps to the real node after WATER_DRIVE_MAX_REJECT)
         int underwaterTicks;                        // consecutive eyes-under ticks → debounces the swim-up jump (surface bob ≠ sinking)
+        boolean cruiseOn;                           // surface cruise engaged last tick (entry needs the eyes out; the dip then takes them under on purpose)
+        boolean cruiseBreath;                       // surface cruise: air ran low → bob and breathe until it refills (hysteresis, see WalkerTickDrive.surfaceCruise)
+        int cruiseSwimTicks;                        // surface cruise: consecutive ticks in the swim pose (0 = not swimming; log edge + the server-confirm hold)
+        int cruiseDipTicks;                         // surface cruise: ticks spent sinking for the pose without getting it → past CRUISE_DIP_MAX_TICKS the cruise backs off
+        int cruiseCooldown;                         // surface cruise: ticks left in that back-off
         boolean lavaBrakeLogged;                    // edge-trigger for the hazard-ahead brake's log line: that brake can hold for every tick of a legitimate lava-side passage, so it prints once per engagement rather than once per tick. Not cleared by reset() — it is a log latch, not a drive latch, and a repath mid-passage should not re-announce the same creep
         void reset() {
             deepWaterDriftLatch = 0;
@@ -2550,15 +2555,23 @@ public final class Walker {
      *  keeps swimming smoothly while the big search lands and supersedes it. A greedy
      *  local minimum is harmless: the stub is a stopgap, replaced the instant the real
      *  path arrives; it only ever drives the bot over open water it could swim anyway.
-     *  Gated to a body of water under the feet. @return true if a bee-line was adopted. */
+     *  Gated to a body of water under the feet. Tried BEFORE {@link #tryQuickStart} in water:
+     *  under the surface water model the quick search succeeds there, and its first node
+     *  follows the bob (a swimUp when the foot is sunk, a stepDown when it rides high), so
+     *  each adoption re-aimed the jump/sneak and the crossing became a piston. The march
+     *  starts from the SURFACE cell of the foot's column, whichever way the bob has the
+     *  foot at this tick. @return true if a bee-line was adopted. */
     boolean tryWaterBeeline(WorldView world, BlockPos foot, Goal goal) {
         if (!world.isWater(foot)) return false;
+        BlockPos surface = isOpenSurfaceWater(world, foot) ? foot
+                : isOpenSurfaceWater(world, foot.above()) ? foot.above()
+                : isOpenSurfaceWater(world, foot.below()) ? foot.below() : foot;
         List<BlockPos> path = new ArrayList<>();
         List<Move.Edge> edges = new ArrayList<>();
-        path.add(foot);
+        path.add(surface);
         edges.add(null);                       // start node carries no inbound edge
-        BlockPos cur = foot;
-        double curEst = goal.estimate(foot);
+        BlockPos cur = surface;
+        double curEst = goal.estimate(surface);
         for (int i = 0; i < BEELINE_MAX_STEPS; i++) {
             BlockPos best = null;
             double bestEst = curEst;
