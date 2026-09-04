@@ -105,6 +105,13 @@ public final class PillarUp extends Move {
             };
             for (BlockPos n : sides) {
                 if (!w.isSolid(n)) continue;                  // open / plant-with-no-collision → no clip
+                // A WALL beside the body on that side means the body cannot be off-centre toward
+                // it: the box is stopped at the wall, so the rising head never sweeps that cell's
+                // column. In a 1×1 shaft all four sides are walls, and listing them priced one rung
+                // at 150 + 4 × 971 (bare-hand stone ×3), which is how wd.clientPillarOutOfShaft got
+                // a plan of dug notches and bridge placements instead of six rungs.
+                BlockPos wallFoot = from.offset(n.getX() - ceiling.getX(), 0, n.getZ() - ceiling.getZ());
+                if (w.isSolid(wallFoot) || w.isSolid(wallFoot.above())) continue;
                 double c = w.breakCost(n, from);
                 if (Double.isInfinite(c)) continue;           // solid wall we can't break → centred body clears it
                 toBreak.add(n);
