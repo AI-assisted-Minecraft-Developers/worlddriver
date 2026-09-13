@@ -38,7 +38,7 @@ final class JourneyHands {
      *
      * <p><b>Takes {@code Player}, not {@code ServerPlayer}, on purpose.</b> Every existing caller
      * passes {@code rig.player()} and still compiles, but the widening lets the SAME clip run over
-     * {@code rig.avatar().player()} — and comparing the two bodies' rays is the only way to tell a
+     * {@code rig.avatar().asPlayer()} — and comparing the two bodies' rays is the only way to tell a
      * pour whose server ray missed from a pour the server never held the bucket for. {@code Player}
      * is also the widest type that is safe to name here: {@code Avatar.player()} is declared to
      * return it precisely so that headless code never resolves {@code LocalPlayer}.
@@ -125,7 +125,7 @@ final class JourneyHands {
      * {@code handleMovePlayer} overwrites the server's POSITION every tick just as
      * {@code handleUseItem} adopts the packet's ANGLES above. So by the tick the use is processed the
      * server's eye has already followed the client's, and the line that fires is the CLIENT's own —
-     * eye and angles together. A gate must ray {@code rig.avatar().player()}; {@code rig.player()}'s
+     * eye and angles together. A gate must ray {@code rig.avatar().asPlayer()}; {@code rig.player()}'s
      * eye, read some ticks earlier, is a snapshot guaranteed to be stale by the use.
      *
      * <p>Measured, ladder5 rung 12 cell 4: the two bodies stood 0.06 blocks apart and their rays
@@ -293,7 +293,7 @@ final class JourneyHands {
         // server, and it arrives BEFORE the use — the very ordering that breaks this today is what
         // makes a single author correct. The test mirrors `ensureHolding`'s own condition
         // (`hotbarSlotOf < 0`) rather than guessing from the return value.
-        var acting = rig.avatar().player();
+        var acting = rig.avatar().asPlayer();
         boolean oneBody = acting == rig.player();
         boolean wouldSwapFromBag = !oneBody && acting != null
                 && acting.getMainHandItem().getItem() != item
@@ -348,7 +348,7 @@ final class JourneyHands {
      * "neither has it" want completely different next steps.
      */
     private static String stockOnBoth(JourneyRig rig, net.minecraft.world.item.Item item) {
-        var acting = rig.avatar().player();
+        var acting = rig.avatar().asPlayer();
         int onClient = 0;
         if (acting != null) {
             for (var stack : acting.getInventory().items) {
@@ -379,7 +379,7 @@ final class JourneyHands {
      * degrades to a repetition rather than a lie.
      */
     private static String actingHand(JourneyRig rig) {
-        var acting = rig.avatar().player();
+        var acting = rig.avatar().asPlayer();
         if (acting == null) return "";
         // THE SLOT NUMBER, not just the item — because two different failures print the same item
         // pair and want opposite fixes. `BotInteract.ensureHolding` has two branches: the hotbar one
@@ -428,7 +428,7 @@ final class JourneyHands {
      * the server reading.
      */
     static boolean actingHolds(JourneyRig rig, net.minecraft.world.item.Item item) {
-        var acting = rig.avatar().player();
+        var acting = rig.avatar().asPlayer();
         return acting != null && acting.getMainHandItem().getItem() == item;
     }
 
@@ -462,7 +462,7 @@ final class JourneyHands {
 
     /** What both bodies hold, for a failure message that has to name the thing that went wrong. */
     static String heldOnBoth(JourneyRig rig) {
-        var acting = rig.avatar().player();
+        var acting = rig.avatar().asPlayer();
         return "客户端 " + (acting == null ? "没有身体"
                         : "槽 " + acting.getInventory().selected + " = "
                           + BuiltInRegistries.ITEM.getKey(acting.getMainHandItem().getItem()))
@@ -494,7 +494,7 @@ final class JourneyHands {
      * differ exactly where this rung lives — over water and lava.
      */
     static void handsAtUse(JourneyRig rig, String tag) {
-        var client = rig.avatar().player();
+        var client = rig.avatar().asPlayer();
         var server = rig.player();
         rig.evidence(tag + ".atUse", client == server
                 ? "两半是同一个对象（无客户端拓扑）：" + oneBodyAtUse(server)
@@ -561,7 +561,7 @@ final class JourneyHands {
      */
     static void handTrace(JourneyRig rig, String tag, int tick) {
         String thread = Thread.currentThread().getName();
-        var client = rig.avatar().player();
+        var client = rig.avatar().asPlayer();
         var server = rig.player();
         String key = tag + ".handTrace.t" + tick;
         rig.evidence(key + ".client", oneHandAt(client, tick, thread,

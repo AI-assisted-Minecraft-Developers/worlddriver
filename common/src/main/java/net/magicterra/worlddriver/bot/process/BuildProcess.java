@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -55,7 +55,7 @@ public final class BuildProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
         // so staying silent here reports "finished, no error" rather than nothing at all.
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }

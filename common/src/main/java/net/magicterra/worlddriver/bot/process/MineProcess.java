@@ -252,7 +252,7 @@ public final class MineProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         if (p == null) { st.mine.lastError = "player vanished"; finish(st, null, null, "player vanished"); return true; }
         Level lvl = p.level();
         // Quota reached → switch to COLLECT instead of declaring done. The

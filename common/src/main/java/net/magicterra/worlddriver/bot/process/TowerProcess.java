@@ -107,7 +107,7 @@ public final class TowerProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         int feetY = (int) Math.floor(p.getY());
         if (startFeetY == Integer.MIN_VALUE) { startFeetY = feetY; lastApexFloorY = feetY; }
@@ -337,7 +337,7 @@ public final class TowerProcess implements BotProcess {
 
     /** @param reachIntoBag let a NAMED block be fetched from slots 9..35; see the overload's note. */
     public static boolean ensureHoldingPlaceable(Avatar a, String preferred, boolean reachIntoBag) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         if (p == null) return false;
         if (preferred != null) {
             return reachIntoBag ? HeldItem.holdByIdFromAnywhere(a, preferred)

@@ -2273,7 +2273,7 @@ public final class JourneyEndRungs {
             a.commandMove(0, 0);
             a.commandJump(false);
             a.breakHold(false);
-            Player p = a.player();
+            LivingEntity p = a.entity();
             if (p == null || !target.isAlive()) return true;
             double d = p.distanceTo(target);
             if (d < closest) closest = d;
@@ -2354,8 +2354,8 @@ public final class JourneyEndRungs {
             a.commandMove(0, 0);
             a.commandJump(false);
             a.breakHold(false);
-            Player p = a.player();
-            if (p == null) { why = "身体没了（a.player()==null）"; return true; }
+            Player p = a.asPlayer();
+            if (p == null) { why = "身体没了（a.asPlayer()==null）"; return true; }
             EnderDragon dragon = nearestDragon(p.level(), p.position());
             if (dragon != null && dragon.isDeadOrDying()) { why = "龙在死"; return true; }
             if (dragon == null) {

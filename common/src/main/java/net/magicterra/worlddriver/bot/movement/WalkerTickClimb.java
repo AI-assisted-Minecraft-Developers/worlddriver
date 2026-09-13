@@ -5,6 +5,7 @@ import net.magicterra.worlddriver.bot.pathfinder.BreakFeasibility;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.Direction;
 
@@ -74,7 +75,7 @@ final class WalkerTickClimb {
      * regressed {@code wd.waterLowBank}, because for that call site this predicate is not merely
      * stricter — it is unsatisfiable (see there).
      */
-    static boolean feetClearOf(Player p, BlockPos cell) {
+    static boolean feetClearOf(LivingEntity p, BlockPos cell) {
         return p.getY() >= cell.getY() + 1.0;
     }
 
@@ -103,7 +104,7 @@ final class WalkerTickClimb {
      * schedule. Before that ledger existed this gate had to be conservative to keep refusals from
      * laundering themselves into progress; it no longer does.
      */
-    static boolean crestClearOf(Player p, BlockPos cell) {
+    static boolean crestClearOf(LivingEntity p, BlockPos cell) {
         return p.getY() >= cell.getY() + CREST_CLEAR;
     }
 
@@ -126,7 +127,7 @@ final class WalkerTickClimb {
      * <p>Someone else filling the cell also counts, and should: the body is no worse off for not
      * having done it itself, and the next rung is what matters.
      */
-    private static void climboutPlaceTick(Walker wk, Avatar a, WorldView world, Player p,
+    private static void climboutPlaceTick(Walker wk, Avatar a, WorldView world, LivingEntity p,
                                           BlockPos fillCell, BlockPos foot, boolean dryGrounded) {
         boolean fcSolid = world.isSolid(fillCell);
         boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
@@ -205,7 +206,7 @@ final class WalkerTickClimb {
      * to a single call site inside a method named for the transition is the structural half of the
      * fix — a future "just refresh it each tick" has to go through this name first.
      */
-    private static void engagePillar(Walker wk, Player p, BlockPos foot, BlockPos cwp) {
+    private static void engagePillar(Walker wk, LivingEntity p, BlockPos foot, BlockPos cwp) {
         Walker.waterPillarEngages++;
         wk.waterClimb.colX = foot.getX();
         wk.waterClimb.colZ = foot.getZ();
@@ -232,7 +233,7 @@ final class WalkerTickClimb {
      * report when the tick is consumed, {@code null} when the takeover has let go and the caller's
      * ordinary actuators / bank-dig take the tick.
      */
-    private static Walker.Step pillarTakeoverTick(Walker wk, Avatar a, WorldView world, Player p,
+    private static Walker.Step pillarTakeoverTick(Walker wk, Avatar a, WorldView world, LivingEntity p,
                                                   BlockPos foot, BlockPos cwp, boolean wantClimbNow, boolean wantClimb) {
                 boolean haveBlock = BotConfig.allowSwimEscapePlace && a.holdPlaceable();
                 // Done when we've topped out onto DRY solid ground (grounded, clear of
@@ -341,7 +342,7 @@ final class WalkerTickClimb {
      * column, the fill cell chosen (surface cell afloat, the cell on the column's solid top when
      * dry), the side-foothold branch for one-deep water, the keys, and the click.
      */
-    private static Walker.Step pillarDriveTick(Walker wk, Avatar a, WorldView world, Player p,
+    private static Walker.Step pillarDriveTick(Walker wk, Avatar a, WorldView world, LivingEntity p,
                                                BlockPos foot, boolean dryGrounded) {
                 // Pin to the LOCKED bank heading + column; look down to aim the place.
                 p.setYRot(wk.waterClimb.yaw); p.yHeadRot = wk.waterClimb.yaw; p.yBodyRot = wk.waterClimb.yaw;
@@ -547,7 +548,7 @@ final class WalkerTickClimb {
      *
      * @return true when the caller must return {@link Walker.Step#WALKING} at once.
      */
-    private static boolean bailOnBreathInfeasibleDig(Walker wk, Avatar a, Player p, BlockPos b) {
+    private static boolean bailOnBreathInfeasibleDig(Walker wk, Avatar a, LivingEntity p, BlockPos b) {
         if (!breathInfeasibleDig(p, b)) return false;
         a.breakHold(false);
         BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
@@ -561,7 +562,7 @@ final class WalkerTickClimb {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
-        Player p = cx.frame.p;
+        LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 
@@ -1532,9 +1533,12 @@ final class WalkerTickClimb {
      *  through their own simplified fast path, so gating them on the vanilla
      *  estimate refused digs their executor completes easily (t0 wd.buoyantWall
      *  regression: bare-hand +5 stone wall the avatar mounts fine). */
-    static boolean breathInfeasibleDig(net.minecraft.world.entity.player.Player p, BlockPos b) {
-        if (!p.level().isClientSide()) return false;
-        float dmg = p.level().getBlockState(b).getDestroyProgress(p, p.level(), b);
+    static boolean breathInfeasibleDig(LivingEntity p, BlockPos b) {
+        // getDestroyProgress prices the dig for a Player's tool and stance; the client-only
+        // guard above already restricts this to the local player, so a non-player body falls
+        // through to the same "not estimated" answer a server body gets.
+        if (!p.level().isClientSide() || !(p instanceof Player pl)) return false;
+        float dmg = p.level().getBlockState(b).getDestroyProgress(pl, p.level(), b);
         if (dmg >= 1f) return false;                       // instant-mine — always fits
         if (dmg <= 0f) return true;                        // unbreakable from here
         // STANCE NORMALIZATION (2026-07-21 live, shoreline poison storm): the live

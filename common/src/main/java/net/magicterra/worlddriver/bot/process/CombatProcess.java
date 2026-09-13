@@ -105,7 +105,7 @@ public final class CombatProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         if (p == null || p.level() == null) { cleanup(a); return true; }
         ticks++;
 
@@ -420,7 +420,7 @@ public final class CombatProcess implements BotProcess {
     private void cleanup(Avatar a) {
         a.releaseInputs();
         a.commandUseItem(false);
-        Player p = a.player();
+        Player p = a.asPlayer();
         if (p != null && p.isUsingItem()) p.stopUsingItem();
     }
 }

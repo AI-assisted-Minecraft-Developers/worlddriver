@@ -1689,7 +1689,7 @@ public final class JourneyPortalRung {
                 // On a dedicated server `rig.avatar()` IS `rig.body().avatar()` (JourneyRig#avatar), so
                 // this argument is the same fake player the old line passed and the gate is unchanged
                 // there — the six-topology gate is what proves that, not this comment.
-                var hit = JourneyHands.aimedAt(rig.avatar().player(),
+                var hit = JourneyHands.aimedAt(rig.avatar().asPlayer(),
                         JourneyFill.BUCKET_REACH, false);
                 BlockPos lands = hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
@@ -1854,7 +1854,7 @@ public final class JourneyPortalRung {
                 // `BotConfig.allowPlace`, which is off from here down, so a repair launched from here
                 // could not place. Naming the failure beats running a fix that cannot work.
                 JourneyHands.aimBoth(rig, at);
-                var atUseHit = JourneyHands.aimedAt(rig.avatar().player(), JourneyFill.BUCKET_REACH, false);
+                var atUseHit = JourneyHands.aimedAt(rig.avatar().asPlayer(), JourneyFill.BUCKET_REACH, false);
                 BlockPos atUseLands = atUseHit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? atUseHit.getBlockPos().relative(atUseHit.getDirection()) : null;
                 rig.evidence(tag + ".atUseGate." + tries,

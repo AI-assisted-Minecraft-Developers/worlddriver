@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
@@ -46,7 +46,7 @@ public final class SleepProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) { st.mc_goto.lastError = "player vanished"; st.mc_goto.reset(); return true; }
         Level lvl = p.level();
 
@@ -114,7 +114,7 @@ public final class SleepProcess implements BotProcess {
         return false;
     }
 
-    private BlockPos scanNearestBed(Level lvl, Player p) {
+    private BlockPos scanNearestBed(Level lvl, LivingEntity p) {
         BlockPos foot = blockPosOf(p);
         int vr = Math.min(searchRadius, 8);
         long bestD2 = Long.MAX_VALUE;

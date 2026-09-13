@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.core.Direction;
 import net.minecraft.world.phys.Vec3;
 
@@ -93,7 +93,7 @@ final class WalkerTickDrive {
      * <p>Lives here rather than inline because {@code run} is on the source-budget grandfather list
      * and may only shrink — the same reason this class's other shared reasoning is up top.
      */
-    private static boolean atAnAdjacentNodeBelow(Player p, BlockPos wp, BlockPos foot) {
+    private static boolean atAnAdjacentNodeBelow(LivingEntity p, BlockPos wp, BlockPos foot) {
         if (!BotConfig.walkerNoLaunchAtAdjacentBelowNode) return false;
         if (!p.onGround() || wp.getY() >= foot.getY()) return false;
         return Math.hypot(wp.getX() + 0.5 - p.getX(), wp.getZ() + 0.5 - p.getZ())
@@ -105,7 +105,7 @@ final class WalkerTickDrive {
      * onto it from a diagonal passes wider than that (see WalkerTickAim's last-node note). Walk the
      * final two blocks; there is nothing after them to carry momentum into.
      */
-    private static boolean finalApproach(Walker wk, Player p, BlockPos wp, boolean parkourEdge) {
+    private static boolean finalApproach(Walker wk, LivingEntity p, BlockPos wp, boolean parkourEdge) {
         double dx = (wp.getX() + 0.5) - p.getX(), dz = (wp.getZ() + 0.5) - p.getZ();
         return BotConfig.walkerFinalNodeDirectAim && !p.isInWater() && !parkourEdge
                 && wk.step == wk.path.size() - 1 && dx * dx + dz * dz < FINAL_APPROACH_WALK_SQ;
@@ -129,14 +129,14 @@ final class WalkerTickDrive {
      *  jumpInLiquid lifts the prone body until the water over the feet is shallower than 0.4, i.e. the eyes
      *  at the waterline. A breath latch bobs the body up when the air still runs low and rejoins once it
      *  has refilled; a dip that never gets the pose backs off for a while. */
-    private static Cruise surfaceCruise(Walker wk, WorldView world, Player p, Avatar a, BlockPos foot, BlockPos wp,
+    private static Cruise surfaceCruise(Walker wk, WorldView world, LivingEntity p, Avatar a, BlockPos foot, BlockPos wp,
                                         boolean diving, boolean diveUnderCap) {
         Cruise c = cruiseVerdict(wk, world, p, a, foot, wp, diving, diveUnderCap);
         BotConfig.walkerCruiseActive = c.on();   // AutoSwim's drowning backstop yields to it (per-tick reset in BotApiImpl)
         return c;
     }
 
-    private static Cruise cruiseVerdict(Walker wk, WorldView world, Player p, Avatar a, BlockPos foot, BlockPos wp,
+    private static Cruise cruiseVerdict(Walker wk, WorldView world, LivingEntity p, Avatar a, BlockPos foot, BlockPos wp,
                                         boolean diving, boolean diveUnderCap) {
         Walker.DriveLatches l = wk.driveLatch;
         double wdx = wp.getX() + 0.5 - p.getX(), wdz = wp.getZ() + 0.5 - p.getZ();
@@ -192,7 +192,8 @@ final class WalkerTickDrive {
                     swimming ? "swimming" : "dipping", wk.step, wk.path.size(), wk.arc.proj.segIdx, String.format("%.2f", p.getY()),
                     String.format("%.3f", p.getDeltaMovement().y), String.format("%.0f", p.getXRot()), String.format("%.0f", p.getYRot()),
                     p.isSprinting(), p.isUnderWater(), p.getAirSupply(), l.cruiseDipTicks, l.cruiseSwimTicks, p.getPose(), p.isInWater(),
-                    p.onGround(), a.dbgForwardImpulse(), a.dbgSneak(), a.dbgJumping(), p.getFoodData().getFoodLevel(), p.isUsingItem(), wk.driveTag);
+                    p.onGround(), a.dbgForwardImpulse(), a.dbgSneak(), a.dbgJumping(),
+                    a.asPlayer() == null ? -1 : a.asPlayer().getFoodData().getFoodLevel(), p.isUsingItem(), wk.driveTag);
         if (swimming) {
             l.cruiseDipTicks = 0;
             l.cruiseSwimTicks++;
@@ -219,7 +220,7 @@ final class WalkerTickDrive {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
-        Player p = cx.frame.p;
+        LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         boolean breakingEdge = cx.stall.breakingEdge;
         Move.Edge edge = cx.edges.edge;
@@ -1491,7 +1492,7 @@ final class WalkerTickDrive {
      * <p>A helper rather than five lines inline because {@code run()} is grandfathered at 1262 lines
      * and may shrink, not grow.
      */
-    private static boolean vetoJumpOnAGraze(Walker wk, WorldView world, Player p, boolean parkour) {
+    private static boolean vetoJumpOnAGraze(Walker wk, WorldView world, LivingEntity p, boolean parkour) {
         if (Walker.grazingBesideTheVoid(world, p)) {
             wk.jumpTag = "被虚空脚感否决";
             return true;
@@ -1537,7 +1538,7 @@ final class WalkerTickDrive {
      *
      * @return a terminal {@code FAILED} step to return from {@code run()}, or null to carry on
      */
-    private static Walker.Step noteDeadZone(Walker wk, Player p, BlockPos foot, Move.Edge edge) {
+    private static Walker.Step noteDeadZone(Walker wk, LivingEntity p, BlockPos foot, Move.Edge edge) {
         wk.forceFellOffPath = true;
         BlockPos node = wk.path.get(wk.step);
         if (foot.equals(wk.searchGov.deadZoneFoot) && node.equals(wk.searchGov.deadZoneNode)) {
@@ -1590,7 +1591,7 @@ final class WalkerTickDrive {
      * "sprint" zero times, which made that question unanswerable rather than answered no.
      */
     private static void announceLavaBrake(Walker wk, boolean lavaBrake, BlockPos foot,
-                                          BlockPos hazard, BlockPos wp, Player p) {
+                                          BlockPos hazard, BlockPos wp, LivingEntity p) {
         if (lavaBrake && !wk.driveLatch.lavaBrakeLogged)
             // BODY and HAZARD as two named cells, plus the two numbers that decide whether the
             // sneak can hold: speed (sneak still creeps ~0.9 b/s, so「braked」is not「stopped」)

@@ -20,7 +20,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Blocks;
 
@@ -394,7 +394,7 @@ public final class JourneyPortalEntry {
 
         @Override
         public boolean tick(Avatar a, WorldView w, BotState st) {
-            Player p = a.player();
+            LivingEntity p = a.entity();
             if (p != null && p.level().getBlockState(p.blockPosition()).is(Blocks.NETHER_PORTAL)) {
                 // In. Stop pushing at once — the hold that follows is what re-arms vanilla's
                 // one-tick portal flag, and a body still walking would drift out of the column it

@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.bot.pathfinder.modifiers.LeashAnchor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
@@ -125,7 +125,7 @@ public final class IntentProcess implements BotProcess {
      *  or a server FakePlayer (ServerWorldDriver) identically — pure movement, so
      *  it just hands the Walker the same Avatar. */
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player body = a.player();
+        LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
         if (here != null) {
             if (plannedIn == null) plannedIn = here;
@@ -139,7 +139,7 @@ public final class IntentProcess implements BotProcess {
                 // the cost being rate-limited. (Un-latched lastAnchor==null still scans every
                 // tick via the OR, so we latch onto a late-appearing anchor promptly.)
                 ticksSinceAnchorSolve = 0;
-                Player self = a.player();
+                LivingEntity self = a.entity();
                 Entity anchor = (self != null) ? EntityFind.nearest(self.level(), self, el.entity()) : null;
                 if (anchor != null) {
                     BlockPos ab = anchor.blockPosition();

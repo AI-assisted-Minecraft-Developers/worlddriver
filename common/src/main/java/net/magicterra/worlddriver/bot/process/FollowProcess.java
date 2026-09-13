@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -57,7 +57,7 @@ public final class FollowProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         // Stamped for the same reason BackfillProcess/BuildProcess stamp theirs: `ProcessSlot
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
         // unstamped exit is not silence — it is the POSITIVE report "finished, no error". Every
@@ -120,7 +120,7 @@ public final class FollowProcess implements BotProcess {
 
     /** Point head+body yaw and pitch at the entity's mid-height, via
      *  {@link #smoothAngle} so it honors the smoothLook toggle. */
-    private static void aimAtEntity(Player p, Entity e) {
+    private static void aimAtEntity(LivingEntity p, Entity e) {
         Vec3 eye = p.getEyePosition();
         double dx = e.getX() - eye.x;
         double dy = (e.getY() + e.getBbHeight() * 0.5) - eye.y;
@@ -132,7 +132,7 @@ public final class FollowProcess implements BotProcess {
         p.setYRot(ny); p.yHeadRot = ny; p.yBodyRot = ny; p.setXRot(np);
     }
 
-    private Entity findTarget(Level lvl, Player self) {
+    private Entity findTarget(Level lvl, LivingEntity self) {
         double bestDist = Double.POSITIVE_INFINITY;
         Entity best = null;
         // Level.getEntities (EntityGetter) works on BOTH ClientLevel and ServerLevel,

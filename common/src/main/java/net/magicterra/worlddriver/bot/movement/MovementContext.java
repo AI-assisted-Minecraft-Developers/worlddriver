@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.movement;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 /** Per-delegated-tick bundle handed to {@link AscendMovement}. Constructed ONCE per delegated tick
  *  from live Walker state; the machine retains no reference across ticks except its own owned
@@ -14,7 +14,7 @@ public final class MovementContext {
      *  allocates a context. Volatile because gametest threads read it. */
     public static volatile long ALLOC_COUNT = 0;
 
-    public final Player p;             // pose/velocity: getX/Y/Z, getDeltaMovement, onGround, horizontalCollision, isInWater
+    public final LivingEntity p;       // pose/velocity: getX/Y/Z, getDeltaMovement, onGround, horizontalCollision, isInWater
     public final WorldView world;      // isSolid/isPassable/isHazard for the BREAK phase (mirrors StairUpBreak.eval)
     public final Avatar avatar;        // selectTool/aimAtBlock/breakHold/placeOn/holdPillarBlock + commandForward/Jump/Sneak
     public final Move.Edge edge;       // current edge: to (stand cell), toBreak, toPlace, move name
@@ -26,7 +26,7 @@ public final class MovementContext {
     public final BlockPos prevNode2;   // path.get(step-2) or null — chainAscend peek
     public final boolean digging;      // Walker's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog exemption, #66: bare-hand stone is 150t+/block)
 
-    public MovementContext(Player p, WorldView world, Avatar avatar, Move.Edge edge,
+    public MovementContext(LivingEntity p, WorldView world, Avatar avatar, Move.Edge edge,
                            BlockPos foot, BlockPos node, int maxJumpUp, int maxStepUp,
                            BlockPos prevNode, BlockPos prevNode2, boolean digging) {
         ALLOC_COUNT++;

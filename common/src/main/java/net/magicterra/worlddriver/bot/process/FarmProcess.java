@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -67,7 +67,7 @@ public final class FarmProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         Level lvl = p.level();
 
@@ -179,7 +179,7 @@ public final class FarmProcess implements BotProcess {
     }
 
     /** Scan the bbox for the nearest mature, in-filter, reachable crop. */
-    private BlockPos[] scanNextMature(Level lvl, Player p) {
+    private BlockPos[] scanNextMature(Level lvl, LivingEntity p) {
         if (p == null) return null;
         BlockPos foot = blockPosOf(p);
         BlockPos bestCrop = null, bestStand = null;

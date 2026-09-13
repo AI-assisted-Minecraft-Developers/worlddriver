@@ -30,7 +30,7 @@ public final class ClientPlayerAvatar implements Avatar {
 
     private AvatarInput ai() { return p.input instanceof AvatarInput a ? a : null; }
 
-    @Override public Player player() { return p; }
+    @Override public LocalPlayer entity() { return p; }
 
     @Override public void commandMove(float left, float forward) { AvatarInput a = ai(); if (a != null) a.commandMove(left, forward); }
     @Override public void commandForward(float forward) { AvatarInput a = ai(); if (a != null) a.commandForward(forward); }

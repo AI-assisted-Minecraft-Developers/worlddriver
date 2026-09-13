@@ -67,7 +67,7 @@ final class HeldItem {
     /** Put the item whose registry id is {@code itemId} in the main hand; false if it is not
      *  anywhere this scan can reach (see the class note — survival stops at hotbar slot 8). */
     static boolean holdById(Avatar a, String itemId) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         if (p == null) return false;
         Inventory inv = p.getInventory();
         if (matches(inv.getSelected(), itemId)) return true;
@@ -104,7 +104,7 @@ final class HeldItem {
      * the verb is not allowed to have by default.
      */
     static boolean holdByIdFromAnywhere(Avatar a, String itemId) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         if (p == null) return false;
         if (holdById(a, itemId)) return true;
         ResourceLocation id = ResourceLocation.tryParse(itemId);

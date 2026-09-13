@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.movement.PathSmoothing.*;
@@ -29,7 +29,7 @@ final class WalkerTickStallDetect {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
-        Player p = cx.frame.p;
+        LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
 

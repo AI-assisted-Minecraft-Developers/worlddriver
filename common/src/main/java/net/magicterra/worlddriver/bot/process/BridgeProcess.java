@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
@@ -53,7 +53,7 @@ public final class BridgeProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         Level lvl = p.level();
         // Body yaw BEFORE this tick's snap-write below: on the client the LookController
@@ -176,7 +176,7 @@ public final class BridgeProcess implements BotProcess {
      * the largest footprint overlap is the anchor. Returns the center cell when nothing
      * under the AABB has support (genuinely airborne — the caller's fell-off terminal).
      */
-    private static BlockPos anchoredFoot(Player p, Level lvl) {
+    private static BlockPos anchoredFoot(LivingEntity p, Level lvl) {
         BlockPos foot = blockPosOf(p);
         if (lvl.getBlockState(foot.offset(0, -1, 0)).blocksMotion()) return foot;
         AABB box = p.getBoundingBox();

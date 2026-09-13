@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
@@ -48,7 +48,7 @@ public final class BackfillProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         // Say so. `BotState.toMap` writes lastError only `if (lastError != null)`, so an unstamped
         // exit is not "no information" to the caller — it is the POSITIVE report "finished, no
         // error", which is the one thing that did not happen. BboxFillProcess and FarmProcess, which

@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -379,7 +379,7 @@ public final class PathSmoothing {
      * body 25 cells short of the node looks the same to it as one that drifted past. With no
      * previous node the answer is no.
      */
-    public static boolean beyondNode(List<BlockPos> path, int step, Player p) {
+    public static boolean beyondNode(List<BlockPos> path, int step, LivingEntity p) {
         if (step <= 0 || step >= path.size()) return false;
         BlockPos w = path.get(step), pv = path.get(step - 1);
         double ax = w.getX() - pv.getX(), az = w.getZ() - pv.getZ();

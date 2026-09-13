@@ -105,7 +105,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState s) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, "no player"); return true; }
 

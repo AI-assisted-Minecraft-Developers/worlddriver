@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
@@ -69,7 +70,7 @@ final class WalkerTickPrelude {
      * old time box byte for byte: stall-only there would release at 60 ticks and be TIGHTER than what
      * it has today, which is a regression dressed as a fix.
      */
-    private static void expireDigClaim(Walker wk, Avatar a, WorldView world, Player p) {
+    private static void expireDigClaim(Walker wk, Avatar a, WorldView world, LivingEntity p) {
         if (!BotConfig.walkerDigAimPriority || wk.stickyDig.pos == null) return;
         float prog = a.destroyProgress();
         boolean spent;
@@ -108,7 +109,7 @@ final class WalkerTickPrelude {
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) { wk.lastError = "player vanished"; return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.ERROR, wk.lastError, "failed:" + wk.lastError, null); }
         wk.guardParkourTick = false;
         wk.jumpTag = null;
@@ -146,9 +147,10 @@ final class WalkerTickPrelude {
         // waypoints frictionlessly, and spins in place re-aiming — then
         // times out hovering. Re-applied each tick so re-toggling flight
         // mid-path can't strand the bot.
-        if (p.getAbilities().flying) {
-            p.getAbilities().flying = false;
-            p.onUpdateAbilities();
+        Player flyer = a.asPlayer();   // creative flight is a player's; a mob body has no abilities to end
+        if (flyer != null && flyer.getAbilities().flying) {
+            flyer.getAbilities().flying = false;
+            flyer.onUpdateAbilities();
             if (!wk.descending && BotConfig.walkerDebug)
                 LOG.info(
                         "[walker] creative flight detected → disabling, will descend (y={})", p.getY());

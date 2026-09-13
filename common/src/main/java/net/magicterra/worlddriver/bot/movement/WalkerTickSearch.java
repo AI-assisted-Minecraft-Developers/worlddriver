@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import java.util.List;
 
@@ -79,7 +79,7 @@ final class WalkerTickSearch {
      * @return non-null Step to end the tick, or null to fall through.
      */
     private static Walker.Step futileGateJudge(PathFinder.Result res, Avatar a, Walker wk,
-                                               WorldView world, BlockPos foot, Player p) {
+                                               WorldView world, BlockPos foot, LivingEntity p) {
         if (futileGateExcluded(res, a, wk, world, foot)) return null;
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
         // trivially "got closer" — a free zeroing donated by the reset itself. The first judged
@@ -121,7 +121,7 @@ final class WalkerTickSearch {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
-        Player p = cx.frame.p;
+        LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         double d = cx.stall.d;
         // ---- original body (byte-identical modulo member prefixes) ----

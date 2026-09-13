@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.movement.PathSmoothing.*;
@@ -28,7 +28,7 @@ final class WalkerTickRepath {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
-        Player p = cx.frame.p;
+        LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         BlockPos searchFoot = cx.frame.searchFoot;
         boolean offPath = cx.stall.offPath;
@@ -227,7 +227,7 @@ final class WalkerTickRepath {
      * prints exactly twice per episode, and BOTH outcomes print — a row that only appears when the
      * hop is cut cannot tell a reader the gate was consulted and said yes.
      */
-    private static boolean burstHopAllowed(Walker wk, WorldView world, Player p, BlockPos foot) {
+    private static boolean burstHopAllowed(Walker wk, WorldView world, LivingEntity p, BlockPos foot) {
         boolean allowed = !(BotConfig.walkerRecoveryHopFloorGate
                 && hopSuppressed(world, p, foot, wk.unstuck.burstYaw));
         if (wk.unstuck.burstTicks % 8 == 0) {
@@ -267,7 +267,7 @@ final class WalkerTickRepath {
      *  wedge penalty. A search that supersedes a route the walker had just adopted is otherwise
      *  invisible — the log shows the search, never the reason — and every trigger here looks the
      *  same from outside (client lane 2026-09-06: an adopted lane re-searched on its first tick). */
-    private static void kickoff(Walker wk, Player p, WorldView world, BlockPos foot, boolean wedged,
+    private static void kickoff(Walker wk, LivingEntity p, WorldView world, BlockPos foot, boolean wedged,
                                 boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
         if (BotConfig.walkerDebug)
             LOG.info("[walker] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
@@ -276,7 +276,7 @@ final class WalkerTickRepath {
         penalizeWedgeNodes(wk, p, world, foot, wedged, fellOffPath);
     }
 
-    private static void penalizeWedgeNodes(Walker wk, Player p, WorldView world, BlockPos foot,
+    private static void penalizeWedgeNodes(Walker wk, LivingEntity p, WorldView world, BlockPos foot,
                                            boolean wedged, boolean fellOffPath) {
         if (!((wk.stuckTicks > STUCK_TICKS || wedged || fellOffPath)
                 && wk.path != null && wk.step < wk.path.size())) return;

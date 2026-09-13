@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.FallingBlock;
 import net.minecraft.world.phys.AABB;
@@ -124,7 +124,7 @@ public final class BunkerProcess implements BotProcess {
     @Override public String statusDetail() { return phase.name(); }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) return finish(st, w, a, "no-player", "player entity unavailable — no action taken");
         BlockPos foot = p.blockPosition();
         if (startY == Integer.MIN_VALUE) {
@@ -208,8 +208,8 @@ public final class BunkerProcess implements BotProcess {
      *  cell above the head are all solid. hazardSummary.cornered 语义是"被敌对逼
      *  死角",不可用作围合断言。 */
     private static boolean enclosed(WorldView w, Avatar a) {
-        if (a.player() == null) return false;
-        return enclosed(w, a.player().blockPosition());
+        if (a.entity() == null) return false;
+        return enclosed(w, a.entity().blockPosition());
     }
 
     /** Position-keyed enclosure check — public single source (gap#72-③): also the
@@ -224,7 +224,7 @@ public final class BunkerProcess implements BotProcess {
             && w.isSolid(head.above());
     }
 
-    private boolean digDown(Avatar a, WorldView w, BotState st, Player p, BlockPos foot) {
+    private boolean digDown(Avatar a, WorldView w, BotState st, LivingEntity p, BlockPos foot) {
         int d = startY - foot.getY();
         if (d != lastDepth) { lastDepth = d; digTicks = 0; }
         if (d >= effectiveDepth) {
@@ -254,7 +254,7 @@ public final class BunkerProcess implements BotProcess {
         return false;
     }
 
-    private boolean carve(Avatar a, WorldView w, BotState st, Player p) {
+    private boolean carve(Avatar a, WorldView w, BotState st, LivingEntity p) {
         if (nicheDir == null) {
             // Pick a cardinal whose 2-tall niche is a solid (diggable) wall with a
             // solid floor (so we can stand), a SOLID NON-FALLING ROOF (n1.above() —
@@ -306,7 +306,7 @@ public final class BunkerProcess implements BotProcess {
         return false;
     }
 
-    private boolean stepIn(Avatar a, WorldView w, Player p, BlockPos foot) {
+    private boolean stepIn(Avatar a, WorldView w, LivingEntity p, BlockPos foot) {
         a.breakHold(false);
         BlockPos n0 = bottom.relative(nicheDir);
         // Must enter the niche FULLY — pressed against its back wall — before
@@ -343,7 +343,7 @@ public final class BunkerProcess implements BotProcess {
 
     private static String fmt(double v) { return String.format(Locale.ROOT, "%.2f", v); }
 
-    private boolean plug(Avatar a, WorldView w, BotState st, Player p) {
+    private boolean plug(Avatar a, WorldView w, BotState st, LivingEntity p) {
         a.commandForward(0f);
         // Plug the shaft column the bot vacated: bottom foot then the cell above.
         // Both gain support from below (floor / the foot-plug) so even sand holds.

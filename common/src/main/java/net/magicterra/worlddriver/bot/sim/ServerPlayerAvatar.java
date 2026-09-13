@@ -221,7 +221,7 @@ public class ServerPlayerAvatar implements Avatar {
 
     public ServerPlayer fakePlayer() { return fp; }
 
-    @Override public Player player() { return fp; }
+    @Override public ServerPlayer entity() { return fp; }
 
     @Override public void commandMove(float left, float forward) { pendingLeft = left; pendingForward = forward; }
     @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }

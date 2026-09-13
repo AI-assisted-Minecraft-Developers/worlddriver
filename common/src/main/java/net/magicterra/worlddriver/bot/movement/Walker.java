@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
@@ -117,7 +117,7 @@ public final class Walker {
 
     /** The body the last {@link #tick(Avatar, WorldView)} drove, for the finders' scope source.
      *  Null until the first tick, which is also the first time a search can start. */
-    Player body;
+    LivingEntity body;
 
     /** Set the per-intent search profile for subsequent searches. Null → {@link SearchProfile#NONE}. */
     public void setSearchProfile(SearchProfile p) {
@@ -1051,7 +1051,7 @@ public final class Walker {
      *  {@code 站住=false} therefore does NOT by itself distinguish a body that was standing and
      *  refused the jump from a body that was already falling when the parkour edge became current —
      *  the exact y and the sole area are what separate them, which is why both are printed. */
-    void noteParkourTakeoff(WorldView world, Avatar a, net.minecraft.world.entity.player.Player p, boolean jump, BlockPos foot) {
+    void noteParkourTakeoff(WorldView world, Avatar a, LivingEntity p, boolean jump, BlockPos foot) {
         if (parkourSamples >= 5) return;
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
         if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
@@ -1275,7 +1275,7 @@ public final class Walker {
     }
 
     private void noteJumpSource(Avatar a) {
-        net.minecraft.world.entity.player.Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) return;
         if (jumpSrcEvents >= JUMP_SRC_EVENTS) {
             // A silent cap and a body that genuinely jumped exactly JUMP_SRC_EVENTS times print
@@ -1354,7 +1354,7 @@ public final class Walker {
      * print the first line and go blind for the rest of the run. NOT gated on
      * {@code BotConfig.walkerDebug}, which that scene switches off.
      */
-    void noteStepAdvance(WorldView world, Player p, BlockPos foot, BlockPos w, BlockPos nx,
+    void noteStepAdvance(WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx,
                          String cause, double cur2, double nd2, boolean overshot) {
         if (seenLegEpoch != legEpoch) {                 // a new leg: fresh budget, see #newLeg
             seenLegEpoch = legEpoch;
@@ -1465,14 +1465,14 @@ public final class Walker {
     }
 
     public Step tick(Avatar a, WorldView world) {
-        body = a.player();
+        body = a.entity();
         // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
         // stepUp...), so a safety invariant appended to its tail only covers SOME ticks — the
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
         // stride floor-guard here, after EVERY decision path, before the avatar integrates.
         Step s = tickInner(a, world);
         WalkerTickDrive.settleDigKey(this, a);   // a walker-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
-        Player tp = a.player();
+        LivingEntity tp = a.entity();
         lastTickTrace = "step=" + s + " 跳标=" + (jumpTag == null ? "未标" : jumpTag)
                 + (tp == null ? "" : " 身体=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",
                         tp.getX(), tp.getY(), tp.getZ())
@@ -1494,7 +1494,7 @@ public final class Walker {
         // toward the streak. Parkour ticks stay exempt (a deliberate leap must launch).
         if (fired) guardHoldTicks = GUARD_PIN_HOLD;
         else if (guardHoldTicks > 0) {
-            Player hp = a.player();
+            LivingEntity hp = a.entity();
             BlockPos fc = hp == null ? null
                     : BlockPos.containing(hp.getX(), hp.getY() + 0.05, hp.getZ());
             // Planned-descent release (same exemption the fire predicate has): when the
@@ -1590,7 +1590,7 @@ public final class Walker {
      */
     boolean footingGuard(Avatar a, WorldView world) {
         if (!BotConfig.lethalEdgeBrake) return false;
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null || p.isInWater()) return false;
         // NOT p.onGround(): that flag is verticalCollisionBelow, i.e. a report on the last move(),
         // and this guard's worst ticks are exactly the ones with no informative last move — the tick
@@ -1653,7 +1653,7 @@ public final class Walker {
      * departure have now been closed one at a time; this is the one that belongs to the executor
      * rather than to the plan, and it is why closing all seven planner moves did not end the falls.
      */
-    static boolean grazingBesideTheVoid(WorldView world, Player p) {
+    static boolean grazingBesideTheVoid(WorldView world, LivingEntity p) {
         if (p == null || p.isInWater()) return false;
         double sole = soleOnSolid(world, p);
         if (sole <= 0.0 || sole >= VOID_FOOTING_MIN) return false;
@@ -1714,7 +1714,7 @@ public final class Walker {
      * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
      * continuing and falling forever.
      */
-    private void widenFooting(Avatar a, WorldView world, Player p, BlockPos foot) {
+    private void widenFooting(Avatar a, WorldView world, LivingEntity p, BlockPos foot) {
         if (!BotConfig.allowPlace || a.breakHeld() || !a.holdPlaceable()) return;
         var box = p.getBoundingBox();
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
@@ -1792,7 +1792,7 @@ public final class Walker {
      * REASONING, not a reading — the rehearsal log has no per-tick walker lines to check it against.
      * This is the reading.
      */
-    boolean wiggleHop(WorldView world, net.minecraft.world.entity.player.Player p, BlockPos foot,
+    boolean wiggleHop(WorldView world, LivingEntity p, BlockPos foot,
                       boolean precond, float driveYaw) {
         long call = ++wiggleCalls;   // bumped BEFORE the precondition: adjacency must count skipped calls too
         if (!(precond && stuckTicks > 10 && stuckTicks < 18)) return false;
@@ -1930,7 +1930,7 @@ public final class Walker {
             guardStreakCells++;
         }
         if (++guardPinStreak < GUARD_PIN_REPATH) return;
-        Player p = a.player();
+        LivingEntity p = a.entity();
         String where = "；身体 " + (p == null ? "无" : p.blockPosition().toShortString());
         // A COVERAGE COUNT, NOT A MOVE COUNT. guardStreakCells increments on every cell ENTRY and
         // the first entry is the streak's own opening cell, so 1 means the body never left it. The
@@ -2248,7 +2248,7 @@ public final class Walker {
      */
     boolean strideFloorGuard(Avatar a, WorldView world) {
         if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return skipStride(0);
-        Player p = a.player();
+        LivingEntity p = a.entity();
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
         // last move() and is wrong in BOTH directions, which is why ServerPlayerAvatar's jump gate
         // abandoned it and why `wd.flushJumpIgnoresOnGround` pins that a body can be flush on stone
@@ -2438,7 +2438,7 @@ public final class Walker {
      *  (the bot is stationary while waiting, so retrying more can't load new chunks)
      *  so a genuine box-in still terminates. Holds (keys released) and returns
      *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
-    Step frontierHoldOrArrive(Avatar a, WorldView world, Player p) {
+    Step frontierHoldOrArrive(Avatar a, WorldView world, LivingEntity p) {
         if (!replayMode && BotConfig.pathfinderFrontierCommit && seg.commitEnd != null
                 && seg.frontierWaitTicks < FRONTIER_WAIT_CAP) {
             seg.frontierWaitTicks++;
@@ -2831,7 +2831,7 @@ public final class Walker {
     }
 
     /** Emit a per-tick execution sample. Pure reads; cheap; gated to NOOP in release. */
-    void sampleTick(Player p) {
+    void sampleTick(LivingEntity p) {
         // Cheap gate: skip the per-tick WalkerSample allocation entirely unless capture is on.
         // Keeps the hot path free in normal play and in a stripped (NOOP) release build.
         if (!BotConfig.pathDebug && !BotConfig.pathArchive) return;

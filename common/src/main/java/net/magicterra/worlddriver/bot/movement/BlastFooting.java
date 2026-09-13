@@ -7,8 +7,8 @@ import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.boss.enderdragon.EndCrystal;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -147,7 +147,7 @@ public final class BlastFooting {
      * hold nothing; the weakest remaining cell decides, because losing any one of them is losing
      * that part of the support.
      */
-    public static String refuseSwing(Player p, Entity target) {
+    public static String refuseSwing(LivingEntity p, Entity target) {
         float power = blastPowerOnHurt(target);
         if (power <= 0f) return null;
         Level level = p.level();

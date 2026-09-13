@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 
@@ -19,7 +19,7 @@ public final class EntityFind {
 
     /** Nearest entity to {@code self} within a 96-block AABB matching
      *  {@code nameOrType}, or {@code null} if none found. */
-    public static Entity nearest(Level lvl, Player self, String nameOrType) {
+    public static Entity nearest(Level lvl, LivingEntity self, String nameOrType) {
         double bestDist = Double.POSITIVE_INFINITY;
         Entity best = null;
         boolean isType = nameOrType.indexOf(':') >= 0;

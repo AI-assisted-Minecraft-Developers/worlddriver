@@ -100,7 +100,7 @@ public final class CraftProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState s) {
-        Player p = a.player();
+        Player p = a.asPlayer();
         Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, null, "no player"); return true; }
 

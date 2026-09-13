@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **`Avatar.player()` is now `entity()` plus an optional `asPlayer()`.** The walker and every
+  process read the body through a `Player` reference, though what they read — position, ground
+  contact, water, velocity, bounding box, health, pose setters — lives on `LivingEntity`, and only
+  the inventory, hotbar, container menus, abilities and the attack cooldown are a player's. The
+  first step of the body abstraction makes that split visible at each call site: `entity()` is
+  the body and `asPlayer()` is null for one that is not a player. The walker package, the shaft
+  and placement verbs, `BotUtil`'s aiming and reach helpers, `ElytraController` and `EntityFind`
+  now take a `LivingEntity`; `blockReachToCentre` gives a non-player body the attribute's
+  vanilla default rather than a lookup that would throw. Combat, craft, smelt, mine, tower and
+  the held-item scan keep asking for a player and fail through their existing null guards, until
+  the hands/containers split gives them a refusal to report. This changes the signature a
+  third-party `Avatar` implementation overrides.
 - **The bot no longer presses the attack or use key.** Digging latched `mc.options.keyAttack`
   and item use (bow draw, shield, heal, eat) latched `mc.options.keyUse`, both of which are one
   global boolean shared with the human at the keyboard: a mouse-button release cleared the bot's

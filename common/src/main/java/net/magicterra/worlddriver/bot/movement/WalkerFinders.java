@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.PathTuning;
 import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Where a {@link Walker} builds its {@link PathFinder}s — the deep search and the quick start —
@@ -41,7 +41,7 @@ final class WalkerFinders {
      * body yet (a scene driving the walker before its first tick) → no source, an empty scope.
      */
     private static PathFinder scoped(Walker wk, PathFinder pf) {
-        Player b = wk.body;
+        LivingEntity b = wk.body;
         if (b != null) pf.withScopeSource((s, g, p) -> SearchScope.gather(b.level(), b.getId(), s, g, p));
         return pf;
     }

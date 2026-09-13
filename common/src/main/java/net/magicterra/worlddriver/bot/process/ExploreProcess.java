@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -39,7 +39,7 @@ public final class ExploreProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         // Stamped for the same reason BackfillProcess/BuildProcess stamp theirs: `ProcessSlot
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
         // unstamped exit is not silence — it is the POSITIVE report "finished, no error". Every

@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Per-tick data flowing between the WalkerTick* phases, grouped by the stage that
@@ -23,7 +23,7 @@ final class WalkerTickCtx {
     /** Produced by {@link WalkerTickPrelude}: the resolved body + anchor cells every
      *  later phase keys off. {@code foot} is re-derived by phases that move the body. */
     static final class Frame {
-        Player p;
+        LivingEntity p;
         BlockPos foot;
         BlockPos searchFoot;
     }

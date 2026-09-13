@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.elytra.ElytraPhysics;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
@@ -51,7 +51,7 @@ public final class ElytraController {
 
     record Decision(float pitch, boolean fire) {}
 
-    Decision decide(WorldView w, Player p, Vec3 vel, float yaw, Vec3 goal, boolean fireworksAllowed) {
+    Decision decide(WorldView w, LivingEntity p, Vec3 vel, float yaw, Vec3 goal, boolean fireworksAllowed) {
         return decide(w, p, vel, yaw, goal, fireworksAllowed, false);
     }
 
@@ -59,7 +59,7 @@ public final class ElytraController {
      *  prefer the slowest-ending one (bleed speed) while STILL avoiding
      *  terrain. The previous flare used a blind fixed pitch with no lookahead,
      *  which crashed into rising ground on the final approach. */
-    Decision decide(WorldView w, Player p, Vec3 vel, float yaw, Vec3 goal,
+    Decision decide(WorldView w, LivingEntity p, Vec3 vel, float yaw, Vec3 goal,
                     boolean fireworksAllowed, boolean landing) {
         if (boostRemaining > 0) boostRemaining--;
         if (sinceFire < Integer.MAX_VALUE) sinceFire++;

@@ -24,6 +24,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.Vec3;
 
@@ -487,7 +488,7 @@ public final class BotUtil {
     }
 
     /** {@link #eyeWithin(Vec3, BlockPos, double)} for a body that is already standing somewhere. */
-    public static boolean eyeWithin(Player p, BlockPos block, double reach) {
+    public static boolean eyeWithin(LivingEntity p, BlockPos block, double reach) {
         return eyeWithin(p.getEyePosition(), block, reach);
     }
 
@@ -500,9 +501,14 @@ public final class BotUtil {
      * rejects an interaction vanilla would allow. Lifted from
      * {@code ServerPlayerAvatar.canBreakFromHere}, which is where this repo first asked the game
      * instead of hardcoding a number.
+     *
+     * <p>Only players carry {@code BLOCK_INTERACTION_RANGE} in their attribute map, and asking
+     * {@code getAttributeValue} for an attribute the entity's supplier never registered throws.
+     * A non-player body is therefore given the attribute's vanilla default rather than a lookup.
      */
-    public static double blockReachToCentre(Player p) {
-        return p.blockInteractionRange() + 0.5;
+    public static double blockReachToCentre(LivingEntity p) {
+        double faceReach = p instanceof Player pl ? pl.blockInteractionRange() : 4.5;
+        return faceReach + 0.5;
     }
 
     // === Aiming (the process family) =========================================
@@ -522,7 +528,7 @@ public final class BotUtil {
      * so the crosshair is not what decides, and it also has to work for a server-side {@code
      * Player} that has no client camera at all.
      */
-    public static void aimAt(Player p, double tx, double ty, double tz) {
+    public static void aimAt(LivingEntity p, double tx, double ty, double tz) {
         Vec3 eye = p.getEyePosition();
         double dx = tx - eye.x, dy = ty - eye.y, dz = tz - eye.z;
         float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -590,7 +596,7 @@ public final class BotUtil {
      * @return true while still closing in — the caller must yield the tick; false once centred, in
      *         which case forward has already been released and the placement may proceed.
      */
-    public static boolean stepToStandCentre(Player p, Avatar a, BlockPos stand) {
+    public static boolean stepToStandCentre(LivingEntity p, Avatar a, BlockPos stand) {
         double dxToCenter = (stand.getX() + 0.5) - p.getX();
         double dzToCenter = (stand.getZ() + 0.5) - p.getZ();
         if (Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter) > 0.25) {
@@ -612,7 +618,7 @@ public final class BotUtil {
      * support sits opposite {@code face} and the point to aim at is half a block out from that
      * support's centre along {@code face}.
      */
-    public static void aimAtSupportFace(Player p, BlockPos block, Direction face) {
+    public static void aimAtSupportFace(LivingEntity p, BlockPos block, Direction face) {
         BlockPos support = block.offset(-face.getStepX(), -face.getStepY(), -face.getStepZ());
         aimAt(p, support.getX() + 0.5 + face.getStepX() * 0.5,
                  support.getY() + 0.5 + face.getStepY() * 0.5,

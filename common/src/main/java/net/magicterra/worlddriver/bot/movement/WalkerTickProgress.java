@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.movement.PathSmoothing.*;
@@ -42,7 +42,7 @@ final class WalkerTickProgress {
      *  advance (-823 dimple churn): logs which advance fired + the descend-geometry sub-conditions.
      *  Lifted out of {@link #run} verbatim (same gate, same fields, same order) so the step-advance
      *  reading could be added without growing that method past its source budget. */
-    private static void stepAdvDiag(Walker wk, Player p, BlockPos foot, BlockPos w, Move.Edge se,
+    private static void stepAdvDiag(Walker wk, LivingEntity p, BlockPos foot, BlockPos w, Move.Edge se,
                                     boolean within, boolean passed, boolean crossedDescendNode,
                                     boolean crossedWalkNode, double cur2) {
         if (!(BotConfig.walkerDebug && !within && p.onGround() && cur2 > OVERSHOOT_RESYNC_SQ
@@ -141,7 +141,7 @@ final class WalkerTickProgress {
      * hold this tick. This guard sits at the advance OUTLET, so it covers them; their own criteria
      * remain wrong.
      */
-    private static boolean airborneClimbConsume(WorldView world, Player p, BlockPos w, BlockPos nx) {
+    private static boolean airborneClimbConsume(WorldView world, LivingEntity p, BlockPos w, BlockPos nx) {
         return nx != null && nx.getY() > w.getY()
                 && !p.isInWater()
                 && WalkerGeometry.soleOnSolid(world, p) < FOOTING_MIN;
@@ -176,7 +176,7 @@ final class WalkerTickProgress {
      * {@code no reachable target}. Over water the hold is cheap because the body cannot go anywhere
      * but down; over land the same hold turns a consumed node into a missed one.
      */
-    private static boolean airborneDryArrival(Walker wk, WorldView world, Player p, BlockPos foot, BlockPos w, BlockPos nx) {
+    private static boolean airborneDryArrival(Walker wk, WorldView world, LivingEntity p, BlockPos foot, BlockPos w, BlockPos nx) {
         return nx == null && !world.isWater(w)
                 && (world.isWater(foot) || world.isWater(foot.below()))
                 && wk.goal.reached(w) && !wk.goal.reached(foot)
@@ -335,7 +335,7 @@ final class WalkerTickProgress {
      *       tick per tread, the perch 20 ticks over a 260-tick drive).</li>
      * </ul>
      */
-    private static boolean unwalkedDescentConsume(Walker wk, WorldView world, Player p,
+    private static boolean unwalkedDescentConsume(Walker wk, WorldView world, LivingEntity p,
                                                   BlockPos foot, BlockPos w, BlockPos nx) {
         boolean unwalked = BotConfig.walkerDescentNodeHold
                 && w.getY() < foot.getY()
@@ -406,7 +406,7 @@ final class WalkerTickProgress {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
-        Player p = cx.frame.p;
+        LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         // ---- original body (byte-identical modulo member prefixes) ----
         // First path still computing (no path to follow yet). PROGRESSIVE

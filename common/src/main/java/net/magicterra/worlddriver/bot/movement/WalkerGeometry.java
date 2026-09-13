@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.world.SurvivalMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.BooleanOp;
@@ -91,7 +91,7 @@ public final class WalkerGeometry {
      *  (destroySpeed 0, has a collision box, not a fluid) so solid terrain — a genuine wall — is never
      *  returned; null when no breakable cell is overlapped (a pad-free ram against real geometry, so
      *  the caller leaves it to the normal wedge recovery). */
-    public static BlockPos nearestBodyPad(WorldView w, Player p) {
+    public static BlockPos nearestBodyPad(WorldView w, LivingEntity p) {
         int headY = BlockPos.containing(p.getX(), p.getY(), p.getZ()).getY() + 1;
         BlockPos best = null;
         double bestD2 = Double.MAX_VALUE;
@@ -129,7 +129,7 @@ public final class WalkerGeometry {
      * for one tick, and a reading that discarded that would report "no support" about a body vanilla
      * still calls grounded.
      */
-    public static double soleOnSolid(WorldView w, Player p) {
+    public static double soleOnSolid(WorldView w, LivingEntity p) {
         double[] area = { 0 };
         eachSoleCell(p, (cell, cellArea) -> { if (w.isSolid(cell)) area[0] += cellArea; });
         return area[0];
@@ -163,7 +163,7 @@ public final class WalkerGeometry {
      *
      * @return the blocking cells, lowest first, or an empty list when the rise is clear
      */
-    public static List<BlockPos> pillarRiseBlockers(Player p) {
+    public static List<BlockPos> pillarRiseBlockers(LivingEntity p) {
         return riseBlockers(p, PILLAR_RISE);
     }
 
@@ -178,7 +178,7 @@ public final class WalkerGeometry {
      *
      * @param rise how far up to sweep the body's own box, in blocks
      */
-    public static List<BlockPos> riseBlockers(Player p, double rise) {
+    public static List<BlockPos> riseBlockers(LivingEntity p, double rise) {
         Level lvl = p.level();
         AABB box = p.getBoundingBox().move(0.0, rise, 0.0);
         if (lvl.noCollision(p, box)) return List.of();
@@ -201,7 +201,7 @@ public final class WalkerGeometry {
     /** The row {@link #soleOnSolid} sums over: {@code floor(minY − 1e-7)}, the row the sole SITS ON
      *  — the block below for a body flush on a full cube, the block itself for one on a shorter
      *  shape. Named so a caller can print or reason about the row without re-deriving the epsilon. */
-    public static int soleRowY(Player p) {
+    public static int soleRowY(LivingEntity p) {
         return Mth.floor(p.getBoundingBox().minY - 1.0E-7);
     }
 
@@ -224,7 +224,7 @@ public final class WalkerGeometry {
      * by 0.0004 of a block for one tick) rather than being rounded away, and the x-outer/z-inner
      * order is what {@link #soleRow}'s printed evidence has always used.
      */
-    public static void eachSoleCell(Player p, SoleCellVisitor v) {
+    public static void eachSoleCell(LivingEntity p, SoleCellVisitor v) {
         AABB box = p.getBoundingBox();
         int y = Mth.floor(box.minY - 1.0E-7);
         for (int x = Mth.floor(box.minX - 1.0E-7); x <= Mth.floor(box.maxX + 1.0E-7); x++) {
@@ -248,7 +248,7 @@ public final class WalkerGeometry {
      * about "standing" is introduced by asking. Same enumeration, same 1e-7 outward epsilon: change
      * one and this print changes with it.
      */
-    public static String soleRow(WorldView w, Player p) {
+    public static String soleRow(WorldView w, LivingEntity p) {
         StringBuilder sb = new StringBuilder("排y=").append(soleRowY(p));
         eachSoleCell(p, (cell, area) -> sb.append(String.format(java.util.Locale.ROOT,
                 " [%d,%d]%s%.4f", cell.getX(), cell.getZ(), w.isSolid(cell) ? "实" : "空", area)));
@@ -266,7 +266,7 @@ public final class WalkerGeometry {
      *  off a lip while walking ALONG it — the actual DEATH #8 mode. Vanilla sneak then
      *  pins the body to this block in every direction. Lethal-only, so it never blocks
      *  a legitimate planned step-down (those land within survivable, or in water). */
-    public static boolean lethalDropAdjacent(WorldView world, Player p, BlockPos foot) {
+    public static boolean lethalDropAdjacent(WorldView world, LivingEntity p, BlockPos foot) {
         return dropAdjacentExceeds(world, foot, SurvivalMath.survivableFall(p.getHealth()));
     }
 
@@ -336,7 +336,7 @@ public final class WalkerGeometry {
      * they look. Visiting in ring order changes nothing for the boolean (an OR over the same cell
      * set) and is what lets the distance be reported at all.
      */
-    public static int nearestLethalHopRing(WorldView world, Player p, BlockPos foot, int scanTo) {
+    public static int nearestLethalHopRing(WorldView world, LivingEntity p, BlockPos foot, int scanTo) {
         return ringOf(foot, nearestLethalHopCell(world, p, foot, scanTo));
     }
 
@@ -361,7 +361,7 @@ public final class WalkerGeometry {
      * away from the lethal cell is the escape the stall needs, and one launched at it is the death.
      * The cell is what makes that bearing computable.
      */
-    public static BlockPos nearestLethalHopCell(WorldView world, Player p, BlockPos foot, int scanTo) {
+    public static BlockPos nearestLethalHopCell(WorldView world, LivingEntity p, BlockPos foot, int scanTo) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
         for (int r = 1; r <= scanTo; r++)
             for (int dx = -r; dx <= r; dx++)
@@ -398,7 +398,7 @@ public final class WalkerGeometry {
      * gate on the OTHER one. {@link #hopLandingRow} prints the drive angle beside it; until a run
      * has shown how far the two diverge at a stall, neither is a lever.
      */
-    public static String hopBearingRow(Player p, BlockPos foot, BlockPos lethal) {
+    public static String hopBearingRow(LivingEntity p, BlockPos foot, BlockPos lethal) {
         if (lethal == null) return "无致命格，不算方位";
         double bx = (lethal.getX() + 0.5) - (foot.getX() + 0.5);
         double bz = (lethal.getZ() + 0.5) - (foot.getZ() + 0.5);
@@ -438,7 +438,7 @@ public final class WalkerGeometry {
     /** The columns {@link #HOP_ARC_SAMPLES} names along {@code driveYaw}, in order and with
      *  duplicates kept (half-block steps repeat a cell whenever the ray crosses it slowly). Both
      *  the gate and the row read this — see {@link #HOP_ARC_SAMPLES} on why that matters. */
-    private static List<BlockPos> hopLandingCells(Player p, BlockPos foot, float driveYaw) {
+    private static List<BlockPos> hopLandingCells(LivingEntity p, BlockPos foot, float driveYaw) {
         double r = Math.toRadians(driveYaw);
         double dx = -Math.sin(r), dz = Math.cos(r);           // Minecraft yaw: 0 = +Z, 90 = -X
         List<BlockPos> out = new ArrayList<>(HOP_ARC_SAMPLES.length);
@@ -493,7 +493,7 @@ public final class WalkerGeometry {
      * burst path, {@code unstuck.burstYaw}) — the channel the impulse is rotated onto. Passing
      * {@code p.getYRot()} would reproduce {@link #hopBearingRow}'s mistake.
      */
-    public static boolean hopSuppressed(WorldView world, Player p, BlockPos foot, float driveYaw) {
+    public static boolean hopSuppressed(WorldView world, LivingEntity p, BlockPos foot, float driveYaw) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
         for (BlockPos cand : hopLandingCells(p, foot, driveYaw))
             if (isLethalDropColumn(world, cand, threshold)) return true;
@@ -509,7 +509,7 @@ public final class WalkerGeometry {
      * {@link #hopBearingRow}). Duplicate cells are collapsed so half-block sampling does not turn
      * one column into three entries.
      */
-    public static String hopLandingRow(WorldView world, Player p, BlockPos foot, float driveYaw) {
+    public static String hopLandingRow(WorldView world, LivingEntity p, BlockPos foot, float driveYaw) {
         int threshold = SurvivalMath.survivableFall(p.getHealth());
         StringBuilder cells = new StringBuilder();
         BlockPos prev = null;
@@ -660,7 +660,7 @@ public final class WalkerGeometry {
      *  (REACH_DIST_SQ, OVERSHOOT_RESYNC_SQ) — too far for {@code within}, too near for the horizontal
      *  overshoot re-sync. Sole caller is the {@code walkerVerticalResync} gate (so the cur2 maths only
      *  runs when that flag is on). */
-    public static boolean deadZoneCur2(BlockPos node, Player p) {
+    public static boolean deadZoneCur2(BlockPos node, LivingEntity p) {
         double dx = (node.getX() + 0.5) - p.getX();
         double dz = (node.getZ() + 0.5) - p.getZ();
         double cur2 = dx * dx + dz * dz;

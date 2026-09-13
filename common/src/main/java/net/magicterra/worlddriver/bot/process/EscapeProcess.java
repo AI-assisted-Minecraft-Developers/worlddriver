@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.FallingBlock;
 
@@ -94,7 +94,7 @@ public final class EscapeProcess implements BotProcess {
     }
 
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) return done(a, st, "no player");
         if (!BotConfig.allowBreak) return done(a, st, "allowBreak is off — escape mines every step");
         BlockPos foot = p.blockPosition();
@@ -138,7 +138,7 @@ public final class EscapeProcess implements BotProcess {
      *  is a SOLID non-falling stand block, and the two niche cells above it are
      *  clear or finitely breakable (not fluid/hazard). Prefer a DRY direction so
      *  the climb stays out of water. */
-    private boolean pick(Avatar a, WorldView w, Player p, BlockPos foot, BotState st) {
+    private boolean pick(Avatar a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
         // Futility watchdog: STEP_UP / VERT_RISE stalls funnel back here without
         // advancing `steps`. Without the ceiling ever changing (e.g. an unbreakable
         // launch arc the phases below missed) that loop used to ping-pong forever,
@@ -213,7 +213,7 @@ public final class EscapeProcess implements BotProcess {
         return !Double.isInfinite(w.breakCost(c));
     }
 
-    private boolean carve(Avatar a, WorldView w, Player p, BotState st) {
+    private boolean carve(Avatar a, WorldView w, LivingEntity p, BotState st) {
         BlockPos startArc = base.above(2);          // launch-arc clearance over the bot's
                                                     // OWN head: the jump peak lifts the head
                                                     // into this cell before the body enters
@@ -251,7 +251,7 @@ public final class EscapeProcess implements BotProcess {
         return false;
     }
 
-    private boolean stepUp(Avatar a, WorldView w, Player p, BlockPos foot) {
+    private boolean stepUp(Avatar a, WorldView w, LivingEntity p, BlockPos foot) {
         a.breakHold(false);
         BlockPos nf = base.relative(dir).above();    // destination foot cell
         boolean atDest = foot.getX() == nf.getX() && foot.getZ() == nf.getZ()
@@ -285,7 +285,7 @@ public final class EscapeProcess implements BotProcess {
      *  the new feet enter ({@code base+2}) and the head-clearance cell above it
      *  ({@code base+3}). Mined top-down so a falling block can't drop back in.
      *  Once both are open we move to {@link Phase#VERT_RISE} to place the support. */
-    private boolean vertBreak(Avatar a, WorldView w, Player p, BlockPos foot, BotState st) {
+    private boolean vertBreak(Avatar a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
         // Hold the column centre so buoyancy/drift can't slide us off while mining.
         p.setPos(base.getX() + 0.5, p.getY(), base.getZ() + 0.5);
         p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
@@ -321,7 +321,7 @@ public final class EscapeProcess implements BotProcess {
      *  Walker's pillarUp actuator — vanilla rejects the place until the feet clear
      *  the cell, so we gate on real height. On arrival, advance and re-PICK (a
      *  sideways rim may now be reachable; else we VERT_BREAK the next ceiling). */
-    private boolean vertRise(Avatar a, WorldView w, Player p, BlockPos foot, BotState st) {
+    private boolean vertRise(Avatar a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
         a.breakHold(false);
         BlockPos dest = base.above();
         // Same column, not just the right height. The centring snap below is a discrete write that

@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
@@ -43,7 +43,7 @@ public final class LookProcess implements BotProcess {
     }
 
     public boolean tick(Avatar a, WorldView w, BotState st) {
-        Player p = a.player();
+        LivingEntity p = a.entity();
         if (p == null) { st.look.lastError = "player vanished"; st.look.reset(); return true; }
         float ty = fixedYaw, tp = fixedPitch;
         if (track != null) {

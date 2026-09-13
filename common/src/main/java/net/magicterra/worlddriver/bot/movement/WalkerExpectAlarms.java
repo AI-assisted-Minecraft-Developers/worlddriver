@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.movement;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import java.util.List;
 import java.util.Locale;
@@ -67,7 +67,7 @@ public final class WalkerExpectAlarms {
         exRepathFlipTick = pfTickCounter;
     }
 
-    void tick(Avatar a, WorldView world, Player p, List<BlockPos> path, int step, int noStepProgressTicks) {
+    void tick(Avatar a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
         if (exThrottle > 0) exThrottle--;
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold
@@ -231,7 +231,7 @@ public final class WalkerExpectAlarms {
          *  LocalPlayer. The slot is printed because this alarm names a cause, and a reader who wants
          *  to refute it needs the cell to look in — an alarm that asserts "crowded out" without
          *  saying out of WHERE is asking to be believed rather than checked. */
-        static String missing(Player p) {
+        static String missing(LivingEntity p) {
             if (!(p instanceof net.minecraft.client.player.LocalPlayer lp)) return null;
             int bucket = strandedSlot(lp, BUCKET);
             int pick = strandedSlot(lp, PICKS);

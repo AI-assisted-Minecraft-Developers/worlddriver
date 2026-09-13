@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.LivingEntity;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.movement.PathSmoothing.*;
@@ -42,7 +42,7 @@ final class WalkerTickAim {
      * out: the slow alpha can never catch a bearing that rotates at its own convergence rate. Dry
      * only — water has its own drive heading.
      */
-    private static float smoothingAlpha(Walker wk, Player p, boolean trendCam, float targetYaw) {
+    private static float smoothingAlpha(Walker wk, LivingEntity p, boolean trendCam, float targetYaw) {
         float alpha = trendCam ? YAW_SMOOTH_ALPHA_DESCENT : YAW_SMOOTH_ALPHA;
         AimSmoothing a = wk.aimSmooth;
         float turn = Float.isNaN(a.orbitLastYaw) ? 0f : angleDiff(a.orbitLastYaw, p.getYRot());
@@ -89,7 +89,7 @@ final class WalkerTickAim {
      * wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead instead; on the path
      * the two bearings coincide, so the tuned tangent cruise is unchanged there.
      */
-    private static float tangentOrPursuit(Walker wk, Player p, boolean launch, BlockPos foot) {
+    private static float tangentOrPursuit(Walker wk, LivingEntity p, boolean launch, BlockPos foot) {
         return offPathPursuit(wk, p, launch, foot) ? wk.arc.proj.pursuitYaw : wk.arc.proj.tangentYaw;
     }
 
@@ -109,7 +109,7 @@ final class WalkerTickAim {
      * and lost an ore in {@code wd.serverMineHarvestBuried}; both green with the flag off, both
      * green again with this scope. A buoyant body rides off its nodes legitimately.
      */
-    private static boolean offPathPursuit(Walker wk, Player p, boolean launch, BlockPos foot) {
+    private static boolean offPathPursuit(Walker wk, LivingEntity p, boolean launch, BlockPos foot) {
         if (!BotConfig.walkerTangentAim || !BotConfig.walkerTangentPursuit || launch || p.isInWater()) return false;
         if (wk.path == null || wk.step + 1 >= wk.path.size()) return false;
         if (wk.path.get(wk.step).getY() != foot.getY() || wk.path.get(wk.step + 1).getY() != foot.getY()) return false;
@@ -119,7 +119,7 @@ final class WalkerTickAim {
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
-        Player p = cx.frame.p;
+        LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
         Move.Edge edge = cx.edges.edge;
         BlockPos wp = cx.edges.wp;

@@ -3,27 +3,40 @@ package net.magicterra.worlddriver.bot.movement;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
 
 /**
  * Actuation surface over the entity the agent drives. The Walker reads entity
- * state and applies vanilla pose through {@link #player()} (a {@link Player}
- * superclass reference works for BOTH a client {@code LocalPlayer} and a server
- * {@code FakePlayer}, so all of getX/onGround/isInWater/getDeltaMovement and
- * setYRot/setSprinting/setShiftKeyDown stay byte-identical); only the genuinely
- * client-specific actuation — impulse via the player's own input, block
- * place/break, tool selection — is abstracted here.
+ * state and applies vanilla pose through {@link #entity()} — a {@link LivingEntity}
+ * reference, because everything the walker reads (getX/onGround/isInWater/
+ * getDeltaMovement/getBoundingBox/getHealth) and sets (setYRot/setSprinting/
+ * setShiftKeyDown) lives there, on a client {@code LocalPlayer}, a server
+ * {@code ServerPlayer} and a driven mob alike. Only the genuinely body-specific
+ * actuation — impulse via the body's own input, block place/break, tool selection
+ * — is abstracted here.
+ *
+ * <p>What is a <em>player's</em> — inventory, hotbar, container menus, abilities,
+ * the attack cooldown — is reached through {@link #asPlayer()}, which is null for
+ * a body that has none. A caller that needs it says so at the call site; the
+ * hands/containers split that turns that null into a {@code no_hands} refusal
+ * comes next (see {@code docs/superpowers/specs/2026-09-12-body-abstraction-design.md}).
  *
  * <p>{@code ClientPlayerAvatar} maps every method 1:1 to the previous inline
- * Walker behaviour (zero regression). {@code ServerPlayerAvatar} (neoforge)
- * drives a FakePlayer with manual physics. Later phases add {@code MobAvatar}.
+ * Walker behaviour (zero regression). {@code ServerPlayerAvatar} drives a joined
+ * {@code ServerPlayer}.
  */
 public interface Avatar {
 
-    /** The controlled entity, for state reads and vanilla pose setters. */
-    Player player();
+    /** The controlled body, for state reads and vanilla pose setters. Never null while the
+     *  avatar is usable; an avatar built over nothing answers null and callers guard it. */
+    LivingEntity entity();
+
+    /** The body as a {@link Player}, or null when it is not one. Only what a player has —
+     *  inventory, menus, abilities, attack cooldown — should be reached through this. */
+    default Player asPlayer() { return entity() instanceof Player p ? p : null; }
 
     // --- movement impulse (the player's OWN input, not shared keybinds) ---
     /** Camera-decoupled horizontal impulse, pre-rotated by aimYaw-yRot. */
@@ -46,7 +59,8 @@ public interface Avatar {
         commandForward(0);
         commandSneak(false);
         commandJump(false);
-        if (player() != null) player().setShiftKeyDown(false);
+        LivingEntity e = entity();
+        if (e != null) e.setShiftKeyDown(false);
     }
 
     // --- block interaction ---
@@ -147,7 +161,7 @@ public interface Avatar {
      * {@code InteractionCommands}, and carries the same call there.
      */
     default void attackEntity(net.minecraft.world.entity.Entity target) {
-        Player p = player();
+        LivingEntity p = entity();
         String refusal = (p == null || target == null) ? null : BlastFooting.refuseSwing(p, target);
         noteAttackRefusal(refusal);
         if (refusal == null) attackEntityUnchecked(target);
@@ -205,7 +219,7 @@ public interface Avatar {
      *  stranded (no-op); callers should run it at every CraftProcess exit (DONE/FAIL)
      *  and before starting a fresh 2×2 job. */
     default void clearInventoryCraftGrid() {
-        Player p = player();
+        Player p = asPlayer();
         if (p == null) return;
         if (p.containerMenu != p.inventoryMenu) closeContainer();
         AbstractContainerMenu inv = p.inventoryMenu;
