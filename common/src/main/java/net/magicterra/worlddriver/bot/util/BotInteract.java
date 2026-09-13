@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.util;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -133,6 +134,9 @@ public final class BotInteract {
         if (mc == null || mc.gameMode == null || p == null || cell == null) return false;
         boolean ok = mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p));
         if (ok) p.swing(InteractionHand.MAIN_HAND);
+        // Vanilla's next attack pass stands aside for this drive (see ClientIntents) — the
+        // per-tick stopDestroyBlock that used to zero the progress never runs while we drive.
+        ClientIntents.assertDig(cell);
         return ok;
     }
 
@@ -348,14 +352,18 @@ public final class BotInteract {
         if (mc.screen != null) mc.setScreen(null);
     }
 
+    /** The idle release: the seven movement keybinds and the bot's dig latch. The use latch is
+     *  deliberately not here — the shield/heal/eat arbitration in {@code BotApiImpl.clientTick}
+     *  sets it BEFORE this runs on an idle tick, so clearing it here would undo them every tick. */
     public static void releaseKeys() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.options == null) return;
         for (KeyMapping k : new KeyMapping[]{mc.options.keyUp, mc.options.keyDown, mc.options.keyLeft,
                                              mc.options.keyRight, mc.options.keyJump, mc.options.keySprint,
-                                             mc.options.keyAttack, mc.options.keyShift}) {
+                                             mc.options.keyShift}) {
             k.setDown(false);
         }
+        ClientIntents.holdDig(false);
         // Also reset the player's logical sneak flag — BridgeProcess holds it
         // for the whole sneak-walk; cancel must clear it or the player stays
         // crouched after the process ends.
@@ -385,7 +393,7 @@ public final class BotInteract {
         p.yHeadRot = yaw;
         p.yBodyRot = yaw;
         p.setXRot(pitch);
-        // Functional exact aim: vanilla keyAttack mining / interaction raycasts off
+        // Functional exact aim: vanilla's use-item pass / interaction raycasts off
         // the crosshair, so this snap must NOT be rate-limited by the global camera
         // slew (a lagged crosshair would mine/click the wrong block). Exempt this one
         // tick — see LookController. Cosmetic aims (synthetic placement, look-down)

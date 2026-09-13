@@ -42,10 +42,12 @@ LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 L
   `setSprinting` 配对，纯冗余可删）→ **Walker + 14 进程/链全迁**（Build/Backfill/Mine/Follow/Farm/BboxFill/
   Escape/Bunker/Bridge/Elytra/Panic/Dodge/Tower/Sleep）。
 - ⬜ **待续**：CombatProcess 环绕 strafe（需 2D 向量命令 forward+back+左右）；AutoSwim/ClutchController 反射
-  （与 `InputReleaseGate`/clientTick 时序耦合，单独打通）。终态后 `releaseKeys` 只剩管 keyAttack。
-- 🧊 **刻意边界**：`keyAttack`/`keyUse`（挖掘/用物）**保留键位**——直接调 `gameMode` 会让客户端预测闪烁、破坏
-  "方块是否挖完"判定（MineProcess 注释明示），vanilla `continueAttack`/`useItem` 管线才正确，且不撞移动。
-  **原则：能干净发包的才发包，挖掘/用物不能。**
+  （与 `InputReleaseGate`/clientTick 时序耦合，单独打通）。终态后 `releaseKeys` 只剩管移动键。
+- ✅ **2026-09-14 挖掘/用物脱离键位**：`keyAttack`/`keyUse` 两处原本「刻意保留」的键位改成 `ClientIntents`
+  意图 + `MinecraftMixin`——挖掘由 `continueDestroy` 直驱并让 vanilla 的 `continueAttack` 那一 tick 让位，
+  用物由 mixin 把 `handleKeybinds` 里的 `keyUse.isDown()` 读成 `按下 || 机器人持用`，起用/续用/松开仍是
+  vanilla 自己的代码。Bot 层从此不写任何 `KeyMapping`；`SharedKeybindQuarantineTest` 钉死。
+  **原则不变：能干净发包的才发包；挖掘/用物不能，所以让 vanilla 的管线替我们发。**
 
 ---
 

@@ -10,6 +10,9 @@
   "license": "MIT",
   "environment": "*",
   "accessWidener": "worlddriver.accesswidener",
+  "mixins": [
+    "worlddriver-common.mixins.json"
+  ],
   "entrypoints": {
     "main": [
       "net.magicterra.worlddriver.fabric.WorldDriverFabric"

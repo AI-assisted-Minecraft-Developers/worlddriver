@@ -199,16 +199,9 @@ public final class Walker {
         // progress instead: hold while it climbs, release only on a true stall.
         float lastProgress;   // last observed vanilla destroyProgress (0..1)
         int stallTicks;       // consecutive ticks with no progress increase
-        // Bob-reset bypass (same live session): while the bot BOBS in water the
-        // eye/raycast dips behind the bank lip on some ticks, vanilla's
-        // continueAttack then targets a DIFFERENT cell and zeroes the progress
-        // — the dig can never finish no matter how long we hold. The direct
-        // drive (gameMode.continueDestroyBlock on the exact cell — the
-        // AntiSuffocate gap#69 pattern) decouples progress from the crosshair
-        // entirely, and every dig site now runs it unconditionally.
-        int rayMiss;          // raycast-off-target ticks for this dig (cumulative)
-        boolean direct;       // latched once the raycast has wandered: drop keyAttack,
-                              // so vanilla cannot drive a second cell alongside ours
+        // The drive is on the exact cell and vanilla's crosshair-driven attack pass stands
+        // aside for it (ClientIntents), so progress is decoupled from where the eye raycast
+        // lands — the bob-reset latch that used to live here is gone with the attack key.
         /**
          * Claim the dig slot for {@code b}. <b>A claim, not a setter.</b>
          *
@@ -245,14 +238,12 @@ public final class Walker {
             ticks = 0;
             lastProgress = 0f;
             stallTicks = 0;
-            rayMiss = 0;
-            direct = false;
         }
 
         /** Revoke unconditionally, for a preempting SAFETY dig (suffocation) — that is not a
          *  navigation preference and must not queue behind one. The expiry policy still lives only
          *  in the prelude; this is a named override with a caller, not a second clock. */
-        void revoke() { pos = null; ticks = 0; lastProgress = 0f; stallTicks = 0; rayMiss = 0; direct = false; }
+        void revoke() { pos = null; ticks = 0; lastProgress = 0f; stallTicks = 0; }
     }
     /** In-progress pillarUp edge (task#96 step B8), owned by WalkerTickClimb; both
      *  fields cleared to -1 by both journey resets via {@link PillarEdge#reset()}. */
@@ -2146,7 +2137,6 @@ public final class Walker {
             "脚格是水(让给水里的反转圈)", "无路且拉黑还没过期",
             "清零:离目标更近了", "清零:身体挪了>2格", "计入", "复位后播种(不判)"};
 
-
     /** Remaining hold-tail ticks after the last guard fire (pin hysteresis). */
     int guardHoldTicks;
 
@@ -2618,7 +2608,6 @@ public final class Walker {
         return true;
     }
 
-
     /** Splice in a freshly-searched route: string-pull it, reset the per-path
      *  follow state, and record whether it's a best-effort partial (so the next
      *  segment is precomputed from its end — see the kickoff/splice logic in
@@ -2867,7 +2856,6 @@ public final class Walker {
                 p.getPose().name(), overlap, p.getId()));
     }
 
-
     Move.Edge edgeAt(int i) {
         return (edges != null && i >= 0 && i < edges.size()) ? edges.get(i) : null;
     }
@@ -2931,7 +2919,6 @@ public final class Walker {
                     String.format("%.1f", Math.abs(dYaw)),
                     arc.monoViol, inW);
     }
-
 
     /** A continuously-sliding aim point {@code CARROT_DIST} blocks ahead
      *  along the path (interpolated between nodes), capped by line-of-sight —

@@ -868,7 +868,7 @@ else if (inWater) { … dm.y + 0.04 … }                                       
 `ServerPlayerAvatar.breakHold` 在 `faithfulBreak` 关着时直接 `destroyAimed()` → `Level#destroyBlock`
 （`:399`），而 `faithfulBreak` 默认就是 `false`（`:115`），全仓库只有两条场景开它，
 **梯子和六条闸一处都不开**。客户端那具走的是真的分段挖掘
-（`ClientPlayerAvatar.breakHold` = `keyAttack.setDown`；`continueDestroy` = 一 tick 的
+（`ClientPlayerAvatar.breakHold` = `ClientIntents.holdDig` 闩；`continueDestroy` = 一 tick 的
 `continueDestroyBlock`），带 vanilla 的 ÷5 悬空惩罚（浮着 ⇒ `onGround()` 为假）——
 赤手一根橡木原木要三百 tick 以上，而边在那之前早就失效了。
 

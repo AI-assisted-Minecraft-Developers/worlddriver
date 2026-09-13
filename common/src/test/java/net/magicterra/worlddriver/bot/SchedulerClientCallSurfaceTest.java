@@ -39,13 +39,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p><b>Why it is invisible to everything else.</b> {@code :common} is a two-sided source set, so
  * to javac {@code MultiPlayerGameMode} is an ordinary class and the code compiles clean. The
- * source-level guard next door ({@code ClientBreakSitePairingTest}) sees THAT a site drives the
- * destroy pipeline, never from which layer — it passed this. Only loading the class on a
- * dedicated server fails, which is why the gate was the first thing to notice.
+ * source-level guard of the day ({@code ClientBreakSitePairingTest}, retired with the attack key
+ * on 2026-09-14) saw THAT a site drove the destroy pipeline, never from which layer — it passed
+ * this. Only loading the class on a dedicated server fails, which is why the gate was the first
+ * thing to notice.
  *
  * <p><b>The rule is measured, not derived.</b> Every chain in this package already calls
- * {@code Minecraft}, {@code LocalPlayer}, {@code KeyMapping}, {@code Options} and
- * {@code ClientLevel} — seven of the fourteen classes do, and the 306-scene gate is green over
+ * {@code Minecraft}, {@code LocalPlayer} and {@code ClientLevel} (and, until the attack/use
+ * latches moved to {@code ClientIntents}, {@code KeyMapping} and {@code Options}) — seven of the
+ * fourteen classes do, and the 306-scene gate is green over
  * them. So "no client calls in the scheduler" is not the rule; it would fail half the package on
  * a healthy tree, and a guard that cries wolf gets switched off. What this pins instead is the
  * surface that is <b>demonstrably loadable on a dedicated server today</b>: the set below was
@@ -134,10 +136,9 @@ class SchedulerClientCallSurfaceTest {
             "the entry point every chain's tick(mc, …) is handed — getInstance/player/level/options",
             "net/minecraft/client/player/LocalPlayer",
             "the body: blockPosition/getHealth/getAirSupply/position/setYRot/setSprinting/…",
-            "net/minecraft/client/KeyMapping",
-            "setDown, for the attack/use keybinds the reflexes still latch (movement left in e08921a2)",
-            "net/minecraft/client/Options",
-            "the keyAttack/keyUse fields those setDown calls reach through",
+            // KeyMapping and Options left this list on 2026-09-14: the attack/use latches the
+            // reflexes used to set through them are ClientIntents now, a class with no client
+            // types in it. Dropped, not kept — an allowlist row nothing exercises is accumulated.
             "net/minecraft/client/multiplayer/ClientLevel",
             "getBlockState, for DrownEscapeChain's lid collision-shape test"));
 

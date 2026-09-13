@@ -244,7 +244,7 @@ final class JourneyFeed {
      * so a {@code LocalPlayer} whose use key was never pressed sees itself using an item and sends
      * {@code RELEASE_USE_ITEM} on its next tick. This repo's own {@link
      * net.magicterra.worlddriver.bot.auto.AutoEat} is the corroboration: it eats by HOLDING
-     * {@code keyUse} down and releasing at food=20, which is only necessary if letting go ends the
+     * the use intent and releasing at food=20, which is only necessary if letting go ends the
      * bite. ⚠️ Corroboration is not proof — nothing here has yet watched that packet arrive. What
      * exists is one half of the comparison: {@code wd.serverAvatarTickFidelity} (A) holds the use
      * on cooked beef for forty ticks and requires the meal to finish, and it is GREEN — on a
@@ -284,7 +284,7 @@ final class JourneyFeed {
      *
      * <p>The first line releases the use key unconditionally. {@link #startBite} already releases
      * in its own continuation, but a continuation is not a guarantee: a scene that hard-fails
-     * mid-{@code await} never reaches one, and {@code mc.options.keyUse} outlives the scene — a
+     * mid-{@code await} never reaches one, and the use intent outlives the scene — a
      * gravel rung that dies mid-bite would hand rung 11 a body walking around with right-click
      * held, exactly the leak {@code UseKeyOwnershipTest} names. This method is where every exit of
      * the leg converges, and releasing twice costs nothing (that test calls releases unrestricted).

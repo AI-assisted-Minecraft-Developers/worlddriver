@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.auto.DrownEscapeGate;
 import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
@@ -196,7 +197,7 @@ public final class DrownEscapeChain implements Chain {
                 BotInput.forward(mc, true);         // swim toward open water
                 BotInput.sprint(mc, false);
                 BotInput.sneak(mc, false);
-                mc.options.keyAttack.setDown(false);
+                ClientIntents.holdDig(false);
                 keysHeld = true;
                 // UNCONDITIONAL, throttled — deliberately the same gate its vertical sibling
                 // (`dbgV++ % 10 == 0`, no flag) has always had. This row used to be behind
@@ -279,24 +280,16 @@ public final class DrownEscapeChain implements Chain {
                 && mc.level.getBlockState(lid).getDestroySpeed(mc.level, lid) >= 0f) {
             selectBestToolFor(mc, lid);
             aimAtBlockSnap(p, lid);
-            mc.options.keyAttack.setDown(true);
-            // keyAttack ALONE breaks nothing on a driven client. Vanilla's
-            // continueAttack → continueDestroyBlock is gated on mouseHandler.isMouseGrabbed(),
-            // true only after a human clicks into the window — and MouseYield deliberately
-            // refuses to grab it, so vanilla takes the other branch and calls stopDestroyBlock()
-            // every tick instead. Measured 2026-08-04 (see Avatar#breakHold): 140 ticks aimed
-            // dead-on at the block, destroyProgress pinned at exactly 0.0, grabbed=false.
-            // The key still goes down because under a GRABBED mouse vanilla drives the identical
-            // break and the two simply agree; the pipeline is driven directly for the case this
-            // reflex actually runs in. A drowning body under a lid has one breath, and a break
-            // that never starts spends all of it.
+            ClientIntents.holdDig(true);
             // Through BotInteract, not inline: naming MultiPlayerGameMode here puts a client class
             // in this chain's own bytecode, and this chain is constructed on a dedicated server by
-            // the gate's matrix scenes. See BotInteract#continueDestroy.
+            // the gate's matrix scenes. See BotInteract#continueDestroy — the drive is what breaks
+            // the lid, and it also makes vanilla's attack pass stand aside (ClientIntents). A
+            // drowning body under a lid has one breath, and a break that never starts spends all of it.
             continueDestroy(mc, p, lid);
             breaking = true;
         }
-        if (!breaking) mc.options.keyAttack.setDown(false);
+        if (!breaking) ClientIntents.holdDig(false);
         // STAND UP TO DIG. Vanilla's Player#getDestroySpeed divides the rate by 5 when the body is
         // off the ground and by 5 AGAIN when its eyes are in water, and this arm was paying both:
         // the jump above is held every tick, so the body hovers instead of resting on whatever it
@@ -597,13 +590,13 @@ public final class DrownEscapeChain implements Chain {
      *  <p>The movement half self-releases — {@code BotInput}'s commands are per-tick and an
      *  uncommanded tick falls back to the real keybind — so the explicit jump(false) below is
      *  only belt-and-braces for the one tick between interrupt and the next scheduler pass.
-     *  {@code keyAttack} is a genuinely LATCHED keybind and its release is load-bearing. */
+     *  The dig latch is genuinely LATCHED and its release is load-bearing. */
     private void releaseHeldKeys() {
         if (!keysHeld) return;
         keysHeld = false;
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.options == null) return;
         BotInput.jump(mc, false);
-        mc.options.keyAttack.setDown(false);
+        ClientIntents.holdDig(false);
     }
 }

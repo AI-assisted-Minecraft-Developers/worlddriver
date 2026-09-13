@@ -84,26 +84,24 @@ public interface Avatar {
     /**
      * Hold/release the break action.
      *
-     * <p><b>On a client avatar this alone breaks nothing.</b> It sets {@code keyAttack} down and
-     * waits for vanilla's {@code tick → continueAttack → continueDestroyBlock} pipeline, and that
-     * pipeline is gated on {@code mouseHandler.isMouseGrabbed()} — true only after a human clicks
-     * into the window. A driven client never grabs the mouse, so vanilla takes the other branch and
-     * calls {@code stopDestroyBlock()} every tick instead. Measured 2026-08-04 on the craft-table
-     * reclaim: 140 ticks aimed dead-on at the block, crosshair on target, no screen open,
-     * {@code destroyProgress} pinned at exactly 0.0, {@code grabbed=false}.
+     * <p><b>On a client avatar this alone breaks nothing</b>, and it never did. It is the dig
+     * latch ({@code ClientIntents.holdDig}) — what {@link #breakHeld()} answers and what the
+     * walker's tick tail releases — while {@link #continueDestroy(BlockPos)} is what advances the
+     * block. Until 2026-09-14 the latch was {@code keyAttack} itself, on the theory that vanilla's
+     * {@code tick → continueAttack → continueDestroyBlock} would do the digging; that pipeline is
+     * gated on {@code mouseHandler.isMouseGrabbed()}, which a driven client never sets, so vanilla
+     * took the other branch and called {@code stopDestroyBlock()} every tick instead (measured
+     * 2026-08-04: 140 ticks aimed dead-on, {@code destroyProgress} pinned at 0.0). Each
+     * {@code continueDestroy} now makes that pass stand aside, so the drive is the whole dig.
      *
-     * <p>So every client-side break site must pair this with {@link #continueDestroy(BlockPos)} on
-     * the same block:
+     * <p>So every client-side break site pairs the two:
      * <pre>{@code a.aimAtBlock(t); a.breakHold(true); a.continueDestroy(t); }</pre>
-     * Both, not either. {@code continueDestroy} alone latches {@code isDestroying}, which vanilla's
-     * per-tick {@code stopDestroyBlock} then clears; the break survives only because
-     * {@code continueDestroyBlock} keys off {@code sameDestroyTarget} rather than that flag. Keeping
-     * the key down is what makes the same code correct under a grabbed mouse, where vanilla drives
-     * the identical break and the two simply agree.
+     * The hold for the bookkeeping, the drive for the block. Releasing the hold drops the pending
+     * stand-aside too, so vanilla's next pass aborts the break exactly as a released key did.
      *
-     * <p>Server avatars are unaffected either way: there {@code breakHold(true)} destroys the block
-     * directly and {@code continueDestroy} is an inherited no-op. That asymmetry is why this went
-     * unnoticed — every dig scene in the suite is a {@code wd.server*} scene.
+     * <p>Server avatars: there {@code breakHold(true)} destroys the block directly and
+     * {@code continueDestroy} is an inherited no-op. That asymmetry is why the client half went
+     * unnoticed for so long — every dig scene in the suite was a {@code wd.server*} scene.
      */
     void breakHold(boolean v);
 

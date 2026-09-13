@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-14
+
+- **The bot no longer presses the attack or use key.** Digging latched `mc.options.keyAttack`
+  and item use (bow draw, shield, heal, eat) latched `mc.options.keyUse`, both of which are one
+  global boolean shared with the human at the keyboard: a mouse-button release cleared the bot's
+  hold mid-action, a leaked hold left the human's right-click stuck, and vanilla's own per-tick
+  `continueAttack` — which a driven client reaches with the key down but the mouse never grabbed —
+  called `stopDestroyBlock()` every tick and zeroed the progress the bot's direct drive had just
+  added. The two now go through `ClientIntents` and the mod's first mixin, `MinecraftMixin`:
+  every destroy drive asserts a dig and vanilla's next two attack passes stand aside (two, so a
+  walker phase that skips one drive does not lose the break — one pass did, on the stone-bank
+  climb-out), so the drive is the whole dig and a released hold aborts on the very next pass, as
+  a released key did; the use hold widens vanilla's two `keyUse.isDown()` reads in `handleKeybinds` to
+  "down or the bot holds use", so start, hold-repeat and release stay vanilla's code. The
+  shield > heal > eat arbitration, `CombatChain#releaseUseKey` and `releaseKeys()` keep their
+  shape on the new latch. `AntiSuffocate`'s raycast-miss fallback to a direct drive and the
+  walker's sticky-dig "direct" latch are gone — there is nothing left to fall back from.
+  `mc.test.input.heldKeys` still reports `attack`, now the dig latch. The mixin config
+  `worlddriver-common.mixins.json` is registered in both loader manifests.
+  `SharedKeybindQuarantineTest` refuses any code outside the mixin naming either keybind and
+  checks the registration; `ClientBreakSitePairingTest` is retired with the key it paired;
+  `UseKeyOwnershipTest` and `SchedulerClientCallSurfaceTest` follow the latch (the scheduler no
+  longer touches `KeyMapping` or `Options`).
+
 ## 2026-09-11
 
 - **Body verbs check the body before they accept the order.** Every `mc.bot.*` verb that drives

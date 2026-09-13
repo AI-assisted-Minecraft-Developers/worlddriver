@@ -110,9 +110,9 @@
 2. **`nearestBreathable`（`:284-299`）必须找得到**
    切比雪夫环 `r = 1..LATERAL_SCAN_R`（`LATERAL_SCAN_R=5`，`:86`），环内按欧氏平方距离取最近；判据是 `breathableColumn(w,x,by,z)`（`:273-280`）：从 **`by`**（脚那一格本身，注意起点比 `cappedColumn` 低一格）扫到 `by+4`，第一个非水格 `isPassable && !isHazard` ⇒ 可呼吸。
 
-命中后的动作（`:151-165`）：yaw 指向目标柱、`setXRot(0f)`（水平）、`jump(true)` 保持浮力、`forward(true)`、`sprint(false)`、`sneak(false)`、`keyAttack.setDown(false)`、**`return`**。
+命中后的动作（`:151-165`）：yaw 指向目标柱、`setXRot(0f)`（水平）、`jump(true)` 保持浮力、`forward(true)`、`sprint(false)`、`sneak(false)`、`ClientIntents.holdDig(false)`（2026-09-14 前是 `keyAttack.setDown(false)`）、**`return`**。
 
-**代价**：这条臂**完全不挖**（显式关掉 keyAttack），纯游。它的成功完全押在"5 格内真有一根能呼吸的柱"上。
+**代价**：这条臂**完全不挖**（显式放开挖掘闩），纯游。它的成功完全押在"5 格内真有一根能呼吸的柱"上。
 
 #### 出路 B —— 纯竖直上浮 + 破盖（`:171-216`）
 
@@ -124,11 +124,11 @@
 - 目标格 `lid = p.blockPosition().above(2)`（`:189`）—— **写死的固定偏移**，不是扫描出来的。脚格 +2 = 眼格再上一格。
 - `lidBlocksRise = level.getBlockState(lid).getCollisionShape(...).isEmpty() == false`（`:194-195`）。用碰撞体积而不是 `isSolid`，注释说是为了红树根那种非满方块。**水的碰撞体是空的**，所以 `lid` 是水时这里是 false。
 - 三重与门：`BotConfig.allowBreak && lidBlocksRise && getDestroySpeed(...) >= 0f`（`:196-197`）。`>= 0f` 只排掉基岩的 −1。
-- 命中：`selectBestToolFor` → `aimAtBlockSnap` → `keyAttack.setDown(true)` → `continueDestroy(mc, p, lid)`（`:198-214`）。注释里那段说明很关键：光按 keyAttack 在被驱动的客户端上**破不了任何东西**（`mouseHandler.isMouseGrabbed()` 为 false，vanilla 每 tick 走 `stopDestroyBlock()`），所以必须直接驱动 `continueDestroy`。
+- 命中：`selectBestToolFor` → `aimAtBlockSnap` → `ClientIntents.holdDig(true)`（2026-09-14 前是 `keyAttack.setDown(true)`）→ `continueDestroy(mc, p, lid)`（`:198-214`）。注释里那段说明很关键：光按 keyAttack 在被驱动的客户端上**破不了任何东西**（`mouseHandler.isMouseGrabbed()` 为 false，vanilla 每 tick 走 `stopDestroyBlock()`），所以必须直接驱动 `continueDestroy`。
 
 #### 出路 C —— 「按着跳，什么都不干」（`:181-184` + `:217`）
 
-不是一条独立分支，是出路 B 的**破盖与门没通过**时剩下的东西：`dir == null` 且 `lidBlocksRise == false`（头顶 foot+2 是水或空气）⇒ 只按跳、清横向、`keyAttack.setDown(false)`（`:217`），**一格都不挖，一格都不横向移动**。
+不是一条独立分支，是出路 B 的**破盖与门没通过**时剩下的东西：`dir == null` 且 `lidBlocksRise == false`（头顶 foot+2 是水或空气）⇒ 只按跳、清横向、`ClientIntents.holdDig(false)`（`:217`，2026-09-14 前是 `keyAttack.setDown(false)`），**一格都不挖，一格都不横向移动**。
 
 ### 1.4 放进"y=40 含水空腔、头顶 4 格内无空气、横向 5 格内无岸"这个具体处境
 

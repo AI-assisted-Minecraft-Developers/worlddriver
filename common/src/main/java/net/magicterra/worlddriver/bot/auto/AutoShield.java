@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.item.Items;
@@ -16,7 +17,7 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.hotbarSlotOf;
  * heal over eat. Creepers are NOT shielded (the blast goes through) — those are
  * the PanicChain's job, so this skips them.
  *
- * <p>Holds the use key while raised; a shield in the offhand raises even with a
+ * <p>Holds the use intent while raised; a shield in the offhand raises even with a
  * weapon in the main hand, otherwise we select a hotbar shield first.
  */
 public final class AutoShield {
@@ -48,13 +49,13 @@ public final class AutoShield {
         if (!p.getInventory().offhand.get(0).is(Items.SHIELD)) {
             ensureHolding(mc, Items.SHIELD);
         }
-        mc.options.keyUse.setDown(true);
+        ClientIntents.holdUse(true);
         raising = true;
     }
 
     public void release(Minecraft mc) {
         if (raising) {
-            mc.options.keyUse.setDown(false);
+            ClientIntents.holdUse(false);
             raising = false;
         }
     }

@@ -422,12 +422,10 @@ public final class MineProcess implements BotProcess {
             }
             case BREAKING -> {
                 // Release walking keys, hold the break action via the Avatar:
-                //  - CLIENT: keyAttack down PLUS a direct continueDestroy on the same block.
-                //    The key alone drives nothing here: vanilla's tick → continueAttack →
-                //    continueDestroyBlock pipeline this used to rely on only runs while the
-                //    mouse is grabbed, and a driven client never grabs it (see Avatar#breakHold
-                //    for the measurement). The direct call is what actually advances the break;
-                //    it is still PROGRESSIVE, so the id check below stays honest.
+                //  - CLIENT: the dig latch PLUS a direct continueDestroy on the same block.
+                //    The latch drives nothing (see Avatar#breakHold); the direct call is what
+                //    advances the break, and it makes vanilla's own attack pass stand aside for
+                //    the tick. It is still PROGRESSIVE, so the id check below stays honest.
                 //  - SERVER: a.breakHold(true) = level.destroyBlock(aimTarget) (instant), and
                 //    continueDestroy is an inherited no-op.
                 // Either way the SAME completion check below (block id changed away

@@ -23,7 +23,10 @@ import java.util.Map;
 import java.util.Set;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.movement.Walker;
+import net.magicterra.worlddriver.bot.movement.WalkerPlanAdoption;
+import net.magicterra.worlddriver.bot.pathfinder.SearchScope;
 import net.magicterra.worlddriver.bot.process.*;
 import net.magicterra.worlddriver.bot.scheduler.BunkerChain;
 import net.magicterra.worlddriver.bot.scheduler.CancelRouting;
@@ -133,8 +136,8 @@ public final class BotApiImpl implements BotApi {
      *  and revisit by name. ConcurrentHashMap because list/get can race a
      *  save from a separate RPC handler thread. */
     private final Map<String, BlockPos> waypoints = new ConcurrentHashMap<>();
-    /** autoEat hold-keyUse loop. Owns its own {@code eating} flag; the tick
-     *  hook drives it and releases the key when a process takes over. */
+    /** autoEat hold-use loop. Owns its own {@code eating} flag; the tick
+     *  hook drives it and releases the use intent when a process takes over. */
     private final AutoEat autoEat = new AutoEat();
     /** Phase B ambient hand reflexes (concurrent with movement). AutoShield/
      *  AutoHeal contend for the use key with autoEat — arbitrated in clientTick;
@@ -630,6 +633,8 @@ public final class BotApiImpl implements BotApi {
             lp.put("goalReached", ps.goalReached());
             lp.put("finalCost", ps.finalCost());
             lp.put("pathLen", ps.pathLen());
+            lp.put("sightBudgetExhausted", ps.sightBudgetExhausted());
+            lp.put("snapshotTruncated", ps.snapshotTruncated());
             snap.put("lastPath", lp);
         }
         // gap#68-R1a: per-chain priority + episode phase, so the agent (and the
@@ -1047,7 +1052,7 @@ public final class BotApiImpl implements BotApi {
         appendIfDown(sb, "right", mc.options.keyRight);
         appendIfDown(sb, "jump", mc.options.keyJump);
         appendIfDown(sb, "sprint", mc.options.keySprint);
-        appendIfDown(sb, "attack", mc.options.keyAttack);
+        if (ClientIntents.digHeld()) { if (!sb.isEmpty()) sb.append(','); sb.append("attack"); }
         appendIfDown(sb, "shift", mc.options.keyShift);
         return sb.toString();
     }
@@ -1060,10 +1065,12 @@ public final class BotApiImpl implements BotApi {
 
     /**
      * {@code mc.test.input.heldKeys} — see {@link BotApi#heldKeys()}. Reads
-     * {@link KeyMapping#isDown()} on the client thread for exactly the eight keymappings
+     * {@link KeyMapping#isDown()} on the client thread for exactly what
      * {@link net.magicterra.worlddriver.bot.util.BotInteract#releaseKeys()} clears, in the same
      * order, under the reply names {@code up/down/left/right/jump/sprint/attack/shift}.
-     * Pure observation — mutates nothing.
+     * {@code attack} is the bot's dig latch ({@link ClientIntents#digHeld()}), not a keybind —
+     * the bot stopped pressing the attack key on 2026-09-14 — but it keeps its slot so the
+     * instrument's shape is stable. Pure observation — mutates nothing.
      */
     @Override
     public Map<String, Object> heldKeys() {
@@ -1079,7 +1086,7 @@ public final class BotApiImpl implements BotApi {
             keys.put("right", mc.options.keyRight.isDown());
             keys.put("jump", mc.options.keyJump.isDown());
             keys.put("sprint", mc.options.keySprint.isDown());
-            keys.put("attack", mc.options.keyAttack.isDown());
+            keys.put("attack", ClientIntents.digHeld());
             keys.put("shift", mc.options.keyShift.isDown());
             return Map.of("ok", true, "keys", keys);
         });
@@ -1138,19 +1145,19 @@ public final class BotApiImpl implements BotApi {
     /**
      * Whether a foreground builder process should silence the ambient use-key reflexes.
      *
-     * <p><b>Not key ownership</b>, despite how it reads. Six process kinds answer
+     * <p><b>Not intent ownership</b>, despite how it reads. Six process kinds answer
      * {@code "builder"} (Build/Bridge/Tower/Backfill/BboxFill/Farm) and NONE of them
-     * presses {@code keyUse} — they place through {@link net.magicterra.worlddriver.bot.util.BotInteract}
-     * → {@code gameMode.useItemOn} directly. What this suppresses is an ambient's
-     * {@code keyUse} firing a SECOND use-action on the tick a builder places, which is
-     * why it gates the reflexes instead of handing a key over. (Its previous name,
+     * holds the use intent — they place through {@link net.magicterra.worlddriver.bot.util.BotInteract}
+     * → {@code gameMode.useItemOn} directly. What this suppresses is an ambient's held
+     * use firing a SECOND use-action on the tick a builder places, which is
+     * why it gates the reflexes instead of handing the intent over. (Its previous name,
      * {@code processOwnsUseKey}, claimed an ownership that never existed.)
      *
-     * <p>{@code keyUse} is the one shared input {@code BotInteract.releaseKeys()}
-     * deliberately omits — the idle release runs AFTER the shield/heal/eat reflexes set
-     * it — so the arbitration below is the ONLY thing keeping the key from leaking, and
-     * every acquirer must join it or self-clear on every exit path. {@code
-     * UseKeyOwnershipTest} pins the acquirer set against exactly that drift.
+     * <p>The use intent ({@link ClientIntents#holdUse}) is the one shared input
+     * {@code BotInteract.releaseKeys()} deliberately omits — the idle release runs AFTER the
+     * shield/heal/eat reflexes set it — so the arbitration below is the ONLY thing keeping it
+     * from leaking, and every acquirer must join it or self-clear on every exit path.
+     * {@code UseKeyOwnershipTest} pins the acquirer set against exactly that drift.
      */
     private static boolean builderSuppressesAmbients(BotProcess c) {
         return c != null && c.kind().equals("builder");
@@ -1269,7 +1276,7 @@ public final class BotApiImpl implements BotApi {
         // Ambient hand/equipment/hotbar gating reads the foreground user process
         // (a preempting survival/combat chain leaves it held but suspended).
         BotProcess c = userTask.process();
-        // Use-key arbitration (Phase B): shield > heal > eat, one holder per tick,
+        // Use-intent arbitration (Phase B): shield > heal > eat, one holder per tick,
         // the losers release. Why a builder silences all three — and what keeps this
         // protocol whole at all — is on builderSuppressesAmbients.
         if (builderSuppressesAmbients(c)) {

@@ -36,7 +36,7 @@ public final class ClientPlayerAvatar implements Avatar {
     @Override public void commandForward(float forward) { AvatarInput a = ai(); if (a != null) a.commandForward(forward); }
     @Override public void commandJump(boolean v) { AvatarInput a = ai(); if (a != null) a.commandJump(v); else p.input.jumping = v; }
     @Override public void commandSneak(boolean v) { AvatarInput a = ai(); if (a != null) a.commandSneak(v); else p.input.shiftKeyDown = v; }
-    @Override public void commandUseItem(boolean hold) { mc.options.keyUse.setDown(hold); }
+    @Override public void commandUseItem(boolean hold) { ClientIntents.holdUse(hold); }
     @Override public void requestLookSnap() { LookController.requestSnap(); }
 
     @Override public boolean holdPlaceable() { return BotInteract.ensureHoldingPlaceableAny(mc); }
@@ -55,7 +55,7 @@ public final class ClientPlayerAvatar implements Avatar {
     }
     @Override public void place(WorldView w, BlockPos cell) { BotInteract.walkerPlace(mc, p, w, cell); }
     @Override public void placeOn(BlockPos cell, Direction face) { BotInteract.clientUseItemOn(mc, p, cell, face); }
-    @Override public void breakHold(boolean v) { mc.options.keyAttack.setDown(v); }
+    @Override public void breakHold(boolean v) { ClientIntents.holdDig(v); }
     @Override public void attackEntityUnchecked(net.minecraft.world.entity.Entity target) {
         if (mc.gameMode != null && p != null) mc.gameMode.attack(p, target);
     }
@@ -67,7 +67,7 @@ public final class ClientPlayerAvatar implements Avatar {
 
     @Override public void noteAttackRefusal(String why) { this.lastAttackRefusal = why; }
     @Override public String lastAttackRefusal() { return lastAttackRefusal; }
-    @Override public boolean breakHeld() { return mc.options.keyAttack.isDown(); }
+    @Override public boolean breakHeld() { return ClientIntents.digHeld(); }
 
     /** The cell {@link #continueDestroy} already drove this client tick, and the tick it drove
      *  it on — the pair that keeps one block from being advanced twice in a tick. */
@@ -92,19 +92,19 @@ public final class ClientPlayerAvatar implements Avatar {
         // every successful continueDestroyBlock tick. Direct-driven digs without the
         // swing are visibly armless AND emit no ServerboundSwingPacket — third-party
         // servers' anticheat flags "mining without swinging" (user report 2026-07-21).
-        // WHO IS ZEROING THE PROGRESS. Vanilla's own Minecraft.continueAttack runs every client
+        // WHO USED TO ZERO THE PROGRESS. Vanilla's own Minecraft.continueAttack runs every client
         // tick and, on any tick it does not have a block under the crosshair, calls
         // stopDestroyBlock() — which sends ABORT and sets destroyProgress = 0 while LEAVING
         // destroyBlockPos alone. sameDestroyTarget() compares only the position and the held item,
-        // never isDestroying, so the next direct drive walks straight back into the accumulate
-        // branch and starts from zero again: a dig that can never finish and never says so.
-        // `before` is the reading that separates "our drive is not landing" from "something zeroes
-        // it between our drives"; windowActive/grabbed are there because vanilla gates that whole
-        // path on mouseHandler.isMouseGrabbed(), and MouseYield deliberately refuses to grab the
-        // cursor while the window is unfocused — which is every unattended run.
+        // never isDestroying, so the next direct drive walked straight back into the accumulate
+        // branch and started from zero again: a dig that could never finish and never said so.
+        // The assertDig below is what ends that: MinecraftMixin skips vanilla's next attack pass
+        // whole. `before` stays in the row because it is the reading that would show the zeroing
+        // coming back — a `before` of 0.0 on every row while ok=true is that regression's signature.
         float before = mc.gameMode.destroyProgress;
         boolean ok = mc.gameMode.continueDestroyBlock(cell, BotInteract.pickFaceTowardsPlayer(cell, p));
         if (ok) p.swing(InteractionHand.MAIN_HAND);
+        ClientIntents.assertDig(cell);
         // UNCONDITIONAL (once a second while a dig is running). It was gated on walkerDebug, which no
         // ladder and no gate ever sets, so the one reading that answers the user-reported「机器人挖矿
         // 不挥手」was absent from every run that could have shown it: the swing above happens only when
@@ -112,11 +112,11 @@ public final class ClientPlayerAvatar implements Avatar {
         // column that says so. A row per second during a dig is cheaper than another run.
         if (p.tickCount % 20 == 0)
             WorldDriverCommon.LOG.info(
-                    "[dig] cell={} ok={} progress {}->{} isDestroying={} windowActive={} grabbed={} keyAttack={} screen={}",
+                    "[dig] cell={} ok={} progress {}->{} isDestroying={} windowActive={} grabbed={} digHeld={} screen={}",
                     cell.toShortString(), ok, before, mc.gameMode.destroyProgress,
                     mc.gameMode.isDestroying(), mc.isWindowActive(),
                     mc.mouseHandler != null && mc.mouseHandler.isMouseGrabbed(),
-                    mc.options.keyAttack.isDown(), mc.screen == null ? "none" : mc.screen.getClass().getSimpleName());
+                    ClientIntents.digHeld(), mc.screen == null ? "none" : mc.screen.getClass().getSimpleName());
     }
 
     /** {@code MultiPlayerGameMode.destroyProgress} (private in vanilla, opened by

@@ -7,12 +7,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotInteract.aimAtBlockSnap;
-import static net.magicterra.worlddriver.bot.util.BotInteract.pickFaceTowardsPlayer;
+import static net.magicterra.worlddriver.bot.util.BotInteract.continueDestroy;
 import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 
 /**
@@ -32,7 +30,7 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
  * suffocating block overlaps the eyes). In a falling-sand column it chews UPWARD —
  * each break lets the column above drop in and the top becomes air — until the
  * head clears, which both stops the damage and opens the escape channel. Tracks
- * its own key hold so it releases attack exactly once when suffocation ends,
+ * its own dig hold so it stops the break exactly once when suffocation ends,
  * without clobbering a process that wasn't digging.
  *
  * <p>Scope (learned the hard way, then verified live via the client introspection
@@ -84,22 +82,11 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 public final class AntiSuffocate {
     private AntiSuffocate() {}
 
-    /** gap#69: once the raycast-driven path has failed to land on the target for
-     *  this many consecutive ticks, stop trusting {@code keyAttack} and drive the
-     *  destroy pipeline directly (see {@link #tick}). */
-    private static final int RAYCAST_BYPASS_TICKS = 10;
-
-    /** True while we are the one driving the attack key, so we release our own hold. */
-    private static boolean held;
-    /** True while we're bypassing keyAttack and driving gameMode.continueDestroyBlock
-     *  directly for the current head block (gap#69, requirement 3). */
-    private static boolean directDrive;
-    /** The head cell the raycast-miss counter below is tracking; reset whenever the
-     *  resolved target changes (new suffocation episode or the fallback chain moved). */
+    /** True while we are the one driving the break, so we stop exactly our own break. */
+    private static boolean driving;
+    /** The head cell of the running episode; changes when the resolved target moves
+     *  (new suffocation episode or the fallback chain moved). */
     private static BlockPos trackedHead;
-    /** Consecutive ticks the camera raycast ({@code mc.hitResult}) failed to land on
-     *  {@link #trackedHead} while we were actively aiming at it. */
-    private static int rayMissTicks;
 
     /** @return true if it took over to break a suffocating head block this tick. */
     public static boolean tick(Minecraft mc, LocalPlayer p) {
@@ -124,43 +111,18 @@ public final class AntiSuffocate {
             // line per TARGET (episode start or fallback-chain move), never per tick.
             LOG.info("[antiSuffocate] suffocating → breaking {} ({}){}", head, st.getBlock(),
                     trackedHead == null ? "" : " [switched from " + trackedHead.toShortString() + "]");
-            trackedHead = head; rayMissTicks = 0; directDrive = false;
+            trackedHead = head;
         }
 
         selectBestToolFor(mc, head);
         aimAtBlockSnap(p, head);
-
-        // gap#69 requirement 3: the camera raycast (mc.hitResult) can fail to land on
-        // `head` even after aiming dead-center at it — the eye origin sits INSIDE solid
-        // geometry when we're genuinely embedded, and a raycast starting inside a solid
-        // block can miss entirely or resolve to the wrong face/block. keyAttack rides
-        // that same raycast (vanilla's continueAttack → gameMode.continueDestroyBlock),
-        // so a persistently-missing raycast means keyAttack silently does nothing while
-        // this reflex believes it's breaking. Track consecutive misses and, past the
-        // threshold, drive gameMode.continueDestroyBlock directly — it self-starts via
-        // startDestroyBlock on the first call for a new target, no separate call needed.
-        boolean rayOnTarget = mc.hitResult instanceof BlockHitResult bhr
-                && bhr.getType() == HitResult.Type.BLOCK && bhr.getBlockPos().equals(head);
-        if (rayOnTarget) rayMissTicks = 0; else rayMissTicks++;
-        if (!directDrive && rayMissTicks >= RAYCAST_BYPASS_TICKS) {
-            directDrive = true;
-            // gap#72-④: state transition (keyAttack → direct drive), logged once —
-            // the per-tick copy of this line is gone with the per-tick "breaking" one.
-            LOG.info("[antiSuffocate] raycast miss x{} → direct-driving destroy on {} ({})",
-                    rayMissTicks, head, st.getBlock());
-        }
-
-        if (directDrive) {
-            if (held) { mc.options.keyAttack.setDown(false); held = false; }
-            Direction face = pickFaceTowardsPlayer(head, p);
-            // Swing like vanilla continueAttack does on a successful destroy tick —
-            // armless digging is an anticheat signature on third-party servers.
-            if (mc.gameMode.continueDestroyBlock(head, face))
-                p.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-        } else {
-            mc.options.keyAttack.setDown(true);
-            held = true;
-        }
+        // Driven on the exact cell, never through the crosshair: the eye origin sits INSIDE
+        // solid geometry when we are genuinely embedded, and a raycast starting inside a solid
+        // block misses or resolves to the wrong face. continueDestroyBlock self-starts on the
+        // first call for a new target, and the drive makes vanilla's own attack pass stand
+        // aside (ClientIntents), so nothing retargets or zeroes it between our ticks.
+        continueDestroy(mc, p, head);
+        driving = true;
         return true;
     }
 
@@ -218,9 +180,7 @@ public final class AntiSuffocate {
     private static void reset(Minecraft mc, String outcome) {
         if (trackedHead != null)
             LOG.info("[antiSuffocate] episode end ({}) — last target {}", outcome, trackedHead.toShortString());
-        if (held) { mc.options.keyAttack.setDown(false); held = false; }
-        if (directDrive) { mc.gameMode.stopDestroyBlock(); directDrive = false; }
+        if (driving) { if (mc.gameMode != null) mc.gameMode.stopDestroyBlock(); driving = false; }
         trackedHead = null;
-        rayMissTicks = 0;
     }
 }

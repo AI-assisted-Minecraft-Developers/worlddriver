@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.component.DataComponents;
@@ -15,8 +16,8 @@ import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 /**
  * Phase B reflex — when health is at/below {@link BotConfig#healHpThreshold} and
  * the hotbar holds a healing item (enchanted/plain golden apple, or a drinkable
- * potion granting Instant Health / Regeneration), select it and hold the use key
- * to consume it. Sibling of {@link AutoEat}; the host arbitrates the use key with
+ * potion granting Instant Health / Regeneration), select it and hold the use intent
+ * to consume it. Sibling of {@link AutoEat}; the host arbitrates the use intent with
  * shield (shield wins) and eat (heal wins). Releases once healed above threshold
  * or the item runs out.
  */
@@ -31,19 +32,19 @@ public final class AutoHeal {
         int slot = healSlot(p);
         if (slot < 0) { release(mc); return; }
         if (p.getInventory().selected != slot) {
-            // Switch first; defer the use-key press a tick so the held item change
+            // Switch first; defer the use hold a tick so the held item change
             // reaches the server before we start consuming (mirrors AutoEat).
             p.getInventory().selected = slot;
             if (p.connection != null) p.connection.send(new ServerboundSetCarriedItemPacket(slot));
             return;
         }
-        mc.options.keyUse.setDown(true);
+        ClientIntents.holdUse(true);
         healing = true;
     }
 
     public void release(Minecraft mc) {
         if (healing) {
-            mc.options.keyUse.setDown(false);
+            ClientIntents.holdUse(false);
             healing = false;
         }
     }

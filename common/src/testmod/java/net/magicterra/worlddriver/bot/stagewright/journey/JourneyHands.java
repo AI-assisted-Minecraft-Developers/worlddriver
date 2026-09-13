@@ -169,7 +169,7 @@ final class JourneyHands {
      * <p>So: aim both, swing on the client, destroy on the server.
      * <ul>
      *   <li>The <b>client</b> half is the only one a human watching the window can see — a driven
-     *       client's {@code keyAttack} is ignored (vanilla gates it on {@code isMouseGrabbed}), but
+     *       client presses no attack key at all (vanilla's own pass stands aside for the drive), and
      *       {@code continueDestroy} drives {@code gameMode.continueDestroyBlock} directly and swings
      *       the arm. It runs first because an instant-break block may simply die here, which is the
      *       faithful path; on a headless body it is a no-op and costs nothing.</li>

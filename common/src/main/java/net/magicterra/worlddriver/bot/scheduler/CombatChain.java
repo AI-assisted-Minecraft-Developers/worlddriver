@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.minecraft.client.Minecraft;
@@ -208,15 +209,14 @@ public final class CombatChain implements Chain {
         if (engaged()) { standDown(); state.combat.lastError = reason; }
     }
 
-    /** Drop the use key the {@link CombatProcess} holds while drawing a bow.
-     *  {@code releaseKeys()} deliberately omits keyUse (the idle path runs it AFTER
-     *  the shield/heal/eat reflexes set keyUse, so clearing it there would clobber
+    /** Drop the use intent the {@link CombatProcess} holds while drawing a bow.
+     *  {@code releaseKeys()} deliberately omits it (the idle path runs it AFTER
+     *  the shield/heal/eat reflexes set the intent, so clearing it there would clobber
      *  them every tick); but on a combat preempt/stand-down the bow draw must drop,
-     *  or the bot flees with the bow still held — CombatProcess's own keyUse-clear
+     *  or the bot flees with the bow still held — CombatProcess's own release
      *  path is bypassed once the process is detached. */
     private static void releaseUseKey() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.options != null) mc.options.keyUse.setDown(false);
+        ClientIntents.holdUse(false);
     }
 
     private void resetCounters() {

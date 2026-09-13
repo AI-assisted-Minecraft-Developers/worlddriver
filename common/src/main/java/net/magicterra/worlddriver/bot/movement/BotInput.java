@@ -20,10 +20,10 @@ import net.minecraft.client.player.LocalPlayer;
  * shared flag and aiStep emits START/STOP_SPRINTING; the old {@code keySprint.setDown} was
  * redundant beside the {@code setSprinting} every site already paired with it.
  *
- * <p><b>Attack / use</b> are deliberately NOT routed here — mining stays on
- * {@code mc.options.keyAttack} so it rides vanilla's continueAttack → continueDestroyBlock
- * pipeline (calling gameMode directly desyncs client prediction and breaks completion
- * detection — see MineProcess), and they don't collide with movement anyway.
+ * <p><b>Attack / use</b> are deliberately NOT routed here — they have their own seam,
+ * {@link ClientIntents}, because vanilla reads those two keybinds itself in
+ * {@code Minecraft.handleKeybinds} rather than through the {@code Input} object this class
+ * commands; and they don't collide with movement anyway.
  *
  * <p><b>Why the keybinds were not merely impolite but INERT.</b> Measured 2026-08-22 on the
  * integrated (real-client) ladder: {@link AvatarInput#tick} runs vanilla's key pass FIRST and

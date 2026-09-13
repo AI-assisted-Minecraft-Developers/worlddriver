@@ -218,7 +218,7 @@ public final class BotConfig {
     public static volatile int breakTimeoutTicks = 200;
 
     /** Baritone-style survival toggles — each tick the bot driver checks these
-     *  and may inject a single client-side action (hold keyUse for autoEat,
+     *  and may inject a single client-side action (hold the use intent for autoEat,
      *  call player.respawn() for autoRespawn). Off by default so a quiet bot
      *  stays quiet. */
     public static volatile boolean autoEat = false;
@@ -811,7 +811,6 @@ public final class BotConfig {
      *  alternative (water climb-outs, sealed pits) is still far cheaper than futile.
      *  Live-tunable via mc.bot.setting. */
     public static volatile double pathfinderPillarCost = 150;
-
 
     /** Max DRY (no-water) fall the planner takes as a plain {@code Fall} move, in blocks.
      *  <b>Default 4 — one block PAST Baritone's no-damage cap of 3</b>, so {@code Fall(4)} is live

@@ -489,20 +489,20 @@ keep them from fighting, and which one applies depends on the input:
 
 | Input | Mechanism | Rule |
 |---|---|---|
-| `keyUp/Down/Left/Right/Jump/Sprint/Attack/Shift` | `InputReleaseGate` → `BotInteract.releaseKeys()` | The bot pressing any of them marks the set dirty; the idle path clears them **once per drive burst**. A human playing with no agent never gets their keys touched — the per-tick clobber this replaced left manually-held WASD dead within ~50 ms. |
-| `keyUse` | hand-rolled arbitration in `BotApiImpl.clientTick` | Deliberately **excluded** from `releaseKeys()` — the idle release runs after the shield/heal/eat reflexes set it. shield > heal > eat, one holder per tick, losers release; a builder-kind process suppresses all three so their use-action cannot double up with its direct `gameMode.useItemOn`. Pinned by `UseKeyOwnershipTest`. |
+| `keyUp/Down/Left/Right/Jump/Sprint/Shift` | `InputReleaseGate` → `BotInteract.releaseKeys()` | The bot pressing any of them marks the set dirty; the idle path clears them **once per drive burst**. A human playing with no agent never gets their keys touched — the per-tick clobber this replaced left manually-held WASD dead within ~50 ms. |
+| dig (`keyAttack` until 2026-09-14) | `ClientIntents.holdDig` / `assertDig` + `MinecraftMixin` | **The bot never presses the attack key.** Every destroy drive asserts a dig; vanilla's next two `continueAttack` passes stand aside (no `stopDestroyBlock`, no crosshair retarget), so the drive is the whole dig, one skipped drive costs nothing, and a human's held button is read by nobody but vanilla. The latch (`breakHold`) is bookkeeping, cleared by `releaseKeys()`. |
+| use (`keyUse` until 2026-09-14) | `ClientIntents.holdUse` + `MinecraftMixin`, hand-rolled arbitration in `BotApiImpl.clientTick` | **The bot never presses the use key.** The mixin widens vanilla's two `keyUse.isDown()` reads in `handleKeybinds` to `down || bot holds use`, so start/hold/release are vanilla's own code. Deliberately **excluded** from `releaseKeys()` — the idle release runs after the shield/heal/eat reflexes set it. shield > heal > eat, one holder per tick, losers release; a builder-kind process suppresses all three so their use-action cannot double up with its direct `gameMode.useItemOn`. Pinned by `UseKeyOwnershipTest`. |
 | cursor / camera | `MouseYieldGate` + `MouseYield` | While the bot drives, the cursor is released to the OS so the human's mouse moves a desktop pointer instead of the crosshair. Sticky (vanilla re-grabs on any click); double-tap ESC reclaims it for the rest of the burst. |
 
 Two consequences worth knowing before touching this area:
 
-- **`Avatar.breakHeld()` reads the shared keybind back** (`keyAttack.isDown()`), so it
-  reports the truth even when vanilla clears the key underneath the bot —
-  `KeyMapping.releaseAll()` on any screen open. A shadow boolean would drift there.
-  It also means a human's click is visible to the bot, which is why `breakingEdge`
-  additionally requires the current path edge to have blocks to break.
+- **`Avatar.breakHeld()` reads the bot's own latch**, not a keybind. A human's click is no
+  longer visible through it — the two inputs are separate objects now, which is the point —
+  so `breakingEdge` requires the current path edge to have blocks to break on its own.
 - **A new writer of any of these globals is a design decision, not a refactor.** The
   failure is silent in both directions: clobbered (the action never happens) or leaked
-  (the bot walks around holding the key).
+  (the bot walks around holding the key). `SharedKeybindQuarantineTest` refuses any
+  `keyAttack`/`keyUse` write outside the mixin, so a new one has to be argued there.
 
 ## Pointers
 

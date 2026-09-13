@@ -32,11 +32,6 @@ final class WalkerTickPrelude {
      *  backstop; the real release signal is destroyProgress stalling. */
     private static final int STICKY_DIG_STALL_TICKS = 60;
     private static final int STICKY_DIG_ABS_CAP_TICKS = 4000;
-    /** Raycast-off-target ticks before latching direct continueDestroyBlock
-     *  drive (bob-reset bypass). Cumulative, not consecutive — intermittent
-     *  bob misses each zero the vanilla progress, so even sparse misses mean
-     *  the raycast path cannot finish the dig. */
-    private static final int STICKY_DIG_RAY_MISS_LATCH = 4;
     private WalkerTickPrelude() {}
 
     /**
@@ -311,30 +306,15 @@ final class WalkerTickPrelude {
                 BotConfig.walkerDigActive = true;   // dig-priority: AutoSwim's backstop yields while this hold is live and air is healthy
                 a.selectTool(wk.stickyDig.pos);
                 a.aimAtBlock(wk.stickyDig.pos);
-                // Bob-reset bypass: while bobbing in water the eye raycast dips
-                // behind the bank lip on some ticks; vanilla continueAttack then
-                // retargets and ZEROES the progress (live: dig could never
-                // finish). Count off-target ticks and latch direct drive —
-                // continueDestroyBlock(cell, face) self-starts and advances the
-                // exact cell regardless of the crosshair (AntiSuffocate gap#69
-                // precedent). keyAttack must be UP in direct mode or vanilla's
-                // raycast-driven continueAttack double-drives a different cell.
-                if (!wk.stickyDig.direct) {
-                    BlockPos looking = a.lookingAtBlock();
-                    if (!wk.stickyDig.pos.equals(looking)
-                            && ++wk.stickyDig.rayMiss >= STICKY_DIG_RAY_MISS_LATCH) {
-                        wk.stickyDig.direct = true;
-                        if (BotConfig.walkerDebug)
-                            LOG.info("[walker] sticky-dig DIRECT-DRIVE {} (raycast off-target x{})",
-                                    wk.stickyDig.pos, wk.stickyDig.rayMiss);
-                    }
-                }
-                // The direct drive is unconditional now — it is what actually breaks the block on a
-                // client, whether or not the raycast has wandered. What the latch still decides is
-                // the KEY: held while the crosshair is on the cell, released once it is not, so
-                // vanilla's raycast-driven continueAttack cannot double-drive a different cell.
-                a.breakHold(!wk.stickyDig.direct);
+                // The drive advances the exact cell regardless of where the crosshair is — while
+                // bobbing in water the eye raycast dips behind the bank lip on some ticks, and
+                // vanilla's crosshair-driven continueAttack used to retarget and ZERO the progress
+                // on those ticks. It cannot any more: the drive makes that pass stand aside (see
+                // ClientIntents), so the raycast-miss latch this used to keep is gone with the key.
+                a.breakHold(true);
                 a.continueDestroy(wk.stickyDig.pos);
+                wk.digDrivenThisTick = true;
+                wk.digKeyOwned = true;
                 return Walker.Step.WALKING;
             }
         }

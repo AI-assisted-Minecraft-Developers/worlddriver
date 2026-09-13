@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BunkerProcess;
 import net.minecraft.client.Minecraft;
@@ -110,7 +111,6 @@ public final class BunkerChain implements Chain {
         // reset-on-every-preempt in onInterrupt, was the gap#29 downward ratchet that
         // marched a 3.8-HP bot from y-5 to y-15. See {@link BunkerAnchor}.
         if (a.displacedFrom(foot.getX(), foot.getY(), foot.getZ())) {
-            mc.options.keyAttack.setDown(false);
             releaseKeys();
             a.reset();
         }
@@ -129,35 +129,28 @@ public final class BunkerChain implements Chain {
             // combat take over instead.
             if (w.isWater(foot) || w.isWater(foot.offset(0, 1, 0))
                     || w.isWater(below) || w.isHazard(below) || w.isHazard(foot.offset(0, 1, 0))) {
-                mc.options.keyAttack.setDown(false);
+                ClientIntents.holdDig(false);
                 a.reset();
                 return;
             }
             if (!w.isSolid(below)) { return; }        // already open (still falling) — settle a tick
             selectBestToolFor(mc, below);
             aimAtBlockSnap(p, below);
-            mc.options.keyAttack.setDown(true);
-            // keyAttack ALONE breaks nothing on a driven client. Vanilla's
-            // continueAttack → continueDestroyBlock is gated on mouseHandler.isMouseGrabbed(),
-            // true only after a human clicks into the window — and MouseYield deliberately
-            // refuses to grab it. Measured 2026-08-04 (see Avatar#breakHold): 140 ticks aimed
-            // dead-on, destroyProgress pinned at exactly 0.0. Without this the shaft never
-            // deepens, digTicks runs to breakTimeoutTicks, and the chain resets and re-anchors
-            // — a bunker that reads as "digging" in every log line and never gets a block down.
-            // The key still goes down so a grabbed-mouse client and this drive the same break.
+            ClientIntents.holdDig(true);
             // Through BotInteract, not inline: naming MultiPlayerGameMode here puts a client class
             // in this chain's own bytecode, and this chain is constructed on a dedicated server by
-            // the gate's matrix scenes. See BotInteract#continueDestroy.
+            // the gate's matrix scenes. See BotInteract#continueDestroy — the drive is what breaks
+            // the block, and it also makes vanilla's attack pass stand aside (ClientIntents).
             continueDestroy(mc, p, below);
             if (++a.digTicks > BotConfig.breakTimeoutTicks) {   // unbreakable (bedrock) — give up
-                mc.options.keyAttack.setDown(false);
+                ClientIntents.holdDig(false);
                 a.reset();
             }
             return;
         }
 
         // --- deep enough: seal the roof (the cell just above the head) ---
-        mc.options.keyAttack.setDown(false);
+        ClientIntents.holdDig(false);
         BlockPos ceiling = foot.offset(0, 2, 0);
         if (w.isSolid(ceiling)) { a.sealed = true; releaseKeys(); return; }
         if (ensureHoldingPlaceableAny(mc)) {
@@ -178,7 +171,6 @@ public final class BunkerChain implements Chain {
         // ticks) that ratcheted the bot arbitrarily deep (gap#29). A genuine relocation
         // is caught by displacedFrom() on the resuming tick; a plain preemption must
         // resume the SAME pocket, not dig a fresh one.
-        if (mc() != null) mc().options.keyAttack.setDown(false);
         releaseKeys();
         a.onPreempt();
     }
@@ -194,8 +186,6 @@ public final class BunkerChain implements Chain {
         resetEpisodeState();
         // Client-only key release — split from the state reset so the state semantics
         // stay testable on the dedicated GameTest server (no client classes there).
-        Minecraft mc = Minecraft.getInstance();
-        if (mc != null && mc.options != null) mc.options.keyAttack.setDown(false);
         releaseKeys();
     }
 
@@ -219,5 +209,4 @@ public final class BunkerChain implements Chain {
         return n;
     }
 
-    private static Minecraft mc() { return Minecraft.getInstance(); }
 }
