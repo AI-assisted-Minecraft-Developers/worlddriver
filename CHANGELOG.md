@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `overshot` only meant "far", not "beyond"). The break actuator then dug the column's block from
   8 cells out. `wd.clientTunnelsFarThroughStone` (40 cells of stone, the goal eight blocks under
   the slab's top) reproduces the orbit at the goal column that followed.
+- **A break cell beyond mining reach is walked to, not dug at.** The client accepts any cell,
+  breaks it locally at full progress, and the server refuses it by distance and sends it back;
+  the next plan stepped down through the phantom air and the body orbited the column. The generic
+  break actuator now falls through to the walk while its first solid break cell is out of reach.
 - **Open water is crossed in vanilla's prone sprint-swim.** The walker used to tread every
   surface crossing at ~2 blocks/s: the held surface jump keeps the eyes out, and vanilla accepts
   a sprint in water only while the eyes are under. Under `walkerSurfaceSprintSwim` (default ON)

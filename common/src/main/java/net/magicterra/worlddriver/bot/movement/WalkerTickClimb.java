@@ -1381,7 +1381,25 @@ final class WalkerTickClimb {
         // before walking into the cell. Functional aim SNAPS (same-tick),
         // independent of smoothLook. Returns each tick until the edge is
         // clear, then falls through to the normal walk below.
-        if (edge != null && wk.pillarRecover.latch <= 0 && hasPendingEdge(world, edge)) {
+        // A break cell beyond mining reach is walked to, never dug at from here. The client's
+        // MultiPlayerGameMode takes any cell: it accumulates progress and breaks the block LOCALLY
+        // at full progress, the server refuses the break by distance and sends the block back, and
+        // the body has stood still the whole time. Live: the pointer sat on a downBreak column 8
+        // cells away, the block was "broken" and restored twice, the next plan stepped down through
+        // the phantom air, and the body orbited the column. Out of reach, fall through to the walk.
+        boolean breakInReach = true;
+        if (edge != null) {
+            for (BlockPos b : edge.toBreak) {
+                if (!world.isSolid(b)) continue;
+                breakInReach = eyeWithin(p, b, blockReachToCentre(p));
+                if (!breakInReach && BotConfig.walkerDebug && p.tickCount % 20 == 0)
+                    LOG.info("[walker] break cell {},{},{} out of reach ({} blocks from the eye) → walk to it first",
+                            b.getX(), b.getY(), b.getZ(),
+                            String.format(Locale.ROOT, "%.1f", Math.sqrt(p.getEyePosition().distanceToSqr(b.getCenter()))));
+                break;
+            }
+        }
+        if (edge != null && wk.pillarRecover.latch <= 0 && breakInReach && hasPendingEdge(world, edge)) {
             // pillarRecover.latch gate: while a fall-below-route recovery is active,
             // this actuator would otherwise grab the edge's HIGH toBreak cell
             // (unreachable from down here) and hold a futile dig until its own
