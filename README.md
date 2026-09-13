@@ -11,6 +11,7 @@ The three paths are validated to return byte-identical results so external
 agents see exactly what in-game scripts see.
 
 - Minecraft **1.21.1**, Architectury (Fabric + NeoForge)
+- **Architectury API 13.0.8** installed alongside on either loader (a required mod, like Fabric API on Fabric)
 - JDK **21**
 - Rhino fork: `dev.latvian.mods:rhino:2101.2.7-build.81` (KubeJS-Mods)
 - License: [MIT](LICENSE)

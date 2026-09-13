@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   itself spins on) until the origin reports entity-ticking, bounded at ten seconds. Not the
   server's queue: `MinecraftServer` only reaches the chunk sources while a task is executing or
   the tick still has time, and a scene runs from the tick loop after the loads have spent it.
+- **Architectury API 13.0.8 is a required mod on both loaders.** The driver had only the
+  Architectury build plugins, so the repository's first custom block (the testmod's marker block,
+  designed 2026-09-05) had no `DeferredRegister` to register through, and every event the driver
+  listens to was subscribed twice, once per loader. It is declared in `fabric.mod.json` and
+  `neoforge.mods.toml`, not nested: a player installs it alongside, as with Fabric API.
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint
