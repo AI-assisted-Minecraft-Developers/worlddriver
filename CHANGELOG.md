@@ -43,6 +43,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drives, which is after the scene runner's first tick. With the property the client's option is
   forced off at startup (`labClient` sets it); a scene run on `body: self` now also fails at once
   when the integrated server is paused instead of waiting out its budget.
+- **A persistent lab world: `:fabric:runLabClient`.** Every client run so far was a StageWright
+  topology whose provisioning wipes `saves/` on launch, so a hand-built scene lived exactly one
+  session. `labClient` is a plain loom run (testmod on, ports pinned to 39800/39801, `run-lab`,
+  gitignored) that only asks the client director to open a world named `Lab`; nothing
+  provisions it, so the world keeps its scenes. `docs/user/human-verification.md` says how to
+  turn it superflat.
+
 ## 2026-09-06
 
 - **Marker blocks have real faces.** The testmod's nine `worlddriver:marker_<role>` items and

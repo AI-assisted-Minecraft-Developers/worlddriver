@@ -274,6 +274,21 @@ loom {
             runDir 'run-stagewright-joining-client'
             vmArg '-Xmx2g'
         }
+        // The lab: a client on a persistent flat world for hand-built scenes. Not a StageWright
+        // task, so nothing provisions (= wipes) `run-lab`. See docs/user/human-verification.md.
+        labClient {
+            client()
+            property 'stagewright.client.world', 'Lab'
+            property 'stagewright.client.exitWhenDone', 'false'
+            property 'worlddriver.realPlayerBodies', 'true'
+            property 'worlddriver.rpcPort', '39801'
+            property 'worlddriver.mcpPort', '39800'
+            // Unfocused on a desktop; vanilla would pause it. See docs/user/human-verification.md.
+            property 'worlddriver.pauseOnLostFocus', 'false'
+            runDir 'run-lab'
+            vmArg '-Xmx2g'
+            source sourceSets.testmod
+        }
         // The playthrough ladder (wd.journey*). Deliberately NOT one of the six gates: a
         // playthrough is hours where they are minutes, so it arms behind its own property and
         // filters to its own family. The filter is what keeps the manifests out of it —

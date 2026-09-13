@@ -11,6 +11,8 @@ run-contract/
 # committable the day it is added.
 run-journey*/
 run-rehearsal*/
+# The lab world (runLabClient) is a tester's own, kept across launches and never committed.
+run-lab/
 .idea/
 *.log
 # log4j2 rolls latest.log into dated .gz archives, which *.log does not cover;
