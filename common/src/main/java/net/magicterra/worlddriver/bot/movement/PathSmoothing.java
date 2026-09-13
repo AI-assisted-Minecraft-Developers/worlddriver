@@ -3,12 +3,15 @@ package net.magicterra.worlddriver.bot.movement;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
+
+import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 
 /**
  * Path post-processing for the {@link Walker}: string-pulling flat staircase
@@ -320,6 +323,54 @@ public final class PathSmoothing {
 
     /** An edge still needs work iff a block it must break is still solid, or a
      *  block it must place isn't solid yet. */
+    /** How many leading edges {@link #dropStalePrefix} re-evaluates: the part of a segment the body
+     *  executes before the next periodic search could correct it. */
+    private static final int STALE_CHECK_EDGES = 12;
+
+    /**
+     * Cut a fresh search result at the first leading edge the CURRENT world no longer admits.
+     *
+     * <p>A sliced search runs for seconds of wall-clock while the body keeps executing the plan
+     * it already has, and inside rock that plan is digging. Live: the quick-start stub tunnelled
+     * three cells forward while the 6000-node search ran; that search, launched from the old foot,
+     * came back with a staircase whose first riser stood on the very cell the stub had just dug
+     * out. The body was walked back to a step with no floor under it, hopped, rammed, charged the
+     * pocket with stuck penalties, and the next three searches each started one cell further back:
+     * fifty seconds to climb eight blocks. Re-evaluating each leading edge with the move that made
+     * it, against the world as it is now, is exactly the question the planner asked a few seconds
+     * too early. An edge whose move cannot be found by name and delta is left alone, and water
+     * moves are left alone too: their pricing depends on per-search state (escape origin, dive)
+     * that a re-evaluation outside a search does not carry.
+     *
+     * @return the result unchanged, a shorter best-effort result, or an empty one when even the
+     *         first edge is gone — the caller then keeps what it has and searches again from here.
+     */
+    public static PathFinder.Result dropStalePrefix(WorldView w, PathFinder.Result res) {
+        List<BlockPos> path = res.path();
+        List<Move.Edge> edges = res.edges();
+        int lim = Math.min(path.size(), STALE_CHECK_EDGES + 1);
+        for (int i = 1; i < lim; i++) {
+            Move.Edge e = i < edges.size() ? edges.get(i) : null;
+            if (e == null || e.move == null || w.isWater(path.get(i - 1))
+                    || e.move.startsWith("swim") || e.move.startsWith("surface") || e.move.startsWith("fallWater")
+                    || e.move.startsWith("waterBucket")) continue;
+            BlockPos from = path.get(i - 1);
+            Move m = null;
+            for (Move cand : Move.ALL)
+                if (e.move.equals(cand.name()) && cand.apply(from).equals(e.to)) { m = cand; break; }
+            if (m == null || m.eval(w, from) != null) continue;
+            if (BotConfig.walkerDebug)
+                LOG.info("[walker] stale plan: edge {} {} {},{},{} → {},{},{} no longer admitted by the world → {}",
+                        i, e.move, from.getX(), from.getY(), from.getZ(), e.to.getX(), e.to.getY(), e.to.getZ(),
+                        i == 1 ? "discard" : "cut to " + i + " nodes");
+            if (i == 1) return new PathFinder.Result(List.of(), List.of(), false, res.expanded(), res.ms(), res.finalCost());
+            return new PathFinder.Result(List.copyOf(path.subList(0, i)),
+                    Collections.unmodifiableList(new ArrayList<>(edges.subList(0, i))),
+                    false, res.expanded(), res.ms(), res.finalCost());
+        }
+        return res;
+    }
+
     public static boolean hasPendingEdge(WorldView w, Move.Edge e) {
         if (e == null) return false;
         for (BlockPos b : e.toBreak) if (w.isSolid(b)) return true;

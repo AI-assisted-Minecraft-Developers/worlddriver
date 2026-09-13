@@ -2737,9 +2737,9 @@ public final class Walker {
                         raw.get(anchor).getX(), raw.get(anchor).getY(), raw.get(anchor).getZ(),
                         (int) anchorD, foot.getX(), foot.getY(), foot.getZ());
         }
-        // String-pull flat walk runs so the heading stays steady over the
-        // staircase (no left-right camera wobble) and the bot walks straight;
-        // action/vertical/parkour nodes are preserved.
+        if ((res = PathSmoothing.dropStalePrefix(world, res)).path().size() < 2) return false;   // the body dug while the search ran
+        // String-pull flat walk runs so the heading stays steady over the staircase (no left-right
+        // camera wobble) and the bot walks straight; action/vertical/parkour nodes are preserved.
         SmoothResult sm = smoothAndRemember(world, res, profile.bias());
         path = sm.path;
         edges = sm.edges;

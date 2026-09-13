@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inside rock every cell is a full cube: a Render thread sampled mid-search sat in the index
   mergers under `isPassable`/`canStandOn`. `CellRules` returns for `Shapes.block()` first. On the
   real client the 40-cell tunnel went from 5.5 to 33 expanded nodes per millisecond.
+- **A fresh plan is cut at the first leading edge the current world no longer admits.** A sliced
+  search runs for seconds while the body keeps digging the plan it has; the 6000-node search came
+  back with a staircase whose first riser stood on a cell the quick-start stub had dug out
+  meanwhile, and the body spent fifty seconds hopping, ramming and re-searching one cell further
+  back each time. `PathSmoothing.dropStalePrefix` re-evaluates the first twelve dry edges with the
+  moves that made them; a stale first edge discards the result and the body keeps what it has.
 - **Open water is crossed in vanilla's prone sprint-swim.** The walker used to tread every
   surface crossing at ~2 blocks/s: the held surface jump keeps the eyes out, and vanilla accepts
   a sprint in water only while the eyes are under. Under `walkerSurfaceSprintSwim` (default ON)
