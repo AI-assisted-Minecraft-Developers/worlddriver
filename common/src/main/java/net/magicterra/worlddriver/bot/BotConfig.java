@@ -428,16 +428,11 @@ public final class BotConfig {
      *  well under one 16 ms frame. */
     public static volatile long pathfinderSliceMs = 6;
 
-    /** Per-tick compute slice (ms) used ONLY while the bot is IDLE waiting for a
-     *  path — it has consumed its committed best-effort segment (or has no path yet)
-     *  and is standing still until the next search lands. The normal {@link
-     *  #pathfinderSliceMs} (~6 ms) protects the frame-rate WHILE WALKING, but at a
-     *  far-goal segment boundary that thin slice means a 3 s CPU search drags out to
-     *  ~27 s of wall-clock (6 ms of 50 ms per tick) — and the bot is FROZEN that whole
-     *  time ("行动→冻住→重算→行动" long-haul stutter). When there's no movement to keep
-     *  smooth, a few frame hitches are far cheaper than the wait, so spend much more of
-     *  each idle tick on the search to finish it ~5× sooner. Kept responsive (the
-     *  client still renders between slices). */
+    /** Per-tick compute slice (ms) used ONLY while the bot is IDLE waiting for a path (segment
+     *  consumed, or no path yet). {@link #pathfinderSliceMs} (~6 ms) protects the frame-rate WHILE
+     *  WALKING, but at a far-goal segment boundary that thin slice drags a 3 s CPU search out to
+     *  ~27 s of wall-clock with the bot FROZEN ("行动→冻住→重算→行动"). With nothing to keep smooth,
+     *  a few frame hitches are cheaper than the wait: finish ~5× sooner, still rendering between slices. */
     public static volatile long pathfinderIdleSliceMs = 30;
     /** Per-tick slice (ms) of a route PREVIEW ({@code PreviewSearch}): it runs beside a walk and must not steal its frames. */
     public static volatile long pathfinderPreviewSliceMs = 3;
@@ -1344,22 +1339,16 @@ public final class BotConfig {
      *  ≥0 (admissible): a sole crossing is still taken. Set 0 to disable. */
     public static volatile double waterFlowPenalty = 18;
 
-    /** Cost for STANDING ON a leaf block (canopy-walking), when {@link #avoidDanger}
-     *  is on. Leaves block motion, so A* treats the canopy as a walkable floor and
-     *  happily routes the bot ACROSS the bumpy tree-tops — where the irregular
-     *  block-by-block surface snags the hitbox and the bot wedges (the wooded-
-     *  mountain stall). This biases the planner onto the ground / around the tree,
-     *  or to break straight through, instead of tightrope-walking the canopy.
-     *  Additive (≥0, admissible), not a ban: a route with no alternative still walks
-     *  the leaves, just at a cost. Set 0 to disable. */
+    /** Cost for STANDING ON a leaf block (canopy-walking), when {@link #avoidDanger} is on. Leaves
+     *  block motion, so A* treats the canopy as a floor and routes ACROSS the bumpy tree-tops, where
+     *  the surface snags the hitbox (the wooded-mountain stall). Biases the planner onto the ground
+     *  or through the tree. Additive, admissible, not a ban; 0 disables. */
     public static volatile double leafSnagPenalty = 20;
 
-
-    /** Baritone mob-avoidance analogue — when on, A* adds a distance-ramped cost
-     *  for standing near a hostile mob (snapshotted once per search), so routes
-     *  give creepers/zombies a berth when they can. Off by default: it changes
-     *  pathing noticeably and is only wanted when survival threats matter. Read
-     *  every WorldView.beginSearch / dangerCost. */
+    /** Baritone mob-avoidance analogue. When on, a goto/follow whose {@code route} names neither
+     *  {@code mobs} nor {@code risk} gets a default {@code MobCluster} berth from the three settings
+     *  below ({@code RouteParams.parse} expands it, so both bodies price mobs once, the same way).
+     *  Off by default: it changes pathing noticeably. */
     public static volatile boolean avoidMobs = false;
     /** Default {@code route.mobs.radius}: a melee mob's berth; cost ramps from {@link #mobAvoidPenalty} at the mob to 0 at the edge. */
     public static volatile double mobAvoidRadius = 6;
