@@ -1,0 +1,66 @@
+{
+  "itemGroup.worlddriver.markers": "WorldDriver 场景标记",
+  "block.worlddriver.marker": "场景标记",
+
+  "item.worlddriver.marker.relabel": "修改标签：朝向放置的标记，输入 /worlddriver mark %s <标签>",
+  "item.worlddriver.marker.screen": "右键打开场景界面：场景名、范围、保存 / 放置 / 运行",
+
+  "screen.worlddriver.anchor.title": "场景锚点：%s",
+  "screen.worlddriver.anchor.name": "场景名",
+  "screen.worlddriver.anchor.min": "范围最小角",
+  "screen.worlddriver.anchor.max": "范围最大角",
+  "screen.worlddriver.anchor.rel": "（相对锚点的偏移，全为 0 表示改用角点标记）",
+  "screen.worlddriver.anchor.yaw": "起始朝向",
+  "screen.worlddriver.anchor.detect": "检测角点",
+  "screen.worlddriver.anchor.save": "保存场景",
+  "screen.worlddriver.anchor.place": "放置场景",
+  "screen.worlddriver.anchor.run": "运行场景",
+  "screen.worlddriver.anchor.done": "完成",
+  "screen.worlddriver.anchor.cancel": "取消",
+  "screen.worlddriver.anchor.badNumber": "范围和朝向必须是数字",
+  "screen.worlddriver.anchor.needName": "先填场景名",
+  "screen.worlddriver.anchor.noCorners": "附近没有一对能围住这个锚点的角点标记",
+  "item.worlddriver.marker.passable": "可穿过，可被其他方块覆盖，不影响行走；放进水或岩浆里时保留原来的液体",
+
+  "item.worlddriver.marker_origin": "标记：原点",
+  "item.worlddriver.marker_origin.tip": "场景的坐标原点，保存时所有位置都以它为基准",
+  "item.worlddriver.marker_origin.count": "最多一个，必须在两个角点围成的区域内；不放则以起点为原点",
+  "item.worlddriver.marker_origin.label": "标签：场景名。保存时自动写入，之后 save / place / run 都按这个名字找到这个场景",
+
+  "item.worlddriver.marker_start": "标记：起点",
+  "item.worlddriver.marker_start.tip": "测试开始时玩家站立的位置，默认朝南",
+  "item.worlddriver.marker_start.count": "每个场景放一个",
+  "item.worlddriver.marker_start.label": "标签：没有原点标记时，这里存场景名（保存时自动写入）",
+
+  "item.worlddriver.marker_goal": "标记：目标",
+  "item.worlddriver.marker_goal.tip": "玩家要前往的位置",
+  "item.worlddriver.marker_goal.count": "至少一个；放多个时按标签开头的数字依次前往，例如“2 near:1”",
+  "item.worlddriver.marker_goal.label": "标签写法：block（默认，须走进这一格）、near:半径（走到附近即可）、y:（只需到达这一高度）",
+
+  "item.worlddriver.marker_forbid": "标记：禁入",
+  "item.worlddriver.marker_forbid.tip": "玩家全程不得进入的格子，进入即判失败",
+  "item.worlddriver.marker_forbid.count": "数量不限",
+
+  "item.worlddriver.marker_stand": "标记：落脚",
+  "item.worlddriver.marker_stand.tip": "测试结束时玩家必须站在这一格，且脚踏实地、不在水中",
+  "item.worlddriver.marker_stand.count": "最多一个",
+
+  "item.worlddriver.marker_watch": "标记：观察",
+  "item.worlddriver.marker_watch.tip": "测试结束后检查这一格的方块是否符合要求",
+  "item.worlddriver.marker_watch.count": "数量不限",
+  "item.worlddriver.marker_watch.label": "标签写法：same（默认，要求原样不变），或写上它必须变成的方块 id",
+
+  "item.worlddriver.marker_via": "标记：航点",
+  "item.worlddriver.marker_via.tip": "前往目标的途中必须依次经过的位置",
+  "item.worlddriver.marker_via.count": "数量不限，但仅在只有一个目标时可用",
+  "item.worlddriver.marker_via.label": "标签写法：一个数字，表示经过的先后顺序",
+
+  "item.worlddriver.marker_pass": "标记：必经",
+  "item.worlddriver.marker_pass.tip": "玩家途中至少要靠近一次的位置，只用于检查，不改变路线",
+  "item.worlddriver.marker_pass.count": "数量不限",
+  "item.worlddriver.marker_pass.label": "标签写法：一个数字，表示算作“靠近”的半径（格），默认 1",
+
+  "item.worlddriver.marker_corner": "标记：角点",
+  "item.worlddriver.marker_corner.tip": "要保存的场景区域的一个角，两个角点确定整个区域",
+  "item.worlddriver.marker_corner.count": "每个场景放两个，位于对角"
+}

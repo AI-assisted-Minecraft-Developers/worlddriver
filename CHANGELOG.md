@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-06
 
+- **Marker blocks have real faces.** The testmod's nine `worlddriver:marker_<role>` items and
+  the block's nine `role` states used one white half-transparent texture tinted by a client
+  colour handler, which rendered as untextured purple-black on the client and as no icon in the
+  creative tab. Each role now has its own opaque 16×16 face in the command-/structure-block
+  style — dark frame, grey dot lattice, coloured corner studs and a role glyph (crosshair,
+  play, ring, cross, drop-arrow, eye, diamond, check, corner bracket) — drawn by
+  `scripts/gen_marker_textures.py`, one block model per role, and `blockstates/marker.json`
+  switching on `role`. The tint handler and the translucent render layer are gone with the
+  client half of `MarkerContent`. The items also all answered to the block's name ("Scene
+  marker") because `BlockItem` reports the block's key; `MarkerItem` now reports its own, and
+  its tooltip says what the role means, how many a scene takes, what the label is for and how
+  to set it. Pick-block returns the item of the role you look at instead of the last-registered
+  one, and `/worlddriver mark` aimed at an existing marker rewrites it in place rather than
+  placing a second one beside it — the only way a tab-placed marker gets its label.
+- **A marker can stand in water or lava, and the origin can be the start.** A marker put into a
+  pool used to vanish: the crosshair looks through fluids so it landed on the floor, and when it
+  did land in the water the block, having no collision, was washed away by the neighbours' flow
+  a tick later; `FixtureIO.remove` then turned a marker cell into air before a run and `save`
+  skipped it in the structure, so a forbid marker on a lake was a hole in the lake. The block
+  now carries a `fluid` property (`none|water|lava`) set from the source it displaced, answers
+  `getFluidState` with it, refuses the neighbours' flow (`LiquidBlockContainer`), gives it to a
+  bucket (`BucketPickup`), glows when it holds lava, comes out as that fluid, and is saved as
+  it. The item and the command both aim with fluids solid and put the marker into the first
+  fluid cell hit. Separately, one cell holds one marker, so a start at the origin was impossible:
+  the origin marker is now optional and the start cell is the origin when it is absent;
+  `place` puts no origin marker down when the start is at `[0,0,0]`.
 - **A `planId` goto starts on the previewed route.** The scheduler calls a chain's
   `onResume()` on every handover, including `idle -> user` for a process that has never
   ticked; `UserTaskChain` forwarded it, and `IntentProcess.onResume` → `Walker.forceRepath`
@@ -71,6 +97,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   itself spins on) until the origin reports entity-ticking, bounded at ten seconds. Not the
   server's queue: `MinecraftServer` only reaches the chunk sources while a task is executing or
   the tick still has time, and a scene runs from the tick loop after the loads have spent it.
+- **The testmod registers a marker block for hand-built scenes.** `worlddriver:marker` with a
+  `role` block-state property (origin, start, goal, forbid, stand, watch, via, pass, corner), a
+  block entity for a label and arguments, one item per role in a creative tab of their own. The
+  block has no collision, does not block motion and is replaceable, so a marker in the wrong place
+  cannot change what the body can do; `wd.markerBlockNeverBlocksMotion` walks the real Walker
+  through a wall of them. One white half-transparent texture, tinted per role at render time,
+  rather than a texture per role. The repository's first registry content, through Architectury's
+  `DeferredRegister`; the published jar has none of it.
 - **The testmod gets a construction-time entry.** `TestContent` is a one-method service the
   loader entries run through `WorldDriverCommon.installTestContent()` during mod construction,
   which is the only window `DeferredRegister` accepts on both loaders. `SceneProvider` is

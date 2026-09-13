@@ -1,0 +1,66 @@
+{
+  "itemGroup.worlddriver.markers": "WorldDriver scene markers",
+  "block.worlddriver.marker": "Scene marker",
+
+  "item.worlddriver.marker.relabel": "To change the label: look at a placed marker and type /worlddriver mark %s <label>",
+  "item.worlddriver.marker.screen": "Right-click a placed one for the scene screen: name, box, save / place / run",
+
+  "screen.worlddriver.anchor.title": "Scene anchor: %s",
+  "screen.worlddriver.anchor.name": "Scene name",
+  "screen.worlddriver.anchor.min": "Box, min corner",
+  "screen.worlddriver.anchor.max": "Box, max corner",
+  "screen.worlddriver.anchor.rel": "(offsets from the anchor; all zero means use the corner markers)",
+  "screen.worlddriver.anchor.yaw": "Start facing",
+  "screen.worlddriver.anchor.detect": "Detect corners",
+  "screen.worlddriver.anchor.save": "Save scene",
+  "screen.worlddriver.anchor.place": "Place scene",
+  "screen.worlddriver.anchor.run": "Run scene",
+  "screen.worlddriver.anchor.done": "Done",
+  "screen.worlddriver.anchor.cancel": "Cancel",
+  "screen.worlddriver.anchor.badNumber": "The box and the facing must be numbers",
+  "screen.worlddriver.anchor.needName": "Give the scene a name first",
+  "screen.worlddriver.anchor.noCorners": "No pair of corner markers around here encloses this anchor",
+  "item.worlddriver.marker.passable": "Walk-through; other blocks can be placed over it; does not affect movement; keeps the water or lava it is placed into",
+
+  "item.worlddriver.marker_origin": "Marker: origin",
+  "item.worlddriver.marker_origin.tip": "The scene's reference point; every position is saved relative to it",
+  "item.worlddriver.marker_origin.count": "At most one, inside the area the two corners enclose; without one, the start is the origin",
+  "item.worlddriver.marker_origin.label": "Label: the scene's name. Written on save; save / place / run then find the scene by it",
+
+  "item.worlddriver.marker_start": "Marker: start",
+  "item.worlddriver.marker_start.tip": "Where the player stands when the test begins, facing south by default",
+  "item.worlddriver.marker_start.count": "One per scene",
+  "item.worlddriver.marker_start.label": "Label: with no origin marker, the scene's name lives here (written on save)",
+
+  "item.worlddriver.marker_goal": "Marker: goal",
+  "item.worlddriver.marker_goal.tip": "A place the player must travel to",
+  "item.worlddriver.marker_goal.count": "At least one; with several, the number at the start of the label sets the order, e.g. \"2 near:1\"",
+  "item.worlddriver.marker_goal.label": "Label: block (default, step into this cell), near:<radius> (get within that distance), or y: (only reach this height)",
+
+  "item.worlddriver.marker_forbid": "Marker: forbid",
+  "item.worlddriver.marker_forbid.tip": "A cell the player must never enter; entering it fails the test",
+  "item.worlddriver.marker_forbid.count": "Any number",
+
+  "item.worlddriver.marker_stand": "Marker: stand",
+  "item.worlddriver.marker_stand.tip": "Where the player must be standing when the test ends: on solid ground, not in water",
+  "item.worlddriver.marker_stand.count": "At most one",
+
+  "item.worlddriver.marker_watch": "Marker: watch",
+  "item.worlddriver.marker_watch.tip": "After the test, the block in this cell is checked",
+  "item.worlddriver.marker_watch.count": "Any number",
+  "item.worlddriver.marker_watch.label": "Label: same (default, it must be unchanged), or the id of the block it must have become",
+
+  "item.worlddriver.marker_via": "Marker: via",
+  "item.worlddriver.marker_via.tip": "A place the player must pass through, in order, on the way to the goal",
+  "item.worlddriver.marker_via.count": "Any number, but only when there is exactly one goal",
+  "item.worlddriver.marker_via.label": "Label: a number giving the order to pass them in",
+
+  "item.worlddriver.marker_pass": "Marker: pass",
+  "item.worlddriver.marker_pass.tip": "A place the player must come near at least once; only checked, does not change the route",
+  "item.worlddriver.marker_pass.count": "Any number",
+  "item.worlddriver.marker_pass.label": "Label: a number, the distance in blocks that counts as \"near\" (default 1)",
+
+  "item.worlddriver.marker_corner": "Marker: corner",
+  "item.worlddriver.marker_corner.tip": "One corner of the area that gets saved; the two corners define the whole area",
+  "item.worlddriver.marker_corner.count": "Two per scene, at opposite corners"
+}

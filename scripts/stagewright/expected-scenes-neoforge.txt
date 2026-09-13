@@ -565,3 +565,5 @@ wd.clientRoutePreviewAdopted
 wd.clientRoutePreviewDoesNotInterrupt
 wd.clientRouteBlockedEventFires
 wd.clientRouteOldFieldRejected
+# Human verification — the testmod's marker block (docs/superpowers/specs/2026-09-05-human-in-the-loop-verification-design.md)
+wd.markerBlockNeverBlocksMotion

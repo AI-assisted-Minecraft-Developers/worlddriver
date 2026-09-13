@@ -1,0 +1,13 @@
+{
+  "variants": {
+    "role=origin": { "model": "worlddriver:block/marker_origin" },
+    "role=start":  { "model": "worlddriver:block/marker_start" },
+    "role=goal":   { "model": "worlddriver:block/marker_goal" },
+    "role=forbid": { "model": "worlddriver:block/marker_forbid" },
+    "role=stand":  { "model": "worlddriver:block/marker_stand" },
+    "role=watch":  { "model": "worlddriver:block/marker_watch" },
+    "role=via":    { "model": "worlddriver:block/marker_via" },
+    "role=pass":   { "model": "worlddriver:block/marker_pass" },
+    "role=corner": { "model": "worlddriver:block/marker_corner" }
+  }
+}
