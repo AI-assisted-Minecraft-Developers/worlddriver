@@ -60,6 +60,10 @@ public final class CellRules {
         if (!BotConfig.collisionAwarePathing) return false;
         VoxelShape shape = s.getCollisionShape(lvl, p);
         if (shape.isEmpty()) return true;
+        // The full cube answers without a shape join. Inside rock every cell is one, and the join
+        // (index mergers, coordinate-list compares) was the search's whole per-node cost: a Render
+        // thread sampled mid-search sat in Shapes.joinIsNotEmpty under this method and canStandOn.
+        if (shape == Shapes.block()) return false;
         if (isThinFloorDecoration(shape)) return true;
         return !Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
     }
@@ -77,6 +81,7 @@ public final class CellRules {
         if (!BotConfig.collisionAwarePathing) return true;
         VoxelShape shape = s.getCollisionShape(lvl, p);
         if (shape.isEmpty()) return false;
+        if (shape == Shapes.block()) return true;   // see isPassable: the full cube skips the join
         if (shape.max(Direction.Axis.Y) > 1.0 + 1e-6) return false;
         if (isThinFloorDecoration(shape)) return false;
         return Shapes.joinIsNotEmpty(PLAYER_COLUMN, shape, BooleanOp.AND);
@@ -156,6 +161,9 @@ public final class CellRules {
         if (hardness < 0) return Double.POSITIVE_INFINITY;                   // bedrock, barrier
         if (hardness == 0) return COST_PER_TICK;                             // torch, plant: one tick
         boolean needsTool = s.requiresCorrectToolForDrops();
+        // The 36-slot scan stays a scan: memoising the pick per block state was tried and measured
+        // on the real client (wd.clientTunnelsThroughStone, six tools in the bag) at no difference;
+        // the search's per-node cost was the collision-shape join in isPassable, not this loop.
         float bestSpeed = 1f;
         boolean bestCorrect = !needsTool;
         if (pl != null) {

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   crossed while the body walked on, and `breakingEdge` (which reads the key) gave every later
   break edge the 300-tick wedge leash and the anti-stuck exemption even when its approach was what
   had wedged. Holds set by AntiSuffocate or a process are untouched.
+- **A full-cube block answers passability and footing without a shape join.** With
+  `collisionAwarePathing` every cell asked `Shapes.joinIsNotEmpty` against the body column, and
+  inside rock every cell is a full cube: a Render thread sampled mid-search sat in the index
+  mergers under `isPassable`/`canStandOn`. `CellRules` returns for `Shapes.block()` first. On the
+  real client the 40-cell tunnel went from 5.5 to 33 expanded nodes per millisecond.
 - **Open water is crossed in vanilla's prone sprint-swim.** The walker used to tread every
   surface crossing at ~2 blocks/s: the held surface jump keeps the eyes out, and vanilla accepts
   a sprint in water only while the eyes are under. Under `walkerSurfaceSprintSwim` (default ON)
