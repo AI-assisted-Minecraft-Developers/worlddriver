@@ -33,6 +33,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fluid cell hit. Separately, one cell holds one marker, so a start at the origin was impossible:
   the origin marker is now optional and the start cell is the origin when it is absent;
   `place` puts no origin marker down when the start is at `[0,0,0]`.
+- **Scenes are found in the world by name, like a structure block.** Several hand-built scenes in
+  one world could not be told apart: `here` and `save` scanned ±8 chunks around the player and
+  mixed every scene's markers ("need exactly 2 corner markers, found 6"), a run removed the
+  markers it scanned and never put them back, and `run <name>` / `place <name>` only ever put
+  the file's terrain at the player's feet. Now a scene is the smallest corner box around a point
+  (`FixtureBuilder.select`), so boxes only have to not overlap; the anchor marker (origin, or the
+  start standing in for it) carries the scene's name in its label — written by `save` — and
+  `MarkerBlockEntity` keeps a live index of loaded markers so `run <name>`, `place <name>` and
+  `save <name>` find the scene by that label wherever the caller stands. `run <name>` at an
+  anchor uses the world's markers for positions and the file for `hand`/`equip`/`config`/
+  `expect` and the legs' verb and budget; `place <name>` resets terrain and markers at the
+  anchor; the file remembers `placedAt` so the box's chunks can be loaded first. A run lifts only
+  its own box's markers and puts them back through the scene's cleanup, however the run ends.
+  The chat commands pass the feet as `around`, never as `pos`, so the anchor wins.
+- **An anchor has a screen and draws its box, like a structure block.** Right-clicking the
+  anchor marker opens `AnchorScreen`: scene name, the box as two corners offset from the
+  anchor, the start facing, and detect / save / place / run. The screen sends only chat
+  commands — a new `/worlddriver anchor …` that is one `worlddriver.mark` call with the box in
+  `args`, then the scene verbs — so it adds no packet and no behaviour of its own. The box lives
+  in the anchor entity's args (`box`, six ints); `FixtureBuilder.declaredBox` prefers it over
+  corner markers, `select` considers it a candidate box, `save` and `place` write it, and
+  `MarkerAnchorRenderer` draws the anchor cell and the box as line frames through walls from
+  96 cells. `MarkerBlockEntity` now pushes label and args to clients when they change, since a
+  relabel changes no block state and nothing else would tell the renderer.
 - **A `planId` goto starts on the previewed route.** The scheduler calls a chain's
   `onResume()` on every handover, including `idle -> user` for a process that has never
   ticked; `UserTaskChain` forwarded it, and `IntentProcess.onResume` → `Walker.forceRepath`
