@@ -1483,6 +1483,15 @@ public final class BotApiImpl implements BotApi {
     private void settleLeg() {
         BotProcess mine = installedLeg;
         if (mine == null || userTask.process() == mine) return;
+        // A newer leg was published (runProcess from the caller's thread) while this one was still
+        // installed — the next scene's goto enqueued behind the last scene's one-tick HoldStill.
+        // Its departure is not the new leg's ending: publishing busy=false here under the OLD seq
+        // overwrote the new leg's busy=true before its install ran, and the caller read "ended at
+        // tick 0" for a walk that never started. The new leg's own install re-points installedLeg.
+        if (leg.seq() > installedLegSeq) {
+            installedLeg = null;
+            return;
+        }
         Map<String, Object> end = userTask.lastEnd();
         Object err = end == null ? null : end.get("error");
         leg = new Leg(installedLegSeq, false, mine.kind(), err == null ? null : String.valueOf(err));

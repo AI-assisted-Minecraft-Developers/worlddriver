@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   client's player is dead — the helm used to heal and teleport the corpse and run the legs
   anyway. `wd.clientBodyRefusedWhileDead` kills the real player, sees the refusal, respawns it
   and sees the same order accepted; `BodyReadyTest` walks every branch of the decision.
+- **A leg superseded by the next one no longer reports the next one finished.** `runProcess`
+  publishes the new leg busy from the caller's thread before its install runs on the client; the
+  client's per-tick close-out then saw the previous process (the last scene's one-tick
+  `HoldStill`) gone from the chain and published busy=false under the old seq, over the new
+  leg. Back-to-back scene runs on the real player read "ended at tick 0" for a walk that had not
+  started (`lab.stairsDown` right after `lab.stairsUp`). The close-out now leaves a newer
+  published leg alone. The scene runner also gives the client ten ticks after the adoption
+  teleport before the first leg, the settle the client helm's own scenes already take.
 ## 2026-09-06
 
 - **Marker blocks have real faces.** The testmod's nine `worlddriver:marker_<role>` items and
