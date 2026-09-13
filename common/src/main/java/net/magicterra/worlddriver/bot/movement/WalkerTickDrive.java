@@ -1607,4 +1607,16 @@ final class WalkerTickDrive {
                     p.isSprinting(), p.onGround());
         wk.driveLatch.lavaBrakeLogged = lavaBrake;
     }
+
+    /** Tick tail: release a dig latch the walker's own dig set once no dig has driven it for
+     *  {@link WalkerConstants#DIG_KEY_RELEASE_TICKS} ticks. Holds other owners set are not ours. */
+    static void settleDigKey(Walker wk, Avatar a) {
+        if (wk.digDrivenThisTick) wk.digIdleTicks = 0;
+        else if (wk.digKeyOwned && ++wk.digIdleTicks >= DIG_KEY_RELEASE_TICKS) {
+            if (a.breakHeld()) a.breakHold(false);
+            wk.digKeyOwned = false;
+            wk.digIdleTicks = 0;
+        }
+        wk.digDrivenThisTick = false;
+    }
 }

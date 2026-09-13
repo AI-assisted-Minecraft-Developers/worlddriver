@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-04
 
+- **The attack key is released two ticks after a walker dig stops driving it.** It used to stay
+  down until the whole process ended: with the window focused vanilla mined whatever the crosshair
+  crossed while the body walked on, and `breakingEdge` (which reads the key) gave every later
+  break edge the 300-tick wedge leash and the anti-stuck exemption even when its approach was what
+  had wedged. Holds set by AntiSuffocate or a process are untouched.
 - **Open water is crossed in vanilla's prone sprint-swim.** The walker used to tread every
   surface crossing at ~2 blocks/s: the held surface jump keeps the eyes out, and vanilla accepts
   a sprint in water only while the eyes are under. Under `walkerSurfaceSprintSwim` (default ON)

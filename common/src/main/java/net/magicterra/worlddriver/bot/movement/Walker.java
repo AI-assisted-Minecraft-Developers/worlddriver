@@ -182,6 +182,8 @@ public final class Walker {
      *  released by WalkerTickPrelude when the planned break is gone; deliberately NO
      *  journey reset (release is world-state-driven). */
     final StickyDig stickyDig = new StickyDig();
+    boolean digDrivenThisTick, digKeyOwned;   // a dig drove the avatar this tick / the dig latch is a walker dig's (see DIG_KEY_RELEASE_TICKS)
+    int digIdleTicks;                         // consecutive tick-ends with the latch owned and no dig driven
     static final class StickyDig {
         BlockPos pos;         // walkerStickyDig: planned-break cell being mined
         int ticks;            // watchdog for pos
@@ -1508,6 +1510,7 @@ public final class Walker {
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
         // stride floor-guard here, after EVERY decision path, before the avatar integrates.
         Step s = tickInner(a, world);
+        WalkerTickDrive.settleDigKey(this, a);   // a walker-held attack key outlives its dig by DIG_KEY_RELEASE_TICKS only
         Player tp = a.player();
         lastTickTrace = "step=" + s + " 跳标=" + (jumpTag == null ? "未标" : jumpTag)
                 + (tp == null ? "" : " 身体=" + String.format(java.util.Locale.ROOT, "%.2f,%.2f,%.2f",

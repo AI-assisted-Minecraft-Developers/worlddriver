@@ -300,6 +300,25 @@ final class WalkerConstants {
      *  repath. Generous (5 s) so genuinely slow legit moves (water creep, pillar climb)
      *  finish well within it; bridge edges are excluded (they hard-zero progress timers). */
     public static final int WEDGE_TICKS = 100;
+    /**
+     * Ticks a walker-held dig latch survives without a dig driving it before the tail of
+     * {@code Walker.tick} releases it.
+     *
+     * <p>Nothing released it before. The break actuator's own {@code breakHold(false)} sits past
+     * its {@code toBreak} loop, which is reached only while a {@code toPlace} cell still keeps the
+     * edge pending, and the sticky-dig release just drops the claim; so after every plain dig the
+     * latch (then the attack key itself) stayed down until the whole process ended. Two things
+     * followed: with the window focused vanilla's {@code continueAttack} mined whatever the
+     * crosshair crossed while the body walked on — the key is gone now, that one cannot recur —
+     * and {@code WalkerTickStallDetect} reads {@code breakHeld()} to decide {@code breakingEdge},
+     * so every later edge with a break list got the {@link #WEDGE_TICKS}+breakTimeout leash and the
+     * anti-stuck exemption even when its APPROACH was what wedged, the exact deadlock that reading
+     * exists to refuse. Two ticks, not one: a phase that ends the tick early without reaching the
+     * actuator (a place-off re-search kickoff, a breath bail) must not cost a server body its
+     * accumulated progress, which {@code ServerPlayerAvatar.breakHold(false)} zeroes. Only a hold
+     * the walker set is released; AntiSuffocate and the processes keep their own.
+     */
+    public static final int DIG_KEY_RELEASE_TICKS = 2;
     /** A dry stepUp / diagUp that has dwelt this many ticks WITHOUT closing on its node
      *  while grounded and laterally close to the step column is ramming the riser (the
      *  cur2≈0.64 freeze: pivotForStepUp keeps cutting forward on the noisy close-node
