@@ -368,7 +368,7 @@ water8.liftedY=64/60
 - **更早报出、都需要编译器的余项**：`prelude.js` 的 `\| 0` 取整与 `Params.toInt`／`SchemaValidator`
   分叉（脚本通道吞 `2.7`／`"8"`／回绕，MCP/RPC 会拒——**行为变更，必须配闸**，排在 ROADMAP §6.5 序 17）；
   `neoforge.sim` 三个 shim 整体可删（包外零 import）——⚠️ **别写成纯删**：`neoforge.sim` 里
-  `ServerAvatarCommand`（`/agentserver`）还站在它们后面，删除要连命令一起判。
+  `ServerAvatarCommand`（`/worlddriver server`）还站在它们后面，删除要连命令一起判。
 
 ---
 

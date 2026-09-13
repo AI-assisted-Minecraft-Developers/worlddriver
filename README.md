@@ -168,16 +168,18 @@ curl -s http://127.0.0.1:$PORT/mcp \
 
 ## In-game commands
 
-Registered as Brigadier subcommands of `/agent`:
+Registered as Brigadier subcommands of `/worlddriver` (the root is the mod id in full so it
+cannot collide with another mod's command):
 
 | Command | Effect |
 |---|---|
-| `/agent test`        | Run all validation scripts in a worker thread; reports PASS/FAIL counts |
-| `/agent test list`   | List the validation script names |
-| `/agent test result` | Print the per-test result of the last run |
-| `/agent port`        | Print the RPC port (`ws://127.0.0.1:<port>/rpc`) |
-| `/agent mcp`         | Print the MCP endpoint (`http://127.0.0.1:<port>/mcp`) |
-| `/agent reload`      | Re-load user scripts from `config/worlddriver/scripts/` |
+| `/worlddriver test`        | Run all validation scripts in a worker thread; reports PASS/FAIL counts |
+| `/worlddriver test list`   | List the validation script names |
+| `/worlddriver test result` | Print the per-test result of the last run |
+| `/worlddriver port`        | Print the RPC port (`ws://127.0.0.1:<port>/rpc`) |
+| `/worlddriver mcp`         | Print the MCP endpoint (`http://127.0.0.1:<port>/mcp`) |
+| `/worlddriver reload`      | Re-load user scripts from `config/worlddriver/scripts/` |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | NeoForge only: spawn and steer a server-side body (permission level 2) |
 
 ---
 

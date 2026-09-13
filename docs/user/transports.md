@@ -68,7 +68,7 @@ Whatever port each server actually got is written to **`worlddriver-mcp.port`** 
 A wildcard bind (`0.0.0.0`, `::`) still logs a loopback URL, because a wildcard
 address is not a connectable target.
 
-In-game, `/agent port` and `/agent mcp` print the live endpoints.
+In-game, `/worlddriver port` and `/worlddriver mcp` print the live endpoints.
 
 ## WebSocket RPC
 
@@ -183,7 +183,7 @@ Every `*.js` file in `config/worlddriver/scripts/` (override with
 `-Dworlddriver.scriptsDir`) is loaded when the server reaches STARTED, in
 **alphabetical order into one shared scope** — so a later file sees what an earlier
 one defined. A script that throws is reported and skipped; the rest still load.
-`/agent reload` re-runs the whole load and reports the count.
+`/worlddriver reload` re-runs the whole load and reports the count.
 
 This scope is the `mc.script.eval` prelude plus extras that only make sense on disk:
 
@@ -212,16 +212,18 @@ in practice, the pitfalls — is in [`../mcp-clients.md`](../mcp-clients.md).
 
 ## In-game commands
 
-Brigadier subcommands of `/agent`:
+Brigadier subcommands of `/worlddriver` (the mod id in full, so no other mod's command can
+claim the root):
 
 | Command | Effect |
 |---|---|
-| `/agent port` | Print the RPC endpoint |
-| `/agent mcp` | Print the MCP endpoint |
-| `/agent reload` | Re-load user scripts from the scripts directory |
-| `/agent test` | Run the bundled validation scripts on a worker thread; reports PASS/FAIL counts |
-| `/agent test list` | List the validation script names |
-| `/agent test result` | Print the per-test result of the last run |
+| `/worlddriver port` | Print the RPC endpoint |
+| `/worlddriver mcp` | Print the MCP endpoint |
+| `/worlddriver reload` | Re-load user scripts from the scripts directory |
+| `/worlddriver test` | Run the bundled validation scripts on a worker thread; reports PASS/FAIL counts |
+| `/worlddriver test list` | List the validation script names |
+| `/worlddriver test result` | Print the per-test result of the last run |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | NeoForge only, permission level 2: spawn and steer a server-side body |
 
 ## Security posture
 

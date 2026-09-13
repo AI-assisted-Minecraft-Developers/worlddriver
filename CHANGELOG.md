@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   designed 2026-09-05) had no `DeferredRegister` to register through, and every event the driver
   listens to was subscribed twice, once per loader. It is declared in `fabric.mod.json` and
   `neoforge.mods.toml`, not nested: a player installs it alongside, as with Fabric API.
+- **The in-game command root is `/worlddriver`; `/agentserver` is `/worlddriver server`.** `/agent`
+  was the AgentDriver-era name and a two-syllable root that another mod in a large pack can claim
+  too; the mod id is unique per game by construction. The NeoForge server-avatar command registers
+  its own `worlddriver` literal and Brigadier merges it under the same root, which is also how the
+  testmod's scene commands will join it. The old names are not kept.
+
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint

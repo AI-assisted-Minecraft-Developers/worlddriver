@@ -9,7 +9,7 @@ worlddriver-mcp.port   # e.g. "54321"   — MCP / HTTP
 worlddriver-rpc.port   # e.g. "54322"   — WebSocket RPC (for in-mod scripts)
 ```
 
-You can also see it in chat with `/agent mcp`, and pin a fixed port via
+You can also see it in chat with `/worlddriver mcp`, and pin a fixed port via
 `-Dworlddriver.mcpPort=12345` on the JVM command line.
 
 Everything below is **platform-agnostic**: any client speaking MCP

@@ -31,7 +31,7 @@ import net.minecraft.server.level.ServerPlayer;
  *
  * <p><b>Kept faithful:</b> a plain (unsynchronized) {@link java.util.HashMap} exactly as
  * FakePlayerFactory uses — bodies are only ever created/evicted on the server thread
- * (scene ticks via {@code StageWrightCommon.onServerTick}, the {@code /agentserver} command, and
+ * (scene ticks via {@code StageWrightCommon.onServerTick}, the {@code /worlddriver server} command, and
  * {@code ServerWorldEvents.UNLOAD} all run there), so no extra locking is introduced over the
  * NeoForge reference.
  */

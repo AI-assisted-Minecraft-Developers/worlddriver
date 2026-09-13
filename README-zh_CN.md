@@ -143,16 +143,17 @@ curl -s http://127.0.0.1:$PORT/mcp \
 
 ## 游戏内命令
 
-挂在 `/agent` 下的 Brigadier 子命令：
+挂在 `/worlddriver` 下的 Brigadier 子命令（命令根用 mod id 全名，避免和别的 mod 撞名）：
 
 | 命令 | 作用 |
 |---|---|
-| `/agent test`        | 在工作线程跑全套校验脚本，输出 PASS/FAIL 数 |
-| `/agent test list`   | 列出校验脚本名 |
-| `/agent test result` | 打印最近一次跑分的每条测试结果 |
-| `/agent port`        | 打印 RPC 端口（`ws://127.0.0.1:<port>/rpc`） |
-| `/agent mcp`         | 打印 MCP 端点（`http://127.0.0.1:<port>/mcp`） |
-| `/agent reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
+| `/worlddriver test`        | 在工作线程跑全套校验脚本，输出 PASS/FAIL 数 |
+| `/worlddriver test list`   | 列出校验脚本名 |
+| `/worlddriver test result` | 打印最近一次跑分的每条测试结果 |
+| `/worlddriver port`        | 打印 RPC 端口（`ws://127.0.0.1:<port>/rpc`） |
+| `/worlddriver mcp`         | 打印 MCP 端点（`http://127.0.0.1:<port>/mcp`） |
+| `/worlddriver reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | 仅 NeoForge：生成并驱动一具服务器端身体（权限等级 2） |
 
 ---
 

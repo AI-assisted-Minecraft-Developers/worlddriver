@@ -391,9 +391,15 @@ public final class WorldDriverCommon {
         }
     }
 
-    /** Registers `/agent test [list|result]`, `/agent port`, `/agent mcp`, `/agent reload`. */
+    /**
+     * Registers `/worlddriver test [list|result]`, `/worlddriver port`, `/worlddriver mcp`,
+     * `/worlddriver reload`. The root is the mod id in full so it cannot collide with another mod's
+     * command in a large pack; other parts of the driver (the NeoForge server-avatar command, the
+     * testmod's scene commands) register their own `worlddriver` literal and Brigadier merges the
+     * children under the one root.
+     */
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
-        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("agent")
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(MOD_ID)
                 .then(Commands.literal("test")
                         .executes(WorldDriverCommon::cmdTest)
                         .then(Commands.literal("list").executes(WorldDriverCommon::cmdTestList))
@@ -457,7 +463,7 @@ public final class WorldDriverCommon {
         var src = ctx.getSource();
         var results = lastResults;
         if (results.isEmpty()) {
-            src.sendSuccess(() -> Component.literal("No validation run on record. Try /agent test first."), false);
+            src.sendSuccess(() -> Component.literal("No validation run on record. Try /worlddriver test first."), false);
             return 0;
         }
         int pass = 0, fail = 0;

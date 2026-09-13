@@ -10,7 +10,7 @@ scripts under `playbooks/` (e.g. `playbooks/dragon-beds.js`).**
 
 Boss 战本质是**多阶段状态机**，每个阶段就是"编排已有原语（combat / goto / elytraFly / equip / useItem）+ 读 boss 专属状态 + 切换 T0 反射开关"。这种高层逻辑放进**已有的 Rhino 沙箱层**（`config/worlddriver/scripts/`）有三个好处：
 
-1. **热迭代**：调打法不用重新编译 mod，`/agent reload` 即生效。Boss 战极依赖调参（距离阈值、何时切弓/切剑、躲避半径），Java 改一次编译一次太慢。
+1. **热迭代**：调打法不用重新编译 mod，`/worlddriver reload` 即生效。Boss 战极依赖调参（距离阈值、何时切弓/切剑、躲避半径），Java 改一次编译一次太慢。
 2. **可贡献**：社区能写/分享剧本，像数据包一样。
 3. **职责清晰**：Java 只暴露原语 + boss 专属感知；"怎么打"留在脚本。
 
@@ -105,7 +105,7 @@ while (boss().present) {
 
 ## 5. 剧本如何挂进系统
 
-- 剧本是 `mc.script.eval` 能跑的 JS，或落盘 `config/worlddriver/scripts/playbooks/*.js` 由 `/agent reload` 载入。
+- 剧本是 `mc.script.eval` 能跑的 JS，或落盘 `config/worlddriver/scripts/playbooks/*.js` 由 `/worlddriver reload` 载入。
 - 对外触发：T2 调 `mc.bot.playbook{name:"dragon"}`（或直接 `mc.script.eval` 跑剧本文件）。剧本内部循环调 `mc.bot.combat/goto/...`，靠 Phase A 调度器 + T0 反射兜底保命。
 - 剧本跑在**现有 Rhino 沙箱**内，不放宽权限（AGENTS.md #3）。剧本只是编排 `Driver.invoke(...)`，不碰禁用类。
 

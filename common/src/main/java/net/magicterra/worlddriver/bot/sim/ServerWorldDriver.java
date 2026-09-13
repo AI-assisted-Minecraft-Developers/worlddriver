@@ -33,7 +33,7 @@ import net.minecraft.server.level.ServerPlayer;
  * bind to». That suite was retired in P4-final and nothing binds to those types now. The shim is
  * still here and still narrows {@link #avatar()} and {@link #fakePlayer()}, so this class and
  * those accessors stay {@code non-final} — but what stands behind it is one command, NeoForge's
- * {@code /agentserver}, not a caller population: no file outside
+ * {@code /worlddriver server}, not a caller population: no file outside
  * {@code net.magicterra.worlddriver.neoforge.sim} imports either shim class. (The MIGRATION note
  * above spells the old fully-qualified name, and so does its twin in {@link ServerPlayerAvatar};
  * both are provenance, not use.)
@@ -74,7 +74,7 @@ public class ServerWorldDriver {
     }
 
     /** {@link #create} with an isolated body ({@link ServerPlayerAvatar#createUnique}) —
-     *  the production entry point: every /agentserver agent gets its own FakePlayer. */
+     *  the production entry point: every {@code /worlddriver server} agent gets its own FakePlayer. */
     public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
         return new ServerWorldDriver(ServerPlayerAvatar.createUnique(level, x, y, z));
     }

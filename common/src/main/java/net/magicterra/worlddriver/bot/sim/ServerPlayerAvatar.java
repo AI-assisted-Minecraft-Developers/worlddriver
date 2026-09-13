@@ -77,7 +77,7 @@ import net.minecraft.world.phys.Vec3;
  *   <li><b>The {@code non-final} is still load-bearing, but for one class rather than a caller
  *       population.</b> The NeoForge shim of the same simple name extends this one and narrows
  *       {@link #fakePlayer()} back to {@code FakePlayer}; its only live consumer is NeoForge's
- *       {@code /agentserver} command. Keep this class and its covariantly-overridden methods
+ *       {@code /worlddriver server} command. Keep this class and its covariantly-overridden methods
  *       {@code non-final} for as long as that shim compiles — and check the shim, not a caller
  *       count, before concluding otherwise.</li>
  * </ul>
@@ -163,7 +163,7 @@ public class ServerPlayerAvatar implements Avatar {
      *
      * <p>⚠️ SHARED BODY (gap #48): {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
      * caller of THIS factory in a level shares one body. Production never rides it
-     * ({@code /agentserver} → {@link #createUnique}, one body per agent, guarded by the required
+     * ({@code /worlddriver server} → {@link #createUnique}, one body per agent, guarded by the required
      * {@code wd.serverAgentDistinctBodies} scene).
      *
      * <p><b>Nothing else rides it either: this factory has no caller left in the tree.</b> Its one
@@ -186,7 +186,7 @@ public class ServerPlayerAvatar implements Avatar {
 
     /** Like {@link #create} but with a body of its OWN — a fresh unique GameProfile, so this
      *  avatar can never be steered/teleported through another driver's shared singleton
-     *  (gap #48). <b>This is the live factory:</b> {@code /agentserver} agents use it (two agents =
+     *  (gap #48). <b>This is the live factory:</b> {@code /worlddriver server} agents use it (two agents =
      *  two bodies), and so do the testmod's scenes — most of them through
      *  {@code SceneBody.avatar} / {@code SceneBody.bare}, which are also where the refusal to mint
      *  a headless body on a topology that has a real client to drive lives.

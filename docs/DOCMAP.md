@@ -288,7 +288,7 @@ private static final boolean DISABLED = !"on".equalsIgnoreCase(System.getPropert
 `RpcServer` 的帧形状与 JSON-RPC 码、`TransportLimits` 的 8 MiB（超限是**断连不是报错**）、
 `mc.events.subscribe` 的 `allTypes`、`WorldDriverCommon` 的六个 `-D` 与端口文件、
 `ScriptEvaluator` 的 3000/30000/64 KiB 与 fresh scope、`ScriptManager` 的字母序共享作用域与
-harness extras、`McpServer` 的三个协议版本与 Origin 校验、`/agent` 六条子命令。
+harness extras、`McpServer` 的三个协议版本与 Origin 校验、`/worlddriver` 六条子命令。
 
 ⚠️ 顺带查出 **S1**：整棵树把 Rhino 说成沙箱的六处**全是假的**（默认 `off`）。
 起因是 `ScriptEvaluator` 的 javadoc 与 `README.md` 的 Design highlights **正面冲突**——
