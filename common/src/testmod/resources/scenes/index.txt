@@ -1,0 +1,4 @@
+# Hand-built scenes the suite runs (HumanScenes). One fixture name per line; <name>.json and
+# <name>.nbt sit beside this file. A name here must also be in both scripts/stagewright/
+# expected-scenes-*.txt, in the same commit — the manifest is part of the judge.
+human.flatStep

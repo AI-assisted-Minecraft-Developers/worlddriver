@@ -73,6 +73,9 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCENE_DIR = ROOT / "common/src/testmod/java/net/magicterra/worlddriver/bot/stagewright/scene"
+# Hand-built scenes (human.*): their terrain is an NBT file, so the footprint is read off the
+# JSON beside it (`size`, `origin`) rather than off Java source. Same window rule.
+FIXTURE_DIR = ROOT / "common/src/testmod/resources/scenes"
 
 # Mirrors StageWrightHarness.forceChunks + the chunk-aligned GRID_X0/GRID_Z0.
 # radius r forces chunks [-r, +r] around the origin chunk; the origin sits at
@@ -517,6 +520,36 @@ def analyze():
     return rows, missing
 
 
+def analyze_fixtures():
+    """-> rows for the human.* fixtures under FIXTURE_DIR, one per JSON file.
+
+    The structure's cells span [-origin, size-1-origin] on each axis once its
+    origin cell sits at the harness origin, and `chunkRadius` is what the file
+    declares (FixtureIO computes it at save time; this re-derives it).
+    """
+    import json
+    rows, bad = [], []
+    if not FIXTURE_DIR.is_dir():
+        return rows, bad
+    for path in sorted(FIXTURE_DIR.glob("*.json")):
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            size, origin = doc["size"], doc["origin"]
+            radius = int(doc.get("chunkRadius", 1))
+            name = doc.get("name", path.stem)
+        except (ValueError, KeyError, TypeError) as e:
+            bad.append((path.name, f"unreadable fixture: {e}"))
+            continue
+        lo = min(-origin[0], -origin[2])
+        hi = max(size[0] - 1 - origin[0], size[2] - 1 - origin[2])
+        rows.append({
+            "scene": name, "file": path.name, "radius": radius,
+            "lo": lo, "hi": hi, "unknown": [],
+            "window": window(radius), "need": radius_for(lo, hi),
+        })
+    return rows, bad
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--verbose", action="store_true", help="print every scene's hull")
@@ -533,6 +566,10 @@ def main() -> int:
         return 1
 
     rows, missing = analyze()
+    fixture_rows, fixture_bad = analyze_fixtures()
+    for f, why in fixture_bad:
+        print(f"\nFIXTURE UNREADABLE: {f} — {why}")
+    rows = rows + fixture_rows
     over = [r for r in rows if r["need"] > r["radius"]]
     unk = [r for r in rows if r["unknown"]]
 
@@ -558,14 +595,15 @@ def main() -> int:
     for name, meth, f in missing:
         print(f"  note: {name} -> {meth} not analyzable in {f}")
 
-    if over:
+    if over or fixture_bad:
         return 1
     if args.strict and (unk or missing):
         return 1
-    print(f"scene-arena gate OK: {len(rows)} wd.* scene(s) fit their forced-chunk window; "
+    print(f"scene-arena gate OK: {len(rows) - len(fixture_rows)} wd.* scene(s) and "
+          f"{len(fixture_rows)} human.* fixture(s) fit their forced-chunk window; "
           f"{len(unk)} with unresolved offset expression(s), "
           f"{len(missing)} body not located "
-          f"(scope: {SCENE_DIR.relative_to(ROOT).as_posix()})")
+          f"(scope: {SCENE_DIR.relative_to(ROOT).as_posix()}, {FIXTURE_DIR.relative_to(ROOT).as_posix()})")
     return 0
 
 

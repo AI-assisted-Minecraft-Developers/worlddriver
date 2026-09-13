@@ -39,8 +39,10 @@ sourceSets {
         runtimeClasspath += sourceSets.main.runtimeClasspath + sourceSets.main.output
     }
     test {
-        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
-        runtimeClasspath += sourceSets.main.compileClasspath + sourceSets.main.output
+        // testmod's output too: the hand-built scene fixture (SceneFixture / Markers) lives there and
+        // its pure half is unit-tested here. Still main's COMPILE classpath, for the reason above.
+        compileClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + sourceSets.testmod.output
+        runtimeClasspath += sourceSets.main.compileClasspath + sourceSets.main.output + sourceSets.testmod.output
     }
 }
 
@@ -56,6 +58,8 @@ dependencies {
     // it, which is correct: the dev jar is already in the mappings this compile classpath
     // uses. The plain artifact is intermediary and would fail to link.
     testmodImplementation "net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev"
+    // The unit tests see testmod's classes (sourceSets above), so they need what those link against.
+    testImplementation "net.magicterra:mc_stagewright-api:${rootProject.stagewright_version}:dev"
 
     // Same pin StageWright's junit module uses — one JUnit version across both repos.
     testImplementation platform('org.junit:junit-bom:5.11.3')

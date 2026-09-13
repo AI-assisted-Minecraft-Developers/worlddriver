@@ -72,6 +72,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which lean on that cadence; it stays on the node, the scene records the search count instead
   of gating on it, and the item is in `TODO.md`. Verified: the four `wd.clientRoute*` scenes
   green on `integratedServerFabric`.
+- **A hand-built scene runs, is judged, and joins the suite.** `FixtureRunner` is one body for
+  two homes: the suite drives it through StageWright's `ctx.advance()`, an in-place run
+  (`/worlddriver scene run here|<name>`, `worlddriver.scene.run`) through the testmod's own
+  server-tick subscription, with a `SceneContext` it builds itself. The body is chosen by the
+  topology, never by the file — a dedicated server mints a headless one, an integrated server
+  adopts the real player — so what a tester watched is what the gate later judges. Every exit
+  the context has (done, soft-violation drain, step timeout, skip, exception) settles the run
+  and runs its cleanups, or the config pin stays open into the next thing on the server. A
+  run appends a line to `<name>.verdicts.jsonl`; `worlddriver.scene.verdict` appends the
+  human judgement over the same numbers, and `worlddriver.scene.accept` writes the newest
+  judged pass plus 20 % into the fixture's `expect`. `HumanScenes` registers the fixtures
+  named in `scenes/index.txt` (an index, not a directory scan: a classpath directory cannot be
+  listed portably), and the local `config/worlddriver/scenes/` only under a hold or
+  `-Dworlddriver.localScenes`, because an uncommitted `human.*` scene would fail the gate's
+  UNDECLARED check. The first fixture, `human.flatStep`, is in both manifests; its `expect`
+  was set by hand a little wider than `accept` would have (a segmented walk's search count
+  moved from 11 to 14 between two runs of the same terrain).
 - **The walker counts its own searches, recovery hops and digs.** `Walker.tallies()` — three
   monotonic per-instance counters read by difference, the way `lastStats` is. Instance
   fields on purpose: `lastStats`, `strideGuardSkips` and `futileGateBuckets` are JVM-wide

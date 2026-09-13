@@ -158,6 +158,14 @@
 它们依赖这个节奏。理由与证据在 `offPath` 的 javadoc 和 `CHANGELOG.md` 2026-09-06；
 `wd.clientRoutePreviewAdopted` 的检查 E 现在只记不判。**重开条件**：先把拴绳和岸边接管从这个节奏上解开。
 
+### 🔴 J128：`human.flatStep` 在客户端拓扑上红——真玩家停在目标格西侧一格（x=…11.93），fixture 的 `stand` 要精确格
+
+专用服（服务端身体）两个 loader 都过；`stagewrightIntegratedServerFabric` 上稳定复现三趟（2026-09-06），
+`walkerTangentAim`／`walkerTangentPursuit` 各关一次都不改结果，不是本日转向改动。腿报 `arrived=true`
+（`FixtureRunner.arrived` 的容差）而 `body.blockPosition()` 是邻格。这是客户端身体停靠与 `Goal.Block` 精确格
+的既有差距（同族：「到达不是那条腿说的那件事」）。**在它修好之前，客户端拓扑全量闸不会绿**；是否把该场景
+在此拓扑标为 optional 由人拍板。
+
 ### 🔴 J63：崩溃这一族比 J61 宽得多，而 K1 看不见其余的成员
 
 CME 是从 `ClientLevel.playSound` 掀起来的，而 `BlockItem.place` 不是唯一会放声音的客户端调用。

@@ -46,7 +46,7 @@
 | ~~`TODO-rung20-stand.md`~~ | meta | — | — | 同上 |
 | `path-replay/README.md` | dev | — | — | replay 工具链用法（record / replay / analyze） |
 | `scripts/.claude/skills/worlddriver-rpc/SKILL.md` | user·dev | — | — | ⚠️ 跨平台，Linux 主机也读它——别写 Windows 专用指令 |
-| `scripts/.claude/skills/worlddriver-rpc/references/methods.md` | user·dev | **stale** | 2026-08-26 | 72 方法 RPC 参考。⚠️ 296 行 `mc.script.eval` 写「sandboxed…No file/network/reflection」同 S1，且「server thread」与 `ScriptEvaluator` 的 worker 线程相反 |
+| `scripts/.claude/skills/worlddriver-rpc/references/methods.md` | user·dev | **stale** | 2026-09-06 | 72 方法 RPC 参考。`mc.bot.goto`／`mc.bot.follow` 两行已改成 `route` 对象（2026-09-06 硬切）；goto 行含 `plan`／`planId`／`includePath` 与 `route.blocked`／`route.detour`／`route.exposed` 三个事件，`mc.observe.scene` 行含 `sight`／`mobDensity` 叠加层与 `route` 参数。⚠️ 296 行 `mc.script.eval` 写「sandboxed…No file/network/reflection」同 S1，且「server thread」与 `ScriptEvaluator` 的 worker 线程相反 |
 
 ## 二、`docs/` 顶层
 
@@ -70,6 +70,7 @@
 | 路径 | 读者 | 状态 | 最后核对 | 备注 |
 |---|---|---|---|---|
 | `docs/user/transports.md` | user | current | 2026-08-26 | 三 transport 的选择表 + 端口 + RPC 线协议 + Rhino 两种入口 + 安全姿态。**逐条对着源码写的**，不是从 `README.md` 抄的 |
+| `docs/user/human-verification.md` | user·tester | current | 2026-09-11 | 人工验证操作手册：标记方块、`/worlddriver mark|scene …`、就地运行与判定按钮、`accept` 写 `expect`、把场景提交进套件的三件套（文件、`scenes/index.txt`、两份清单）。设计在 `docs/superpowers/specs/2026-09-05-human-in-the-loop-verification-design.md` |
 
 ⚠️ `docs/mcp-clients.md` **没有**搬进 `docs/user/`：`README.md`、`CONTRIBUTING.md` 与
 `docs/claude_desktop_config.example.json` 都按现路径链接它，而那三份都在本角色写权限之外。
@@ -151,7 +152,7 @@ buoyant 留的是 Phase 0 的现场读数。**删之前要把横幅读完，再�
   `2026-07-16-executor-b1-thin-machine`、`2026-07-19-debt-d1-stagewright-instrument`、
   `2026-07-19-debt-d2-engine`、`2026-07-19-task93-config-persistence-shadow-default`
 
-### `specs/` — 13 份
+### `specs/` — 15 份
 
 设计 spec，比 plan **更值得留**：plan 讲「怎么一步步做」（做完即废），spec 讲「为什么这么设计」
 （代码还在，理由就还有用）。默认 `history`，逐份判。
@@ -165,7 +166,13 @@ buoyant 留的是 Phase 0 的现场读数。**删之前要把横幅读完，再�
 `2026-07-09-intent-supervisor-phase-b-design`（自述 DRAFT，**从未落地？待核**）·
 `2026-07-10-entity-interact-verb-design` · `2026-07-10-schema-single-source-validation-design` ·
 `2026-07-14-scheduler-semantics-phase1-design` · `2026-07-15-executor-permove-statemachine-ascend` ·
-`2026-07-16-stagewright-design`（框架已独立成仓库，**该仓库的 `README.md` 是否已取代它？待核**）
+`2026-07-16-stagewright-design`（框架已独立成仓库，**该仓库的 `README.md` 是否已取代它？待核**）·
+`2026-09-05-human-in-the-loop-verification-design`（current，尚未实现：测试人员在保持运行的
+游戏世界里用 testmod 的标记方块搭场景、选定结果，产出原版 NBT 加 JSON 的场景文件，作为 `human.*`
+回归场景运行；决定把 Architectury API 加成强制依赖，注册走 `DeferredRegister`，两个加载器的事件
+处理器随之合并进 `common`）·
+`2026-09-06-llm-route-selection-design`（current，尚未实现：LLM 定条件、A* 逐格选路；怪群与
+视线作为约束与代价，`plan: true` 预览带分段风险，`route.*` 事件闭环）
 
 ### `handoffs/` — 0 份（空目录）
 
