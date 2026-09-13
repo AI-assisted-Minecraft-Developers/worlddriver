@@ -147,11 +147,16 @@ final class WalkerTickSearch {
         }
         if (searchDone) {
             PathFinder.Result res = wk.seg.activeSearch.result();
+            wk.tallies.lastSearch = wk.seg.activeSearch;
+            wk.tallies.lastResult = res;
             wk.seg.activeSearch = null;
             boolean wasFromEnd = wk.seg.searchFromEnd;
             wk.seg.searchFromEnd = false;
             Walker.lastStats = new Walker.PathStats(res.expanded(), res.ms(), res.goalReached(),
-                    res.finalCost(), res.path().size());
+                    res.finalCost(), res.path().size(), res.sightBudgetExhausted(), res.snapshotTruncated());
+            wk.tallies.searches++;
+            if (res.sightBudgetExhausted())
+                LOG.info("[walker] search dropped route.sight: ray budget spent, rerun without it (owner={})", wk.owner);
             PathTraceHolder.SINK.onSearchResult(res.path(), res.edges(), res.goalReached(),
                     res.expanded(), res.ms(), res.finalCost());
             if (BotConfig.walkerDebug)

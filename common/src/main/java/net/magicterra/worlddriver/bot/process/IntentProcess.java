@@ -45,6 +45,9 @@ public final class IntentProcess implements BotProcess {
 
     private final Intent intent;
     private final Walker walker = new Walker("goto");
+    /** The walker driving this intent, for its {@link Walker#tallies()}: a scene that holds the
+     *  process reads the counts of the body it handed the process to, on either helm. */
+    public Walker walker() { return walker; }
     /** The dimension the goal's coordinates belong to, latched on the first tick that has a body.
      *  Not taken in {@link #attach} because that is handed a {@link BotState} and no Avatar. */
     private ResourceKey<Level> plannedIn;

@@ -48,6 +48,10 @@ public final class Walker {
     public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {}
     public static volatile PathStats lastStats;
 
+    /** This walker's own event counts (searches, recovery hops, digs) — see {@link WalkerTallies}. */
+    final WalkerTallies tallies = new WalkerTallies();
+    public WalkerTallies tallies() { return tallies; }
+
     /** How many times {@code WalkerTickProgress}'s unwalked-descent refusal has held the step pointer
      *  on a node below the body's feet, process-wide. Monotone, never reset by the walker — a caller
      *  that wants a window takes the difference, the way {@link #lastStats} is read.
@@ -1451,44 +1455,11 @@ public final class Walker {
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
     static void avatarForward(Avatar a, boolean v) { a.commandForward(v ? 1f : 0f); }
-    /** Break {@code cell}: hold the key AND drive the destroy directly, never one alone. On a client
-     *  avatar {@link Avatar#breakHold} only rides vanilla's continueAttack pipeline, which a driven
-     *  client never reaches because the mouse is never grabbed — so the key by itself breaks
-     *  nothing. Server avatars break on the key and take the destroy as an inherited no-op, which is
-     *  why every wd.server* dig scene passed for as long as the walker drove the key alone.
-     *  <p>THE ONE DOOR. Every walker dig routes through here, and here is where the cell is decided:
-     *  the caller's cell is a <i>request</i>, the returned cell is what was actually driven. Vanilla's
-     *  {@code MultiPlayerGameMode} tracks exactly ONE destroy target, so a phase that drives a second
-     *  cell does not merely wait its turn — it runs {@code startDestroyBlock} and throws the other
-     *  phase's accumulated {@code destroyProgress} away. Seven call sites each held their own opinion
-     *  about whether to claim the slot, whether to claim before or after digging, and which cell to
-     *  hand the avatar; three of them dug a cell nobody had claimed. Aim at the RETURNED cell. */
-    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell) { return avatarDig(wk, a, cell, false); }
-
-    /** @param selectTool pick the best tool first — only for the sites that did so before the door
-     *                    existed; a site that never swapped tools must not start now. */
-    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell, boolean selectTool) {
-        BlockPos target = cell;
-        if (wk != null && cell != null && (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority)) {
-            wk.stickyDig.engage(cell);
-            if (wk.stickyDig.pos != null) target = wk.stickyDig.pos;
-        }
-        // Tool and crosshair go on the cell actually being driven, never on the cell that was merely
-        // requested: vanilla's sameDestroyTarget compares the HELD ITEM as well as the position, so
-        // swapping the tool mid-dig throws the progress away exactly the way switching cells does.
-        if (selectTool) a.selectTool(target);
-        a.aimAtBlock(target);
-        a.breakHold(true);
-        a.continueDestroy(target);
-        return target;
-    }
-
+    /** THE ONE DOOR for a walker dig — see {@link WalkerDig#avatarDig}. Aim at the RETURNED cell. */
+    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell) { return WalkerDig.avatarDig(wk, a, cell, false); }
+    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDig(wk, a, cell, selectTool); }
     /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
-    static BlockPos avatarDigPreempt(Walker wk, Avatar a, BlockPos cell, boolean selectTool) {
-        if (wk != null) wk.stickyDig.revoke();
-        return avatarDig(wk, a, cell, selectTool);
-    }
-
+    static BlockPos avatarDigPreempt(Walker wk, Avatar a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDigPreempt(wk, a, cell, selectTool); }
 
     /** Client bridge: existing callers pass {@link Minecraft}; wrap it in a
      *  {@link ClientPlayerAvatar} (1:1 passthrough). The decoupled core is
@@ -1832,6 +1803,7 @@ public final class Walker {
         BlockPos lethal = WalkerGeometry.nearestLethalHopCell(world, p, foot, WIGGLE_SCAN_MAX);
         int ring = WalkerGeometry.ringOf(foot, lethal);
         boolean gated = BotConfig.walkerRecoveryHopFloorGate && WalkerGeometry.hopSuppressed(world, p, foot, driveYaw);
+        if (!gated && call - wiggleLastCall > 1) tallies.recoveryHops++;   // one per window entry, not per tick
         if (wiggleEvents < WIGGLE_EVENTS && call - wiggleLastCall > 1) {
             wiggleEvents++;
             LOG.info("[walker] 恢复跳: 序={}/{} t={} 卡住={} 身体={} 精确=({}) 旧闸半径={} 最近致命格={} 闸={} 起跳={} {} | {}",

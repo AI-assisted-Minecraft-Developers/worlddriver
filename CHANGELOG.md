@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-06
 
+- **The walker counts its own searches, recovery hops and digs.** `Walker.tallies()` — three
+  monotonic per-instance counters read by difference, the way `lastStats` is. Instance
+  fields on purpose: `lastStats`, `strideGuardSkips` and `futileGateBuckets` are JVM-wide
+  statics, and with two bodies in one process nothing says whose they are. `IntentProcess`
+  and `MineProcess` expose their walker so a scene that handed a process to either helm
+  reads the counts of the body that ran it. The dig door moved to `WalkerDig` for the file
+  budget; the seven call sites are unchanged.
 - **A search knows the entities around it.** `SearchScope`, gathered once per search from the
   body's level (both bodies, through the Walker's scope source), holds a `ThreatSnapshot` and a
   line-of-sight over the start–goal box inflated by the components' scan radius and capped per

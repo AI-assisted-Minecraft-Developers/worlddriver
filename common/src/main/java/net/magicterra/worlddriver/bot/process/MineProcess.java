@@ -52,6 +52,8 @@ public final class MineProcess implements BotProcess {
     private final int desiredQty;
     private final int searchRadius;
     private final Walker walker = new Walker("mine");
+    /** The approach walker, for its {@link Walker#tallies()} (the collect walker's are not summed). */
+    public Walker walker() { return walker; }
     {
         // Approach stands live within the ≤64-block scan; embedded/unreachable
         // candidates must price out fast (the 100t no-approach blacklist is the
