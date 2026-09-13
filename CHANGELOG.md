@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-05
+
+- **A joined body that has left the player list is dropped from the body cache.** Scenes mint
+  bodies under unique names, so the per-level cache in `JoinedPlayerBodies` never overwrote a
+  departed one and was the last reference to every `ServerPlayer` the suite had ever placed —
+  255 of them, with advancements, stats and inventory, after 300 dedicated-server scenes. The
+  2 GB server heap ran out around scene 290 in two of three gate runs (`VERDICT: DEAD`, the
+  arenas after it never reached entity-ticking). The cache now sweeps removed bodies before
+  each lookup.
+
 ## 2026-09-04
 
 - **The attack key is released two ticks after a walker dig stops driving it.** It used to stay
