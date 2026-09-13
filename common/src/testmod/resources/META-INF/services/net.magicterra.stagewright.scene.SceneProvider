@@ -33,4 +33,5 @@ net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverActuatorSplitScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverDrownRiseScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientWaterScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientAirScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientDigScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientParityScenes

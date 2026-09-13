@@ -828,7 +828,9 @@ final class WalkerTickProgress {
                         && w.getY() - p.getY() >= 1.5
                         && nx.getY() <= w.getY();
                 boolean cruisePassed = cruiseUnder && nx.getY() <= w.getY();   // the next surface node is no higher: see cruiseUnder at `within`
-                passed = (overshot ? nd2 <= cur2 : nd2 < cur2)
+                passed = (nx.getX() == w.getX() && nx.getZ() == w.getZ()   // stacked next node: see STACKED_PASS_SQ
+                            ? cur2 <= STACKED_PASS_SQ || (overshot && beyondNode(wk.path, wk.step, p))
+                            : overshot ? nd2 <= cur2 : nd2 < cur2)
                         && (Math.abs(w.getY() - p.getY()) < 1.5 || droppedPastDescend || cruisePassed)
                         && (Math.abs(nx.getY() - p.getY()) < 1.2 || cruisePassed)
                         && !unclimbedUnderOverhead   // see the note at `within`

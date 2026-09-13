@@ -546,6 +546,8 @@ wd.clientGotoStartsMidAir
 wd.clientGotoStartsMidAirOverWater
 wd.clientParkourOverChasm
 wd.clientPillarOutOfShaft
+wd.clientTunnelsThroughStone
+wd.clientTunnelsFarThroughStone
 wd.clientFlowingTrenchPlaceOut
 wd.clientWorldViewParity
 wd.clientShallowPoolStepOut

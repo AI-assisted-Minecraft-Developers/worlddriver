@@ -293,6 +293,24 @@ final class WalkerConstants {
      *  fast-forwards to the node nearest the drifted foot. 4.0 = 2 blocks: comfortably
      *  past the ≈1.7-block pillarUp-base approach the strict '<' must still protect. */
     public static final double OVERSHOOT_RESYNC_SQ = 4.0;
+    /**
+     * Horizontal distance² inside which a node whose NEXT node is stacked on it (same column:
+     * pillarUp, downBreak, swimUp) may count as passed: the body is on the column, only momentum
+     * carried it off centre.
+     *
+     * <p>Why the stacked case needs its own rule: a stacked next node has {@code nd2 == cur2} from
+     * every foot in the world, so the overshoot tie-break in the {@code passed} re-sync read
+     * "passed" for a node the body had not reached at all — {@code overshot} is only "far from the
+     * node", it has no direction. Live (wd.clientTunnelsFarThroughStone): a 25-cell string-pulled
+     * walk ending on a downBreak column; the pointer skipped the walk node from 25 cells out, the
+     * actuator dug the column's block from there (the client breaks it locally, the server refuses
+     * by reach and sends it back), the next plan stepped down through the phantom air, and the
+     * body orbited the column. From farther out than this the pointer holds unless the body is
+     * actually BEYOND the node along the route ({@code PathSmoothing.beyondNode}): that keeps the
+     * overshoot relaxation for a buoyant body that drifted past its climb column, and refuses it
+     * for one that has not arrived.
+     */
+    public static final double STACKED_PASS_SQ = 1.0;
     /** Jitter-immune wedge timer: max ticks the bot may dwell on the SAME path step
      *  before forcing a re-path (and blacklisting that node). Unlike {@link #stuckTicks}
      *  (progress-based — a bob/creep that finds a fractionally-closer approach each tick

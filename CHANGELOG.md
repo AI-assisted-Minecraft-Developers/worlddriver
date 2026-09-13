@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The orbit break fires after 90° of same-direction winding, not 180°.** At the trend camera's
   ~5°/tick that was 36 ticks of circling; the far tunnel showed three full laps around a node four
   cells out before any break. One corner is at most 90°.
+- **A node whose next node is stacked on it is passed only from on the column.** The
+  step-pointer's overshoot re-sync read "passed" for a node 25 cells ahead whenever the next node
+  shared its column (pillarUp, downBreak, swimUp: the next node is never strictly closer, and
+  `overshot` only meant "far", not "beyond"). The break actuator then dug the column's block from
+  8 cells out. `wd.clientTunnelsFarThroughStone` (40 cells of stone, the goal eight blocks under
+  the slab's top) reproduces the orbit at the goal column that followed.
 - **Open water is crossed in vanilla's prone sprint-swim.** The walker used to tread every
   surface crossing at ~2 blocks/s: the held surface jump keeps the eyes out, and vanilla accepts
   a sprint in water only while the eyes are under. Under `walkerSurfaceSprintSwim` (default ON)

@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -369,6 +370,21 @@ public final class PathSmoothing {
                     false, res.expanded(), res.ms(), res.finalCost());
         }
         return res;
+    }
+
+    /**
+     * Is the body BEYOND node {@code step} along the route, i.e. past it in the direction the
+     * previous node approaches it from? The horizontal-distance tie-break in the step-pointer
+     * re-sync cannot answer this for a next node stacked on the current one (same column), and a
+     * body 25 cells short of the node looks the same to it as one that drifted past. With no
+     * previous node the answer is no.
+     */
+    public static boolean beyondNode(List<BlockPos> path, int step, Player p) {
+        if (step <= 0 || step >= path.size()) return false;
+        BlockPos w = path.get(step), pv = path.get(step - 1);
+        double ax = w.getX() - pv.getX(), az = w.getZ() - pv.getZ();
+        if (ax == 0 && az == 0) return false;
+        return ax * (p.getX() - (w.getX() + 0.5)) + az * (p.getZ() - (w.getZ() + 0.5)) > 0;
     }
 
     public static boolean hasPendingEdge(WorldView w, Move.Edge e) {
