@@ -114,6 +114,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sight` / `mobs` keys; the default is the `risk: safe` preset. Rows align with the ASCII map;
   the ray budget for a grid is the larger of `sightRaysPerSearch` and eight per cell, and cells
   past it read `?`.
+- **The tangent aim gets a cross-track term (`walkerTangentPursuit`).** `walkerTangentAim`
+  drives the body at the path's tangent ahead of its projection, and a tangent carries no
+  information about how far off the path the body is: from 1.4 blocks off it walked twenty
+  cells parallel to the route it was given, in the open, while the route ran in a wall's
+  shadow (`wd.routeStaysOutOfSkeletonSight`, the first scene that judged the body's line and
+  not only its arrival). `PathProjection` now also yields the bearing to the path's point 2.5
+  blocks ahead; past 0.6 blocks of cross-track error the aim uses it, and on the path the two
+  bearings coincide, so the tuned cruise is unchanged there. The same off-path case also drops
+  the trend camera: on a dry flat walk its far-node centroid overwrote the tangent and, under
+  tangent mode, WAS the drive (the measured −93° was that centroid), so without this the
+  pursuit bearing never reached the body. Scoped to a level stretch with a segment ahead (dry,
+  the current and next node at the foot's Y, not the last node): the perp-only first cut walked
+  the body off the doorway in `wd.serverStepsDownAPlanItSpentInOneTick` and lost an ore in
+  `wd.serverMineHarvestBuried` — a step down and a plan's last node keep their tuned handling,
+  and a buoyant body rides off its nodes legitimately.
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint

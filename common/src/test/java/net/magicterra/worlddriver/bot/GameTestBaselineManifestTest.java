@@ -160,6 +160,7 @@ class GameTestBaselineManifestTest {
             // per-tick gates, so pinning them off would restore machinery that no longer exists
             e("walkerArcLengthAdvance", "phase 1: drive the step pointer from the path projection"),
             e("walkerTangentAim", "phase 2: aim at the bob-immune path tangent"),
+            e("walkerTangentPursuit", "phase 2's cross-track term: off the path, aim at the path's point ahead"),
             e("walkerArcLengthWedge", "phase 3: bob-immune ram-wedge recovery"),
 
             // walker execution guards that predate the §78/§87 waves

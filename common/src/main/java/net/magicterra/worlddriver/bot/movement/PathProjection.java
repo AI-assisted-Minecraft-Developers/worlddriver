@@ -33,6 +33,12 @@ public final class PathProjection {
     public double perp;
     /** MC yaw of the path tangent {@code lookahead} blocks of arc-length ahead of the projection. */
     public float tangentYaw;
+    /** MC yaw from the position to the POINT of the path {@code lookahead} blocks ahead of the projection:
+     *  the tangent with a cross-track term. A body driven at the bare tangent from {@code perp} blocks off
+     *  the path walks PARALLEL to it forever (the offset is never in the heading); this bearing closes the
+     *  offset at atan(perp / lookahead) per tick and becomes the tangent as it closes. Equal to
+     *  {@link #tangentYaw} when the point ahead is degenerate (the path ends at the body). */
+    public float pursuitYaw;
     /** True when the scan stopped early at a barrier (submerged dive node / pending break-place edge). */
     public boolean barrierHit;
 
@@ -97,7 +103,32 @@ public final class PathProjection {
         this.s = arc;
         this.perp = Math.sqrt(bestD2);
         this.tangentYaw = tangentYawAt(path, bestSeg, bestT, lookahead, scanEnd);
+        double[] ahead = pointAhead(path, bestSeg, bestT, lookahead, scanEnd);
+        double adx = ahead[0] - px, adz = ahead[1] - pz;
+        this.pursuitYaw = adx * adx + adz * adz < 0.09 ? this.tangentYaw
+                : (float) Math.toDegrees(Math.atan2(-adx, adz));
         this.barrierHit = barrier;
+    }
+
+    /** The point {@code lookahead} blocks of arc-length forward of the projection at {@code (seg, frac)},
+     *  along the polyline; the scan end's node when the path is shorter than that. */
+    private static double[] pointAhead(List<BlockPos> path, int seg, double frac, double lookahead, int scanEnd) {
+        double remain = lookahead;
+        for (int i = seg; i < scanEnd; i++) {
+            BlockPos a = path.get(i), b = path.get(i + 1);
+            double ax = a.getX() + 0.5, az = a.getZ() + 0.5;
+            double vx = (b.getX() + 0.5) - ax, vz = (b.getZ() + 0.5) - az;
+            double segLen = Math.hypot(vx, vz);
+            double from = i == seg ? frac : 0.0;
+            double avail = segLen * (1.0 - from);
+            if (segLen > 1e-9 && avail >= remain) {
+                double t = from + remain / segLen;
+                return new double[] { ax + t * vx, az + t * vz };
+            }
+            remain -= avail;
+        }
+        int j = Math.max(0, Math.min(scanEnd, path.size() - 1));
+        return new double[] { path.get(j).getX() + 0.5, path.get(j).getZ() + 0.5 };
     }
 
     /**

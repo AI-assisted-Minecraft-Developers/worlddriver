@@ -1777,6 +1777,9 @@ public final class BotConfig {
      *  snaps at its specific landing) and inside the aim dead-zone. Requires the projector (auto-computed when
      *  this, {@link #walkerArcLengthShadow} or {@link #walkerArcLengthAdvance} is on). Default ON. */
     public static volatile boolean walkerTangentAim = true;
+    /** With {@link #walkerTangentAim}: past {@code PURSUIT_PERP} off the path, aim at the path's point ahead
+     *  ({@code PathProjection.pursuitYaw}) so the body rejoins instead of walking parallel. Default ON. */
+    public static volatile boolean walkerTangentPursuit = true;
 
     /** Phase-3 of the arc-length pursuit refactor: a bob/jitter-IMMUNE ram-wedge recovery. When the arc-length
      *  projection s makes no forward progress (|ds| &lt; 0.05/tick) while horizontalCollision for ARC_WEDGE_TICKS

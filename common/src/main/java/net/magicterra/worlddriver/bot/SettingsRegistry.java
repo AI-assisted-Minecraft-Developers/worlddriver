@@ -182,6 +182,7 @@ public final class SettingsRegistry {
         field("walkerArcLengthShadow"),
         field("walkerArcLengthAdvance"),
         field("walkerTangentAim"),
+        field("walkerTangentPursuit"),
         field("walkerArcLengthWedge"),
         field("walkerArcProgressWedge"),
         field("walkerFellBelowAlign"),

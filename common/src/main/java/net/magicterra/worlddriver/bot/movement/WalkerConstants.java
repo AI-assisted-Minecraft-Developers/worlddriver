@@ -10,6 +10,9 @@ final class WalkerConstants {
 
     public static final int CARROT_MAX_NODES = 10;
     public static final double CARROT_DIST = 4.0;
+    /** walkerTangentPursuit: cross-track distance (blocks) past which the tangent aim yields to the
+     *  bearing of the path's point ahead. 0.6 = more than lane jitter, less than a whole cell. */
+    public static final double PURSUIT_PERP = 0.6;
     /** Horizontal aim vector (blocks²) below which the heading is HELD instead of
      *  recomputed from atan2. During a vertical maneuver (stepUp/stepDown/pillar/
      *  fall) the bot sits almost directly over its target column, so adx/adz hover

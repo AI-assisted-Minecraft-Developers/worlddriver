@@ -334,6 +334,11 @@ public final class SettingsDocs {
             "反复横跳 / facing-the-wall dead-corner stall; live P1: body stalled on-path with dYaw up to " +
             "129°). The tangent never reverses, killing that failure mode + the descent " +
             "flip-rejection bandaids. Skipped for launches + in the aim dead-zone. On by default"),
+        e("walkerTangentPursuit",
+            "bool — with walkerTangentAim: more than 0.6 blocks off the path, aim at the path's point " +
+            "2.5 blocks ahead instead of the bare tangent, so the body rejoins the route instead of " +
+            "walking parallel to it (a route chosen for its line — sight, corridor — is only kept if " +
+            "the body is on it). On by default"),
         e("walkerArcLengthWedge",
             "bool — Phase-3: bob/jitter-IMMUNE ram-wedge recovery. When the arc-length projection " +
             "makes no forward progress (|ds|<0.05/tick) while horizontalCollision for ~1.5s, fold " +

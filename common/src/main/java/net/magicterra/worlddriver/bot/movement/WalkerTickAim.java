@@ -81,6 +81,41 @@ final class WalkerTickAim {
         return BotConfig.walkerFinalNodeDirectAim && wk.path != null && wk.step == wk.path.size() - 1;
     }
 
+    /**
+     * walkerTangentPursuit: the bare tangent carries no cross-track term, so a body that is off the
+     * path (a smoothed route whose first hop is a diagonal off the start, a shove, a corner cut)
+     * walks PARALLEL to it and never rejoins — measured in {@code wd.routeStaysOutOfSkeletonSight}:
+     * perp 1.4 held for 20 cells, the body in the open while the route it was given ran in the
+     * wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead instead; on the path
+     * the two bearings coincide, so the tuned tangent cruise is unchanged there.
+     */
+    private static float tangentOrPursuit(Walker wk, Player p, boolean launch, BlockPos foot) {
+        return offPathPursuit(wk, p, launch, foot) ? wk.arc.proj.pursuitYaw : wk.arc.proj.tangentYaw;
+    }
+
+    /**
+     * The case {@link #tangentOrPursuit} rejoins in, also what drops the trend camera: on a dry flat
+     * walk {@code trendCam} is always on, and under tangent mode its centroid overwrite IS the drive
+     * (driveTargetYaw = aimYaw = EMA(targetYaw)), so the pursuit bearing never reached the body —
+     * the centroid of nodes step+2.. is no more a rejoin heading than the tangent is (measured:
+     * driveYaw −93 = the far centroid, perp 1.4 held for 20 cells). Off the path, drop the trend
+     * camera the way {@code recoverySnagAim} does, so the pursuit flows through the same EMA at the
+     * fast cruise alpha.
+     *
+     * <p>Scoped to a LEVEL stretch with a segment ahead: dry, the current and the next node at the
+     * foot's Y, not the last node. A step down or a plan's last node has its own tuned handling
+     * (walkerDescentNodeHold, the descent decouple), and the first cut of this — perp alone —
+     * walked the body west and off the doorway in {@code wd.serverStepsDownAPlanItSpentInOneTick}
+     * and lost an ore in {@code wd.serverMineHarvestBuried}; both green with the flag off, both
+     * green again with this scope. A buoyant body rides off its nodes legitimately.
+     */
+    private static boolean offPathPursuit(Walker wk, Player p, boolean launch, BlockPos foot) {
+        if (!BotConfig.walkerTangentAim || !BotConfig.walkerTangentPursuit || launch || p.isInWater()) return false;
+        if (wk.path == null || wk.step + 1 >= wk.path.size()) return false;
+        if (wk.path.get(wk.step).getY() != foot.getY() || wk.path.get(wk.step + 1).getY() != foot.getY()) return false;
+        return wk.arc.proj.perp > PURSUIT_PERP;
+    }
+
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
     static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
@@ -408,7 +443,7 @@ final class WalkerTickAim {
                 && aim2 >= aimDeadzone
                 && wk.path != null && wk.step < wk.path.size()
                 && wk.path.get(wk.step).getY() <= foot.getY()) {
-            targetYaw = wk.arc.proj.tangentYaw;
+            targetYaw = tangentOrPursuit(wk, p, launch, foot);
             // walkerWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
             // immediate node sits well off the tangent AND a wall is on the tangent heading, the body RAMS
             // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
@@ -536,7 +571,7 @@ final class WalkerTickAim {
         boolean recoverySnagAim = !p.isInWater()
                 && ((p.horizontalCollision && (reCentre || ramReleaseAim))
                     || (wk.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
-        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim;
+        boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !offPathPursuit(wk, p, launch, foot);
         // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant body
         // overshoots a node, so driving it raw makes the body swim-wobble (live: 52% path efficiency,
         // "突然转身背离目标"). A light EMA damps the per-tick flip while still tracking the node. WATER
