@@ -110,6 +110,10 @@ final class SettingsNumericWrites {
                         if (n.longValue() >= 1 && n.longValue() <= 50) { BotConfig.pathfinderIdleSliceMs = n.longValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1,50]");
                         break;
+                    case "pathfinder.previewSliceMs":
+                        if (n.longValue() >= 1 && n.longValue() <= 50) { BotConfig.pathfinderPreviewSliceMs = n.longValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1,50]");
+                        break;
                     case "sightRaysPerSearch":
                         if (n.intValue() >= 100 && n.intValue() <= 100_000) { BotConfig.sightRaysPerSearch = n.intValue(); applied.add(k); }
                         else rejected.add(k + " out of range [100,100000]");

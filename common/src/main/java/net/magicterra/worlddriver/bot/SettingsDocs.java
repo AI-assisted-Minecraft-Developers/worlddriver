@@ -501,6 +501,9 @@ public final class SettingsDocs {
         e("breakTimeoutTicks", "[20,2000] dflt 200 — blacklist stuck block after N ticks"),
         e("pathfinder.maxNodes", "[1000,1000000] dflt 100000 — A* node budget"),
         e("pathfinder.maxMs", "[100,30000] dflt 1500 — A* wall-clock budget, ms"),
+        e("pathfinder.previewSliceMs",
+            "[1,50] dflt 3 — per-tick compute slice, ms, of a route PREVIEW (mc.bot.goto plan:true); " +
+            "thinner than sliceMs so a preview beside a walk does not steal the walk's frames"),
         e("sightRaysPerSearch",
             "[100,100000] dflt 4000 — most line-of-sight rays one search may fire for route.sight; " +
             "past it the search reruns without sight (lastPath.sightBudgetExhausted)"),

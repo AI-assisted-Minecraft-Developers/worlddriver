@@ -43,6 +43,12 @@ public final class BotState {
      *  BunkerProcess stamps goalReached/endReason here at every terminal exit
      *  (goalReached = block-level enclosure ground truth, NOT hazardSummary.cornered). */
     public final ProcessSlot bunker = new ProcessSlot("bunker");
+    /** A route preview ({@code mc.bot.goto} with {@code plan: true}, {@code PreviewSearch}). Not a
+     *  process: it drives nothing and is not in {@link #activeName()}. Exists because
+     *  {@code awaitable} waits on a slot's {@code active}, and a missing slot reads as finished. */
+    public final ProcessSlot plan = new ProcessSlot("plan");
+    /** The latest preview's result, merged into the {@code plan} slot's snapshot. */
+    public volatile Map<String, Object> planResult;
 
     /** Phase C combat telemetry (mutated by CombatProcess on the tick thread,
      *  read by status()). {@code wellTimed} counts swings issued at full attack
@@ -76,6 +82,10 @@ public final class BotState {
         combatSnap.put("crits", combatCrits);
         combatSnap.put("kills", combatKills);
         out.put("combat", combatSnap);
+        Map<String, Object> planSnap = plan.snapshot();
+        Map<String, Object> pr = planResult;
+        if (pr != null) planSnap.putAll(pr);
+        out.put("plan", planSnap);
         return out;
     }
 

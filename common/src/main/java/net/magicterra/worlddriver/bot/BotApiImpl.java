@@ -154,6 +154,16 @@ public final class BotApiImpl implements BotApi {
      *  by the death hook; decremented once per tick regardless of process state. */
     private int respawnGraceLeft;
 
+    /** Route previews ({@code plan: true}) and the cache {@code planId} adopts from; advanced by
+     *  {@link #clientTick}, never by the user task chain. */
+    private final PreviewSearch preview = new PreviewSearch(state);
+
+    /** The per-search entity snapshot for a preview or a scored line: the player's own level with
+     *  the player excluded, the same source {@code WalkerFinders} wires into a walking search. */
+    private static net.magicterra.worlddriver.bot.pathfinder.ScopeSource scopeOf(LocalPlayer player) {
+        return (s, g, prof) -> SearchScope.gather(player.level(), player.getId(), s, g, prof);
+    }
+
     @Override
     public Map<String, Object> mcGoto(Map<String, Object> params) {
         final Params p = Params.of(params);
@@ -163,6 +173,8 @@ public final class BotApiImpl implements BotApi {
                 state.mc_goto.lastError = "no player";
                 return Map.of("ok", false, "error", "no player");
             }
+            String planId = p.getString("planId");
+            if (planId != null && !planId.isBlank()) return adoptPlan(player, planId.trim());
             Goal goal;
             RouteParams.Parsed route;
             try {
@@ -170,6 +182,22 @@ public final class BotApiImpl implements BotApi {
                 route = RouteParams.parse(p.getMap("route"));
             }
             catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
+            // `plan` is a top-level goto key (it is about this call, not the route); a `route.plan`
+            // is honoured too for a caller that put it there.
+            Object plan = p.get("plan") != null ? p.get("plan") : route.plan();
+            if ("score".equals(plan)) {
+                // The caller's own line, priced without a search: needs the corridor's points.
+                List<BlockPos> pts = new ArrayList<>();
+                if (p.getMap("route").get("corridor") instanceof Map<?, ?> cm && cm.get("points") instanceof List<?> pl) {
+                    for (Object o : pl) {
+                        if (o instanceof List<?> c && c.size() == 3 && c.get(0) instanceof Number x
+                                && c.get(1) instanceof Number y && c.get(2) instanceof Number z) {
+                            pts.add(new BlockPos(x.intValue(), y.intValue(), z.intValue()));
+                        }
+                    }
+                }
+                return PreviewSearch.score(pts, route.profile(), scopeOf(player));
+            }
             if (goal == null) {
                 return Map.of("ok", false, "error",
                         "missing goal — provide pos|xz|y|block|entity|entityId|direction|waypoint");
@@ -222,6 +250,42 @@ public final class BotApiImpl implements BotApi {
             if (!route.via().isEmpty()) out.put("via", route.via().size());
             return out;
         });
+    }
+
+    /**
+     * {@code mc.bot.goto} with {@code planId}: walk the previewed route. The plan's own goals and
+     * conditions are used — the id names them — and its raw first-leg result is handed to the
+     * walker before the process starts, so no search precedes the first step. Falls back to an
+     * ordinary search, saying why, when the plan is gone (60 s, last 8), was best-effort, or the
+     * walker refused it (the body is no longer near its start). Later legs of a via plan search
+     * as usual: adoption only ever guaranteed the route the body starts on.
+     */
+    private Map<String, Object> adoptPlan(LocalPlayer player, String planId) {
+        PreviewSearch.Plan plan = preview.take(planId);
+        if (plan == null) {
+            return Map.of("ok", false, "error", "planId '" + planId + "' is unknown or expired (a preview is kept "
+                    + PreviewSearch.TTL_MS / 1000 + " s, the last " + PreviewSearch.KEEP + " of them)");
+        }
+        IntentProcess process = new IntentProcess(new Intent(plan.goals, plan.profile.bias(),
+                plan.profile.capability(), plan.profile.constraints(), null));
+        String why = null;
+        boolean adopted = false;
+        if (plan.bestEffort()) why = "the preview did not reach the goal (bestEffort)";
+        else if (System.currentTimeMillis() - plan.createdMs > PreviewSearch.TTL_MS) why = "the preview is older than 60 s";
+        else {
+            adopted = WalkerPlanAdoption.adopt(process.walker(), plan.legs.get(0), world, player.blockPosition());
+            if (!adopted) why = "the walker refused the route: the body is not near its start any more, or its first stretch is no longer walkable";
+        }
+        startProcess(process);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("ok", true);
+        out.put("started", true);
+        out.put("goal", plan.goals.get(plan.goals.size() - 1).toString());
+        out.put("planId", planId);
+        out.put("adopted", adopted);
+        if (why != null) out.put("adoptReason", why + " — searching normally instead");
+        if (plan.goals.size() > 1) out.put("via", plan.goals.size() - 1);
+        return out;
     }
 
     /**
@@ -1135,6 +1199,8 @@ public final class BotApiImpl implements BotApi {
         // Update the perception blackboard every tick so mc.client.scene always
         // serves the freshest client-authoritative snapshot.
         worldModel.update(mc, world, state);
+        // A route preview in progress gets its thin slice here, beside whatever walks.
+        preview.tick();
         // Rising-edge scene events: emit duskExposed / cornered once per
         // false→true transition so the Agent learns of these without polling.
         // Mirrors the fluid-entry (player.enteredWater/enteredLava) pattern:

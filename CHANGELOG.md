@@ -81,6 +81,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its own `worlddriver` literal and Brigadier merges it under the same root, which is also how the
   testmod's scene commands will join it. The old names are not kept.
 
+- **Look before walking: `mc.bot.goto` with `plan: true`, `planId`, and `plan: "score"`.** A
+  preview is a search that does NOT go through the user task chain — `setProcess` cancels the
+  running process first, so a preview started that way would cut short the walk it was meant
+  to inform. `PreviewSearch` runs it beside the walk on the client tick with its own thin slice
+  (`pathfinder.previewSliceMs`), one at a time, and answers not with cells but with the route's
+  risk in segments: where the seeing observers, the nearest mob or the regions change, a new
+  segment starts, so "31 safe cells, then 21 in skeleton 1203's sight" replaces 87
+  coordinates. The raw A* result is cached under the `planId` (60 s, last 8) and a goto with
+  that id hands it to the walker through `WalkerPlanAdoption` before the process starts, so no
+  search precedes the first step; the walker's own gate (nearest prefix node within four cells
+  on dry ground) is the only distance rule, and a refused plan falls back to a normal search
+  and says why. `plan: "score"` prices the caller's own corridor line with the same
+  components and no search.
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint

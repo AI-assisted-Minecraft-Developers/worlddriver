@@ -234,6 +234,7 @@ public final class SettingsRegistry {
         field("pathfinder.maxMs", "pathfinderMaxMs"),
         field("pathfinder.sliceMs", "pathfinderSliceMs"),
         field("pathfinder.idleSliceMs", "pathfinderIdleSliceMs"),
+        field("pathfinder.previewSliceMs", "pathfinderPreviewSliceMs"),
         field("sightRaysPerSearch"),
         field("snapshotBoxMax"),
         field("pathfinder.heuristicWeight", "pathfinderHeuristicWeight"),

@@ -200,7 +200,17 @@ public final class BotTools {
                 "leash/leashHard→leash{center|entity,radius,hard}; column→leash{center:[x,z],radius,hard:true,axis:'xz'}; requireTool→route.requireTool.\n" +
                 "Optional near:N relaxes target to a Euclidean radius. block selector also takes " +
                 "radius:N (search box, 1-64). " +
-                "Returns {ok, started, goal} or {ok:false, error}.",
+                "Returns {ok, started, goal, via?} or {ok:false, error}.\n" +
+                "LOOK BEFORE WALKING: plan:true previews the route without walking or interrupting a walk " +
+                "in progress — returns {started, slot:'plan', planId} at once; the result lands in " +
+                "mc.bot.status.plan (use awaitMs): {reached, cells, cost, segments:[{from,to,risk:{exposedTo:[{id,type,cells}]," +
+                "nearestMob,regions}}], detourRatio, bestEffort, sightBudgetExhausted, snapshotTruncated, path?}. " +
+                "Segments are where the risk changes, so read 'the first 31 cells are safe, the next 21 are in " +
+                "skeleton 1203's sight'. Each preview spends a whole search budget beside the walk: tighten the " +
+                "conditions and converge in two or three rounds. Then goto {planId} walks exactly that route " +
+                "(reply adopted:true; adopted:false + adoptReason falls back to a normal search: expired after 60 s, " +
+                "bestEffort, or the body moved away). plan:'score' prices the polyline in route.corridor.points " +
+                "as if walked (no search, no planId).",
                 object()
                     .prop("pos", pos())
                     .prop("near", integer(0, 64)
