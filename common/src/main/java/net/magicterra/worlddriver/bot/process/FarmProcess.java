@@ -2,7 +2,9 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -23,6 +25,8 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 import net.minecraft.world.level.block.CropBlock;
 
 public final class FarmProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
     /** Crop block id → item id that re-plants it. Kept private; the public
      *  {@code farm()} entry validates incoming filter against this set. */
     public static final Map<String, String> SEED_FOR = Map.of(
@@ -69,6 +73,8 @@ public final class FarmProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        hands = a.hands().orElse(null);
+        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -115,13 +121,13 @@ public final class FarmProcess implements BotProcess {
                 a.commandJump(false);
                 p.setSprinting(false);
                 a.aimAtBlock(currentTarget);
-                a.breakHold(true);
-                a.continueDestroy(currentTarget);
+                hands.breakHold(true);
+                hands.continueDestroy(currentTarget);
                 breakingTicks++;
                 BlockState bs = lvl.getBlockState(currentTarget);
                 if (bs.isAir()) {
                     harvested++;
-                    a.breakHold(false);
+                    hands.breakHold(false);
                     if (replant) {
                         placeTicks = 0;
                         phase = Phase.REPLANT;
@@ -132,18 +138,18 @@ public final class FarmProcess implements BotProcess {
                     }
                 } else if (breakingTicks > BREAK_TIMEOUT_TICKS) {
                     blacklist.add(currentTarget);
-                    a.breakHold(false);
+                    hands.breakHold(false);
                     currentTarget = null;
                     phase = Phase.SEARCH;
                 }
             }
             case REPLANT -> {
-                a.breakHold(false);
+                hands.breakHold(false);
                 a.commandForward(0f);
                 a.commandJump(false);
                 p.setSprinting(false);
                 String seedId = SEED_FOR.get(currentCropId);
-                if (seedId == null || !HeldItem.holdById(a, seedId)) {
+                if (seedId == null || !HeldItem.holdById(hands, seedId)) {
                     // No seed in hand — skip this cell rather than spin.
                     skipped++;
                     blacklist.add(currentTarget);
@@ -157,7 +163,7 @@ public final class FarmProcess implements BotProcess {
                 BlockPos farmland = currentTarget.offset(0, -1, 0);
                 aimAtSupportFace(p, currentTarget, Direction.UP);
                 if (placeTicks == 0) {
-                    a.placeOn(farmland, Direction.UP);
+                    hands.placeOn(farmland, Direction.UP);
                 }
                 placeTicks++;
                 BlockState now = lvl.getBlockState(currentTarget);

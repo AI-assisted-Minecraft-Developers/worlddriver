@@ -324,7 +324,7 @@ final class WalkerTickDrive {
         boolean slowDiagUpPillar = "diagUp".equals(edge != null ? edge.move : null)
                 && diagUp && upDy == 1 && p.onGround() && !p.isInWater()
                 && wk.stepProg.noStepProgressTicks > DIAGUP_PILLAR_TICKS;
-        if ((overJump || slowDiagUpPillar) && BotConfig.allowPlace && a.holdPillarBlock()) {
+        if ((overJump || slowDiagUpPillar) && BotConfig.allowPlace && wk.hands.holdPillarBlock()) {
             wk.pillarRecover.latch = PILLAR_RECOVER_TICKS;
             wk.pillarRecover.cell = foot;                 // grounded feet cell = the rung we fill
         }
@@ -351,7 +351,7 @@ final class WalkerTickDrive {
                 Walker.avatarDigPreempt(wk, a, recCeiling, true);
                 return Walker.Step.WALKING;
             }
-            a.breakHold(false);
+            wk.hands.breakHold(false);
             p.setXRot(89.5f);                         // look straight down to aim the support
             if (p.onGround()) {
                 wk.jumpTag = "pillarRecoverRung";
@@ -361,7 +361,7 @@ final class WalkerTickDrive {
                 // Place into the feet cell once risen clear of it (vanilla rejects the place
                 // while the player AABB still overlaps the target cell — gate on real height).
                 if (p.getY() >= wk.pillarRecover.cell.getY() + 1.0) {
-                    a.placeOn(wk.pillarRecover.cell.offset(0, -1, 0), Direction.UP);
+                    wk.hands.placeOn(wk.pillarRecover.cell.offset(0, -1, 0), Direction.UP);
                     wk.exAlarms.notePlace(wk.pillarRecover.cell);
                 }
             }
@@ -1410,7 +1410,7 @@ final class WalkerTickDrive {
                 && p.horizontalCollision
                 && (wk.stuckTicks > 40
                     || (BotConfig.walkerPhysicalStallClock && wk.physStall.stallTicks > 60))
-                && !a.breakHeld()) {
+                && !wk.hands.breakHeld()) {
             double fdx = (wp.getX() + 0.5) - p.getX(), fdz = (wp.getZ() + 0.5) - p.getZ();
             double fl = Math.sqrt(fdx * fdx + fdz * fdz);
             if (fl > 1e-3) {
@@ -1472,7 +1472,7 @@ final class WalkerTickDrive {
                     String.format(Locale.ROOT, "%.2f", p.getX()),
                     String.format(Locale.ROOT, "%.2f", p.getY()),
                     String.format(Locale.ROOT, "%.2f", p.getZ()),
-                    p.onGround(), a.breakHeld(),
+                    p.onGround(), wk.hands.breakHeld(),
                     dryDescent, String.format(Locale.ROOT, "%.0f", driveTargetYaw),
                     aimSrc, wk.stuckTicks);
         }
@@ -1614,7 +1614,7 @@ final class WalkerTickDrive {
     static void settleDigKey(Walker wk, Avatar a) {
         if (wk.digDrivenThisTick) wk.digIdleTicks = 0;
         else if (wk.digKeyOwned && ++wk.digIdleTicks >= DIG_KEY_RELEASE_TICKS) {
-            if (a.breakHeld()) a.breakHold(false);
+            if (wk.hands.breakHeld()) wk.hands.breakHold(false);
             wk.digKeyOwned = false;
             wk.digIdleTicks = 0;
         }

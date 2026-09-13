@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -22,6 +24,8 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 
 public final class BackfillProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BackfillTracker tracker;
@@ -54,6 +58,8 @@ public final class BackfillProcess implements BotProcess {
         // error", which is the one thing that did not happen. BboxFillProcess and FarmProcess, which
         // share this very `st.builder` slot, have always stamped it.
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        hands = a.hands().orElse(null);
+        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
         BlockPos playerFoot = blockPosOf(p);
 
@@ -66,7 +72,7 @@ public final class BackfillProcess implements BotProcess {
                     return true;
                 }
                 String blockId = BotConfig.autoBackfillBlock;
-                if (!HeldItem.holdById(a, blockId)) {
+                if (!HeldItem.holdById(hands, blockId)) {
                     failed.add(pick);
                     return false;
                 }
@@ -118,7 +124,7 @@ public final class BackfillProcess implements BotProcess {
                     else if (!p.isCrouching()) return false;
                 }
                 if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    a.placeOn(support, currentFace);
+                    hands.placeOn(support, currentFace);
                 }
                 placeTicks++;
                 BlockState now = lvl.getBlockState(currentBlock);

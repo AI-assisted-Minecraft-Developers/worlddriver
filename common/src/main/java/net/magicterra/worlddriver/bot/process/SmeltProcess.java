@@ -2,7 +2,10 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Containers;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.BlockPos;
@@ -36,6 +39,10 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReac
  * {@link AbstractFurnaceBlockEntity#isFuel} table.
  */
 public final class SmeltProcess implements BotProcess {
+    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place
+     *  either can be absent. */
+    private Hands hands;
+    private Containers menus;
     private static final double REACH = 4.3;
     private static final int OPEN_TIMEOUT = 40;
     /** Vanilla smelt is 200 ticks/item; budget generously per item + slack. */
@@ -108,6 +115,9 @@ public final class SmeltProcess implements BotProcess {
         Player p = a.asPlayer();
         Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, "no player"); return true; }
+        hands = a.hands().orElse(null);
+        menus = a.containers().orElse(null);
+        if (hands == null || menus == null) { fail(s, BodyReady.Reason.NO_HANDS); return true; }
 
         switch (st) {
             case INIT -> init(a, p, lvl, s);
@@ -118,7 +128,7 @@ public final class SmeltProcess implements BotProcess {
             default -> {}
         }
 
-        if (st == St.DONE) { a.closeContainer(); s.smelt.reset(); return true; }
+        if (st == St.DONE) { menus.closeContainer(); s.smelt.reset(); return true; }
         if (st == St.FAIL) {
             // Devil-bench iron ep-015: LOAD shift-clicks the ore in BEFORE the
             // fuel check can fail, and the fail path closed the menu with the
@@ -134,7 +144,7 @@ public final class SmeltProcess implements BotProcess {
                                           AbstractFurnaceMenu.INGREDIENT_SLOT,
                                           AbstractFurnaceMenu.FUEL_SLOT}) {
                     if (!m.getSlot(slot).getItem().isEmpty()) {
-                        a.containerClick(m.containerId, slot, 0, ClickType.QUICK_MOVE);
+                        menus.containerClick(m.containerId, slot, 0, ClickType.QUICK_MOVE);
                     }
                 }
                 after = slotSummary(m);
@@ -151,7 +161,7 @@ public final class SmeltProcess implements BotProcess {
             }
             LOG.info("[smelt] FAIL: {} furnace={} target={}× {} slots {} -> {} free={}",
                     error, furnacePos, targetOut, input, before, after, freeSlots(p));
-            a.closeContainer(); s.smelt.lastError = error; s.smelt.reset(); return true;
+            menus.closeContainer(); s.smelt.lastError = error; s.smelt.reset(); return true;
         }
         return false;
     }
@@ -174,7 +184,7 @@ public final class SmeltProcess implements BotProcess {
                 LOG.info("[smelt] INIT adopt: bag empty, resuming furnace {} target={}× {}",
                         fz.toShortString(), targetOut, shortId(input));
                 a.aimAtBlock(fz);
-                a.useBlock(fz, faceTowardEye(fz, p));
+                hands.useBlock(fz, faceTowardEye(fz, p));
                 waited = 0;
                 st = St.OPEN_WAIT;
                 return;
@@ -202,7 +212,7 @@ public final class SmeltProcess implements BotProcess {
                 fz.toShortString(), targetOut, shortId(input), have);
         // NOTE: a server FakePlayer can't open menus, so OPEN_WAIT times out there.
         a.aimAtBlock(fz);
-        a.useBlock(fz, faceTowardEye(fz, p));
+        hands.useBlock(fz, faceTowardEye(fz, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
@@ -232,7 +242,7 @@ public final class SmeltProcess implements BotProcess {
         // Shift-click the ingredient from the inventory → routes to the input slot.
         int inSlot = findInvMenuSlot(menu, st2 -> idOf(st2.getItem()).equals(input));
         if (inSlot < 0) { fail(s, "背包里找不到 " + shortId(input)); return; }
-        a.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
+        menus.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
 
         int burn = loadFuel(a, menu);
         if (burn < 0) {
@@ -267,11 +277,11 @@ public final class SmeltProcess implements BotProcess {
         int fuelSlot = pickFuelMenuSlot(menu, fuelId);
         if (fuelSlot < 0) return -1;
         fuelChosen = shortId(idOf(menu.slots.get(fuelSlot).getItem()));
-        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
-        a.containerClick(menu.containerId, AbstractFurnaceMenu.FUEL_SLOT, 0, ClickType.PICKUP);
+        menus.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
+        menus.containerClick(menu.containerId, AbstractFurnaceMenu.FUEL_SLOT, 0, ClickType.PICKUP);
         // Return any remainder the fuel slot rejected; a no-op when the cursor
         // is empty and the source slot was fully moved.
-        a.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
+        menus.containerClick(menu.containerId, fuelSlot, 0, ClickType.PICKUP);
         ItemStack landed = menu.getSlot(AbstractFurnaceMenu.FUEL_SLOT).getItem();
         fuelBurnLoaded = landed.getCount() * burnOf(landed);
         return fuelBurnLoaded;
@@ -386,7 +396,7 @@ public final class SmeltProcess implements BotProcess {
                                   AbstractFurnaceMenu.INGREDIENT_SLOT,
                                   AbstractFurnaceMenu.FUEL_SLOT}) {
             if (!menu.getSlot(slot).getItem().isEmpty()) {
-                a.containerClick(menu.containerId, slot, 0, ClickType.QUICK_MOVE);
+                menus.containerClick(menu.containerId, slot, 0, ClickType.QUICK_MOVE);
             }
         }
         // Did the result actually LEAVE the furnace? "QUICK_MOVE back is a no-op on an already-full
@@ -503,7 +513,7 @@ public final class SmeltProcess implements BotProcess {
     }
 
     private BlockPos placeFurnace(Avatar a, Player p, Level lvl) {
-        return PlaceNearby.place(a, p, lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
+        return PlaceNearby.place(a, hands, p,lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
     }
 
     private static String idOf(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }

@@ -588,7 +588,7 @@ final class JourneyCast {
             // fact about the world. Comparing the watcher's t0 against `cast.atUse` would not do
             // this job: t0 is taken after `useItemInHand` has already run.
             JourneyHands.handTrace(rig, "cast", -1);
-            rig.evidence("cast.result", String.valueOf(rig.avatar().useItemInHand()));
+            rig.evidence("cast.result", String.valueOf(rig.hands().useItemInHand()));
             // THE HAND ON CONSECUTIVE SERVER TICKS. `cast.result` is the CLIENT's prediction and
             // `cast.stillFull` is the SERVER ten ticks later; between them sits the moment that
             // decides this rung — the tick on which the server processes the use packet and reads

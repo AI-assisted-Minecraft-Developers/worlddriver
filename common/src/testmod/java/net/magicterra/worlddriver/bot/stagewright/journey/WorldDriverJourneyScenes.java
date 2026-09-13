@@ -2814,7 +2814,7 @@ public final class WorldDriverJourneyScenes implements SceneProvider {
             // spent a whole run's evidence being inverted by hand to decide which. describeRay
             // prints MISS in words, with the range it traced, so the next one says it outright.
             JourneyHands.handsAtUse(rig, "fill");
-            rig.evidence("fill.result", String.valueOf(rig.avatar().useItemInHand()));
+            rig.evidence("fill.result", String.valueOf(rig.hands().useItemInHand()));
             // WAIT before judging, and that is the mirror image of aimThenAct rather than a
             // contradiction of it. The aim must be written to the body that ACTS, with nothing
             // between; the OUTCOME is written by that same client body and has to travel back to

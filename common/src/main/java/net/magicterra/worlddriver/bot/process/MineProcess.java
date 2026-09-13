@@ -3,7 +3,9 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -43,6 +45,8 @@ import java.util.Deque;
 import java.util.ArrayDeque;
 
 public final class MineProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
 
     private final Set<String> targetIds;
     // Per-id matchers: each entry is an exact id or a '#tag' selector
@@ -254,13 +258,15 @@ public final class MineProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Player p = a.asPlayer();
         if (p == null) { st.mine.lastError = "player vanished"; finish(st, null, null, "player vanished"); return true; }
+        hands = a.hands().orElse(null);
+        if (hands == null) { st.mine.lastError = BodyReady.Reason.NO_HANDS; finish(st, null, null, BodyReady.Reason.NO_HANDS); return true; }
         Level lvl = p.level();
         // Quota reached → switch to COLLECT instead of declaring done. The
         // old behaviour left the player wherever the last break completed,
         // so items that fell 2-3 blocks away (typical for trees: trunk
         // breaks at head height, items at foot height) just despawned.
         if (broken >= desiredQty && phase != Phase.COLLECT) {
-            a.breakHold(false);
+            hands.breakHold(false);
             phase = Phase.COLLECT;
             collectTicks = 0;
         }
@@ -274,7 +280,7 @@ public final class MineProcess implements BotProcess {
         // (This is exactly what killed a naked run: a stone dig opened a hidden
         // pocket and the next-target approach stepped into it.)
         if (p.isInLava()) {
-            a.breakHold(false);
+            hands.breakHold(false);
             a.commandForward(0);
             a.commandJump(false);
             p.setSprinting(false);
@@ -290,7 +296,7 @@ public final class MineProcess implements BotProcess {
         if (hpNow > minePeakHp) minePeakHp = hpNow;
         if (phase != Phase.COLLECT
                 && (minePeakHp - hpNow >= MINE_DAMAGE_ABORT || hpNow <= MINE_HP_CRITICAL)) {
-            a.breakHold(false);
+            hands.breakHold(false);
             a.commandForward(0);
             a.commandJump(false);
             p.setSprinting(false);
@@ -338,7 +344,7 @@ public final class MineProcess implements BotProcess {
             }
             case GOING -> {
                 // Make sure attack isn't lingering from the previous block.
-                a.breakHold(false);
+                hands.breakHold(false);
                 // Already standing on the target's stand cell? Then there is nothing
                 // to walk — go straight to breaking. This is the straight-up "mine
                 // the overhead block from directly below" case (stand == our own
@@ -347,7 +353,7 @@ public final class MineProcess implements BotProcess {
                 // side/reach-across stand is a DIFFERENT cell, so this never short-
                 // circuits a real walk.)
                 if (currentStand != null && p.blockPosition().equals(currentStand)) {
-                    a.selectTool(currentTarget);
+                    hands.selectTool(currentTarget);
                     a.aimAtBlock(currentTarget);
                     breakingTicks = 0;
                     breakStartId = currentBlockId(lvl);
@@ -386,11 +392,11 @@ public final class MineProcess implements BotProcess {
                             return false;
                         }
                     }
-                    retireTarget(a, "走行器报 FAILED，且没有可清的遮挡叶子");
+                    retireTarget("走行器报 FAILED，且没有可清的遮挡叶子");
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    a.selectTool(currentTarget);
+                    hands.selectTool(currentTarget);
                     a.aimAtBlock(currentTarget);
                     breakingTicks = 0;
                     // Block id observed at the moment we arrived — used to detect
@@ -413,7 +419,7 @@ public final class MineProcess implements BotProcess {
                         goingBestDist = dist;
                         goingStallTicks = 0;
                     } else if (++goingStallTicks >= GOING_STALL_TICKS) {
-                        retireTarget(a, String.format(java.util.Locale.ROOT,
+                        retireTarget(String.format(java.util.Locale.ROOT,
                                 "%dt 内对落脚点 %s 一点没靠近（最近 %.1f 格）—— 实际到不了",
                                 GOING_STALL_TICKS, currentStand, goingBestDist));
                         return false;
@@ -423,10 +429,10 @@ public final class MineProcess implements BotProcess {
             case BREAKING -> {
                 // Release walking keys, hold the break action via the Avatar:
                 //  - CLIENT: the dig latch PLUS a direct continueDestroy on the same block.
-                //    The latch drives nothing (see Avatar#breakHold); the direct call is what
+                //    The latch drives nothing (see Hands#breakHold); the direct call is what
                 //    advances the break, and it makes vanilla's own attack pass stand aside for
                 //    the tick. It is still PROGRESSIVE, so the id check below stays honest.
-                //  - SERVER: a.breakHold(true) = level.destroyBlock(aimTarget) (instant), and
+                //  - SERVER: hands.breakHold(true) = level.destroyBlock(aimTarget) (instant), and
                 //    continueDestroy is an inherited no-op.
                 // Either way the SAME completion check below (block id changed away
                 // from the original) detects the break — progressive or instant.
@@ -451,7 +457,7 @@ public final class MineProcess implements BotProcess {
                 // Swing at what is IN THE WAY, not at what is wanted. A buried ore is not
                 // breakable from a stand on the surface, and before the avatar had a reach gate
                 // that did not matter — it mined straight through the overburden and left the drop
-                // sealed in a pocket (see ServerPlayerAvatar#canBreak). With the gate, aiming at
+                // sealed in a pocket (see ServerPlayerHands#canBreak). With the gate, aiming at
                 // the ore is a swing that can never land: the no-progress watchdog eventually
                 // blacklists it and the miner reports "no reachable target" about ore it is
                 // standing on top of.
@@ -461,13 +467,13 @@ public final class MineProcess implements BotProcess {
                 // not seed COLLECT, and finishing it re-SEARCHes so the now-exposed block below is
                 // picked up normally. Peeling one block per pass is what a player does, and it is
                 // also what keeps every drop at the bottom of a hole the body can enter.
-                BlockPos overburden = currentTargetClearing ? null : firstBreakableToward(a, lvl, p, currentTarget);
+                BlockPos overburden = currentTargetClearing ? null : firstBreakableToward(hands, lvl, p, currentTarget);
                 if (overburden != null) {
                     aimAt(overburden, lvl);
                     currentTargetClearing = true;
                     breakStartId = currentBlockId(lvl);
                     breakingTicks = 0;
-                } else if (!a.canBreak(currentTarget) && isExposed(lvl, currentTarget)) {
+                } else if (!hands.canBreak(currentTarget) && isExposed(lvl, currentTarget)) {
                     // Exposed and STILL not breakable means out of range, and range does not
                     // improve by standing here: a canopy log five blocks above the stand, which
                     // needs climbing, not patience. Retire it now and re-SEARCH so the miner takes
@@ -485,12 +491,12 @@ public final class MineProcess implements BotProcess {
                     // This is the honest shape of the limitation, not a workaround for it: what
                     // the bot cannot do is CLIMB to a log, and until it can, "mine the ones you can
                     // reach" is what a player without a ladder does too.
-                    retireTarget(a, "露在外面却还是破不掉 ⇒ 够不着，而站着不动改善不了距离");
+                    retireTarget("露在外面却还是破不掉 ⇒ 够不着，而站着不动改善不了距离");
                     return false;
                 }
                 a.aimAtBlock(currentTarget);
-                a.breakHold(true);
-                a.continueDestroy(currentTarget);
+                hands.breakHold(true);
+                hands.continueDestroy(currentTarget);
 
                 breakingTicks++;
                 String now = currentBlockId(lvl);
@@ -514,7 +520,7 @@ public final class MineProcess implements BotProcess {
                             while (recentBreaks.size() > 8) recentBreaks.removeFirst();
                         }
                     }
-                    a.breakHold(false);
+                    hands.breakHold(false);
                     aimAt(null, lvl);
                     if (broken >= desiredQty) {
                         phase = Phase.COLLECT;
@@ -523,7 +529,7 @@ public final class MineProcess implements BotProcess {
                         phase = Phase.SEARCH;
                     }
                 } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
-                    retireTarget(a, "砸了 " + breakingTicks + "t 还没碎（上限 "
+                    retireTarget("砸了 " + breakingTicks + "t 还没碎（上限 "
                             + BotConfig.breakTimeoutTicks + "t）");
                 }
             }
@@ -533,7 +539,7 @@ public final class MineProcess implements BotProcess {
                 // walking through remembered break positions when no items
                 // are visible — handles the chunk-not-loaded case where
                 // ClientLevel hasn't received the SpawnEntity packet yet.
-                a.breakHold(false);
+                hands.breakHold(false);
                 collectTicks++;
                 BlockPos goal = findCollectGoal(lvl, p);
                 // Nothing to walk to — but "nothing to walk to" is not the same as "nothing
@@ -742,12 +748,12 @@ public final class MineProcess implements BotProcess {
      * holding one. Releasing a hold nobody took is a no-op; forgetting it on the door that DID
      * take one leaves the avatar swinging at a cell it has stopped tracking.
      */
-    private void retireTarget(Avatar a, String why) {
+    private void retireTarget(String why) {
         retiredTargets++;
         LOG.info("[mine] blacklist {}（{}）—— 第 {} 个退休目标，回到 SEARCH",
                 currentTarget, why, retiredTargets);
         blacklist.add(currentTarget);
-        a.breakHold(false);
+        hands.breakHold(false);
         aimAt(null, null);          // no Level here, and none is needed: a null target is never a log
         phase = Phase.SEARCH;
     }
@@ -777,8 +783,8 @@ public final class MineProcess implements BotProcess {
      * cube, and the segment here is bounded by the player's own interaction range, so this is a
      * couple of dozen samples and not a raycast worth optimising.
      */
-    private static BlockPos firstBreakableToward(Avatar a, Level lvl, Player p, BlockPos target) {
-        if (a.canBreak(target)) return null;
+    private static BlockPos firstBreakableToward(Hands hands, Level lvl, Player p, BlockPos target) {
+        if (hands.canBreak(target)) return null;
         Vec3 eye = p.getEyePosition();
         Vec3 centre = Vec3.atCenterOf(target);
         double span = eye.distanceTo(centre);
@@ -792,7 +798,7 @@ public final class MineProcess implements BotProcess {
             last = cell;
             if (cell.equals(target)) break;
             if (lvl.getBlockState(cell).isAir()) continue;
-            if (a.canBreak(cell)) return cell;
+            if (hands.canBreak(cell)) return cell;
         }
         return null;
     }

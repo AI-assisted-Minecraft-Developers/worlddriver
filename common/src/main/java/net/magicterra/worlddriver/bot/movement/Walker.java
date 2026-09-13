@@ -119,6 +119,10 @@ public final class Walker {
      *  Null until the first tick, which is also the first time a search can start. */
     LivingEntity body;
 
+    /** That body's hands, or {@link WalkerNoHands} when it has none — never null, so the
+     *  tick phases' dig and place sites read and drive it without a guard each. */
+    Hands hands = WalkerNoHands.INSTANCE;
+
     /** Set the per-intent search profile for subsequent searches. Null → {@link SearchProfile#NONE}. */
     public void setSearchProfile(SearchProfile p) {
         this.profile = (p == null) ? SearchProfile.NONE : p;
@@ -1466,6 +1470,7 @@ public final class Walker {
 
     public Step tick(Avatar a, WorldView world) {
         body = a.entity();
+        hands = a.hands().orElse(WalkerNoHands.INSTANCE);
         // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
         // stepUp...), so a safety invariant appended to its tail only covers SOME ticks — the
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
@@ -1715,7 +1720,7 @@ public final class Walker {
      * continuing and falling forever.
      */
     private void widenFooting(Avatar a, WorldView world, LivingEntity p, BlockPos foot) {
-        if (!BotConfig.allowPlace || a.breakHeld() || !a.holdPlaceable()) return;
+        if (!BotConfig.allowPlace || hands.breakHeld() || !hands.holdPlaceable()) return;
         var box = p.getBoundingBox();
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
             for (int cz = (int) Math.floor(box.minZ); cz <= (int) Math.floor(box.maxZ); cz++) {
@@ -1726,7 +1731,7 @@ public final class Walker {
                     if (!world.isPassable(new BlockPos(cx, y, cz))) { bottomless = false; break; }
                 }
                 if (!bottomless) continue;
-                a.place(world, support);
+                hands.place(world, support);
                 exAlarms.notePlace(support);
                 LOG.info("[walker] footing guard: 垫脚 {},{},{}（脚底 {} < {}，该列直通虚空）",
                         support.getX(), support.getY(), support.getZ(),
@@ -2052,7 +2057,7 @@ public final class Walker {
      * <i>unconditionally false</i>: nothing changed colour, so nothing changed.
      */
     public static volatile int waterPillarEngages;
-    /** Times the climb-out actually clicked — {@code crestClearOf} passed and {@code Avatar#place}
+    /** Times the climb-out actually clicked — {@code crestClearOf} passed and {@code Hands#place}
      *  was called. The one bit neither the ledger nor the world can supply: a cell that stayed water
      *  means「clicked and vanilla refused」and「never clicked at all」equally well, and those are
      *  opposite findings about the crest gate. {@code wd.pillarLedgerCountsRefusedPlaces} ran a full
@@ -2361,10 +2366,10 @@ public final class Walker {
         // this: over an ordinary drop a graze costs health the body walks off, and killing momentum
         // on every ledge would make ridge walking crawl.
         if (bottomless) p.setDeltaMovement(0.0, dm.y, 0.0);
-        boolean canPlug = BotConfig.allowPlace && !a.breakHeld()
+        boolean canPlug = BotConfig.allowPlace && !hands.breakHeld()
                 && (bottomless || constructionPlan || guardPlugFires >= GUARD_PLUG_ARM_FIRES);
-        boolean held = canPlug && a.holdPlaceable();
-        if (held) a.place(world, strideCell.below());
+        boolean held = canPlug && hands.holdPlaceable();
+        if (held) hands.place(world, strideCell.below());
         // place() has no return value, so read the WORLD for the outcome. A client-side place
         // may land a tick later — then the next scan finds floor and stops firing, which is the
         // same signal; what matters is that repeated fires on one cell now read "plug FAILED"

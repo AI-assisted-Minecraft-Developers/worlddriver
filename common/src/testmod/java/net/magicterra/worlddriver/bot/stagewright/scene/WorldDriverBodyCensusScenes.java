@@ -809,7 +809,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     /**
      * Whether attacking through the avatar seam swings the arm.
      *
-     * <p>Driven through {@link ServerPlayerAvatar#attackEntityUnchecked} on purpose, bypassing
+     * <p>Driven through {@link ServerPlayernet.magicterra.worlddriver.bot.movement.Hands#attackEntityUnchecked} on purpose, bypassing
      * {@code CombatProcess}: that process swings at its own call site, so measuring through it would
      * report the call site's behaviour and say nothing about the seam. The prediction under test is
      * that {@code bot/sim/} contains no {@code swing(} at all, which means every OTHER caller of the

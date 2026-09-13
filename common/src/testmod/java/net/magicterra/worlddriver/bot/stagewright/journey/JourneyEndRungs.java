@@ -17,6 +17,7 @@ import net.magicterra.worlddriver.bot.movement.BlastFooting;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
@@ -999,7 +1000,7 @@ public final class JourneyEndRungs {
                 rig.evidence("eye." + i + ".hand", "拿不到 ender_eye，手上是 " + heldItem(rig));
             }
             double reach = Math.sqrt(rig.player().blockPosition().distSqr(frame));
-            rig.avatar().useBlock(frame, Direction.UP);
+            rig.hands().useBlock(frame, Direction.UP);
             rig.settle(new HoldStill(2), 10, () -> {
                 if (!hasEye(level, frame)) {
                     rig.evidence("eye." + i + ".missed", xyz(frame) + " 仍是 "
@@ -2272,14 +2273,15 @@ public final class JourneyEndRungs {
         public boolean tick(Avatar a, WorldView w, BotState st) {
             a.commandMove(0, 0);
             a.commandJump(false);
-            a.breakHold(false);
+            Hands h = a.hands().orElse(null);
             LivingEntity p = a.entity();
-            if (p == null || !target.isAlive()) return true;
+            if (p == null || h == null || !target.isAlive()) return true;
+            h.breakHold(false);
             double d = p.distanceTo(target);
             if (d < closest) closest = d;
             sinceSwing++;
             if (d <= reach && sinceSwing >= SWING_EVERY) {
-                a.attackEntity(target);
+                h.attackEntity(target);
                 sinceSwing = 0;
                 // A swing the driver DECLINED is not a swing. Rung 20 broke because a crystal took
                 // the cage lid out from under the body, and BlastFooting now refuses that hit — so
@@ -2287,7 +2289,7 @@ public final class JourneyEndRungs {
                 // and「挥 60 刀，水晶还在」would describe that as a damage problem. Count what
                 // happened, and carry the reason out: a refusal nobody prints is the silent failure
                 // this rung has already been bitten by.
-                String why = a.lastAttackRefusal();
+                String why = h.lastAttackRefusal();
                 if (why != null) { refused++; if (refusal == null) refusal = why; }
                 else swings++;
             }
@@ -2353,9 +2355,10 @@ public final class JourneyEndRungs {
         public boolean tick(Avatar a, WorldView w, BotState st) {
             a.commandMove(0, 0);
             a.commandJump(false);
-            a.breakHold(false);
+            Hands h = a.hands().orElse(null);
             Player p = a.asPlayer();
-            if (p == null) { why = "身体没了（a.asPlayer()==null）"; return true; }
+            if (p == null || h == null) { why = "身体没了（a.asPlayer()==null 或没有手）"; return true; }
+            h.breakHold(false);
             EnderDragon dragon = nearestDragon(p.level(), p.position());
             if (dragon != null && dragon.isDeadOrDying()) { why = "龙在死"; return true; }
             if (dragon == null) {
@@ -2388,9 +2391,9 @@ public final class JourneyEndRungs {
             Entity aim = head != null && headAway <= reach ? head
                     : nearestAway <= reach ? nearest : null;
             if (aim != null && sinceSwing >= SWING_EVERY) {
-                if (p.isUsingItem()) a.commandUseItem(false);   // drop the draw, this is melee now
+                if (p.isUsingItem()) h.commandUseItem(false);   // drop the draw, this is melee now
                 holdSword(p);
-                a.attackEntity(aim);
+                h.attackEntity(aim);
                 sinceSwing = 0;
                 swings++;
                 if (aim == head) headHits++;
@@ -2424,7 +2427,7 @@ public final class JourneyEndRungs {
                 else {
                 drawTicks = p.isUsingItem() ? p.getTicksUsingItem() : 0;
                 if (drawTicks >= BOW_FULL_DRAW) {
-                    a.commandUseItem(false);              // up-edge = release = shoot
+                    h.commandUseItem(false);              // up-edge = release = shoot
                     // Count AMMO, not releases. The first cut incremented here and reported 9516
                     // shots from a quiver of 256: once the arrows run out stopUsingItem still gets
                     // called every cycle, so the counter went on climbing while nothing was fired.
@@ -2434,7 +2437,7 @@ public final class JourneyEndRungs {
                     if (ammoBefore < 0) ammoBefore = now;
                     if (now < ammoBefore) { arrows += ammoBefore - now; ammoBefore = now; }
                 } else if (p.isUsingItem()) {
-                    a.commandUseItem(true);               // already drawing: keep holding
+                    h.commandUseItem(true);               // already drawing: keep holding
                 } else {
                     // RE-ARM. commandUseItem is edge-triggered on the avatar's own useHeld flag, so
                     // once vanilla stops the use by itself — which the melee branch's release does
@@ -2447,8 +2450,8 @@ public final class JourneyEndRungs {
                     // The down-edge is safe here and does NOT waste an arrow: we only reach this
                     // branch when isUsingItem() is false, i.e. useItem is already EMPTY, and
                     // releaseUsingItem() skips the fire on an empty stack and just resets.
-                    a.commandUseItem(false);
-                    a.commandUseItem(true);
+                    h.commandUseItem(false);
+                    h.commandUseItem(true);
                 }
                 }
             }

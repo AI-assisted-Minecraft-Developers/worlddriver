@@ -688,7 +688,7 @@ public final class JourneyFill {
         // taken is what keeps the next reader from doing arithmetic on a moment nobody sampled.
         var aimAtUse = level.getFluidState(aim);
         var blockAtUse = level.getBlockState(aim).getBlock();
-        rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
+        rig.evidence(tag + ".result", String.valueOf(rig.hands().useItemInHand()));
         // WAIT FOR THE ROUND TRIP BEFORE JUDGING — the mirror of aiming, not a contradiction of it.
         // The aim must be adjacent to the act on the body that ACTS; the OUTCOME is produced by
         // that client body and has to travel back before `rig.carrying` (the ServerPlayer's
@@ -828,7 +828,7 @@ public final class JourneyFill {
                 return;
             }
             int before = rig.carrying("minecraft:lava_bucket");
-            var result = rig.avatar().useItemInHand();
+            var result = rig.hands().useItemInHand();
             int after = rig.carrying("minecraft:lava_bucket");
             if (after <= before) {
                 noteLoad(rig, tag, carried, "第 " + (carried + 1) + " 桶没装上：瞄 "
@@ -1399,7 +1399,7 @@ public final class JourneyFill {
                 // on a line nobody was writing down. `handsAtUse` prints BOTH bodies and BOTH fluid
                 // modes, and the empty bucket's mode is the one that answers here.
                 JourneyHands.handsAtUse(rig, "waterFill");
-                rig.evidence("waterFill.result", String.valueOf(rig.avatar().useItemInHand()));
+                rig.evidence("waterFill.result", String.valueOf(rig.hands().useItemInHand()));
                 rig.settle(new HoldStill(3), 12, () -> {
                     int after = rig.carrying("minecraft:water_bucket");
                     rig.evidence("water_bucket", after);

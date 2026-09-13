@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -23,6 +25,8 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 import net.minecraft.world.item.BlockItem;
 
 public final class TowerProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
     /** Minimum ticks between jump-press and the place attempt — a lower bound
      *  only. The block fills the cell we jumped FROM, so vanilla's entity
      *  collision (Level#isUnobstructed) rejects it until the feet have actually
@@ -109,6 +113,8 @@ public final class TowerProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         Player p = a.asPlayer();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        hands = a.hands().orElse(null);
+        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         int feetY = (int) Math.floor(p.getY());
         if (startFeetY == Integer.MIN_VALUE) { startFeetY = feetY; lastApexFloorY = feetY; }
         st.builder.target = new BlockPos(
@@ -161,7 +167,7 @@ public final class TowerProcess implements BotProcess {
         // Always hold the block; auto-pick a BlockItem from hotbar if none specified. Every course,
         // and that repetition is the point: whatever the last course's break moved into the hand,
         // this puts the pillar block back.
-        if (!ensureHoldingPlaceable(a, preferredBlockId, reachIntoBag)) {
+        if (!ensureHoldingPlaceable(hands, preferredBlockId, reachIntoBag)) {
             st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
             a.releaseInputs();
@@ -272,7 +278,7 @@ public final class TowerProcess implements BotProcess {
                 // feet are clear of jumpFromY, so the placement isn't obstructed.
                 BlockPos support = new BlockPos(jumpFromX, jumpFromY - 1, jumpFromZ);
                 faceDown(p);
-                a.placeOn(support, Direction.UP);
+                hands.placeOn(support, Direction.UP);
                 // Count only VERIFIED placements (gap #75-a family audit): placeOn can
                 // no-op (obstruction/reach/wind-down) and blindly incrementing decouples
                 // `placed` from the world. Both ends make the block observable in-tick
@@ -331,24 +337,23 @@ public final class TowerProcess implements BotProcess {
      *       "fix" this branch by pointing it at the bag; that argument has been had.</li>
      * </ul>
      */
-    public static boolean ensureHoldingPlaceable(Avatar a, String preferred) {
-        return ensureHoldingPlaceable(a, preferred, false);
+    public static boolean ensureHoldingPlaceable(Hands hands, String preferred) {
+        return ensureHoldingPlaceable(hands, preferred, false);
     }
 
     /** @param reachIntoBag let a NAMED block be fetched from slots 9..35; see the overload's note. */
-    public static boolean ensureHoldingPlaceable(Avatar a, String preferred, boolean reachIntoBag) {
-        Player p = a.asPlayer();
-        if (p == null) return false;
+    public static boolean ensureHoldingPlaceable(Hands hands, String preferred, boolean reachIntoBag) {
+        if (!(hands.entity() instanceof Player p)) return false;
         if (preferred != null) {
-            return reachIntoBag ? HeldItem.holdByIdFromAnywhere(a, preferred)
-                                : HeldItem.holdById(a, preferred);
+            return reachIntoBag ? HeldItem.holdByIdFromAnywhere(hands, preferred)
+                                : HeldItem.holdById(hands, preferred);
         }
         Inventory inv = p.getInventory();
         // Auto-pick: prefer current slot if it's a BlockItem, else scan hotbar.
         if (isPlaceableBlockItem(inv.getSelected())) return true;
         for (int s = 0; s < 9; s++) {
             if (isPlaceableBlockItem(inv.items.get(s))) {
-                a.setSelectedSlot(s);
+                hands.setSelectedSlot(s);
                 return true;
             }
         }

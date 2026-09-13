@@ -2,7 +2,9 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -16,6 +18,8 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 
 public final class SleepProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
     private static final int USE_TIMEOUT_TICKS = 40;        // ~2 s — bed reply is one tick after the click
     private static final int CLICK_INTERVAL_TICKS = 10;     // re-click cadence within USE phase
 
@@ -48,6 +52,8 @@ public final class SleepProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { st.mc_goto.lastError = "player vanished"; st.mc_goto.reset(); return true; }
+        hands = a.hands().orElse(null);
+        if (hands == null) { st.mc_goto.lastError = BodyReady.Reason.NO_HANDS; st.mc_goto.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -101,7 +107,7 @@ public final class SleepProcess implements BotProcess {
                 p.setShiftKeyDown(false);
                 if (++sinceLastClick >= CLICK_INTERVAL_TICKS) {
                     sinceLastClick = 0;
-                    a.placeOn(bedPos, Direction.UP);
+                    hands.placeOn(bedPos, Direction.UP);
                 }
                 if (++useTicks > USE_TIMEOUT_TICKS) {
                     st.mc_goto.lastError = "bed click did not start sleep (wrong time / monsters / occupied)";

@@ -40,7 +40,7 @@ final class WalkerTickStallDetect {
         if (d < wk.goalSpin.bestDistToGoal - 0.5) {
             wk.goalSpin.bestDistToGoal = d;
             wk.totalTicks = 0;
-        } else if (a.breakHeld() || wk.waterClimb.digging) {
+        } else if (wk.hands.breakHeld() || wk.waterClimb.digging) {
             // Actively mining a block — a planned break edge swinging (breakHeld) OR the
             // block-less climb-out dig from last tick (waterClimbDigging, still set; reset
             // below at line ~755). The bot IS progressing: slowly breaking a riser, not
@@ -96,7 +96,7 @@ final class WalkerTickStallDetect {
         // breaking edge: extend the wedge leash and exempt it from the anti-stuck burst,
         // or the burst yanks the buoyant bot off the riser mid-dig and it never tops out
         // (the live continuous-context churn the clean single-bank arena can't reproduce).
-        boolean breakingEdge = (wedgeEdge != null && !wedgeEdge.toBreak.isEmpty() && a.breakHeld())
+        boolean breakingEdge = (wedgeEdge != null && !wedgeEdge.toBreak.isEmpty() && wk.hands.breakHeld())
                 || wk.waterClimb.digging;
         wk.waterClimb.digging = false;   // re-armed below only if the block-less dig actuator runs this tick
         int wedgeLimit = breakingEdge ? WEDGE_TICKS + BotConfig.breakTimeoutTicks : WEDGE_TICKS;
@@ -266,7 +266,7 @@ final class WalkerTickStallDetect {
                 && wk.path.get(wk.step).getY() > foot.getY()
                 && wk.path.get(wk.step).getY() - foot.getY() <= PILLAR_RECOVER_MAX_DY
                 && wk.pillarRecover.stallTicks <= PILLAR_NORISE_GIVEUP   // a no-rise pillar-trap (canopy/overhang) gives up → foot-search re-routes
-                && BotConfig.allowPlace && a.holdPillarBlock();
+                && BotConfig.allowPlace && wk.hands.holdPillarBlock();
         // DEEP-PIT ESCAPE (last resort, see DEEP_PIT_ESCAPE_TICKS): a sheer pit DEEPER than the
         // recover cap leaves fellBelowRoute false (gap > cap) so only the foot-search runs, and in
         // a 1-wide sheer pit it loops on the un-climbable rim route for 15-21 s. Once that loop is
@@ -279,7 +279,7 @@ final class WalkerTickStallDetect {
                 && wk.path.get(wk.step).getY() > foot.getY()
                 && wk.path.get(wk.step).getY() - foot.getY() > PILLAR_RECOVER_MAX_DY
                 && wk.stepProg.noStepProgressTicks > DEEP_PIT_ESCAPE_TICKS
-                && BotConfig.allowPlace && a.holdPillarBlock();
+                && BotConfig.allowPlace && wk.hands.holdPillarBlock();
         if ((fellBelowRoute || deepPitEscape) && p.onGround()) {
             if (wk.pillarRecover.latch <= 0) { wk.pillarRecover.peakY = foot.getY(); wk.pillarRecover.stallTicks = 0; }   // new recovery → fresh peak
             else if (foot.getY() > wk.pillarRecover.peakY) { wk.pillarRecover.peakY = foot.getY(); wk.pillarRecover.stallTicks = 0; } // rose a rung → reset stall

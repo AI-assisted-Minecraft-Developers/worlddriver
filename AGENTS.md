@@ -496,7 +496,7 @@ keep them from fighting, and which one applies depends on the input:
 
 Two consequences worth knowing before touching this area:
 
-- **`Avatar.breakHeld()` reads the bot's own latch**, not a keybind. A human's click is no
+- **`Hands.breakHeld()` reads the bot's own latch**, not a keybind. A human's click is no
   longer visible through it — the two inputs are separate objects now, which is the point —
   so `breakingEdge` requires the current path edge to have blocks to break on its own.
 - **A new writer of any of these globals is a design decision, not a refactor.** The

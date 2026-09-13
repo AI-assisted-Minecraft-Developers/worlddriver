@@ -67,12 +67,12 @@ public final class WalkerExpectAlarms {
         exRepathFlipTick = pfTickCounter;
     }
 
-    void tick(Avatar a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
+    void tick(Hands hands, Avatar a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
         if (exThrottle > 0) exThrottle--;
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold
         // while the target is still solid = wasted progress (the GroundBlip bug class).
-        boolean held = a.breakHeld();
+        boolean held = hands.breakHeld();
         BlockPos aim = a.lookingAtBlock();
         if (exPrevBreakHeld && !held && exPrevAimBlock != null && world.isSolid(exPrevAimBlock)) {
             if (exThrottle == 0 && exDigHoldTicks >= 5) {

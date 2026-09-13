@@ -2,10 +2,13 @@ package net.magicterra.worlddriver.bot.sim;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.movement.BodyCapabilities;
+import net.magicterra.worlddriver.bot.movement.Containers;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.world.ServerWorldView;
@@ -87,7 +90,7 @@ import net.minecraft.world.phys.Vec3;
  * but an armed {@code -Dworlddriver.realPlayerBodies=true} preempts BOTH and hands back a body
  * that has actually joined.
  */
-public class ServerPlayerAvatar implements Avatar {
+public class ServerPlayerAvatar implements Avatar, Hands, Containers {
 
     private final ServerPlayer fp;
 
@@ -222,6 +225,9 @@ public class ServerPlayerAvatar implements Avatar {
     public ServerPlayer fakePlayer() { return fp; }
 
     @Override public ServerPlayer entity() { return fp; }
+    /** A player always has hands and menus; this class is both. */
+    @Override public Optional<Hands> hands() { return Optional.of(this); }
+    @Override public Optional<Containers> containers() { return Optional.of(this); }
 
     @Override public void commandMove(float left, float forward) { pendingLeft = left; pendingForward = forward; }
     @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }

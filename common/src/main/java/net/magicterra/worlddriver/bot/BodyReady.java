@@ -41,6 +41,11 @@ public final class BodyReady {
         public static final String PAUSED = "paused";
         public static final String SLEEPING = "sleeping";
         public static final String CHUNK_UNLOADED = "chunk_unloaded";
+        /** The body has no {@code Hands} (or no {@code Containers}) and the verb needs them. Stamped
+         *  by the process itself on its slot's {@code lastError}, since the body is only known at
+         *  tick time; a compile-time constant, so a server-side process naming it loads nothing
+         *  from this client-only class. */
+        public static final String NO_HANDS = "no_hands";
         private Reason() { }
     }
 

@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -26,7 +26,7 @@ import net.minecraft.world.item.Items;
  * CREATIVE ONLY — main-inventory slots 9..35 via {@code Inventory.pickSlot}. In survival a stack
  * sitting past slot 8 is invisible here and the caller reports "no block".
  *
- * <p>That is NOT what {@link Avatar#holdItem} does. Both avatars reach the bag there:
+ * <p>That is NOT what {@link Hands#holdItem} does. Both avatars reach the bag there:
  * {@code ClientPlayerAvatar} through {@code BotInteract.swapFromMainInv} (a real SWAP click), and
  * {@code ServerPlayerAvatar} by swapping the stacks directly.
  *
@@ -66,14 +66,13 @@ final class HeldItem {
 
     /** Put the item whose registry id is {@code itemId} in the main hand; false if it is not
      *  anywhere this scan can reach (see the class note — survival stops at hotbar slot 8). */
-    static boolean holdById(Avatar a, String itemId) {
-        Player p = a.asPlayer();
-        if (p == null) return false;
+    static boolean holdById(Hands hands, String itemId) {
+        if (!(hands.entity() instanceof Player p)) return false;
         Inventory inv = p.getInventory();
         if (matches(inv.getSelected(), itemId)) return true;
         for (int slot = 0; slot < 9; slot++) {
             if (matches(inv.items.get(slot), itemId)) {
-                a.setSelectedSlot(slot);   // client syncs the carried slot; server sets it directly
+                hands.setSelectedSlot(slot);   // client syncs the carried slot; server sets it directly
                 return true;
             }
         }
@@ -94,7 +93,7 @@ final class HeldItem {
      * {@link #holdById}, and if that cannot see it, the BAG too — the OPT-IN twin, for callers that
      * have said in their own constructor that they want the wider reach.
      *
-     * <p>Delegates to {@link Avatar#holdItem} rather than growing a fourth copy of「scan the bag,
+     * <p>Delegates to {@link Hands#holdItem} rather than growing a fourth copy of「scan the bag,
      * SWAP one up」: that seam is already implemented per body — the client sends a real SWAP click
      * through {@code BotInteract.swapFromMainInv}, the server exchanges the two stacks in place —
      * and a copy here would be the fourth spelling of a rule that has already diverged once.
@@ -103,10 +102,9 @@ final class HeldItem {
      * a tower that did NOT, and「spending blocks the caller never put in hand」stays a side effect
      * the verb is not allowed to have by default.
      */
-    static boolean holdByIdFromAnywhere(Avatar a, String itemId) {
-        Player p = a.asPlayer();
-        if (p == null) return false;
-        if (holdById(a, itemId)) return true;
+    static boolean holdByIdFromAnywhere(Hands hands, String itemId) {
+        if (!(hands.entity() instanceof Player p)) return false;
+        if (holdById(hands, itemId)) return true;
         ResourceLocation id = ResourceLocation.tryParse(itemId);
         if (id == null) return false;
         // BuiltInRegistries.ITEM is DEFAULTED: an id nothing is registered under answers AIR rather
@@ -114,7 +112,7 @@ final class HeldItem {
         // inventory and report a hand it never arranged.
         Item item = BuiltInRegistries.ITEM.get(id);
         if (item == Items.AIR) return false;
-        return a.holdItem(item) && matches(p.getInventory().getSelected(), itemId);
+        return hands.holdItem(item) && matches(p.getInventory().getSelected(), itemId);
     }
 
     /** Does {@code stk} carry the item registered under {@code itemId}? Empty never matches. */

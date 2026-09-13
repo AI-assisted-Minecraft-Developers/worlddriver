@@ -2,7 +2,10 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Containers;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -44,6 +47,10 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReac
  * one placed from the hotbar).
  */
 public final class CraftProcess implements BotProcess {
+    /** This tick's hands and menus, bound at the top of {@link #tick}, which is the one place
+     *  either can be absent. */
+    private Hands hands;
+    private Containers menus;
     /** Interaction reach for opening/clicking a station block (server caps ~4.5). */
     private static final double REACH = 4.3;
     /** Max ticks to wait for the server to fill the grid / open the table. */
@@ -103,6 +110,9 @@ public final class CraftProcess implements BotProcess {
         Player p = a.asPlayer();
         Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, null, "no player"); return true; }
+        hands = a.hands().orElse(null);
+        menus = a.containers().orElse(null);
+        if (hands == null || menus == null) { fail(s, null, BodyReady.Reason.NO_HANDS); return true; }
 
         switch (st) {
             case INIT -> plan(a, p, lvl, s);
@@ -124,14 +134,14 @@ public final class CraftProcess implements BotProcess {
             // Return anything stranded in the 2×2 grid BEFORE closing (gap #67-③):
             // closeContainer's inventoryMenu branch is a documented no-op, so a
             // headless 2×2 job's leftovers would otherwise never come back.
-            a.clearInventoryCraftGrid();
-            a.closeContainer();
+            menus.clearInventoryCraftGrid();
+            menus.closeContainer();
             s.craft.reset();
             return true;
         }
         if (st == St.FAIL) {
-            a.clearInventoryCraftGrid();
-            a.closeContainer();
+            menus.clearInventoryCraftGrid();
+            menus.closeContainer();
             s.craft.lastError = error;
             s.craft.reset();
             return true;
@@ -149,8 +159,8 @@ public final class CraftProcess implements BotProcess {
         reclaimTried = true;
         if (!BotConfig.craftReclaimTable) return false;
         if (placedTable == null || !isTable(lvl, placedTable)) return false;
-        a.closeContainer();          // can't swing at a block with the table menu open
-        a.selectTool(placedTable);   // an axe if we carry one; bare hands work too
+        menus.closeContainer();          // can't swing at a block with the table menu open
+        hands.selectTool(placedTable);   // an axe if we carry one; bare hands work too
         reclaimTicks = 0;
         pickupTicks = 0;
         st = St.RECLAIM;
@@ -174,24 +184,24 @@ public final class CraftProcess implements BotProcess {
             // sameDestroyTarget branch keeps accumulating afterwards. Keeping the key down
             // is what makes the pair work under a grabbed mouse too, where vanilla drives
             // the same break and the two simply agree.
-            a.breakHold(true);
-            a.continueDestroy(placedTable);
+            hands.breakHold(true);
+            hands.continueDestroy(placedTable);
             return;
         }
-        a.breakHold(false);
+        hands.breakHold(false);
         if (++pickupTicks >= PICKUP_GRACE) endReclaim(a);
     }
 
     /** Back to whichever terminal we were headed for when reclaim interrupted us. */
     private void endReclaim(Avatar a) {
-        a.breakHold(false);
+        hands.breakHold(false);
         st = error != null ? St.FAIL : St.DONE;
     }
 
     // === planning ============================================================
 
     private void plan(Avatar a, Player p, Level lvl, BotState s) {
-        RecipeManager rm = a.recipeManager();
+        RecipeManager rm = menus.recipeManager();
         HolderLookup.Provider ra = lvl.registryAccess();
         if (rm == null) { fail(s, p, "no recipe manager"); return; }
         if (!BuiltInRegistries.ITEM.containsKey(net.minecraft.resources.ResourceLocation.tryParse(target == null ? "" : target))) {
@@ -242,7 +252,7 @@ public final class CraftProcess implements BotProcess {
             // inventory menu the place packet targets, AND returns anything
             // stranded in the grid by a previous 2×2 job that didn't clear it
             // (gap #67-③) before this job's own placeRecipe fills it fresh.
-            a.clearInventoryCraftGrid();
+            menus.clearInventoryCraftGrid();
             waited = 0;
             st = St.PLACE;
             return;
@@ -266,7 +276,7 @@ public final class CraftProcess implements BotProcess {
         // placing even while holding a crafting_table). NOTE: a server FakePlayer
         // can't open menus, so OPEN_WAIT will time out there (capability cliff).
         a.aimAtBlock(table);
-        a.useBlock(table, faceTowardEye(table, p));
+        hands.useBlock(table, faceTowardEye(table, p));
         waited = 0;
         st = St.OPEN_WAIT;
     }
@@ -283,7 +293,7 @@ public final class CraftProcess implements BotProcess {
         RecipeResolver.Job job = jobs.get(jobIdx);
         // Recipe-book single placement: server moves one ingredient set from the
         // inventory into the grid.
-        a.placeRecipe(menu.containerId, job.recipe(), false);
+        menus.placeRecipe(menu.containerId, job.recipe(), false);
         waited = 0;
         st = St.AWAIT_RESULT;
     }
@@ -293,7 +303,7 @@ public final class CraftProcess implements BotProcess {
         ItemStack result = menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
         if (!result.isEmpty()) {
             // Shift-click the result → crafts once, output to inventory, grid empties.
-            a.containerClick(menu.containerId, 0, 0, ClickType.QUICK_MOVE);
+            menus.containerClick(menu.containerId, 0, 0, ClickType.QUICK_MOVE);
             crafted += result.getCount();
             waited = 0;
             st = St.AWAIT_TAKE;
@@ -346,7 +356,7 @@ public final class CraftProcess implements BotProcess {
 
     /** Place a crafting table from inventory nearby, return its position (or null). */
     private BlockPos placeTable(Avatar a, Player p, Level lvl) {
-        BlockPos cell = PlaceNearby.place(a, p, lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
+        BlockPos cell = PlaceNearby.place(a, hands, p,lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
         // The ONLY assignment of placedTable: this table is ours, so it is the
         // only one reclaim may break (gap #276).
         if (cell != null) placedTable = cell;

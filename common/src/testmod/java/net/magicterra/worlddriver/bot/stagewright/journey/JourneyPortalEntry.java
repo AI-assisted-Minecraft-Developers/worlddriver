@@ -404,7 +404,7 @@ public final class JourneyPortalEntry {
             }
             a.aimAtBlock(cell);
             a.commandJump(false);
-            a.breakHold(false);
+            a.hands().ifPresent(h -> h.breakHold(false));
             // The brake the arriving walk latched, every tick, because step() re-applies it every
             // tick. See the javadoc: a shifting body will not step off a ledge, and this move is one.
             a.commandSneak(false);

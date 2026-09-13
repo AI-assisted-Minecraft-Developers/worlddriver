@@ -13,7 +13,7 @@ final class WalkerDig {
 
     /**
      * Break {@code cell}: hold the key AND drive the destroy directly, never one alone. On a client
-     * avatar {@link Avatar#breakHold} only rides vanilla's continueAttack pipeline, which a driven
+     * avatar {@link Hands#breakHold} only rides vanilla's continueAttack pipeline, which a driven
      * client never reaches because the mouse is never grabbed — so the key by itself breaks
      * nothing. Server avatars break on the key and take the destroy as an inherited no-op, which is
      * why every wd.server* dig scene passed for as long as the walker drove the key alone.
@@ -38,10 +38,10 @@ final class WalkerDig {
         // Tool and crosshair go on the cell actually being driven, never on the cell that was merely
         // requested: vanilla's sameDestroyTarget compares the HELD ITEM as well as the position, so
         // swapping the tool mid-dig throws the progress away exactly the way switching cells does.
-        if (selectTool) a.selectTool(target);
+        if (selectTool) wk.hands.selectTool(target);
         a.aimAtBlock(target);
-        a.breakHold(true);
-        a.continueDestroy(target);
+        wk.hands.breakHold(true);
+        wk.hands.continueDestroy(target);
         if (wk != null) {
             wk.digDrivenThisTick = true;
             wk.digKeyOwned = true;

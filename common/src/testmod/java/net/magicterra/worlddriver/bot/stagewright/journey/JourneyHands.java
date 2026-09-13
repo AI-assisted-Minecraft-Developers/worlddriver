@@ -184,7 +184,7 @@ final class JourneyHands {
      */
     static void swingOffPlant(JourneyRig rig, BlockPos plant) {
         aimBoth(rig, plant);
-        rig.avatar().continueDestroy(plant);
+        rig.hands().continueDestroy(plant);
         var breaker = rig.body().avatar();
         breaker.breakHold(true);
         breaker.breakHold(false);
@@ -299,7 +299,7 @@ final class JourneyHands {
                 && acting.getMainHandItem().getItem() != item
                 && hotbarSlotOf(acting, item) < 0;
 
-        boolean client = rig.avatar().holdItem(item);
+        boolean client = rig.hands().holdItem(item);
         boolean server;
         if (client && wouldSwapFromBag) {
             // Read, never write. False here is the click in flight, NOT a diverged bag — and saying

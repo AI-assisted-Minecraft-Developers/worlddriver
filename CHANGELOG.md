@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **`Avatar` keeps locomotion and the look; hands and menus are optional parts.** The methods
+  only a body with an inventory can answer — hold, place, break, swing, use — now live on
+  `Hands`, and the recipe book, container clicks and closing on `Containers`, each reached
+  through an `Optional` on the avatar. A process that needs them takes them at the top of its
+  tick and, when they are absent, stamps its slot's `lastError` with the one word `no_hands`
+  (`BodyReady.Reason.NO_HANDS`) and finishes; a caller that never asks cannot compile a call to
+  them. The walker cannot refuse an order, so for a handless body it drives `WalkerNoHands`,
+  whose readings close its own dig and place gates. `BlastFooting`'s swing guard stays a default
+  method on `Hands`, for the reason it had on `Avatar`. Both player avatars implement all three
+  interfaces, so a caller holding a concrete `ClientPlayerAvatar` or `ServerPlayerAvatar` is
+  unchanged; `Avatar`-typed callers in the processes, the walker, `HeldItem`, `PlaceNearby`,
+  `TowerProcess.ensureHoldingPlaceable` and the journey rig (`JourneyRig.hands()`) moved. No
+  body without hands exists yet, so nothing observable changes until the first non-player body.
 - **`Avatar.player()` is now `entity()` plus an optional `asPlayer()`.** The walker and every
   process read the body through a `Player` reference, though what they read — position, ground
   contact, water, velocity, bounding box, health, pose setters — lives on `LivingEntity`, and only

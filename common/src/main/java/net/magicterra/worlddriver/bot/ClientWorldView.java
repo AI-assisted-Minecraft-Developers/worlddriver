@@ -361,7 +361,7 @@ public final class ClientWorldView implements WorldView {
      *  Two separate things follow, and only the first is a real divergence:
      *  <ul>
      *    <li>{@code PillarUp.eval} gates on {@link #canPlace()}, i.e. on THIS scan, while
-     *        the walker's pillar actuators gate on {@code Avatar#holdPillarBlock} →
+     *        the walker's pillar actuators gate on {@code net.magicterra.worlddriver.bot.movement.Hands#holdPillarBlock} →
      *        {@code BotInteract.ensureHoldingPillarBlock}, which accepts falling blocks
      *        AND reaches menu slots 9-35 through {@code swapFromMainInv}. So a body
      *        carrying only sand — deserts, beaches, rivers — gets zero planned PillarUp

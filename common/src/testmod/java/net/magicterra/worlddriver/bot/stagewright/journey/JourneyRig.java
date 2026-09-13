@@ -19,6 +19,7 @@ import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
@@ -509,6 +510,12 @@ public final class JourneyRig {
                 "客户端没有 LocalPlayer（加载中／死亡／换维度），这一次单发动作退回了服务端 avatar —— "
                         + "它写的是服务端自己的那份值，客户端不会跟着动");
         return body().avatar();
+    }
+
+    /** {@link #avatar()}'s hands. Every journey body is a player, so an empty answer is a rig
+     *  defect and throws rather than being reported as a scene finding. */
+    public Hands hands() {
+        return avatar().hands().orElseThrow(() -> new IllegalStateException("the journey body has no hands"));
     }
 
     /**
@@ -1199,7 +1206,7 @@ public final class JourneyRig {
         if (lvl.getBlockState(target).isAir() && !fluid) return;
         ServerPlayer p = player();
         BlockPos at = p.blockPosition();
-        Avatar a = body().avatar();
+        ServerPlayerAvatar a = body().avatar();
         boolean exposed = false;
         for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
             BlockPos n = target.relative(d);
@@ -1275,7 +1282,7 @@ public final class JourneyRig {
         // standing and this method would report false for every cell it was actually able to break.
         // Routing it through avatar() to be consistent would turn every in-place dig into a silent
         // no-op — the class of change that looks like tidying and removes a capability.
-        Avatar a = body().avatar();
+        ServerPlayerAvatar a = body().avatar();
         if (!a.canBreak(target)) return false;
         a.selectTool(target);
         a.aimAtBlock(target);

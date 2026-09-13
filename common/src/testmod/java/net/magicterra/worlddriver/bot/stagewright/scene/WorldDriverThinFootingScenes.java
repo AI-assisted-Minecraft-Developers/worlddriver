@@ -287,7 +287,7 @@ public final class WorldDriverThinFootingScenes implements SceneProvider {
      *
      * <h2>The asymmetry</h2>
      *
-     * {@link ServerPlayerAvatar#holdPlaceable()} swaps a stack up from slots 9..35 when the hotbar
+     * {@link ServerPlayernet.magicterra.worlddriver.bot.movement.Hands#holdPlaceable()} swaps a stack up from slots 9..35 when the hotbar
      * has none — the executor is not limited to the hotbar. The planner was: {@code
      * LevelWorldView.placeableBlockCount()} counted 0..8 only. Two consumers turn that gap into a
      * dead leg — {@code BridgePlace.eval} emits no bridge edge, and {@code WalkerTickSearch}'s block

@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
+import java.util.Optional;
+
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.util.BotInteract;
@@ -17,7 +19,7 @@ import net.minecraft.world.entity.player.Player;
  * the decoupled {@link AvatarInput} lazily, exactly as the old Walker.tick did
  * (a respawn / dimension change builds a fresh vanilla KeyboardInput).
  */
-public final class ClientPlayerAvatar implements Avatar {
+public final class ClientPlayerAvatar implements Avatar, Hands, Containers {
 
     private final Minecraft mc;
     private final LocalPlayer p;
@@ -31,6 +33,9 @@ public final class ClientPlayerAvatar implements Avatar {
     private AvatarInput ai() { return p.input instanceof AvatarInput a ? a : null; }
 
     @Override public LocalPlayer entity() { return p; }
+    /** A player always has hands and menus; this class is both. */
+    @Override public Optional<Hands> hands() { return Optional.of(this); }
+    @Override public Optional<Containers> containers() { return Optional.of(this); }
 
     @Override public void commandMove(float left, float forward) { AvatarInput a = ai(); if (a != null) a.commandMove(left, forward); }
     @Override public void commandForward(float forward) { AvatarInput a = ai(); if (a != null) a.commandForward(forward); }

@@ -2,7 +2,9 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -37,6 +39,8 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.yawFor;
  * {@code await_process('escape')} works unchanged for both directions).
  */
 public final class DescendProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
 
     private enum Phase { PICK, CARVE, STEP_DOWN, DIG_OWN }
 
@@ -74,7 +78,7 @@ public final class DescendProcess implements BotProcess {
     @Override public String statusDetail() { return phase.name(); }
 
     private boolean done(Avatar a, BotState st, String error) {
-        a.breakHold(false);
+        if (hands != null) hands.breakHold(false);
         a.releaseInputs();
         BotState.ProcessSlot s = st.escape;
         s.active = false;
@@ -85,6 +89,8 @@ public final class DescendProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) return done(a, st, "no player");
+        hands = a.hands().orElse(null);
+        if (hands == null) return done(a, st, BodyReady.Reason.NO_HANDS);
         if (!BotConfig.allowBreak) return done(a, st, "allowBreak is off — descend mines every step");
         BlockPos foot = p.blockPosition();
         st.escape.pathStep = steps;
@@ -193,7 +199,7 @@ public final class DescendProcess implements BotProcess {
             phase = Phase.STEP_DOWN;
             actTicks = 0;
             actTarget = null;
-            a.breakHold(false);
+            hands.breakHold(false);
             return false;
         }
         if (Double.isInfinite(w.breakCost(target))) {
@@ -201,10 +207,10 @@ public final class DescendProcess implements BotProcess {
         }
         if (!target.equals(actTarget)) { actTarget = target; actTicks = 0; }
         p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
-        a.selectTool(target);
+        hands.selectTool(target);
         a.aimAtBlock(target);
-        a.breakHold(true);
-        a.continueDestroy(target);
+        hands.breakHold(true);
+        hands.continueDestroy(target);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
             return done(a, st, "carve timeout at " + target.toShortString());
         }
@@ -212,7 +218,7 @@ public final class DescendProcess implements BotProcess {
     }
 
     private boolean stepDown(Avatar a, LivingEntity p, BlockPos foot) {
-        a.breakHold(false);
+        hands.breakHold(false);
         BlockPos destFeet = base.relative(dir).below();
         boolean atDest = foot.getX() == destFeet.getX() && foot.getZ() == destFeet.getZ()
                 && foot.getY() <= destFeet.getY();
@@ -241,7 +247,7 @@ public final class DescendProcess implements BotProcess {
         BlockPos below = base.below();
         if (!w.isSolid(below)) {
             // Cleared — gravity takes the bot down one; wait for landing.
-            a.breakHold(false);
+            hands.breakHold(false);
             if (p.onGround() && foot.getY() < base.getY()) {
                 steps++;
                 dbg("DIG_OWN landed foot={} (step {}) → PICK", foot, steps);
@@ -255,10 +261,10 @@ public final class DescendProcess implements BotProcess {
         if (!below.equals(actTarget)) { actTarget = below; actTicks = 0; }
         p.setPos(base.getX() + 0.5, p.getY(), base.getZ() + 0.5);
         p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
-        a.selectTool(below);
+        hands.selectTool(below);
         a.aimAtBlock(below);
-        a.breakHold(true);
-        a.continueDestroy(below);
+        hands.breakHold(true);
+        hands.continueDestroy(below);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
             return done(a, st, "own-floor dig timeout at " + below.toShortString());
         }

@@ -174,7 +174,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // The SAME wrapper JourneyRig.spawnBody() builds around an adopted player. Not a
         // reimplementation of its writes: if ServerPlayerAvatar's actuators change, this scene has to
         // change with them, and a copy would keep reporting the old mechanism's behaviour forever.
-        Avatar avatar = new ServerPlayerAvatar(real);
+        ServerPlayerAvatar avatar = new ServerPlayerAvatar(real);
 
         // ---- put it back, registered BEFORE the first write ---------------------------------
         //
@@ -456,7 +456,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
                 + "写死常数的话，客户端恰好已经在那一格时这条判据会零贡献地绿）");
 
         ctx.record("thread.写入时", Thread.currentThread().getName());
-        client.setSelectedSlot(targetSlot);
+        client.hands().orElseThrow().setSelectedSlot(targetSlot);
         int serverSlot = real.getInventory().selected;
         Integer clientSlot = clientSelectedSlot();
         ctx.record("slot.动作", "setSelectedSlot(" + targetSlot + ")（不用 holdItem：它按客户端"

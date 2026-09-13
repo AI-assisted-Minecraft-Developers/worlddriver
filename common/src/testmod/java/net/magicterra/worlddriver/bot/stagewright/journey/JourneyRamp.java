@@ -7,7 +7,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
@@ -635,7 +635,7 @@ final class JourneyRamp {
      * this line was measured on the real ladder and nothing could be measured anywhere else: the
      * loop needed a {@link JourneyRig} for four services and only two of them were real. The two
      * that were not are a level and a body, which any scene has; {@code holdItem} and
-     * {@code placeOn} come off the {@link Avatar} interface the rig hands out; and the evidence sink
+     * {@code placeOn} come off the {@link Hands} the rig hands out; and the evidence sink
      * is a {@link BiConsumer} the rig satisfies by method reference. What is left in {@link #lay} is
      * walking and recursion — see that method's note for the two lines a scene cannot reach.
      *
@@ -644,7 +644,7 @@ final class JourneyRamp {
      * {@code gameMode.useItemOn}, which has no reach gate on this avatar, so without it a flight
      * could be built through ten blocks of rock and read as one the body earned.
      */
-    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Avatar av,
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Hands av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                  BiConsumer<String, Object> evidence, String tag) {
         return layWhereItStands(level, player, av, corridor, flight, from, evidence, tag, true);
@@ -661,7 +661,7 @@ final class JourneyRamp {
      * It reports {@link Stop#PENDING} instead — <b>without</b> writing a {@code .step.N} row, because
      * the reason it would print is read from the same too-early world. See {@link Stop#PENDING}.
      */
-    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Avatar av,
+    static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Hands av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
                                  BiConsumer<String, Object> evidence, String tag, boolean settled) {
         BlockPos body = player.blockPosition();
@@ -779,7 +779,7 @@ final class JourneyRamp {
                             BlockPos landing, boolean alreadyAside, int settledAt, String tag,
                             Runnable then) {
         ServerLevel level = rig.ctx().level();
-        Pass p = layWhereItStands(level, rig.player(), rig.avatar(), corridor, flight,
+        Pass p = layWhereItStands(level, rig.player(), rig.hands(), corridor, flight,
                 from, rig::evidence, tag, false);
         if (p.stop() == Stop.PENDING) {
             // ONE WAIT PER COURSE, not one per pass. Every course places exactly once, so a latch

@@ -1,7 +1,9 @@
 package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -14,6 +16,8 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 
 public final class BridgeProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
     private static final int STUCK_TICKS = 80;
     /** Max |body yaw − bridge yaw| before the forward key is allowed (gap #75-a): the raw
      *  forward impulse walks along the CAMERA yaw, and on the client the LookController
@@ -55,6 +59,8 @@ public final class BridgeProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        hands = a.hands().orElse(null);
+        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
         // Body yaw BEFORE this tick's snap-write below: on the client the LookController
         // re-clamps the camera after every actuator, so the value we WRITE is not the yaw
@@ -81,7 +87,7 @@ public final class BridgeProcess implements BotProcess {
             return true;
         }
 
-        if (!TowerProcess.ensureHoldingPlaceable(a, preferredBlockId)) {
+        if (!TowerProcess.ensureHoldingPlaceable(hands, preferredBlockId)) {
             st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
             a.releaseInputs();
@@ -152,7 +158,7 @@ public final class BridgeProcess implements BotProcess {
                 }
                 // Look slightly down and toward the forward face.
                 p.setXRot(45f);
-                a.placeOn(currentSupport, face);
+                hands.placeOn(currentSupport, face);
                 pendingPlaceCell = aheadSupport;   // credited once OBSERVED solid
                 // Stay in PLACING; next tick checks aheadSupportSolid again
                 // and either switches back to WALKING (success) or retries.

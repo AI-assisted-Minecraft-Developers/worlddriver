@@ -1879,7 +1879,7 @@ public final class JourneyPortalRung {
                     return;
                 }
                 JourneyHands.handTrace(rig, tag, -1);
-                rig.evidence(tag + ".result", String.valueOf(rig.avatar().useItemInHand()));
+                rig.evidence(tag + ".result", String.valueOf(rig.hands().useItemInHand()));
                 // THE HAND ON CONSECUTIVE SERVER TICKS. `.result` is the CLIENT's prediction and
                 // `.spent` is the SERVER after the wait; between them sits the tick that decides this
                 // cell — the one where the server processes the use packet and reads its OWN
@@ -2253,7 +2253,7 @@ public final class JourneyPortalRung {
             // worked there and would have failed here for a reason belonging to the body, not the
             // strike.
             JourneyHands.aimThenAct(rig, hearth, () -> {
-                rig.avatar().useBlock(hearth, Direction.UP);
+                rig.hands().useBlock(hearth, Direction.UP);
                 rig.settle(new HoldStill(5), 20, () -> {
                     // PRINT THE VALUE, NOT THE PREDICATE — and print it HERE, not upstream.
                     // `portal.cells` is a count, and a count of zero names nothing. Rehearsal #7 read

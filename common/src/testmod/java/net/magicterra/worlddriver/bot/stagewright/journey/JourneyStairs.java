@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -510,11 +510,11 @@ final class JourneyStairs {
     /** Click the block into {@code cell} against whichever neighbour is solid. The return value is
      *  read off the WORLD, because a placement can be refused for reasons the caller cannot see. */
     static boolean placeInto(ServerLevel level, JourneyRig rig, BlockPos cell) {
-        return placeInto(level, rig.avatar(), cell);
+        return placeInto(level, rig.hands(), cell);
     }
 
     /**
-     * The same, against the {@link Avatar} alone. Split out so {@link JourneyRamp#layWhereItStands}
+     * The same, against the {@link Hands} alone. Split out so {@link JourneyRamp#layWhereItStands}
      * can be driven by a scene: a rig is a scene's problem to host, an avatar is not, and this
      * method never wanted anything else off it.
      *
@@ -535,7 +535,7 @@ final class JourneyStairs {
      * (its {@code placeAt}), together with the paragraph above. One copy, one place for the next
      * person to read that warning.
      */
-    static boolean placeInto(ServerLevel level, Avatar av, BlockPos cell) {
+    static boolean placeInto(ServerLevel level, Hands av, BlockPos cell) {
         for (Direction d : Direction.values()) {
             BlockPos against = cell.relative(d);
             if (!level.getBlockState(against).blocksMotion()) continue;

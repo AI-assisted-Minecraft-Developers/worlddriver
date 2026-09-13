@@ -2,7 +2,9 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -24,6 +26,8 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 import net.minecraft.resources.ResourceLocation;
 
 public final class BuildProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
     private static final int PLACE_TIMEOUT_TICKS = 60;
 
     private final BlockPos origin;
@@ -59,6 +63,8 @@ public final class BuildProcess implements BotProcess {
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
         // so staying silent here reports "finished, no error" rather than nothing at all.
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        hands = a.hands().orElse(null);
+        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -107,7 +113,7 @@ public final class BuildProcess implements BotProcess {
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
-                    if (!HeldItem.holdById(a, schematic.entries.get(idx).blockId)) {
+                    if (!HeldItem.holdById(hands, schematic.entries.get(idx).blockId)) {
                         failedIdx.add(idx);
                         skipped++;
                         idx++;
@@ -181,7 +187,7 @@ public final class BuildProcess implements BotProcess {
                 // clicks miss when the server drops the packet (e.g. mid-tick
                 // re-pathing puts the player slightly out of reach).
                 if (placeTicks == 2 || (placeTicks - 2) % 5 == 0) {
-                    a.placeOn(support, currentFace);
+                    hands.placeOn(support, currentFace);
                 }
                 placeTicks++;
                 // Read the block back through the level: BlockStatePredictionHandler

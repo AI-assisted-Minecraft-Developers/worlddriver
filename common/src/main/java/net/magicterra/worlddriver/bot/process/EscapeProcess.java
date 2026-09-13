@@ -2,7 +2,9 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -47,6 +49,8 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.yawFor;
  * client LocalPlayer or a server FakePlayer alike.
  */
 public final class EscapeProcess implements BotProcess {
+    /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
+    private Hands hands;
 
     private enum Phase { PICK, CARVE, STEP_UP, VERT_BREAK, VERT_RISE }
 
@@ -84,7 +88,7 @@ public final class EscapeProcess implements BotProcess {
     /** Single exit point: release inputs, stamp the outcome on the escape slot
      *  ({@code error == null} means success) and finish the process. */
     private boolean done(Avatar a, BotState st, String error) {
-        a.breakHold(false);
+        if (hands != null) hands.breakHold(false);
         a.releaseInputs();
         BotState.ProcessSlot s = st.escape;
         s.lastError = error;
@@ -96,6 +100,8 @@ public final class EscapeProcess implements BotProcess {
     @Override public boolean tick(Avatar a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) return done(a, st, "no player");
+        hands = a.hands().orElse(null);
+        if (hands == null) return done(a, st, BodyReady.Reason.NO_HANDS);
         if (!BotConfig.allowBreak) return done(a, st, "allowBreak is off — escape mines every step");
         BlockPos foot = p.blockPosition();
         st.escape.pathStep = steps;
@@ -186,7 +192,7 @@ public final class EscapeProcess implements BotProcess {
             BlockPos head = foot.above();
             BlockPos ceil = head.above();
             boolean ceilBreakable = !w.isSolid(ceil) || carvable(w, ceil);
-            if (ceilBreakable && a.holdPlaceable()) {
+            if (ceilBreakable && hands.holdPlaceable()) {
                 base = foot.immutable();
                 phase = Phase.VERT_BREAK;
                 actTicks = 0;
@@ -195,7 +201,7 @@ public final class EscapeProcess implements BotProcess {
                 return false;
             }
             return done(a, st, "no carvable up-direction at " + foot.toShortString()
-                    + " (ceilBreakable=" + ceilBreakable + " placeable=" + a.holdPlaceable() + ")");
+                    + " (ceilBreakable=" + ceilBreakable + " placeable=" + hands.holdPlaceable() + ")");
         }
         dir = best;
         base = foot.immutable();
@@ -232,7 +238,7 @@ public final class EscapeProcess implements BotProcess {
                         : (w.isSolid(nhUp) && carvable(w, nhUp)) ? nhUp
                         : w.isSolid(nh) ? nh
                         : w.isSolid(nf) ? nf : null;
-        if (target == null) { dbg("CARVE clear dir={} → STEP_UP", dir); phase = Phase.STEP_UP; actTicks = 0; actTarget = null; a.breakHold(false); return false; }
+        if (target == null) { dbg("CARVE clear dir={} → STEP_UP", dir); phase = Phase.STEP_UP; actTicks = 0; actTarget = null; hands.breakHold(false); return false; }
         // A CARVE clears up to 4 cells (startArc→nhUp→nh→nf) top-down without leaving
         // the phase; give each its OWN break budget so a legitimately slow multi-block
         // bare-hand carve doesn't trip a CUMULATIVE cap on the last block (day6 bug: a
@@ -240,10 +246,10 @@ public final class EscapeProcess implements BotProcess {
         if (!target.equals(actTarget)) { actTarget = target; actTicks = 0; }
         // Hold position while mining so buoyancy/drift doesn't slide us off the column.
         p.setDeltaMovement(0, p.getDeltaMovement().y, 0);
-        a.selectTool(target);
+        hands.selectTool(target);
         a.aimAtBlock(target);
-        a.breakHold(true);
-        a.continueDestroy(target);
+        hands.breakHold(true);
+        hands.continueDestroy(target);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {   // walls (bare-hand sandstone) are slow
             return done(a, st, "carve timeout at " + target.toShortString()
                     + " (solid=" + w.isSolid(target) + ")");
@@ -252,7 +258,7 @@ public final class EscapeProcess implements BotProcess {
     }
 
     private boolean stepUp(Avatar a, WorldView w, LivingEntity p, BlockPos foot) {
-        a.breakHold(false);
+        hands.breakHold(false);
         BlockPos nf = base.relative(dir).above();    // destination foot cell
         boolean atDest = foot.getX() == nf.getX() && foot.getZ() == nf.getZ()
                 && foot.getY() >= nf.getY();
@@ -296,7 +302,7 @@ public final class EscapeProcess implements BotProcess {
                         : w.isSolid(newHead) ? newHead : null;
         if (target == null) {
             dbg("VERT_BREAK ceiling clear → VERT_RISE base={}", base);
-            a.breakHold(false);
+            hands.breakHold(false);
             phase = Phase.VERT_RISE;
             actTicks = 0;
             actTarget = null;
@@ -306,10 +312,10 @@ public final class EscapeProcess implements BotProcess {
             return done(a, st, "unbreakable ceiling at " + target.toShortString());
         }
         if (!target.equals(actTarget)) { actTarget = target; actTicks = 0; }   // per-target budget (see carve)
-        a.selectTool(target);
+        hands.selectTool(target);
         a.aimAtBlock(target);
-        a.breakHold(true);
-        a.continueDestroy(target);
+        hands.breakHold(true);
+        hands.continueDestroy(target);
         if (++actTicks > BotConfig.breakTimeoutTicks * 3) {
             return done(a, st, "ceiling-break timeout at " + target.toShortString());
         }
@@ -322,7 +328,7 @@ public final class EscapeProcess implements BotProcess {
      *  the cell, so we gate on real height. On arrival, advance and re-PICK (a
      *  sideways rim may now be reachable; else we VERT_BREAK the next ceiling). */
     private boolean vertRise(Avatar a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
-        a.breakHold(false);
+        hands.breakHold(false);
         BlockPos dest = base.above();
         // Same column, not just the right height. The centring snap below is a discrete write that
         // does not sweep, so it is only safe while the body is already IN the cell it centres on —
@@ -354,7 +360,7 @@ public final class EscapeProcess implements BotProcess {
             phase = Phase.PICK;
             return false;
         }
-        if (!a.holdPlaceable()) {
+        if (!hands.holdPlaceable()) {
             return done(a, st, "no placeable block for pillar-up at " + foot.toShortString());
         }
         p.setXRot(89.5f);   // look straight down to aim the support
@@ -365,7 +371,7 @@ public final class EscapeProcess implements BotProcess {
             // Place into the old feet cell once the body has risen clear of it —
             // vanilla's collision check silently rejects a block the AABB overlaps.
             if (p.getY() >= base.getY() + 1.0) {
-                a.placeOn(base.below(), Direction.UP);
+                hands.placeOn(base.below(), Direction.UP);
             }
         }
         if (++actTicks > 100) {

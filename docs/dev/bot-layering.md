@@ -147,14 +147,27 @@ while a gate can make a region unreachable and turn a slow path into no path.
 
 ## 6. The `Avatar` seam
 
-`Walker` and every process drive an **`Avatar`**, not a player. A `Player`
-superclass reference covers both a client `LocalPlayer` and a server
-`FakePlayer`, so state reads and vanilla pose setters stay byte-identical across
-both; only genuinely client-specific actuation — movement impulse, block
-place/break, tool selection — is abstracted behind the interface.
+`Walker` and every process drive an **`Avatar`**, not a player. Its `entity()` is a
+`LivingEntity`: everything the walker reads (position, ground contact, water,
+velocity, bounding box, health) and every pose it sets lives there, on a client
+`LocalPlayer`, a server `ServerPlayer` and a driven mob alike, so those stay
+byte-identical across bodies. The interface itself carries only what every body
+has — locomotion impulse and the look.
 
-This is what lets the same process run on a client body and headless on a server
-tick.
+What only a body with an inventory has sits behind two optionals: **`Hands`**
+(hold, place, break, swing, use) and **`Containers`** (recipe book, container
+clicks, closing). A process that needs them asks at the top of its tick and, when
+the answer is empty, stamps its slot's `lastError` with `BodyReady.Reason.NO_HANDS`
+and finishes; a caller that never asks cannot compile a call to them. `asPlayer()`
+is the raw `Player` view for the few readers of a player's own state (food,
+abilities, the attack cooldown) and is null for a body that is not one. The
+walker, which cannot refuse an order, drives `WalkerNoHands` for a handless body:
+its dig and place gates fall closed on their own readings.
+
+`ClientPlayerAvatar` and `ServerPlayerAvatar` implement all three interfaces, so
+a caller holding either concrete type is unchanged. This is what lets the same
+process run on a client body and headless on a server tick, and what a
+non-player body will plug into.
 
 ⛔ **`bot/sim/**` and the fidelity boundary belong to the parity role.** How
 faithfully a `FakePlayer` reproduces a real player — and every known divergence —
