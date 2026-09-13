@@ -122,6 +122,14 @@ final class SettingsNumericWrites {
                         if (n.intValue() >= 16 && n.intValue() <= 512) { BotConfig.snapshotBoxMax = n.intValue(); applied.add(k); }
                         else rejected.add(k + " out of range [16,512]");
                         break;
+                    case "detourAlarmRatio":
+                        if (n.doubleValue() >= 1.1 && n.doubleValue() <= 20) { BotConfig.detourAlarmRatio = n.doubleValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [1.1,20]");
+                        break;
+                    case "routeEventCooldownTicks":
+                        if (n.intValue() >= 0 && n.intValue() <= 6000) { BotConfig.routeEventCooldownTicks = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [0,6000]");
+                        break;
                     case "pathfinder.heuristicWeight":
                         if (n.doubleValue() >= 1.0 && n.doubleValue() <= 3.0) { BotConfig.pathfinderHeuristicWeight = n.doubleValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1.0,3.0]");

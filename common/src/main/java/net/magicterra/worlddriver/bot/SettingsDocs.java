@@ -510,6 +510,12 @@ public final class SettingsDocs {
         e("snapshotBoxMax",
             "[16,512] dflt 96 — per-axis cap, blocks, on the box one search scans for entities " +
             "(route.mobs / route.sight); a capped scope reports snapshotTruncated"),
+        e("detourAlarmRatio",
+            "[1.1,20] dflt 3 — route.detour event when a found route is longer than this × the " +
+            "straight-line distance; only for a goto with route conditions"),
+        e("routeEventCooldownTicks",
+            "[0,6000] dflt 100 — debounce of route.blocked / route.detour / route.exposed: one per " +
+            "(event, culprit) within this many ticks"),
         e("pathfinder.heuristicWeight",
             "[1.0,3.0] dflt 1.0 — weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier " +
             "per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a " +

@@ -94,6 +94,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on dry ground) is the only distance rule, and a refused plan falls back to a normal search
   and says why. `plan: "score"` prices the caller's own corridor line with the same
   components and no search.
+- **Three route events close the loop: `route.blocked`, `route.detour`, `route.exposed`.**
+  Judged by `RouteEvents` once per finished deep search of an intent that declared any route
+  condition; a plain goto raises nothing, as before. `route.blocked` attributes a best-effort
+  search over the caller's OWN hard constraints (`Result.blockedBy`) — when a goal is walled
+  in, the biggest pruner is usually `NoWater` or the capability filter, which the caller did not
+  ask for — and says `budget` when the node or time budget ran out, `terrain` when nothing
+  declared pruned and the budget held (the spec listed two reasons; reporting `budget` for a
+  goal the terrain walls in would be a lie). `route.detour` fires past `detourAlarmRatio` (3)
+  with the heaviest tax from `Search.taxTotals`; `route.exposed` names an observer the
+  previous plan was not seen by, the memory living on the intent. Debounced per (event,
+  culprit) by `routeEventCooldownTicks` (100). The walker keeps its last deep search's result
+  and search on `WalkerTallies` for this.
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint

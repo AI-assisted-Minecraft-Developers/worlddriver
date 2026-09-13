@@ -91,7 +91,7 @@ its result directly, no `awaitMs`); `mc.bot.playbook` runs on a **background thr
 | method | params | returns / notes |
 |---|---|---|
 | `mc.observe.cursor` | — | latest event seq `<integer>`; save and feed to `eventsSince`/`wait.event`. |
-| `mc.observe.eventsSince` | `cursor` (req), `types?[]`, `limit?` | events with `seq>cursor`; types: block.break/place/fill, entity.death, player.join/leave, chat.message. limit default 256, max 4096. |
+| `mc.observe.eventsSince` | `cursor` (req), `types?[]`, `limit?` | events with `seq>cursor`; types: block.break/place/fill, entity.death, player.join/leave, chat.message, and the client's route events route.blocked / route.detour / route.exposed (see `mc.bot.goto`). limit default 256, max 4096. |
 | `mc.observe.player` | `name?` | `{present, name, uuid, dimension, pos, blockPos, look, onGround, health, maxHealth, food, xpLevel, effects[], time, gameMode, mainHand, offHand, hotbar[], selectedSlot, armor}`; client fallback adds `inventory, saturation, hit`. |
 | `mc.observe.threats` | `radius?` (1–64, dflt 24) | `{threats:[{id,type,pos,distance,hostile,canSeeMe,facingMe,charging,creeperSwell,threat}], incomingProjectiles:[{id,type,pos,vel,willHit,ticksToImpact}]}`. Client-backed (empty on dedicated server). `threat` is a 0–1 priority score. |
 | `mc.observe.boss` | `radius?` (1–256, dflt 64) | `{present, type?:"ender_dragon"\|"wither", health, maxHealth, healthPct, pos, distance, phase, crystals:[{id,pos,distance,caged}], …}`. Client-backed → `{present:false, crystals:[]}` on a dedicated server. |

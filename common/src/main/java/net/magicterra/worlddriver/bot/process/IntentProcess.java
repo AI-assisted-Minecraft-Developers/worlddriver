@@ -1,15 +1,19 @@
 package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.PreviewSearch;
 import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
+import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.LeashHardRadius;
+import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.pathfinder.modifiers.LeashAnchor;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -54,6 +58,12 @@ public final class IntentProcess implements BotProcess {
     /** The dimension the goal's coordinates belong to, latched on the first tick that has a body.
      *  Not taken in {@link #attach} because that is handed a {@link BotState} and no Avatar. */
     private ResourceKey<Level> plannedIn;
+    /** The route events of this intent (null when the route declared nothing to report on),
+     *  judged once per finished deep search: {@link #searchesJudged} is the walker's count the
+     *  last judgement saw. Dies with the intent, as the exposure memory it keeps should. */
+    private final RouteEvents events;
+    private final PreviewSearch.RiskAt risk;
+    private int searchesJudged;
     private BlockPos lastAnchor;           // last solved anchor block (null = not yet solved)
     private int ticksSinceAnchorSolve;     // rate limiter
     private static final int ANCHOR_RESOLVE_MIN_TICKS = 20;
@@ -63,7 +73,36 @@ public final class IntentProcess implements BotProcess {
         this.intent = intent;
         walker.setGoal(intent.targets().get(0));
         walker.setSearchProfile(intent.searchProfile());
+        boolean conditions = !intent.bias().isEmpty() || !intent.constraints().isEmpty();
+        boolean sight = intent.bias().stream().anyMatch(m -> m instanceof SightExposure)
+                || intent.constraints().stream().anyMatch(c -> c instanceof SightExposure);
+        events = conditions ? new RouteEvents(intent.constraintNames(), true, sight, IntentProcess::emit) : null;
+        risk = sight ? new PreviewSearch.ProfileRisk(intent.searchProfile()) : null;
     }
+
+    private static void emit(String type, BlockPos pos, java.util.Map<String, Object> data) {
+        DriverApi api = WorldDriverCommon.api();
+        if (api != null) api.emitExternal(type, pos, data);
+    }
+
+    /** Judges the route events for a deep search the walker finished since the last tick. */
+    private void judgeSearch(BlockPos foot) {
+        if (events == null) return;
+        events.tick();
+        int n = walker.tallies().searches;
+        if (n == searchesJudged) return;
+        searchesJudged = n;
+        PathFinder.Result res = walker.tallies().lastResult;
+        PathFinder.Search search = walker.tallies().lastSearch;
+        events.onSearch(res, intent.targets().get(leg), foot, leg, risk,
+                search == null ? null : () -> search.taxTotals(res));
+    }
+
+    /** The Intent this process drives — the preview/adoption and the route events read it. */
+    public Intent intent() { return intent; }
+
+    /** Zero-based index of the goal the walker is on; {@code targets().size() - 1} is the goal proper. */
+    public int leg() { return leg; }
 
     public String kind() { return "goto"; }
 
@@ -116,6 +155,7 @@ public final class IntentProcess implements BotProcess {
             }
         }
         Walker.Step s = walker.tick(a, w);
+        judgeSearch(body == null ? null : body.blockPosition());
         st.mc_goto.pathLen = walker.pathLen();
         st.mc_goto.pathStep = walker.pathStep();
         // LATCH THE FIRST PLAN, ONCE. See BotState.ProcessSlot.firstPlan: everything else in this

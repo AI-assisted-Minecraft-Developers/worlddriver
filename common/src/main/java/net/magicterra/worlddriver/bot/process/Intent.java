@@ -11,12 +11,11 @@ import java.util.List;
 
 /**
  * The declarative unit of navigation the {@link IntentProcess} interprets. Holds
- * the target {@link Goal} and a per-intent {@code bias} — a list of
- * {@link CostModifier}s appended to the pathfinder's cost stack for THIS intent
- * (avoid a region, prefer a Y band, leash to an anchor), plus a
- * {@link CapabilityProfile} and a list of {@link Constraint}s. A4a threaded the
- * (empty) bias through; A2a threads the full {@link SearchProfile}. Later
- * phases add terminators and the mutable-goal {@code amend} operation.
+ * the target {@link Goal}s — the {@code route.via} waypoints in order, then the final goal —
+ * and a per-intent {@code bias} — a list of {@link CostModifier}s appended to the pathfinder's
+ * cost stack for THIS intent (avoid a region, prefer a Y band, leash to an anchor), plus a
+ * {@link CapabilityProfile} and a list of {@link Constraint}s. A4a threaded the (empty) bias
+ * through; A2a threads the full {@link SearchProfile}; the route design added the goal list.
  */
 public final class Intent {
     private final List<Goal> targets;
@@ -77,6 +76,13 @@ public final class Intent {
     /** Hard constraints this intent's pathfinder search must satisfy. */
     public List<Constraint> constraints() {
         return constraints;
+    }
+
+    /** Names of the hard constraints, for attributing a blocked search. */
+    public List<String> constraintNames() {
+        List<String> out = new ArrayList<>(constraints.size());
+        for (Constraint c : constraints) out.add(c.name());
+        return out;
     }
 
     /** The full {@link SearchProfile} — bias, capability, and constraints — for this intent. */

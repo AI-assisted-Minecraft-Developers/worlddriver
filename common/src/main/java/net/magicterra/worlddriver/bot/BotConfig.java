@@ -439,6 +439,18 @@ public final class BotConfig {
      *  each idle tick on the search to finish it ~5× sooner. Kept responsive (the
      *  client still renders between slices). */
     public static volatile long pathfinderIdleSliceMs = 30;
+    /** Per-tick slice (ms) of a route PREVIEW ({@code PreviewSearch}): it runs beside a walk and must not steal its frames. */
+    public static volatile long pathfinderPreviewSliceMs = 3;
+    /** Most sight rays one search may fire for {@code route.sight}; past it the search reruns
+     *  without sight rather than pricing the rest as exposed — {@code SightExposure} says why. */
+    public static volatile int sightRaysPerSearch = 4000;
+    /** Per-axis cap, blocks, on the box one search scans for entities ({@code SearchScope.gather});
+     *  {@code Level.getEntities} costs by volume, and a capped scope reports {@code snapshotTruncated}. */
+    public static volatile int snapshotBoxMax = 96;
+    /** {@code route.detour} fires when a route is longer than this × the straight line ({@code RouteEvents}). */
+    public static volatile double detourAlarmRatio = 3.0;
+    /** Debounce of the route events: one per (event, culprit) within this many process ticks. */
+    public static volatile int routeEventCooldownTicks = 100;
 
     /** A* wall-clock cap, ms. Default mirrors {@code PathFinder.DEFAULT_MAX_MS}. */
     public static volatile long pathfinderMaxMs =

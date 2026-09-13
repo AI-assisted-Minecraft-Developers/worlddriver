@@ -202,7 +202,9 @@ the call shape, the return shape, and a one-line example where useful.
 Besides polling `mc.observe.eventsSince`, the driver can **push** events to you in
 real time: threats appearing (`threat.appeared`), damage (`player.hurt`), death
 (`player.death` / `entity.death`), chat (`chat.message`), command results
-(`command.result`), block changes, and any custom/condition event you register.
+(`command.result`), block changes, the route events of a `mc.bot.goto` that declared route
+conditions (`route.blocked` / `route.detour` / `route.exposed`, see the RPC method reference),
+and any custom/condition event you register.
 
 Every event is delivered as a standard JSON-RPC **`notifications/message`** (the
 MCP logging notification — the one server-initiated message any MCP-aware client

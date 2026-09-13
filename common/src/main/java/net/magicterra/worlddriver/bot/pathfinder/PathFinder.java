@@ -15,6 +15,9 @@ import java.util.PriorityQueue;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.Set;
 
 /**
  * A* over BlockPos with the {@link Move} catalog as the neighbor function.
@@ -314,7 +317,7 @@ public final class PathFinder {
     }
 
     public Search newSearch(BlockPos start, Goal goal) {
-        return new Search(start, goal, false);
+        return new Search(start, goal, false, profile, null, false);
     }
 
     /** Search variant that DROPS all block-placing moves (bridge/pillar/parkour-place)
@@ -322,7 +325,7 @@ public final class PathFinder {
      *  bot can afford (dig through / go around) after a normal search returned a path
      *  needing more placed blocks than the inventory holds. */
     public Search newSearch(BlockPos start, Goal goal, boolean suppressPlace) {
-        return new Search(start, goal, suppressPlace);
+        return new Search(start, goal, suppressPlace, profile, null, false);
     }
 
     /**
@@ -486,9 +489,10 @@ public final class PathFinder {
             // A2a: pull the per-intent capability gate + edge constraints off the
             // enclosing PathFinder's profile BEFORE the move-filter loop below reads
             // `capability` — both are final fields, so ordering here is load-bearing.
-            this.capability = PathFinder.this.profile.capability();
-            this.constraints = PathFinder.this.profile.constraints();
-            world.beginSearch();       // snapshot per-search state (e.g. nearby mobs)
+            this.capability = this.profile.capability();
+            this.constraints = this.profile.constraints();
+            this.pruneCounts = new int[this.constraints.size()];
+            world.beginSearch();       // snapshot per-search state (bucket, dig, hazards)
             // Prune the move catalog to this search's relevant subset (after
             // beginSearch so bucket/flag snapshots are live). One pass over ALL.
             // suppressPlace additionally drops every block-placing move so an
@@ -548,7 +552,7 @@ public final class PathFinder {
             if (!diveRelief) tax("submerged", (f, t, e, g, w) -> submergedTax(f, t));
             // A4a: append this search's per-intent bias AFTER the legacy taxes.
             // Empty for a plain search → byte-identical to the pre-A4a stack.
-            for (CostModifier bias : PathFinder.this.profile.bias()) {
+            for (CostModifier bias : this.profile.bias()) {
                 tax(bias.getClass().getSimpleName(), bias);
             }
             // The scope is handed out HERE and not at world.beginSearch() above: the bias
@@ -589,7 +593,7 @@ public final class PathFinder {
                         swE == null ? "null" : swE.to.toShortString() + "/cost=" + swE.cost,
                         startInWater, world.isSubmergedFoot(start),
                         maxNodes, maxMs, tuning.softCommitNodes(), tuning,
-                        constraints.size(), PathFinder.this.profile.bias().size());
+                        constraints.size(), this.profile.bias().size());
             }
         }
 
@@ -743,30 +747,32 @@ public final class PathFinder {
          * legible, not to start deleting charges.
          *
          * <p>Runs over the returned path only (tens of edges), never in the expansion
-         * loop (tens of thousands of edges), and only under {@code walkerDebug}. The
-         * hot loop and its arithmetic are untouched.
+         * loop (tens of thousands of edges), and only under {@code walkerDebug} or
+         * {@code -Dworlddriver.pathfinderTaxLog=true}. The hot loop and its arithmetic are
+         * untouched. The sums come from {@link #taxTotals}; this only formats them and counts
+         * the edges each tax touched.
          */
         private String explainTaxes(Result r) {
-            double[] totals = new double[costModifiers.size()];
+            Map<String, Double> totals = taxTotals(r);
             int[] hits = new int[costModifiers.size()];
             for (int i = 1; i < r.path().size(); i++) {
                 BlockPos from = r.path().get(i - 1), to = r.path().get(i);
                 Move.Edge e = r.edges().get(i);
                 if (e == null) continue;
                 for (int m = 0; m < costModifiers.size(); m++) {
-                    double v = costModifiers.get(m).extraCost(from, to, e, goal, world);
-                    if (v != 0) { totals[m] += v; hits[m]++; }
+                    if (costModifiers.get(m).extraCost(from, to, e, goal, world) != 0) hits[m]++;
                 }
             }
             StringBuilder sb = new StringBuilder();
             double sum = 0;
-            for (int m = 0; m < totals.length; m++) {
+            for (int m = 0; m < hits.length; m++) {
                 if (hits[m] == 0) continue;
                 if (sb.length() > 0) sb.append(' ');
+                double total = totals.getOrDefault(costModifierNames.get(m), 0.0);
                 sb.append(costModifierNames.get(m)).append('=')
-                  .append(String.format(Locale.ROOT, "%.1f", totals[m]))
+                  .append(String.format(Locale.ROOT, "%.1f", total))
                   .append('x').append(hits[m]);
-                sum += totals[m];
+                sum += total;
             }
             if (sb.length() == 0) sb.append("none");
             return sb + " | taxTotal=" + String.format(Locale.ROOT, "%.1f", sum);
@@ -1403,8 +1409,12 @@ public final class PathFinder {
                         BlockPos npos = edge.to;
                         if (!constraints.isEmpty()) {
                             boolean pruned = false;
-                            for (Constraint c : constraints) {
-                                if (!c.allows(cur.pos, npos, edge, goal, world)) { pruned = true; break; }
+                            for (int ci = 0; ci < constraints.size(); ci++) {
+                                if (!constraints.get(ci).allows(cur.pos, npos, edge, goal, world)) {
+                                    pruneCounts[ci]++;
+                                    pruned = true;
+                                    break;
+                                }
                             }
                             if (pruned) continue;   // A2a: hard edge prune (successor never generated)
                         }
@@ -1846,6 +1856,19 @@ public final class PathFinder {
          * For "did we reach the goal" use {@link #goalReached()} directly.
          */
         public boolean hasPath() { return !path.isEmpty(); }
+
+        /** The constraint that pruned the most edges among {@code declared}, as
+         *  {@code constraint:<name>}, or null when none of them pruned anything. Only the
+         *  caller's own constraints are candidates: when a goal is walled in, the biggest pruner
+         *  is usually {@code NoWater} or the capability filter, which the caller did not ask for. */
+        public String blockedBy(java.util.Collection<String> declared) {
+            String best = null;
+            int most = 0;
+            for (Map.Entry<String, Integer> e : prunedBy.entrySet()) {
+                if (declared.contains(e.getKey()) && e.getValue() > most) { most = e.getValue(); best = e.getKey(); }
+            }
+            return best == null ? null : "constraint:" + best;
+        }
     }
 
     private static final class Node {

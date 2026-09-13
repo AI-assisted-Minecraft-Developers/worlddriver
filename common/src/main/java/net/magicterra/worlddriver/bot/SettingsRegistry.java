@@ -237,6 +237,8 @@ public final class SettingsRegistry {
         field("pathfinder.previewSliceMs", "pathfinderPreviewSliceMs"),
         field("sightRaysPerSearch"),
         field("snapshotBoxMax"),
+        field("detourAlarmRatio"),
+        field("routeEventCooldownTicks"),
         field("pathfinder.heuristicWeight", "pathfinderHeuristicWeight"),
         field("pathfinderCacheEnabled"),
         field("collisionAwarePathing"),
