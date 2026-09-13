@@ -83,6 +83,7 @@
 | `docs/dev/bot-layering.md` | dev | current | 2026-08-27 | facade→scheduler→process→Walker→pathfinder 主干与各层的缝。**只写缝与不变式，不写清单**——`bot/` 周周变，列表比没有更糟。`sim/` 只给指针（归 parity 角色） |
 | `docs/dev/client-on-wayland.md` | dev | current | 2026-09-04 | 客户端在 Xwayland 下卡在 `glfwCreateWindow` 的症状、原因（GLFW `waitForVisibilityNotify` 无界循环）、自编补丁版 GLFW 和 `worlddriverVmArgs` 钩子的用法。**症状与解法都在本机复现并跑通** |
 | `docs/dev/debugging.md` | dev | current | 2026-09-04 | 给 loom 运行任务和 StageWright 闸的游戏 JVM 挂 JDWP：`worlddriverJdwp` 钩子、watchdog 与停机代价、jdb 与 jdwp-inspector 的实测边界。**除 `--debug-jvm` 一行外都在本机跑过**，那一行文内已标 |
+| `docs/dev/loader-glue.md` | dev | current | 2026-09-06 | Architectury API 成为强制依赖之后的分工：`common` 里 `WorldDriverEvents` / `WorldDriverClientEvents` 两份订阅，加载器入口只剩身体工厂、NeoForge 的服务器身体命令、客户端聊天的取消变体；合并时 `block.break` / `block.place` / `entity.death` 三处时机变化；`/worlddriver` 命令根靠 Brigadier 合并。**逐条对着源码与 Architectury 13.0.8 的 jar 写的** |
 
 ## 三、`docs/design/` — 5 份，2026-06-04 的原始设计
 

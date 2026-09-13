@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implementation, so the loop is empty there. The interface lives in the driver's root package,
   not beside its implementations: NeoForge's dev launch puts main and testmod in two JPMS
   modules, and a package present in both is a split package that stops the server from booting.
+- **The two loaders' event handlers are one set in `common`.** `WorldDriverEvents` (server
+  lifecycle, tick, commands, the six external events) and `WorldDriverClientEvents` (client tick,
+  client stopping, HUD) subscribe through Architectury's events; the loader entries keep only what
+  has no cross-loader form (body factories, the NeoForge server-avatar command, the client chat
+  tap's canceled variants). Three reports moved in time with the merge: `block.break` is now
+  before the break on Fabric too, `block.place` exists on Fabric (player block-item placements),
+  and `entity.death` fires as the death is decided. `docs/dev/loader-glue.md` has the table.
 - **Architectury API 13.0.8 is a required mod on both loaders.** The driver had only the
   Architectury build plugins, so the repository's first custom block (the testmod's marker block,
   designed 2026-09-05) had no `DeferredRegister` to register through, and every event the driver

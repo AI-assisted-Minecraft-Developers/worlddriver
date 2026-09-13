@@ -3,44 +3,24 @@ package net.magicterra.worlddriver.fabric.client;
 import com.mojang.authlib.GameProfile;
 import java.time.Instant;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.BotApiImpl;
-import net.magicterra.worlddriver.bot.FocusPolicy;
-import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.MouseYieldHud;
-import net.magicterra.worlddriver.client.ClientDriverApiImpl;
-import net.magicterra.worlddriver.client.ClientHooks;
+import net.magicterra.worlddriver.client.WorldDriverClientEvents;
 import net.magicterra.worlddriver.client.internal.ClientChat;
 import net.minecraft.network.chat.ChatType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.PlayerChatMessage;
 
 /**
- * Fabric client-side bootstrap. Only loaded under Dist.CLIENT — Fabric Loader
- * skips client entrypoints on a dedicated-server install — so referencing
- * {@link ClientDriverApiImpl} here doesn't drag client classes into dedi-server
- * classloading.
+ * Fabric client entry. Only loaded under Dist.CLIENT — Fabric Loader skips client entrypoints on
+ * a dedicated-server install — so referencing {@link WorldDriverClientEvents} here doesn't drag
+ * client classes into dedi-server classloading. The client entrypoint already runs on the render
+ * thread, so install and subscribe happen back to back.
  */
 public final class WorldDriverFabricClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        ClientHooks.register(new ClientDriverApiImpl());
-        BotApiImpl bot = new BotApiImpl();
-        BotHooks.register(bot);
-        ClientTickEvents.END_CLIENT_TICK.register(mc -> bot.clientTick());
-        // FocusPolicy holds the human's real pauseOnLostFocus while the bot drives. Minecraft
-        // saves options.txt on close, so a force-quit mid-drive would otherwise PERSIST our
-        // temporary false into their settings. The tick's falling edge covers every normal
-        // stop; this covers the one path where ticks just stop arriving.
-        ClientLifecycleEvents.CLIENT_STOPPING.register(FocusPolicy::release);
-        // "Bot is driving" badge — the visible half of the mouse-yield handshake
-        // (BotConfig.mouseYield / mouseYieldHud). Drawing lives in common; this is
-        // only the loader's render hook. NeoForge subscribes RenderGuiEvent.Post.
-        HudRenderCallback.EVENT.register((gfx, tickCounter) -> MouseYieldHud.render(gfx));
+        WorldDriverClientEvents.install();
+        WorldDriverClientEvents.subscribe();
         // Packet-level chat tap for mc.client.chat.history / awaitReplyMs —
         // GAME carries system lines (command feedback, /say, server broadcasts),
         // CHAT carries player chat. Capture policy (overlay exclusion, sender→
@@ -53,7 +33,6 @@ public final class WorldDriverFabricClient implements ClientModInitializer {
         ClientReceiveMessageEvents.GAME_CANCELED.register(WorldDriverFabricClient::onGameMessage);
         ClientReceiveMessageEvents.CHAT.register(WorldDriverFabricClient::onChatMessage);
         ClientReceiveMessageEvents.CHAT_CANCELED.register(WorldDriverFabricClient::onChatMessage);
-        WorldDriverCommon.LOG.info("[{}] Fabric client api + bot registered", WorldDriverCommon.MOD_ID);
     }
 
     private static void onGameMessage(Component message, boolean overlay) {

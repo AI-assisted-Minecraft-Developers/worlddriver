@@ -392,7 +392,7 @@ p.move(MoverType.SELF, new Vec3(foot.getX() + 0.5 - p.getX(), 0, foot.getZ() + 0
 | 会破坏落地判定 / `fallDistance` | **不会** | Y 不变；且 `ServerPlayer.checkFallDamage` 本来就是空覆盖（见 T1） |
 | 会在客户端画成一次闪现 | **不会**（观感层） | `setPos` 不更新 `xo/yo/zo`（§2 字节码），渲染插值把它画成一次快速滑行 |
 | 服务端的 `setPos` 会漏掉实体分区更新 | **不会** | `setPosRaw` 尾部调 `levelCallback.onMove()` |
-| 吸附之后这一 tick 就定型了 | **服务端不是** | `ServerWorldDriver.tick()`：`process.tick(...)` **然后** `avatar.step()`——吸附后本 tick 还会跑一次 `travel()`/`move()`。**客户端相反**：`ClientTickEvents.END_CLIENT_TICK`（`WorldDriverFabricClient.java:34`）在 `LocalPlayer.tick()` **之后**，所以吸附是客户端这一 tick 的最后一笔 |
+| 吸附之后这一 tick 就定型了 | **服务端不是** | `ServerWorldDriver.tick()`：`process.tick(...)` **然后** `avatar.step()`——吸附后本 tick 还会跑一次 `travel()`/`move()`。**客户端相反**：`ClientTickEvent.CLIENT_POST`（`WorldDriverClientEvents.subscribe`）在 `LocalPlayer.tick()` **之后**，所以吸附是客户端这一 tick 的最后一笔 |
 
 ---
 

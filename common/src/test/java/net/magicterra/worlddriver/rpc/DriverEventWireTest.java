@@ -104,8 +104,8 @@ class DriverEventWireTest {
      */
     @Test
     void noEmitterPreEncodesItsPayload() throws Exception {
-        // The loader modules emit too (chat.message comes from each platform's chat
-        // hook), so they are in scope even though this test lives in :common.
+        // The external events are emitted from :common's WorldDriverEvents now, but the loader
+        // modules stay in scope: nothing stops a loader-only handler from emitting again.
         Path own = Path.of("src/main/java");
         assertTrue(Files.isDirectory(own),
                 "expected to run with the module dir as cwd; got " + Path.of(".").toAbsolutePath());

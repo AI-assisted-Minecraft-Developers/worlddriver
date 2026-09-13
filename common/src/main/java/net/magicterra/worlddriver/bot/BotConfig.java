@@ -2936,7 +2936,7 @@ public final class BotConfig {
      *  flipped to default-ON for live play, 14 required arenas broke because flags the
      *  tests never touch (allowBreak/allowPlace/DrowningEscape/...) changed the bot's
      *  behavior mid-arena. The stagewright dogfood server calls this once at server
-     *  start under {@code -Dstagewright.autorun} (WorldDriverNeoForge / WorldDriverFabric,
+     *  start under {@code -Dstagewright.autorun} (WorldDriverEvents' server-started handler,
      *  gated on {@code TESTKIT_AUTORUN}) to pin the suite back to the baseline the
      *  scenes were written for; scenes that WANT a flag still set it explicitly. Live
      *  clients (integrated server, autorun unset) never call this. (The GameTestServer

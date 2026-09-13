@@ -1187,7 +1187,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * anchor — no re-entrant ticking anywhere.
      *
      * <p><b>Fallback sub-deviation — driver registration is BRACKETED around each await.</b>
-     * The platform's own {@code WorldDriverNeoForge.onServerTick(ServerTickEvent.Post)}
+     * The driver's own {@code WorldDriverEvents} server-tick handler
      * calls {@code ServerAvatarManager.tickAll()} EVERY server tick (before the testkit
      * harness advances the scene). In the other driver scenes the driver is registered
      * and fully driven+unregistered inside ONE synchronous body tick, so the platform

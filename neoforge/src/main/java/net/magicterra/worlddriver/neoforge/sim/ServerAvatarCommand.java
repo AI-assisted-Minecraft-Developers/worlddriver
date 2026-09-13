@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.neoforge.sim;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
+import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.Goal;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
