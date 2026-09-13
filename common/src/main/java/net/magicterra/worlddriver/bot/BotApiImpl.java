@@ -588,6 +588,13 @@ public final class BotApiImpl implements BotApi {
         });
     }
 
+    @Override public Map<String, Object> bodyRefusal() {
+        return onClient(() -> {
+            BodyReady.Refusal r = BodyReady.refusal();
+            return r == null ? null : r.result();
+        });
+    }
+
     @Override public Map<String, Object> status() {
         Map<String, Object> snap = state.snapshot();
         snap.put("paused", paused);

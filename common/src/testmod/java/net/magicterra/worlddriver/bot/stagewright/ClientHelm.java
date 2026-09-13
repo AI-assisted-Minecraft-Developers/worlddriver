@@ -71,6 +71,14 @@ public final class ClientHelm {
             ctx.skip("集成服上没有真玩家 —— 客户端还没进世界，或已经掉线");
         }
         ServerPlayer body = humans.get(0);
+        // A dead player is still in the player list until it respawns, and setHealth below does not
+        // revive it: the client stays on its death screen and every leg runs against a body that
+        // cannot move. Judged from the server's own view (no client-thread wait), and a failure
+        // rather than a skip — the run set out to drive this body and it is not there to drive.
+        if (body.isDeadOrDying() || body.isRemoved()) {
+            ctx.fail("the client's player is dead (on the death screen) — respawn before running a scene on it");
+        }
+        // A paused integrated server still drains its task queue (this route ran), but ticks
         BotApi bot = BotHooks.impl();
 
         var pin = BotConfig.pinnedBaseline();

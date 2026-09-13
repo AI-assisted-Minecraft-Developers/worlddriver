@@ -336,20 +336,23 @@ public final class DriverApi {
         // Async actions accept an optional `awaitMs` that, when set, makes the
         // route block on bot.status until the named slot goes idle (or times
         // out), folding the final status snapshot into the response.
-        routes.put("mc.bot.goto",      p -> awaitable(p, "goto",    requireBot()::mcGoto));
-        routes.put("mc.bot.mine",      p -> awaitable(p, "mine",    requireBot()::mine));
-        routes.put("mc.bot.bunker",    p -> awaitable(p, "bunker",  requireBot()::bunker));
-        routes.put("mc.bot.escape",    p -> requireBot().escape(p));
-        routes.put("mc.bot.craft",     p -> awaitable(p, "craft",   requireBot()::craft));
-        routes.put("mc.bot.smelt",     p -> awaitable(p, "smelt",   requireBot()::smelt));
-        routes.put("mc.bot.combat",    p -> awaitable(p, "combat",  requireBot()::combat));
-        routes.put("mc.bot.equip",     p -> requireBot().equip(p));
-        routes.put("mc.bot.build",     p -> awaitable(p, "builder", requireBot()::build));
-        routes.put("mc.bot.clearArea", p -> awaitable(p, "builder", requireBot()::clearArea));
-        routes.put("mc.bot.follow",    p -> awaitable(p, "follow",  requireBot()::follow));
-        routes.put("mc.bot.explore",   p -> awaitable(p, "explore", requireBot()::explore));
-        routes.put("mc.bot.runAway",   p -> awaitable(p, "runAway", requireBot()::runAway));
-        routes.put("mc.bot.lookAt",    p -> requireBot().lookAt(p));
+        // Verbs that drive the body go through body(): BodyReady's refusal answers
+        // first when the player is missing, dead, paused, in bed, loading or off a
+        // loaded chunk. status/cancel/setting/waypoint stay open while it is down.
+        routes.put("mc.bot.goto",      body(p -> awaitable(p, "goto",    requireBot()::mcGoto)));
+        routes.put("mc.bot.mine",      body(p -> awaitable(p, "mine",    requireBot()::mine)));
+        routes.put("mc.bot.bunker",    body(p -> awaitable(p, "bunker",  requireBot()::bunker)));
+        routes.put("mc.bot.escape",    body(p -> requireBot().escape(p)));
+        routes.put("mc.bot.craft",     body(p -> awaitable(p, "craft",   requireBot()::craft)));
+        routes.put("mc.bot.smelt",     body(p -> awaitable(p, "smelt",   requireBot()::smelt)));
+        routes.put("mc.bot.combat",    body(p -> awaitable(p, "combat",  requireBot()::combat)));
+        routes.put("mc.bot.equip",     body(p -> requireBot().equip(p)));
+        routes.put("mc.bot.build",     body(p -> awaitable(p, "builder", requireBot()::build)));
+        routes.put("mc.bot.clearArea", body(p -> awaitable(p, "builder", requireBot()::clearArea)));
+        routes.put("mc.bot.follow",    body(p -> awaitable(p, "follow",  requireBot()::follow)));
+        routes.put("mc.bot.explore",   body(p -> awaitable(p, "explore", requireBot()::explore)));
+        routes.put("mc.bot.runAway",   body(p -> awaitable(p, "runAway", requireBot()::runAway)));
+        routes.put("mc.bot.lookAt",    body(p -> requireBot().lookAt(p)));
         // mc.bot.useItem dispatches based on params: pass `entityId` to right-click
         // an entity (mount / trade / shear / milk / feed / leash); pass `pos` to use
         // the held item ON a block face (place / bone-meal / shears / etc.); omit both
@@ -431,6 +434,14 @@ public final class DriverApi {
         BotApi b = BotHooks.impl();
         if (b == null) throw new IllegalStateException("mc.bot.* not available (client only; bot impl not registered)");
         return b;
+    }
+
+    /** A body verb behind the client's {@link BotApi#bodyRefusal()}: the refusal is the answer when there is one. */
+    private static Function<Map<String, Object>, Object> body(Function<Map<String, Object>, Object> verb) {
+        return p -> {
+            Map<String, Object> refused = requireBot().bodyRefusal();
+            return refused != null ? refused : verb.apply(p);
+        };
     }
 
     public void attachServer(MinecraftServer s) {

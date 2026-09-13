@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-11
+
+- **Body verbs check the body before they accept the order.** Every `mc.bot.*` verb that drives
+  the player checked one thing — that a `LocalPlayer` exists — and reported `started: true`
+  otherwise. A player dead on its death screen, a paused singleplayer world, a player in a bed,
+  a level still loading or a chunk the client had not received all passed that check; the
+  process ran against a body that could not move and the caller learned nothing until its own
+  timeout (the lab world's first six scene runs went exactly that way, on a player that had died
+  on joining). `BodyReady` is now the one list of things that stop a body from acting, judged on
+  the client thread in the order a person would fix them, and `DriverApi` puts it in front of
+  every body verb (`status`, `cancel`, `setting`, `waypoint` and `playbook` stay open), so every
+  transport answers the same `{ok:false, error, reason}` with `reason` one of `no_player`,
+  `loading`, `dead`, `paused`, `sleeping`, `chunk_unloaded` and an `error` that says what to do.
+  `mc.client.input.key` with neither a screen nor a player answers the same shape instead of
+  `ok: true` for a key that reached nothing. A scene run on `body: self` fails at once when the
+  client's player is dead — the helm used to heal and teleport the corpse and run the legs
+  anyway. `wd.clientBodyRefusedWhileDead` kills the real player, sees the refusal, respawns it
+  and sees the same order accepted; `BodyReadyTest` walks every branch of the decision.
 ## 2026-09-06
 
 - **Marker blocks have real faces.** The testmod's nine `worlddriver:marker_<role>` items and

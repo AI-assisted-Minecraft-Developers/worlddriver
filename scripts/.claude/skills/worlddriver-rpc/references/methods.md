@@ -52,6 +52,17 @@ Common errors: `parse: …` (bad JSON), `unknown method: <name>`, or the handler
 exception message. Many handlers don't throw — they return `{ok:false, error:…}` in
 the result instead, so check `ok`, not just transport success.
 
+**Body preconditions.** Every `mc.bot.*` verb that drives the player (all but `status`,
+`cancel`, `setting`, `waypoint`, `playbook`) first checks that the body can act, on every
+transport, and answers `{ok:false, error, reason}` when it cannot — nothing is started, so
+never treat a missing `started` as "in progress". `reason` is one of, in the order checked:
+`no_player` (no world open; `error` names the screen the client is on), `loading` (the
+level-loading screen is up), `dead` (dead or on the death screen — respawn first),
+`paused` (singleplayer pause menu — `mc.client.screen.close`), `sleeping` (in a bed),
+`chunk_unloaded` (the client has no chunk under the player yet). `error` always says what
+to do about it. `mc.client.input.key` with no screen and no player answers the same shape
+with `reason:"no_player"`.
+
 ## Availability (client vs server)
 - `mc.client.*` and `mc.bot.*` require a **client** (a running game client). On a
   dedicated server they raise `… not available (client only …)`.
@@ -182,6 +193,8 @@ Client-authoritative reads — diff against the server-side `mc.observe.*` to sp
 
 ## mc.bot.*
 Movement/automation processes. The async ones take `awaitMs?` — see [Async](#async--awaitms).
+All but the reads refuse with `{ok:false, error, reason}` when the body cannot act — see
+[Body preconditions](#envelope--errors).
 
 | method | params | returns / notes |
 |---|---|---|

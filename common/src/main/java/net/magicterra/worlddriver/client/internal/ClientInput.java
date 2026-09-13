@@ -348,6 +348,12 @@ public final class ClientInput {
             // like a player pressing the key. The method is package-private in
             // vanilla and opened by worlddriver.accesswidener.
             if (s == null) {
+                // Between worlds there is neither a screen nor a player; the event would reach
+                // nothing, and the old {ok:true, via:"keybind"} said it had been delivered.
+                if (mc.player == null) {
+                    return Map.of("ok", false, "reason", "no_player",
+                            "error", "no screen open and no player to receive the key — open a screen or join a world first");
+                }
                 long window = mc.getWindow().getWindow();
                 int glfwPress = org.lwjgl.glfw.GLFW.GLFW_PRESS;
                 int glfwRelease = org.lwjgl.glfw.GLFW.GLFW_RELEASE;

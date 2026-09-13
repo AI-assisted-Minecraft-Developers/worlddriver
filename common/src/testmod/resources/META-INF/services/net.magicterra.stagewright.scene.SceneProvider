@@ -39,3 +39,4 @@ net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverMarkerScenes
 net.magicterra.worlddriver.bot.stagewright.scene.HumanScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverRouteScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientRouteScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientBodyScenes
