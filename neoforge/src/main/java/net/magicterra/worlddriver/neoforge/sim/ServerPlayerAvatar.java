@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <p><b>Its stated reason for existing is gone.</b> This javadoc said the shim keeps「~3000 lines
  * of legacy GameTest callers」compiling with zero source changes. That suite was retired in
  * P4-final, and the scenes that replaced it construct the COMMON types — nothing outside this
- * package imports either shim. The one live path is {@code /agentserver}:
+ * package imports either shim. The one live path is {@code /worlddriver server}:
  * {@code ServerWorldDriver.createIsolated} → {@link #createUnique}. The {@code create} twin (all
  * callers share one body) had no caller left and was deleted; deleting it also stopped it hiding
  * the inherited common static of the same name.

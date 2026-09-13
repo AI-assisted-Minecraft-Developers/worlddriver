@@ -555,7 +555,7 @@ public final class DriverApi {
     /**
      * Lays down a deterministic test arena: 5x5 stones at y=200, oak log at y=201,
      * one cow at (3,201,0), one sheep at (-3,201,2). Clears surrounding air first
-     * so {@code /agent test} is idempotent.
+     * so {@code /worlddriver test} is idempotent.
      *
      * <p>Pins the arena's chunks on the way in ({@link #TEST_ARENA_TICKET}) and asserts on the way
      * out that the props it just placed are actually visible. "Deterministic" is the whole point of

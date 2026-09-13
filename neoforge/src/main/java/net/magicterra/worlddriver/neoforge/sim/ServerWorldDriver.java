@@ -13,7 +13,7 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  * source changes. That suite was retired in P4-final and the scenes that replaced it use the
  * COMMON types directly — {@code grep -rn "import net.magicterra.worlddriver.neoforge.sim"}
  * returns nothing, so nothing outside this package names either shim. What is actually left is
- * {@code /agentserver}: {@link ServerAvatarCommand} calls {@link #createIsolated} and
+ * {@code /worlddriver server}: {@link ServerAvatarCommand} calls {@link #createIsolated} and
  * {@link #fakePlayer()} (and only for {@code getX/getY/getZ}, which the un-narrowed
  * {@code ServerPlayer} already answers). {@link #avatar()}'s narrowing has no caller at all. The
  * dead {@code create} twin — every-caller-shares-one-body — was deleted rather than left to read
@@ -24,7 +24,7 @@ public class ServerWorldDriver extends net.magicterra.worlddriver.bot.sim.Server
     public ServerWorldDriver(ServerPlayerAvatar avatar) { super(avatar); }
 
     /** Spawn an isolated FakePlayer ({@link ServerPlayerAvatar#createUnique}) at {@code (x,y,z)}
-     *  and wrap it in a driver — the {@code /agentserver} entry point: every agent gets its own
+     *  and wrap it in a driver — the {@code /worlddriver server} entry point: every agent gets its own
      *  body. */
     public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
         return new ServerWorldDriver(ServerPlayerAvatar.createUnique(level, x, y, z));
