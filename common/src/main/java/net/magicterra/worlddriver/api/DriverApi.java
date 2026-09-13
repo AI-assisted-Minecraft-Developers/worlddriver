@@ -550,6 +550,16 @@ public final class DriverApi {
      * out that the props it just placed are actually visible. "Deterministic" is the whole point of
      * this verb, and an arena whose entities exist only while somebody stands next to it is not.
      */
+    /** True once every chunk within {@link #TEST_ARENA_CHUNK_RADIUS} of {@code center} has its
+     *  entity sections at the ticking visibility — the state in which {@code getEntities} sees
+     *  what {@code addFreshEntity} added. */
+    private static boolean arenaEntityTicking(ServerLevel level, ChunkPos center) {
+        for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++)
+            for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++)
+                if (!level.isPositionEntityTicking(new BlockPos(cx << 4, ORIGIN.getY(), cz << 4))) return false;
+        return true;
+    }
+
     public void seedTestArea() {
         ServerLevel level = level();
         onServerThread(() -> {
@@ -569,6 +579,34 @@ public final class DriverApi {
             for (int cx = center.x - TEST_ARENA_CHUNK_RADIUS; cx <= center.x + TEST_ARENA_CHUNK_RADIUS; cx++)
                 for (int cz = center.z - TEST_ARENA_CHUNK_RADIUS; cz <= center.z + TEST_ARENA_CHUNK_RADIUS; cz++)
                     level.getChunk(cx, cz);
+            // The blocking loads above only SCHEDULE the step that makes entities visible. A chunk
+            // reaching FULL / BLOCK_TICKING / ENTITY_TICKING goes through
+            // ChunkHolder.scheduleFullChunkPromotion, which hands ChunkMap.onFullChunkStatusChange —
+            // the call that flips the chunk's entity sections from HIDDEN to accessible — to the
+            // main-thread executor with thenRunAsync. A task queued that way cannot run inside the
+            // task that queued it, so seeding and checking in one server-thread turn saw the props
+            // it had just added in a section getEntities does not iterate: "holds 0 of its 2 props"
+            // on every dedicated-server run, while topologies where something had promoted these
+            // chunks in an earlier tick (a player nearby, a previous seed) passed by accident.
+            //
+            // Pump the CHUNK SOURCE's own queue, not the server's. ServerChunkCache.pollTask runs
+            // the distance-manager update and then the chunk-thread tasks, which is exactly where
+            // the promotion sits — it is what a blocking getChunk spins on. MinecraftServer's
+            // managedBlock would not do: its pollTaskInternal only reaches the chunk sources while
+            // haveTime() holds, and haveTime() is runningTask() (a task is executing) or the tick
+            // still having budget; a scene runs from the tick loop, not from a task, and by the
+            // time the loads above return the tick's 50 ms are long gone — measured: ten seconds
+            // of spinning with entityTicking still false. Bounded so a promotion that never lands
+            // is reported by the assertion below instead of hanging the server.
+            //
+            // Every arena chunk, not just the origin's: the sheep stands at x = -0.5, one chunk
+            // west, and a wait on the origin chunk alone seeded "1 of its 2 props".
+            long promoteDeadline = System.nanoTime() + 10_000_000_000L;
+            while (!arenaEntityTicking(level, center) && System.nanoTime() < promoteDeadline) {
+                if (!level.getChunkSource().pollTask()) {
+                    java.util.concurrent.locks.LockSupport.parkNanos("seedTestArea: chunk promotion", 100_000L);
+                }
+            }
             BlockState air = Blocks.AIR.defaultBlockState();
             // Clear up to dy=12 (origin.y+12) — deliberately taller than any cell the
             // suite currently writes. The ceiling was raised from +5 to +12 to kill a
@@ -634,7 +672,8 @@ public final class DriverApi {
             }
             if (props != 2) {
                 throw new IllegalStateException("seedTestArea: the arena at " + ORIGIN + " holds "
-                        + props + " of its 2 props after seeding — the chunk is loaded for blocks"
+                        + props + " of its 2 props after seeding (arenaEntityTicking="
+                        + arenaEntityTicking(level, center) + ") — the chunk is loaded for blocks"
                         + " but not for entities, so every entity check downstream would report an"
                         + " empty world instead of this");
             }

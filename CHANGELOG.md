@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-06
+
+- **`seedTestArea` waits for the arena's chunks to become entity-ticking before it seeds.** The
+  blocking chunk loads it already did only schedule the promotion that makes a chunk's entity
+  sections visible: `ChunkHolder.scheduleFullChunkPromotion` hands the visibility change to the
+  main-thread executor with `thenRunAsync`, so it cannot run inside the task that loaded the
+  chunks. The seed then added its two props to a section `getEntities` does not iterate and its
+  own assertion reported "holds 0 of its 2 props" on every dedicated-server run, on both loaders,
+  while topologies where something had promoted those chunks in an earlier tick passed by
+  accident. The seed now pumps the chunk source's own task queue (what a blocking chunk load
+  itself spins on) until the origin reports entity-ticking, bounded at ten seconds. Not the
+  server's queue: `MinecraftServer` only reaches the chunk sources while a task is executing or
+  the tick still has time, and a scene runs from the tick loop after the loads have spent it.
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint
