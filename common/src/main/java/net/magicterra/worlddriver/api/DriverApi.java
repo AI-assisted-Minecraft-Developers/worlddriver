@@ -357,23 +357,23 @@ public final class DriverApi {
         // an entity (mount / trade / shear / milk / feed / leash); pass `pos` to use
         // the held item ON a block face (place / bone-meal / shears / etc.); omit both
         // to use the item in mid-air (eat / draw bow / throw snowball).
-        routes.put("mc.bot.useItem",     p -> {
+        routes.put("mc.bot.useItem",     body(p -> {
             if (p != null && p.get("entityId") != null) return requireBot().useItemOnEntity(p);
             if (p != null && p.get("pos") != null) return requireBot().useItemOn(p);
             return requireBot().useItem(p);
-        });
-        routes.put("mc.bot.holdItem",    p -> requireBot().holdItem(p));
-        routes.put("mc.bot.attackEntity",p -> requireBot().attackEntity(p));
+        }));
+        routes.put("mc.bot.holdItem",    body(p -> requireBot().holdItem(p)));
+        routes.put("mc.bot.attackEntity",body(p -> requireBot().attackEntity(p)));
         // pause/resume are reachable through mc.bot.setting{paused:bool} —
         // same vol-toggle handler in BotApiImpl.setting absorbs both.
         routes.put("mc.bot.cancel",    p -> requireBot().cancel(p));
         routes.put("mc.bot.status",    p -> requireBot().status());
         routes.put("mc.bot.setting",   p -> requireBot().setting(p));
         routes.put("mc.bot.waypoint",  p -> requireBot().waypoint(p));
-        routes.put("mc.bot.farm",      p -> awaitable(p, "builder", requireBot()::farm));
-        routes.put("mc.bot.sleep",     p -> awaitable(p, "goto",    requireBot()::sleep));
-        routes.put("mc.bot.construct", p -> awaitable(p, "builder", requireBot()::construct));
-        routes.put("mc.bot.elytraFly", p -> awaitable(p, "elytra",  requireBot()::elytraFly));
+        routes.put("mc.bot.farm",      body(p -> awaitable(p, "builder", requireBot()::farm)));
+        routes.put("mc.bot.sleep",     body(p -> awaitable(p, "goto",    requireBot()::sleep)));
+        routes.put("mc.bot.construct", body(p -> awaitable(p, "builder", requireBot()::construct)));
+        routes.put("mc.bot.elytraFly", body(p -> awaitable(p, "elytra",  requireBot()::elytraFly)));
         // Phase G boss playbooks — Rhino scripts run on a background thread by the
         // PlaybookRunner (bound at startup, like scriptHandler). op=start|status|cancel.
         routes.put("mc.bot.playbook", p -> {
