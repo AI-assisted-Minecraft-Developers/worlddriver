@@ -103,8 +103,15 @@ public final class ClientWorldView implements WorldView {
     private boolean cacheActive = false;
     /** Toggled true by the time-sliced search around its node-expansion work, false
      *  otherwise (Walker per-tick reads). When false, {@link #state} bypasses the
-     *  cache entirely so live reads stay fresh. */
-    @Override public void cacheActive(boolean on) { this.cacheActive = on; }
+     *  cache entirely so live reads stay fresh.
+     *  <p>Every slice starts empty. The map used to live for the whole search, and a search
+     *  from a tunnel spans tens to hundreds of ticks while the body digs: the cells it dug
+     *  stayed solid in the search's eyes, and cells it placed stayed air. A slice is a few
+     *  milliseconds of a static world; a search is not. */
+    @Override public void cacheActive(boolean on) {
+        if (on) stateCache.clear();
+        this.cacheActive = on;
+    }
     /** No level yet (title screen, or a world being torn down) means no tick to group by,
      *  and the default sentinel disables the accounting rather than folding every search
      *  into one imaginary tick. */
