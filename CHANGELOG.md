@@ -31,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   started (`lab.stairsDown` right after `lab.stairsUp`). The close-out now leaves a newer
   published leg alone. The scene runner also gives the client ten ticks after the adoption
   teleport before the first leg, the settle the client helm's own scenes already take.
+- **`scene run <name>` no longer places terrain at your feet when the anchor is missing.** With
+  the parkour scene's markers gone, `run lab.parkour` placed the file's terrain at the player's
+  feet — over the stairs scene next door — and ran there. A name with no anchor in this world is
+  now refused (place it, or pass `pos`); `place` keeps its feet fallback, since writing terrain
+  is what it is for. Runs log how many markers they lift and restore.
 ## 2026-09-06
 
 - **Marker blocks have real faces.** The testmod's nine `worlddriver:marker_<role>` items and
