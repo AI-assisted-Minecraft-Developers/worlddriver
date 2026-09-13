@@ -92,7 +92,7 @@
 | | 类 | 怎么造出来 | 进过 `PlayerList` 吗 |
 |---|---|---|---|
 | **A** | `AvatarFakePlayer extends ServerPlayer` | `fabric/src/main/java/net/magicterra/worlddriver/fabric/sim/FabricAvatarBodies.java:41-42`（沿用 `FakePlayerFactory` 的固定 `[Minecraft]` profile UUID） | **没有**，只被 `new` 出来 |
-| **B** | `net.neoforged.neoforge.common.util.FakePlayer` | `FakePlayerFactory.getMinecraft(level)` / `.get(level, profile)`，见 `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/WorldDriverNeoForge.java:52,55`，随后把 `AvatarNetHandler` 装到它的 listener 上 | **没有** |
+| **B** | `net.neoforged.neoforge.common.util.FakePlayer` | `FakePlayerFactory.getMinecraft(level)` / `.get(level, profile)`，见 `neoforge/src/main/java/net/magicterra/worlddriver/neoforge/WorldDriverNeoForge.java:34,37`，随后把 `AvatarNetHandler` 装到它的 listener 上 | **没有** |
 | **C** | `JoinedPlayerBodies.JoinedBody extends ServerPlayer` | `common/src/main/java/net/magicterra/worlddriver/bot/sim/JoinedPlayerBodies.java:141` 的 `PlayerList.placeNewPlayer(...)` | **进了**：玩家表、`ChunkMap`、登录事件、vanilla 真 `ServerGamePacketListenerImpl` |
 
 **A/B 和 C 不是同一个东西，C 也不是 NeoForge 的 `FakePlayer`。** 这一点在第 4 节会变成一条关键结论。
@@ -1450,7 +1450,7 @@ public void send(Packet<?> packet, @Nullable PacketSendListener listener) {
 | 身体 | `fp.connection` 是什么 | 走到哪里为止 |
 |---|---|---|
 | A `AvatarFakePlayer` | `AvatarNetHandler`（构造函数里 `AvatarNetHandler.install(this)`，`AvatarFakePlayer.java:65`，**永不为 null**） | `send` 空方法，**一层就到底** |
-| B neoforge `FakePlayer` | 同上（`WorldDriverNeoForge.java:52,55` 两条工厂路径都 `install`） | 同上 |
+| B neoforge `FakePlayer` | 同上（`WorldDriverNeoForge.java:34,37` 两条工厂路径都 `install`） | 同上 |
 | C `JoinedBody` | vanilla 真 listener + `SilentConnection` | `ServerCommonPacketListenerImpl.send` → `isTerminal()==false` → `SilentConnection.send(p,l,bl)` 空方法 |
 | **D 被 adopt 的真玩家** | vanilla 真 listener + 真连接 | **真的发出去——这才是要的** |
 
@@ -1651,7 +1651,7 @@ private void carryTo(int slot) {
 | 需要成立的 | 证据 |
 |---|---|
 | 包发不出去 | 丙那张表：A/B 一层到底的空方法；C 两层，第二层空，中间那个 `close()` 分支因 `isTerminal()==false` 不进 |
-| `fp.connection` 不会是 null | A 在构造函数里 `AvatarNetHandler.install(this)`（`AvatarFakePlayer.java:65`）；B 在工厂两条路径上都 `install`（`WorldDriverNeoForge.java:52,55`）；C 由 `placeNewPlayer` 装真 listener。**helper 里那个 null 检查是给未来某个裸 `new ServerPlayer` 的人留的，不是给今天的四具身体** |
+| `fp.connection` 不会是 null | A 在构造函数里 `AvatarNetHandler.install(this)`（`AvatarFakePlayer.java:65`）；B 在工厂两条路径上都 `install`（`WorldDriverNeoForge.java:34,37`）；C 由 `placeNewPlayer` 装真 listener。**helper 里那个 null 检查是给未来某个裸 `new ServerPlayer` 的人留的，不是给今天的四具身体** |
 | 这个类在专用服上加载得动 | `ClientboundSetCarriedItemPacket` **没有 `@Environment(EnvType.CLIENT)`**（整个类逐字抄在丙上面，只有一个 `int slot` 字段）；对照组：同一份反编译里 `ClientPacketListener` 和 `MultiPlayerGameMode` **都有**。而且 `net.minecraft.server.players.PlayerList`（纯服务端类）自己就构造它两次。**这一条必须显式查**——「双端类里一行 invokevirtual 到客户端类型，专用服构造那刻才炸」在这个仓库出过事 |
 | 语义等价 | 新增的只有一条「值没变就不写不发」的早退。旧代码在那种情况下执行的是一次把字段赋成它已有的值的赋值——**无可观测差别** |
 
