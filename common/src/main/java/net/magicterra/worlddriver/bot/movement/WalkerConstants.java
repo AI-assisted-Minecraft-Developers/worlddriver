@@ -120,8 +120,12 @@ final class WalkerConstants {
     /** …and the body's own yaw must have wound this far in ONE direction meanwhile. A corridor
      *  detour whose trend centroid points elsewhere also holds a steady 90° error while moving
      *  (wd.bridgeStepTwoBypassNoPlace: centroid east, plan north), but its body turns at corners
-     *  and then stops; only a circling body keeps turning the same way. */
-    public static final float ORBIT_WINDING_DEG = 180f;
+     *  and then stops; only a circling body keeps turning the same way.
+     *  <p>Ninety, down from 180: the trend alpha turns the yaw about 5° a tick, so 180° of winding
+     *  was 36 ticks of circling before the break could fire (wd.clientTunnelsFarThroughStone: three
+     *  breaks at 17-33 ticks, a full lap each around a node four cells out). One corner is at most
+     *  90° of same-direction turn; only a lap goes past it. */
+    public static final float ORBIT_WINDING_DEG = 90f;
     /** Surface sprint-swim cruise (walkerSurfaceSprintSwim): how long the dip keeps sinking after the
      *  pose appears so the server's lagging flag sync cannot knock it off (START_SPRINTING reaches the
      *  server a tick after the client's flip; its next flush of the shared-flags byte carries its own,

@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   meanwhile, and the body spent fifty seconds hopping, ramming and re-searching one cell further
   back each time. `PathSmoothing.dropStalePrefix` re-evaluates the first twelve dry edges with the
   moves that made them; a stale first edge discards the result and the body keeps what it has.
+- **The orbit break fires after 90° of same-direction winding, not 180°.** At the trend camera's
+  ~5°/tick that was 36 ticks of circling; the far tunnel showed three full laps around a node four
+  cells out before any break. One corner is at most 90°.
 - **Open water is crossed in vanilla's prone sprint-swim.** The walker used to tread every
   surface crossing at ~2 blocks/s: the held surface jump keeps the eyes out, and vanilla accepts
   a sprint in water only while the eyes are under. Under `walkerSurfaceSprintSwim` (default ON)
