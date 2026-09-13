@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * JSON string. The field was then an undiscriminated union — scalar payloads
  * ({@code block.place} carries a block id) and documents ({@code time.phase}
  * carries {@code {phase, dayTime}}) were both just strings, and a consumer had to
- * know the event type to guess which. gpt-player guessed structurally with
+ * know the event type to guess which. Journeyman guessed structurally with
  * {@code isinstance(d, dict)}; that was never true, so its dusk interrupt was dead
  * code for every {@code time.phase} event.
  */
@@ -46,7 +46,7 @@ class DriverEventWireTest {
         Object data = wire.get("data");
         assertInstanceOf(Map.class, data, "data must be an object, not JSON inside a string");
         assertEquals("sunset", ((Map<?, ?>) data).get("phase"));
-        // The regression in one line: this is gpt-player's actual dusk-interrupt test.
+        // The regression in one line: this is Journeyman's actual dusk-interrupt test.
         assertFalse(data instanceof String, "a String here silently disables consumers "
                 + "that branch on the payload being structured");
     }
@@ -54,7 +54,7 @@ class DriverEventWireTest {
     @Test
     void scalarPayloadStaysAString() {
         // block.place / entity.death carry a bare id and must keep doing so —
-        // gpt-player compares e["data"] == "minecraft:player" directly.
+        // Journeyman compares e["data"] == "minecraft:player" directly.
         DriverEvent e = new DriverEvent(2, "entity.death", null, "minecraft:player");
         assertEquals("minecraft:player", encodeThenDecode(e).get("data"));
     }

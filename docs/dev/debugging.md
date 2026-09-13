@@ -58,7 +58,7 @@ ps -C java -o pid,args
 |---|---|
 | 专用服（`dogfoodServer`、所有 `stagewrightDedicatedServer*`） | **watchdog 会自杀。** `server.properties` 的 `max-tick-time` 默认 60000 ms，一个 tick 超过它服务器就退出。断点前在 `<loader>/run-*/server.properties` 加 `max-tick-time=-1`。**没有任何构建脚本替你写这一行**：`fabric/build.gradle` 的 `provisionRun` 只写 seed、online-mode、port |
 | 集成服 / 客户端（`runClient`、`journey*`、`rehearsal*`） | 没有 watchdog，窗口冻住，恢复后正常 |
-| 所有拓扑 | RPC 客户端（`rpc.py`、gpt-player、MCP 的 `mc.*` 工具）在挂起期间都超时。这是预期，不是新缺陷 |
+| 所有拓扑 | RPC 客户端（`rpc.py`、Journeyman、MCP 的 `mc.*` 工具）在挂起期间都超时。这是预期，不是新缺陷 |
 | StageWright 全量闸 | 场景的 tick 预算随游戏一起停，但编排层的挂钟（`within()`）不停，停久了场景按超时判红。**别在全量闸里下会停的断点**；要调闸里的场景，用 `runClient` 或排练任务复现 |
 
 因此顺序是：**能 logpoint 就别 breakpoint**（不停机，只记读数）；**要停就只停一个线程**

@@ -17,7 +17,7 @@ public final class DriverEvent {
      * the wire as JSON escaped INSIDE a JSON string
      * ({@code "data":"{\"phase\":\"sunset\"}"}), so the field was an undiscriminated
      * union: a consumer could not tell a scalar payload from a document without
-     * already knowing the event type. gpt-player guessed with
+     * already knowing the event type. Journeyman guessed with
      * {@code isinstance(d, dict)}, which was never true, silently disabling its
      * dusk interrupt — the failure mode its own comment calls "the #1 historical
      * killer". Emitters now pass the value itself and the codec does the encoding

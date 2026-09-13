@@ -224,7 +224,7 @@ class RpcFramingTest {
 
     @Test
     void errorPayloadStaysABareString() throws Exception {
-        // gpt-player/driver.py and the worlddriver-rpc skill's rpc.py both read
+        // Journeyman's driver.py and the worlddriver-rpc skill's rpc.py both read
         // `error` as a string. `code` was added alongside it precisely so neither
         // has to change; if this ever becomes an object, both break silently.
         try (RpcServer server = new RpcServer(new DriverApi(), 0);

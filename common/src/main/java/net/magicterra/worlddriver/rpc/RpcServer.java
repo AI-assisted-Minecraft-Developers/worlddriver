@@ -238,7 +238,7 @@ public final class RpcServer implements Closeable {
          * so a client following that rule could not classify them at all, and a client
          * correlating by id would wait out its timeout instead of seeing the error.
          *
-         * <p>{@code error} stays a bare string: {@code gpt-player/driver.py} and the
+         * <p>{@code error} stays a bare string: Journeyman's {@code driver.py} and the
          * worlddriver-rpc skill's {@code rpc.py} both read it as one, and breaking two
          * working clients to reshape it into MCP's {@code {code, message}} object buys
          * nothing. {@code code} is added ALONGSIDE it, using the same JSON-RPC codes
