@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   feet — over the stairs scene next door — and ran there. A name with no anchor in this world is
   now refused (place it, or pass `pos`); `place` keeps its feet fallback, since writing terrain
   is what it is for. Runs log how many markers they lift and restore.
+- **`-Dworlddriver.pauseOnLostFocus=false` for an unattended client.** Vanilla pauses a
+  singleplayer world the tick its window loses focus, and a client driven from outside never has
+  focus: closing the menu over RPC had it reopen next tick, and the lab's scene runs sat on a
+  frozen server until their budget ran out. `FocusPolicy` lifts the pause only while a process
+  drives, which is after the scene runner's first tick. With the property the client's option is
+  forced off at startup (`labClient` sets it); a scene run on `body: self` now also fails at once
+  when the integrated server is paused instead of waiting out its budget.
 ## 2026-09-06
 
 - **Marker blocks have real faces.** The testmod's nine `worlddriver:marker_<role>` items and

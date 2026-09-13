@@ -38,8 +38,28 @@ public final class FocusPolicy {
     private static boolean overriding;
     /** The human's own setting, captured on the rising edge. Meaningful only while overriding. */
     private static boolean savedPauseOnLostFocus;
+    /** {@link #applyStartupProperty} has run (it needs {@code mc.options}, which the Fabric client
+     *  entrypoint runs before; the first tick is the earliest safe moment). */
+    private static boolean startupApplied;
 
     private FocusPolicy() {}
+
+    /**
+     * {@code -Dworlddriver.pauseOnLostFocus=false}: an unattended client (a lab run, a night job)
+     * sits unfocused on a desktop, and vanilla pauses singleplayer the tick the window loses
+     * focus — closing the menu over RPC has it reopen next tick, and nothing driven from outside
+     * ever ticks. {@link #apply} lifts the pause only while a process drives, which is after the
+     * scene runner's first tick. Opt-in by property so a human's own setting is never touched;
+     * with the option already false, the driving-edge save/restore is a no-op.
+     */
+    private static void applyStartupProperty(Minecraft mc) {
+        startupApplied = true;
+        if ("false".equalsIgnoreCase(System.getProperty("worlddriver.pauseOnLostFocus"))) {
+            mc.options.pauseOnLostFocus = false;
+            net.magicterra.worlddriver.WorldDriverCommon.LOG.info(
+                    "[worlddriver] pauseOnLostFocus forced off (-Dworlddriver.pauseOnLostFocus=false)");
+        }
+    }
 
     /**
      * Reconcile the pause-on-lost-focus option with whether the bot is driving. Idempotent and
@@ -52,6 +72,7 @@ public final class FocusPolicy {
      */
     public static void apply(Minecraft mc, boolean botDriving) {
         if (mc == null || mc.options == null) return;
+        if (!startupApplied) applyStartupProperty(mc);
         boolean want = botDriving && BotConfig.keepTickingUnfocused;
         if (want == overriding) return;
         if (want) {

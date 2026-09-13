@@ -79,6 +79,11 @@ public final class ClientHelm {
             ctx.fail("the client's player is dead (on the death screen) — respawn before running a scene on it");
         }
         // A paused integrated server still drains its task queue (this route ran), but ticks
+        // nothing: the scene would wait out its whole budget. Vanilla pauses the tick the window
+        // loses focus; see -Dworlddriver.pauseOnLostFocus=false for an unattended client.
+        if (server.isPaused()) {
+            ctx.fail("the game is paused (the pause menu is open, or the window lost focus) — close it, or run the client with -Dworlddriver.pauseOnLostFocus=false");
+        }
         BotApi bot = BotHooks.impl();
 
         var pin = BotConfig.pinnedBaseline();
