@@ -35,3 +35,5 @@ net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientWaterScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientAirScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientDigScenes
 net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientParityScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverRouteScenes
+net.magicterra.worlddriver.bot.stagewright.scene.WorldDriverClientRouteScenes

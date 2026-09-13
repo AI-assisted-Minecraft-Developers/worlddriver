@@ -129,6 +129,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the body off the doorway in `wd.serverStepsDownAPlanItSpentInOneTick` and lost an ore in
   `wd.serverMineHarvestBuried` — a step down and a plan's last node keep their tuned handling,
   and a buoyant body rides off its nodes legitimately.
+- **Route selection has scenes on both layers.** `wd.route*` run the parser and the
+  constraints on a headless body on every topology (mob cluster gap choice, skeleton sight
+  with a walked leg counted by `ThreatScanner`, blocked attribution, corridor distance, rejoin
+  from inside a cluster); `wd.clientRoute*` drive the verb on the real player where the client
+  half exists (preview adopted and refused, preview beside a walk, the blocked event, the old
+  field refused by the schema). Unit tests cover the segment cutting, the polyline cells, the
+  three events' gating and debounce, and the overlay grids over a fake line of sight.
+
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint

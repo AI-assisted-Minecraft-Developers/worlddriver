@@ -557,3 +557,15 @@ wd.clientWorldViewParity
 wd.clientShallowPoolStepOut
 wd.clientShallowPoolStepOutEmptyHanded
 wd.clientOpenWaterCross
+# LLM route selection (docs/superpowers/specs/2026-09-06-llm-route-selection-design.md). The constraint
+# layer runs on a headless body on every topology; the verb layer (goto route / plan / planId / the
+# route.blocked event) lives in the client half and skips on a dedicated server.
+wd.routeAvoidsMobCluster
+wd.routeStaysOutOfSkeletonSight
+wd.routeBlockedNamesTheConstraint
+wd.routeCorridorHolds
+wd.routeRejoinsFromInsideACluster
+wd.clientRoutePreviewAdopted
+wd.clientRoutePreviewDoesNotInterrupt
+wd.clientRouteBlockedEventFires
+wd.clientRouteOldFieldRejected
