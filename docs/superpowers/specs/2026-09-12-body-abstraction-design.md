@@ -1,6 +1,9 @@
 # 身体抽象层的设计：一套 Bot 层，三种身体（真玩家、服务端玩家、NPC）
 
-> 状态：设计稿，尚未实现。读者：开发者。
+> 状态：设计稿，P0 进行中。读者：开发者。
+> 2026-09-14 拍板：服务端身体是**给第三方扩展用的公开面**，留在模组本体（`bot/sim/` 不搬）；NPC 的第一具身体是
+> testmod 里一个**自定义的猪灵**实体。§0 第 2 条、§3.2、§3.3、§4 P1 与 §6 按此改过；客户端身体的挖掘/用物已于同日
+> 脱离 `keyAttack`/`keyUse`（`ClientIntents` + `MinecraftMixin`）。
 > 相关阅读：`docs/fake-player-parity.md`（三具服务端身体的边界表，本设计的前提）、
 > `docs/world-view-parity.md`（三个 `WorldView` 的差异）、`docs/dev/bot-layering.md`（bot 层的缝）、
 > `ROADMAP.md` 的 E1（执行层去全局键盘化，本设计是它的延伸）。
@@ -10,11 +13,12 @@
 
 ## 0. 结论先行
 
-1. **模组本体只认一个接口 `Body`，只带一个实现 `ClientPlayerBody`（`LocalPlayer`）。** 寻路、行走器、
-   进程、调度器全部只看 `Body`；`Body` 的核心是「一个 `LivingEntity` 加一组可选能力」，不再是 `Player`。
-2. **testmod 提供另外两个实现：`ServerPlayerBody`（真正 join 进玩家列表的 `ServerPlayer`）和
-   `LivingBody`（任意 `LivingEntity`，NPC 走这条）。** 两者都是纯原版代码，不需要 loader 目录；
-   `bot/sim/` 和 NeoForge 的 `/worlddriver server` 一起搬进 testmod，`FakePlayerFactory` 路线退役。
+1. **模组本体只认一个接口 `Body`。** 寻路、行走器、进程、调度器全部只看 `Body`；`Body` 的核心是
+   「一个 `LivingEntity` 加一组可选能力」，不再是 `Player`。模组本体带两个实现：`ClientPlayerBody`
+   （`LocalPlayer`，`self`）和 `ServerPlayerBody`（真正 join 进玩家列表的 `ServerPlayer`）——后者是
+   **给第三方扩展用的公开面**，所以 `bot/sim/` 和 `/worlddriver server` 留在发布 jar 里。
+2. **testmod 提供第三个实现 `LivingBody`（任意 `LivingEntity`，NPC 走这条）和第一只 NPC：一个自定义的猪灵
+   实体。** 三个实现都是纯原版代码，不需要 loader 目录；`FakePlayerFactory` 路线退役。
 3. **三种身体共用同一条执行通道：写 `xxa/zza/jumping/shiftKeyDown`，让原版 `travel()` 算物理。**
    所有活着的先例都这么做（Baritone、Automatone、PlayerEngine、Carpet、Citizens 的 `EntityMoveControl`、
    mc_aiplayer），没有一个 `setDeltaMovement`；我们手写 tick 的 `ServerPlayerAvatar.step()` 是孤例，
@@ -101,8 +105,8 @@ Body                                     // 取代 Avatar；Walker/进程/调度
 | 实现 | 归属 | 身体 | 执行通道 | tick 泵 |
 |---|---|---|---|---|
 | `ClientPlayerBody` | 模组本体 | `LocalPlayer` | 移动：`AvatarInput extends KeyboardInput`（已有，E1 的成果）；挖掘/用物：`ClientIntents` + `MinecraftMixin`（2026-09-14 落地，Bot 层不再写任何 `KeyMapping`） | 客户端 tick（`BotApiImpl.clientTick`，不变） |
-| `ServerPlayerBody` | testmod | `JoinedBody extends ServerPlayer`（已有，走 `placeNewPlayer`） | 直接写 `xxa/zza/jumping/shiftKeyDown` + `setSprinting`，**`tick(){ super.tick(); doTick(); }` 自泵**（Carpet 模式） | `SERVER_POST` 里的 `ServerBodies.tickAll()`（今天的 `ServerAvatarManager` 泛化） |
-| `LivingBody` | testmod | 任意 `LivingEntity`；NPC 就是一只披皮的 `Mob` 或一个自定义 `LivingEntity` | 写 `xxa/zza` + `setJumping`；若是 `Mob`，被驱动的 tick **跳过它自己的 goal/navigation**（mixin 在 common，两个 loader 同一份） | 同上 |
+| `ServerPlayerBody` | 模组本体（第三方扩展面） | `JoinedBody extends ServerPlayer`（已有，走 `placeNewPlayer`） | 直接写 `xxa/zza/jumping/shiftKeyDown` + `setSprinting`，**`tick(){ super.tick(); doTick(); }` 自泵**（Carpet 模式） | `SERVER_POST` 里的 `ServerBodies.tickAll()`（今天的 `ServerAvatarManager` 泛化） |
+| `LivingBody` | testmod | 任意 `LivingEntity`；第一只 NPC 是 testmod 注册的自定义猪灵（`Piglin` 子类） | 写 `xxa/zza` + `setJumping`；若是 `Mob`，被驱动的 tick **跳过它自己的 goal/navigation**（mixin 在 common，两个 loader 同一份） | 同上 |
 
 `ServerPlayerBody` 的自泵取代今天的 `ServerPlayerAvatar.step()` + `mirrorPlayerTick()`（1313 行手写物理），
 parity 表里 A1、A2、T5（硬编码 0.42 跳）、T8（`updatePlayerPose` 不跑）、T17/T18（水下跳、跳跃冷却）这一族
@@ -146,7 +150,7 @@ parity 表里 A1、A2、T5（硬编码 0.42 跳）、T8（`updatePlayerPose` 不
 | 阶段 | 内容 | 判据 |
 |---|---|---|
 | P0 类型 | `Avatar` → `Body`：`LivingEntity entity()` + `asPlayer()`；`Hands`/`Containers` 拆出；`LookController.apply(LivingEntity)`；`BotInput` 变成 `ClientPlayerBody` 的实例方法；`Chain`/`ProcessScheduler` 收 `Body`，反射层内部向下转型到 `ClientPlayerBody`；`InteractionCommands.attackEntity` 改走 `Hands.attackEntity` | 六个闸颜色不变；预算闸；`wd.clientWorldViewParity`、`wd.bodyParityCensus` 读数不变 |
-| P1 服务端玩家 | `ServerPlayerBody` 自泵 tick，删 `step()`/`mirrorPlayerTick()`；`bot/sim/` + NeoForge `/worlddriver server` 搬进 testmod；删两个 loader 的 sim 目录与 `FakePlayerFactory` 路线；`SilentConnection` 补齐 §2 第 5 条的 NPE 面 | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 转绿；专用服闸绿；真梯自测不退 |
+| P1 服务端玩家 | `ServerPlayerBody` 自泵 tick，删 `step()`/`mirrorPlayerTick()`；`bot/sim/` 与 `/worlddriver server` 留在模组本体作为第三方扩展面；删两个 loader 的 sim 目录与 `FakePlayerFactory` 路线；`SilentConnection` 补齐 §2 第 5 条的 NPE 面 | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 转绿；专用服闸绿；真梯自测不退 |
 | P2 NPC | `LivingBody` + `DrivenMobHook`（common mixin：被驱动的 `Mob` 跳过 `serverAiStep` 的导航/移动/看向）；能力门（`no_hands` 拒单）；`SceneBody.npc`；`wd.npc*` 五个地形场景；可选 `NavigationMover` 对照 | 五个地形 NPC 身体通过，或差异归入四类之一并登记 |
 | P3 寻址 | `BodyRegistry`、`mc.bot.*` 的 `body` 参数、`status.bodies`；`FixtureRunner` 的 `body: npc:…`；RPC 参考与 `docs/dev/bot-layering.md` 更新 | 三 transport 字节一致测试覆盖 `body` 参数；人工验证手册补一节 |
 
@@ -164,10 +168,10 @@ parity 表里 A1、A2、T5（硬编码 0.42 跳）、T8（`updatePlayerPose` 不
 - **不吞异常**（Carpet 的 `catch (NullPointerException ignored)`）：`SilentConnection` 把 NPE 面补齐，
   炸了就是场景红。
 
-## 6. 未决问题（要人拍板）
+## 6. 已拍板与未决
 
-1. `/worlddriver server`（NeoForge 专有、造服务端假人的命令）随 `bot/sim/` 进 testmod 后，发布 jar 里不再有
-   服务端身体——与 parity §0「专用服只用 `JoinedBody`，那是测试设施」一致，但要确认没有下游在用它。
-2. NPC 的「皮」：披玩家皮的 `Mob`（Taterzens/Polymer 路线）还是自定义 `LivingEntity`？第一版用现成的
-   `Villager`/`Zombie` 一类 `Mob` 就够验证驱动层；皮是展示问题，单独立项。
+1. **已拍板（2026-09-14）**：服务端身体是第三方扩展面，`bot/sim/` 与 `/worlddriver server` 留在发布 jar；
+   `ServerPlayerBody` 因此是模组本体的公开类型，改名与拆分要当作 API 变更登 CHANGELOG。
+2. **已拍板（2026-09-14）**：NPC 的第一具身体是 testmod 里一个自定义的猪灵实体（`Piglin` 子类，自己的
+   `EntityType`），不披玩家皮；皮是展示问题，单独立项。
 3. 反射层要不要上服务端身体（自动吃、自动游）。第一版不上；真梯在专用服上的死因族如果指向这里再议。
