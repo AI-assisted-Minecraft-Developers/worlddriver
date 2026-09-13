@@ -143,7 +143,7 @@ final class WalkerTickRepath {
             // bobs there until an unrelated repath happens to diverge (a 600+-tick
             // stall observed on a steep mountain). Soft + decaying, so a sole route
             // is still taken eventually.
-            penalizeWedgeNodes(wk, p, world, foot, wedged, fellOffPath);
+            kickoff(wk, p, world, foot, wedged, fellOffPath, offPath, fellBelowRoute, fullPeriodic);
             wk.seg.activeSearch = wk.newPathFinder(world).newSearch(searchFoot, wk.goal);
             wk.seg.searchFromEnd = false;
             wk.seg.searchSuppressedPlace = false;    // normal search: placing allowed; budget re-checked on result
@@ -263,6 +263,19 @@ final class WalkerTickRepath {
      * exactly the tidy-up that disguise hides in — {@code bot/movement/**} is dual-loaded, so this
      * is safe only because the local was never the client type. Re-check it, do not assume it.
      */
+    /** The foot-search kickoff's front door: names WHICH trigger fired (under walkerDebug), then the
+     *  wedge penalty. A search that supersedes a route the walker had just adopted is otherwise
+     *  invisible — the log shows the search, never the reason — and every trigger here looks the
+     *  same from outside (client lane 2026-09-06: an adopted lane re-searched on its first tick). */
+    private static void kickoff(Walker wk, Player p, WorldView world, BlockPos foot, boolean wedged,
+                                boolean fellOffPath, boolean offPath, boolean fellBelowRoute, boolean periodic) {
+        if (BotConfig.walkerDebug)
+            LOG.info("[walker] foot-search kickoff: pathNull={} stuck={} wedged={} offPath={} fellOff={} belowRoute={} periodic={} step={}/{}",
+                    wk.path == null, wk.stuckTicks > STUCK_TICKS, wedged, offPath, fellOffPath, fellBelowRoute,
+                    periodic, wk.step, wk.path == null ? 0 : wk.path.size());
+        penalizeWedgeNodes(wk, p, world, foot, wedged, fellOffPath);
+    }
+
     private static void penalizeWedgeNodes(Walker wk, Player p, WorldView world, BlockPos foot,
                                            boolean wedged, boolean fellOffPath) {
         if (!((wk.stuckTicks > STUCK_TICKS || wedged || fellOffPath)

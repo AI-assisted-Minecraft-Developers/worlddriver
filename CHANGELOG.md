@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-06
 
+- **A `planId` goto starts on the previewed route.** The scheduler calls a chain's
+  `onResume()` on every handover, including `idle -> user` for a process that has never
+  ticked; `UserTaskChain` forwarded it, and `IntentProcess.onResume` → `Walker.forceRepath`
+  dropped the adopted route before its first tick (`foot-search kickoff: pathNull=true
+  step=0/0`, found by `wd.clientRoutePreviewAdopted` on the client topology). `UserTaskChain`
+  now forwards `onResume` only after an `onInterrupt` — a first activation has no stale path
+  to drop. The foot-search kickoff logs which trigger fired under `walkerDebug`, since every
+  trigger looked the same from outside. What adoption cannot yet buy: the walker's off-path
+  test measures the distance to the tracked NODE, `adoptPath` string-pulls a flat run into one
+  long edge, so a lane longer than three cells is re-searched from the foot on its first tick
+  and every tick after (the same edge comes back, so the walk goes on at one A* per tick).
+  Measuring to the edge instead was tried and broke `wd.entityLeash*` and `wd.pillarLedger*`,
+  which lean on that cadence; it stays on the node, the scene records the search count instead
+  of gating on it, and the item is in `TODO.md`. Verified: the four `wd.clientRoute*` scenes
+  green on `integratedServerFabric`.
 - **The walker counts its own searches, recovery hops and digs.** `Walker.tallies()` — three
   monotonic per-instance counters read by difference, the way `lastStats` is. Instance
   fields on purpose: `lastStats`, `strideGuardSkips` and `futileGateBuckets` are JVM-wide

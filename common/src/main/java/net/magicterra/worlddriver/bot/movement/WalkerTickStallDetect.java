@@ -417,10 +417,22 @@ final class WalkerTickStallDetect {
         return null;
     }
 
-    /** More than 3 cells from the tracked node. A surface sprint-swim cruise rides 1-3 cells UNDER its
+    /** More than 3 cells from the edge being walked. A surface sprint-swim cruise rides 1-3 cells UNDER its
      *  surface nodes on purpose (WalkerTickDrive.surfaceCruise), which the 3D distance read as off-path
      *  every few blocks; the replan then started with a swim-up chain from the sunk foot and broke the
-     *  cruise. Under the cruise the distance is horizontal. */
+     *  cruise. Under the cruise the distance is horizontal.
+     *
+     *  <p>The node, deliberately, not the edge {@code path[step-1] → path[step]}. {@code adoptPath}
+     *  string-pulls a flat run into one long edge whose tracked node is its far end, so a body that
+     *  has just started a 12-cell lane reads as 12 cells off, and this fires a safety re-search from
+     *  the foot every tick until the last three cells — the search string-pulls to the same edge, so
+     *  the walk goes on, at a full A* per tick (client lane 2026-09-06: search-begin on each of
+     *  t=2..20). Measuring to the edge instead removes those searches and is what a {@code planId}
+     *  goto would want, and it was tried: four scenes then failed on the Fabric gate —
+     *  {@code wd.entityLeash}, {@code wd.entityLeashLowY} (the hard leash no longer held the body
+     *  back) and the two {@code wd.pillarLedger*} (the water climb-out takeover never engaged) —
+     *  i.e. the per-tick re-search on a long edge is load-bearing for the leash and the bank takeover
+     *  in ways this file does not own. Until those are re-homed, the node stays the reference. */
     private static boolean offPath(Walker wk, BlockPos foot) {
         if (wk.path == null || wk.step >= wk.path.size()) return false;
         BlockPos node = wk.path.get(wk.step);

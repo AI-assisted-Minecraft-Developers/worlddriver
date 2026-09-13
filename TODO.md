@@ -150,6 +150,14 @@
 
 这些在旧版里只有正文小节、没有队列行。**它们和上表一样是开着的活**，别因为表里没有就当它们结了。
 
+### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖
+
+`WalkerTickStallDetect.offPath` 量的是到追踪节点的距离；`adoptPath` 把平直段拉成一条长边后，
+起点离远端 >3 格就算「被撞离」，安全重搜每 tick 一次直到最后三格（同一条边搜回来，走照走）。
+改成量到边能消掉这些搜索，但 Fabric 闸上 `wd.entityLeash*` 与 `wd.pillarLedger*` 四条随即红——
+它们依赖这个节奏。理由与证据在 `offPath` 的 javadoc 和 `CHANGELOG.md` 2026-09-06；
+`wd.clientRoutePreviewAdopted` 的检查 E 现在只记不判。**重开条件**：先把拴绳和岸边接管从这个节奏上解开。
+
 ### 🔴 J63：崩溃这一族比 J61 宽得多，而 K1 看不见其余的成员
 
 CME 是从 `ClientLevel.playSound` 掀起来的，而 `BlockItem.place` 不是唯一会放声音的客户端调用。
