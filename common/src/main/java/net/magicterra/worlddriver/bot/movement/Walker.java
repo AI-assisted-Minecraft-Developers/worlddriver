@@ -45,7 +45,12 @@ public final class Walker {
      *  Walkers (volatile so cross-thread reads in {@code mc.bot.status} are
      *  consistent). Surfaced under {@code status.lastPath} for debugging
      *  pathing failures — Baritone exposes the same via {@code path}/{@code stats}. */
-    public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {}
+    public record PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen,
+                            boolean sightBudgetExhausted, boolean snapshotTruncated) {
+        public PathStats(int expanded, long ms, boolean goalReached, double finalCost, int pathLen) {
+            this(expanded, ms, goalReached, finalCost, pathLen, false, false);
+        }
+    }
     public static volatile PathStats lastStats;
 
     /** This walker's own event counts (searches, recovery hops, digs) — see {@link WalkerTallies}. */
