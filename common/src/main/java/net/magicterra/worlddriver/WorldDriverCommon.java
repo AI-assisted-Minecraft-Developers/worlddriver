@@ -33,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.ServiceLoader;
 
 /**
  * Platform-neutral bootstrap and command surface for the AI agent driver.
@@ -327,6 +328,23 @@ public final class WorldDriverCommon {
         }, "worlddriver-startup-watchdog");
         t.setDaemon(true);
         t.start();
+    }
+
+    /**
+     * Runs every {@link TestContent} on the classpath. Called by each loader entry during mod
+     * construction, after the body factory is installed and after {@link WorldDriverEvents}
+     * subscribed, so test content registers its registries and events in the same window the
+     * driver's own do. The published jar has no implementation and the loop is empty there.
+     * Discovery goes through this class's loader: on both platforms the testmod is folded into
+     * the driver's own mod, so its service file is visible to exactly this loader.
+     */
+    public static void installTestContent() {
+        int n = 0;
+        for (TestContent content : ServiceLoader.load(TestContent.class, WorldDriverCommon.class.getClassLoader())) {
+            content.register();
+            n++;
+        }
+        if (n > 0) LOG.info("[{}] test content installed: {}", MOD_ID, n);
     }
 
     /** Called by each loader when its server enters STARTING. */

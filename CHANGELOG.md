@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   itself spins on) until the origin reports entity-ticking, bounded at ten seconds. Not the
   server's queue: `MinecraftServer` only reaches the chunk sources while a task is executing or
   the tick still has time, and a scene runs from the tick loop after the loads have spent it.
+- **The testmod gets a construction-time entry.** `TestContent` is a one-method service the
+  loader entries run through `WorldDriverCommon.installTestContent()` during mod construction,
+  which is the only window `DeferredRegister` accepts on both loaders. `SceneProvider` is
+  discovered at server start, too late to register a block. The published jar has no
+  implementation, so the loop is empty there. The interface lives in the driver's root package,
+  not beside its implementations: NeoForge's dev launch puts main and testmod in two JPMS
+  modules, and a package present in both is a split package that stops the server from booting.
 - **Architectury API 13.0.8 is a required mod on both loaders.** The driver had only the
   Architectury build plugins, so the repository's first custom block (the testmod's marker block,
   designed 2026-09-05) had no `DeferredRegister` to register through, and every event the driver
