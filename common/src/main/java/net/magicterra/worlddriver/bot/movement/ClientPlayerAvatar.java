@@ -30,7 +30,10 @@ public final class ClientPlayerAvatar implements Avatar, Hands, Containers {
         if (p != null && !(p.input instanceof AvatarInput)) p.input = new AvatarInput(mc.options);
     }
 
-    private AvatarInput ai() { return p.input instanceof AvatarInput a ? a : null; }
+    /** The player's own {@link AvatarInput}, or null when there is no player (a reflex built over
+     *  a client that is loading, dead or changing dimension commands nothing). The constructor
+     *  installed it if a respawn or dimension swap had left a vanilla {@code KeyboardInput}. */
+    private AvatarInput ai() { return p != null && p.input instanceof AvatarInput a ? a : null; }
 
     @Override public LocalPlayer entity() { return p; }
     /** A player always has hands and menus; this class is both. */
@@ -39,8 +42,9 @@ public final class ClientPlayerAvatar implements Avatar, Hands, Containers {
 
     @Override public void commandMove(float left, float forward) { AvatarInput a = ai(); if (a != null) a.commandMove(left, forward); }
     @Override public void commandForward(float forward) { AvatarInput a = ai(); if (a != null) a.commandForward(forward); }
-    @Override public void commandJump(boolean v) { AvatarInput a = ai(); if (a != null) a.commandJump(v); else p.input.jumping = v; }
-    @Override public void commandSneak(boolean v) { AvatarInput a = ai(); if (a != null) a.commandSneak(v); else p.input.shiftKeyDown = v; }
+    @Override public void commandJump(boolean v) { AvatarInput a = ai(); if (a != null) a.commandJump(v); else if (p != null) p.input.jumping = v; }
+    @Override public void commandSneak(boolean v) { AvatarInput a = ai(); if (a != null) a.commandSneak(v); else if (p != null) p.input.shiftKeyDown = v; }
+    @Override public void commandSprint(boolean v) { if (p != null) p.setSprinting(v); }
     @Override public void commandUseItem(boolean hold) { ClientIntents.holdUse(hold); }
     @Override public void requestLookSnap() { LookController.requestSnap(); }
 

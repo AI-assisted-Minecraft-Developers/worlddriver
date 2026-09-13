@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
-import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
@@ -76,8 +76,9 @@ public final class PanicChain implements Chain {
         }
         p.setYRot((float) (Math.toDegrees(Math.atan2(bestZ, bestX)) - 90.0));
         p.setXRot(0f);
-        BotInput.forward(mc, true);
-        p.setSprinting(true);
+        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        a.commandForward(1f);
+        a.commandSprint(true);
     }
 
     /** The cell {@code dist} blocks along (dx,dz) from the bot is walkable and

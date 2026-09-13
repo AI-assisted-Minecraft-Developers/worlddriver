@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.bot.movement.BlastFooting;
+import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 import net.magicterra.worlddriver.bot.process.LookProcess;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.client.Minecraft;
@@ -125,12 +125,16 @@ final class InteractionCommands {
                 return Map.of("ok", false, "error", "no entity with id " + entityId);
             }
             if (target == p) return Map.of("ok", false, "error", "cannot attack self");
-            // The SECOND swing path. Avatar.attackEntity carries the same footing rule for the bot
-            // processes; this verb bypasses the Avatar entirely (straight to mc.gameMode.attack),
-            // and an invariant enforced on only one of two paths is one that comes back through
-            // the other. Asked BEFORE the aim, so a refusal does not leave the body turned toward
-            // something it declined to hit.
-            String refusal = BlastFooting.refuseSwing(p, target);
+            // The same swing path the bot processes take — Hands.attackEntity, whose default
+            // method carries the BlastFooting rule — rather than a second copy of the guard in
+            // front of a direct mc.gameMode.attack. This verb used to be that second copy, and an
+            // invariant enforced on two paths is one that comes back through whichever forgot it.
+            // Swung BEFORE the aim, so a refusal returns with the body not yet turned toward
+            // something it declined to hit; the server's attack handling reads the packet's
+            // target and the distance, never the rotation, so the order costs nothing.
+            ClientPlayerAvatar hands = new ClientPlayerAvatar(mc);
+            hands.attackEntity(target);
+            String refusal = hands.lastAttackRefusal();
             if (refusal != null) {
                 return Map.of(
                     "ok", false,
@@ -141,13 +145,12 @@ final class InteractionCommands {
                     "distance", Math.sqrt(p.distanceToSqr(target))
                 );
             }
-            // Same path the vanilla MouseHandler takes on left-click of an entity:
-            // turn to face, swing main arm, dispatch attack through MPGameMode so
-            // the server applies weapon damage + cooldown + crit/sweep rules.
+            // Then what the vanilla MouseHandler does around a left-click on an entity: face it
+            // and swing the main arm (the attack itself went through MultiPlayerGameMode above,
+            // so the server applies weapon damage + cooldown + crit/sweep rules).
             p.setShiftKeyDown(false);
             float[] aim = aimAnglesAt(p, target);
             p.setYRot(aim[0]); p.setXRot(aim[1]);
-            mc.gameMode.attack(p, target);
             p.swing(InteractionHand.MAIN_HAND);
             return Map.of(
                 "ok", true,

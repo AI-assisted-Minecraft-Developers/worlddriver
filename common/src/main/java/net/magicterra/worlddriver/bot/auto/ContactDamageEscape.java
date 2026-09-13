@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -111,8 +111,9 @@ public final class ContactDamageEscape {
         // an active `goto` is what pressed the hull into the cactus in the first place (death #14
         // above). keyJump survived only because the Walker rarely commands jump, which is why the
         // reflex looked half-alive rather than dead.
-        BotInput.driveForward(mc);
-        BotInput.jump(mc, p.horizontalCollision);
+        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        a.commandMove(0f, 1f);
+        a.commandJump(p.horizontalCollision);
         return true;
     }
 
@@ -165,14 +166,15 @@ public final class ContactDamageEscape {
             LOG.info("[contactEscape] episode end ({}) after {}t — last hazard {}",
                     outcome, episodeTicks,
                     lastHazard == null ? "unseen" : lastHazard.toShortString());
-            // Belt-and-braces: BotInput's commands are per-tick, so an episode that simply
+            // Belt-and-braces: the avatar's commands are per-tick, so an episode that simply
             // stops re-asserting already hands the channel back on the next tick. Under the
             // old keybinds this release was load-bearing — keyUp.setDown(true) LATCHES — and
             // the sibling LavaProximityEscape, which drives the same two keys, never had it:
             // its reset() only logs, so every lava episode left the forward key held until
             // something else happened to clear it. The channel swap retires that asymmetry.
-            BotInput.forward(mc, false);
-            BotInput.jump(mc, false);
+            ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+            a.commandForward(0f);
+            a.commandJump(false);
         }
         active = false;
         linger = 0;

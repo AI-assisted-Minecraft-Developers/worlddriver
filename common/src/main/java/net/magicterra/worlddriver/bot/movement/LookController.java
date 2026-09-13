@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.entity.LivingEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,8 +76,10 @@ public final class LookController {
     public static void resync() { havePrev = false; }
 
     /** Clamp this tick's net camera change. Call once, at the very end of the client
-     *  tick, after every bot actuator has written the player's rotation. */
-    public static void apply(LocalPlayer p) {
+     *  tick, after every bot actuator has written the body's rotation. Takes any
+     *  {@link LivingEntity}: yaw, pitch, head and body rotation all live there, so the
+     *  clamp reads the same on a driven mob as on the local player. */
+    public static void apply(LivingEntity p) {
         if (p == null) { havePrev = false; snapThisTick = false; return; }
         float yaw = p.getYRot(), pitch = p.getXRot();
         boolean snap = snapThisTick || !BotConfig.cameraSlew || !havePrev;

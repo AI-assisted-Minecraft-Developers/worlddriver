@@ -9,7 +9,7 @@ import java.util.function.IntSupplier;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.auto.DrownEscapeGate;
-import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -190,13 +190,14 @@ public final class DrownEscapeChain implements Chain {
             if (dir != null) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(0f);
-                BotInput.jump(mc, true);            // stay buoyant crossing under the lid
+                ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+                a.commandJump(true);                // stay buoyant crossing under the lid
                 // Raw camera-frame forward: the yaw was just set at the open column, so "along
                 // the body" IS "toward open water". commandForward also forces leftImpulse to 0,
                 // which is what the keyDown/keyLeft/keyRight clears were for.
-                BotInput.forward(mc, true);         // swim toward open water
-                BotInput.sprint(mc, false);
-                BotInput.sneak(mc, false);
+                a.commandForward(1f);               // swim toward open water
+                a.commandSprint(false);
+                a.commandSneak(false);
                 ClientIntents.holdDig(false);
                 keysHeld = true;
                 // UNCONDITIONAL, throttled — deliberately the same gate its vertical sibling
@@ -237,14 +238,15 @@ public final class DrownEscapeChain implements Chain {
         // discipline). Yaw/pitch are left untouched — zero turning.
         //
         // This chain PREEMPTS an active process, so the zeroing must use the channel that
-        // outranks the Walker's own per-tick command — BotInput.halt (commandMove(0,0)), not
-        // forward(false). Clearing the four direction KEYS, which is what this block used to
+        // outranks the Walker's own per-tick command — commandMove(0,0), not
+        // commandForward(0). Clearing the four direction KEYS, which is what this block used to
         // do, never zeroed anything while a process was running: AvatarInput.tick overwrites
         // the impulses after vanilla's key pass, so the keys were the one input nobody read.
         // That is the same failure this class's own doc describes AutoSwim losing to.
-        BotInput.jump(mc, true);
-        BotInput.sprint(mc, false);
-        BotInput.sneak(mc, false);                  // a held sneak SINKS the bot (aiStep sink)
+        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        a.commandJump(true);
+        a.commandSprint(false);
+        a.commandSneak(false);                      // a held sneak SINKS the bot (aiStep sink)
         keysHeld = true;
         // Sealed lid: whatever stops the rise, break it (allowBreak permitting). The eye cell
         // itself is AntiSuffocate's job; this is above it.
@@ -263,7 +265,7 @@ public final class DrownEscapeChain implements Chain {
         // RECENTRE, before reaching for a pick. When the rise is blocked but the body's OWN column
         // is clear all the way to air, the obstruction is in a neighbour and the fix is ≤0.3 blocks
         // of drift, not a dig — a body pressed against a boundary can simply stop pressing.
-        // `BotInput.halt` is what HELD that pose: the pin was being maintained by this very method.
+        // `commandMove(0,0)` is what HELD that pose: the pin was being maintained by this very method.
         // Note the pure-vertical contract this bends is smaller than the lateral arm's, which swims
         // whole blocks: this never leaves the cell the body already stands in.
         if (lidBlocksRise && w != null
@@ -272,9 +274,9 @@ public final class DrownEscapeChain implements Chain {
             double off = Math.sqrt((cx - p.getX()) * (cx - p.getX()) + (cz - p.getZ()) * (cz - p.getZ()));
             // Eased by the remaining offset: a full press across 0.2 blocks of water carries the
             // body to the OPPOSITE boundary, trading one pinning neighbour for the other one.
-            BotInput.driveToward(mc, cx, cz, (float) Math.min(1.0, off * 5.0));
+            a.commandToward(cx, cz, (float) Math.min(1.0, off * 5.0));
         } else {
-            BotInput.halt(mc);
+            a.commandMove(0f, 0f);
         }
         if (BotConfig.allowBreak && lidBlocksRise
                 && mc.level.getBlockState(lid).getDestroySpeed(mc.level, lid) >= 0f) {
@@ -317,7 +319,7 @@ public final class DrownEscapeChain implements Chain {
         if (breaking && w != null) {
             BlockPos below = new BlockPos(Mth.floor(p.getX()), Mth.floor(p.getY()) - 1,
                     Mth.floor(p.getZ()));
-            if (!cellOpen(w, below)) BotInput.jump(mc, false);
+            if (!cellOpen(w, below)) a.commandJump(false);
         }
         // UNCONDITIONAL — it used to be gated on walkerDebug, and that gate cost a whole gate slot.
         // 2026-08-23, stagewrightIntegratedServerNeoforge: both armed arms of the drown scenes came
@@ -400,8 +402,8 @@ public final class DrownEscapeChain implements Chain {
      *       This said "nine callers", which is {@code AutoSwim}'s count ALONE — one file measured
      *       and reported as the whole. A repo-wide {@code grep -rn "commandJump(" common/src/main}
      *       returned 41 lines on 2026-08-26, five of them plumbing (the declaration in
-     *       {@code Avatar}, the impl in {@code AvatarInput}, the forwarder in {@code BotInput},
-     *       and the {@code ClientPlayerAvatar} / {@code ServerPlayerAvatar} overrides), leaving
+     *       {@code Avatar}, the impl in {@code AvatarInput}, the since-retired {@code BotInput}
+     *       forwarder, and the {@code ClientPlayerAvatar} / {@code ServerPlayerAvatar} overrides), leaving
      *       ~36 writes across 14 behaviour classes. The argument survives either way (more
      *       contention, not less); the NUMBER is what a reader would use to bound a race audit,
      *       and it has already drifted once since being corrected here, so re-run the grep. ⚠️ The
@@ -587,7 +589,7 @@ public final class DrownEscapeChain implements Chain {
      *  so a dedicated GameTest server (where tick(mc=null) never actuates) never
      *  resolves a client class here.
      *
-     *  <p>The movement half self-releases — {@code BotInput}'s commands are per-tick and an
+     *  <p>The movement half self-releases — the avatar's commands are per-tick and an
      *  uncommanded tick falls back to the real keybind — so the explicit jump(false) below is
      *  only belt-and-braces for the one tick between interrupt and the next scheduler pass.
      *  The dig latch is genuinely LATCHED and its release is load-bearing. */
@@ -596,7 +598,7 @@ public final class DrownEscapeChain implements Chain {
         keysHeld = false;
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.options == null) return;
-        BotInput.jump(mc, false);
+        new ClientPlayerAvatar(mc).commandJump(false);
         ClientIntents.holdDig(false);
     }
 }

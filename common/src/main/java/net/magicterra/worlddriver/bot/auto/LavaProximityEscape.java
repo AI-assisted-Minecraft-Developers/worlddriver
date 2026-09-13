@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -115,8 +115,9 @@ public final class LavaProximityEscape {
         // process is commanding every tick. On the SHARED keybind the steer never reached the
         // body at all; on commandForward it was discarded whenever the Walker commanded a move.
         // Either way the reflex was inert precisely on the occasion it was built for.
-        BotInput.driveForward(mc);
-        BotInput.jump(mc, p.horizontalCollision || p.isInLava());
+        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        a.commandMove(0f, 1f);
+        a.commandJump(p.horizontalCollision || p.isInLava());
         return true;
     }
 
@@ -146,7 +147,7 @@ public final class LavaProximityEscape {
     }
 
     /** No key/command release here, unlike the sibling {@link ContactDamageEscape#reset}: the
-     *  {@code BotInput} commands this reflex drives are per-tick, so an episode that stops
+     *  avatar commands this reflex drives are per-tick, so an episode that stops
      *  re-asserting has already handed the channel back. (Under the old keybinds that made
      *  this an actual latch leak — {@code keyUp.setDown(true)} stays down — which is why the
      *  sibling had a release and this one's absence was a divergence, not a simplification.) */

@@ -66,16 +66,17 @@ public final class ClutchController {
      * an MLG that is not cosmetic: the drift-damping spring below fights the residual momentum
      * one way while the still-live walker command pushes the other, and coasting one block off
      * a 1-wide landing column is exactly the failure the spring exists to prevent.
-     * {@link BotInput#halt} is the channel that outranks the walker's own command.
+     * {@link Avatar#commandMove} is the channel that outranks the walker's own command.
      *
      * <p>{@code keySprint.setDown(false)} is gone rather than translated: both sites already
      * paired it with {@code setSprinting(false)}, which is the flag {@code aiStep} actually
      * reads to emit STOP_SPRINTING. The key was redundant at both.
      */
     private static void yieldMovement(Minecraft mc) {
-        BotInput.halt(mc);
-        BotInput.jump(mc, false);
-        BotInput.sprint(mc, false);
+        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        a.commandMove(0f, 0f);
+        a.commandJump(false);
+        a.commandSprint(false);
     }
 
     /** One-word state for {@code mc.bot.status.clutch}: idle / lip (planned,

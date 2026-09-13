@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **`BotInput` is retired; the reflexes drive a `ClientPlayerAvatar`.** The static facade over
+  the client body's own input (`forward`, `driveForward`, `halt`, `driveToward`, `jump`,
+  `sneak`, `sprint`) said the same things `Avatar.commandMove/commandForward/commandJump/
+  commandSneak` already say, minus two: sprint, now `Avatar.commandSprint` (client sets the
+  flag, server sets it on the joined player), and the no-camera nudge toward a point, now the
+  default `Avatar.commandToward`. The precedence rule the facade documented — `commandMove`
+  outranks a same-tick `commandForward`, so a reflex that must override a running process
+  drives the former — moved to `Avatar.commandMove`'s javadoc. `ClientPlayerAvatar`'s command
+  methods are now no-ops over a missing player, as the facade's were. `LookController.apply`
+  takes a `LivingEntity`, and the `mc.bot.attackEntity` verb swings through
+  `Hands.attackEntity` instead of carrying its own copy of the `BlastFooting` guard.
 - **`Avatar` keeps locomotion and the look; hands and menus are optional parts.** The methods
   only a body with an inventory can answer — hold, place, break, swing, use — now live on
   `Hands`, and the recipe book, container clicks and closing on `Containers`, each reached

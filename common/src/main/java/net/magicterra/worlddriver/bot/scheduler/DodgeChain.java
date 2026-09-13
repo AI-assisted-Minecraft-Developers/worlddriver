@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
-import net.magicterra.worlddriver.bot.movement.BotInput;
+import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
@@ -40,8 +40,9 @@ public final class DodgeChain implements Chain {
             p.setYRot((float) (Math.toDegrees(Math.atan2(pz, px)) - 90.0));
             p.setXRot(0f);
         }
-        BotInput.forward(mc, true);
-        p.setSprinting(true);
+        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        a.commandForward(1f);
+        a.commandSprint(true);
     }
 
     @Override public void onInterrupt(Chain by) { releaseKeys(); }

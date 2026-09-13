@@ -192,7 +192,7 @@ public final class BotInteract {
      *       {@code AutoSwim}'s count ALONE — one file measured and reported as the whole. Derive
      *       it, do not quote it: {@code grep -rn "commandJump(" common/src/main} returned 41 lines
      *       on 2026-08-26, five of them plumbing (the declaration in {@code Avatar}, the impl in
-     *       {@code AvatarInput}, the forwarder in {@code BotInput}, and the two avatar overrides),
+     *       {@code AvatarInput}, the since-retired {@code BotInput} forwarder, and the two avatar overrides),
      *       leaving ~36 writes across 14 behaviour classes. ⚠️ The same wrong nine was written
      *       into {@code DrownEscapeChain} as well, and both copies came from one memory rather
      *       than from two greps — which is the whole reason to re-run it here.</li>

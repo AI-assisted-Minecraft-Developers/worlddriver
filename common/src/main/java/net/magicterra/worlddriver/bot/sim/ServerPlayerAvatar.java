@@ -233,6 +233,8 @@ public class ServerPlayerAvatar implements Avatar, Hands, Containers {
     @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }
     @Override public void commandJump(boolean v) { pendingJump = v; }
     @Override public void commandSneak(boolean v) { pendingSneak = v; }
+    /** The flag itself: {@code step()} seeds the movement speed from {@code isSprinting()}. */
+    @Override public void commandSprint(boolean v) { fp.setSprinting(v); }
     @Override public void commandUseItem(boolean hold) {
         // Edge-trigger: start using on the rising edge, release on the falling edge.
         // It must be releaseUsingItem(), not stopUsingItem(): only the former calls
