@@ -48,6 +48,9 @@ public final class IntentProcess implements BotProcess {
     /** The walker driving this intent, for its {@link Walker#tallies()}: a scene that holds the
      *  process reads the counts of the body it handed the process to, on either helm. */
     public Walker walker() { return walker; }
+    /** Which of {@link Intent#targets()} the walker is on. The waypoints ({@code route.via}) come
+     *  first; arriving at one moves to the next, and only the last one ends the process. */
+    private int leg;
     /** The dimension the goal's coordinates belong to, latched on the first tick that has a body.
      *  Not taken in {@link #attach} because that is handed a {@link BotState} and no Avatar. */
     private ResourceKey<Level> plannedIn;
@@ -58,7 +61,7 @@ public final class IntentProcess implements BotProcess {
 
     public IntentProcess(Intent intent) {
         this.intent = intent;
-        walker.setGoal(intent.target());
+        walker.setGoal(intent.targets().get(0));
         walker.setSearchProfile(intent.searchProfile());
     }
 
@@ -141,6 +144,19 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.driveTag = walker.driveTag;
         st.mc_goto.jumpTag = walker.jumpTag;
         if (s == Walker.Step.WALKING) return false;
+        // A waypoint reached: on to the next goal. setGoal resets the walker's path and every
+        // per-goal latch, so the next leg plans afresh from where the body stands; the search
+        // profile (the route's conditions) carries over untouched. A FAILED leg ends the whole
+        // intent — a waypoint the body cannot reach is the caller's condition unmet, not a
+        // detour to take silently.
+        if (s == Walker.Step.ARRIVED && leg < intent.targets().size() - 1) {
+            leg++;
+            WorldDriverCommon.LOG.info("[IntentProcess] via {} reached, leg {}/{} → {}",
+                    intent.targets().get(leg - 1), leg + 1, intent.targets().size(), intent.targets().get(leg));
+            walker.setGoal(intent.targets().get(leg));
+            st.mc_goto.goal = intent.targets().get(leg).toString();
+            return false;
+        }
         if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
         st.mc_goto.goalReached = walker.lastGoalReached;
         st.mc_goto.endReason = walker.lastEndReason;

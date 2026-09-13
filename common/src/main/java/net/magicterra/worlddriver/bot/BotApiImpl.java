@@ -164,20 +164,63 @@ public final class BotApiImpl implements BotApi {
                 return Map.of("ok", false, "error", "no player");
             }
             Goal goal;
-            try { goal = GotoGoalResolver.resolveGoal(p, player, waypoints); }
+            RouteParams.Parsed route;
+            try {
+                goal = GotoGoalResolver.resolveGoal(p, player, waypoints);
+                route = RouteParams.parse(p.getMap("route"));
+            }
             catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
             if (goal == null) {
                 return Map.of("ok", false, "error",
                         "missing goal — provide pos|xz|y|block|entity|entityId|direction|waypoint");
             }
-            try { GotoGoalResolver.checkRequiredTool(p, player); }
+            try { GotoGoalResolver.checkRequiredTool(route.requireTool(), player); }
             catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
-            startProcess(new IntentProcess(new Intent(goal,
-                    GotoGoalResolver.resolveBias(p),
-                    GotoGoalResolver.resolveCapability(p),
-                    GotoGoalResolver.resolveConstraints(p),
-                    GotoGoalResolver.resolveEntityLeash(p))));
-            return Map.of("ok", true, "started", true, "goal", goal.toString());
+            if (plan != null && !Boolean.FALSE.equals(plan)) {
+                if (!Boolean.TRUE.equals(plan)) return Map.of("ok", false, "error", "plan must be true or \"score\"");
+                if (route.fly()) return Map.of("ok", false, "error", "plan: true previews the ground planner; route.mode fly has none");
+                List<Goal> targets = new ArrayList<>();
+                for (BlockPos v : route.via()) targets.add(new Goal.Near(v, 1));
+                targets.add(goal);
+                String id = preview.submit(new PreviewSearch.Request(player.blockPosition(), targets, route.profile(),
+                        p.getBool("includePath"), world, scopeOf(player)));
+                Map<String, Object> out = new LinkedHashMap<>();
+                out.put("ok", true);
+                out.put("started", true);
+                out.put("slot", "plan");
+                out.put("planId", id);
+                out.put("goal", goal.toString());
+                return out;
+            }
+            if (route.fly()) {
+                // route.mode: ["fly"] — the whole intent goes to elytra, which has its own 3-D
+                // planner and no A*. Needs a target cell; the reply names the slot it lives in
+                // so an awaitMs waits on `elytra`, not on a goto that never started.
+                BlockPos target = goal.targetPos();
+                if (target == null) return Map.of("ok", false, "error",
+                        "route.mode fly needs a goal with a target cell (pos/entity/waypoint), got " + goal);
+                Map<String, Object> flyParams = new LinkedHashMap<>();
+                flyParams.put("pos", posMap(target));
+                flyParams.put("groundFallback", true);
+                Map<String, Object> out = new LinkedHashMap<>(elytraFly(flyParams));
+                out.put("slot", "elytra");
+                out.put("goal", goal.toString());
+                return out;
+            }
+            List<Goal> targets = new ArrayList<>();
+            for (BlockPos v : route.via()) targets.add(new Goal.Near(v, 1));
+            targets.add(goal);
+            startProcess(new IntentProcess(new Intent(targets,
+                    route.profile().bias(),
+                    route.profile().capability(),
+                    route.profile().constraints(),
+                    route.entityLeash())));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("ok", true);
+            out.put("started", true);
+            out.put("goal", goal.toString());
+            if (!route.via().isEmpty()) out.put("via", route.via().size());
+            return out;
         });
     }
 
@@ -775,12 +818,18 @@ public final class BotApiImpl implements BotApi {
         int radius = p.getIntClamped("radius", 3, 1, 16);
         int maxIdleTicks = p.getIntClamped("maxIdleTicks", 0, 0, 100_000);
         if (entityType == null && name == null) return Map.of("ok", false, "error", "entityType or name required");
+        // The same route object goto takes, minus what a follow has no use for: it already tracks
+        // an entity, so via points, an entity leash and the fly mode are refused rather than
+        // silently dropped.
+        RouteParams.Parsed route;
+        try { route = RouteParams.parse(p.getMap("route")); }
+        catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
+        if (!route.via().isEmpty()) return Map.of("ok", false, "error", "route.via: follow has no waypoints");
+        if (route.entityLeash() != null) return Map.of("ok", false, "error", "route.leash.entity: follow already tracks an entity; give a center");
+        if (route.fly()) return Map.of("ok", false, "error", "route.mode: follow cannot fly");
         return onClient(() -> {
             if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
-            SearchProfile followProfile = new SearchProfile(
-                    GotoGoalResolver.resolveBias(p),
-                    GotoGoalResolver.resolveCapability(p),
-                    GotoGoalResolver.resolveConstraints(p));
+            SearchProfile followProfile = route.profile();
             startProcess(new FollowProcess(entityType, name, radius, maxIdleTicks, followProfile));
             Map<String, Object> r = new LinkedHashMap<>();
             r.put("ok", true); r.put("started", true);

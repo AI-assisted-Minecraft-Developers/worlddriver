@@ -1,4 +1,4 @@
-// Union-type schema nodes for the 7 any() sites (gap#67-④). Root cause: a typeless
+// Union-type schema nodes for the catalog's former any() sites (gap#67-④). Root cause: a typeless
 // Schema.Any node renders NO "type" key at all (JSON-Schema's own "accept anything"
 // form) — live repro showed at least one MCP client treats a typeless field as license
 // to JSON-stringify the value before tools/call: mc.bot.combat {target:99999} (a JSON
@@ -42,30 +42,33 @@ ScriptTest.run("65_schema_union: combat.target rejects array", function(t) {
         "array target must be rejected by the union, got: " + msg);
 });
 
-// ---- mc.bot.goto / mc.bot.explore hugShore: ["boolean","object"] ---------------
+// ---- mc.bot.goto / mc.bot.follow route.leash.entity: ["string","integer"] --------
+// The route object's unions are NESTED (route → leash → entity), so these also prove the
+// validator descends into object props: the old top-level hugShore union went away with
+// the route hard cut, and a union two levels down is the one an LLM client now sees.
 
-ScriptTest.run("65_schema_union: goto.hugShore accepts bare true", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { hugShore: true }); });
-    t.assertTrue(msg === null || msg.indexOf("hugShore") < 0,
-        "bare true hugShore must not be rejected by the union, got: " + msg);
+ScriptTest.run("65_schema_union: goto route.leash.entity accepts a name", function(t) {
+    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { route: { leash: { entity: "PlayerB", radius: 8 } } }); });
+    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
+        "string leash.entity must not be rejected by the union, got: " + msg);
 });
 
-ScriptTest.run("65_schema_union: goto.hugShore accepts {weight}", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { hugShore: { weight: 40 } }); });
-    t.assertTrue(msg === null || msg.indexOf("hugShore") < 0,
-        "object hugShore must not be rejected by the union, got: " + msg);
+ScriptTest.run("65_schema_union: goto route.leash.entity accepts an id", function(t) {
+    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { route: { leash: { entity: 3298, radius: 8 } } }); });
+    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
+        "integer leash.entity must not be rejected by the union, got: " + msg);
 });
 
-ScriptTest.run("65_schema_union: goto.hugShore rejects string", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { hugShore: "yes" }); });
+ScriptTest.run("65_schema_union: goto route.leash.entity rejects an object", function(t) {
+    var msg = errOf(function() { Driver.invoke("mc.bot.goto", { route: { leash: { entity: { id: 3298 }, radius: 8 } } }); });
     t.assertTrue(msg !== null && msg.indexOf("must be one of types") >= 0,
-        "string hugShore must be rejected by the union, got: " + msg);
+        "object leash.entity must be rejected by the union, got: " + msg);
 });
 
-ScriptTest.run("65_schema_union: follow.hugShore accepts bare true", function(t) {
-    var msg = errOf(function() { Driver.invoke("mc.bot.follow", { hugShore: true }); });
-    t.assertTrue(msg === null || msg.indexOf("hugShore") < 0,
-        "bare true hugShore must not be rejected by the union, got: " + msg);
+ScriptTest.run("65_schema_union: follow route.sight.of accepts a list", function(t) {
+    var msg = errOf(function() { Driver.invoke("mc.bot.follow", { name: "nobody_65", route: { sight: { of: ["minecraft:skeleton"] } } }); });
+    t.assertTrue(msg === null || msg.indexOf("must be one of types") < 0,
+        "array sight.of must not be rejected by the union, got: " + msg);
 });
 
 // ---- deep-equal / arbitrary-payload sites: ["object","array","string","number","boolean"] ----

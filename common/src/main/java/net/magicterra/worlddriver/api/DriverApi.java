@@ -774,6 +774,17 @@ public final class DriverApi {
     private double numD(Object o) { return Params.toDouble(o, 0.0); }
 
     /**
+     * The status slot an awaited verb waits on: the reply's own non-blank {@code slot} string
+     * wins, else the route table's literal. NOT "only the reply's": the other fourteen awaitable
+     * verbs never answer with a slot, and reading only the reply would send them into the
+     * "slot disappeared → completed" branch, making their {@code awaitMs} return at once without
+     * an error. Package-visible for the unit test that pins this.
+     */
+    static String slotToAwait(Map<String, Object> started, String routeSlot) {
+        return started != null && started.get("slot") instanceof String s && !s.isBlank() ? s : routeSlot;
+    }
+
+    /**
      * Bot async-route wrapper. If {@code params.awaitMs} is set, invoke the
      * underlying impl, then poll {@code mc.bot.status} until {@code <slot>.active}
      * becomes falsy (success), the slot's {@code lastError} appears (failure), or
@@ -783,6 +794,11 @@ public final class DriverApi {
      *
      * The {@code awaitMs} key is stripped from params before calling the impl so
      * existing impls that don't know about it stay happy.
+     *
+     * <p><b>Which slot is waited on</b> is {@link #slotToAwait}: the impl's own {@code slot} when
+     * its reply carries one, else the literal the route table passed. {@code mc.bot.goto} answers
+     * with {@code slot: "elytra"} when {@code route.mode} is {@code ["fly"]} and hands the intent
+     * to elytra, so waiting on {@code goto} would return at once.
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> awaitable(Map<String, Object> params, String slot,
@@ -801,6 +817,7 @@ public final class DriverApi {
         if (Boolean.FALSE.equals(startedFlag) || Boolean.FALSE.equals(started.get("ok"))) {
             return started;
         }
+        slot = slotToAwait(started, slot);
 
         long t0 = System.nanoTime();
         long deadlineNanos = t0 + budgetMs * 1_000_000L;

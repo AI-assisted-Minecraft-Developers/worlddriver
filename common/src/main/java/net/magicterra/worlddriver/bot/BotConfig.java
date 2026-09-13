@@ -1349,17 +1349,12 @@ public final class BotConfig {
      *  pathing noticeably and is only wanted when survival threats matter. Read
      *  every WorldView.beginSearch / dangerCost. */
     public static volatile boolean avoidMobs = false;
-
-    /** Radius (blocks) within which a hostile mob contributes a {@link #avoidMobs}
-     *  penalty; the cost ramps linearly from {@link #mobAvoidPenalty} at the mob
-     *  to 0 at the edge. */
+    /** Default {@code route.mobs.radius}: a melee mob's berth; cost ramps from {@link #mobAvoidPenalty} at the mob to 0 at the edge. */
     public static volatile double mobAvoidRadius = 6;
-
-    /** Peak cost (at zero distance) of a single avoided mob when {@link #avoidMobs}
-     *  is on; ramps down to 0 at {@link #mobAvoidRadius}. */
+    /** Default {@code route.mobs.penalty}: one mob's peak cost, at zero distance. */
     public static volatile double mobAvoidPenalty = 40;
-
-    public static volatile int rangedAvoidRadius = 16;   // wider berth for ranged mobs (skeleton/witch) — Baritone Avoidance, AltoClef-style ranged split
+    /** Default {@code route.mobs.rangedRadius}: the wider berth of a mob that shoots (skeleton/witch), AltoClef's ranged split. */
+    public static volatile int rangedAvoidRadius = 16;
     public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
     public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
     public static volatile boolean walkerCruiseActive = false; // RUNTIME: the Walker's surface sprint-swim cruise holds the eyes under on purpose this frame; NOT persisted. AutoSwim's drowning backstop yields to it while air is healthy, as it does to a dig.

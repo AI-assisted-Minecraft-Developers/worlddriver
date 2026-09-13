@@ -3,22 +3,27 @@ package net.magicterra.worlddriver.bot.pathfinder.modifiers;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
+import net.magicterra.worlddriver.bot.pathfinder.Region;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
 /**
- * Per-intent "route around this sphere" cost: a linear ramp from {@code penalty}
- * at the centre to 0 at {@code radius}, matching the global {@code avoidPoints}
- * ramp in ClientWorldView so intent-scoped and global avoid behave identically.
- * Admissible (>= 0). Cells outside the radius add nothing.
+ * Per-intent "route around this region" cost. A sphere charges a linear ramp from
+ * {@code penalty} at the centre to 0 at the radius, matching the global {@code avoidPoints} ramp
+ * in ClientWorldView so intent-scoped and global avoid behave identically; a box charges the
+ * full {@code penalty} anywhere inside, having no centre to ramp toward. Admissible (>= 0).
+ * Cells outside add nothing. {@code route.regions[].mode: "avoid"}.
  */
-public record AvoidRegion(double cx, double cy, double cz, double radius, double penalty)
-        implements CostModifier {
+public record AvoidRegion(Region region, double penalty) implements CostModifier {
+
+    /** The original sphere form, kept for the scenes that build one by hand. */
+    public AvoidRegion(double cx, double cy, double cz, double radius, double penalty) {
+        this(new Region.Sphere(cx, cy, cz, radius), penalty);
+    }
+
     @Override
     public double extraCost(BlockPos from, BlockPos to, Move.Edge edge, Goal goal, WorldView world) {
-        if (radius <= 0 || penalty <= 0) return 0;
-        double dx = (to.getX() + 0.5) - cx, dy = to.getY() - cy, dz = (to.getZ() + 0.5) - cz;
-        double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        return dist < radius ? penalty * (radius - dist) / radius : 0;
+        if (penalty <= 0) return 0;
+        return penalty * region.weight(to.getX() + 0.5, to.getY(), to.getZ() + 0.5);
     }
 }

@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -18,7 +19,7 @@ import java.util.List;
  * phases add terminators and the mutable-goal {@code amend} operation.
  */
 public final class Intent {
-    private final Goal target;
+    private final List<Goal> targets;
     private final List<CostModifier> bias;
     private final CapabilityProfile capability;
     private final List<Constraint> constraints;
@@ -38,17 +39,29 @@ public final class Intent {
 
     public Intent(Goal target, List<CostModifier> bias, CapabilityProfile capability, List<Constraint> constraints,
                   EntityLeash entityLeash) {
-        if (target == null) throw new IllegalArgumentException("intent target is null");
-        this.target = target;
+        this(target == null ? List.of() : List.of(target), bias, capability, constraints, entityLeash);
+    }
+
+    /** The full form: {@code targets} are reached in order, the last one is the goal proper. */
+    public Intent(List<Goal> targets, List<CostModifier> bias, CapabilityProfile capability,
+                  List<Constraint> constraints, EntityLeash entityLeash) {
+        if (targets == null || targets.isEmpty()) throw new IllegalArgumentException("intent has no target");
+        for (Goal g : targets) if (g == null) throw new IllegalArgumentException("intent target is null");
+        this.targets = List.copyOf(targets);
         this.bias = (bias == null) ? List.of() : List.copyOf(bias);
         this.capability = (capability == null) ? CapabilityProfile.ALL : capability;
         this.constraints = (constraints == null) ? List.of() : List.copyOf(constraints);
         this.entityLeash = entityLeash;
     }
 
-    /** The A* goal this intent currently converges on. */
+    /** The FINAL goal — what the intent is for. Waypoints before it are in {@link #targets()}. */
     public Goal target() {
-        return target;
+        return targets.get(targets.size() - 1);
+    }
+
+    /** Every goal in order: the waypoints, then {@link #target()}. Never empty. */
+    public List<Goal> targets() {
+        return targets;
     }
 
     /** Per-intent cost modifiers appended to the pathfinder stack. Empty = plain navigation. */

@@ -459,12 +459,13 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTest#schemaUnionRendering}: pure-CPU rendering matrix for
-     *  gap #67-④ — the 7 catalog sites that used to declare {@code any()} must now render a
-     *  {@code Schema.Union} (a JSON array {@code "type"}). Reads {@link ToolCatalog#tools()} directly. */
+     *  gap #67-④ — the top-level catalog sites that used to declare {@code any()} must now render
+     *  a {@code Schema.Union} (a JSON array {@code "type"}). Reads {@link ToolCatalog#tools()}
+     *  directly. The goto/follow {@code hugShore} union moved into the {@code route} object
+     *  ({@code route.leash.entity}, {@code route.sight.of}); the validation suite's
+     *  {@code 65_schema_union.js} covers those nested ones through the validator. */
     private static void schemaUnionRendering(SceneContext ctx) {
         assertUnionType(ctx, "mc.bot.combat", "target", List.of("integer", "string", "object"));
-        assertUnionType(ctx, "mc.bot.goto", "hugShore", List.of("boolean", "object"));
-        assertUnionType(ctx, "mc.bot.follow", "hugShore", List.of("boolean", "object"));
         assertUnionType(ctx, "mc.wait.condition", "value", List.of("object", "array", "string", "number", "boolean"));
         assertUnionType(ctx, "mc.skill", "args", List.of("object", "array", "string", "number", "boolean"));
         assertUnionType(ctx, "mc.events", "data", List.of("object", "array", "string", "number", "boolean"));

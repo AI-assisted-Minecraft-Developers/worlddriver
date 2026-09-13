@@ -70,6 +70,94 @@ public final class BotTools {
         };
     }
 
+    /**
+     * The {@code route} object shared by goto and follow: every route CONDITION lives here, the
+     * top level of each tool keeps only goal selection. One object with a few enums is cheaper in
+     * every prompt than the fifteen booleans it replaced, and it reads the way the caller thinks:
+     * how do I want to travel, may I change the terrain, how afraid am I. Parsed by
+     * {@code RouteParams.parse}; the old top-level names ({@code forbidDig}, {@code hugShore}, …)
+     * are gone without a compatibility layer, so an old caller gets {@code unexpected key} from
+     * the schema check and the description here says where each moved.
+     *
+     * @param withVia goto takes waypoints; follow, already tracking an entity, does not
+     */
+    private static Schema.Obj routeSchema(boolean withVia) {
+        Schema.Obj r = object();
+        if (withVia) r.prop("via", array(array(number()))
+                .desc("Waypoints [x,y,z] reached in order before the goal (within 1 block each)."));
+        return r
+            .prop("mode", array(stringEnum("walk", "swim", "dive", "fly"))
+                .desc("How to travel; several allowed. Default walk+swim. No swim and no dive → water is "
+                    + "never entered. dive → planned surface dives to an underwater goal (implies swim; "
+                    + "off otherwise — unplanned dives fight buoyancy). fly → alone, no via: the whole "
+                    + "intent goes to mc.bot.elytraFly (reply carries slot:'elytra')."))
+            .prop("break", stringEnum("never", "allow", "prefer")
+                .desc("Block breaking: never (no digging edge is planned), allow (default; the global "
+                    + "allowBreak setting stays the master switch), prefer (non-digging edges cost +10, "
+                    + "so tunnelling through wins ties)."))
+            .prop("place", stringEnum("never", "allow")
+                .desc("Block placing (bridge/pillar): never or allow (default; global allowPlace stays the master switch)."))
+            .prop("parkour", bool().desc("false → no gap-jumping moves. Default true."))
+            .prop("risk", stringEnum("safe", "normal", "bold")
+                .desc("Preset. safe: berth around hostile mobs, a cell with 3+ mobs within 6 blocks is "
+                    + "impassable, and cells in a ranged mob's line of sight cost extra. normal (default): "
+                    + "terrain danger only, plus the mob berth when the avoidMobs setting is on. bold: "
+                    + "terrain danger only, whatever avoidMobs says. Explicit mobs/sight below override the preset."))
+            .prop("yRange", object().prop("min", number()).prop("max", number())
+                    .prop("hard", bool()).prop("weight", number())
+                .desc("Stay within [min,max] Y (either side optional). hard:true prunes outside cells; "
+                    + "else weight/block outside (default 10). E.g. keep out of caves, stay on the 2nd floor."))
+            .prop("hug", object().prop("what", stringEnum("shore")).prop("weight", number())
+                .desc("沿河岸走: cells with no adjacent water cost weight (default 30, keep it ≫ 10 the "
+                    + "per-cell walk cost). Pair with mode:['walk'] to stay dry."))
+            .prop("leash", object()
+                    .prop("center", array(number()))
+                    .prop("entity", union("string", "integer"))
+                    .prop("radius", number()).prop("hard", bool()).prop("weight", number())
+                    .prop("axis", stringEnum("xz"))
+                .desc("Stay near an anchor: center [x,y,z] or entity (player name / type id / entity id, "
+                    + "followed as it moves — 带路: goto the destination + leash:{entity:'PlayerB'}). "
+                    + "hard:true = may not leave the radius at all (routes straight back in when outside); "
+                    + "else weight/block beyond it (default 20). axis:'xz' measures horizontally only "
+                    + "(center may be [x,z]): with a vertical goal (y:N / direction up|down) and radius 1-2 "
+                    + "this pins a straight shaft up/down the start column — the reliable-ascent and "
+                    + "dig-to-Y recipe (bare y:N searches drown in sideways branches)."))
+            .prop("regions", array(object()
+                    .prop("shape", stringEnum("box", "sphere"))
+                    .prop("min", array(number())).prop("max", array(number()))
+                    .prop("center", array(number())).prop("radius", number())
+                    .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number()))
+                .desc("Areas to keep out of: box {min,max} or sphere {center,radius}. mode forbid "
+                    + "(default) prunes; avoid costs penalty (default 250, ramping to 0 at a sphere's edge)."))
+            .prop("mobs", object()
+                    .prop("radius", number()).prop("rangedRadius", number()).prop("penalty", number())
+                    .prop("cluster", object().prop("count", integer()).prop("radius", number())
+                        .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number()))
+                    .prop("types", array(string()))
+                .desc("Berth around hostile mobs seen when the search starts (both bodies): cost ramps "
+                    + "from penalty at the mob to 0 at radius / rangedRadius (defaults: the mobAvoid* "
+                    + "settings). cluster: a cell with count+ mobs within its radius is pruned (forbid) or "
+                    + "charged penalty (avoid). types: only these ids (default all hostiles)."))
+            .prop("sight", object()
+                    .prop("of", union("string", "array")).prop("range", number())
+                    .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number()).prop("eye", number())
+                .desc("Stay out of lines of sight. of: 'ranged' (default) | 'hostile' | 'players' | [ids, "
+                    + "names or types]. range: observer reach (default per kind: skeleton 16, pillager 8, "
+                    + "ghast 64, player 32). avoid (default) costs penalty (120) per seeing observer; "
+                    + "forbid prunes seen cells. eye: the height tested (1.62; 1.27 evaluates as if "
+                    + "sneaking, the walk itself does not sneak). Geometry only, no light/aggro rules; "
+                    + "a search may fire at most sightRaysPerSearch rays, past that it reruns without sight."))
+            .prop("corridor", object()
+                    .prop("points", array(array(number()))).prop("radius", number())
+                    .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number())
+                .desc("Keep within radius (default 3) of your own polyline [[x,y,z],...]: forbid (default) "
+                    + "prunes farther cells, avoid costs penalty/block (20) beyond. You draw the line, A* "
+                    + "does the per-cell work."))
+            .prop("requireTool", string()
+                .desc("Fail at once unless this item id is in the inventory (e.g. 'minecraft:iron_pickaxe'); "
+                    + "equipping while digging is automatic, mid-run loss is not monitored."));
+    }
+
     public static List<ToolSchema> tools() {
         return List.of(
             wrTool("mc.bot.goto",
@@ -79,13 +167,13 @@ public final class BotTools {
                 "  - pos:{x,y,z}              → walk to that exact block; pair with near:N\n" +
                 "  - xz:{x,z}                 → reach this XZ column at any Y\n" +
                 "  - y:N                      → reach this Y level. DIG-TO-Y RECIPE: for 'dig down to " +
-                "Y=-54' / 'dig up to the surface' in open terrain, COMBINE y:N with a leash around your " +
-                "current column — leash:{x,y,z:current,radius:4,weight:30} — or the search drowns in " +
-                "sideways branches and times out (measured: 16205 nodes timeout bare vs 68 nodes reached " +
-                "with the leash). Add requireTool:'minecraft:iron_pickaxe' to insist on the tool\n" +
+                "Y=-54' / 'dig up to the surface' in open terrain, COMBINE y:N with " +
+                "route.leash:{center:[x,z],radius:2,hard:true,axis:'xz'} around your current column — or " +
+                "the search drowns in sideways branches and times out (measured: 16205 nodes timeout bare " +
+                "vs 68 nodes reached with the leash). Add route.requireTool:'minecraft:iron_pickaxe' to insist on the tool\n" +
                 "  LONG AIRBORNE TRAVEL (鞘翅返程): don't goto across thousands of blocks — use " +
-                "mc.bot.elytraFly (reactive glide control, firework boost, groundFallback when no elytra)\n" +
-                "  UNDERWATER BASE (游进水下基地): goto pos:{base} + dive:true (+forbidDig) — dive is " +
+                "route.mode:['fly'] (or mc.bot.elytraFly directly: reactive glide control, firework boost, groundFallback when no elytra)\n" +
+                "  UNDERWATER BASE (游进水下基地): goto pos:{base} + route:{mode:['dive'], break:'never'} — dive is " +
                 "opt-in; without it the planner treats water as an obstacle and routes ashore\n" +
                 "  - block:'minecraft:foo'    → nearest matching block within radius (default 32); " +
                 "Baritone 'goto <block>'. Accepts a '#tag' selector too — block:'#minecraft:logs' " +
@@ -103,26 +191,13 @@ public final class BotTools {
                 "  - direction + strict:true  → keep heading that cardinal with no fixed endpoint " +
                 "(Baritone GoalStrictDirection); ignores distance.\n" +
                 "  - invert:true              → flee the resolved goal instead of reaching it (Baritone GoalInverted).\n" +
-                "Bias modifiers (Intent-scoped cost tweaks):\n" +
-                "  avoid    [{x,y,z,radius?,penalty?},...] — per-goto zones to route AROUND (ramp to 0 at radius; dflt radius 8 / penalty 250). Intent-scoped alt to the global avoidPoints setting.\n" +
-                "  preferY  {min,max,weight?} — bias the route to stay in a Y band (weight/block outside; dflt 10). E.g. keep to the 2nd floor / hug the surface.\n" +
-                "  leash    {x,y,z,radius,weight?} — soft-leash the route near an anchor (weight/block beyond radius; dflt 20). E.g. lead a companion without straying far. " +
-                "Or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'}).\n" +
-                "  hugShore {weight:30} → 沿着河岸走 recipe: goto a far point (or direction) + hugShore + forbidWater:true — the route sticks to the waterline and stays dry; weight ≫ 10 (per-node walk cost) pins it to the bank.\n" +
-                "Hard constraints (Intent-scoped, pruned rather than costed):\n" +
-                "  forbidParkour  true → drop all parkour moves (also: capability:\"walk\"). Route must not jump gaps.\n" +
-                "  yFloor / yCeil  N — hard-limit the route's Y (prune cells below yFloor / above yCeil). E.g. keep out of caves.\n" +
-                "  leashHard  {x,y,z,radius} — HARD tether: route may not leave the radius at all (firm twin of soft `leash`); " +
-                "if the bot falls outside the tether it routes straight back in (approach-only). " +
-                "Or entity:'name-or-type' → DYNAMIC anchor that follows the entity (带路: goto the destination + leash:{entity:'PlayerB'}).\n" +
-                "  column   {x,z,radius} — HARD XZ cylinder: the route may not leave `radius` of the (x,z) vertical " +
-                "line, but Y is free. Pair with a vertical goal (y:N / direction:'up'|'down') to force a straight " +
-                "pillar/dig up|down the START column (pass your own current x,z) instead of drifting sideways to cheap " +
-                "far-off air — the reliable-ascent recipe. radius ~1-2 pins the shaft; >0 required.\n" +
-                "  forbidWater  true → never route through water (hard prune; walking beside water stays fine).\n" +
-                "  forbidDig    true → never plan a block-breaking edge (per-goto allowBreak-off; a non-digging pillar/parkour stays allowed).\n" +
-                "  requireTool  'minecraft:iron_pickaxe' → fail this goto immediately unless the item is in inventory (equip is automatic when digging; mid-run loss is not monitored).\n" +
-                "  dive         true → 游进水里回水下基地 recipe: goto pos:{underwater base} + dive:true (+forbidDig to forbid tunneling); unlocks planned surface dives (off by default — unplanned dives fight buoyancy).\n" +
+                "ROUTE CONDITIONS all live in the `route` object: via (waypoints), mode, break, place, " +
+                "parkour, risk, then the detail fields yRange / hug / leash / regions / mobs / sight / " +
+                "corridor / requireTool — see the route property. The former top-level fields moved there: " +
+                "forbidDig→break:'never'; forbidWater→mode without swim/dive; dive→mode:['dive']; " +
+                "forbidParkour, capability:'walk'→parkour:false; avoid→regions[{shape:'sphere',center,radius,mode:'avoid',penalty}]; " +
+                "preferY→yRange{min,max,weight}; yFloor/yCeil→yRange{min,max,hard:true}; hugShore→hug{what:'shore',weight}; " +
+                "leash/leashHard→leash{center|entity,radius,hard}; column→leash{center:[x,z],radius,hard:true,axis:'xz'}; requireTool→route.requireTool.\n" +
                 "Optional near:N relaxes target to a Euclidean radius. block selector also takes " +
                 "radius:N (search box, 1-64). " +
                 "Returns {ok, started, goal} or {ok:false, error}.",
@@ -156,42 +231,15 @@ public final class BotTools {
                         .desc("With direction: keep heading that cardinal indefinitely (no fixed endpoint)."))
                     .prop("invert", bool()
                         .desc("Flee the resolved goal instead of reaching it."))
-                    .prop("avoid", array(object()
-                            .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number()).prop("penalty", number())))
-                    .prop("preferY", object()
-                            .prop("min", number()).prop("max", number()).prop("weight", number()))
-                    .prop("leash", object()
-                            .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number()).prop("weight", number())
-                            .prop("entity", string()))
-                    .prop("hugShore", union("boolean", "object")
-                        .desc("沿河岸走: tax nodes with no adjacent water. Accepts bare true "
-                            + "(default weight 30) or {weight:number}."))
-                    .prop("forbidParkour", bool()
-                        .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
-                    .prop("capability", string()
-                        .desc("Capability envelope. Only 'walk' is recognized (forbids parkour); other values are a no-op."))
-                    .prop("yFloor", number()
-                        .desc("Hard-prune any move whose destination is below this Y."))
-                    .prop("yCeil", number()
-                        .desc("Hard-prune any move whose destination is above this Y."))
-                    .prop("leashHard", object()
-                            .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number())
-                            .prop("entity", string()))
-                    .prop("column", object()
-                            .prop("x", number()).prop("z", number()).prop("radius", number())
-                        .desc("Hard XZ cylinder around the (x,z) column line (Y free) — bind a "
-                            + "vertical goal to a fresh shaft up/down the start column."))
-                    .prop("forbidWater", bool()
-                        .desc("Never route through water (hard prune)."))
-                    .prop("forbidDig", bool()
-                        .desc("Never plan a block-breaking edge (per-goto allowBreak-off)."))
-                    .prop("requireTool", string()
-                        .desc("Fail immediately unless this item id is present in inventory (e.g. 'minecraft:iron_pickaxe')."))
-                    .prop("dive", bool()
-                        .desc("Opt in to planned surface dives (Capability.DIVE) — needed to route down to an underwater goal. Off by default."))
+                    .prop("route", routeSchema(true)
+                        .desc("Route conditions: via, mode, break, place, parkour, risk, and the detail "
+                            + "fields. Omit for plain walking."))
+                    .prop("plan", union("boolean", "string")
+                        .desc("true: preview only (async, slot 'plan'); 'score': price route.corridor.points as the route."))
+                    .prop("planId", string()
+                        .desc("Walk a previewed route by its id; the goal and route come from the preview."))
+                    .prop("includePath", bool()
+                        .desc("With plan:true, also return the route's cells as [x,y,z]."))
                     .prop("awaitMs", awaitMs())
                 ),
 
@@ -217,7 +265,9 @@ public final class BotTools {
                 "`name` (case-sensitive GameProfile). " +
                 "radius: standoff 1-16 (default 3). maxIdleTicks>0 stops gracefully when no " +
                 "match seen for N ticks (~20=1s); 0 = forever. " +
-                "Accepts goto's bias/constraint args (forbidWater etc.) applied to the follow pathing. " +
+                "Takes goto's `route` object for the follow pathing (no via, no entity leash, no fly — " +
+                "it already tracks an entity). The former top-level condition fields moved into route " +
+                "exactly as for goto. " +
                 "Returns {ok, started, entityType?|name?, radius, maxIdleTicks?}.",
                 object()
                     .prop("entityType", string().desc("Registry id of entity type."))
@@ -225,42 +275,8 @@ public final class BotTools {
                     .prop("radius", integer(1, 16))
                     .prop("maxIdleTicks", integer(0, 100000)
                         .desc("Idle-tick budget before giving up. 0 = no timeout."))
-                    .prop("avoid", array(object()
-                            .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number()).prop("penalty", number())))
-                    .prop("preferY", object()
-                            .prop("min", number()).prop("max", number()).prop("weight", number()))
-                    .prop("leash", object()
-                            // static x/y/z anchor; follow already tracks an entity, so an
-                            // entity-keyed leash is read but skipped (goto concept)
-                            .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number()).prop("weight", number())
-                            .prop("entity", string()
-                                .desc("Ignored by follow — it already tracks an entity.")))
-                    .prop("hugShore", union("boolean", "object")
-                        .desc("沿河岸走 bias, as in mc.bot.goto: bare true or {weight:number}."))
-                    .prop("forbidParkour", bool()
-                        .desc("Forbid parkour moves — the route must not jump gaps. Also settable via capability:'walk'."))
-                    .prop("capability", string()
-                        .desc("Capability envelope. Only 'walk' is recognized (forbids parkour); other values are a no-op."))
-                    .prop("dive", bool()
-                        .desc("Opt in to planned surface dives (Capability.DIVE). Off by default."))
-                    .prop("yFloor", number()
-                        .desc("Hard-prune any move whose destination is below this Y."))
-                    .prop("yCeil", number()
-                        .desc("Hard-prune any move whose destination is above this Y."))
-                    .prop("leashHard", object()
-                            .prop("x", number()).prop("y", number()).prop("z", number())
-                            .prop("radius", number())
-                            .prop("entity", string()
-                                .desc("Ignored by follow — it already tracks an entity.")))
-                    .prop("column", object()
-                            .prop("x", number()).prop("z", number()).prop("radius", number())
-                        .desc("Hard XZ cylinder around the (x,z) column line (Y free)."))
-                    .prop("forbidWater", bool()
-                        .desc("Never route through water (hard prune)."))
-                    .prop("forbidDig", bool()
-                        .desc("Never plan a block-breaking edge (per-goto allowBreak-off)."))
+                    .prop("route", routeSchema(false)
+                        .desc("Route conditions as in mc.bot.goto, minus via."))
                     .prop("awaitMs", awaitMs())
                 ),
 

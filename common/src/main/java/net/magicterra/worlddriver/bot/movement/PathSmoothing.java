@@ -64,7 +64,7 @@ public final class PathSmoothing {
      * through the taxed region — the straight line is rejected when its summed
      * bias cost exceeds the kept waypoints'. Modifiers are probed with a
      * synthetic flat "walk" edge and a null goal (every per-intent citizen —
-     * avoid/leash/preferY/hugShore — ignores both).
+     * route.regions/leash/yRange/hug — ignores both).
      */
     public static SmoothResult stringPull(WorldView w, List<BlockPos> path, List<Move.Edge> edges,
             List<CostModifier> bias) {

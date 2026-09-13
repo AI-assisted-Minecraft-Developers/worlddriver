@@ -14,6 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `MineProcess` expose their walker so a scene that handed a process to either helm
   reads the counts of the body that ran it. The dig door moved to `WalkerDig` for the file
   budget; the seven call sites are unchanged.
+- **`mc.bot.goto` and `mc.bot.follow` take one `route` object; the old top-level route fields are
+  gone.** `avoid`, `preferY`, `leash`, `hugShore`, `forbidParkour`, `capability`, `yFloor`, `yCeil`,
+  `leashHard`, `column`, `forbidWater`, `forbidDig`, `requireTool` and `dive` were fourteen names
+  in two vocabularies (a soft one and a hard one) for what is one decision per condition, and a
+  caller could not say "along this line", "through these points", "not in a mob's line of sight"
+  or "not through a crowd" at all. The route object names each condition once — `mode`, `break`,
+  `place`, `parkour`, `risk`, `yRange`, `hug`, `leash`, `regions`, `mobs`, `sight`, `corridor`,
+  `requireTool`, and `via` on a goto — with `hard`/`mode` deciding prune-or-price per condition.
+  A hard cut, not an alias layer: the schema is what every LLM client reads each turn, and two
+  ways to say one thing is the token tax the catalog rules exist to avoid. `RouteParams.parse`
+  is the one parser, so a goto and a follow build the same profile from the same text, and a bad
+  field answers `route.<field>: …`. The goal fields (`pos`, `block`, `entity`, `near`, `goalMode`,
+  …) stay top-level: a goal is what, a route is how.
 - **A search knows the entities around it.** `SearchScope`, gathered once per search from the
   body's level (both bodies, through the Walker's scope source), holds a `ThreatSnapshot` and a
   line-of-sight over the start–goal box inflated by the components' scan radius and capped per
@@ -26,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cells an observer sees, with rays cached per cell and a per-search budget
   (`sightRaysPerSearch`) that, when spent, reruns the search without the condition rather than
   pricing the rest as exposed; the result says `sightBudgetExhausted`.
+- **A goto walks its `route.via` points as legs of one intent.** `Intent` carries a goal list;
+  `IntentProcess` advances to the next leg on arrival, so a caller's "go around the lake this
+  way" is one call and one slot, not a chain of awaits. A goto with `route.mode:["fly"]` is
+  delegated whole to `mc.bot.elytraFly`, and its reply carries `slot:"elytra"`: `awaitMs` now
+  polls the slot a reply names before the route table's literal, or the await would return at
+  once against a goto slot that never became active.
 - **`seedTestArea` waits for the arena's chunks to become entity-ticking before it seeds.** The
   blocking chunk loads it already did only schedule the promotion that makes a chunk's entity
   sections visible: `ChunkHolder.scheduleFullChunkPromotion` hands the visibility change to the

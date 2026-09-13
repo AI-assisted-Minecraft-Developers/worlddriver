@@ -182,15 +182,16 @@ public final class SettingsDocs {
             "[0,1000] dflt 30 — cost added per lava/fire cell adjacent to a candidate stand position " +
             "when avoidDanger is on"),
         e("avoidMobs",
-            "bool — Baritone mob avoidance; A* adds a distance-ramped cost near hostile mobs so " +
-            "routes give them a berth. Off by default (changes pathing noticeably)"),
-        e("pathfinder.mobAvoidRadius", "[0,64] dflt 6 — radius a hostile mob influences when avoidMobs is on"),
+            "bool — every goto/follow gets a default route.mobs berth (radius/rangedRadius/penalty " +
+            "from the three settings below, no cluster) unless its route gives mobs or risk itself. " +
+            "Off by default (changes pathing noticeably)"),
+        e("pathfinder.mobAvoidRadius", "[0,64] dflt 6 — default route.mobs.radius: how far a melee mob's berth reaches"),
         e("pathfinder.mobAvoidPenalty",
-            "[0,1000] dflt 40 — peak cost (at the mob) of an avoided mob, ramping to 0 at " +
-            "mobAvoidRadius"),
+            "[0,1000] dflt 40 — default route.mobs.penalty: peak cost at the mob, ramping to 0 at " +
+            "the berth radius"),
         e("rangedAvoidRadius",
-            "[4,48] dflt 16 — wider avoid radius for RANGED mobs (skeleton/witch) when avoidMobs is " +
-            "on, so flee/goto routes give them more berth than melee mobs")
+            "[4,48] dflt 16 — default route.mobs.rangedRadius: the wider berth of a mob that " +
+            "shoots (skeleton/witch), so routes keep more distance from it than from melee mobs")
         );
     }
 

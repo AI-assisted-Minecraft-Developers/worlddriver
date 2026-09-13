@@ -1,20 +1,5 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.bot.pathfinder.Capability;
-import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
-import net.magicterra.worlddriver.bot.pathfinder.Constraint;
-import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.ColumnRadius;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.LeashHardRadius;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.NoWater;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.YCeil;
-import net.magicterra.worlddriver.bot.pathfinder.constraints.YFloor;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.AvoidRegion;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.LeashAnchor;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.PreferYBand;
-import net.magicterra.worlddriver.bot.pathfinder.modifiers.ShorelineHug;
-import net.magicterra.worlddriver.bot.process.EntityLeash;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -23,12 +8,8 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
@@ -37,6 +18,11 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.*;
  * Goal parsing for {@code mc.bot.goto}. Extracted verbatim from BotApiImpl;
  * {@code mcGoto} delegates here. The {@code waypoints} map (named positions
  * owned by the bot impl) is passed in so a {@code waypoint:} selector resolves.
+ *
+ * <p>Only the GOAL lives here — the part that needs the player and the live world. The route
+ * conditions ({@code route}: bias, capability, hard constraints, via, the entity leash) are
+ * {@link RouteParams#parse}, a pure function shared with {@code mc.bot.follow} and with the
+ * dedicated-server scenes.
  */
 final class GotoGoalResolver {
 
@@ -135,149 +121,11 @@ final class GotoGoalResolver {
         return null;
     }
 
-    /**
-     * Parse the per-intent cost bias args (avoid / preferY / leash) into modifiers
-     * appended to the Intent. Empty when none supplied → plain navigation, byte-
-     * identical to A4a. Malformed entries are skipped per-item (not thrown) — a
-     * bad zone drops just itself, unlike {@code avoidPoints} in {@link SettingsCommand}
-     * which rejects the whole list.
-     */
-    static List<CostModifier> resolveBias(Params p) {
-        List<CostModifier> bias = new ArrayList<>();
-        // avoid: [{x,y,z,radius?,penalty?}, ...] — per-intent route-around zones.
-        if (p.get("avoid") instanceof List<?> zones) {
-            for (Object o : zones) {
-                if (!(o instanceof Map<?, ?> m)) continue;
-                Object xo = m.get("x"), yo = m.get("y"), zo = m.get("z");
-                if (!(xo instanceof Number) || !(yo instanceof Number) || !(zo instanceof Number)) continue;
-                double x = ((Number) xo).doubleValue();
-                double y = ((Number) yo).doubleValue();
-                double z = ((Number) zo).doubleValue();
-                double radius = Params.toDouble(m.get("radius"), 8.0);
-                double penalty = Params.toDouble(m.get("penalty"), 250.0);
-                bias.add(new AvoidRegion(x, y, z, radius, penalty));
-            }
-        }
-        // preferY: {min,max,weight?} — hug a Y band (e.g. "2nd floor", "surface").
-        if (p.get("preferY") instanceof Map<?, ?> b) {
-            Object loO = b.get("min"), hiO = b.get("max");
-            if (loO instanceof Number lo && hiO instanceof Number hi) {
-                double weight = Params.toDouble(b.get("weight"), 10.0);
-                int loY = (int) Math.floor(lo.doubleValue()), hiY = (int) Math.floor(hi.doubleValue());
-                bias.add(new PreferYBand(Math.min(loY, hiY), Math.max(loY, hiY), weight));
-            }
-        }
-        // hugShore: true|{weight} — 沿河岸走: tax nodes with no adjacent water so the
-        // route glues to the waterline (pair with forbidWater to stay dry).
-        Object hs = p.get("hugShore");
-        if (hs instanceof Boolean b && b) bias.add(new ShorelineHug(30.0));
-        else if (hs instanceof Map<?, ?> m) bias.add(new ShorelineHug(Params.toDouble(m.get("weight"), 30.0)));
-        // leash: {x,y,z,radius,weight?} — soft-tether to a static anchor. An
-        // entity-keyed leash (leash:{entity:...}) is handled dynamically by
-        // resolveEntityLeash instead — skip the static parse here so it isn't
-        // ALSO added as a fixed-point modifier.
-        if (p.get("leash") instanceof Map<?, ?> l && !(l.get("entity") instanceof String e && !e.isBlank())) {
-            Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
-            if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
-                double x = ((Number) xo).doubleValue();
-                double y = ((Number) yo).doubleValue();
-                double z = ((Number) zo).doubleValue();
-                double radius = ((Number) ro).doubleValue();
-                double weight = Params.toDouble(l.get("weight"), 20.0);
-                bias.add(new LeashAnchor(x, y, z, radius, weight));
-            }
-        }
-        return bias;
-    }
-
-    /**
-     * Resolve the capability envelope for this goto. {@code forbidParkour:true}
-     * OR {@code capability:"walk"} forbids the PARKOUR move-type; any other
-     * capability string is a no-op (A2a only wires "walk"). {@code dive:true}
-     * (A5) OPTS IN to {@link Capability#DIVE} — a planned surface dive is
-     * otherwise pruned from every search (see {@link net.magicterra.worlddriver.bot.pathfinder.moves.SurfaceDive}).
-     * Both are independent gates on the same profile — {@code CapabilityProfile.ALL}
-     * only when NEITHER is supplied, byte-identical to A4a/A4b/pre-A5.
-     */
-    static CapabilityProfile resolveCapability(Params p) {
-        boolean forbidParkour = p.getBool("forbidParkour")
-                || (p.get("capability") instanceof String s && s.trim().equalsIgnoreCase("walk"));
-        boolean dive = p.getBool("dive");
-        if (!forbidParkour && !dive) return CapabilityProfile.ALL;
-        Set<Capability> forbidden = forbidParkour ? EnumSet.of(Capability.PARKOUR) : EnumSet.noneOf(Capability.class);
-        Set<Capability> optIn = dive ? EnumSet.of(Capability.DIVE) : EnumSet.noneOf(Capability.class);
-        return new CapabilityProfile(forbidden, optIn);
-    }
-
-    /**
-     * Parse the per-intent hard constraints (yFloor / yCeil / leashHard) into
-     * {@link Constraint}s appended to the Intent. Empty when none supplied →
-     * plain navigation, byte-identical to A4a/A4b. Malformed entries are
-     * skipped per-item (not thrown), mirroring {@link #resolveBias}'s leniency.
-     */
-    static List<Constraint> resolveConstraints(Params p) {
-        List<Constraint> cs = new ArrayList<>();
-        // yFloor: N — hard-prune any move whose destination is below Y=N.
-        if (p.get("yFloor") instanceof Number n) {
-            cs.add(new YFloor((int) Math.floor(n.doubleValue())));
-        }
-        // yCeil: N — hard-prune any move whose destination is above Y=N.
-        if (p.get("yCeil") instanceof Number n) {
-            cs.add(new YCeil((int) Math.floor(n.doubleValue())));
-        }
-        // leashHard: {x,y,z,radius} — hard tether; route may not leave the radius at all.
-        // An entity-keyed leashHard is handled dynamically by resolveEntityLeash instead.
-        if (p.get("leashHard") instanceof Map<?, ?> l && !(l.get("entity") instanceof String e && !e.isBlank())) {
-            Object xo = l.get("x"), yo = l.get("y"), zo = l.get("z"), ro = l.get("radius");
-            if (xo instanceof Number && yo instanceof Number && zo instanceof Number && ro instanceof Number) {
-                double x = ((Number) xo).doubleValue();
-                double y = ((Number) yo).doubleValue();
-                double z = ((Number) zo).doubleValue();
-                double radius = ((Number) ro).doubleValue();
-                cs.add(new LeashHardRadius(x, y, z, radius));
-            }
-        }
-        // column: {x,z,radius} — hard XZ cylinder: the route may not leave `radius` of the
-        // (x,z) vertical line, but Y is UNCONSTRAINED. Binds a vertical goal (y:N / direction:up|down)
-        // to the start column so it pillars/digs a fresh shaft instead of drifting sideways to
-        // cheap far-off air (the ascent-drift gap). Caller passes its own current XZ as (x,z).
-        if (p.get("column") instanceof Map<?, ?> c) {
-            Object xo = c.get("x"), zo = c.get("z"), ro = c.get("radius");
-            if (xo instanceof Number && zo instanceof Number && ro instanceof Number) {
-                double x = ((Number) xo).doubleValue();
-                double z = ((Number) zo).doubleValue();
-                double radius = ((Number) ro).doubleValue();
-                cs.add(new ColumnRadius(x + 0.5, z + 0.5, radius));
-            }
-        }
-        // forbidWater: true — never route through a water cell (hard prune).
-        if (p.getBool("forbidWater")) cs.add(new NoWater());
-        // forbidDig: true — never plan a block-breaking edge (per-intent allowBreak-off).
-        if (p.getBool("forbidDig")) cs.add(new NoBreak());
-        return cs;
-    }
-
-    /** leash:{entity:'X',radius?,weight?} / leashHard:{entity:'X',radius} → dynamic anchor.
-     *  When the entity key is present the STATIC x/y/z parse is skipped for that key
-     *  (dynamic wins); absent → null and the static path runs exactly as before. */
-    static EntityLeash resolveEntityLeash(Params p) {
-        if (p.get("leash") instanceof Map<?, ?> l && l.get("entity") instanceof String e && !e.isBlank()) {
-            double radius = Params.toDouble(l.get("radius"), 8.0);
-            double weight = Params.toDouble(l.get("weight"), 20.0);
-            return new EntityLeash(e, radius, weight, false);
-        }
-        if (p.get("leashHard") instanceof Map<?, ?> l && l.get("entity") instanceof String e && !e.isBlank()) {
-            double radius = Params.toDouble(l.get("radius"), 8.0);
-            return new EntityLeash(e, radius, 0, true);
-        }
-        return null;
-    }
-
-    /** requireTool:'minecraft:iron_pickaxe' — fail the goto up front unless the item is
-     *  in the player inventory. Presence-only: the Walker already auto-equips the best
+    /** {@code route.requireTool: 'minecraft:iron_pickaxe'} — fail the goto up front unless the
+     *  item is in the player inventory. Presence-only: the Walker already auto-equips the best
      *  tool per dig (Avatar.selectTool), and mid-run tool loss is out of scope here. */
-    static void checkRequiredTool(Params p, LocalPlayer player) {
-        if (!(p.get("requireTool") instanceof String id) || id.isBlank()) return;
+    static void checkRequiredTool(String id, LocalPlayer player) {
+        if (id == null || id.isBlank()) return;
         String want = id.contains(":") ? id : "minecraft:" + id;
         for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
             var stack = player.getInventory().getItem(slot);
