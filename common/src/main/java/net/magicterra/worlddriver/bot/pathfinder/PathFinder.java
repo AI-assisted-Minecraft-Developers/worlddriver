@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
 import java.util.Arrays;
 
 /**
@@ -229,6 +230,11 @@ public final class PathFinder {
      *  body behind them. */
     private PathTuning tuning = PathTuning.GLOBAL;
 
+    /** Where each Search gets its entity snapshot and line of sight; null = {@link SearchScope#EMPTY},
+     *  under which the {@link SearchAware} components in the profile are inert. Set by the Walker
+     *  (the one construction point with a body); the debug tools and unit tests leave it unset. */
+    private ScopeSource scopeSource;
+
     /** Default ctor reads live tunables from {@link net.magicterra.worlddriver.bot.BotConfig}
      *  so {@code mc.bot.setting{pathfinder.maxNodes:...}} can resize the budget
      *  without restarting the JVM. */
@@ -280,6 +286,23 @@ public final class PathFinder {
         return this;
     }
 
+    /** Gather a {@link SearchScope} from this source at the start of every Search this finder
+     *  launches. A snapshot is per search, which is why this takes a source and not a scope. */
+    public PathFinder withScopeSource(ScopeSource source) {
+        this.scopeSource = source;
+        return this;
+    }
+
+    /** The profile minus every {@link SightExposure}: what a search reruns with when its ray
+     *  budget is spent. Both lists are filtered, as the same object sits in both. */
+    static SearchProfile withoutSight(SearchProfile p) {
+        List<CostModifier> bias = new ArrayList<>();
+        for (CostModifier m : p.bias()) if (!(m instanceof SightExposure)) bias.add(m);
+        List<Constraint> cons = new ArrayList<>();
+        for (Constraint c : p.constraints()) if (!(c instanceof SightExposure)) cons.add(c);
+        return new SearchProfile(bias, p.capability(), cons);
+    }
+
     /** Run a search to completion in one call (synchronous). Kept for callers
      *  that don't need to time-slice; the Walker uses {@link #newSearch} +
      *  {@link Search#advance} to spread a big search across client ticks so it
@@ -313,6 +336,21 @@ public final class PathFinder {
     public final class Search {
         private final BlockPos start;
         private final Goal goal;
+        private final boolean suppressPlace;
+        /** THIS search's profile — the finder's, or the finder's minus {@code route.sight} for
+         *  the rerun after a spent ray budget. Everything below reads this, never the finder's. */
+        private final SearchProfile profile;
+        /** The entity snapshot and line of sight this search ran with; {@link SearchScope#EMPTY}
+         *  with no scope source. A rerun reuses its predecessor's scope: same search, same world. */
+        private final SearchScope scope;
+        /** True on a rerun that dropped {@code route.sight}; reported in the result. */
+        private final boolean sightDropped;
+        /** The rerun that replaced this search after {@link SightExposure.RayBudgetExhausted};
+         *  once set, every public method delegates to it. */
+        private Search retry;
+        /** Prunes per constraint (same index as {@code constraints}), for
+         *  {@link Result#prunedBy()} — what a {@code route.blocked} event names. */
+        private final int[] pruneCounts;
         private final Map<BlockPos, Node> nodes = new HashMap<>();
         // Total-order comparator: equal-f ties broken by a STABLE key (packed block
         // position). Open water (and any flat region) produces vast plateaus of
@@ -433,10 +471,14 @@ public final class PathFinder {
          *  bypassed in favor of the standard goal-ward selection. */
         private final boolean diveRelief;
 
-        private Search(BlockPos start, Goal goal, boolean suppressPlace) {
+        private Search(BlockPos start, Goal goal, boolean suppressPlace, SearchProfile profile,
+                       SearchScope scope, boolean sightDropped) {
             this.start = start;
             this.startInWater = world.isWater(start);
             this.goal = goal;
+            this.suppressPlace = suppressPlace;
+            this.profile = profile == null ? SearchProfile.NONE : profile;
+            this.sightDropped = sightDropped;
             this.escapeTarget = goal.targetPos();
             double maxD = escapeTarget == null ? -1
                     : Math.sqrt(start.distSqr(escapeTarget)) + ESCAPE_DIST_SLACK;
@@ -509,6 +551,15 @@ public final class PathFinder {
             for (CostModifier bias : PathFinder.this.profile.bias()) {
                 tax(bias.getClass().getSimpleName(), bias);
             }
+            // The scope is handed out HERE and not at world.beginSearch() above: the bias
+            // modifiers only enter costModifiers in the loop just finished. One call per object —
+            // MobCluster and SightExposure are both a Constraint and a CostModifier, so the same
+            // object can sit in both lists. A rerun reuses its predecessor's scope.
+            this.scope = scope != null ? scope
+                    : (scopeSource == null ? SearchScope.EMPTY : scopeSource.gather(start, goal, this.profile));
+            Set<Object> notified = Collections.newSetFromMap(new IdentityHashMap<>());
+            for (Constraint c : constraints) if (c instanceof SearchAware sa && notified.add(sa)) sa.beginSearch(this.scope);
+            for (CostModifier m : costModifiers) if (m instanceof SearchAware sa && notified.add(sa)) sa.beginSearch(this.scope);
             expandTax = new double[costModifiers.size()];
             expandHits = new int[costModifiers.size()];
             // gap#72-④ (always-on telemetry): one compact line per SEARCH, tagged with
@@ -540,6 +591,20 @@ public final class PathFinder {
                         maxNodes, maxMs, tuning.softCommitNodes(), tuning,
                         constraints.size(), PathFinder.this.profile.bias().size());
             }
+        }
+
+        /** Prunes per constraint name, for the result. Empty when nothing was pruned. */
+        private Map<String, Integer> prunedMap() {
+            Map<String, Integer> out = new LinkedHashMap<>();
+            for (int i = 0; i < pruneCounts.length; i++) {
+                if (pruneCounts[i] > 0) out.merge(constraints.get(i).name(), pruneCounts[i], Integer::sum);
+            }
+            return out;
+        }
+
+        /** This search's result shape, with the flags only the search knows. */
+        private Result build(Node end, boolean reached, int expanded, long ms, double cost) {
+            return PathFinder.build(end, reached, expanded, ms, cost, sightDropped, scope.truncated(), prunedMap());
         }
 
         /** Single sink for the search result — every completion path goes through
@@ -576,9 +641,47 @@ public final class PathFinder {
             }
         }
 
-        public boolean done() { return result != null; }
-        public Result result() { return result; }
-        public int expanded() { return expanded; }
+        public boolean done() { return retry != null ? retry.done() : result != null; }
+        public Result result() { return retry != null ? retry.result() : result; }
+        public int expanded() { return retry != null ? retry.expanded() : expanded; }
+        /** The scope this search ran with — what a preview reports and the route events read. */
+        public SearchScope scope() { return retry != null ? retry.scope() : scope; }
+
+        /**
+         * Advance by one slice. When a {@code route.sight} component reports its ray budget spent
+         * mid-expansion, this search is abandoned as a whole and a rerun without that component
+         * takes over — from the same start, with the same scope, and with a fresh node and time
+         * budget — so the result is a function of (cell, snapshot) and not of expansion order.
+         * The slice already spent is charged to the tick like any other.
+         */
+        public boolean advance(long sliceMs) {
+            if (retry != null) return retry.advance(sliceMs);
+            try {
+                return advanceOnce(sliceMs);
+            } catch (SightExposure.RayBudgetExhausted e) {
+                LOG.info("[pathfinder] {} — rerunning without route.sight owner={} start={} goal={} expanded={}",
+                        e.getMessage(), owner, start.toShortString(), goal, expanded);
+                retry = new Search(start, goal, suppressPlace, withoutSight(profile), scope, true);
+                return retry.advance(sliceMs);
+            }
+        }
+
+        /** Every cost modifier's total over a result's path, keyed by the modifier's name: the
+         *  kernel of the tax log and of the {@code route.detour} event's "which tax". Runs over
+         *  the returned path only (tens of edges), never the expansion loop. */
+        public Map<String, Double> taxTotals(Result r) {
+            Map<String, Double> totals = new LinkedHashMap<>();
+            for (int i = 1; i < r.path().size(); i++) {
+                BlockPos from = r.path().get(i - 1), to = r.path().get(i);
+                Move.Edge e = r.edges().get(i);
+                if (e == null) continue;
+                for (int m = 0; m < costModifiers.size(); m++) {
+                    double v = costModifiers.get(m).extraCost(from, to, e, goal, world);
+                    if (v != 0) totals.merge(costModifierNames.get(m), v, Double::sum);
+                }
+            }
+            return totals;
+        }
 
         /** A* heuristic for a node: the obstacle-aware goal-field estimate when
          *  available (max'd with the admissible Euclidean lower bound so it never
@@ -979,7 +1082,7 @@ public final class PathFinder {
         /** Expand nodes until {@code sliceMs} of wall-clock elapses this call (or
          *  the search finishes / hits its total budget). Returns true once done;
          *  the {@link Result} is then available from {@link #result()}. */
-        public boolean advance(long sliceMs) {
+        private boolean advanceOnce(long sliceMs) {
             if (result != null) return true;
             long sliceStart = System.nanoTime();
             long sliceLimit = (sliceMs >= Long.MAX_VALUE / 2) ? Long.MAX_VALUE : sliceMs * 1_000_000L;
@@ -1354,7 +1457,8 @@ public final class PathFinder {
                             open.size());
                 }
                 finish((segment == null)
-                        ? new Result(List.of(), List.of(), false, expanded, totalMs(sliceStart), startNode.h)
+                        ? new Result(List.of(), List.of(), false, expanded, totalMs(sliceStart), startNode.h,
+                                sightDropped, scope.truncated(), prunedMap())
                         : build(segment, false, expanded, totalMs(sliceStart), segment.g));
                 return true;
             } finally {
@@ -1701,13 +1805,15 @@ public final class PathFinder {
      * incoming edge). The Walker consults each edge's break/place actions before
      * stepping into the cell.
      */
-    private static Result build(Node end, boolean reached, int expanded, long ms, double cost) {
+    private static Result build(Node end, boolean reached, int expanded, long ms, double cost,
+                                boolean sightBudgetExhausted, boolean snapshotTruncated, Map<String, Integer> prunedBy) {
         List<BlockPos> pos = new ArrayList<>();
         List<Move.Edge> eds = new ArrayList<>();
         for (Node n = end; n != null; n = n.parent) { pos.add(n.pos); eds.add(n.edge); }
         Collections.reverse(pos);
         Collections.reverse(eds);
-        return new Result(List.copyOf(pos), Collections.unmodifiableList(eds), reached, expanded, ms, cost);
+        return new Result(List.copyOf(pos), Collections.unmodifiableList(eds), reached, expanded, ms, cost,
+                sightBudgetExhausted, snapshotTruncated, prunedBy);
     }
 
     /**
@@ -1716,8 +1822,24 @@ public final class PathFinder {
      * {@code edges} is aligned with {@code path} — {@code edges.get(i)} carries
      * the cost and any blocks to break/place to enter {@code path.get(i)};
      * {@code edges.get(0)} is null. If unreachable, both are empty.
+     *
+     * <p>{@code sightBudgetExhausted}: the search ran a second time without {@code route.sight}
+     * because the first spent its ray budget. {@code snapshotTruncated}: the entity scan box was
+     * capped. {@code prunedBy}: how many edges each hard constraint pruned, by
+     * {@link Constraint#name()} — what a best-effort result is attributed to.
      */
-    public record Result(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost) {
+    public record Result(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms,
+                         double finalCost, boolean sightBudgetExhausted, boolean snapshotTruncated,
+                         Map<String, Integer> prunedBy) {
+        public Result {
+            prunedBy = prunedBy == null ? Map.of() : Map.copyOf(prunedBy);
+        }
+
+        /** A result with no route-condition flags: the shape every hand-built result uses. */
+        public Result(List<BlockPos> path, List<Move.Edge> edges, boolean goalReached, int expanded, long ms, double finalCost) {
+            this(path, edges, goalReached, expanded, ms, finalCost, false, false, Map.of());
+        }
+
         /**
          * True when the result contains a walkable path (which may be the
          * best-effort fallback, not a path that actually reaches the goal).

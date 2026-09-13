@@ -110,6 +110,14 @@ final class SettingsNumericWrites {
                         if (n.longValue() >= 1 && n.longValue() <= 50) { BotConfig.pathfinderIdleSliceMs = n.longValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1,50]");
                         break;
+                    case "sightRaysPerSearch":
+                        if (n.intValue() >= 100 && n.intValue() <= 100_000) { BotConfig.sightRaysPerSearch = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [100,100000]");
+                        break;
+                    case "snapshotBoxMax":
+                        if (n.intValue() >= 16 && n.intValue() <= 512) { BotConfig.snapshotBoxMax = n.intValue(); applied.add(k); }
+                        else rejected.add(k + " out of range [16,512]");
+                        break;
                     case "pathfinder.heuristicWeight":
                         if (n.doubleValue() >= 1.0 && n.doubleValue() <= 3.0) { BotConfig.pathfinderHeuristicWeight = n.doubleValue(); applied.add(k); }
                         else rejected.add(k + " out of range [1.0,3.0]");

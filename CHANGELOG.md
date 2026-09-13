@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-06
 
+- **A search knows the entities around it.** `SearchScope`, gathered once per search from the
+  body's level (both bodies, through the Walker's scope source), holds a `ThreatSnapshot` and a
+  line-of-sight over the start–goal box inflated by the components' scan radius and capped per
+  axis at the `snapshotBoxMax` setting (a capped scope reports `snapshotTruncated`). Components
+  that need it implement `SearchAware` and are told when a search begins, so a time-sliced
+  search prices the same mobs from its first slice to its last. `MobCluster` (`route.mobs`)
+  replaces the per-mob berth `ClientWorldView.dangerCost` applied from its own client-only
+  snapshot — the server body avoids mobs now too, nothing is priced twice — and adds the
+  cluster threshold the ramp could not express. `SightExposure` (`route.sight`) prices or prunes
+  cells an observer sees, with rays cached per cell and a per-search budget
+  (`sightRaysPerSearch`) that, when spent, reruns the search without the condition rather than
+  pricing the rest as exposed; the result says `sightBudgetExhausted`.
 - **`seedTestArea` waits for the arena's chunks to become entity-ticking before it seeds.** The
   blocking chunk loads it already did only schedule the promotion that makes a chunk's entity
   sections visible: `ChunkHolder.scheduleFullChunkPromotion` hands the visibility change to the

@@ -5,7 +5,6 @@ import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.world.CellRules;
 import net.magicterra.worlddriver.bot.world.HazardField;
 import net.magicterra.worlddriver.bot.world.SurvivalMath;
-import net.magicterra.worlddriver.bot.world.ThreatAvoidance;
 import net.magicterra.worlddriver.bot.world.WorldModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
@@ -37,9 +36,6 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.FallingBlock;
-import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.entity.monster.RangedAttackMob;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.effect.MobEffectInstance;
 import java.util.ArrayList;
@@ -432,10 +428,6 @@ public final class ClientWorldView implements WorldView {
     private static final int[][] HORIZONTAL_4 = {
             { 1, 0}, {-1, 0}, {0, 1}, {0, -1},
     };
-    // Hostile-mob positions snapshotted once per search (beginSearch) so the
-    // per-node dangerCost doesn't rescan the entity list. Refreshed every
-    // repath. Touched only on the client thread during a search.
-    private volatile float[] mobXyz = new float[0];   // flat [x,y,z,r, ...] (stride-4; r = per-mob avoid radius)
     // Water-bucket (MLG) fall availability, snapshotted once per search:
     // Move.ALL enumerates ~68 candidate fall heights per node, so re-scanning
     // the hotbar for a water bucket in every WaterBucketFall.valid would be
@@ -551,38 +543,10 @@ public final class ClientWorldView implements WorldView {
                 && hotbarSlotOf(Minecraft.getInstance().player,
                                 Items.WATER_BUCKET) >= 0;
         dig = CellRules.DigSnapshot.of(Minecraft.getInstance().player, Minecraft.getInstance().level);
-        // Mob snapshot (stride-4: x,y,z,r; ranged mobs get the wider radius). Gated
-        // on avoidMobs — but NO early return: fleeSearch + hazardSnapshot below must
-        // ALWAYS be refreshed (a prior bug left them stale when avoidMobs was off).
-        //
-        // "Is this entity a threat" is answered TWICE in this repo and this is the older
-        // answer. ThreatScanner (the reflex chains' feed) counts `instanceof Enemy` OR
-        // "it is the body's last damager", and says why in so many words: angered NEUTRAL
-        // mobs — wolf, bee, polar bear — never implement Enemy and "were invisible to
-        // every reflex chain (gap #55)". That fix never reached this loop, so an angered
-        // wolf is simultaneously the top-ranked threat for RetreatChain/CombatChain and a
-        // zero-danger cell for A*, which will route straight through it. Not corrected
-        // here: mirroring the attacker clause widens the danger field mid-search and
-        // changes which paths A* prices out, so it needs a gate and a name of its own.
-        mobXyz = new float[0];
-        if (BotConfig.avoidMobs) {
-            Minecraft mcb = Minecraft.getInstance();
-            LocalPlayer pl = mcb.player;
-            if (mcb.level instanceof ClientLevel cl && pl != null) {
-                double maxR = 64;                          // bound the snapshot to nearby mobs
-                List<Float> buf = new ArrayList<>();
-                for (Entity e : cl.entitiesForRendering()) {
-                    if (e instanceof Enemy && e.isAlive() && e.distanceToSqr(pl) <= maxR * maxR) {
-                        boolean ranged = e instanceof RangedAttackMob;
-                        float r = (float) (ranged ? BotConfig.rangedAvoidRadius : BotConfig.mobAvoidRadius);
-                        buf.add((float) e.getX()); buf.add((float) e.getY()); buf.add((float) e.getZ()); buf.add(r);
-                    }
-                }
-                float[] arr = new float[buf.size()];
-                for (int i = 0; i < arr.length; i++) arr[i] = buf.get(i);
-                mobXyz = arr;
-            }
-        }
+        // Mobs are no longer snapshotted here. The per-mob berth lives in the profile's MobCluster
+        // component (route.mobs, or the avoidMobs default that RouteParams expands), fed by the
+        // SearchScope the Walker gathers per search — one snapshot for both bodies, so the server
+        // body avoids mobs too and nothing is priced twice. dangerCost below is terrain only.
         // Walker stuck-node blacklist: prune expired entries, then snapshot the
         // live ones so dangerCost applies a consistent penalty for the whole run.
         {
@@ -740,10 +704,6 @@ public final class ClientWorldView implements WorldView {
                     }
                 }
             }
-        }
-        if (BotConfig.avoidMobs) {
-            penalty += ThreatAvoidance.cost(mobXyz, BotConfig.mobAvoidPenalty,
-                    foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5);
         }
         // Agent-supplied danger zones (mc.bot.setting avoidPoints): explicit regions
         // the Agent marked to route around — applied regardless of avoidMobs and not

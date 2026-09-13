@@ -500,6 +500,12 @@ public final class SettingsDocs {
         e("breakTimeoutTicks", "[20,2000] dflt 200 — blacklist stuck block after N ticks"),
         e("pathfinder.maxNodes", "[1000,1000000] dflt 100000 — A* node budget"),
         e("pathfinder.maxMs", "[100,30000] dflt 1500 — A* wall-clock budget, ms"),
+        e("sightRaysPerSearch",
+            "[100,100000] dflt 4000 — most line-of-sight rays one search may fire for route.sight; " +
+            "past it the search reruns without sight (lastPath.sightBudgetExhausted)"),
+        e("snapshotBoxMax",
+            "[16,512] dflt 96 — per-axis cap, blocks, on the box one search scans for entities " +
+            "(route.mobs / route.sight); a capped scope reports snapshotTruncated"),
         e("pathfinder.heuristicWeight",
             "[1.0,3.0] dflt 1.0 — weighted A* (f=g+W·h); >1 = greedier toward goal, deeper frontier " +
             "per budget. W=1.3 A/B-STALLED the bot on hilly/jungle terrain (greedy frontier climbs a " +

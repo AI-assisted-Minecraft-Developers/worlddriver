@@ -102,20 +102,13 @@ public final class Walker {
     }
 
     /** Single construction point for this Walker's deep-search PathFinders so the
-     *  per-Walker budget override applies to every search launch site alike
-     *  (foot repath, commit-end continuation, place-suppressed re-plan). */
-    PathFinder newPathFinder(WorldView world) {
-        PathFinder pf = ((searchMaxNodes > 0 && searchMaxMs > 0)
-                ? new PathFinder(world, searchMaxNodes, searchMaxMs, profile)
-                : new PathFinder(world, profile))
-                // THIS Walker's churn clock, not a global every body writes. Read live, because the
-                // escalation is a sticky TIMER and a time-sliced search outlives it: a search that
-                // starts escalated must pick the re-capped horizon back up when the clock lapses, or
-                // it grinds on easy terrain instead of stopping early.
-                .withTuning(net.magicterra.worlddriver.bot.pathfinder.PathTuning
-                        .escalatedWhen(escal::armed));
-        return pf.withOwner(owner);
-    }
+     *  per-Walker budget override, tuning and scope source apply to every search launch site
+     *  alike (foot repath, commit-end continuation, place-suppressed re-plan). See {@link WalkerFinders}. */
+    PathFinder newPathFinder(WorldView world) { return WalkerFinders.deep(this, world); }
+
+    /** The body the last {@link #tick(Avatar, WorldView)} drove, for the finders' scope source.
+     *  Null until the first tick, which is also the first time a search can start. */
+    Player body;
 
     /** Set the per-intent search profile for subsequent searches. Null → {@link SearchProfile#NONE}. */
     public void setSearchProfile(SearchProfile p) {
@@ -1505,6 +1498,7 @@ public final class Walker {
     }
 
     public Step tick(Avatar a, WorldView world) {
+        body = a.player();
         // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
         // stepUp...), so a safety invariant appended to its tail only covers SOME ticks — the
         // gap #53 death strode over a well mouth from a branch that never reached it. Run the
@@ -2527,8 +2521,7 @@ public final class Walker {
     boolean tryQuickStart(WorldView world, BlockPos foot, Goal goal) {
         if (BotConfig.pathfinderQuickNodes <= 0) return false;
         if (searchGov.quickCooldown > 0) { searchGov.quickCooldown--; return false; }
-        PathFinder.Search q = new PathFinder(world, BotConfig.pathfinderQuickNodes, QUICK_MAX_MS, profile).withOwner(owner)
-                .newSearch(foot, goal);
+        PathFinder.Search q = WalkerFinders.quick(this, world, QUICK_MAX_MS).newSearch(foot, goal);
         while (!q.advance(QUICK_MAX_MS)) { /* bounded by the node cap / QUICK_MAX_MS */ }
         PathFinder.Result res = q.result();
         boolean useful = res.hasPath() && res.path().size() > 1
