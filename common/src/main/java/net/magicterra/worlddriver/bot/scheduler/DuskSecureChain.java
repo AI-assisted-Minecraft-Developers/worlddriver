@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -107,7 +108,8 @@ public final class DuskSecureChain implements Chain {
         return cornered && !rearmPending;
     }
 
-    @Override public float priority(Minecraft mc, WorldView w, BotState st) {
+    @Override public float priority(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (!BotConfig.autoSecureAtDusk || mc.player == null) { idleTicks = 0; return 0f; }
         // Once a shelter dig is committed, hold the channel until BunkerProcess finishes.
         // The 1-wide shaft we dig makes the bot 'cornered', which must NOT trip our own
@@ -148,14 +150,15 @@ public final class DuskSecureChain implements Chain {
         return bid;
     }
 
-    @Override public void tick(Minecraft mc, WorldView w, BotState st) {
+    @Override public void tick(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (mc.player == null) return;
         if (process == null) {
             process = new BunkerProcess(BotConfig.bunkerDepth);
             process.attach(st);
             announceAutoTrigger(mc, rearmPending);
         }
-        if (process.tick(mc, w, st)) {
+        if (process.tick(body, w, st)) {
             process = null; // sheltered/done -> priority will drop next tick
             lastBidTier = Priorities.IDLE_SECURE;
             // gap#75-b: the process issued its OWN terminal verdict (a bail — SEALED

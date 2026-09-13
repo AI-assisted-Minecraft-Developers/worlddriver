@@ -77,22 +77,24 @@ state, follow that pattern.
 
 A behaviour driven once per tick; implementations all live in `process/`.
 
-The canonical method is `tick(Avatar, WorldView, BotState)`. A legacy
-`tick(Minecraft, …)` default bridges to it by wrapping `mc` in a
-`ClientPlayerAvatar`, and **that bridge is the live client entry point** — the
-scheduler and every chain still call it. It is not a staging area: every process
-overrides the canonical method and nothing overrides the legacy one, so the
-throwing default is reachable only by a *new* process that forgets to implement
-`tick(Avatar, …)`.
+The one method is `tick(Avatar, WorldView, BotState)`. The scheduler's chains hand
+a process the body the scheduler was given, and the client tick chain builds a
+`ClientPlayerAvatar` once per tick for that. There used to be a
+`tick(Minecraft, …)` default bridge for the client callers; nothing overrode it and
+nothing calls it now, so it is gone. A process that names `Minecraft` in its own
+signature is a process that will not run on a server body.
 
-Adding a process means overriding the canonical method. There is no
-"not yet migrated" state to be in.
+Adding a process means implementing that method. There is no "not yet migrated"
+state to be in.
 
-> That paragraph's source javadoc tells you to re-derive the claim with
-> `grep -rn "boolean tick(Minecraft"` rather than believe the sentence — and
-> records that it was wrong once, pointing at a `Chain.tick(Minecraft, …)` stub,
-> which is a different interface entirely. Good instinct to copy: **when a doc
-> asserts a codebase-wide "nothing does X", it is asserting something that decays.**
+The scheduler talks bodies too — `Chain.priority(Avatar, …)` and
+`Chain.tick(Avatar, …)` — but the chains themselves still read the local player,
+the client level and the client-only helpers through `Minecraft`, so each one
+downcasts at the top of both methods via `Chain.clientOf(body)`. That returns null
+for any body that is not the client's, which is also what the headless matrix
+scenes pass when they tick the scheduler with no body. Whether the reflex layer
+should run over a server body at all is an open question in the body-abstraction
+design; until it is decided, this is the seam it will land on.
 
 ## 4. `Walker` — executing a path
 

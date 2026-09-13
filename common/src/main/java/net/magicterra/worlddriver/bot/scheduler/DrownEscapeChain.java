@@ -8,6 +8,7 @@ import java.util.function.IntSupplier;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.auto.DrownEscapeGate;
 import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
@@ -126,7 +127,8 @@ public final class DrownEscapeChain implements Chain {
 
     @Override public String name() { return NAME; }
 
-    @Override public float priority(Minecraft mc, WorldView w, BotState st) {
+    @Override public float priority(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (underwaterForTest != null && airForTest != null) {
             return updateLatch(underwaterForTest.getAsBoolean(), airForTest.getAsInt())
                     ? Priorities.DROWN_ESCAPE : 0f;
@@ -157,7 +159,8 @@ public final class DrownEscapeChain implements Chain {
         return latched;
     }
 
-    @Override public void tick(Minecraft mc, WorldView w, BotState st) {
+    @Override public void tick(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (mc == null) return;                     // headless arena: decision-layer only
         LocalPlayer p = mc.player;
         if (p == null) return;

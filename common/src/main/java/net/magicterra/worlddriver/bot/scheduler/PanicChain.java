@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -27,7 +28,8 @@ public final class PanicChain implements Chain {
 
     @Override public String name() { return "panic"; }
 
-    @Override public float priority(Minecraft mc, WorldView w, BotState st) {
+    @Override public float priority(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (!BotConfig.autoDodge || mc.player == null) return 0f;
         return nearestCreeper(mc) != null ? Priorities.PANIC : 0f;
     }
@@ -38,7 +40,8 @@ public final class PanicChain implements Chain {
     private static final double[] FLEE_OFFSETS =
             {0, 25, -25, 50, -50, 75, -75, 90, -90, 115, -115, 135, -135, 160, -160, 180};
 
-    @Override public void tick(Minecraft mc, WorldView w, BotState st) {
+    @Override public void tick(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         Entity creeper = nearestCreeper(mc);
         if (creeper == null || mc.player == null) return;
         var p = mc.player;

@@ -5,6 +5,7 @@ import java.util.List;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -116,7 +117,8 @@ public final class RetreatChain implements Chain {
 
     @Override public String name() { return "retreat"; }
 
-    @Override public float priority(Minecraft mc, WorldView w, BotState st) {
+    @Override public float priority(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (!BotConfig.autoRetreat || mc.player == null) {
             // gap#72-④: an in-flight flee killed by the toggle is a transition too.
             if (retreating) LOG.info("[retreat] release reason=disabled");
@@ -470,7 +472,8 @@ public final class RetreatChain implements Chain {
         return false;
     }
 
-    @Override public void tick(Minecraft mc, WorldView w, BotState st) {
+    @Override public void tick(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (mc.player == null) return;
         if (process == null) {
             // Flee AWAY FROM THE THREATS (their centroid), not merely "16 blocks from
@@ -486,7 +489,7 @@ public final class RetreatChain implements Chain {
         }
         // Reached safe distance but still latched (HP low / threat near): start a
         // fresh flee from the updated threat centroid — keep opening distance.
-        if (process.tick(mc, w, st)) {
+        if (process.tick(body, w, st)) {
             process = null;
         }
     }

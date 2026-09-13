@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -23,12 +24,14 @@ public final class DodgeChain implements Chain {
 
     @Override public String name() { return "dodge"; }
 
-    @Override public float priority(Minecraft mc, WorldView w, BotState st) {
+    @Override public float priority(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         if (!BotConfig.autoDodge || mc.player == null) return 0f;
         return imminent(mc) != null ? Priorities.DODGE : 0f;
     }
 
-    @Override public void tick(Minecraft mc, WorldView w, BotState st) {
+    @Override public void tick(Avatar body, WorldView w, BotState st) {
+        Minecraft mc = Chain.clientOf(body);
         ThreatScanner.Incoming in = imminent(mc);
         if (in == null || mc.player == null) return;
         var p = mc.player;

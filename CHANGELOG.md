@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **The scheduler and its chains receive the body, not the client.** `ProcessScheduler.tick`,
+  `Chain.priority` and `Chain.tick` take an `Avatar`; the client tick chain builds one
+  `ClientPlayerAvatar` per tick and the chains hand it straight to the process they hold, so
+  the `BotProcess.tick(Minecraft, …)` bridge and the `Walker.tick(Minecraft, …)` bridge, which
+  nothing else called, are gone and `BotProcess` has one method. The chains still read the
+  local player and the client-only helpers through `Minecraft`, so each downcasts at the top
+  of both methods with `Chain.clientOf(body)`, which answers null for a body that is not the
+  client's — the same null the headless matrix scenes have always passed. Whether the reflex
+  layer should run over a server body stays open; this is the seam it will land on.
 - **`BotInput` is retired; the reflexes drive a `ClientPlayerAvatar`.** The static facade over
   the client body's own input (`forward`, `driveForward`, `halt`, `driveToward`, `jump`,
   `sneak`, `sprint`) said the same things `Avatar.commandMove/commandForward/commandJump/

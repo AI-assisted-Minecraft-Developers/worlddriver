@@ -21,6 +21,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.BunkerProcess;
@@ -39,7 +40,6 @@ import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -1056,8 +1056,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         final int[] userInterrupts = new int[1];
         Chain user = new Chain() {           // the "active process" placeholder (death-#25 mine shape)
             @Override public String name() { return "user"; }
-            @Override public float priority(Minecraft mc, WorldView w, BotState st) { return Priorities.USER; }
-            @Override public void tick(Minecraft mc, WorldView w, BotState st) { /* keeps digging */ }
+            @Override public float priority(Avatar body, WorldView w, BotState st) { return Priorities.USER; }
+            @Override public void tick(Avatar body, WorldView w, BotState st) { /* keeps digging */ }
             @Override public void onInterrupt(Chain by) { userInterrupts[0]++; }
         };
         ProcessScheduler sched = new ProcessScheduler();

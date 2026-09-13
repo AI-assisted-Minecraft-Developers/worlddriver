@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.scheduler;
 
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.minecraft.client.Minecraft;
+import net.magicterra.worlddriver.bot.movement.Avatar;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -60,13 +60,13 @@ public final class ProcessScheduler {
         return lastPriorities;
     }
 
-    public void tick(Minecraft mc, WorldView w, BotState st) {
+    public void tick(Avatar body, WorldView w, BotState st) {
         Chain best = null;
         float bestP = 0f;
         float currentP = 0f;        // the incumbent's priority THIS tick
         Map<String, Float> prios = new LinkedHashMap<>();
         for (Chain c : chains) {
-            float p = c.priority(mc, w, st);
+            float p = c.priority(body, w, st);
             prios.put(c.name(), p);
             if (c == current) currentP = p;
             if (p > bestP) {
@@ -101,7 +101,7 @@ public final class ProcessScheduler {
         // Publish status snapshots for off-thread readers.
         currentName = best == null ? null : best.name();
         lastPriorities = prios;
-        if (best != null) best.tick(mc, w, st);
+        if (best != null) best.tick(body, w, st);
     }
 
     /** Cancel every chain's internal episode (reflex anchors, latches, held processes).

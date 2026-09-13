@@ -388,9 +388,10 @@ respawns and earns advancements, because it is a player who joined.
 The other two keep the fake body, and the joining one does so **by construction, not by omission**:
 its client bot lives in the other PROCESS, and the object this seam passes cannot cross a socket.
 
-*How the same rung code drives either.* `BotProcess.tick(Minecraft,…)` default-bridges to
-`tick(Avatar,…)` over a `ClientPlayerAvatar`, so one process object drives a `LocalPlayer` on the
-client tick and a `FakePlayer` on the server tick. A rung still builds a `TowerProcess` and hands it
+*How the same rung code drives either.* A process has one method, `tick(Avatar,…)`; the client
+tick chain hands it a `ClientPlayerAvatar` and the server tick a `ServerPlayerAvatar`, so one
+process object drives a `LocalPlayer` on the client tick and a joined `ServerPlayer` on the
+server tick. A rung still builds a `TowerProcess` and hands it
 to `rig.drive`; only the **helm** changes — `ServerAvatarManager` headless, `BotApi.runProcess` (the
 client's own user-task chain) integrated. Every path that starts a leg goes through
 `JourneyRig.startLeg`, and that is load-bearing: registering the adopted driver with

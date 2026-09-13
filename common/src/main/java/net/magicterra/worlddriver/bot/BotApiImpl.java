@@ -1349,7 +1349,9 @@ public final class BotApiImpl implements BotApi {
         // keys even if it finishes mid-tick (current() then nulls) — its trailing
         // presses still need the one-shot cleanup below.
         boolean schedulerDroveThisTick = scheduler.current() != null;
-        scheduler.tick(mc, world, state);
+        // The scheduler talks bodies; this tick chain is the client's, so the body is the local
+        // player's. Built fresh per tick, like every other ClientPlayerAvatar (see clientAvatar()).
+        scheduler.tick(new net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar(mc), world, state);
         // Immediately after the chain has had its turn, so a caller polling on the next server
         // tick sees the ending rather than one tick of stale "still busy".
         settleLeg();

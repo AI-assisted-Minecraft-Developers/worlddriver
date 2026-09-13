@@ -13,7 +13,6 @@ import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
-import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.state.BlockState;
@@ -1460,13 +1459,6 @@ public final class Walker {
     static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDig(wk, a, cell, selectTool); }
     /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
     static BlockPos avatarDigPreempt(Walker wk, Avatar a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDigPreempt(wk, a, cell, selectTool); }
-
-    /** Client bridge: existing callers pass {@link Minecraft}; wrap it in a
-     *  {@link ClientPlayerAvatar} (1:1 passthrough). The decoupled core is
-     *  {@link #tick(Avatar, WorldView)}, which the server path calls directly. */
-    public Step tick(Minecraft mc, WorldView world) {
-        return tick(new ClientPlayerAvatar(mc), world);
-    }
 
     public Step tick(Avatar a, WorldView world) {
         body = a.entity();

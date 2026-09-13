@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
 import net.magicterra.worlddriver.bot.BotState;
+import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 
@@ -25,11 +27,29 @@ public interface Chain {
      * Evaluated once per tick. Return {@code <= 0} to sit out the bid; higher
      * wins. The value should be a function of the live situation (HP, nearby
      * threats, hazards) so activation/deactivation is automatic.
+     *
+     * @param body the body the scheduler is steering this tick; null in the headless matrix
+     *             scenes, which tick the scheduler with no body to exercise the bidding alone
      */
-    float priority(Minecraft mc, WorldView w, BotState st);
+    float priority(Avatar body, WorldView w, BotState st);
 
     /** Run when this chain wins the bid for the movement channel. */
-    void tick(Minecraft mc, WorldView w, BotState st);
+    void tick(Avatar body, WorldView w, BotState st);
+
+    /**
+     * The client a reflex chain runs on, or null when {@code body} is not the client player's.
+     *
+     * <p>The scheduler talks bodies, so a process it hands the channel to can be any body; the
+     * chains themselves still read the local player, the client level and the client-only
+     * helpers ({@code ThreatScanner}, {@code BotInteract}, the {@code auto} reflexes) through
+     * {@code Minecraft}, so each one downcasts here at the top of {@link #priority} and
+     * {@link #tick}. Whether the reflex layer should run over a server body at all is open;
+     * until it is decided, a chain over a body that is not the client's sees the same null it
+     * sees in the headless matrix scenes and sits the bid out.
+     */
+    static Minecraft clientOf(Avatar body) {
+        return body instanceof ClientPlayerAvatar c ? c.mc() : null;
+    }
 
     /** Called when a higher-priority chain preempts this one: save a minimal
      *  resume point, release held keys. {@code by} is the preempting chain. */
