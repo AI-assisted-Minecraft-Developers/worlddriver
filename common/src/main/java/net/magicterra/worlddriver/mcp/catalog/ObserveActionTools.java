@@ -13,6 +13,41 @@ import static net.magicterra.worlddriver.mcp.schema.Schemas.*;
 public final class ObserveActionTools {
     private ObserveActionTools() {}
 
+    /** {@code mc.observe.scene}: the hazard grid, its map, and the height / sight / mobDensity overlays. */
+    private static ToolSchema sceneTool() {
+        return roTool("mc.observe.scene",
+            "Server-side hazard scene around a center (default: first player, else test origin). " +
+            "Computes a HazardField via ServerWorldView and derives survival facts: lethalCount " +
+            "(cells that would kill a 20-HP bot), cornered (no safe adjacent step), safeFleeStep " +
+            "({dx,dz} of the safest cardinal/diagonal step away from a threat). " +
+            "Returns {present, center:{x,y,z}, radius, authority:'server', " +
+            "hazardSummary:{lethalCount, cornered, safeFleeStep?}}. " +
+            "With render='map' also returns {rows:[...], legend:{...}} — an ASCII hazard grid " +
+            "('.':walk '#':wall 'v':survivable-drop 'V':lethal-drop '~':water '≈':deep-water " +
+            "'x':contact-damage '!':lava/fire '@':center). Works headless in GameTest.",
+            object()
+                .prop("center", pos())
+                .prop("radius", integer().min(1)
+                    .desc("Chebyshev radius in blocks (default 12). Clamped to sceneQueryMaxRadius "
+                        + "server-side; over-limit requests return truncated:true + requested:N."))
+                .prop("render", stringEnum("summary", "map")
+                    .desc("summary (default): hazardSummary only. map: also include ASCII rows + legend."))
+                .prop("overlays", array(stringEnum("height", "sight", "mobDensity"))
+                    .desc("Extra layers. height: surface-height stats (centerY/minY/maxY). sight: per "
+                        + "standable cell, how many observers see it ({observers, rows, exposedCells}). "
+                        + "mobDensity: per cell, hostiles within the cluster radius ({rows, maxDensity, "
+                        + "clusteredCells}). Rows align with the map rows; '.' = no footing. Both use "
+                        + "the goto route planner's own judgement."))
+                .prop("route", object()
+                        .prop("sight", object().prop("of", union("string", "array")).prop("range", number())
+                            .prop("eye", number()))
+                        .prop("mobs", object().prop("types", array(string()))
+                            .prop("cluster", object().prop("count", integer()).prop("radius", number())))
+                    .desc("Which observers / mobs the sight and mobDensity overlays count: the same "
+                        + "sight and mobs keys as mc.bot.goto's route. Default: ranged hostiles, cluster "
+                        + "radius 6 (the risk:'safe' preset).")));
+    }
+
     public static List<ToolSchema> tools() {
         return List.of(
             roTool("mc.observe.cursor",
@@ -81,26 +116,7 @@ public final class ObserveActionTools {
                     .prop("radius", integer(1, 256)
                         .desc("Scan radius in blocks (default 64 — covers the End-pillar ring)."))),
 
-            roTool("mc.observe.scene",
-                "Server-side hazard scene around a center (default: first player, else test origin). " +
-                "Computes a HazardField via ServerWorldView and derives survival facts: lethalCount " +
-                "(cells that would kill a 20-HP bot), cornered (no safe adjacent step), safeFleeStep " +
-                "({dx,dz} of the safest cardinal/diagonal step away from a threat). " +
-                "Returns {present, center:{x,y,z}, radius, authority:'server', " +
-                "hazardSummary:{lethalCount, cornered, safeFleeStep?}}. " +
-                "With render='map' also returns {rows:[...], legend:{...}} — an ASCII hazard grid " +
-                "('.':walk '#':wall 'v':survivable-drop 'V':lethal-drop '~':water '≈':deep-water " +
-                "'x':contact-damage '!':lava/fire '@':center). Works headless in GameTest.",
-                object()
-                    .prop("center", pos())
-                    .prop("radius", integer().min(1)
-                        .desc("Chebyshev radius in blocks (default 12). Clamped to sceneQueryMaxRadius "
-                            + "server-side; over-limit requests return truncated:true + requested:N."))
-                    .prop("render", stringEnum("summary", "map")
-                        .desc("summary (default): hazardSummary only. map: also include ASCII rows + legend."))
-                    .prop("overlays", array(string())
-                        .desc("Extra overlay layers, e.g. ['height'] adds surface-height stats "
-                            + "(centerY/minY/maxY)."))),
+            sceneTool(),
 
             roTool("mc.observe.map",
                 "Server-side ASCII spatial map — a compact, glanceable substitute for parsing block + " +

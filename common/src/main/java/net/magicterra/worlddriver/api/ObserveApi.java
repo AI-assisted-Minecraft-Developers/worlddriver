@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.SceneOverlays;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
 import net.magicterra.worlddriver.bot.util.AttackSnap;
 import net.magicterra.worlddriver.bot.util.ItemSnap;
@@ -390,13 +391,16 @@ public final class ObserveApi {
         int radius = Params.clamp(requestedRadius, 1, BotConfig.sceneQueryMaxRadius);
         String render = p.getString("render", "summary");
         List<String> overlays = p.getStringList("overlays");
+        Map<String, Object> route = p.getMap("route");
         ServerLevel level = api.level();
         return api.onServerThread(() -> {
             BlockPos center = explicit;
+            int selfId = -1;
             if (center == null) {
                 List<ServerPlayer> all = api.server.getPlayerList().getPlayers();
                 if (!all.isEmpty()) {
                     center = all.get(0).blockPosition();
+                    selfId = all.get(0).getId();
                 } else {
                     center = DriverApi.ORIGIN;
                 }
@@ -446,6 +450,8 @@ public final class ObserveApi {
                     out.put("maxY", maxY);
                 }
             }
+            // sight / mobDensity: the route planner's own components over the same grid.
+            SceneOverlays.apply(out, level, center, radius, SceneOverlays.of(f, center), overlays, route, selfId);
             out.put("authority", "server");
             return out;
         });

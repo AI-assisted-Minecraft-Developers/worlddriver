@@ -106,6 +106,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previous plan was not seen by, the memory living on the intent. Debounced per (event,
   culprit) by `routeEventCooldownTicks` (100). The walker keeps its last deep search's result
   and search on `WalkerTallies` for this.
+- **`mc.observe.scene` overlays `sight` and `mobDensity`.** Per standable cell of the hazard
+  grid, how many observers see it and how many hostiles stand within the cluster radius,
+  computed at observation time by the planner's own `SightExposure` and `MobCluster` over a
+  fresh `SearchScope.gather` — one judgement for the map and the route, not one snapshot (no
+  search is running when a scene is observed). An optional `route` on the call takes the goto's
+  `sight` / `mobs` keys; the default is the `risk: safe` preset. Rows align with the ASCII map;
+  the ray budget for a grid is the larger of `sightRaysPerSearch` and eight per cell, and cells
+  past it read `?`.
 ## 2026-09-05
 
 - **A joined body that has left the player list is dropped from the body cache.** Scenes mint
