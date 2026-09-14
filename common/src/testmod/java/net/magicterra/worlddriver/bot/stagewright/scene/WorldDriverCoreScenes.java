@@ -151,7 +151,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *
      * <p>No player, no move: {@link SceneContext#playerOrNull()} rather than {@code player()},
      * because a dedicated server has none and {@code player()} would SKIP the whole scene — taking
-     * all 142 checks with it on the one topology where they currently pass.
+     * all 145 checks with it on the one topology where they currently pass.
      */
     private static void standOnTestArea(SceneContext ctx) {
         if (ctx.playerOrNull() == null) return;
@@ -308,14 +308,16 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     /** task#92 — the RPC validation suite's check count on the INTEGRATED (client-hosted) topology,
      *  where every client-face script runs its full real branch. Coverage-drift guard.
      *  Was 259 until 34_yaml_gametest.js (5 checks, both topologies — it was pure server-side and
-     *  never self-skipped) retired with the mc.test.yaml harness. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 254;
+     *  never self-skipped) retired with the mc.test.yaml harness; 254 until 66_body_routes.js
+     *  (3 checks, both topologies, needs no body) was added. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_INTEGRATED = 257;
 
     /** task#92 — the same suite's check count on the DEDICATED topology, where the ~35 client-face
      *  scripts each self-skip to a single "no client" placeholder (their real branch needs a client).
      *  The integrated set is a strict superset; both run REQUIRED with FAIL==0. Coverage-drift guard.
-     *  Was 147 until 34_yaml_gametest.js retired — see the INTEGRATED note above. */
-    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 142;
+     *  Was 147 until 34_yaml_gametest.js retired, 142 until 66_body_routes.js was added — see the
+     *  INTEGRATED note above. */
+    private static final int RPC_SMOKE_EXPECTED_TOTAL_DEDICATED = 145;
 
     /** task#92 — allow-list of check-name substrings permitted to record a {@code SKIP(task#92)} PASS on
      *  a topology whose precondition isn't met. Every skipped check MUST match one of these; any other
