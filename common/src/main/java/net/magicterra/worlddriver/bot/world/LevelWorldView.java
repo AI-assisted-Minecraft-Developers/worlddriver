@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
@@ -33,6 +34,9 @@ import net.minecraft.world.level.block.state.BlockState;
 public final class LevelWorldView implements WorldView {
 
     private final Level level;
+    /** The body this view plans for; its step height is the planner's. */
+    private final LivingEntity body;
+    /** The same body when it is a player, else null: tools, effects and inventory are a player's. */
     private final Player controller;
     /** Refreshed per {@link #beginSearch}; the constructor takes one so a view asked to price a
      *  break before any search (probes, scenes) prices with the body's real effects. */
@@ -47,7 +51,22 @@ public final class LevelWorldView implements WorldView {
     public Level level() { return level; }
 
     public LevelWorldView(Level level, Player controller) {
+        this(level, controller, controller);
+    }
+
+    /**
+     * A view for any body. One that is not a player has no hands, so it prices every break as
+     * impossible and counts no placeable blocks: a planner that emitted a dig for a mob would hand
+     * the walker an edge its handless stand-in can only stall on. A factory rather than a second
+     * constructor, so {@code new LevelWorldView(level, null)} keeps meaning what it meant.
+     */
+    public static LevelWorldView forBody(Level level, LivingEntity body) {
+        return new LevelWorldView(level, body, body instanceof Player p ? p : null);
+    }
+
+    private LevelWorldView(Level level, LivingEntity body, Player controller) {
         this.level = level;
+        this.body = body;
         this.controller = controller;
         this.dig = CellRules.DigSnapshot.of(controller, level);
     }
@@ -88,7 +107,9 @@ public final class LevelWorldView implements WorldView {
     // ---- break / place (live) ----
 
     @Override public double breakCost(BlockPos p) {
-        if (!BotConfig.allowBreak) return Double.POSITIVE_INFINITY;
+        // A body that is not a player cannot break anything; a view built over no body at all keeps
+        // the bare-hand price it always had.
+        if (!BotConfig.allowBreak || (controller == null && body != null)) return Double.POSITIVE_INFINITY;
         return CellRules.breakCost(level, p, state(p), controller, dig);
     }
 
@@ -179,7 +200,7 @@ public final class LevelWorldView implements WorldView {
 
     @Override public boolean canParkourPlace() { return BotConfig.allowParkourPlace && placeableBlockCount() > 0; }
 
-    @Override public int maxStepUpBlocks() { return (int) Math.floor(controller.maxUpStep()); }
+    @Override public int maxStepUpBlocks() { return (int) Math.floor(body.maxUpStep()); }
 
     @Override public int maxJumpUpBlocks() { return 1; }
 }

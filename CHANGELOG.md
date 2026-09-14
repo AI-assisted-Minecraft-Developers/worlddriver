@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-15
 
+- **The testmod has an NPC body: a driven piglin the walker drives like a player.**
+  `worlddriver:driven_piglin` is a piglin whose move, jump and look controls and whose brain stand
+  down while a driver holds it. The driver's step runs its tick through `pump()`, the way `JoinedBody`
+  is ticked, so the mob's own AI never writes over the input fields the walker sets. `LivingBody` wraps
+  it as a `Body` with no hands and no menus. `LevelWorldView.forBody` plans for a body that is not a
+  player by pricing every break as impossible and counting no placeable blocks. Five `wd.npc*`
+  terrain scenes walk it down stairs, over a gap, across open water, out onto a flush bank and up a
+  ladder. On a dedicated server a server player body then walks the same course. Both arrive on all
+  five courses, on both loaders; the tick differences are recorded in `docs/fake-player-parity.md` §12.
 - **Every process that needs hands refuses a handless body with `no_hands`.** Tower, mine, combat,
   craft and smelt read `asPlayer()` before they asked for hands, so a body that is not a player was
   told `player vanished` (tower, mine) or dropped without a word (combat). Craft and smelt did refuse

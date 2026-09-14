@@ -9,6 +9,8 @@ import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
+import net.magicterra.worlddriver.testcontent.DrivenPiglin;
+import net.magicterra.worlddriver.testcontent.NpcContent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -179,6 +181,27 @@ public final class SceneBody {
     // guard that is being honoured somewhere. Deleted rather than left: the live gate is
     // `refuseWhereAClientShouldDrive`, and `bare` / `avatar` — the two that touch the world, and
     // therefore every path `mint` reaches — already call it.
+
+    /**
+     * A driven {@link DrivenPiglin} standing in the centre of {@code foot}, discarded when the scene
+     * resolves.
+     *
+     * <p>Legal on every topology, unlike {@link #mint}: the 2026-08-20 rule is about headless PLAYER
+     * bodies on a server a client hosts, and a mob is not one; a client in the world just sees it.
+     * Invulnerable like the player bodies, so a scene measures the legs, not whether a fall or a pool
+     * kills the body.
+     */
+    public static LivingBody npc(SceneContext ctx, BlockPos foot) {
+        ServerLevel level = ctx.level();
+        DrivenPiglin mob = NpcContent.DRIVEN_PIGLIN.get().create(level);
+        if (mob == null) throw new IllegalStateException("worlddriver:driven_piglin created no entity");
+        mob.moveTo(foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5, 0f, 0f);
+        mob.setInvulnerable(true);
+        level.addFreshEntity(mob);
+        mob.setDriven(true);
+        ctx.cleanup(mob::discard);
+        return new LivingBody(mob);
+    }
 
     /**
      * The predicate — <b>deliberately time-invariant, and deliberately NOT the same as

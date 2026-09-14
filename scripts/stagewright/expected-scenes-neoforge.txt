@@ -567,5 +567,13 @@ wd.clientRouteOldFieldRejected
 wd.clientBodyRefusedWhileDead
 # Human verification — the testmod's marker block (docs/superpowers/specs/2026-09-05-human-in-the-loop-verification-design.md)
 wd.markerBlockNeverBlocksMotion
+# The NPC body (a driven piglin) on five terrains, with the server player body on the same course
+# where one may be minted, and refusing the work that needs hands.
+wd.npcWalksDownAStaircase
+wd.npcJumpsAOneBlockGap
+wd.npcSwimsAcrossOpenWater
+wd.npcClimbsOutOfWater
+wd.npcClimbsALadder
+wd.npcRefusesWorkThatNeedsHands
 # Hand-built fixtures (common/src/testmod/resources/scenes/index.txt): a name here and in the index, same commit.
 human.flatStep
