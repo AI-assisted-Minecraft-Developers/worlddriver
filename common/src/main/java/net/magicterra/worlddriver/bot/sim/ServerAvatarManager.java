@@ -4,7 +4,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Phase 2 registry: the server-tick driver of every active
- * {@link ServerWorldDriver}. The platform calls {@link #tickAll()} once per
+ * {@link BodyDriver}. The platform calls {@link #tickAll()} once per
  * server tick (from {@code ServerTickEvent.Post}); a driver that has finished
  * (reached/failed) is dropped automatically, and a driver that throws is
  * removed so a single faulty agent can never wedge the whole server tick.
@@ -16,22 +16,25 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <p>MIGRATION (P1.6 Task 1): this is the SINGLE registry, shared by every loader, so the
  * {@code /worlddriver server} command ({@link ServerAvatarCommand}) and the dogfood scenes land in
  * the same list that {@code WorldDriverEvents}' server-tick handler drives.
+ *
+ * <p>The list holds {@link BodyDriver}s rather than {@link ServerWorldDriver}s, so a driver over a
+ * body that is not a player rides the same tick and the same crash guard.
  */
 public final class ServerAvatarManager {
     private ServerAvatarManager() {}
 
-    private static final CopyOnWriteArrayList<ServerWorldDriver> ACTIVE = new CopyOnWriteArrayList<>();
+    private static final CopyOnWriteArrayList<BodyDriver> ACTIVE = new CopyOnWriteArrayList<>();
 
-    public static void register(ServerWorldDriver d) { ACTIVE.addIfAbsent(d); }
-    public static void unregister(ServerWorldDriver d) { ACTIVE.remove(d); }
+    public static void register(BodyDriver d) { ACTIVE.addIfAbsent(d); }
+    public static void unregister(BodyDriver d) { ACTIVE.remove(d); }
     /** Whether {@code d} is still on the tick list; {@link #tickAll} drops a finished driver itself. */
-    public static boolean isRegistered(ServerWorldDriver d) { return ACTIVE.contains(d); }
+    public static boolean isRegistered(BodyDriver d) { return ACTIVE.contains(d); }
     public static int activeCount() { return ACTIVE.size(); }
     public static void clear() { ACTIVE.clear(); }
 
     /** Advance every registered driver one tick; drop finished/crashed ones. */
     public static void tickAll() {
-        for (ServerWorldDriver d : ACTIVE) {
+        for (BodyDriver d : ACTIVE) {
             try {
                 d.tick();
                 if (d.finished()) ACTIVE.remove(d);

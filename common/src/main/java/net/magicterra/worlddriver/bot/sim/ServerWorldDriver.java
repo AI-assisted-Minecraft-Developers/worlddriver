@@ -38,7 +38,7 @@ import net.minecraft.server.level.ServerPlayer;
  * server} ({@link ServerAvatarCommand}); plus {@link ServerAvatarManager}, which keeps the
  * registered drivers and {@link #tick()}s them from the common server-tick hook.
  */
-public class ServerWorldDriver {
+public class ServerWorldDriver implements BodyDriver {
     private final ServerPlayerBody avatar;
     /**
      * Not final: the body can change dimension, and a view does not follow it.
@@ -54,6 +54,12 @@ public class ServerWorldDriver {
     private final BotState botState = new BotState();
     private volatile Walker.Step last = Walker.Step.WALKING;
     private volatile boolean finished;
+    /**
+     * Whether an entry point has given the driver a task. The spawn command registers a driver
+     * before any order, and it ticks from then on; that is not a task, whatever the walker makes of
+     * having no goal, so {@link #activeKind()} must not report one.
+     */
+    private volatile boolean tasked;
     private volatile BlockPos mineTarget;   // non-null = mine task: navigate near, then break
     private volatile BotProcess process;    // non-null = run a real (Body-migrated) BotProcess
 
@@ -85,6 +91,7 @@ public class ServerWorldDriver {
         mineTarget = null;
         process = null;
         finished = false;
+        tasked = true;
         last = Walker.Step.WALKING;
         return this;
     }
@@ -109,6 +116,7 @@ public class ServerWorldDriver {
         walker.setGoal(new Goal.Near(target, 2));
         releaseProcess("superseded by mine");
         finished = false;
+        tasked = true;
         last = Walker.Step.WALKING;
         return this;
     }
@@ -141,8 +149,38 @@ public class ServerWorldDriver {
         this.process = p;
         this.mineTarget = null;
         finished = false;
+        tasked = true;
         last = Walker.Step.WALKING;
         return this;
+    }
+
+    /**
+     * The kind of task the driver is on, or null when it has none or has finished: the held
+     * process's kind, or {@code mine}/{@code goto} for the two bare tasks {@link ServerAvatarCommand}
+     * sets.
+     */
+    public String activeKind() {
+        if (finished || !tasked) return null;
+        BotProcess p = process;
+        return p != null ? p.kind() : mineTarget != null ? "mine" : "goto";
+    }
+
+    /**
+     * Stop the task the way the client's {@code UserTaskChain.cancel} does: the process hears
+     * {@code onCancelled}, and its slot keeps {@code reason} as its error and goes inactive, so a
+     * status read tells a cancelled order from a running one. The manager drops the finished driver
+     * on its next tick. False when there was nothing to stop.
+     */
+    public boolean cancel(String reason) {
+        if (activeKind() == null) return false;
+        BotProcess prev = process;
+        releaseProcess(reason);
+        BotState.ProcessSlot slot = prev == null ? null : botState.slotFor(prev.kind());
+        if (slot != null) { slot.lastError = reason; slot.reset(); }
+        mineTarget = null;
+        finished = true;
+        last = Walker.Step.FAILED;
+        return true;
     }
 
     public ServerPlayerBody avatar() { return avatar; }

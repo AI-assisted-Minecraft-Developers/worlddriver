@@ -403,6 +403,8 @@ public final class WorldDriverCommon {
      * which McpServer converts to a tool isError.
      */
     public static void onServerStopping() {
+        // Every addressable body wraps an entity of the stopping server.
+        net.magicterra.worlddriver.bot.body.BodyRegistry.clear();
         if (api != null) {
             api.detachServer();
             LOG.info("[{}] DriverApi detached from server (RPC + MCP still up)", MOD_ID);

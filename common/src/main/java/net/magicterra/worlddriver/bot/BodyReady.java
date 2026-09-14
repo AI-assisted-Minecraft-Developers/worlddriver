@@ -46,6 +46,9 @@ public final class BodyReady {
          *  tick time; a compile-time constant, so a server-side process naming it loads nothing
          *  from this client-only class. */
         public static final String NO_HANDS = "no_hands";
+        /** A {@code body} param names no registered body. A compile-time constant for the same
+         *  reason as {@link #NO_HANDS}. */
+        public static final String UNKNOWN_BODY = "unknown_body";
         private Reason() { }
     }
 

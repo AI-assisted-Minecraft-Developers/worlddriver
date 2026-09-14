@@ -1,9 +1,11 @@
 package net.magicterra.worlddriver.bot.sim;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.body.BodyRegistry;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -23,8 +25,9 @@ import net.minecraft.world.phys.Vec3;
  * nothing here needs a loader API.
  *
  * <p>Scope: {@code spawn} mints a body of its own every time; {@code goto}, {@code mine} and
- * {@code status} address the most recently spawned driver. Addressing several agents by name is
- * later work.
+ * {@code status} address the most recently spawned driver. {@code spawn <name>} also registers the
+ * body in {@link BodyRegistry} as {@code player:<name>}, which is how {@code mc.bot.goto},
+ * {@code mc.bot.cancel} and {@code mc.bot.status} address it.
  */
 public final class ServerAvatarCommand {
     private ServerAvatarCommand() {}
@@ -42,7 +45,9 @@ public final class ServerAvatarCommand {
         dispatcher.register(Commands.literal(WorldDriverCommon.MOD_ID)
                 .then(Commands.literal("server")
                         .requires(s -> s.hasPermission(2))
-                        .then(Commands.literal("spawn").executes(ServerAvatarCommand::spawn))
+                        .then(Commands.literal("spawn").executes(ctx -> spawn(ctx, null))
+                                .then(Commands.argument("name", StringArgumentType.word())
+                                        .executes(ctx -> spawn(ctx, StringArgumentType.getString(ctx, "name")))))
                         .then(Commands.literal("goto")
                                 .then(Commands.argument("pos", BlockPosArgument.blockPos())
                                         .executes(ServerAvatarCommand::gotoPos)))
@@ -53,13 +58,22 @@ public final class ServerAvatarCommand {
                         .then(Commands.literal("clear").executes(ServerAvatarCommand::clear))));
     }
 
-    private static int spawn(CommandContext<CommandSourceStack> ctx) {
+    private static int spawn(CommandContext<CommandSourceStack> ctx, String name) {
         CommandSourceStack src = ctx.getSource();
+        String id = name == null ? null : ServerBodyHost.KIND + ":" + name;
+        // Checked before the body joins, so a taken name spawns nothing. Commands and every other
+        // registry writer run on the server thread, so nothing can take the name in between.
+        if (id != null && BodyRegistry.get(id) != null) {
+            src.sendFailure(Component.literal("worlddriver server: a body named " + id + " already exists"));
+            return 0;
+        }
         ServerLevel level = src.getLevel();
         Vec3 p = src.getPosition();
         current = ServerWorldDriver.createIsolated(level, p.x, p.y, p.z);
         ServerAvatarManager.register(current);
-        src.sendSuccess(() -> Component.literal("worlddriver server: spawned a server-side agent at "
+        if (id != null) BodyRegistry.register(new ServerBodyHost(name, current));
+        String what = id == null ? "a server-side agent" : id;
+        src.sendSuccess(() -> Component.literal("worlddriver server: spawned " + what + " at "
                 + String.format("%.1f %.1f %.1f", p.x, p.y, p.z) + " (active=" + ServerAvatarManager.activeCount() + ")"), false);
         return 1;
     }
@@ -104,8 +118,11 @@ public final class ServerAvatarCommand {
         return 1;
     }
 
+    /** Stops every driver, so it forgets every addressable body too: a host whose driver no longer
+     *  ticks would take orders and never carry them out. */
     private static int clear(CommandContext<CommandSourceStack> ctx) {
         ServerAvatarManager.clear();
+        BodyRegistry.clear();
         current = null;
         ctx.getSource().sendSuccess(() -> Component.literal("worlddriver server: cleared"), false);
         return 1;

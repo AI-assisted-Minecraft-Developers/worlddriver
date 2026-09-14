@@ -120,6 +120,32 @@ public final class BotState {
     /** True when any process slot is running. See {@link #activeName()}. */
     public boolean anyActive() { return activeName() != null; }
 
+    /**
+     * The slot a process of {@code kind} reports into, or null. Here rather than in
+     * {@code UserTaskChain} so a server-side driver can end a slot without loading a client class.
+     */
+    public ProcessSlot slotFor(String kind) {
+        return switch (kind) {
+            case "goto"    -> mc_goto;
+            case "mine"    -> mine;
+            case "builder" -> builder;
+            case "follow"  -> follow;
+            case "explore" -> explore;
+            case "runAway" -> runAway;
+            case "look"    -> look;
+            case "elytra"  -> elytra;
+            case "craft"   -> craft;
+            case "smelt"   -> smelt;
+            case "escape"  -> escape;
+            case "bunker"  -> bunker;
+            // Any future slot-less kind has NO BotState slot — its liveness surfaces
+            // via activeProcessDetail + the live process. Return null so cancel()/error
+            // don't (a) leave some other slot's active stuck true by resetting the
+            // wrong slot, or (b) stamp a phantom error on the goto slot.
+            default        -> null;
+        };
+    }
+
     /** Per-process slot. All fields read+written under {@link BotState}'s monitor. */
     public static final class ProcessSlot {
         public final String name;

@@ -155,24 +155,6 @@ public final class UserTaskChain implements Chain {
     @Override public void cancelEpisode(String reason) { cancel(reason); }
 
     private BotState.ProcessSlot slotFor(String kind) {
-        return switch (kind) {
-            case "goto"    -> state.mc_goto;
-            case "mine"    -> state.mine;
-            case "builder" -> state.builder;
-            case "follow"  -> state.follow;
-            case "explore" -> state.explore;
-            case "runAway" -> state.runAway;
-            case "look"    -> state.look;
-            case "elytra"  -> state.elytra;
-            case "craft"   -> state.craft;
-            case "smelt"   -> state.smelt;
-            case "escape"  -> state.escape;
-            case "bunker"  -> state.bunker;
-            // Any future slot-less kind has NO BotState slot — its liveness surfaces
-            // via activeProcessDetail + the live process. Return null so cancel()/error
-            // don't (a) leave some other slot's active stuck true by resetting the
-            // wrong slot, or (b) stamp a phantom error on the goto slot.
-            default        -> null;
-        };
+        return state.slotFor(kind);
     }
 }
