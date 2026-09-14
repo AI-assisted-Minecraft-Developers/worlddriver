@@ -63,6 +63,9 @@
    所以一具 join 了但 connection 不在监听器里的 `ServerPlayer`，拿得到 `tick()`（`gameMode.tick()` 连续挖掘、
    `containerMenu.broadcastChanges()`），永远拿不到 `doTick()`。Carpet 的解法是自己泵：
    `tick() { super.tick(); this.doTick(); }`。我们的 `JoinedBody.tick()` 覆写成空，两头都断了。
+   **2026-09-14 补核**：`doTick()` 以 `invokespecial Player.tick` 进链，子类对 `tick()` 的覆写挡不住它；
+   `placeNewPlayer` 不会把传入的 `Connection` 加进 `ServerConnectionListener` 的列表，所以监听器的 `tick()` 与
+   `doTick()` 对这具身体确实从不运行，与 `SilentConnection.tick()` 覆写与否无关。泵放在哪见 §3.2 的修订。
 4. `Mob.serverAiStep()` 依次 `navigation.tick → moveControl.tick → lookControl.tick → jumpControl.tick`，
    `MoveControl` 的 MOVE_TO 分支只做 `setYRot` + `setSpeed`，而 `Mob.setSpeed(f)` 覆写成 `super.setSpeed(f); setZza(f)`。
    **`Player` 没有覆写 `setSpeed`**，所以往玩家身上塞 `MoveControl` 必须自己补 `zza`。
@@ -70,8 +73,14 @@
    `onEnterCombat/onLeaveCombat`、`onEffectAdded/Updated/Removed`（加药水就炸）、`openMenu`、`closeContainer`、
    `teleportTo` 各重载、`displayClientMessage`；`doTick()` 里三处 `connection.send`。`JoinedBody` 的
    `SilentConnection` 已经绕过这一族，`FakePlayer` 路线没有——这也是它退役的理由之一。
+   **2026-09-14 补核**：`JoinedBody` 的 `connection` 非空，监听器实际走到的 `Connection` 方法（`send`、
+   `disconnect`、`setReadOnly`、`flushChannel`、`isConnected`、两个协议切换）全部被覆写，余下的
+   `getRemoteAddress`/`isMemoryConnection`/`getLoggableAddress` 落在 `EmbeddedChannel` 上不会空指针。
+   **没有找到缺的覆写**；NeoForge 自己的网络类未逐个扫。
 6. `ServerPlayer.checkFallDamage` 对**任何** `ServerPlayer` 都是空覆写（摔伤由客户端上报），换身体不解决
-   （parity X2-4）；`LivingBody` 反而没有这个问题。
+   （parity X2-4）；`LivingBody` 反而没有这个问题。**2026-09-14 补核**：真玩家的摔落走
+   `handleMovePlayer` 调的 `doCheckFallDamage(dx, dy, dz, onGround)`，这个方法是 `public`，全 jar 只有
+   `ServerPlayer` 与 `ServerGamePacketListenerImpl` 引用它——泵在移动之后自己调它，服务端身体就补得上。
 
 ## 3. 目标形状
 
@@ -105,13 +114,33 @@ Body                                     // 取代 Avatar；Walker/进程/调度
 | 实现 | 归属 | 身体 | 执行通道 | tick 泵 |
 |---|---|---|---|---|
 | `ClientPlayerBody` | 模组本体 | `LocalPlayer` | 移动：`AvatarInput extends KeyboardInput`（已有，E1 的成果）；挖掘/用物：`ClientIntents` + `MinecraftMixin`（2026-09-14 落地，Bot 层不再写任何 `KeyMapping`） | 客户端 tick（`BotApiImpl.clientTick`，不变） |
-| `ServerPlayerBody` | 模组本体（第三方扩展面） | `JoinedBody extends ServerPlayer`（已有，走 `placeNewPlayer`） | 直接写 `xxa/zza/jumping/shiftKeyDown` + `setSprinting`，**`tick(){ super.tick(); doTick(); }` 自泵**（Carpet 模式） | `SERVER_POST` 里的 `ServerBodies.tickAll()`（今天的 `ServerAvatarManager` 泛化） |
+| `ServerPlayerBody` | 模组本体（第三方扩展面） | `JoinedBody extends ServerPlayer`（已有，走 `placeNewPlayer`） | 直接写 `xxa/zza/jumping/shiftKeyDown` + `setSprinting`，每次 `step()` 调一次原版 `ServerPlayer.tick()` + `doTick()`（Carpet 的那一对调用，泵是我们自己的，见下文「2026-09-14 修订」） | `SERVER_POST` 里的 `ServerBodies.tickAll()`（今天的 `ServerAvatarManager` 泛化）；场景与快进照旧同步调 `step()` |
 | `LivingBody` | testmod | 任意 `LivingEntity`；第一只 NPC 是 testmod 注册的自定义猪灵（`Piglin` 子类） | 写 `xxa/zza` + `setJumping`；若是 `Mob`，被驱动的 tick **跳过它自己的 goal/navigation**（mixin 在 common，两个 loader 同一份） | 同上 |
 
 `ServerPlayerBody` 的自泵取代今天的 `ServerPlayerAvatar.step()` + `mirrorPlayerTick()`（1313 行手写物理），
 parity 表里 A1、A2、T5（硬编码 0.42 跳）、T8（`updatePlayerPose` 不跑）、T17/T18（水下跳、跳跃冷却）这一族
 应当随之消失，用 `wd.bodyParityCensus` 量。**`gameMode.*` 的动作面保留**（Carpet 也是 `handleBlockBreakAction`/
 `useItemOn`/`useItem`），因为那一层就是 51 个 handler 下面的真实现。
+
+**2026-09-14 修订：泵不放进实体自己的 `tick()`。** Carpet 的 `tick(){ super.tick(); doTick(); }` 让身体一个服务器
+tick 只走一步，而本仓库有两处按「一 tick 多步」写成的用法：测试模组里上百处在同一个服务器 tick 内同步调
+`step()`，`Walker`/`JourneyRig` 的快进一 tick 推进数百到上千步。反编译核实（Fabric 原版合并 jar 与 NeoForge
+21.1.230 补丁 jar）之后的形状：
+
+- `JoinedBody.tick()` 对关卡实体循环**继续为空**；`step()` 调 `JoinedBody` 上的泵方法，依次：写输入 →
+  若关卡实体循环本步之前没替它做过，补 `setOldPosAndRot()` 与 `tickCount++`（二者只在
+  `ServerLevel.tickNonPassenger` 里）→ `super.tick()`（即 `ServerPlayer.tick()`：`gameMode.tick`、
+  `broadcastChanges`、`invulnerableTime--`、`trackStartFallingPosition`）→ `doTick()`（以 `invokespecial Player.tick`
+  进链，绕过子类覆写；内含唯一一次 `baseTick`、`aiStep` 的原版跳跃闸与 `noJumpDelay`、`travel`、
+  `checkMovementStatistics`、`foodData.tick`、`updatePlayerPose`）→ `doCheckFallDamage(位移, onGround())`
+  （`ServerPlayer.checkFallDamage` 是空覆写，原版只在 `handleMovePlayer` 里调这个公开方法）→ `ChunkSource.move`。
+- **输入要身体自己按客户端的规矩写**，因为原版只在 `LocalPlayer.aiStep` 里做：移动冲量乘 `SNEAKING_SPEED`
+  （潜行或爬行）与 0.2（正在用物）；潜行入水 `goDownInWater`；冲刺的停止条件（无前向冲量、饱食不足、
+  撞墙、在水面而不在水下）。`setSpeed` 对玩家是死的（`Player.getSpeed` 直读属性），冲刺只靠 `setSprinting`。
+- **不再单独调** `baseTick`、`setSpeed`、`travel`、`checkMovementStatistics` 或手写跳闸——`doTick` 里都有，
+  再调一次就是双倍。
+- **代价写明**：食物、效果、火、空气、冷却、用物、`noJumpDelay` 按**步**推进，不按服务器 tick；
+  NeoForge 的 `PlayerTickEvent` 每步触发一次（`EntityTickEvent` 仍每服务器 tick 一次）。
 
 `LivingBody` 里「腿归谁」用一个显式的模式（Taterzens 的 `movement mode` 那一手）：`DRIVEN` 时 `Mob.serverAiStep`
 的导航与移动控制不跑、`LookControl` 不跑；`FREE` 时全部还给原版。模式切换在 `attach`/`release` 上，
@@ -150,7 +179,9 @@ parity 表里 A1、A2、T5（硬编码 0.42 跳）、T8（`updatePlayerPose` 不
 | 阶段 | 内容 | 判据 |
 |---|---|---|
 | P0 类型 | `Avatar` → `Body`：`LivingEntity entity()` + `asPlayer()`；`Hands`/`Containers` 拆出；`LookController.apply(LivingEntity)`；`BotInput` 变成 `ClientPlayerBody` 的实例方法；`Chain`/`ProcessScheduler` 收 `Body`，反射层内部向下转型到 `ClientPlayerBody`；`InteractionCommands.attackEntity` 改走 `Hands.attackEntity` | 六个闸颜色不变；预算闸；`wd.clientWorldViewParity`、`wd.bodyParityCensus` 读数不变 |
-| P1 服务端玩家 | `ServerPlayerBody` 自泵 tick，删 `step()`/`mirrorPlayerTick()`；`bot/sim/` 与 `/worlddriver server` 留在模组本体作为第三方扩展面；删两个 loader 的 sim 目录与 `FakePlayerFactory` 路线；`SilentConnection` 补齐 §2 第 5 条的 NPE 面 | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 转绿；专用服闸绿；真梯自测不退 |
+| P1a 只剩真身体 | `ServerAvatarBodies` 只出 `JoinedBody`，`realPlayerBodies` 开关退役；删 Fabric 的 `FabricAvatarBodies`/`AvatarFakePlayer` 与 NeoForge 的 `FakePlayerFactory` 工厂；`/worlddriver server` 从 NeoForge 搬进 common，两个 loader 都有；两个 loader 的 `sim/` 目录删除 | 六个闸颜色不变（六个闸本来就开着那个开关）；`wd.bodyParityCensus` 的 factory 列如实记 unavailable |
+| P1b 原版泵 | `step()` 改走 `JoinedBody` 的泵（§3.2 修订）；删 `mirrorPlayerTick()`、手写跳闸、`setSpeed`/`travel` 直调；断言非原版行为的场景跟着改 | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 读成原版的值；专用服闸绿；真梯自测不退 |
+| P1c 连接 | `SilentConnection` 对照 §2 第 5 条 | 2026-09-14 已逐方法核过、无缺口（见 §2 第 5 条补核）；NeoForge 网络类若日后炸出空指针再补 |
 | P2 NPC | `LivingBody` + `DrivenMobHook`（common mixin：被驱动的 `Mob` 跳过 `serverAiStep` 的导航/移动/看向）；能力门（`no_hands` 拒单）；`SceneBody.npc`；`wd.npc*` 五个地形场景；可选 `NavigationMover` 对照 | 五个地形 NPC 身体通过，或差异归入四类之一并登记 |
 | P3 寻址 | `BodyRegistry`、`mc.bot.*` 的 `body` 参数、`status.bodies`；`FixtureRunner` 的 `body: npc:…`；RPC 参考与 `docs/dev/bot-layering.md` 更新 | 三 transport 字节一致测试覆盖 `body` 参数；人工验证手册补一节 |
 
@@ -175,3 +206,7 @@ parity 表里 A1、A2、T5（硬编码 0.42 跳）、T8（`updatePlayerPose` 不
 2. **已拍板（2026-09-14）**：NPC 的第一具身体是 testmod 里一个自定义的猪灵实体（`Piglin` 子类，自己的
    `EntityType`），不披玩家皮；皮是展示问题，单独立项。
 3. 反射层要不要上服务端身体（自动吃、自动游）。第一版不上；真梯在专用服上的死因族如果指向这里再议。
+4. **P1b 的实施假设（2026-09-14，未经拍板）**：服务端身体的饥饿、状态效果、火、空气、冷却按原版跑，
+   不豁免——那正是换原版泵要换来的东西；`JoinedBody.isInvulnerableTo → true` 仍在，所以饿不死也摔不死，
+   只是会饿、会停冲刺。进食走现有的 `commandUseItem`/`JourneyFeed`。若场景或真梯因此变红，再议是否给
+   这具身体一个豁免开关，而不是在泵里悄悄跳过 `foodData.tick`。
