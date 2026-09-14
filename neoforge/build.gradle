@@ -219,16 +219,6 @@ loom {
         dogfoodServer {
             server()
             property 'stagewright.autorun', 'true'
-            // THE BODY THE GATES TEST, and on THIS loader it is not a cosmetic choice.
-            // `wd.bodyParityCensus` measured it: the factory body here is a real
-            // net.neoforged FakePlayer, PlayerAdvancements.award has an `instanceof FakePlayer`
-            // branch, and so it earns NOTHING — award() false, against true for a joined body.
-            // That is the whole root cause of the NeoForge-only red
-            // `wd.serverAvatarEarnsAdvancement`, which this flag is expected to remove.
-            // FakePlayer.awardStat is an unconditional empty override too, and statistics feed
-            // the progress triggers (JUMP / FALL_ONE_CM / DAMAGE_DEALT / ENTITY_KILLED): same
-            // walk, same 11 ticks, walk_one_cm 0 against 227.
-            property 'worlddriver.realPlayerBodies', 'true'
             runDir 'run-dogfood'
             vmArg '-Xmx2g'
             // P4a Task 2: the wd.* dogfood scenes + SceneProvider service moved to
@@ -254,13 +244,10 @@ loom {
             // ⚠️ THIS TOPOLOGY NO LONGER VARIES ONLY THE RUN, and that is now on purpose. The
             // 2026-08-20 body-selection instruction puts JoinedBody on the DEDICATED server only, so
             // `SceneBody` refuses to mint one here and every scene that needs a headless body is a
-            // recorded skip until its family is converted to the client helm. The flag stays because
-            // it still decides what the ladder's topologies get, and because turning it off would
-            // put the retired FakePlayer back — a worse body, not a smaller change.
+            // recorded skip until its family is converted to the client helm.
             // The old doctrine「a topology must vary the RUN, never the subject」still applies to
             // every OTHER pair of topologies, and it is why the skips have to be reconciled against
             // the dedicated gate rather than counted as coverage.
-            property 'worlddriver.realPlayerBodies', 'true'
             // The suite arms at SERVER_STARTED, which here is before the local player is placed;
             // without this a run could start with no client at all and still look like a client run.
             property 'stagewright.awaitPlayer', 'true'
@@ -277,8 +264,6 @@ loom {
             server()
             programArgs '--nogui', '--port', '25602'
             property 'stagewright.autorun', 'true'
-            // Same body everywhere — see dogfoodServer.
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.awaitPlayer', 'true'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'

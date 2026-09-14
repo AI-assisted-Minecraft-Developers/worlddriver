@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **Server bodies always join; the fake players and `-Dworlddriver.realPlayerBodies` are gone.**
+  `ServerAvatarBodies` now mints only `JoinedBody`, a player placed through
+  `PlayerList.placeNewPlayer`. Every gate, ladder and rehearsal run already set that switch, so what
+  they measure is unchanged. What changes is every other launch. A `/worlddriver server` agent got
+  NeoForge's `FakePlayer`, and another mod minting a body through the seam got that or Fabric's
+  `AvatarFakePlayer`. Neither was in `level.players()` or recorded statistics, and the NeoForge one
+  earned no advancements. Deleted with them: `AvatarFakePlayer`, `AvatarNetHandler`,
+  `FabricAvatarBodies`, NeoForge's `FakePlayerFactory` body factory, `ServerAvatarBodies.install`
+  with its `BodyFactory` interface, and the three `neoforge.sim` shims. `/worlddriver server` moved
+  into common and now exists on Fabric too. `wd.bodyParityCensus` records its `factory` column as
+  unavailable.
 - **`wd.agentRpcSmoke` cancels the bot tasks its scripts leave behind.** The validation suite
   starts real processes on the client and most scripts never cancel them, so on the integrated
   topology the user chain kept bidding 50 for minutes after the scene passed. `AutoSwim`'s

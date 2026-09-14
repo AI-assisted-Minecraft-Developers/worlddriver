@@ -13,11 +13,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * the arenas exercise now runs autonomously on the dedicated-server tick, with
  * no {@code LocalPlayer} / client involved.
  *
- * <p>MIGRATION (P1.6 Task 1): this is now the SINGLE registry, shared by every
- * loader. The NeoForge {@code net.magicterra.worlddriver.neoforge.sim.ServerAvatarManager}
- * of the same simple name is a static-delegation shim onto this class, so the
- * {@code /worlddriver server} command and the common dogfood scenes land in the same list
- * that {@code WorldDriverEvents}' server-tick handler drives.
+ * <p>MIGRATION (P1.6 Task 1): this is the SINGLE registry, shared by every loader, so the
+ * {@code /worlddriver server} command ({@link ServerAvatarCommand}) and the dogfood scenes land in
+ * the same list that {@code WorldDriverEvents}' server-tick handler drives.
  */
 public final class ServerAvatarManager {
     private ServerAvatarManager() {}

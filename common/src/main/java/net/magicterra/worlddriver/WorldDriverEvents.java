@@ -10,6 +10,7 @@ import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.sim.ServerAvatarCommand;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.script.ScriptEvents;
 import net.minecraft.core.BlockPos;
@@ -21,9 +22,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * The driver's server-side event subscriptions, written once against Architectury's events and
- * registered by both loader entries at mod construction. Everything a loader entry still does
- * itself is loader-specific by nature: the body factory behind {@code ServerAvatarBodies}, and the
- * NeoForge-only server-avatar command.
+ * registered by both loader entries at mod construction, {@code /worlddriver server} included.
  *
  * <p>The external events ({@code block.break}, {@code block.place}, {@code entity.death},
  * {@code player.join}, {@code player.leave}, {@code chat.message}) go out through
@@ -62,8 +61,10 @@ public final class WorldDriverEvents {
             ScriptEvents.fireTick();
             ServerAvatarManager.tickAll();
         });
-        CommandRegistrationEvent.EVENT.register((dispatcher, context, selection) ->
-                WorldDriverCommon.registerCommands(dispatcher));
+        CommandRegistrationEvent.EVENT.register((dispatcher, context, selection) -> {
+            WorldDriverCommon.registerCommands(dispatcher);
+            ServerAvatarCommand.register(dispatcher);
+        });
 
         BlockEvent.BREAK.register(WorldDriverEvents::onBlockBreak);
         BlockEvent.PLACE.register(WorldDriverEvents::onBlockPlace);

@@ -13,7 +13,6 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
-import net.magicterra.worlddriver.bot.sim.ServerAvatarBodies;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.minecraft.advancements.AdvancementHolder;
@@ -72,26 +71,21 @@ import net.minecraft.world.phys.Vec3;
  * does), or is it caused by this driver never going through the real packet handlers (changing the
  * body will not help)?</b> §6.5 of the doc answers that for all 39 rows — <i>by reading</i>.
  *
- * <p><b>Two columns is what makes that answer checkable, and one of the two columns is about to
- * stop existing.</b> So this scene measures the same quantities on BOTH bodies in the same run:
- * the factory body ({@code FakePlayer} on NeoForge, {@code AvatarFakePlayer} on Fabric) and a
- * {@code JoinedBody}, side by side, regardless of whether {@code -Dworlddriver.realPlayerBodies} is
- * set. After the retirement the first column can never be taken again. Every row where the two
- * columns AGREE is a difference the retirement will NOT fix; every row where they DIFFER is one it
- * will. That is the archive this scene exists to leave behind.
+ * <p><b>Two columns made that answer checkable, and the first one is gone.</b> Until the
+ * fake-player factories were deleted, this scene measured the same quantities on BOTH bodies in
+ * the same run: the factory body ({@code FakePlayer} on NeoForge, {@code AvatarFakePlayer} on
+ * Fabric) and a {@code JoinedBody}, side by side. Every row where the two columns agreed is a
+ * difference the retirement did not fix; every row where they differed is one it did. Those runs
+ * are the archive this scene existed to leave behind. Since the deletion the {@code factory}
+ * column records {@code unavailable} and only {@code joined} is measured.
  *
- * <p><b>「regardless of whether the flag is set」 was untrue for exactly one run, and that is worth
- * keeping.</b> Column A used to mint via {@code ServerPlayerBody.createUnique}, which routes
- * through {@code ServerAvatarBodies.require()}, whose first line is
- * {@code if (real != null) return real;}. So on 2026-08-22 — the first dedicated-server run after
- * {@code -Dworlddriver.realPlayerBodies=true} was armed for the gates — <b>both columns minted a
- * {@code JoinedBody}</b> and every one of the 26 rows came back identical. Nothing failed; the
- * scene passed; the two matching columns read exactly like 「换身体没有区别」, which is the
- * opposite of the truth. It was caught only because {@code census.armProperty} records this run's
- * PREMISE unconditionally, so the identical columns could be attributed to the switch instead of to
- * the bodies. Column A now bypasses {@code require()} via
- * {@code ServerAvatarBodies.loaderFactoryOrNull()}, and {@code census.factoryColumnSource} names
- * the factory it actually got. The general rule, which outlives this scene: <b>a control that can
+ * <p><b>A control that silently became its own treatment arm, kept as a rule.</b> On 2026-08-22,
+ * the first dedicated-server run after {@code -Dworlddriver.realPlayerBodies=true} was armed for
+ * the gates, column A still minted through the seam, which by then handed back a
+ * {@code JoinedBody}: <b>both columns minted a {@code JoinedBody}</b> and every one of the 26 rows
+ * came back identical. Nothing failed; the matching columns read exactly like 「换身体没有区别」,
+ * which is the opposite of the truth. It was caught only because {@code census.armProperty}
+ * recorded that run's PREMISE unconditionally. The rule outlives the column: <b>a control that can
  * silently degenerate into its own treatment arm is worse than no control</b>, and the only cheap
  * defence is to record, unconditionally, what the run's premise actually was.
  *
@@ -106,11 +100,10 @@ import net.minecraft.world.phys.Vec3;
  *       running game</b> rather than echoed from a {@code -D} flag. A row that merely repeated the
  *       flag would be green on a run where the flag was set and the thing it promises never
  *       happened; that failure has a name in this repo.</li>
- *   <li>{@code census.factoryColumnSource} — the concrete factory class column A was minted from.
- *       This is the <b>negative control</b>: the reading that must stay DIFFERENT from column B
- *       while everything else works. If it ever names a joined-body factory, or reports
- *       {@code unavailable}, then the two columns are not a comparison and no row below them
- *       means what it appears to mean.</li>
+ *   <li>{@code census.factoryColumnSource} — where column A came from. It was the <b>negative
+ *       control</b>, the reading that had to stay DIFFERENT from column B. Since the fake-player
+ *       factories were deleted it always reads {@code unavailable}, so no row of column A means
+ *       anything; an archived row that names a factory class is from before the deletion.</li>
  *   <li>{@code body.<column>.identity} — the concrete class, the profile name, whether it is in
  *       {@code level.players()}, and whether it is a NeoForge {@code FakePlayer}. The last is the
  *       one the whole retirement turns on.</li>
@@ -208,42 +201,26 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + FLOOR_LIFT;
 
         ctx.record("census.topology", topology(ctx));
-        ctx.record("census.armProperty", JoinedPlayerBodies.ARM_PROPERTY + "="
-                + (JoinedPlayerBodies.armed() ? "true" : "false")
-                + "（两列都量，与这个开关无关）");
+        // The switch this row used to print was deleted with the fake bodies. The key stays, so an
+        // archived row and a new one line up and the run's premise is still written down.
+        ctx.record("census.armProperty", "retired（服务端身体只有 JoinedBody，开关已删）");
 
-        // ---- column A: the LOADER's own body — the negative control, and it must stay different ----
+        // ---- column A: the fake-player factory body — gone, and recorded as gone ----
         //
-        // Not ServerPlayerBody.createUnique(): that routes through ServerAvatarBodies.require(),
-        // whose first line is `if (real != null) return real;`, so with the flip armed it hands back
-        // a JoinedBody and this column silently becomes a second copy of column B. That is not a
-        // hypothetical — it is what the 2026-08-22 NeoForge run actually did, and the two identical
-        // columns read exactly like 「换身体没有区别」. A control is the reading that is supposed to
-        // stay DIFFERENT while everything else works; one that quietly degenerates into its own
-        // treatment arm measures nothing and still prints a colour.
-        ServerAvatarBodies.BodyFactory loaderFactory = ServerAvatarBodies.loaderFactoryOrNull();
-        ctx.record("census.factoryColumnSource", loaderFactory == null
-                ? "unavailable/loader 尚未 install（这一列没有对照可言）"
-                : loaderFactory.getClass().getName() + "（绕过 require()，所以翻闸不会把这一列变成 JoinedBody）");
+        // Both loaders' fake-player factories were deleted when the server seam went to joined
+        // bodies only, so this column can no longer be taken. It still goes through measureColumn:
+        // its pad is built and cleaned as before, and body.factory.identity says unavailable instead
+        // of going missing, which would read like a census that lost a column. The two-column runs
+        // from before the deletion are the archive this scene was built to leave.
+        ctx.record("census.factoryColumnSource", "unavailable/假人工厂已删除（服务端身体只有 JoinedBody）");
         ServerPlayerBody factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () -> {
-            if (loaderFactory == null) {
-                throw new IllegalStateException("loader body factory not installed");
-            }
-            GameProfile profile = new GameProfile(
-                    java.util.UUID.nameUUIDFromBytes(
-                            "OfflinePlayer:wd-census-loader".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                    "wd-census-loader");
-            ServerPlayer body = loaderFactory.unique(level, profile);
-            body.setPos(ox + 0.5, floorY + 1, oz + 0.5);
-            body.setDeltaMovement(Vec3.ZERO);
-            return new ServerPlayerBody(body);
+            throw new IllegalStateException("the fake-player body factories were deleted");
         });
 
         // ---- column B: a JoinedBody, minted directly rather than through the seam ----
-        // Directly, because ServerAvatarBodies.require() only returns a joined body when the
-        // system property is armed, and this census must take BOTH columns on every run — the
-        // whole point is comparing them, and a run that could only ever see one of the two would
-        // be the single-column archive this scene exists to avoid.
+        // Directly, from a JoinedPlayerBodies of its own, exactly as it was minted while column A
+        // still existed: the census body never shares the seam's cache with the scene bodies, and
+        // its readings stay comparable with the archived two-column runs.
         final int jx = ox + COLUMN_GAP;
         ServerPlayerBody joinedAvatar = measureColumn(ctx, "joined", level, jx, floorY, oz, () -> {
             JoinedPlayerBodies bodies = new JoinedPlayerBodies();

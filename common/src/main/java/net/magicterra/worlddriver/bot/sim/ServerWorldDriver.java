@@ -16,9 +16,9 @@ import net.minecraft.server.level.ServerPlayer;
  * the {@code Body} seam) then runs the manual vanilla physics step. This is
  * exactly the loop the headless arenas validate; {@link ServerAvatarManager}
  * wires it to the live {@code ServerTickEvent} so a dedicated server drives the
- * FakePlayer with no {@code LocalPlayer}.
+ * body with no {@code LocalPlayer}.
  *
- * <p>Phase 0/1 capability note: a FakePlayer is a {@code ServerPlayer}, so it
+ * <p>Phase 0/1 capability note: the body is a {@code ServerPlayer}, so it
  * has full Player capability (place/break/craft/containers). This Phase-2
  * increment wires the MOVEMENT loop end-to-end on the server tick; richer
  * task processes (mine/craft) migrate off the client {@code mc} in later work.
@@ -27,22 +27,16 @@ import net.minecraft.server.level.ServerPlayer;
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerWorldDriver}; body type is now
  * vanilla {@link ServerPlayer}.
  *
- * <p><b>The {@code non-final} accessors outlived the reason this javadoc gave for them.</b> It
- * said they existed so the NeoForge shim of the same simple name could covariantly return the
- * {@code FakePlayer} / neoforge {@code ServerPlayerBody} types «that legacy GameTest callers
- * bind to». That suite was retired in P4-final and nothing binds to those types now. The shim is
- * still here and still narrows {@link #avatar()} and {@link #fakePlayer()}, so this class and
- * those accessors stay {@code non-final} — but what stands behind it is one command, NeoForge's
- * {@code /worlddriver server}, not a caller population: no file outside
- * {@code net.magicterra.worlddriver.neoforge.sim} imports either shim class. (The MIGRATION note
- * above spells the old fully-qualified name, and so does its twin in {@link ServerPlayerBody};
- * both are provenance, not use.)
+ * <p><b>Why the accessors are {@code non-final}.</b> This class is extension surface for other
+ * mods. The NeoForge shim of the same simple name, which narrowed {@link #avatar()} and
+ * {@link #fakePlayer()} to NeoForge types, was deleted with the fake bodies, so nothing in this
+ * repo overrides them.
  *
  * <p>Who holds a driver of THIS type: the testmod's scenes, via
  * {@code SceneBody.mint}/{@code managed}/{@code bare} — and {@code JourneyRig}, which wraps an
- * adopted real player when the topology supplies one and mints otherwise; plus
- * {@link ServerAvatarManager}, which keeps the registered drivers and {@link #tick()}s them from
- * each loader's server-tick hook.
+ * adopted real player when the topology supplies one and mints otherwise; {@code /worlddriver
+ * server} ({@link ServerAvatarCommand}); plus {@link ServerAvatarManager}, which keeps the
+ * registered drivers and {@link #tick()}s them from the common server-tick hook.
  */
 public class ServerWorldDriver {
     private final ServerPlayerBody avatar;
@@ -68,13 +62,13 @@ public class ServerWorldDriver {
         this.world = new LevelWorldView(avatar.fakePlayer().level(), avatar.fakePlayer());
     }
 
-    /** Spawn a FakePlayer at {@code (x,y,z)} in {@code level} and wrap it in a driver. */
+    /** Put the level's shared body at {@code (x,y,z)} and wrap it in a driver. */
     public static ServerWorldDriver create(ServerLevel level, double x, double y, double z) {
         return new ServerWorldDriver(ServerPlayerBody.create(level, x, y, z));
     }
 
     /** {@link #create} with an isolated body ({@link ServerPlayerBody#createUnique}) —
-     *  the production entry point: every {@code /worlddriver server} agent gets its own FakePlayer. */
+     *  the production entry point: every {@code /worlddriver server} agent gets its own body. */
     public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
         return new ServerWorldDriver(ServerPlayerBody.createUnique(level, x, y, z));
     }

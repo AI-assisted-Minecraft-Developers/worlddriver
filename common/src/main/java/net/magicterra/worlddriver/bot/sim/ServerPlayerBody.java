@@ -58,37 +58,18 @@ import net.minecraft.world.phys.Vec3;
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerBody}; the ONLY
  * substantive change is that the body type is now vanilla {@link ServerPlayer}
  * (was NeoForge {@code FakePlayer}) and the body is obtained through the
- * loader-injected {@link ServerAvatarBodies} seam instead of {@code
- * FakePlayerFactory} directly.
+ * {@link ServerAvatarBodies} seam instead of {@code FakePlayerFactory} directly.
  *
- * <p><b>Who calls this, and who the {@code non-final} is for, are two different questions — and
- * this javadoc used to answer both with one sentence that is no longer true</b> («the NeoForge
- * shim keeps the {@code FakePlayer} return type covariantly, so ~3000 lines of legacy GameTest
- * callers compile unchanged»). That suite was retired in P4-final; nothing binds to those
- * signatures any more. What is actually there:
+ * <p><b>Who calls this.</b> The testmod's scenes take a bare avatar from {@code SceneBody.avatar},
+ * or one wrapped in a {@link ServerWorldDriver} from {@code SceneBody.mint}/{@code managed}/
+ * {@code bare}; three call sites instead construct one directly over a body they already hold —
+ * {@code JourneyRig}'s adopted real player, the same wrapper rebuilt in
+ * {@code WorldDriverActuatorSplitScenes}, and the joined column of {@code wd.bodyParityCensus}. In
+ * production the caller is {@code /worlddriver server} ({@link ServerAvatarCommand}). The class
+ * stays {@code non-final} because it is extension surface for other mods; the NeoForge shim that
+ * used to subclass it was deleted with the fake bodies.
  *
- * <ul>
- *   <li><b>Every caller is on THIS type.</b> The testmod's scenes take a bare avatar from
- *       {@code SceneBody.avatar}, or one wrapped in a {@link ServerWorldDriver} from
- *       {@code SceneBody.mint}/{@code managed}/{@code bare}; four call sites instead construct one
- *       directly over a body they already hold — {@code JourneyRig}'s adopted real player, the
- *       same wrapper rebuilt in {@code WorldDriverActuatorSplitScenes}, and both columns of
- *       {@code wd.bodyParityCensus}. None of them names the shim: no file outside
- *       {@code net.magicterra.worlddriver.neoforge.sim} imports either shim class. (The only
- *       places its fully-qualified name appears at all are the MIGRATION note above and its twin
- *       in {@link ServerWorldDriver} — provenance, not use.)</li>
- *   <li><b>The {@code non-final} is still load-bearing, but for one class rather than a caller
- *       population.</b> The NeoForge shim of the same simple name extends this one and narrows
- *       {@link #fakePlayer()} back to {@code FakePlayer}; its only live consumer is NeoForge's
- *       {@code /worlddriver server} command. Keep this class and its covariantly-overridden methods
- *       {@code non-final} for as long as that shim compiles — and check the shim, not a caller
- *       count, before concluding otherwise.</li>
- * </ul>
- *
- * <p>See {@link ServerAvatarBodies} for the seam contract: neoforge installs a
- * {@code FakePlayerFactory}-backed factory and fabric one that mints {@link AvatarFakePlayer},
- * but an armed {@code -Dworlddriver.realPlayerBodies=true} preempts BOTH and hands back a body
- * that has actually joined.
+ * <p>See {@link ServerAvatarBodies} for where the body comes from: always a player that has joined.
  */
 public class ServerPlayerBody implements Body, Hands, Containers {
 
@@ -204,9 +185,9 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      *  and the arenas are gone; the reading is kept because it is what per-body isolation costs, not
      *  because anything still shares.
      *
-     *  <p>NOTE: {@code FakePlayerFactory.get} caches per profile per level; each call mints a new
-     *  entry that lives until level unload, fine for the single-demo-agent command, revisit if
-     *  agents get spawned in bulk. */
+     *  <p>NOTE: the seam caches bodies per profile per level, and each call here mints a new
+     *  profile, so each call joins one more player that stays until it is discarded. Fine for the
+     *  single-demo-agent command; revisit if agents get spawned in bulk. */
     public static ServerPlayerBody createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
@@ -254,7 +235,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      *
      * <p><b>Why publishing is not optional.</b> Every write site here used to carry the comment
      * "server-authoritative, so no packet: this body's connection swallows them anyway". That is
-     * true of the three headless bodies and <b>false of the fourth</b> — the integrated-server
+     * true of the headless body and <b>false of the adopted one</b> — the integrated-server
      * topology adopts the client's real {@code ServerPlayer} and wraps it in this avatar, and that
      * body's connection reaches a live {@code LocalPlayer}. Nothing on the client can notice the
      * drift on its own: the driver's own {@code BotInteract.ensureHolding} opens with
@@ -274,9 +255,9 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * block, so the only reading that could have told the truth was the server's stock, which never
      * moved. One course with no Y gain ends a whole raise.
      *
-     * <p><b>No topology test, deliberately.</b> A/B's {@code AvatarNetHandler.send} and C's
-     * {@code SilentConnection.send} are empty methods, so for the headless bodies this is one
-     * allocation and one no-op virtual call. An {@code if (isARealPlayer)} would be a branch that
+     * <p><b>No topology test, deliberately.</b> The joined body's packets end in
+     * {@code SilentConnection.send}, an empty method, so for the headless body this is one
+     * allocation and a short chain of virtual calls. An {@code if (isARealPlayer)} would be a branch that
      * can be written backwards.
      *
      * <p><b>The equality guard is not an optimisation.</b> The client applies the packet but does
@@ -297,8 +278,8 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         var inv = fp.getInventory();
         if (slot < 0 || slot > 8 || inv.selected == slot) return;
         inv.selected = slot;
-        // Null only for a body nobody installed a listener on; all four of today's are covered
-        // (AvatarFakePlayer's constructor, the NeoForge factory, placeNewPlayer, a real login).
+        // Null only for a body nobody installed a listener on; both of today's are covered
+        // (placeNewPlayer for the joined body, a real login for the adopted one).
         if (fp.connection != null) fp.connection.send(new ClientboundSetCarriedItemPacket(slot));
     }
 
@@ -667,22 +648,20 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     /**
      * Install the menu this block would have opened, when vanilla's own route declined to.
      *
-     * <p><b>Why this is needed at all.</b> A fake player's {@code openMenu} returns
-     * {@code OptionalInt.empty()} — NeoForge's {@code FakePlayer} does it and
-     * {@link AvatarFakePlayer} mirrors it, on the reasoning that a body with no client has no
-     * screen to show. But {@code CraftingTableBlock.useWithoutItem} reaches the menu ONLY through
+     * <p><b>Why this was needed at all.</b> A fake player's {@code openMenu} returned
+     * {@code OptionalInt.empty()} — NeoForge's {@code FakePlayer} does it and the Fabric fake body
+     * mirrored it, on the reasoning that a body with no client has no screen to show. But
+     * {@code CraftingTableBlock.useWithoutItem} reaches the menu ONLY through
      * {@code player.openMenu(...)}, so on this avatar a right-click on a table did nothing at all
      * and {@code CraftProcess} sat in {@code OPEN_WAIT} until it timed out. Both this method's old
      * comment and {@code CraftProcess}'s called that a "capability cliff" and left it — which meant
      * <b>the server-side agent could craft only what fits the 2×2 inventory grid</b>. Everything a
      * playthrough is made of — pickaxes, a furnace, buckets, flint and steel — is 3×3.
      *
-     * <p><b>Why here and not by un-overriding {@code openMenu}.</b> That override lives on
-     * {@link AvatarFakePlayer}, which is the FABRIC body; NeoForge injects its own
-     * {@code FakePlayer} through {@link ServerAvatarBodies} and this repo cannot edit it. Fixing it
-     * there would fix one loader and leave the other timing out, which is the exact shape of
-     * divergence this project has been bitten by before. {@link ServerPlayerBody} is common to
-     * both, so the seam belongs here.
+     * <p><b>What changed.</b> Both fake bodies were deleted. A {@code JoinedBody} keeps vanilla's
+     * {@code openMenu}, and the adopted real player always had it, so on today's bodies vanilla
+     * opens the menu itself and this runs only when it declined to. Whether that can still happen
+     * is to be judged with the vanilla pump, not assumed here.
      *
      * <p><b>What is deliberately skipped.</b> Vanilla's {@code initMenu} attaches a slot listener
      * and a synchronizer, both of which exist to send packets to a screen. This body's connection
@@ -715,12 +694,12 @@ public class ServerPlayerBody implements Body, Hands, Containers {
 
     @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
         // Mirror ServerGamePacketListenerImpl.handlePlaceRecipe: fill the open menu's
-        // grid from inventory. Works for the always-present 2×2 inventory grid even on a
-        // FakePlayer; table menus never open on a FakePlayer so this no-ops there.
+        // grid from inventory. Works for the always-present 2×2 inventory grid and for whatever
+        // table menu the body has open.
         if (fp.containerMenu instanceof net.minecraft.world.inventory.RecipeBookMenu<?, ?> rbm
                 && fp.containerMenu.containerId == containerId) {
             // ServerPlaceRecipe.recipeClicked gates on getRecipeBook().contains(recipe);
-            // a FakePlayer's recipe book is empty (nothing unlocked), so without this the
+            // a freshly minted body's recipe book is empty (nothing unlocked), so without this the
             // placement silently no-ops. Unlock the recipe first (a real player has it).
             fp.getRecipeBook().add(recipe);
             rbm.handlePlacement(placeAll, recipe, fp);
@@ -795,16 +774,16 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      *
      * <p>Vanilla does this in {@code LivingEntity.detectEquipmentUpdates()}, which is PRIVATE and
      * called only from {@code LivingEntity.tick()}. This avatar never gets it from either end:
-     * it deliberately runs {@code baseTick()} only (to avoid double-integrating physics), and
-     * NeoForge's {@code FakePlayer.tick()} is an empty method anyway — so calling {@code tick()}
-     * would not help. Without this the FakePlayer's ATTACK_DAMAGE / ATTACK_SPEED stay at the
+     * it deliberately runs {@code baseTick()} only (to avoid double-integrating physics), and the
+     * body's own {@code tick()} is an empty override anyway — so calling {@code tick()}
+     * would not help. Without this the body's ATTACK_DAMAGE / ATTACK_SPEED stay at the
      * BARE-HANDED baseline no matter what it holds: measured, an iron sword dealt exactly as much
      * as a fist (0.94) and recharged on the fist's 5-tick rhythm instead of 13. Server-mode melee
      * was therefore ~7x weaker than the same bot on a client, and {@link Player#getAttackStrengthScale}
      * — which CombatProcess gates every swing on — was measuring the wrong weapon.
      *
-     * <p>Armor is included for the same reason, but note it changes nothing today: NeoForge's
-     * {@code FakePlayer.isInvulnerableTo} returns {@code true} unconditionally, so a server avatar
+     * <p>Armor is included for the same reason, but note it changes nothing today:
+     * {@code JoinedBody.isInvulnerableTo} returns {@code true} unconditionally, so a server avatar
      * cannot be damaged at all and its ARMOR value never gets consulted. Syncing every slot keeps
      * one rule instead of a special case that would silently rot if that ever changes.
      */
@@ -836,8 +815,8 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * {@code baseTick()} does not — gap #47.
      *
      * <p>This avatar deliberately runs {@code baseTick()} only (see {@link #step()}: it integrates
-     * locomotion by hand, so it must not let {@code aiStep()} integrate it a second time), and
-     * NeoForge's {@code FakePlayer.tick()} is an empty method — so EVERYTHING vanilla does in
+     * locomotion by hand, so it must not let {@code aiStep()} integrate it a second time), and the
+     * body's own {@code tick()} is an empty override — so EVERYTHING vanilla does in
      * {@code tick()} outside {@code aiStep} is simply absent unless mirrored here. It was previously
      * discovered one field at a time by whichever arena happened to trip over it (#45 the attack
      * ticker, #46 the equipment attributes); this method is the enumeration, so the next omission is
@@ -889,7 +868,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      *       {@code foodData.tick()} here as an isolated fix</b>; it is one half of a pair, and the
      *       other half (a feeding path, or a written decision to exempt this body from hunger) has
      *       to land with it. See {@code docs/fake-player-parity.md} §6.5.</li>
-     *   <li>damage, health and every health-driven reflex: NeoForge's {@code FakePlayer.isInvulnerableTo}
+     *   <li>damage, health and every health-driven reflex: {@code JoinedBody.isInvulnerableTo}
      *       returns {@code true} unconditionally — a server avatar cannot be hurt by anything. On top
      *       of that {@link ServerWorldDriver} wires no reflex chains at all (no Retreat/Panic/Bunker/
      *       Dodge/AutoHeal/AutoShield). The server agent is a TASK automaton, not a survivalist; treat
@@ -898,8 +877,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      *       container-menu validity.
      *
      *       <p><b>「statistics」 used to be in this list and does not belong here.</b> On a
-     *       {@code JoinedBody} — which is what the loaders' factory mints once
-     *       {@code -Dworlddriver.realPlayerBodies=true} is armed, i.e. the production body — stats
+     *       {@code JoinedBody} — the only body the seam mints — stats
      *       are live and are written by ordinary play: {@code wd.bodyParityCensus} measures
      *       {@code walk_one_cm 0→227} over a 2-block walk and {@code Stats.JUMP 0→1} over one jump.
      *       Calling them cosmetic is what let the hand-copied jump drop {@code awardStat} unnoticed;

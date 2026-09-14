@@ -179,7 +179,7 @@ cannot collide with another mod's command):
 | `/worlddriver port`        | Print the RPC port (`ws://127.0.0.1:<port>/rpc`) |
 | `/worlddriver mcp`         | Print the MCP endpoint (`http://127.0.0.1:<port>/mcp`) |
 | `/worlddriver reload`      | Re-load user scripts from `config/worlddriver/scripts/` |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | NeoForge only: spawn and steer a server-side body (permission level 2) |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body (permission level 2) |
 
 ---
 

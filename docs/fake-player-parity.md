@@ -11,6 +11,9 @@
   `bot/movement/ClientPlayerAvatar.java` 是 `bot/body/ClientPlayerBody.java`，
   `bot/sim/ServerPlayerAvatar.java` 是 `bot/sim/ServerPlayerBody.java`。下文的旧名和行号
   按上面那个锚点读（`git show 4b21f09a:…` 仍能解开），不要拿它们去对工作树。
+- **A、B 两具假人身体已删**：2026-09-14 起 `ServerAvatarBodies` 只出 `JoinedBody`（下文的 C），
+  `AvatarFakePlayer`、`AvatarNetHandler`、`FabricAvatarBodies`、NeoForge 的 `FakePlayerFactory` 工厂和
+  `-Dworlddriver.realPlayerBodies` 开关一起删了。下文写 A/B 的条目是删之前的记录，同样按上面那个锚点读。
 - vanilla 行号来自两份反编译产物，二者**必须分开引用**，因为它们在关键处不一样：
   - **vanilla**：`minecraft-merged-1.21.1-loom.mappings.1_21_1.layered+hash.652182843-v2.jar`
   - **neoforge 21.1.230 merged**：`neoforge-21.1.230-minecraft-merged-mojang`

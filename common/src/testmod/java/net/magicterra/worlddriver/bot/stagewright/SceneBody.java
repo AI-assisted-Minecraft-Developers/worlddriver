@@ -5,7 +5,6 @@ import java.util.List;
 
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.sim.AvatarFakePlayer;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
@@ -154,8 +153,8 @@ public final class SceneBody {
      * lie.</b> {@code ServerWorldDriver.createIsolated} is only one of two ways a scene mints a body:
      * ninety sites take that one, and NINETY-TWO more call {@code ServerPlayerBody.createUnique}
      * directly because they want to pose and step a body without a driver wrapped around it. Both
-     * bottom out in {@code ServerAvatarBodies.unique}, so both produce a {@code JoinedBody} when the
-     * flip is armed — a gate that covered only the first would have left the integrated topology
+     * bottom out in {@code ServerAvatarBodies.unique}, so both produce a {@code JoinedBody} — a
+     * gate that covered only the first would have left the integrated topology
      * minting roughly half as many bodies as before and reported the rule as enforced.
      *
      * <p>Deliberately nothing but the gate and the mint: the call sites downstream differ too much
@@ -174,7 +173,7 @@ public final class SceneBody {
 
     // A `mintingIsLegal(ctx)` used to sit here, for「the scene that must BRANCH rather than skip」.
     // Its javadoc named its one caller, `wd.bodyParityCensus`, and that scene stopped calling it:
-    // both of its columns now mint DIRECTLY (`loaderFactory.unique` / `new JoinedPlayerBodies()`)
+    // it mints DIRECTLY (`new JoinedPlayerBodies()`; its fake-player column now records unavailable)
     // precisely so the census is taken on every run rather than branching on the run's shape. A
     // predicate whose only documented caller no longer asks it reads, on the next pass, like a
     // guard that is being honoured somewhere. Deleted rather than left: the live gate is
@@ -217,10 +216,8 @@ public final class SceneBody {
     /** Whether anyone in the player list is a person rather than one of our own bodies. A reading,
      *  not a gate — see {@link #aClientShouldDrive} for why it must not decide anything here.
      *
-     *  <p>⚠️ This one asks {@code instanceof JoinedBody} only, and is deliberately left that way for
-     *  now — see {@link #isDriverMinted}, which is the same question asked completely. Tightening
-     *  this method changes which scenes skip, so it belongs in a change whose subject is that, not
-     *  as a rider on one that adds a caller. */
+     *  <p>It asks {@code instanceof JoinedBody}, which is now exactly {@link #isDriverMinted}: the
+     *  other minted type it used to miss was deleted. */
     public static boolean hasHumanPlayer(SceneContext ctx) {
         for (ServerPlayer p : ctx.players()) {
             if (!(p instanceof JoinedPlayerBodies.JoinedBody)) return true;
@@ -231,20 +228,19 @@ public final class SceneBody {
     /**
      * Whether this player is one the driver minted, rather than a person's.
      *
-     * <p><b>Two types, not one.</b> Four places in the testmod ask this question and three of them
-     * ask it as {@code instanceof JoinedBody} alone, which lets an {@link AvatarFakePlayer} through
-     * as「真玩家」. {@code WorldDriverActuatorSplitScenes} shows the cost inside a single file: its
-     * {@code humanPlayers()} admits one, and then its own next check — which does name both types —
-     * fails the scene with「挑错了身体」. A predicate that disagrees with itself twenty lines apart is
-     * the failure mode this method exists to end, and the reason it is a named method rather than a
-     * copied expression is that the list of minted types will grow again.
+     * <p><b>A named method, not a copied {@code instanceof}.</b> While a second minted type existed
+     * ({@code AvatarFakePlayer}, since deleted with the other fake body), three of four places asked
+     * for only one of them, and {@code WorldDriverActuatorSplitScenes} disagreed with itself twenty
+     * lines apart: its {@code humanPlayers()} admitted a fake body and its own next check failed the
+     * scene with「挑错了身体」. If a minted player type is ever added again, this is the one place
+     * to add it.
      *
      * <p>Asked STRUCTURALLY. {@code agent-body-N} is a naming convention
      * ({@code JoinedPlayerBodies.profileFor}) and conventions get changed by people who do not know
      * a test reads them; the class is what the bodies actually differ by.
      */
     public static boolean isDriverMinted(ServerPlayer p) {
-        return p instanceof JoinedPlayerBodies.JoinedBody || p instanceof AvatarFakePlayer;
+        return p instanceof JoinedPlayerBodies.JoinedBody;
     }
 
     /** Everyone on this server who is not one of the driver's own bodies, by {@link #isDriverMinted}.

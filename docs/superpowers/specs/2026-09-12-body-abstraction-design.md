@@ -179,8 +179,8 @@ tick 只走一步，而本仓库有两处按「一 tick 多步」写成的用法
 | 阶段 | 内容 | 判据 |
 |---|---|---|
 | P0 类型 | `Avatar` → `Body`：`LivingEntity entity()` + `asPlayer()`；`Hands`/`Containers` 拆出；`LookController.apply(LivingEntity)`；`BotInput` 变成 `ClientPlayerBody` 的实例方法；`Chain`/`ProcessScheduler` 收 `Body`，反射层内部向下转型到 `ClientPlayerBody`；`InteractionCommands.attackEntity` 改走 `Hands.attackEntity` | 六个闸颜色不变；预算闸；`wd.clientWorldViewParity`、`wd.bodyParityCensus` 读数不变 |
-| P1a 只剩真身体 | `ServerAvatarBodies` 只出 `JoinedBody`，`realPlayerBodies` 开关退役；删 Fabric 的 `FabricAvatarBodies`/`AvatarFakePlayer` 与 NeoForge 的 `FakePlayerFactory` 工厂；`/worlddriver server` 从 NeoForge 搬进 common，两个 loader 都有；两个 loader 的 `sim/` 目录删除 | 六个闸颜色不变（六个闸本来就开着那个开关）；`wd.bodyParityCensus` 的 factory 列如实记 unavailable |
-| P1b 原版泵 | `step()` 改走 `JoinedBody` 的泵（§3.2 修订）；删 `mirrorPlayerTick()`、手写跳闸、`setSpeed`/`travel` 直调；断言非原版行为的场景跟着改 | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 读成原版的值；专用服闸绿；真梯自测不退 |
+| P1a 只剩真身体（2026-09-14 已落） | `ServerAvatarBodies` 只出 `JoinedBody`，`realPlayerBodies` 开关退役；删 Fabric 的 `FabricAvatarBodies`/`AvatarFakePlayer` 与 NeoForge 的 `FakePlayerFactory` 工厂；`/worlddriver server` 从 NeoForge 搬进 common，两个 loader 都有；两个 loader 的 `sim/` 目录删除 | 六个闸颜色不变（六个闸本来就开着那个开关）；`wd.bodyParityCensus` 的 factory 列如实记 unavailable |
+| P1b 原版泵 | `step()` 改走 `JoinedBody` 的泵（§3.2 修订）；删 `mirrorPlayerTick()`、手写跳闸、`setSpeed`/`travel` 直调；断言非原版行为的场景跟着改；判 `openStationMenu`（替假人补菜单的旁路）在原版 `openMenu` 下还会不会触发 | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 读成原版的值；专用服闸绿；真梯自测不退 |
 | P1c 连接 | `SilentConnection` 对照 §2 第 5 条 | 2026-09-14 已逐方法核过、无缺口（见 §2 第 5 条补核）；NeoForge 网络类若日后炸出空指针再补 |
 | P2 NPC | `LivingBody` + `DrivenMobHook`（common mixin：被驱动的 `Mob` 跳过 `serverAiStep` 的导航/移动/看向）；能力门（`no_hands` 拒单）；`SceneBody.npc`；`wd.npc*` 五个地形场景；可选 `NavigationMover` 对照 | 五个地形 NPC 身体通过，或差异归入四类之一并登记 |
 | P3 寻址 | `BodyRegistry`、`mc.bot.*` 的 `body` 参数、`status.bodies`；`FixtureRunner` 的 `body: npc:…`；RPC 参考与 `docs/dev/bot-layering.md` 更新 | 三 transport 字节一致测试覆盖 `body` 参数；人工验证手册补一节 |

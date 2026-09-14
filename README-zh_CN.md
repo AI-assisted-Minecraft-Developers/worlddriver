@@ -153,7 +153,7 @@ curl -s http://127.0.0.1:$PORT/mcp \
 | `/worlddriver port`        | 打印 RPC 端口（`ws://127.0.0.1:<port>/rpc`） |
 | `/worlddriver mcp`         | 打印 MCP 端点（`http://127.0.0.1:<port>/mcp`） |
 | `/worlddriver reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | 仅 NeoForge：生成并驱动一具服务器端身体（权限等级 2） |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | 生成并驱动一具服务器端身体（权限等级 2） |
 
 ---
 

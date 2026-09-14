@@ -118,7 +118,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
 
         if (fpA == fpB)
             ctx.fail("both server agents are literally the same entity ("
-                    + System.identityHashCode(fpA) + "): FakePlayerFactory.getMinecraft(level) is a"
+                    + System.identityHashCode(fpA) + "): ServerAvatarBodies.shared(level) is a"
                     + " per-level singleton, so agents (and concurrent arenas) fight over one body");
 
         // B is parked. A walks. Vanilla-obvious, and the whole point of having two agents.

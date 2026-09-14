@@ -449,13 +449,11 @@ path including a BLOCKED skip**, and they are what makes two results rows compar
 leg's ending as `kind→跑完` or `kind→被结束：<reason>`. Read it before blaming a rung — the chain
 nulls its process for three different reasons and the busy flag goes false for all three alike.
 
-**`-Dworlddriver.realPlayerBodies=true` stays on for all three, and that is not a copied line.** It
-is moot on the integrated one now — nothing mints a body there — and load-bearing on the other two.
-`ServerLevel.players()` is per level and the human client never leaves the overworld: rungs 14–15 ask
-the **nether's** list (`BaseSpawner.isNearPlayer`, for a fortress spawner) and 19–20 ask the **end's**
-(`EndDragonFight.tick`). A client standing at world spawn contributes to neither. Dropping the flag
-on a client topology would produce no blazes and no dragon, silently, in a run that looks better
-resourced than the headless one.
+**The minted body being in the player list is load-bearing, on the client topologies too.** Every
+server body joins through `PlayerList.placeNewPlayer`. `ServerLevel.players()` is per level and the
+human client never leaves the overworld: rungs 14–15 ask the **nether's** list
+(`BaseSpawner.isNearPlayer`, for a fortress spawner) and 19–20 ask the **end's**
+(`EndDragonFight.tick`). A client standing at world spawn contributes to neither.
 
 One rung at a time, with its preconditions staged by hand, is `wd.rehearse*` — a different family in
 a fourth directory, deliberately unable to be read as a climb. See `JourneyRehearsal`.

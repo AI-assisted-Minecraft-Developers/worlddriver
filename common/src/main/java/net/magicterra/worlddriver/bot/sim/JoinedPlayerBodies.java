@@ -59,41 +59,36 @@ import org.jetbrains.annotations.Nullable;
  * subsystem in this repo. Doing it in one step would mix "the body is real now" with "movement
  * moved", and no gate could tell the two apart.
  *
- * <h2>Off by default</h2>
+ * <h2>The only server body</h2>
  *
- * Armed with {@code -Dworlddriver.realPlayerBodies=true}. The seam it installs into
- * ({@link ServerAvatarBodies}) already returns a plain {@code ServerPlayer}, so nothing else in the
- * repo changes shape — which is the point: the 222 dogfood scenes and the journey ladder become an
- * A/B harness for this body against the fake one, and the answer is measured rather than argued.
+ * {@link ServerAvatarBodies} hands out these and nothing else. This body was first armed with
+ * {@code -Dworlddriver.realPlayerBodies=true} in place of each loader's fake player, which turned
+ * the dogfood scenes and the journey ladder into an A/B harness for the two bodies. Once every gate
+ * and every ladder topology ran on this one, the switch and the fake players were deleted.
  *
  * <h2>The trap in the connection</h2>
  *
- * Both existing fake players swallow outbound packets by overriding {@code send} on their
+ * The fake players this replaced swallowed outbound packets by overriding {@code send} on their
  * <i>packet listener</i>. That does not survive here: {@code placeNewPlayer} constructs vanilla's
  * own {@code ServerGamePacketListenerImpl} and installs it, so the listener is not ours to
  * override. The swallow has to move down to the {@link Connection}, and it has to also report
  * {@code isConnected() == true} — a disconnected {@code Connection} does not drop packets, it
  * queues them in {@code pendingActions} forever, which is a leak that looks like nothing at all.
  */
-public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory {
+public final class JoinedPlayerBodies {
 
-    /** Arms the joined-player body in place of the loader's fake player. */
-    public static final String ARM_PROPERTY = "worlddriver.realPlayerBodies";
-
-    public static boolean armed() { return Boolean.getBoolean(ARM_PROPERTY); }
-
-    /** The name the per-level shared body joins under — one per level, mirroring the fake-player
-     *  factories' own per-level sharing so scene behaviour is comparable. */
+    /** The name the per-level shared body joins under — one per level, the same per-level sharing
+     *  the fake-player factories had, so scene behaviour stayed comparable across the switch. */
     private static final String SHARED_NAME = "worlddriver";
 
     private final Map<ServerLevel, Map<String, JoinedBody>> byLevel = new ConcurrentHashMap<>();
 
-    @Override
+    /** The per-level shared body: every caller in a level gets the same player. */
     public ServerPlayer shared(ServerLevel level) {
         return body(level, profileFor(SHARED_NAME));
     }
 
-    @Override
+    /** A body of its own for {@code profile}, per level. */
     public ServerPlayer unique(ServerLevel level, GameProfile profile) {
         return body(level, profile);
     }
@@ -173,8 +168,8 @@ public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory 
     }
 
     /**
-     * The body itself. Deliberately thin: what makes it different from {@code AvatarFakePlayer} is
-     * not what it overrides, it is that it was placed.
+     * The body itself. Deliberately thin: what made it different from the fake players it replaced
+     * was not what it overrides, it is that it was placed.
      */
     public static final class JoinedBody extends ServerPlayer {
 

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.neoforge.sim;
+package net.magicterra.worlddriver.bot.sim;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
@@ -13,15 +13,18 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Phase 2 live handle: {@code /worlddriver server …} spawns and commands a fully
- * server-side {@link ServerWorldDriver} (a FakePlayer steered by the real
- * Walker on the {@code ServerTickEvent}) — no client, no LocalPlayer. The
- * driver is registered with {@link ServerAvatarManager}, so once spawned it is
- * driven autonomously by the live server tick.
+ * {@code /worlddriver server …}: spawns and commands a fully server-side {@link ServerWorldDriver}
+ * (a joined player steered by the real Walker on the server tick) — no client, no LocalPlayer. The
+ * driver is registered with {@link ServerAvatarManager}, so once spawned it is driven autonomously
+ * by the live server tick.
  *
- * <p>Increment-2a scope: a single demo agent (FakePlayerFactory.getMinecraft is
- * a per-level singleton) that moves logically server-side and is reported via
- * {@code status}; client-visibility and multi-agent support are later work.
+ * <p>Common, so both loaders have it. It lived in the NeoForge module while the body it spawned was
+ * NeoForge's {@code FakePlayer}; the body now joins through vanilla's {@code placeNewPlayer} and
+ * nothing here needs a loader API.
+ *
+ * <p>Scope: {@code spawn} mints a body of its own every time; {@code goto}, {@code mine} and
+ * {@code status} address the most recently spawned driver. Addressing several agents by name is
+ * later work.
  */
 public final class ServerAvatarCommand {
     private ServerAvatarCommand() {}

@@ -1643,9 +1643,9 @@ public final class JourneyNetherRungs {
      *
      * <p>"No blaze appeared" has two completely different causes with opposite fixes, and only one
      * of them is anybody's bug. A spawner turns only when {@code BaseSpawner.isNearPlayer} finds
-     * somebody in {@code level.players()}, and a {@code FakePlayer} is a {@code ServerPlayer} that
-     * was never PLACED — it is not in that list, and natural spawning reads the same list. So on the
-     * default headless body no mob can ever appear, however long the rung waits, and reporting that
+     * somebody in {@code level.players()}, and natural spawning reads the same list. With no body in
+     * it — once a fake player that was never PLACED, now a joined body that has left or stands in
+     * another dimension — no mob can ever appear, however long the rung waits, and reporting that
      * as "the fight failed" would send the next round at the combat loop.
      */
     private static String whyNothingSpawns(ServerLevel level) {
@@ -1655,10 +1655,9 @@ public final class JourneyNetherRungs {
                     + "同类上限、屋子把刷怪点全堵死了）";
         }
         return "本层 level.players() 是空的。BaseSpawner.isNearPlayer 读的正是这份名单，"
-                + "自然刷怪也读它；而这具身体是 FakePlayer —— 一个从来没有被 PlayerList.placeNewPlayer "
-                + "放进服务器的 ServerPlayer，所以它不在名单里，刷怪笼一次也不会转。"
-                + "这不是战斗逻辑的问题，加多少 tick 都等不来。要给这一级机会，"
-                + "journeyServer 这条 run 配置得带上 -Dworlddriver.realPlayerBodies=true（JoinedPlayerBodies）";
+                + "自然刷怪也读它，所以刷怪笼一次也不会转。服务端铸的身体都走过 PlayerList.placeNewPlayer，"
+                + "名单空说明这具身体已经不在这一层（被移除了，或者在别的维度）。"
+                + "这不是战斗逻辑的问题，加多少 tick 都等不来";
     }
 
     // =====================================================================================

@@ -1388,11 +1388,11 @@ public final class JourneyRehearsal {
      * <h2>The player list is read, not fixed</h2>
      *
      * The other half of the same mechanism is that the body must be in {@code level.players()} at
-     * all, which only {@code JoinedPlayerBodies} ({@code -Dworlddriver.realPlayerBodies=true}) does;
-     * {@code runRehearsalServer} already sets it. This records the answer rather than asserting it,
-     * on purpose: when the flag is off, rung 20's own {@code noDragonHere} is <b>correct</b> and
-     * costs only {@link JourneyEndRungs} {@code DRAGON_WAIT_TICKS} to reach, and exercising a true
-     * diagnostic is worth more than short-circuiting it here.
+     * all, which every body the server seam mints is, because it joins. This records the answer
+     * rather than asserting it, on purpose: when the body is not in the list, rung 20's own
+     * {@code noDragonHere} is <b>correct</b> and costs only {@link JourneyEndRungs}
+     * {@code DRAGON_WAIT_TICKS} to reach, and exercising a true diagnostic is worth more than
+     * short-circuiting it here.
      *
      * <h2>⚠️ The bridge may not be the mechanism under test at all</h2>
      *
@@ -1562,11 +1562,11 @@ public final class JourneyRehearsal {
         ctx.record("rehearsal.fightRange", String.format(java.util.Locale.ROOT,
                 "【布景时刻测的，之后不再成立 —— 失败时看 dragon.rangeNow】"
                         + "距 (0,128,0) %.1f 格，EndDragonFight.validPlayer 的门限是 192 —— %s", away,
-                away <= 192.0 ? "在范围内，龙会被创建" : "超了：龙永远不会出现，而 rung 20 会打出"
-                        + "「FakePlayer 不在玩家表里」那句话，在这里那句话是错的"));
+                away <= 192.0 ? "在范围内，龙会被创建" : "超了：龙永远不会出现，"
+                        + "缺的是距离那一半，不是玩家表那一半"));
         ctx.record("rehearsal.inPlayerList", end.players().contains(fp) + "（level.players() 有 "
                 + end.players().size() + " 人）—— false 时 EndDragonFight.tick 每 20 tick 扫一次"
-                + "空表、什么都不做，要 -Dworlddriver.realPlayerBodies=true（JoinedPlayerBodies）");
+                + "空表、什么都不做；服务端铸的身体都走过 placeNewPlayer，false 说明它被移除了或不在末地");
         WorldDriverCommon.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, body {} inList={}",
                 gave, platform, fp.blockPosition(), end.players().contains(fp));
     }

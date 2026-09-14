@@ -872,10 +872,10 @@ public final class JourneyRig {
      *
      * <p>The human players are listed with their DIMENSION, and that is the load-bearing part rather
      * than decoration. {@code ServerLevel.players()} is per level, and a client standing at world
-     * spawn contributes to the overworld's list and to no other — which is why every ladder topology
-     * still arms {@code -Dworlddriver.realPlayerBodies=true}. Rungs 14–15 ask the NETHER's list
-     * (BaseSpawner.isNearPlayer) and 19–20 ask the END's (EndDragonFight.tick); a run that read
-     * 「有真玩家」and dropped the flag would find neither blazes nor a dragon, silently.
+     * spawn contributes to the overworld's list and to no other — which is why the ladder's own body
+     * has to be a joined one on every topology that mints it. Rungs 14–15 ask the NETHER's list
+     * (BaseSpawner.isNearPlayer) and 19–20 ask the END's (EndDragonFight.tick), and a human at world
+     * spawn answers neither.
      */
     private static String topology(SceneContext ctx) {
         MinecraftServer server = ctx.server();
@@ -913,9 +913,8 @@ public final class JourneyRig {
     /**
      * Everyone on the server who is not the ladder's own body.
      *
-     * <p>{@code ctx.players()} is the whole player list, and with
-     * {@code -Dworlddriver.realPlayerBodies=true} the ladder's body is IN it — that is the entire
-     * point of the flag. So counting that list would report a human client on the headless topology,
+     * <p>{@code ctx.players()} is the whole player list, and the ladder's body is IN it — every
+     * server body joins. So counting that list would report a human client on the headless topology,
      * which is the exact thing these rows exist to tell apart. {@link JoinedPlayerBodies.JoinedBody}
      * is the type only the driver mints, so the test is exact rather than a name match.
      */
@@ -932,23 +931,22 @@ public final class JourneyRig {
      * Which body this run climbs on, and who is driving it.
      *
      * <p><b>Not the same on all three topologies any more, and saying WHICH is the whole point.</b>
-     * The integrated run adopts the client's real player; the headless and joining runs mint a fake
-     * one. So the capabilities a fake body lacks — {@code fallDistance} pinned at 0,
-     * {@code isInvulnerableTo} refusing every source, a death that is a no-op, an advancement that
-     * is never awarded — are present on one topology and absent on the other two, and a row that
-     * named only the topology would invite exactly the wrong conclusion from a difference.
+     * The integrated run adopts the client's real player; the headless and joining runs mint a
+     * joined one. So the capabilities the minted body lacks — {@code fallDistance} pinned at 0,
+     * {@code isInvulnerableTo} refusing every source, a death that is a no-op — are present on one
+     * topology and absent on the other two, and a row that named only the topology would invite
+     * exactly the wrong conclusion from a difference.
      *
      * <p>{@code 免伤} is read from the body rather than assumed, so this row reports the change the
      * day it happens instead of restating what was true when it was written.
      *
-     * <p>{@code 在玩家表} is what {@code -Dworlddriver.realPlayerBodies=true} buys for a fake body,
-     * and the one thing vanilla asks before it will spawn a dragon, turn a spawner or spawn anything
-     * naturally. A real player is in it by construction.
+     * <p>{@code 在玩家表} is what joining buys the minted body, and the one thing vanilla asks before
+     * it will spawn a dragon, turn a spawner or spawn anything naturally. A real player is in it by
+     * construction.
      */
     private static String bodyDescription(SceneContext ctx) {
         boolean helm = realPlayerHelm(ctx);
-        String kind = helm ? "real（客户端 bot 驾驶）"
-                : (JoinedPlayerBodies.armed() ? "joined" : "fake") + "（服务端 tick 驾驶）";
+        String kind = helm ? "real（客户端 bot 驾驶）" : "joined（服务端 tick 驾驶）";
         ServerWorldDriver d = driver;
         if (d == null) return kind + "：SPAWN 之前，本轮还没有身体";
         ServerPlayer fp = d.fakePlayer();

@@ -42,10 +42,11 @@ NeoForge 上是 `ServerChatEvent.getMessage()`，原版装饰是恒等的，所�
 
 | 位置 | 内容 | 为什么留下 |
 |---|---|---|
-| `WorldDriverFabric` | `FabricAvatarBodies` 装进 `ServerAvatarBodies`，`ServerWorldEvents.UNLOAD` 时清它的缓存 | 身体工厂本来就是加载器各一份（NeoForge 用 `FakePlayerFactory`） |
-| `WorldDriverNeoForge` | `FakePlayerFactory` 身体工厂；`ServerAvatarCommand`（`/worlddriver server …`）经 `CommandRegistrationEvent` 注册 | 命令骑在 NeoForge 的 `FakePlayer` 上，没有 Fabric 对应物 |
 | `WorldDriverFabricClient` | `ClientReceiveMessageEvents` 的 GAME / CHAT 及两个 `_CANCELED` 变体 | `mc.client.chat.history` 要记下被别的 mod 取消的行；Architectury 的 `ClientChatEvent.RECEIVED` 没有取消变体 |
 | `WorldDriverNeoForgeClient` | `ClientChatReceivedEvent(receiveCanceled = true)` | 同上 |
+
+两个服务端入口什么都没留下。服务端身体工厂和 `/worlddriver server` 在 2026-09-14 进了 `common`：
+身体经原版 `PlayerList.placeNewPlayer` 加入，不需要加载器 API；命令随 `WorldDriverEvents` 注册。
 
 ## testmod 的构造期入口
 

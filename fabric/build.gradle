@@ -191,16 +191,6 @@ loom {
         dogfoodServer {
             server()
             property 'stagewright.autorun', 'true'
-            // THE BODY THE GATES TEST. Without this the 271 wd.* scenes run on a body that never
-            // went through PlayerList.placeNewPlayer, and `wd.bodyParityCensus` measured what that
-            // costs: on NeoForge the factory body is a real net.neoforged FakePlayer, and
-            // PlayerAdvancements.award has an `instanceof FakePlayer` branch, so it earns NOTHING
-            // (award() false, vs true for a joined body) — which is the entire root cause of the
-            // NeoForge-only red `wd.serverAvatarEarnsAdvancement`. FakePlayer.awardStat is likewise
-            // an unconditional empty override, and statistics are the INPUT to progress triggers
-            // (JUMP / FALL_ONE_CM / DAMAGE_DEALT / ENTITY_KILLED), so the same body silently fails
-            // anything built on them: same walk, same 11 ticks, walk_one_cm 0 vs 227.
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
             runDir 'run-dogfood'
@@ -229,13 +219,10 @@ loom {
             // ⚠️ THIS TOPOLOGY NO LONGER VARIES ONLY THE RUN, and that is now on purpose. The
             // 2026-08-20 body-selection instruction puts JoinedBody on the DEDICATED server only, so
             // `SceneBody` refuses to mint one here and every scene that needs a headless body is a
-            // recorded skip until its family is converted to the client helm. The flag stays because
-            // it still decides what the ladder's topologies get, and because turning it off would
-            // put the retired FakePlayer back — a worse body, not a smaller change.
+            // recorded skip until its family is converted to the client helm.
             // The old doctrine「a topology must vary the RUN, never the subject」still applies to
             // every OTHER pair of topologies, and it is why the skips have to be reconciled against
             // the dedicated gate rather than counted as coverage.
-            property 'worlddriver.realPlayerBodies', 'true'
             // Hold the suite until the local player is actually placed. Without it the suite arms at
             // SERVER_STARTED — before that happens — and `SceneBody`'s refusal would be answering a
             // question whose answer changes part-way through the run: scenes that got in early would
@@ -255,8 +242,6 @@ loom {
             server()
             programArgs '--nogui', '--port', '25601'
             property 'stagewright.autorun', 'true'
-            // Same body everywhere — see dogfoodServer.
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.awaitPlayer', 'true'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
@@ -283,7 +268,6 @@ loom {
             client()
             property 'stagewright.client.world', 'Lab'
             property 'stagewright.client.exitWhenDone', 'false'
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'worlddriver.rpcPort', '39801'
             property 'worlddriver.mcpPort', '39800'
             // Unfocused on a desktop; vanilla would pause it. See docs/user/human-verification.md.
@@ -305,12 +289,6 @@ loom {
             server()
             property 'stagewright.autorun', 'true'
             property 'worlddriver.journey', 'true'
-            // A body that never went through PlayerList.placeNewPlayer is not in level.players(),
-            // and vanilla asks that list before it does any of the endgame work: EndDragonFight.tick
-            // creates NO dragon while it is empty, BaseSpawner.isNearPlayer never turns a fortress
-            // spawner, and nothing spawns naturally. All three fail silently — the End even builds
-            // its crystals, so only the dragon looks missing. One flag, three rungs.
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.scenes', 'wd.journey*'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
@@ -354,13 +332,6 @@ loom {
         // Every rung records `journey.topology`, `journey.body` AND `journey.steer`, because this
         // topology varies two things at once and a row missing either cannot be compared.
         //
-        // ⚠️ AND `worlddriver.realPlayerBodies` STAYS ON for both of these, which looks redundant and
-        // is not. `ServerLevel.players()` is PER LEVEL, and the human client never leaves the
-        // overworld: rungs 14–15 ask the NETHER's list (BaseSpawner.isNearPlayer, for a fortress
-        // spawner) and 19–20 ask the END's (EndDragonFight.tick). A client standing at world spawn
-        // contributes nothing to either. Turning the flag off here would make those rungs fail
-        // silently — no dragon, no blazes — in a run that looks better resourced than the headless one.
-        //
         // Each has its OWN runDir, and that is not tidiness: the ladder PLAYS its world, so two
         // ladders sharing a directory would each measure the other's felled trees and dug shafts.
         journeyIntegratedServer {
@@ -378,7 +349,6 @@ loom {
             property 'stagewright.client.world', 'JourneyClient'
             property 'stagewright.client.exitWhenDone', 'true'
             property 'worlddriver.journey', 'true'
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.scenes', 'wd.journey*'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
@@ -395,7 +365,6 @@ loom {
             property 'stagewright.autorun', 'true'
             property 'stagewright.awaitPlayer', 'true'
             property 'worlddriver.journey', 'true'
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.scenes', 'wd.journey*'
             // A fixed port is exactly the thing that can already be taken, and a server that dies
             // on BindException does NOT take the JVM with it — architectury's transformer pools are
@@ -531,15 +500,6 @@ loom {
             // be answered no. See JourneyRehearsal.roomScanChunks.
             property 'worlddriver.journey.roomScanChunks',
                     (project.findProperty('roomScanChunks') ?: '').toString()
-            // Same body the ladder climbs on, and that is a deliberate answer rather than a copied
-            // line. PORTAL_LIT itself does not need it: it is overworld-only, it spawns nothing and
-            // it never asks for the dragon, so it would rehearse identically without the flag. But
-            // the task takes ANY rung, and the flag is exactly what BLAZE_ROD and DRAGON depend on —
-            // without it EndDragonFight.tick creates no dragon and BaseSpawner turns no fortress
-            // spawner, both silently, so rehearsing them here would produce a green run in an empty
-            // world. Parity is the other half: a fix proved on a body of a different kind from the
-            // one the ladder uses is not proved for the ladder.
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.scenes', 'wd.rehearse*'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'
@@ -598,7 +558,6 @@ loom {
                     (project.findProperty('eyes') ?: '').toString()
             property 'worlddriver.journey.roomScanChunks',
                     (project.findProperty('roomScanChunks') ?: '').toString()
-            property 'worlddriver.realPlayerBodies', 'true'
             property 'stagewright.scenes', 'wd.rehearse*'
             property 'worlddriver.rpcPort', '0'
             property 'worlddriver.mcpPort', '0'

@@ -223,7 +223,7 @@ claim the root):
 | `/worlddriver test` | Run the bundled validation scripts on a worker thread; reports PASS/FAIL counts |
 | `/worlddriver test list` | List the validation script names |
 | `/worlddriver test result` | Print the per-test result of the last run |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | NeoForge only, permission level 2: spawn and steer a server-side body |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Permission level 2: spawn and steer a server-side body |
 
 ## Security posture
 

@@ -1978,8 +1978,8 @@ public final class JourneyEndRungs {
      * ticks and does nothing at all while that set is empty — no arena ticket, no {@code scanState},
      * no {@code createNewDragon} — and this track's body is a {@code FakePlayer} that never went
      * through {@code PlayerList.placeNewPlayer}. Every clause of that is a real vanilla fact and the
-     * conclusion was still false: measured 2026-08-17 the body WAS in {@code level.players()} (the
-     * {@code JoinedPlayerBodies} seam, {@code -Dworlddriver.realPlayerBodies=true}, is on), the fight
+     * conclusion was still false: measured 2026-08-17 the body WAS in {@code level.players()} (it was a
+     * {@code JoinedBody}, which joins), the fight
      * HAD run — {@code dragonUUID = 967f837e-…}, {@code crystalsAlive = 5} — and the search still
      * found nothing, because the body had fallen 32 500 blocks out of the world and
      * {@code nearestDragon} centres its box on the body.
@@ -2218,8 +2218,8 @@ public final class JourneyEndRungs {
         if (!inList) {
             s.append("这一趟缺的是玩家表那一半：body.inPlayerList=false，level.realPlayers=")
                     .append(end.players().size())
-                    .append(" —— 身体没走过 PlayerList.placeNewPlayer，就不在 level.players() 里。"
-                            + "要让它在表里：-Dworlddriver.realPlayerBodies=true（见 JoinedPlayerBodies）。");
+                    .append(" —— 服务端铸的身体都走过 PlayerList.placeNewPlayer，不在这一维的 "
+                            + "level.players() 里，说明它已经被移除，或者停在别的维度。");
         } else if (away > 192.0) {
             s.append("玩家表那一半是成立的：body.inPlayerList=true，level.players() 有 ")
                     .append(end.players().size())

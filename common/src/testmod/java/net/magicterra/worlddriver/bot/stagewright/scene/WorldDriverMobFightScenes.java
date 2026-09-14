@@ -283,7 +283,7 @@ public final class WorldDriverMobFightScenes {
      * hovers, drifts, and shoots from above; a melee loop that can only hit what is standing next to
      * it wins the pinned fight and loses every real one.
      *
-     * <p><b>The body is invulnerable</b> ({@code AvatarFakePlayer.isInvulnerableTo} → true), so this
+     * <p><b>The body is invulnerable</b> ({@code JoinedBody.isInvulnerableTo} → true), so this
      * cannot say whether a real run survives the fireballs — only whether the fight can be WON. That
      * limit is recorded on the green row rather than left for a reader to discover.
      *

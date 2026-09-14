@@ -13,9 +13,9 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.body.Body;
-import net.magicterra.worlddriver.bot.sim.AvatarFakePlayer;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
+import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -148,19 +148,18 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
         // ---- WHO, before anything else, and the scene REFUSES rather than reporting beside it ----
         //
-        // The gates now run with -Dworlddriver.realPlayerBodies=true, so this JVM holds a JoinedBody
-        // as well as the client's player, and picking the wrong one would produce a full set of
+        // Every server body the driver mints is a JoinedBody, so this JVM can hold one as well as the
+        // client's player, and picking the wrong one would produce a full set of
         // plausible numbers describing the wrong subject — 「服务端写下去了，客户端没盖」would be
         // trivially true of a body no client has ever heard of. Every row below is void in that case,
         // so this must not be a row a reader has to notice: a criterion that depends on someone
         // checking a name before reading the numbers fails exactly when the numbers are interesting.
         //
-        // Asked STRUCTURALLY, not by name. `agent-body-N` is a naming convention (JoinedPlayerBodies
-        // .profileFor) and conventions get changed by people who do not know this scene reads them;
-        // the class is what the two bodies actually differ by, and both driver-minted types are
-        // checked so a future third one cannot slip through as「不是 JoinedBody 所以是真人」.
-        boolean driverMinted = real instanceof JoinedPlayerBodies.JoinedBody
-                || real instanceof AvatarFakePlayer;
+        // Asked STRUCTURALLY, not by name, through SceneBody.isDriverMinted. `agent-body-N` is a
+        // naming convention (JoinedPlayerBodies.profileFor) and conventions get changed by people
+        // who do not know this scene reads them; one shared predicate means a minted type added
+        // later cannot slip through here as「不是 JoinedBody 所以是真人」.
+        boolean driverMinted = SceneBody.isDriverMinted(real);
         ctx.record("body", real.getGameProfile().getName() + "（" + real.getClass().getSimpleName()
                 + "，在玩家表=" + real.level().players().contains(real)
                 + "，驱动器自造=" + driverMinted + "）");
@@ -395,8 +394,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // Same structural refusal as the sibling, and for the same reason: a body no client owns
         // would make「两侧一致」trivially true and this scene would certify the fix on the strength
         // of never having tested it.
-        boolean driverMinted = real instanceof JoinedPlayerBodies.JoinedBody
-                || real instanceof AvatarFakePlayer;
+        boolean driverMinted = SceneBody.isDriverMinted(real);
         ctx.record("body", real.getGameProfile().getName() + "（" + real.getClass().getSimpleName()
                 + "，驱动器自造=" + driverMinted + "）");
         if (driverMinted) {

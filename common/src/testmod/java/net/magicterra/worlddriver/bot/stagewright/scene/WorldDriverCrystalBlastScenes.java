@@ -118,14 +118,13 @@ import net.minecraft.world.phys.AABB;
  * <h2>Two limits stated on the row rather than left to be discovered</h2>
  *
  * <ul>
- *   <li><b>Whether the blast can knock this body depends on how the run was launched — and since
- *       2026-08-22 the gates launch it the way that CAN.</b> {@code Explosion.explode} collects
- *       victims with {@code level.getEntities(source, aabb)}, which reads the level's entity index.
- *       A body that never joined is absent from that index and takes no launch; a body created under
- *       {@code -Dworlddriver.realPlayerBodies=true} JOINED, is present, and is thrown. The ladder
- *       always armed that flag, and the six gates now do too, so the「clean footing reading」this
- *       note used to promise is gone: the first flipped run threw the body {@code dx=+5} and
- *       {@code dy=−31} off a sole that was still obsidian.
+ *   <li><b>Whether the blast can knock this body depends on whether the body joined — and every
+ *       server body joins now.</b> {@code Explosion.explode} collects victims with
+ *       {@code level.getEntities(source, aabb)}, which reads the level's entity index. A body that
+ *       never joined is absent from that index and takes no launch; a {@code JoinedBody} is present
+ *       and is thrown. The ladder always used joined bodies and the six gates did from 2026-08-22,
+ *       so the「clean footing reading」this note used to promise is gone: the first run on joined
+ *       bodies threw the body {@code dx=+5} and {@code dy=−31} off a sole that was still obsidian.
  *
  *       <p>Clause B therefore exempts a fall whose sole stayed blast-proof AND whose body moved
  *       horizontally — that combination is knockback, and knockback is not what B grades. The
