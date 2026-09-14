@@ -251,6 +251,9 @@ public final class BotTools {
                     .prop("includePath", bool()
                         .desc("With plan:true, also return the route's cells as [x,y,z]."))
                     .prop("awaitMs", awaitMs())
+                    .prop("body", bodyId()
+                        .desc("Which body walks: 'self' (default) or an id from mc.bot.status bodies. Another body "
+                            + "refuses waypoint, plan, planId and route.mode fly, and route.requireTool unless it is a player."))
                 ),
 
             wrTool("mc.bot.waypoint",
@@ -719,8 +722,12 @@ public final class BotTools {
                 "explore, runAway, look, lastPath?} — each process slot has {active, pathLen, " +
                 "pathStep, lastError?, goal?, target?, startedAtMs?}. lastPath = stats from the " +
                 "most recent A* run: {expanded, ms, goalReached, finalCost, pathLen} — useful for " +
-                "debugging 'why isn't it moving' (low expanded + goalReached=false = unreachable).",
-                emptyObject()),
+                "debugging 'why isn't it moving' (low expanded + goalReached=false = unreachable). " +
+                "bodies: [{id, kind, entityId?, pos?, busy}] lists the other bodies `body` can name; " +
+                "with body, returns that body's {id, busy, activeProcess?} and its slots instead.",
+                object()
+                    .prop("body", bodyId())
+                ),
 
             wrTool("mc.bot.cancel",
                 "Cancel running bot processes. Sets process slot inactive, releases input keys, " +
@@ -740,6 +747,9 @@ public final class BotTools {
                             "kinds, a reflex chain's own name ('retreat', 'duskSecure', 'bunker', " +
                             "'combat') targets that chain's internal episode, and a process KIND " +
                             "also reaches a process held inside a reflex chain."))
+                    .prop("body", bodyId()
+                        .desc("Which body: 'self' (default) or an id from mc.bot.status bodies. Another body holds "
+                            + "one process and no reflex chains, so a named cancel matches its process kind or nothing."))
                 )
         );
     }

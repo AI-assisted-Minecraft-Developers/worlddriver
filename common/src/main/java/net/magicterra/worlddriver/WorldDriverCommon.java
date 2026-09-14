@@ -103,7 +103,8 @@ public final class WorldDriverCommon {
             "62_query_in_radius.js",
             "63_overlays_tutorial.js",
             "64_schema_validation.js",
-            "65_schema_union.js"
+            "65_schema_union.js",
+            "66_body_routes.js"
     );
 
     private static DriverApi api;

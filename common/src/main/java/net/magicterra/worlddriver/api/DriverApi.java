@@ -339,7 +339,7 @@ public final class DriverApi {
         // Verbs that drive the body go through body(): BodyReady's refusal answers
         // first when the player is missing, dead, paused, in bed, loading or off a
         // loaded chunk. status/cancel/setting/waypoint stay open while it is down.
-        routes.put("mc.bot.goto",      body(p -> awaitable(p, "goto",    requireBot()::mcGoto)));
+        putBodyRoutes();
         routes.put("mc.bot.mine",      body(p -> awaitable(p, "mine",    requireBot()::mine)));
         routes.put("mc.bot.bunker",    body(p -> awaitable(p, "bunker",  requireBot()::bunker)));
         routes.put("mc.bot.escape",    body(p -> requireBot().escape(p)));
@@ -366,8 +366,6 @@ public final class DriverApi {
         routes.put("mc.bot.attackEntity",body(p -> requireBot().attackEntity(p)));
         // pause/resume are reachable through mc.bot.setting{paused:bool} —
         // same vol-toggle handler in BotApiImpl.setting absorbs both.
-        routes.put("mc.bot.cancel",    p -> requireBot().cancel(p));
-        routes.put("mc.bot.status",    p -> requireBot().status());
         routes.put("mc.bot.setting",   p -> requireBot().setting(p));
         routes.put("mc.bot.waypoint",  p -> requireBot().waypoint(p));
         routes.put("mc.bot.farm",      body(p -> awaitable(p, "builder", requireBot()::farm)));
@@ -442,6 +440,20 @@ public final class DriverApi {
             Map<String, Object> refused = requireBot().bodyRefusal();
             return refused != null ? refused : verb.apply(p);
         };
+    }
+
+    /**
+     * goto, cancel and status also take {@code body}: anything but self goes to {@link BodyRoutes},
+     * which never touches the client bot, so these three answer for server bodies on a dedicated
+     * server.
+     */
+    private void putBodyRoutes() {
+        BodyRoutes bodies = new BodyRoutes(this);
+        Function<Map<String, Object>, Object> selfGoto = body(p -> awaitable(p, "goto", requireBot()::mcGoto));
+        routes.put("mc.bot.goto",   p -> BodyRoutes.isSelf(p) ? selfGoto.apply(p)
+                : awaitable(p, "goto", bodies::mcGoto, bodies.slotsOf(p)));
+        routes.put("mc.bot.cancel", p -> BodyRoutes.isSelf(p) ? requireBot().cancel(p) : bodies.cancel(p));
+        routes.put("mc.bot.status", bodies::status);
     }
 
     public void attachServer(MinecraftServer s) {
@@ -811,9 +823,17 @@ public final class DriverApi {
      * with {@code slot: "elytra"} when {@code route.mode} is {@code ["fly"]} and hands the intent
      * to elytra, so waiting on {@code goto} would return at once.
      */
-    @SuppressWarnings("unchecked")
     private Map<String, Object> awaitable(Map<String, Object> params, String slot,
                                           Function<Map<String, Object>, Map<String, Object>> impl) {
+        return awaitable(params, slot, impl, () -> requireBot().status());
+    }
+
+    /** {@link #awaitable} polling {@code statusSource} for the slot: how an order to a body named by
+     *  {@code body} waits on that body's slots rather than the client bot's. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> awaitable(Map<String, Object> params, String slot,
+                                          Function<Map<String, Object>, Map<String, Object>> impl,
+                                          Supplier<Map<String, Object>> statusSource) {
         Object awaitObj = params.get("awaitMs");
         if (!(awaitObj instanceof Number)) {
             return impl.apply(params);
@@ -836,7 +856,7 @@ public final class DriverApi {
         Map<String, Object> finalStatus = null;
         boolean completed = false;
         while (true) {
-            Map<String, Object> status = requireBot().status();
+            Map<String, Object> status = statusSource.get();
             finalStatus = status;
             Object slotObj = status.get(slot);
             if (slotObj instanceof Map<?, ?> slotMap) {
