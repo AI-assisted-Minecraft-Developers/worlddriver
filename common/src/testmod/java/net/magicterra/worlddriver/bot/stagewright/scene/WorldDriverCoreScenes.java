@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.debug.BotLevelHolder;
 import net.magicterra.worlddriver.bot.debug.HorizonArena;
@@ -232,6 +233,16 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         }
         WorldDriverCommon.api().seedTestArea();
         standOnTestArea(ctx);
+        // The suite starts real processes on the client and most of its scripts never cancel them,
+        // so the scene used to hand the next client scene a busy scheduler: the user chain held its
+        // bid of 50 from here until the drown scenes minutes later. AutoSwim's in-process backstop
+        // stands down only when the scheduler is idle, so it surfaced the body that
+        // wd.drownEscapeClientStaysDownDisarmed needs to keep under. Cancel everything on the way
+        // out, on FAIL and TIMEOUT too. The verb is client-only; a dedicated server has no bot and
+        // the route would throw.
+        if (BotHooks.isAvailable()) {
+            ctx.cleanup(() -> WorldDriverCommon.api().route("mc.bot.cancel", Map.of()));
+        }
 
         AtomicReference<Integer> result = new AtomicReference<>();
         AtomicReference<Throwable> crash = new AtomicReference<>();

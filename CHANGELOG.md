@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **`wd.agentRpcSmoke` cancels the bot tasks its scripts leave behind.** The validation suite
+  starts real processes on the client and most scripts never cancel them, so on the integrated
+  topology the user chain kept bidding 50 for minutes after the scene passed. `AutoSwim`'s
+  in-process backstop only stands down when the scheduler is idle, and it swam the body of
+  `wd.drownEscapeClientStaysDownDisarmed` to the surface — a staging failure, reproduced with just
+  those two scenes on this tree and on the tree before the body abstraction began, so the order
+  of the suite, not the refactor, was the cause. The scene now registers `mc.bot.cancel` as a
+  cleanup on topologies that have a bot.
 - **`Avatar` is `Body`, and the body types have their own package.** The interface the walker,
   the processes and the scheduler drive is `net.magicterra.worlddriver.bot.body.Body`; `Hands`,
   `Containers` and `BodyCapabilities` moved beside it unchanged, the client implementation is
