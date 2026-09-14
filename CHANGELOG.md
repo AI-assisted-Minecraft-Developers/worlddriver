@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-15
 
+- **`mc.bot.goto`, `mc.bot.cancel` and `mc.bot.status` address a body by name.** A new `body` param
+  takes `self`, the default and unchanged, or an id from the new `bodies` list in `mc.bot.status`:
+  `player:<name>` for a body spawned by `/worlddriver server spawn <name>`, `npc:<name>` for one the
+  testmod registers. Another body walks on the server tick with one process and no reflexes, so it
+  refuses the goal forms that live on the client (waypoints, `plan`, `planId`, `route.mode` fly), and
+  `route.requireTool` unless it is a player. An id nothing is registered under answers `unknown_body`.
+  On a dedicated server there is no client bot, and `mc.bot.status` used to throw there; it now answers
+  with `bodies`. The other `mc.bot.*` verbs do not declare `body`, so schema validation rejects it on
+  them. `/worlddriver server clear` forgets the named bodies along with their drivers, and
+  `ServerAvatarManager` ticks any `BodyDriver`. Covered by `66_body_routes.js` on every transport and
+  by `wd.bodyRoutesWalkAPlayerAndAnNpcByName`.
 - **The testmod has an NPC body: a driven piglin the walker drives like a player.**
   `worlddriver:driven_piglin` is a piglin whose move, jump and look controls and whose brain stand
   down while a driver holds it. The driver's step runs its tick through `pump()`, the way `JoinedBody`

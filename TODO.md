@@ -150,9 +150,11 @@
 
 这些在旧版里只有正文小节、没有队列行。**它们和上表一样是开着的活**，别因为表里没有就当它们结了。
 
-### 🔴 J130：身体抽象的 P3 未落
+### 🔴 J130：身体抽象的 P3 只落了第一版
 
-阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4：P3 `BodyRegistry` 与 `mc.bot.*` 的 `body` 参数。
+阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4。第一版只有 `mc.bot.goto`、`mc.bot.cancel`、`mc.bot.status` 认 `body`。
+还欠：其余 23 个 `mc.bot.*` 动词；`FixtureRunner` 的 `body: npc:…`；RPC 驱动的 NPC 的区块票据（§5）；人工验证手册的一节。
+`wd.bodyRoutesWalkAPlayerAndAnNpcByName` 里服务端玩家身体停在终点格前 0.016 格，以 `path-consumed`、`goalReached=false` 收单，NPC 是 `arrived`；场景按 1.5 格判到达，未归因。
 P2 留下的可选项 `NavigationMover`（原版导航作对照）没做。
 §6 第 3 条（反射层上不上服务端身体）未决。
 
@@ -165,7 +167,7 @@ P2 留下的可选项 `NavigationMover`（原版导航作对照）没做。
 ### 🟡 J132：带客户端拓扑上，测试台附近地上有钻石
 
 `wd.agentRpcSmoke` 把真玩家传送到测试台后约 2 秒，玩家就拿到「Diamonds!」进度，每趟带客户端的闸都有这一行。
-这些掉落物是哪个场景留下的还没找；47_plan 已改为从空背包规划，不再受它影响。
+这些掉落物是哪个场景留下的还没找；47_plan 和 43_recipe 的钻石检查已改为从空背包规划，不再受它影响。
 
 ### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖
 

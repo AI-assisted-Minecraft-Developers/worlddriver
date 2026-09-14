@@ -169,8 +169,20 @@ its dig and place gates fall closed on their own readings.
 
 `ClientPlayerBody` and `ServerPlayerBody` implement all three interfaces, so
 a caller holding either concrete type is unchanged. This is what lets the same
-process run on a client body and headless on a server tick, and what a
-non-player body will plug into.
+process run on a client body and headless on a server tick, and what the
+testmod's NPC body (`LivingBody` over a driven piglin) plugs into.
+
+**Naming a body.** `bot/body/BodyRegistry` holds the bodies the API can address
+besides the client's own: `/worlddriver server spawn <name>` registers
+`player:<name>` (`bot/sim/ServerBodyHost` over a `ServerWorldDriver`), the testmod
+registers `npc:<name>` (`NpcBodyHost` over a `LivingBody`), and the registry
+empties when the server stops. `mc.bot.goto`, `mc.bot.cancel` and `mc.bot.status`
+take `body`; anything but `self` goes to `api/BodyRoutes`, which hops to the
+server thread, refuses in `BodyReady.Reason` words judged on the entity, and
+hands an `IntentProcess` to the host. A host runs one process on the server tick
+(`ServerAvatarManager` ticks any `BodyDriver`) with no scheduler, chains or
+reflexes; `self` keeps all three. `BodyRoutes` must not name a client class: on a
+dedicated server it is the only `mc.bot.*` code that runs.
 
 ⛔ **`bot/sim/**` and the fidelity boundary belong to the parity role.** How
 faithfully a `FakePlayer` reproduces a real player — and every known divergence —
