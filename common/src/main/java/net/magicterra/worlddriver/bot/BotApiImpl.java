@@ -8,7 +8,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
@@ -167,6 +170,26 @@ public final class BotApiImpl implements BotApi {
         return (s, g, prof) -> SearchScope.gather(player.level(), player.getId(), s, g, prof);
     }
 
+    /**
+     * The nearest entity of {@code typeId} this client has loaded, for {@code goto entity:}. It reads
+     * the client's render list, so it lives here and not in {@link GotoGoalResolver}, which a server
+     * body runs too.
+     */
+    private static Entity nearestRenderedEntity(LocalPlayer self, String typeId) {
+        Minecraft mc = Minecraft.getInstance();
+        if (!(mc.level instanceof ClientLevel cl)) return null;
+        Entity best = null;
+        double bestD = Double.MAX_VALUE;
+        for (Entity e : cl.entitiesForRendering()) {
+            if (e == self) continue;
+            String id = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
+            if (!typeId.equals(id)) continue;
+            double d = e.distanceToSqr(self);
+            if (d < bestD) { bestD = d; best = e; }
+        }
+        return best;
+    }
+
     @Override
     public Map<String, Object> mcGoto(Map<String, Object> params) {
         final Params p = Params.of(params);
@@ -181,7 +204,7 @@ public final class BotApiImpl implements BotApi {
             Goal goal;
             RouteParams.Parsed route;
             try {
-                goal = GotoGoalResolver.resolveGoal(p, player, waypoints);
+                goal = GotoGoalResolver.resolveGoal(p, player, waypoints, type -> nearestRenderedEntity(player, type));
                 route = RouteParams.parse(p.getMap("route"));
             }
             catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }

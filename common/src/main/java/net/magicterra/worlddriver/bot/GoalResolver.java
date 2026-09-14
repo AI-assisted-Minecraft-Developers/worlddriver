@@ -3,10 +3,7 @@ package net.magicterra.worlddriver.bot;
 import net.magicterra.worlddriver.model.Params;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.Level;
 
 import java.util.Map;
@@ -18,13 +15,18 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.Locale;
 import java.util.function.Predicate;
-import net.minecraft.client.multiplayer.ClientLevel;
 
 /**
  * Resolves goal / stand-position / direction descriptors from tool params into
  * {@link Goal} objects and world positions. Pure static helpers extracted from
  * BotApiImpl; the impl's instance {@code resolveGoal}/{@code resolveBaseGoal}
  * (which also consult per-bot waypoints) call into these.
+ *
+ * <p><b>No client type anywhere in this class.</b> A server body resolves its {@code goto} through
+ * these helpers too, and the verifier checks every method of a class when it links it: one
+ * {@code LocalPlayer} passed where an {@code Entity} is expected would load that class and stop this
+ * one linking on a dedicated server, whether or not the method ever runs. The body is an
+ * {@link Entity} and the level is the body's own.
  */
 public final class GoalResolver {
 
@@ -40,7 +42,7 @@ public static Goal targetGoal(BlockPos target, String mode, int near) {
     };
 }
 
-/** Scan the client level for the nearest matching block id within `radius`
+/** Scan the body's level for the nearest matching block id within `radius`
  *  (XZ Chebyshev, Y by BotConfig.mineSearchVerticalRadius) that has a
  *  standable adjacent, and return the stand position so the goto walker can
  *  target it.
@@ -63,12 +65,10 @@ public static Goal targetGoal(BlockPos target, String mode, int near) {
  *  None of that is necessarily wrong — a goto is not a mine — but "Mirrors" invited the
  *  reader to assume a shared safety floor that was never there, and the missing clause is
  *  the lava one. */
-public static BlockPos findNearestStandForBlock(LocalPlayer player, String blockId, int radius) {
-    Level lvl = Minecraft.getInstance().level;
+public static BlockPos findNearestStandForBlock(Entity self, String blockId, int radius) {
+    Level lvl = self.level();
     if (lvl == null) return null;
-    // Three doubles, not `player`: widening a LocalPlayer into blockPosOf(Entity) makes the
-    // verifier load that class, and this one is reachable from a goto verb.
-    BlockPos foot = blockPosOf(player.getX(), player.getY(), player.getZ());
+    BlockPos foot = blockPosOf(self.getX(), self.getY(), self.getZ());
     int vr = BotConfig.mineSearchVerticalRadius;
     long bestD2 = Long.MAX_VALUE;
     BlockPos bestStand = null;
@@ -93,25 +93,10 @@ public static BlockPos findNearestStandForBlock(LocalPlayer player, String block
     return bestStand;
 }
 
-public static Entity findNearestEntity(LocalPlayer self, String typeId) {
-    Minecraft mc = Minecraft.getInstance();
-    if (!(mc.level instanceof ClientLevel cl)) return null;
-    Entity best = null;
-    double bestD = Double.MAX_VALUE;
-    for (Entity e : cl.entitiesForRendering()) {
-        if (e == self) continue;
-        String id = BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
-        if (!typeId.equals(id)) continue;
-        double d = e.distanceToSqr(self);
-        if (d < bestD) { bestD = d; best = e; }
-    }
-    return best;
-}
-
 /** Compute a block target N blocks away in the requested direction. Cardinal
  *  directions are world-relative; forward/backward/left/right use the player's
  *  current yaw (Baritone-style {@code thisway}). up/down move on the Y axis. */
-public static BlockPos applyDirection(LocalPlayer p, String dirName, int distance) {
+public static BlockPos applyDirection(Entity p, String dirName, int distance) {
     int x0 = (int) Math.floor(p.getX());
     int y0 = (int) Math.floor(p.getY());
     int z0 = (int) Math.floor(p.getZ());
@@ -156,7 +141,7 @@ public static BlockPos applyDirection(LocalPlayer p, String dirName, int distanc
  * cardinal Direction, not an arbitrary heading. Returns null for vertical
  * or unknown directions.
  */
-public static int[] horizontalStep(LocalPlayer p, String d) {
+public static int[] horizontalStep(Entity p, String d) {
     switch (d) {
         case "north" -> { return new int[]{0, -1}; }
         case "south" -> { return new int[]{0, 1}; }
@@ -195,7 +180,7 @@ public static int[] horizontalStep(LocalPlayer p, String d) {
  *  agent must type for「the way I came」changes between two verbs of the same API, and each
  *  resolver only understands its own half. Reconciling them means one enum, one accept-set and a
  *  validation script — not quietly widening one side. */
-public static Direction resolveCardinalDirection(LocalPlayer pl, String dir) {
+public static Direction resolveCardinalDirection(Entity pl, String dir) {
     switch (dir) {
         case "north": return Direction.NORTH;
         case "south": return Direction.SOUTH;

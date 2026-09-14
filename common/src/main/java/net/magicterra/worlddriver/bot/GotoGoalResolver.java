@@ -1,15 +1,15 @@
 package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.model.Params;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 
 import static net.magicterra.worlddriver.bot.GoalResolver.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
@@ -19,25 +19,33 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.*;
  * {@code mcGoto} delegates here. The {@code waypoints} map (named positions
  * owned by the bot impl) is passed in so a {@code waypoint:} selector resolves.
  *
- * <p>Only the GOAL lives here — the part that needs the player and the live world. The route
+ * <p>Only the GOAL lives here — the part that needs the body and the live world. The route
  * conditions ({@code route}: bias, capability, hard constraints, via, the entity leash) are
  * {@link RouteParams#parse}, a pure function shared with {@code mc.bot.follow} and with the
  * dedicated-server scenes.
+ *
+ * <p><b>Free of client types, like {@link GoalResolver}</b>, because a server body resolves its
+ * goal here too. The one selector whose answer depends on the side is {@code entity:}: the client
+ * looks through what it has loaded for rendering, a server through its level. So the caller passes
+ * that lookup in.
  */
-final class GotoGoalResolver {
+public final class GotoGoalResolver {
 
     private GotoGoalResolver() {}
 
     /**
-     * Resolve a goal from goto params on the client thread (some selectors need
-     * the player position or live world state). Throws IllegalArgumentException
+     * Resolve a goal from goto params on the body's own thread (some selectors need
+     * the body position or live world state). Throws IllegalArgumentException
      * with a descriptive message when a selector matches but cannot be resolved
      * (e.g. block not found in radius, entity id stale, unknown direction);
      * returns null when no selector is recognized so the caller can emit the
      * "missing goal" error.
+     *
+     * @param nearestOfType the nearest entity of a registry id the body can see, or null
      */
-    static Goal resolveGoal(Params p, LocalPlayer player, Map<String, BlockPos> waypoints) {
-        Goal base = resolveBaseGoal(p, player, waypoints);
+    public static Goal resolveGoal(Params p, Entity self, Map<String, BlockPos> waypoints,
+                                   Function<String, Entity> nearestOfType) {
+        Goal base = resolveBaseGoal(p, self, waypoints, nearestOfType);
         if (base == null) return null;
         // Baritone GoalInverted: flee whatever the resolved goal converges on.
         return p.getBool("invert") ? new Goal.Inverted(base) : base;
@@ -52,7 +60,8 @@ final class GotoGoalResolver {
      *   "adjacent"     → stand next to / above / below it (chests, furnaces).
      * {@code near>0} always wins and relaxes to a Euclidean radius (GoalNear).
      */
-    private static Goal resolveBaseGoal(Params p, LocalPlayer player, Map<String, BlockPos> waypoints) {
+    private static Goal resolveBaseGoal(Params p, Entity self, Map<String, BlockPos> waypoints,
+                                        Function<String, Entity> nearestOfType) {
         // GoalAxis: reach the nearest world axis/diagonal at the configured Y.
         if (p.getBool("axis")) return new Goal.Axis(BotConfig.axisHeight);
 
@@ -67,21 +76,21 @@ final class GotoGoalResolver {
 
         if (p.get("block") instanceof String blockId && !blockId.isBlank()) {
             int radius = p.getIntClamped("radius", 32, 1, 64);
-            BlockPos stand = findNearestStandForBlock(player, blockId, radius);
+            BlockPos stand = findNearestStandForBlock(self, blockId, radius);
             if (stand == null) throw new IllegalArgumentException(
                     "no reachable '" + blockId + "' within radius " + radius);
             return new Goal.Block(stand);
         }
         if (p.get("entityId") instanceof Number eidn) {
             int eid = eidn.intValue();
-            Level lvl = Minecraft.getInstance().level;
+            Level lvl = self.level();
             Entity e = (lvl == null) ? null : lvl.getEntity(eid);
             if (e == null) throw new IllegalArgumentException("no entity with id " + eid);
             int near = p.getIntClamped("near", 3, 0, 16);
             return targetGoal(blockPosOf(e), mode, near);
         }
         if (p.get("entity") instanceof String entType && !entType.isBlank()) {
-            Entity e = findNearestEntity(player, entType);
+            Entity e = nearestOfType == null ? null : nearestOfType.apply(entType);
             if (e == null) throw new IllegalArgumentException("no '" + entType + "' visible nearby");
             int near = p.getIntClamped("near", 3, 0, 16);
             return targetGoal(blockPosOf(e), mode, near);
@@ -91,17 +100,14 @@ final class GotoGoalResolver {
             // Baritone GoalStrictDirection: keep boring this way with no fixed
             // endpoint (the best-effort fallback carries it as far as it can).
             if (p.getBool("strict")) {
-                // Three doubles, not `player`: widening a LocalPlayer into blockPosOf(Entity)
-                // makes the verifier load that class. The two blockPosOf(e) calls above are a
-                // genuine Entity from lvl.getEntity / findNearestEntity and stay as they are.
-                BlockPos origin = blockPosOf(player.getX(), player.getY(), player.getZ());
-                int[] step = horizontalStep(player, d);
+                BlockPos origin = blockPosOf(self.getX(), self.getY(), self.getZ());
+                int[] step = horizontalStep(self, d);
                 if (step == null) throw new IllegalArgumentException(
                         "strict direction must be horizontal (north|south|east|west|forward|backward|left|right), got '" + dirName + "'");
                 return new Goal.StrictDirection(origin, step[0], step[1]);
             }
             int distance = p.getIntClamped("distance", 8, 1, 256);
-            BlockPos target = applyDirection(player, dirName, distance);
+            BlockPos target = applyDirection(self, dirName, distance);
             if (target == null) throw new IllegalArgumentException(
                     "unknown direction '" + dirName + "' (north|south|east|west|up|down|forward|backward|left|right)");
             int near = p.getIntClamped("near", 0, 0, 64);
@@ -124,7 +130,7 @@ final class GotoGoalResolver {
     /** {@code route.requireTool: 'minecraft:iron_pickaxe'} — fail the goto up front unless the
      *  item is in the player inventory. Presence-only: the Walker already auto-equips the best
      *  tool per dig (Hands.selectTool), and mid-run tool loss is out of scope here. */
-    static void checkRequiredTool(String id, LocalPlayer player) {
+    public static void checkRequiredTool(String id, Player player) {
         if (id == null || id.isBlank()) return;
         String want = id.contains(":") ? id : "minecraft:" + id;
         for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
