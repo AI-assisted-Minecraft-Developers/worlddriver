@@ -1,6 +1,6 @@
 # 身体抽象层的设计：一套 Bot 层，三种身体（真玩家、服务端玩家、NPC）
 
-> 状态：P0、P1a、P1b 已落，P2 进行中。读者：开发者。
+> 状态：P0、P1a、P1b、P2 已落，P3 未动。读者：开发者。
 > 2026-09-14 拍板：服务端身体是**给第三方扩展用的公开面**，留在模组本体（`bot/sim/` 不搬）；NPC 的第一具身体是
 > testmod 里一个**自定义的猪灵**实体。§0 第 2 条、§3.2、§3.3、§4 P1 与 §6 按此改过；客户端身体的挖掘/用物已于同日
 > 脱离 `keyAttack`/`keyUse`（`ClientIntents` + `MinecraftMixin`）。
@@ -204,6 +204,18 @@ tick 只走一步，而本仓库按「一 tick 多步」写成的用法遍布测
 的导航与移动控制不跑、`LookControl` 不跑；`FREE` 时全部还给原版。模式切换在 `attach`/`release` 上，
 不允许「一半归我一半归它」——Automatone 靠 cancel `tickNewAi` 硬关，就是同一件事。
 
+**2026-09-15 修订（P2 动手时核的）：第一只 NPC 不用 mixin。** `Mob.serverAiStep` 是 `final`，但里面跟驾驶打架的
+东西子类都换得掉：脑子在可覆写的 `customServerAiStep` 里；`MoveControl` 没有目标时把 `zza` 清零、`JumpControl` 把
+`jumping` 写回 false、`LookControl` 转头，三者都是 `protected` 字段，`DrivenPiglin` 在构造里换成驾驶时不动的版本。
+mixin 要进发布 jar，留给第一只被驾驶的原版生物。其余形状：
+- tick 照 `JoinedBody`：驾驶时关卡实体循环只记一笔，`pump()` 在驱动步进时跑 `super.tick()`，本步之前循环没来过就自己补
+  `setOldPosAndRot()` 与 `tickCount++`。
+- 速度：生物的 `getSpeed()` 读的是 `MoveControl` 每步写的字段，所以 `LivingBody.step()` 先按移动速度属性 `setSpeed`
+  （它顺带写 `zza`），再把冲量乘这个速度写进 `xxa/zza`，等于原版生物以速度倍率 1 走路时留下的值。
+- 规划：`LevelWorldView.forBody(level, 生物)`；不是玩家的身体，破坏代价为无穷、可放方块为 0。
+- `SceneBody.npc(ctx, foot)` 只出 `worlddriver:driven_piglin`，免伤，场景结束丢弃。`wd.npc*` 在专用服上让服务端玩家身体
+  随后走同一条路：两具都没到是布景的错，只有 NPC 没到才是身体之间的差异。
+
 ### 3.3 跨 loader
 
 **身体之上的一切都在 `common`。** 三个实现都是原版代码：`placeNewPlayer` + `EmbeddedChannel` 是原版，
@@ -228,9 +240,11 @@ tick 只走一步，而本仓库按「一 tick 多步」写成的用法遍布测
 
 - `FixtureRunner.Helm` 加第三种实现：`body: self | server | npc:<entity type or name>`；场景文件的 `body`
   字段接受同样的值。「同一场景、三具身体」的运行器就是 `wd.bodyParityCensus` 的自然扩展。
-- `SceneBody` 多一个 `npc(ctx, EntityType, foot)`：生成实体、注册 `LivingBody`、`DRIVEN`，清理时 `FREE` + 移除。
-- 场景族 `wd.npc*`：先复用 `lab.*`/`wd.client*` 的地形（楼梯、跑酷、渡水、上岸、梯子），三具身体各跑一遍，
-  差异按 parity 文档的四类归档。
+- `SceneBody` 多一个 `npc(ctx, foot)`（2026-09-15 落地时去掉了 `EntityType` 参数，第一版只有一种 NPC）：
+  生成 `worlddriver:driven_piglin`、免伤、`setDriven(true)`，场景结束丢弃。
+- 场景族 `wd.npc*`：楼梯、跳沟、渡水、上岸、梯子五块地形在场景里现搭。专用服上 NPC 与服务端玩家身体各走一遍，
+  其余拓扑只走 NPC（客户端身体不跑这一族）；差异按 parity 文档的四类归档，见那份文档 §12。
+  第六个 `wd.npcRefusesWorkThatNeedsHands` 让 NPC 接六种要手的单，要求第一 tick 就以 `no_hands` 收单。
 
 ## 4. 分阶段落地（每一步都要过闸，零行为变化的步单独提交）
 
@@ -240,7 +254,7 @@ tick 只走一步，而本仓库按「一 tick 多步」写成的用法遍布测
 | P1a 只剩真身体（2026-09-14 已落） | `ServerAvatarBodies` 只出 `JoinedBody`，`realPlayerBodies` 开关退役；删 Fabric 的 `FabricAvatarBodies`/`AvatarFakePlayer` 与 NeoForge 的 `FakePlayerFactory` 工厂；`/worlddriver server` 从 NeoForge 搬进 common，两个 loader 都有；两个 loader 的 `sim/` 目录删除 | 六个闸颜色不变（六个闸本来就开着那个开关）；`wd.bodyParityCensus` 的 factory 列如实记 unavailable |
 | P1b 原版泵（2026-09-15 已落） | `step()` 改走 `JoinedBody` 的泵（§3.2 修订）；删 `mirrorPlayerTick()`、手写跳闸、`setSpeed`/`travel` 直调；断言非原版行为的场景跟着改；判 `openStationMenu`（替假人补菜单的旁路）在原版 `openMenu` 下还会不会触发（没触发过，已删） | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 读成原版的值；专用服闸绿；真梯自测不退。**核过**：普查读成原版（落差峰值 10.807、`invulnerableTime` 19..15、经验 0→9、潜行 CROUCHING/1.50）；六个闸的失败集与 P0 基线逐条一致（NeoForge 专用服首跑红在 J75 预言的珍珠上，重跑绿）；真梯首跑在 PORTAL_KIT 的进食里超时（等待期间没人步进身体，`JourneyRig.await` 已补步），重跑爬到 OBSIDIAN，地板 PORTAL_KIT 未退 |
 | P1c 连接 | `SilentConnection` 对照 §2 第 5 条 | 2026-09-14 已逐方法核过、无缺口（见 §2 第 5 条补核）；NeoForge 网络类若日后炸出空指针再补 |
-| P2 NPC | `LivingBody` + `DrivenMobHook`（common mixin：被驱动的 `Mob` 跳过 `serverAiStep` 的导航/移动/看向）；能力门（`no_hands` 拒单）；`SceneBody.npc`；`wd.npc*` 五个地形场景；可选 `NavigationMover` 对照 | 五个地形 NPC 身体通过，或差异归入四类之一并登记 |
+| P2 NPC（2026-09-15 已落） | `LivingBody`（testmod）+ `DrivenPiglin`：驾驶时换掉移动、跳跃、看向三个控制并停掉脑子，不用 mixin（§3.2 修订）；`LevelWorldView.forBody`；能力门（`no_hands` 拒单，顺带修了五个进程在非玩家身体上先判 `asPlayer()` 的顺序）；`SceneBody.npc`；`wd.npc*` 五个地形场景加一个拒单场景；可选的 `NavigationMover` 对照没做 | 五个地形 NPC 身体通过，或差异归入四类之一并登记。**核过**：五个地形场景在六个闸上全部通过，两个 loader、三种拓扑的 NPC 读数逐位相同；拒单场景在两个集成服闸和两个带客户端闸上通过（两个专用服闸跑在它和那五个进程的修复加进来之前，带客户端闸的服务端就是专用服）；与服务端玩家身体相比，上岸多用 12 tick（未归因，记作只能近似），其余四块差 0–3 tick（`docs/fake-player-parity.md` §12）。六个闸的失败集与 P1b 基线一致，NeoForge 集成服的 ENV_FAIL 名单照旧每趟不同。Fabric 带客户端闸三趟：第一趟撞了 /tmp 配额，没出判词；第二趟红在 `47_plan` 读了真玩家的背包，与本阶段无关，脚本已改为从空背包规划（测试台附近的钻石见 J132）；第三趟绿 |
 | P3 寻址 | `BodyRegistry`、`mc.bot.*` 的 `body` 参数、`status.bodies`；`FixtureRunner` 的 `body: npc:…`；RPC 参考与 `docs/dev/bot-layering.md` 更新 | 三 transport 字节一致测试覆盖 `body` 参数；人工验证手册补一节 |
 
 ## 5. 明确不做、要避开的

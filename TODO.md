@@ -150,10 +150,10 @@
 
 这些在旧版里只有正文小节、没有队列行。**它们和上表一样是开着的活**，别因为表里没有就当它们结了。
 
-### 🔴 J130：身体抽象的 P2–P3 未落
+### 🔴 J130：身体抽象的 P3 未落
 
-阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4：P2 testmod 的自定义猪灵 `LivingBody`；
-P3 `BodyRegistry` 与 `mc.bot.*` 的 `body` 参数。
+阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4：P3 `BodyRegistry` 与 `mc.bot.*` 的 `body` 参数。
+P2 留下的可选项 `NavigationMover`（原版导航作对照）没做。
 §6 第 3 条（反射层上不上服务端身体）未决。
 
 ### 🟡 J131：没有驱动器在步的服务端身体整个停住
@@ -161,6 +161,11 @@ P3 `BodyRegistry` 与 `mc.bot.*` 的 `body` 参数。
 `JoinedBody` 只在 `ServerPlayerBody.step()` 里走；没人注册驱动器时它不下落、不饿、不回血、一口吃不完，真玩家却由连接每 tick 推着。
 真梯靠 `JourneyRig.await` 自己补步，`/worlddriver server` 的空闲身体和 P3 的 RPC 身体没有。
 待定：关卡实体循环要不要在本 tick 没被步过时替它空步（改的是 spec §3.2 写明的 tick 契约）。
+
+### 🟡 J132：带客户端拓扑上，测试台附近地上有钻石
+
+`wd.agentRpcSmoke` 把真玩家传送到测试台后约 2 秒，玩家就拿到「Diamonds!」进度，每趟带客户端的闸都有这一行。
+这些掉落物是哪个场景留下的还没找；47_plan 已改为从空背包规划，不再受它影响。
 
 ### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖
 

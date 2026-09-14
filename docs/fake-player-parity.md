@@ -2208,3 +2208,44 @@ private void removePlayerFromWorld() {                       // ← 只从 onDis
 （`canaryMustFail`、`canaryMustTimeout` 两条是框架自带的必红金丝雀；
 `wd.vineOverWaterClimb` 是已知的 −711 可选传感器；
 `wd.serverEscapeSealedShelter` 在改动前的那趟里**同样是 FAIL**，属既有缺陷，不是本次回归）。
+
+## 12. 第三种身体：被驾驶的猪灵（`LivingBody`，2026-09-15）
+
+本节不按文首的锚点读：代码按类名和方法名引用，读数一律取 `stagewright-results.jsonl` 里场景自己的 `ctx.record`。
+
+**它问的不是前面那个问题。** `JoinedBody` 要回答「和真玩家差在哪」；NPC 本来就不是玩家，它要回答的是
+「同一个 `Walker`、同一个寻路器驱动一具非玩家身体，能不能走完玩家身体走得完的地形」。走不完或走法不同的地方按四类登记。
+
+身体是 testmod 的 `DrivenPiglin`（`worlddriver:driven_piglin`，原版猪灵的尺寸与属性），外面套 `LivingBody`。
+执行通道与两具玩家身体相同：每步写 `xxa/zza/jumping/shiftKeyDown`，再由 `DrivenPiglin.pump()` 跑原版 `tick()`。
+它没有 `Hands` 与 `Containers`；规划走 `LevelWorldView.forBody`，破坏代价无穷，可放方块为零。
+
+### 12.1 五块地形上的读数
+
+`wd.npc*` 在专用服上先让 NPC 走，再让一具 `ServerPlayerBody` 从同一格出发走同一条路（同一块布景，`allowBreak`/`allowPlace` 关）。
+下表来自 Fabric 与 NeoForge 专用服闸各一趟（2026-09-15，同一棵树）。**两个 loader 的每一格读数完全相同**，所以只列一次。
+
+| 场景 | NPC tick | 玩家身体 tick | 两具都到达 | 备注 |
+|---|---|---|---|---|
+| `wd.npcWalksDownAStaircase` | 32 | 35 | 是 | |
+| `wd.npcJumpsAOneBlockGap` | 17 | 18 | 是 | |
+| `wd.npcSwimsAcrossOpenWater` | 57 | 58 | 是 | 最低 y：NPC 220.56，玩家 220.22 |
+| `wd.npcClimbsOutOfWater` | **40** | **28** | 是 | 最低 y 两者都是 219.96 |
+| `wd.npcClimbsALadder` | 81 | 81 | 是 | |
+
+两个集成服闸（有真客户端，按 2026-08-20 的选型不造玩家身体，只走 NPC 单臂）上，五格 NPC 读数与上表逐位相同，
+客户端日志里没有与它有关的报错。它进没进过客户端的视野没量，所以这不算渲染器验证过。
+两个带客户端闸（专用服加一个真客户端，两臂都走）上，NPC 与玩家身体的读数也与上表逐位相同。
+
+### 12.2 差异归类
+
+| 差异 | 类别 | 说明 |
+|---|---|---|
+| 从水里爬上齐平的岸，NPC 多用 12 tick（40 对 28） | 只能近似 | **未归因。** 开阔水面上同一套冲量只差 1 tick，所以差距不在水里的平推，而在出水那几 tick；还没拆开。会因此撒谎的是拿玩家身体的 tick 数给 NPC 定预算的断言，`wd.npc*` 只判到达，不判 tick。 |
+| 没有手：挖、放、合成、冶炼、战斗都做不了 | 不可能，且不需要 | 要手的活换玩家身体做。进程在第一 tick 以 `no_hands` 拒单，由 `wd.npcRefusesWorkThatNeedsHands` 钉住。2026-09-15 之前这条拒单对非玩家身体并不成立：Tower/Mine 报 `player vanished`，Combat 静默收单，Craft/Smelt 的拒单写不进 `lastError`（见 CHANGELOG 同日）。 |
+
+### 12.3 这几趟测不到什么
+
+- **摔伤。** 场景里的猪灵是 `setInvulnerable(true)`。设计文档 §2 第 6 条说 `LivingBody` 走原版的摔伤结算，没量过。
+- **空闲。** 被驾驶时关卡实体循环只记一笔（`DrivenPiglin.tick`），没人步进的 NPC 与 J131 里的服务端身体一样整个停住。
+- **区块。** 它没有票据，而场景都在竞技场里，走不远。
