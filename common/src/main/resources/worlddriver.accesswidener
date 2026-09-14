@@ -25,9 +25,6 @@ accessible	field	net/minecraft/client/MouseHandler	xpos	D
 accessible	field	net/minecraft/client/MouseHandler	ypos	D
 
 accessible	field	net/minecraft/client/multiplayer/MultiPlayerGameMode	destroyProgress	F
-accessible	field	net/minecraft/world/entity/LivingEntity	attackStrengthTicker	I
-accessible	field	net/minecraft/world/entity/LivingEntity	jumping	Z
-accessible	method	net/minecraft/world/entity/LivingEntity	updatingUsingItem	()V
 accessible	field	net/minecraft/client/gui/components/AbstractSliderButton	value	D
 accessible	method	net/minecraft/client/gui/components/AbstractSliderButton	applyValue	()V
 accessible	method	net/minecraft/client/gui/components/AbstractSliderButton	updateMessage	()V
