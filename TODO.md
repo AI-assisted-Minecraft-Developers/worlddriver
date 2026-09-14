@@ -156,12 +156,6 @@
 删 `step()`／`mirrorPlayerTick()`；P2 testmod 的自定义猪灵 `LivingBody`；P3 `BodyRegistry` 与 `mc.bot.*` 的 `body` 参数。
 §6 第 3 条（反射层上不上服务端身体）未决。
 
-### 🔴 J131：`wd.journeyCraftStepsAsideForRoom` 丢桌分支会把身体留在水里，Fabric 专用服全量闸因此红过一次
-
-合成后桌子丢了时 `JourneyStation.reclaimTableIfLeftStanding` 走 `collectByHand` 去捡掉落物；掉落物沉进水里时
-最后一腿停在水中就交给 `then`，检查 B（终点承重）判红。桌子是否丢、掉落物落在岸上还是水里每趟不同，
-所以同一 HEAD 上 NeoForge 全量与 Fabric 单跑都绿。补法方向：捡完先回到可站的实地再交出去。
-
 ### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖
 
 `WalkerTickStallDetect.offPath` 量的是到追踪节点的距离；`adoptPath` 把平直段拉成一条长边后，

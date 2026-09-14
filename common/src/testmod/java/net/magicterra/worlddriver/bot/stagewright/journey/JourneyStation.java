@@ -65,7 +65,13 @@ final class JourneyStation {
                         "craftingTable.lost", () -> {
                             rig.evidence("craftingTable.lostThenFetched",
                                     rig.carrying("minecraft:crafting_table"));
-                            then.run();
+                            // The last pickup leg ends where the drop was, and a drop that sank
+                            // ends it in water: measured on wd.journeyCraftStepsAsideForRoom, two
+                            // legs came up 2-3 blocks short of a table sinking past y=217 and the
+                            // third left the body afloat, which the next craft cannot place from
+                            // and the scene's end check rejects. Step back onto ground with room
+                            // first; a body already there is handed on untouched.
+                            makeRoomForAStation(rig, then);
                         });
                 return;
             }

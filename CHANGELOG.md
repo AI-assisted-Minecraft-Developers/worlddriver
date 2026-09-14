@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   those two scenes on this tree and on the tree before the body abstraction began, so the order
   of the suite, not the refactor, was the cause. The scene now registers `mc.bot.cancel` as a
   cleanup on topologies that have a bot.
+- **A craft that lost its table steps back onto ground before handing on.** The lost-table branch
+  of `JourneyStation.reclaimTableIfLeftStanding` walks to the drop, and a table that sank ended
+  that walk afloat: on one Fabric dedicated run of `wd.journeyCraftStepsAsideForRoom` two legs
+  came up short of a drop sinking past y=217 and the third left the body in water, which the end
+  check rejected. The fetch now finishes through `makeRoomForAStation`, which hands a body already
+  on usable ground straight on. Whether the table is lost, and where its drop lands, varies from
+  run to run, which is why the same tree passed on NeoForge and on a Fabric rerun.
 - **`Avatar` is `Body`, and the body types have their own package.** The interface the walker,
   the processes and the scheduler drive is `net.magicterra.worlddriver.bot.body.Body`; `Hands`,
   `Containers` and `BodyCapabilities` moved beside it unchanged, the client implementation is
