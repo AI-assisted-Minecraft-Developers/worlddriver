@@ -90,7 +90,9 @@ ScriptTest.run("43_recipe: resolve substitutes a tag member from inventory", fun
 ScriptTest.run("43_recipe: resolve a raw material terminates (storage-pair safe)", function(t) {
     // diamond is craftable from a diamond block (decompression) — resolve must NOT
     // loop diamond->diamond_block->diamond; it reports diamond as missing.
-    var r = Driver.invoke("mc.recipe.resolve", { target: "minecraft:diamond", count: 2 });
+    // From an empty bag, as 47_plan plans: without `have` resolve reads the first player's inventory,
+    // and on a server a client joined that is the real player, who picks up diamonds on the test pad.
+    var r = Driver.invoke("mc.recipe.resolve", { target: "minecraft:diamond", count: 2, have: {} });
     t.assertEqual(r.ok, true, "ok (did not hang)");
     t.assertEqual(missingCount(r.missing, "minecraft:diamond"), 2, "raw diamond is missing, not decompressed");
     t.assertEqual(r.steps.length, 0, "no nonsensical decompression steps");
