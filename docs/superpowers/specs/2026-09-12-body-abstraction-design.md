@@ -1,6 +1,6 @@
 # 身体抽象层的设计：一套 Bot 层，三种身体（真玩家、服务端玩家、NPC）
 
-> 状态：设计稿，P0 进行中。读者：开发者。
+> 状态：P0、P1a 已落，P1b 进行中。读者：开发者。
 > 2026-09-14 拍板：服务端身体是**给第三方扩展用的公开面**，留在模组本体（`bot/sim/` 不搬）；NPC 的第一具身体是
 > testmod 里一个**自定义的猪灵**实体。§0 第 2 条、§3.2、§3.3、§4 P1 与 §6 按此改过；客户端身体的挖掘/用物已于同日
 > 脱离 `keyAttack`/`keyUse`（`ClientIntents` + `MinecraftMixin`）。
@@ -206,7 +206,7 @@ tick 只走一步，而本仓库按「一 tick 多步」写成的用法遍布测
 
 | 阶段 | 内容 | 判据 |
 |---|---|---|
-| P0 类型 | `Avatar` → `Body`：`LivingEntity entity()` + `asPlayer()`；`Hands`/`Containers` 拆出；`LookController.apply(LivingEntity)`；`BotInput` 变成 `ClientPlayerBody` 的实例方法；`Chain`/`ProcessScheduler` 收 `Body`，反射层内部向下转型到 `ClientPlayerBody`；`InteractionCommands.attackEntity` 改走 `Hands.attackEntity` | 六个闸颜色不变；预算闸；`wd.clientWorldViewParity`、`wd.bodyParityCensus` 读数不变 |
+| P0 类型（2026-09-14 已落） | `Avatar` → `Body`：`LivingEntity entity()` + `asPlayer()`；`Hands`/`Containers` 拆出；`LookController.apply(LivingEntity)`；`BotInput` 变成 `ClientPlayerBody` 的实例方法；`Chain`/`ProcessScheduler` 收 `Body`，反射层内部向下转型到 `ClientPlayerBody`；`InteractionCommands.attackEntity` 改走 `Hands.attackEntity` | 六个闸颜色不变；预算闸；`wd.clientWorldViewParity`、`wd.bodyParityCensus` 读数不变 |
 | P1a 只剩真身体（2026-09-14 已落） | `ServerAvatarBodies` 只出 `JoinedBody`，`realPlayerBodies` 开关退役；删 Fabric 的 `FabricAvatarBodies`/`AvatarFakePlayer` 与 NeoForge 的 `FakePlayerFactory` 工厂；`/worlddriver server` 从 NeoForge 搬进 common，两个 loader 都有；两个 loader 的 `sim/` 目录删除 | 六个闸颜色不变（六个闸本来就开着那个开关）；`wd.bodyParityCensus` 的 factory 列如实记 unavailable |
 | P1b 原版泵 | `step()` 改走 `JoinedBody` 的泵（§3.2 修订）；删 `mirrorPlayerTick()`、手写跳闸、`setSpeed`/`travel` 直调；断言非原版行为的场景跟着改；判 `openStationMenu`（替假人补菜单的旁路）在原版 `openMenu` 下还会不会触发 | `wd.bodyParityCensus` 的 4.2 A1/A2 与 4.1 T5/T8/T17/T18 读成原版的值；专用服闸绿；真梯自测不退 |
 | P1c 连接 | `SilentConnection` 对照 §2 第 5 条 | 2026-09-14 已逐方法核过、无缺口（见 §2 第 5 条补核）；NeoForge 网络类若日后炸出空指针再补 |
