@@ -265,7 +265,7 @@ loom {
             source sourceSets.testmod
         }
         // Production topology, client half. Started by the plugin as a companion of the server
-        // above, so it needs no scenes of its own — it only has to be a real player.
+        // above; it runs no scenes of its own, it only has to be a real player.
         stagewrightJoiningClient {
             client()
             property 'stagewright.client.connect', '127.0.0.1:25601'
@@ -273,6 +273,9 @@ loom {
             property 'worlddriver.mcpPort', '0'
             runDir 'run-stagewright-joining-client'
             vmArg '-Xmx2g'
+            // The testmod registers the marker block and items, so a client without it is refused at
+            // registry sync and the server waits for a player forever.
+            source sourceSets.testmod
         }
         // The lab: a client on a persistent flat world for hand-built scenes. Not a StageWright
         // task, so nothing provisions (= wipes) `run-lab`. See docs/user/human-verification.md.
@@ -407,7 +410,7 @@ loom {
         }
         // Production topology, client half. Started for you as a companion of the server above — the
         // `doFirst` on `runJourneyDedicatedServerWithClient` at the bottom of this file does it. It
-        // carries no scenes because it has no job beyond being a real player on the other end of a
+        // runs no scenes because it has no job beyond being a real player on the other end of a
         // real socket.
         journeyJoiningClient {
             client()
@@ -416,6 +419,8 @@ loom {
             property 'worlddriver.mcpPort', '0'
             runDir 'run-journey-joining-client'
             vmArg '-Xmx2g'
+            // Carries the testmod for its registry content only — see stagewrightJoiningClient.
+            source sourceSets.testmod
         }
         // ONE upper rung, with its preconditions put there by hand (wd.rehearse*).
         //

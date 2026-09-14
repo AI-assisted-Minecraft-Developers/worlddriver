@@ -287,7 +287,7 @@ loom {
             source sourceSets.testmod
         }
         // Production topology, client half. Started by the plugin as a companion of the server
-        // above, so it needs no scenes of its own — it only has to be a real player.
+        // above; it runs no scenes of its own, it only has to be a real player.
         stagewrightJoiningClient {
             client()
             property 'stagewright.client.connect', '127.0.0.1:25602'
@@ -295,11 +295,9 @@ loom {
             property 'worlddriver.mcpPort', '0'
             runDir 'run-stagewright-joining-client'
             vmArg '-Xmx2g'
-            // Deliberately no `source sourceSets.testmod`: this half runs no scenes, it only has to
-            // be a real player. (It was added once while chasing a bug that turned out to be in the
-            // companion launcher, not here — loom stages MOD_CLASSES in a task-action property the
-            // launcher was not reading, so FML listed the driver and constructed nothing. Fixed in
-            // StageWright's SideProcesses, which documents it.)
+            // The testmod registers the marker block and items, so a client without it is refused at
+            // registry sync and the server waits for a player forever.
+            source sourceSets.testmod
         }
     }
     runConfigs.configureEach {
