@@ -11,8 +11,12 @@ function stepIndex(steps, action, needle) {
 }
 function blocksOf(steps, idx) { return (steps[idx].blocks || []).join(","); }
 
+// The two pickaxe checks plan from an explicit empty bag. With no `have`, the planner reads the
+// first player in the PlayerList, and on a server a client joined that is the real player, who
+// had just been stood on the test pad and picked up diamonds: carrying three of them turned
+// "mines diamond" red on one with-client run and not the next.
 ScriptTest.run("47_plan: iron_pickaxe → mine raw_iron, smelt ingot, craft (ordered)", function (t) {
-    var r = Driver.invoke("mc.plan.acquire", { target: "minecraft:iron_pickaxe", count: 1 });
+    var r = Driver.invoke("mc.plan.acquire", { target: "minecraft:iron_pickaxe", count: 1, have: {} });
     t.assertEqual(r.ok, true, "ok");
     var mine = stepIndex(r.steps, "mine", "raw_iron");
     t.assertTrue(mine >= 0, "mines raw_iron (" + JSON.stringify(r.steps) + ")");
@@ -29,10 +33,10 @@ ScriptTest.run("47_plan: iron_pickaxe → mine raw_iron, smelt ingot, craft (ord
 });
 
 ScriptTest.run("47_plan: diamond_pickaxe mines diamond from ore", function (t) {
-    var r = Driver.invoke("mc.plan.acquire", { target: "minecraft:diamond_pickaxe", count: 1 });
+    var r = Driver.invoke("mc.plan.acquire", { target: "minecraft:diamond_pickaxe", count: 1, have: {} });
     t.assertEqual(r.ok, true, "ok");
     var mine = stepIndex(r.steps, "mine", "diamond");
-    t.assertTrue(mine >= 0, "mines diamond");
+    t.assertTrue(mine >= 0, "mines diamond (" + JSON.stringify(r.steps) + ")");
     t.assertTrue(blocksOf(r.steps, mine).indexOf("diamond_ore") >= 0, "mine targets a diamond_ore block");
     t.assertTrue(stepIndex(r.steps, "craft", "diamond_pickaxe") >= 0, "crafts the pickaxe");
 });
