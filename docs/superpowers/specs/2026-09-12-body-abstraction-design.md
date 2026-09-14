@@ -236,6 +236,24 @@ mixin 要进发布 jar，留给第一只被驾驶的原版生物。其余形状�
   （自动吃、自动游、窒息脱困…）是客户端人机共存的产物，先不搬。`Chain.priority/tick` 的参数从 `Minecraft`
   改成 `Body` 是为了让链层**能**在服务端跑，不是第一版就跑。
 
+**2026-09-15 修订（P3 动手前定的第一版范围）。** 第一版只打通三个动词的身体寻址：`mc.bot.goto`、`mc.bot.cancel`、
+`mc.bot.status`。其余 23 个 `mc.bot.*` 先不声明 `body`，传了会被 schema 校验当作未知参数拒掉。
+这比声明了参数、再在路由里回一句「这个动词还不支持」诚实，也不必给每个 LLM 客户端多塞 23 份用不上的参数说明。
+- **`BodyRegistry`**（`bot/body/`，模组本体）：按 id 存 `BodyHost`。`self` 不进表，表示客户端 `BotApi`，行为与今天相同。
+  服务端玩家身体由 `/worlddriver server spawn <name>` 注册成 `player:<name>`；testmod 注册 `npc:<name>`；服务器停止时清空。
+- **`BodyHost`**：`id()`、`kind()`、`entity()`、`start(BotProcess)`、`cancel()`、`busy()`、`botState()`、`refusal()`。
+  服务端玩家身体的实现包 `ServerWorldDriver`；NPC 的实现在 testmod，包 `LivingBody`。两者都由服务器 tick 推进，
+  `ServerAvatarManager` 的元素类型从 `ServerWorldDriver` 放宽成一个只有 `tick()`/`finished()` 的接口。
+- **`goto`**：`GotoGoalResolver` 从收 `LocalPlayer` 改为收 `Player` 加 `Level`。以下目标只在 `self` 上接受，
+  在其他身体上拒单：航点（客户端内存里的状态）、`plan`/`planId`、`route.mode fly`，以及非玩家身体上的 `route.requireTool`。
+  进程仍是 `IntentProcess`。
+- **`status`**：总带 `bodies: [{id, kind, entityId, pos, busy}]`；带 `body` 时返回那具身体的槽位，`awaitMs` 也按 `body` 轮询。
+  专用服上没有客户端 bot，今天 `mc.bot.status` 直接报错，改后回 `{bodies:[…]}`。
+- **拒单形状**沿用 `BodyReady`：未知 id 回 `{ok:false, reason:"unknown_body"}`；实体已移除或所在区块未加载回 `chunk_unloaded`。
+- **验证**：validation 脚本在三个 transport 上比对 `unknown_body` 拒单与 `status.bodies` 的字节是否一致，任何拓扑都能跑，不造身体。
+  专用服场景注册一具服务端玩家身体和一只 NPC，经 `DriverApi.route` 让两者各走一段，判到达。
+- **第一版不做**：其余 23 个动词；§3.5 的 `FixtureRunner` `body: npc:…`；RPC 驱动的 NPC 的区块票据（§5）。
+
 ### 3.5 testmod 里的用法
 
 - `FixtureRunner.Helm` 加第三种实现：`body: self | server | npc:<entity type or name>`；场景文件的 `body`
