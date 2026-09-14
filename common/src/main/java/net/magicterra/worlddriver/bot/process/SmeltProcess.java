@@ -113,11 +113,15 @@ public final class SmeltProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState s) {
         Player p = a.asPlayer();
-        Level lvl = p == null ? null : p.level();
-        if (p == null || lvl == null) { fail(s, "no player"); return true; }
+        Level lvl = a.entity() == null ? null : a.entity().level();
+        if (lvl == null) { fail(s, "no player"); s.smelt.lastError = error; s.smelt.reset(); return true; }
         hands = a.hands().orElse(null);
         menus = a.containers().orElse(null);
-        if (hands == null || menus == null) { fail(s, BodyReady.Reason.NO_HANDS); return true; }
+        // Not a player: no inventory to smelt from. Both refusals publish their own error, because they
+        // return before the FAIL branch below, which is what publishes a failure's.
+        if (hands == null || menus == null || p == null) {
+            fail(s, BodyReady.Reason.NO_HANDS); s.smelt.lastError = error; s.smelt.reset(); return true;
+        }
 
         switch (st) {
             case INIT -> init(a, p, lvl, s);

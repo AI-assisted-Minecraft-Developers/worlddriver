@@ -256,10 +256,11 @@ public final class MineProcess implements BotProcess {
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
+        if (a.entity() == null) { st.mine.lastError = "player vanished"; finish(st, null, null, "player vanished"); return true; }
+        // The drops go into a player's inventory: a body that is not a player has no hands for this.
         Player p = a.asPlayer();
-        if (p == null) { st.mine.lastError = "player vanished"; finish(st, null, null, "player vanished"); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.mine.lastError = BodyReady.Reason.NO_HANDS; finish(st, null, null, BodyReady.Reason.NO_HANDS); return true; }
+        if (hands == null || p == null) { st.mine.lastError = BodyReady.Reason.NO_HANDS; finish(st, null, null, BodyReady.Reason.NO_HANDS); return true; }
         Level lvl = p.level();
         // Quota reached → switch to COLLECT instead of declaring done. The
         // old behaviour left the player wherever the last break completed,

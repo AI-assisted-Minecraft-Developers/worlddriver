@@ -109,10 +109,11 @@ public final class CombatProcess implements BotProcess {
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
+        if (a.entity() == null || a.entity().level() == null) { cleanup(a); return true; }
+        // The swing and its cooldown are a player's: a body that is not a player has no hands for them.
         Player p = a.asPlayer();
-        if (p == null || p.level() == null) { cleanup(a); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.combat.lastError = BodyReady.Reason.NO_HANDS; cleanup(a); return true; }
+        if (hands == null || p == null) { st.combat.lastError = BodyReady.Reason.NO_HANDS; cleanup(a); return true; }
         ticks++;
 
         Entity target = acquireTarget(p, st);

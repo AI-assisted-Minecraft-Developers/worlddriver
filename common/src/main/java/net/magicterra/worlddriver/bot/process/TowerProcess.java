@@ -111,10 +111,11 @@ public final class TowerProcess implements BotProcess {
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
+        if (a.entity() == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        // The tower is laid from a player's inventory: a body that is not a player has no hands for it.
         Player p = a.asPlayer();
-        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (hands == null || p == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         int feetY = (int) Math.floor(p.getY());
         if (startFeetY == Integer.MIN_VALUE) { startFeetY = feetY; lastApexFloorY = feetY; }
         st.builder.target = new BlockPos(

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-15
 
+- **Every process that needs hands refuses a handless body with `no_hands`.** Tower, mine, combat,
+  craft and smelt read `asPlayer()` before they asked for hands, so a body that is not a player was
+  told `player vanished` (tower, mine) or dropped without a word (combat). Craft and smelt did refuse
+  it, but returned before the FAIL branch that publishes an error, so `lastError` stayed empty and the
+  slot stayed active. All five now check the entity first, then hands, and count a body that is not a
+  player as having none, since the work comes out of a player's inventory. The refusal on the NPC
+  body is `wd.npcRefusesWorkThatNeedsHands`.
 - **The ladder ticks its body while it waits.** A `JoinedBody` advances only when
   `ServerPlayerBody.step()` pumps it, and between legs no driver is registered to do that, so on the
   headless ladder a meal never finished and health never came back while the rig waited. The hand
