@@ -146,7 +146,7 @@ public final class CellRules {
     /**
      * The price of digging {@code s} at {@code p} with the best tool anywhere in the body's
      * inventory — all 36 slots, because both executors ({@code BotInteract.selectBestToolFor},
-     * {@code ServerPlayerAvatar.selectTool}) swap a bag tool up before they dig. Follows vanilla
+     * {@code ServerPlayerBody.selectTool}) swap a bag tool up before they dig. Follows vanilla
      * {@code BlockState.getDestroyProgress}: a block that needs no tool is「correct」bare-handed,
      * a block that needs one and does not get it digs at the ÷100 rate and then pays
      * {@link #WRONG_TOOL_TAX}; logs pay {@code pathfinderLogBreakTax} unless the current mine

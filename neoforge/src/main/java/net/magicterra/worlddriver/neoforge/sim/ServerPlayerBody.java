@@ -11,7 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * NeoForge shim over the common {@link net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar},
+ * NeoForge shim over the common {@link net.magicterra.worlddriver.bot.sim.ServerPlayerBody},
  * keeping this FQN and narrowing {@link #fakePlayer()} back to {@link FakePlayer}. All sim logic
  * lives in the common superclass; this class only mints bodies through the
  * {@link ServerAvatarBodies} seam ({@code WorldDriverNeoForge} installs a
@@ -27,31 +27,31 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the inherited common static of the same name.
  *
  * <p>The {@code faithfulBreak} static flag is <b>not</b> redeclared here on purpose: writes of
- * {@code ServerPlayerAvatar.faithfulBreak} resolve to the single inherited common field, the same
+ * {@code ServerPlayerBody.faithfulBreak} resolve to the single inherited common field, the same
  * field the common {@code step()} reads.
  */
-public class ServerPlayerAvatar extends net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar {
+public class ServerPlayerBody extends net.magicterra.worlddriver.bot.sim.ServerPlayerBody {
 
     /** Per-arena body sequence for {@link #createUnique} — the neoforge side owns this counter
      *  (the common one serves the migrated scenes on BOTH loaders), so this shim's
      *  "agent-body-N" name stream is independent of theirs. */
     private static final AtomicInteger BODY_SEQ = new AtomicInteger();
 
-    public ServerPlayerAvatar(FakePlayer fp) { super(fp); }
+    public ServerPlayerBody(FakePlayer fp) { super(fp); }
 
-    public static ServerPlayerAvatar createUnique(ServerLevel level, double x, double y, double z) {
+    public static ServerPlayerBody createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         GameProfile profile = new GameProfile(
                 UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8)), name);
         return init((FakePlayer) ServerAvatarBodies.unique(level, profile), x, y, z);
     }
 
-    private static ServerPlayerAvatar init(FakePlayer fp, double x, double y, double z) {
+    private static ServerPlayerBody init(FakePlayer fp, double x, double y, double z) {
         fp.setPos(x, y, z);
         fp.setDeltaMovement(Vec3.ZERO);
         fp.setYRot(0);
         fp.setXRot(0);
-        return new ServerPlayerAvatar(fp);
+        return new ServerPlayerBody(fp);
     }
 
     @Override public FakePlayer fakePlayer() { return (FakePlayer) super.fakePlayer(); }

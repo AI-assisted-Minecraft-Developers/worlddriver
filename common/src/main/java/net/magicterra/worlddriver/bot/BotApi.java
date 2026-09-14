@@ -163,9 +163,9 @@ public interface BotApi {
     // BUILT a {@link BotProcess} can run it on the real player.
     //
     // Why that matters: {@code BotProcess.tick(Minecraft,...)} default-bridges to
-    // {@code tick(Avatar,...)} over a {@code ClientPlayerAvatar}, so the SAME process
+    // {@code tick(Body,...)} over a {@code ClientPlayerBody}, so the SAME process
     // object drives a client {@code LocalPlayer} here and a headless {@code FakePlayer}
-    // under {@code ServerWorldDriver}. That is the whole point of the Avatar seam, and
+    // under {@code ServerWorldDriver}. That is the whole point of the Body seam, and
     // without these three the only in-JVM caller of it — the playthrough ladder — had to
     // spawn a fake body even on a topology that has a real player standing right there.
 
@@ -211,11 +211,11 @@ public interface BotApi {
     Map<String, Object> userTaskLeg();
 
     /**
-     * The {@link net.magicterra.worlddriver.bot.movement.Avatar} over this client's own
+     * The {@link net.magicterra.worlddriver.bot.body.Body} over this client's own
      * {@code LocalPlayer} — the single-shot actuator face of the same seam {@link #runProcess}
      * gives the per-tick one.
      *
-     * <p><b>Why in-JVM code cannot just build one.</b> {@code ClientPlayerAvatar} imports
+     * <p><b>Why in-JVM code cannot just build one.</b> {@code ClientPlayerBody} imports
      * {@code net.minecraft.client}, so merely NAMING it from code that also runs headless makes the
      * JVM resolve it there — the {@code NoClassDefFoundError} shape StageWright's {@code DriverFeed}
      * documents, where a client half died on the tick after arming and the server then ran a suite
@@ -224,11 +224,11 @@ public interface BotApi {
      *
      * <p><b>Why it matters that this exists at all.</b> Measured by
      * {@code wd.actuatorSplitOnAnAdoptedBody} on the integrated topology, driving the adopted player
-     * through a server-side {@code ServerPlayerAvatar} instead: the server's selected slot went to 4
+     * through a server-side {@code ServerPlayerBody} instead: the server's selected slot went to 4
      * and the client's stayed at 0; the server's aim went to (−55.32, 29.55) and the client's stayed
      * at (283.23, 0.00) — identical ten ticks later, so nothing propagated in either direction. The
      * two sides simply hold unrelated values, and every such write lands on a body nobody is
-     * steering. {@code ClientPlayerAvatar} does the same operations the way vanilla requires:
+     * steering. {@code ClientPlayerBody} does the same operations the way vanilla requires:
      * {@code setSelectedSlot} sends {@code ServerboundSetCarriedItemPacket}, and the aim moves the
      * player the server is receiving movement packets from.
      *
@@ -271,7 +271,7 @@ public interface BotApi {
      * sitting on a data race, and green would not mean correct. Any scene judging this path must
      * record the calling thread alongside its readings, or it cannot tell the two apart.
      */
-    net.magicterra.worlddriver.bot.movement.Avatar clientAvatar();
+    net.magicterra.worlddriver.bot.body.Body clientAvatar();
 
     /**
      * Elytra flight (Baritone elytra-alignment, milestone A). Takes the bot off

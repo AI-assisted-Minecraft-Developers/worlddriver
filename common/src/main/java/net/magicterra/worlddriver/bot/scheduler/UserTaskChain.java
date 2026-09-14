@@ -4,7 +4,7 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.BunkerProcess;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -90,7 +90,7 @@ public final class UserTaskChain implements Chain {
 
     @Override public String name() { return "user"; }
 
-    @Override public float priority(Avatar body, WorldView w, BotState st) {
+    @Override public float priority(Body body, WorldView w, BotState st) {
         if (process == null) return 0f;
         // An Agent-invoked bunker (mc.bot.bunker) is a deliberate survival commitment:
         // it must outrank the combat/retreat reflexes, or the combat chain (60) suspends
@@ -102,7 +102,7 @@ public final class UserTaskChain implements Chain {
         return Priorities.USER;
     }
 
-    @Override public void tick(Avatar body, WorldView w, BotState st) {
+    @Override public void tick(Body body, WorldView w, BotState st) {
         BotProcess c = process;
         if (c == null) return;
         try {

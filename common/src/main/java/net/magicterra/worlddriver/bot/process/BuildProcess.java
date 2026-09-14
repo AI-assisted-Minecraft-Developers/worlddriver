@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -58,7 +58,7 @@ public final class BuildProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
         // so staying silent here reports "finished, no error" rather than nothing at all.

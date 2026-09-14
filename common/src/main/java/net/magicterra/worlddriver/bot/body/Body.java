@@ -1,7 +1,8 @@
-package net.magicterra.worlddriver.bot.movement;
+package net.magicterra.worlddriver.bot.body;
 
 import java.util.Optional;
 
+import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -22,14 +23,16 @@ import net.minecraft.world.entity.player.Player;
  * it. {@link #asPlayer()} is the raw {@link Player} view for the few readers of a player's
  * own state (food, abilities, the attack cooldown) and is null for a body that is not one.
  *
- * <p>{@code ClientPlayerAvatar} maps every method 1:1 to the previous inline
- * Walker behaviour (zero regression). {@code ServerPlayerAvatar} drives a joined
+ * <p>{@link ClientPlayerBody} maps every method 1:1 to the previous inline
+ * Walker behaviour (zero regression). {@code ServerPlayerBody} drives a joined
  * {@code ServerPlayer}. Both implement {@link Hands} and {@link Containers} themselves.
+ * This interface was {@code Avatar} until 2026-09-14; the name changed with the split,
+ * so that a third-party implementation reads as what it is — a body, not a costume.
  */
-public interface Avatar {
+public interface Body {
 
     /** The controlled body, for state reads and vanilla pose setters. Never null while the
-     *  avatar is usable; an avatar built over nothing answers null and callers guard it. */
+     *  body is usable; a body built over nothing answers null and callers guard it. */
     LivingEntity entity();
 
     /** The body as a {@link Player}, or null when it is not one. Only what a player has —
@@ -97,7 +100,7 @@ public interface Avatar {
     /** Exempt this tick's heading from the cosmetic camera slew (no-op server-side). */
     void requestLookSnap();
     /** Release all commanded locomotion (forward/sneak/jump) + the logical sneak
-     *  flag — the Avatar equivalent of the old client {@code releaseKeys()}, but it
+     *  flag — the body's equivalent of the old client {@code releaseKeys()}, but it
      *  drives only THIS player's own input (never the shared human keybinds), so a
      *  process tearing down can't clobber a human's held keys. */
     default void releaseInputs() {
@@ -111,7 +114,7 @@ public interface Avatar {
     // --- look ---
     /** Snap the look (yaw+pitch) onto the block at {@code cell}. */
     void aimAtBlock(BlockPos cell);
-    /** The block the avatar's crosshair/look currently points at, or {@code null}.
+    /** The block the body's crosshair/look currently points at, or {@code null}.
      *  Client reads {@code mc.hitResult}; server raycasts from the eye along the
      *  view vector. Used by processes that gate an action on what they're aiming at
      *  (e.g. bbox-fill only breaking cells inside its region). */

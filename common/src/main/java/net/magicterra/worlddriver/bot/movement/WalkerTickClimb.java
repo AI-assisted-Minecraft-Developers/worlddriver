@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.BreakFeasibility;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -127,7 +129,7 @@ final class WalkerTickClimb {
      * <p>Someone else filling the cell also counts, and should: the body is no worse off for not
      * having done it itself, and the next rung is what matters.
      */
-    private static void climboutPlaceTick(Walker wk, Avatar a, WorldView world, LivingEntity p,
+    private static void climboutPlaceTick(Walker wk, Body a, WorldView world, LivingEntity p,
                                           BlockPos fillCell, BlockPos foot, boolean dryGrounded) {
         boolean fcSolid = world.isSolid(fillCell);
         boolean fcSupport = Move.hasPlaceSupport(world, fillCell);
@@ -233,7 +235,7 @@ final class WalkerTickClimb {
      * report when the tick is consumed, {@code null} when the takeover has let go and the caller's
      * ordinary actuators / bank-dig take the tick.
      */
-    private static Walker.Step pillarTakeoverTick(Walker wk, Avatar a, WorldView world, LivingEntity p,
+    private static Walker.Step pillarTakeoverTick(Walker wk, Body a, WorldView world, LivingEntity p,
                                                   BlockPos foot, BlockPos cwp, boolean wantClimbNow, boolean wantClimb) {
                 boolean haveBlock = BotConfig.allowSwimEscapePlace && wk.hands.holdPlaceable();
                 // Done when we've topped out onto DRY solid ground (grounded, clear of
@@ -342,7 +344,7 @@ final class WalkerTickClimb {
      * column, the fill cell chosen (surface cell afloat, the cell on the column's solid top when
      * dry), the side-foothold branch for one-deep water, the keys, and the click.
      */
-    private static Walker.Step pillarDriveTick(Walker wk, Avatar a, WorldView world, LivingEntity p,
+    private static Walker.Step pillarDriveTick(Walker wk, Body a, WorldView world, LivingEntity p,
                                                BlockPos foot, boolean dryGrounded) {
                 // Pin to the LOCKED bank heading + column; look down to aim the place.
                 p.setYRot(wk.waterClimb.yaw); p.yHeadRot = wk.waterClimb.yaw; p.yBodyRot = wk.waterClimb.yaw;
@@ -548,7 +550,7 @@ final class WalkerTickClimb {
      *
      * @return true when the caller must return {@link Walker.Step#WALKING} at once.
      */
-    private static boolean bailOnBreathInfeasibleDig(Walker wk, Avatar a, LivingEntity p, BlockPos b) {
+    private static boolean bailOnBreathInfeasibleDig(Walker wk, Body a, LivingEntity p, BlockPos b) {
         if (!breathInfeasibleDig(p, b)) return false;
         wk.hands.breakHold(false);
         BreakFeasibility.poison(b, BREATH_POISON_TTL_MS);
@@ -560,7 +562,7 @@ final class WalkerTickClimb {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
+    static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;

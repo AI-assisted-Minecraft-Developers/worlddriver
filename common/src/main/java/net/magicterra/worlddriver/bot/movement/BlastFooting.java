@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+import net.magicterra.worlddriver.bot.body.Body;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
@@ -78,7 +79,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *       scene for it. Adding it blind would widen a live invariant with no reading behind it.</li>
  *   <li><b>{@code wd.serverBreaksAnEndCrystal} is NOT covered, on purpose.</b> That scene calls
  *       {@code fp.attack(crystal)} straight on the {@code ServerPlayer} and never touches
- *       {@link Avatar}, so this guard cannot fire there — and must not. Its question is「能不能打碎
+ *       {@link Body}, so this guard cannot fire there — and must not. Its question is「能不能打碎
  *       水晶」, not「站哪儿打」: it stages the crystal on the body's own level with a plain floor,
  *       and a guard that refused there would delete the coverage of the verb itself. If that ever
  *       needs the footing rule too, it should get its OWN arm rather than have this one reach into

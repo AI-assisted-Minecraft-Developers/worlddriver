@@ -13,11 +13,11 @@ import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.BlastFooting;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.CraftProcess;
@@ -80,7 +80,7 @@ import net.minecraft.world.phys.Vec3;
  *       spawn to {@link JourneyRoute#stronghold}, in legs, re-planning from wherever the walker
  *       actually stopped. Then a scan for the frame, then a shaft down to it.</li>
  *   <li><b>18 END_PORTAL</b> — twelve {@code useOn}-only interactions. {@code EnderEyeItem} overrides
- *       {@code useOn} and nothing else, so it must go through {@code Avatar.useBlock}; a body that
+ *       {@code useOn} and nothing else, so it must go through {@code Body.useBlock}; a body that
  *       reaches for {@code useItemInHand} gets {@code PASS} and a frame that never fills. That is the
  *       same trap the flint-and-steel set, and the mirror image of the bucket's.</li>
  *   <li><b>19 END</b> — the crossing, asserted on POSITION and not merely on dimension. An earlier
@@ -96,8 +96,8 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>Two places this deliberately does NOT take the shortcut the driver offers</h2>
  *
- * {@code Avatar.useBlock} builds its own {@code BlockHitResult}: no ray trace, no reach gate. So does
- * {@code Avatar.attackEntity} — it calls {@code Player.attack} straight through, and vanilla's
+ * {@code Body.useBlock} builds its own {@code BlockHitResult}: no ray trace, no reach gate. So does
+ * {@code Body.attackEntity} — it calls {@code Player.attack} straight through, and vanilla's
  * {@code Player.attack} never checks distance either. Either one would let this file fill a frame
  * from across the room or shatter an end crystal forty blocks overhead without climbing anything.
  * Both are gated here by the script instead: every eye is set after walking within
@@ -220,7 +220,7 @@ public final class JourneyEndRungs {
      *  this is a short look rather than a search. */
     private static final int FRAME_SEARCH = 16;
 
-    /** How near a frame the body walks before setting its eye. {@code Avatar.useBlock} would accept
+    /** How near a frame the body walks before setting its eye. {@code Body.useBlock} would accept
      *  the click from anywhere — see the class note on why this file refuses to let it. */
     private static final int EYE_REACH = 3;
 
@@ -939,7 +939,7 @@ public final class JourneyEndRungs {
      * Set an eye into every empty frame until the portal opens.
      *
      * <p><b>The verb is the whole rung.</b> {@code EnderEyeItem} overrides {@code useOn(UseOnContext)}
-     * and has no {@code use} at all, so the eye must go through {@code Avatar.useBlock(cell, face)};
+     * and has no {@code use} at all, so the eye must go through {@code Body.useBlock(cell, face)};
      * called the other way it returns {@code Item.use}'s default {@code PASS} and the world does not
      * move. That silent nothing is byte-identical to a click that missed, which is exactly the trap
      * the flint-and-steel set two chapters ago and the mirror image of the bucket's — a bucket has no
@@ -1192,7 +1192,7 @@ public final class JourneyEndRungs {
      * an empty inventory has already lost, and it should say so rather than walk into the void.
      *
      * <p><b>A crystal heals the dragon, so the crystals come first</b>, and each sits twenty to forty
-     * blocks up its own obsidian pillar. {@code Avatar.attackEntity} would break one from the ground —
+     * blocks up its own obsidian pillar. {@code Body.attackEntity} would break one from the ground —
      * it calls {@code Player.attack} straight through and vanilla checks no distance — so the script
      * refuses to swing outside {@link #MELEE_REACH} and climbs instead. That makes the tower the
      * thing under test, which is the point: {@code ascendByTowering} is the mechanism this ladder has
@@ -1754,7 +1754,7 @@ public final class JourneyEndRungs {
      *
      * <p>This is staging around a product limit, not a fix for it: a bot that has to be handed a
      * pre-arranged hotbar will stall the same way on a live run. It is done here because widening
-     * {@code ensureHoldingPlaceable} changes an {@code Avatar} contract the client path implements
+     * {@code ensureHoldingPlaceable} changes a {@code Body} contract the client path implements
      * with container interactions, and {@code wd.serverTowersWithAFullBackpack} pins today's
      * behaviour on purpose. Arranging one's own hotbar is also something a player does.
      */
@@ -1885,7 +1885,7 @@ public final class JourneyEndRungs {
      * that mined more of the item than it placed reports a negative number — that is a fact about
      * the leg and not a reason to clamp it to zero.
      *
-     * <p>Distinct from {@code ServerPlayerAvatar.placeTally()}, which is a lifetime counter of the
+     * <p>Distinct from {@code ServerPlayerBody.placeTally()}, which is a lifetime counter of the
      * ACTUATOR's calls and refusals and cannot be differenced per leg. The two answer different
      * questions and {@code island.*.plan} prints both.
      */
@@ -2270,7 +2270,7 @@ public final class JourneyEndRungs {
         @Override public void attach(BotState st) { }
 
         @Override
-        public boolean tick(Avatar a, WorldView w, BotState st) {
+        public boolean tick(Body a, WorldView w, BotState st) {
             a.commandMove(0, 0);
             a.commandJump(false);
             Hands h = a.hands().orElse(null);
@@ -2352,7 +2352,7 @@ public final class JourneyEndRungs {
         @Override public void attach(BotState st) { }
 
         @Override
-        public boolean tick(Avatar a, WorldView w, BotState st) {
+        public boolean tick(Body a, WorldView w, BotState st) {
             a.commandMove(0, 0);
             a.commandJump(false);
             Hands h = a.hands().orElse(null);
@@ -2415,7 +2415,7 @@ public final class JourneyEndRungs {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
                 // Vanilla's own draw, on vanilla's own counter. An earlier cut counted ticks here
                 // and called releaseUsing by hand, on the theory that getTicksUsingItem() is frozen
-                // for this body. It is NOT: ServerPlayerAvatar.mirrorPlayerTick() has always run
+                // for this body. It is NOT: ServerPlayerBody.mirrorPlayerTick() has always run
                 // `if (fp.isUsingItem()) fp.updatingUsingItem();`, so the timer advances exactly as
                 // it does for a real player. That workaround routed around a defect that did not
                 // exist — and a test that drives an engine path by hand stops testing it, which is

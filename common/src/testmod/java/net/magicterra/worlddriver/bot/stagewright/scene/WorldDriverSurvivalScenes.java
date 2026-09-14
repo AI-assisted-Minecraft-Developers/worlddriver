@@ -15,13 +15,13 @@ import net.magicterra.worlddriver.bot.auto.AntiSuffocateGate;
 import net.magicterra.worlddriver.bot.auto.ContactEscapeGate;
 import net.magicterra.worlddriver.bot.auto.DrownEscapeGate;
 import net.magicterra.worlddriver.bot.auto.DrowningFloatGate;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
-import net.magicterra.worlddriver.bot.movement.Avatar;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.BunkerProcess;
@@ -1056,8 +1056,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         final int[] userInterrupts = new int[1];
         Chain user = new Chain() {           // the "active process" placeholder (death-#25 mine shape)
             @Override public String name() { return "user"; }
-            @Override public float priority(Avatar body, WorldView w, BotState st) { return Priorities.USER; }
-            @Override public void tick(Avatar body, WorldView w, BotState st) { /* keeps digging */ }
+            @Override public float priority(Body body, WorldView w, BotState st) { return Priorities.USER; }
+            @Override public void tick(Body body, WorldView w, BotState st) { /* keeps digging */ }
             @Override public void onInterrupt(Chain by) { userInterrupts[0]++; }
         };
         ProcessScheduler sched = new ProcessScheduler();

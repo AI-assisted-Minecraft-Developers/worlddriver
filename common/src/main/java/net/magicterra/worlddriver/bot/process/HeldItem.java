@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
@@ -27,8 +27,8 @@ import net.minecraft.world.item.Items;
  * sitting past slot 8 is invisible here and the caller reports "no block".
  *
  * <p>That is NOT what {@link Hands#holdItem} does. Both avatars reach the bag there:
- * {@code ClientPlayerAvatar} through {@code BotInteract.swapFromMainInv} (a real SWAP click), and
- * {@code ServerPlayerAvatar} by swapping the stacks directly.
+ * {@code ClientPlayerBody} through {@code BotInteract.swapFromMainInv} (a real SWAP click), and
+ * {@code ServerPlayerBody} by swapping the stacks directly.
  *
  * <p><b>Do not "fix" that by pointing this method at {@code a.holdItem}.</b> That looks like the
  * obvious repair — 「a body holding 110 cobblestone in slots 9..35 is not out of blocks」 is a

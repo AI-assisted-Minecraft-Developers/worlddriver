@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -124,10 +124,10 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         }
     }
 
-    private static ServerPlayerAvatar spawn(SceneContext ctx, int x, int standY, int z) {
+    private static ServerPlayerBody spawn(SceneContext ctx, int x, int standY, int z) {
         ServerLevel level = ctx.level();
         BlockPos p = ctx.rel(x, standY, z);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> { if (!fp.isRemoved()) fp.discard(); });   // breakThrough discards per-leg
         fp.getInventory().clearContent();
@@ -150,7 +150,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  the first tick the body dips below it, the walker's state is snapshotted so a
      *  fall failure reports WHERE and in WHAT state the body left the deck (the final
      *  probe is post-fall and has misled triage before). */
-    private static Run drive(SceneContext ctx, ServerPlayerAvatar av, int n, BlockPos goal, int guardStandY) {
+    private static Run drive(SceneContext ctx, ServerPlayerBody av, int n, BlockPos goal, int guardStandY) {
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(ctx.level(), fp);
         Walker walker = new Walker();
@@ -475,7 +475,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         pad(ctx, 22, DECK + 2, 0);
         catchFloor(ctx, -6, 26, DECK - CATCH_DROP, -8, 8);
         BlockPos goal = ctx.rel(22, DECK + 3, 0);
-        ServerPlayerAvatar av = spawn(ctx, -2, DECK + 3, 0);
+        ServerPlayerBody av = spawn(ctx, -2, DECK + 3, 0);
         av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
         Run r = drive(ctx, av, 2200, goal, DECK + 3);
         assertNeverFell(ctx, "bridgeDescendPlaceLip", r, DECK + 3);
@@ -541,7 +541,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         liveStack(ctx);
         BotConfig.allowPlace = true;
         BlockPos goal = footholdRig(ctx);
-        ServerPlayerAvatar av = spawn(ctx, -2, DECK + 1, 0);
+        ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
         av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
         Run r = drive(ctx, av, 2200, goal, DECK + 1);
         assertNeverFell(ctx, "bridgeFootholdPlace", r, DECK + 1);
@@ -598,7 +598,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         strip(ctx, 11, 12, DECK + 1, 5);
         for (int x = 13; x <= 16; x++)
             for (int z = 0; z <= 5; z++) ctx.setBlock(x, DECK + 2, z, Blocks.STONE);
-        ServerPlayerAvatar av = spawn(ctx, -2, DECK + 1, 0);
+        ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
         av.fakePlayer().getInventory().add(new ItemStack(Items.DIRT, 16));
         Run r = drive(ctx, av, 2200, goal, DECK + 1);
         assertNeverFell(ctx, "bridgeStepTwoBypassNoPlace", r, DECK + 1);
@@ -620,7 +620,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         for (String leg : new String[] {"bareHand", "pickaxe"}) {
             ctx.setBlock(12, DECK + 1, 0, Blocks.STONE);
             ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);
-            ServerPlayerAvatar av = spawn(ctx, -2, DECK + 1, 0);
+            ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
             if (leg.equals("pickaxe")) av.fakePlayer().getInventory().add(new ItemStack(Items.IRON_PICKAXE));
             Run r = drive(ctx, av, 2200, goal, DECK + 1);
             assertNeverFell(ctx, "bridgeBreakThrough[" + leg + "]", r, DECK + 1);
@@ -640,7 +640,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         stripZ(ctx, 2, 1, 6, DECK);
         strip(ctx, 2, 22, DECK, 6);
         stripZ(ctx, 22, 1, 6, DECK);
-        ServerPlayerAvatar av = spawn(ctx, -2, DECK + 1, 0);
+        ServerPlayerBody av = spawn(ctx, -2, DECK + 1, 0);
         av.fakePlayer().getInventory().add(new ItemStack(Items.IRON_PICKAXE));
         Run r = drive(ctx, av, 2200, goal, DECK + 1);
         assertNeverFell(ctx, "bridgeDigShortcut", r, DECK + 1);

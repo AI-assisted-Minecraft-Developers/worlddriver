@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -249,7 +249,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, STOCK));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         // Three physics steps with no input, so the body is flush before anything is measured —
         // TowerProcess's READY phase refuses to jump on a body that reports onGround()==false, and a
         // body that has never moved reports exactly that.
@@ -706,7 +706,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         // NO PLACEABLE BLOCK, on purpose — see the class note above. `pillarBlock` falls back to
         // cobblestone with a count of zero, `.hand` records that it could not be held, and execution
         // falls through to the tower exactly as it does in the field.
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         // The body flush on the floor. TowerProcess's READY phase refuses a body reporting
         // onGround()==false, and so does the climb's own afloat branch.
         for (int i = 0; i < 3; i++) av.step();

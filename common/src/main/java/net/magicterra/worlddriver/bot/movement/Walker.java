@@ -2,6 +2,8 @@ package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.debug.BotLevelHolder;
 import net.magicterra.worlddriver.bot.movement.PathSmoothing.SmoothResult;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
@@ -114,7 +116,7 @@ public final class Walker {
      *  alike (foot repath, commit-end continuation, place-suppressed re-plan). See {@link WalkerFinders}. */
     PathFinder newPathFinder(WorldView world) { return WalkerFinders.deep(this, world); }
 
-    /** The body the last {@link #tick(Avatar, WorldView)} drove, for the finders' scope source.
+    /** The body the last {@link #tick(Body, WorldView)} drove, for the finders' scope source.
      *  Null until the first tick, which is also the first time a search can start. */
     LivingEntity body;
 
@@ -283,7 +285,7 @@ public final class Walker {
         BlockPos gaveUpPos;       // where the pillar proved futile (walkerClimbGaveUpSticky) — while the foot stays within 3 blocks and the TTL runs, the gave-up latch survives climb-context resets (repath node swaps) so the proven-futile pillar can't re-engage in a loop
         int gaveUpTtl;            // ticks left on the sticky gave-up latch (walkerClimbGaveUpSticky); decremented per tick, 0 = expired
         int pillarNoPlaceTicks;   // ticks the pillar takeover has been engaged without a successful place / height gain — buoyant bob can't lift feet above a surface fill cell, so beyond PILLAR_FUTILE_TICKS the place is hopeless and we fall to the dig
-        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. Avatar.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the body's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
+        BlockPos placeAttemptCell;   // the cell the last climb-out click aimed at, carried to the NEXT tick so the ledger above can ask whether it actually filled. Hands.place is void — the click has no verdict — and vanilla refuses any placement whose cell still intersects the body's AABB, so "clicked" and "placed" are different events and only the second one is progress. Cleared once read.
         int pillarHighWaterY = Integer.MIN_VALUE;   // highest foot.getY() this takeover has reached — the OTHER half of "successful place / height gain". A HIGH-WATER MARK, not a per-tick delta: a buoyant bob crosses a block boundary every cycle, so "higher than last tick" is true forever and would count buoyancy as progress; "higher than ever" stops refreshing the moment the bob settles between two cells. Re-based at engagePillar so a re-locked column cannot inherit the previous segment's height.
         int targetY;              // safety ceiling Y for the pillar (engage foot + a few); bail if exceeded
         int colX, colZ;           // LOCKED column the takeover pillars in (don't chase repathing nodes)
@@ -1054,7 +1056,7 @@ public final class Walker {
      *  {@code 站住=false} therefore does NOT by itself distinguish a body that was standing and
      *  refused the jump from a body that was already falling when the parkour edge became current —
      *  the exact y and the sole area are what separate them, which is why both are printed. */
-    void noteParkourTakeoff(WorldView world, Avatar a, LivingEntity p, boolean jump, BlockPos foot) {
+    void noteParkourTakeoff(WorldView world, Body a, LivingEntity p, boolean jump, BlockPos foot) {
         if (parkourSamples >= 5) return;
         double h = Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z);
         if (parkourSamples == 0) parkourTakeoffBuf = new StringBuilder();
@@ -1087,7 +1089,7 @@ public final class Walker {
                 // other in a single statement), so it describes the previous MOVE and is wrong in
                 // both directions about where the body is.
                 .append(" onGround=").append(p.onGround())
-                // WHAT THE GATE ASKS NOW — see ServerPlayerAvatar.step(). Printed beside onGround
+                // WHAT THE GATE ASKS NOW — see ServerPlayerBody.step(). Printed beside onGround
                 // so a run says which of the two was lying, and printed with the EXACT y because
                 // that is the only thing that tells a standing body from a falling one when the
                 // block coordinate below is the same for both (a body falling from y=49.9 spends
@@ -1270,14 +1272,14 @@ public final class Walker {
      * is the one that says an event was actually swallowed, and its ABSENCE after a {@code 序=6/6}
      * means the body really did stop asking.
      */
-    void avatarJump(Avatar a, boolean v) {
+    void avatarJump(Body a, boolean v) {
         boolean newEvent = v && !lastJumpAsk;
         lastJumpAsk = v;
         if (newEvent) noteJumpSource(a);
         a.commandJump(v);
     }
 
-    private void noteJumpSource(Avatar a) {
+    private void noteJumpSource(Body a) {
         LivingEntity p = a.entity();
         if (p == null) return;
         if (jumpSrcEvents >= JUMP_SRC_EVENTS) {
@@ -1450,17 +1452,17 @@ public final class Walker {
      *  accessor rather than a copied literal: a row that assumes 64 stops being a report about this
      *  budget the day the budget changes. */
     public static int stepAdvanceBudget() { return STEP_ADV_EVENTS; }
-    static void avatarSneak(Avatar a, boolean v) { a.commandSneak(v); }
+    static void avatarSneak(Body a, boolean v) { a.commandSneak(v); }
     /** Raw forward (keyUp equivalent) for the special branches that drive the impulse
      *  themselves (the main walk path uses commandMove). v=false also zeroes strafe. */
-    static void avatarForward(Avatar a, boolean v) { a.commandForward(v ? 1f : 0f); }
+    static void avatarForward(Body a, boolean v) { a.commandForward(v ? 1f : 0f); }
     /** THE ONE DOOR for a walker dig — see {@link WalkerDig#avatarDig}. Aim at the RETURNED cell. */
-    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell) { return WalkerDig.avatarDig(wk, a, cell, false); }
-    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDig(wk, a, cell, selectTool); }
+    static BlockPos avatarDig(Walker wk, Body a, BlockPos cell) { return WalkerDig.avatarDig(wk, a, cell, false); }
+    static BlockPos avatarDig(Walker wk, Body a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDig(wk, a, cell, selectTool); }
     /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
-    static BlockPos avatarDigPreempt(Walker wk, Avatar a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDigPreempt(wk, a, cell, selectTool); }
+    static BlockPos avatarDigPreempt(Walker wk, Body a, BlockPos cell, boolean selectTool) { return WalkerDig.avatarDigPreempt(wk, a, cell, selectTool); }
 
-    public Step tick(Avatar a, WorldView world) {
+    public Step tick(Body a, WorldView world) {
         body = a.entity();
         hands = a.hands().orElse(WalkerNoHands.INSTANCE);
         // Single-exit wrapper: tickInner() has dozens of early returns (pillar, dig, escape,
@@ -1585,7 +1587,7 @@ public final class Walker {
      * <p>Lethal-only, so ordinary ledge-hopping keeps its speed, and the same {@code lethalEdgeBrake}
      * switch the drive's gate answers to.
      */
-    boolean footingGuard(Avatar a, WorldView world) {
+    boolean footingGuard(Body a, WorldView world) {
         if (!BotConfig.lethalEdgeBrake) return false;
         LivingEntity p = a.entity();
         if (p == null || p.isInWater()) return false;
@@ -1711,7 +1713,7 @@ public final class Walker {
      * ridge walk is how a bridging contract gets eaten. Over the void it is the difference between
      * continuing and falling forever.
      */
-    private void widenFooting(Avatar a, WorldView world, LivingEntity p, BlockPos foot) {
+    private void widenFooting(Body a, WorldView world, LivingEntity p, BlockPos foot) {
         if (!BotConfig.allowPlace || hands.breakHeld() || !hands.holdPlaceable()) return;
         var box = p.getBoundingBox();
         for (int cx = (int) Math.floor(box.minX); cx <= (int) Math.floor(box.maxX); cx++) {
@@ -1917,7 +1919,7 @@ public final class Walker {
      * deliberately the only backstop: a second threshold here (「enough progress」) would be a free
      * parameter with no measurement behind it.
      */
-    private void forcedRepathIfPinnedTooLong(Avatar a) {
+    private void forcedRepathIfPinnedTooLong(Body a) {
         if (guardPinStreak == 0) {
             guardStreakPath = path;
             guardStreakStartStep = step;
@@ -2243,11 +2245,11 @@ public final class Walker {
      * per leg, the distinct-cell count in the discard line, and {@code 计划最往回指}. Do not tune the
      * plug on the strength of this paragraph; it is a measurement, not a verdict.
      */
-    boolean strideFloorGuard(Avatar a, WorldView world) {
+    boolean strideFloorGuard(Body a, WorldView world) {
         if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return skipStride(0);
         LivingEntity p = a.entity();
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
-        // last move() and is wrong in BOTH directions, which is why ServerPlayerAvatar's jump gate
+        // last move() and is wrong in BOTH directions, which is why ServerPlayerBody's jump gate
         // abandoned it and why `wd.flushJumpIgnoresOnGround` pins that a body can be flush on stone
         // while it reads false. Every other reader of it has been converted one at a time; this one
         // is the most expensive to have left, because a stale false silently switches OFF the only
@@ -2379,7 +2381,7 @@ public final class Walker {
         return true;
     }
 
-    private Step tickInner(Avatar a, WorldView world) {
+    private Step tickInner(Body a, WorldView world) {
         WalkerTickCtx c = new WalkerTickCtx();
         Step r;
         r = WalkerTickPrelude.run(this, c, a, world); if (r != null) return r;
@@ -2435,7 +2437,7 @@ public final class Walker {
      *  (the bot is stationary while waiting, so retrying more can't load new chunks)
      *  so a genuine box-in still terminates. Holds (keys released) and returns
      *  WALKING while retrying; ARRIVED when out of retries or the feature is off. */
-    Step frontierHoldOrArrive(Avatar a, WorldView world, LivingEntity p) {
+    Step frontierHoldOrArrive(Body a, WorldView world, LivingEntity p) {
         if (!replayMode && BotConfig.pathfinderFrontierCommit && seg.commitEnd != null
                 && seg.frontierWaitTicks < FRONTIER_WAIT_CAP) {
             seg.frontierWaitTicks++;

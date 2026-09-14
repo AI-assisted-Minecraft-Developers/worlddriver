@@ -8,7 +8,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -88,7 +88,7 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
         BotConfig.allowPlace = false;
 
         BlockPos goal = new BlockPos(cx + 5, standY, cz);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 1 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 1 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();

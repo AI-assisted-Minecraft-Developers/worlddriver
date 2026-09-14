@@ -855,8 +855,8 @@ public final class JourneyShaft {
         }
         String pillar = pillarBlock(rig);
         rig.evidence(climbKey(step, ".with"), pillar + " ×" + rig.carrying(pillar));
-        // Put the block in the HAND before the tower asks for it. `Avatar.holdPlaceable` scans slots
-        // 0..8 and gives up; `Avatar.holdItem` scans all 36 and swaps one up. So a body four rungs
+        // Put the block in the HAND before the tower asks for it. `Body.holdPlaceable` scans slots
+        // 0..8 and gives up; `Body.holdItem` scans all 36 and swaps one up. So a body four rungs
         // deep — whose hotbar is pickaxes, a bucket, flint, food — reports "no placeable block in
         // hotbar" while carrying 110 cobblestone, which is what the obsidian rung's exit did: 36
         // blocks of rise, one block gained.

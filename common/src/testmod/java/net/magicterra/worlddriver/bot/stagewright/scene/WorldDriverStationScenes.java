@@ -50,7 +50,7 @@ import net.minecraft.world.level.block.Blocks;
  * absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} → {@code origin.y + 20}
  * (grid {@code GRID_Y = 200}, so the mapped absolute Y equals the legacy Y — geometry unchanged,
  * only X/Z relocate); {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated}
- * (#48 per-scene isolated body via {@code ServerPlayerAvatar.createUnique}) + a {@code
+ * (#48 per-scene isolated body via {@code ServerPlayerBody.createUnique}) + a {@code
  * ctx.cleanup(fp::discard)}; {@code try/finally} {@link BotConfig} save/restore →
  * {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code
  * GameTestAssertException}/{@code throw} → {@link SceneContext#fail} with a scene-name prefix;
@@ -356,7 +356,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
                     + tablesLeft + " still standing near the bot");
         // This used to require errA to name 工作台 — the scene rode the FakePlayer menu-open cliff as
         // its vehicle, because a server 3×3 craft could not succeed and reclaim therefore only ever
-        // ran on the failure path. The cliff is gone (ServerPlayerAvatar.openStationMenu), so the
+        // ran on the failure path. The cliff is gone (ServerPlayerBody.openStationMenu), so the
         // craft now completes and the assertion inverts: reclaim must run on the SUCCESS path, which
         // is the stronger claim and the one gap #276 was always about. A craft that failed here would
         // now be a real regression rather than the expected outcome, so it is checked as one.
@@ -567,7 +567,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
      *
      * <p>It was a capability-cliff proof — a fake player could not open a furnace menu, so the most
      * this could ask was that the process degrade gracefully and finish with an "open furnace"
-     * error instead of wedging the tick. {@code ServerPlayerAvatar.openStationMenu} removed the
+     * error instead of wedging the tick. {@code ServerPlayerBody.openStationMenu} removed the
      * cliff, so the graceful-degradation assertion became a test that the feature stays broken. It
      * now asserts the capability. Renamed with it: a scene called {@code …Cliff} that requires the
      * cliff to be gone is a trap for the next reader.

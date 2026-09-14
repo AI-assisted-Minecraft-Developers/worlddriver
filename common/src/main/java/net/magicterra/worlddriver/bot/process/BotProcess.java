@@ -1,17 +1,17 @@
 package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 
 /** A bot behaviour driven once per tick. Implementations live in this package;
  *  the host {@code BotApiImpl} owns the single active process (client), and
  *  {@code ServerWorldDriver} can run the same process headless on the server tick.
  *
- *  <p>The one entry point is {@link #tick(Avatar, WorldView, BotState)}: it drives whatever
- *  body the {@code Avatar} wraps (the client's {@code LocalPlayer}, a joined server player),
- *  exactly like {@code Walker.tick(Avatar, ...)}. The scheduler's chains hand a process the
- *  body the scheduler was given, and the client tick chain builds a {@code ClientPlayerAvatar}
+ *  <p>The one entry point is {@link #tick(Body, WorldView, BotState)}: it drives whatever
+ *  body the {@code Body} wraps (the client's {@code LocalPlayer}, a joined server player),
+ *  exactly like {@code Walker.tick(Body, ...)}. The scheduler's chains hand a process the
+ *  body the scheduler was given, and the client tick chain builds a {@code ClientPlayerBody}
  *  once per tick for that. There used to be a {@code tick(Minecraft, …)} bridge here for the
  *  client callers; nothing overrode it and nothing calls it now, so it is gone, and a process
  *  that names {@code Minecraft} in its own signature is a process that will not run on a
@@ -24,7 +24,7 @@ public interface BotProcess {
 
     /** Per-tick driver over the controlled body.
      *  @return true when finished (success or unrecoverable failure). */
-    boolean tick(Avatar a, WorldView w, BotState st);
+    boolean tick(Body a, WorldView w, BotState st);
 
     /** Called when this process regains the movement channel after being
      *  suspended by a higher-priority chain (panic/retreat/combat), so it can force a repath

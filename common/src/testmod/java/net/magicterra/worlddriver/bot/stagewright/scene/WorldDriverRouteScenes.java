@@ -22,7 +22,7 @@ import net.magicterra.worlddriver.bot.pathfinder.constraints.SightExposure;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -130,7 +130,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         BlockPos penGap = new BlockPos(cx + 10, y + 1, cz + 4), freeGap = new BlockPos(cx + 10, y + 1, cz - 4);
         for (int i = 0; i < 4; i++) spawn(ctx, level, EntityType.ZOMBIE, cx + 10.5, y + 1, cz + 4.5);
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 20, y + 1, cz);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -245,7 +245,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -3, 13, -4, 4);
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 10, y + 1, cz);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -269,7 +269,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), y = ctx.origin().getY() + 40;
         slab(level, cx, cz, y, -3, 23, -9, 4);
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 20, y + 1, cz);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -307,7 +307,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz + 2.5);
         spawn(ctx, level, EntityType.ZOMBIE, cx + 0.5, y + 1, cz - 1.5);
         BlockPos start = new BlockPos(cx, y + 1, cz), goal = new BlockPos(cx + 16, y + 1, cz);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, y + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);

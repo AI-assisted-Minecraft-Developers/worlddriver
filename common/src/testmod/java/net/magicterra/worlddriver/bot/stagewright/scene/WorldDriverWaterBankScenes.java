@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.moves.Fall;
 import net.magicterra.worlddriver.bot.pathfinder.moves.FallIntoWater;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -46,9 +46,9 @@ import net.minecraft.world.level.block.state.BlockState;
  *   <li>{@code try/finally} per-key config save/restore → {@link BotConfig#pinnedBaseline()}
  *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
  *       avatar discard) then the SAME keys the legacy body flipped. The one NON-BotConfig
- *       knob, {@link ServerPlayerAvatar#faithfulBreak} (a static field, not covered by the
+ *       knob, {@link ServerPlayerBody#faithfulBreak} (a static field, not covered by the
  *       pin), is saved/restored via its own {@code ctx.cleanup} in {@link #tallBankDigClimb};</li>
- *   <li>{@code ServerPlayerAvatar.create(...)} → {@link ServerPlayerAvatar#createUnique}
+ *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
  *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())}. In the ISOLATED
  *       per-scene body model the legacy shared-FakePlayer parking / anti-contamination
  *       finally blocks (e.g. {@code vineOverWaterClimbArena}'s {@code cleanupFp} re-park, the
@@ -147,7 +147,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTestWaterBank#waterPhysicsParity}: water-physics-parity gate for
-     *  {@link ServerPlayerAvatar} — a body driven by manual step() in a deep water column must
+     *  {@link ServerPlayerBody} — a body driven by manual step() in a deep water column must
      *  reproduce vanilla fluid movement: (1) submerged no-input SINKS SLOWLY (not free-fall),
      *  (2) holding jump BOBS UP, (3) forward swims (slow). */
     private static void waterPhysicsParity(SceneContext ctx) {
@@ -161,7 +161,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         ctx.cleanup(pin::close);
 
         // (1) Submerged, no input → slow sink (NOT free-fall to the floor).
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 4, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 4, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -176,7 +176,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + " (expected slow water drift, free-fall would be much more negative)");
 
         // (2) Submerged, hold jump → buoyant rise.
-        ServerPlayerAvatar av2 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 6, cz + 0.5);
+        ServerPlayerBody av2 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 6, cz + 0.5);
         ServerPlayer fp2 = av2.fakePlayer();
         ctx.cleanup(() -> fp2.discard());
         SimProbes.grantWaterEffects(fp2);
@@ -188,7 +188,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             ctx.fail("waterPhysicsParity: buoyant jump did not lift the avatar: dy=" + riseDy);
 
         // (3) Submerged, forward → swims forward (slow), stays in water.
-        ServerPlayerAvatar av3 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 5, cz + 0.5);
+        ServerPlayerBody av3 = SceneBody.avatar(ctx, level, cx + 0.5, floorY + depth - 5, cz + 0.5);
         ServerPlayer fp3 = av3.fakePlayer();
         ctx.cleanup(() -> fp3.discard());
         SimProbes.grantWaterEffects(fp3);
@@ -259,7 +259,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -351,7 +351,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BlockPos vineMid = new BlockPos(cx, base + 3, cz);
         boolean stuckFoot = level.getBlockState(vineFoot).is(Blocks.VINE);
         boolean stuckMid = level.getBlockState(vineMid).is(Blocks.VINE);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, base, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, base, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -493,7 +493,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.walkerRepathEveryTicks = 1_000_000;
 
         // #1 SILENT-NO-OP GUARD: the vine base MUST be present + climbable, else the repro is vacuous.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz - 1 + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, footY, cz - 1 + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -608,13 +608,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // hundreds of ticks, so a small cap gives up fast on the not-yet-reachable goal, as the live client does.
         BotConfig.pathfinderSliceMs = 20;
         BotConfig.pathfinderMaxMs = 250;
-        // faithfulBreak is a ServerPlayerAvatar static (NOT a BotConfig field), so it is not covered by the
+        // faithfulBreak is a ServerPlayerBody static (NOT a BotConfig field), so it is not covered by the
         // pin — save/restore it via its own cleanup.
-        boolean ofb = ServerPlayerAvatar.faithfulBreak;
-        ctx.cleanup(() -> ServerPlayerAvatar.faithfulBreak = ofb);
-        ServerPlayerAvatar.faithfulBreak = true;   // model the live ~750-tick/block slow stone-mine
+        boolean ofb = ServerPlayerBody.faithfulBreak;
+        ctx.cleanup(() -> ServerPlayerBody.faithfulBreak = ofb);
+        ServerPlayerBody.faithfulBreak = true;   // model the live ~750-tick/block slow stone-mine
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -701,7 +701,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         if (!BotConfig.isUsableBuildBlock(Blocks.MUD))
             ctx.fail("waterLowBank: isUsableBuildBlock: MUD must be a usable foothold (standable, non-falling)");
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -827,7 +827,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the body — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -916,7 +916,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the body — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1012,7 +1012,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the body — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1106,7 +1106,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the body — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1178,7 +1178,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1209,7 +1209,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     // The place-futility LEDGER (J31). Two scenes, and neither is about whether the body climbs.
     //
     // WalkerTickClimb's climb-out place branch resets `pillarNoPlaceTicks` on the tick it CLICKS,
-    // not on the tick the block LANDS — and `Avatar.place` is `void`, so the click has no verdict
+    // not on the tick the block LANDS — and `Body.place` is `void`, so the click has no verdict
     // to record. The window that makes this fatal is real: the crest gate admits the body at
     // `cell.y + 0.9`, while vanilla's Level#isUnobstructed refuses any placement whose cell still
     // intersects the body's AABB, i.e. until `cell.y + 1.0`. Inside that 0.1-block band every
@@ -1307,7 +1307,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the body — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -1409,7 +1409,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + "身体钉在 " + (pinnedAt == null ? "?" : String.valueOf(pinnedAt.getY() + 0.95))
                     + "，够得着 0.9 的闸但够不着 1.0 的物理线），而 placeFutile 一次都没为真，"
                     + "pillarNoPlaceTicks 峰值只有 " + maxNoPlace + "。"
-                    + "WalkerTickClimb 在 a.place() 之后无条件把计数器清零，而 Avatar.place 是 void、"
+                    + "WalkerTickClimb 在 a.place() 之后无条件把计数器清零，而 Hands.place 是 void、"
                     + "根本没有成功与否可报 —— 于是 placeFutile 永远为假，它后面那条挖掘后备永远接不了管。");
     }
 
@@ -1451,7 +1451,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
         // earlier version of this scene put the body — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);

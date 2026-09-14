@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
+import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -115,7 +115,7 @@ public final class LavaProximityEscape {
         // process is commanding every tick. On the SHARED keybind the steer never reached the
         // body at all; on commandForward it was discarded whenever the Walker commanded a move.
         // Either way the reflex was inert precisely on the occasion it was built for.
-        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        ClientPlayerBody a = new ClientPlayerBody(mc);
         a.commandMove(0f, 1f);
         a.commandJump(p.horizontalCollision || p.isInLava());
         return true;

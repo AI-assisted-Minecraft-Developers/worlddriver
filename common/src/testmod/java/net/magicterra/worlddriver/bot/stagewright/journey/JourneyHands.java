@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,7 +22,7 @@ final class JourneyHands {
      *
      * <p>Not {@code Entity.pick}, and the difference cost this rung a run. {@code pick} calls
      * {@code getViewYRot}, which {@code LivingEntity} overrides to return <b>{@code yHeadRot}</b> —
-     * and {@code Avatar.aimAtBlock} sets {@code yRot}/{@code xRot} only. So the pick rays down a
+     * and {@code Body.aimAtBlock} sets {@code yRot}/{@code xRot} only. So the pick rays down a
      * direction nobody aimed: measured, the body at {@code -4,27,56} aiming at a pool at
      * {@code -6,26,54} produced hits marching away at {@code -4,28,57 → -3,28,57 → -2,27,58}, and
      * the self-driving tunnel dutifully mined eight blocks in the wrong direction.
@@ -40,7 +40,7 @@ final class JourneyHands {
      * passes {@code rig.player()} and still compiles, but the widening lets the SAME clip run over
      * {@code rig.avatar().asPlayer()} — and comparing the two bodies' rays is the only way to tell a
      * pour whose server ray missed from a pour the server never held the bucket for. {@code Player}
-     * is also the widest type that is safe to name here: {@code Avatar.player()} is declared to
+     * is also the widest type that is safe to name here: {@code Body.player()} is declared to
      * return it precisely so that headless code never resolves {@code LocalPlayer}.
      */
     static net.minecraft.world.phys.BlockHitResult aimedAt(net.minecraft.world.entity.player.Player fp,
@@ -59,7 +59,7 @@ final class JourneyHands {
      * Hold still, THEN aim, then act — with nothing between the aim and the act.
      *
      * <p><b>On this topology an aim only lives until the next packet.</b> The ladder's body is an
-     * adopted REAL player, and {@code ServerPlayerAvatar.aimAtBlock} writes {@code yRot}/{@code xRot}
+     * adopted REAL player, and {@code ServerPlayerBody.aimAtBlock} writes {@code yRot}/{@code xRot}
      * on the {@code ServerPlayer}. A real player's rotation is client-authoritative: every tick
      * {@code ServerboundMovePlayerPacket} arrives and {@code handleMovePlayer} overwrites it with
      * whatever the client thinks it is looking at. So a server-side aim followed by "settle a couple
@@ -153,7 +153,7 @@ final class JourneyHands {
      * They read:
      * <pre>{@code rig.avatar().aimAtBlock(p); var b = rig.body().avatar(); b.breakHold(true); … }</pre>
      * The comment above each said "break server-side, aim client-side", and that reasoning is right
-     * for a <i>use</i> and wrong for a <i>break</i>. {@code ServerPlayerAvatar.breakHold(true)} does
+     * for a <i>use</i> and wrong for a <i>break</i>. {@code ServerPlayerBody.breakHold(true)} does
      * not take the block as an argument: it destroys its own {@code aimTarget} <b>field</b>, and its
      * very first branch is {@code if (!v || aimTarget == null || …isAir()) return;}. Aiming the
      * CLIENT leaves that field exactly as the last walk left it, so the server took the early return
@@ -241,7 +241,7 @@ final class JourneyHands {
      * byte-identical to every other way a use can do nothing.
      *
      * <p><b>The drift has two authors and neither can see the other.</b>
-     * {@code ServerPlayerAvatar.selectTool} (the engine's {@code MineProcess} path, which this
+     * {@code ServerPlayerBody.selectTool} (the engine's {@code MineProcess} path, which this
      * ladder still steers for {@code d.mine}) writes {@code inv.selected} on the {@code ServerPlayer}
      * and deliberately sends no packet — its comment says "this body's connection swallows them
      * anyway", true of a headless {@code FakePlayer} and <b>false here</b>, where the body is an
@@ -253,7 +253,7 @@ final class JourneyHands {
      *
      * <p>Asked by ITEM on each side rather than by slot index, deliberately: each body then resolves
      * the slot within its own inventory, which stays correct even after the two have diverged.
-     * {@code ServerPlayerAvatar.holdItem}'s bag branch swaps stacks server-side, and
+     * {@code ServerPlayerBody.holdItem}'s bag branch swaps stacks server-side, and
      * {@code broadcastChanges} pushes that to the client on the next tick — the corrective
      * direction.
      *
@@ -268,7 +268,7 @@ final class JourneyHands {
         // the boolean it returns cannot tell them apart:
         //
         //   already held  → the client sends NOTHING, so only the server half can correct a server
-        //                   whose `selected` was moved by `ServerPlayerAvatar.selectTool` (which
+        //                   whose `selected` was moved by `ServerPlayerBody.selectTool` (which
         //                   also sends nothing). This is the case this method was written for; the
         //                   server half MUST still run.
         //   hotbar        → client writes `inv.selected = s` and sends SetCarriedItem; the server
@@ -277,7 +277,7 @@ final class JourneyHands {
         //   bag swap      → client swaps items[ms]↔items[hb] AND sends a ClickType.SWAP container
         //                   click (`BotInteract.swapFromMainInv`); the server half swaps the
         //                   same pair directly and deliberately sends nothing
-        //                   (`ServerPlayerAvatar.holdItem`). The server therefore performs
+        //                   (`ServerPlayerBody.holdItem`). The server therefore performs
         //                   that swap TWICE — once here, once when the click lands — and a swap is
         //                   an INVOLUTION. Twice is the identity, and the hand goes back.
         //
@@ -635,7 +635,7 @@ final class JourneyHands {
      * point; two are just two, and the second is free to drift into agreeing with the subject.
      */
     static boolean swing(ServerWorldDriver driver, BlockPos cell) {
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         if (!av.canBreak(cell)) return false;
         av.selectTool(cell);
         av.aimAtBlock(cell);

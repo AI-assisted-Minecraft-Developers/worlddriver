@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.movement;
 
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -16,7 +17,7 @@ public final class MovementContext {
 
     public final LivingEntity p;       // pose/velocity: getX/Y/Z, getDeltaMovement, onGround, horizontalCollision, isInWater
     public final WorldView world;      // isSolid/isPassable/isHazard for the BREAK phase (mirrors StairUpBreak.eval)
-    public final Avatar avatar;        // selectTool/aimAtBlock/breakHold/placeOn/holdPillarBlock + commandForward/Jump/Sneak
+    public final Body avatar;          // selectTool/aimAtBlock/breakHold/placeOn/holdPillarBlock + commandForward/Jump/Sneak
     public final Move.Edge edge;       // current edge: to (stand cell), toBreak, toPlace, move name
     public final BlockPos foot;        // grounded foot cell this tick
     public final BlockPos node;        // path.get(step) — the stand-cell node (== edge.to for an ascent)
@@ -26,7 +27,7 @@ public final class MovementContext {
     public final BlockPos prevNode2;   // path.get(step-2) or null — chainAscend peek
     public final boolean digging;      // Walker's breakingEdge this tick — an active planned dig is progress (dead-zone watchdog exemption, #66: bare-hand stone is 150t+/block)
 
-    public MovementContext(LivingEntity p, WorldView world, Avatar avatar, Move.Edge edge,
+    public MovementContext(LivingEntity p, WorldView world, Body avatar, Move.Edge edge,
                            BlockPos foot, BlockPos node, int maxJumpUp, int maxStepUp,
                            BlockPos prevNode, BlockPos prevNode2, boolean digging) {
         ALLOC_COUNT++;

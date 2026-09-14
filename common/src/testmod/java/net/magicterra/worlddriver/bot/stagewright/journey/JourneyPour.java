@@ -1125,7 +1125,7 @@ final class JourneyPour {
      * away. Package-private so an isolated arena can fire the production shot at a staged mould
      * instead of hand-rolling a clip beside it.
      */
-    static net.minecraft.world.phys.BlockHitResult fire(net.magicterra.worlddriver.bot.movement.Avatar av,
+    static net.minecraft.world.phys.BlockHitResult fire(net.magicterra.worlddriver.bot.body.Body av,
                                                         ServerPlayer body, BlockPos at) {
         av.aimAtBlock(at);
         return JourneyHands.aimedAt(body, JourneyFill.BUCKET_REACH, false);

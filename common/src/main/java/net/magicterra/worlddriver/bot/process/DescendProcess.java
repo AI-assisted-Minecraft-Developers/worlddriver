@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -77,7 +77,7 @@ public final class DescendProcess implements BotProcess {
 
     @Override public String statusDetail() { return phase.name(); }
 
-    private boolean done(Avatar a, BotState st, String error) {
+    private boolean done(Body a, BotState st, String error) {
         if (hands != null) hands.breakHold(false);
         a.releaseInputs();
         BotState.ProcessSlot s = st.escape;
@@ -86,7 +86,7 @@ public final class DescendProcess implements BotProcess {
         return true;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) return done(a, st, "no player");
         hands = a.hands().orElse(null);
@@ -133,7 +133,7 @@ public final class DescendProcess implements BotProcess {
         return w.isSolid(floor) && !w.isHazard(floor) && !isFalling(lvl, floor);
     }
 
-    private boolean pick(Avatar a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
+    private boolean pick(Body a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
         if (steps == stepsAtLastPick) {
             if (++futileCycles >= FUTILE_LIMIT) {
                 return done(a, st, "futile: " + FUTILE_LIMIT
@@ -186,7 +186,7 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
-    private boolean carve(Avatar a, WorldView w, LivingEntity p, BotState st) {
+    private boolean carve(Body a, WorldView w, LivingEntity p, BotState st) {
         BlockPos b = base.relative(dir);
         BlockPos aCell = b.above();
         BlockPos c = b.below();
@@ -217,7 +217,7 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
-    private boolean stepDown(Avatar a, LivingEntity p, BlockPos foot) {
+    private boolean stepDown(Body a, LivingEntity p, BlockPos foot) {
         hands.breakHold(false);
         BlockPos destFeet = base.relative(dir).below();
         boolean atDest = foot.getX() == destFeet.getX() && foot.getZ() == destFeet.getZ()
@@ -243,7 +243,7 @@ public final class DescendProcess implements BotProcess {
         return false;
     }
 
-    private boolean digOwn(Avatar a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
+    private boolean digOwn(Body a, WorldView w, LivingEntity p, BlockPos foot, BotState st) {
         BlockPos below = base.below();
         if (!w.isSolid(below)) {
             // Cleared — gravity takes the bot down one; wait for landing.

@@ -12,10 +12,10 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotHooks;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.sim.AvatarFakePlayer;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,11 +34,11 @@ import net.minecraft.world.phys.Vec3;
  * <ul>
  *   <li><b>The legs</b> — {@code settle}/{@code drive}/{@code legStart}, 113 call sites — go
  *       {@code BotApi.runProcess} → the client's {@code UserTaskChain} → {@code BotProcess.tick(Minecraft,…)}
- *       → {@code ClientPlayerAvatar}, whose field is literally {@code mc.player}. That half really is
+ *       → {@code ClientPlayerBody}, whose field is literally {@code mc.player}. That half really is
  *       {@code LocalPlayer}, driven by client input and client physics.</li>
  *   <li><b>The single-shot actuations</b> — {@code rig.body().avatar().holdItem/aimAtBlock/useItemInHand/…},
  *       36 call sites plus all of {@code breakItWhereItStands} — go through the
- *       {@link ServerPlayerAvatar} built in {@code JourneyRig.spawnBody()}, which writes the
+ *       {@link ServerPlayerBody} built in {@code JourneyRig.spawnBody()}, which writes the
  *       <b>ServerPlayer</b> directly: {@code inv.selected = i}, {@code fp.setYRot(...)}.</li>
  * </ul>
  *
@@ -172,9 +172,9 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         }
 
         // The SAME wrapper JourneyRig.spawnBody() builds around an adopted player. Not a
-        // reimplementation of its writes: if ServerPlayerAvatar's actuators change, this scene has to
+        // reimplementation of its writes: if ServerPlayerBody's actuators change, this scene has to
         // change with them, and a copy would keep reporting the old mechanism's behaviour forever.
-        ServerPlayerAvatar avatar = new ServerPlayerAvatar(real);
+        ServerPlayerBody avatar = new ServerPlayerBody(real);
 
         // ---- put it back, registered BEFORE the first write ---------------------------------
         //
@@ -189,7 +189,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // and the await budget both can end the scene after the writes have landed, and a restore
         // written after them would be skipped on exactly those runs.
         //
-        // NOT restored through the Avatar. `holdItem` is the verb under measurement, and a cleanup
+        // NOT restored through the Body. `holdItem` is the verb under measurement, and a cleanup
         // that runs the thing it is measuring fails silently precisely when that thing is broken —
         // and then lands on the NEXT scene, which is a shape this repo has already paid for. The
         // raw field is the primitive underneath it, so a restore can fail here only if the field
@@ -406,8 +406,8 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         }
 
         // THE ONE DIFFERENCE from the sibling: the avatar comes from the client, not from a
-        // ServerPlayerAvatar wrapped around the ServerPlayer.
-        Avatar client = BotHooks.impl() == null ? null : BotHooks.impl().clientAvatar();
+        // ServerPlayerBody wrapped around the ServerPlayer.
+        Body client = BotHooks.impl() == null ? null : BotHooks.impl().clientAvatar();
         if (client == null) {
             ctx.fail("BotApi.clientAvatar() 返回 null —— 客户端没有 LocalPlayer，"
                     + "A0 的路径在这一趟根本没被走到，不能读成「修好了」");
@@ -807,7 +807,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      * The yaw/pitch that pointing at {@code cell}'s centre REQUIRES, computed from the body's eye
      * position — the independent yardstick this scene's aim criterion is judged against.
      *
-     * <p>Same arithmetic both actuators perform ({@code ServerPlayerAvatar.aimAtBlock} and
+     * <p>Same arithmetic both actuators perform ({@code ServerPlayerBody.aimAtBlock} and
      * {@code BotInteract.aimAtBlockSnap}), deliberately recomputed here instead of read back from
      * either of them: a criterion whose expected value comes from the thing under test cannot fail.
      *

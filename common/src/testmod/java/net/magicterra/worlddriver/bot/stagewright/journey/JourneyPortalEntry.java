@@ -10,7 +10,7 @@ import java.util.Set;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.Intent;
@@ -372,7 +372,7 @@ public final class JourneyPortalEntry {
      * <p><b>It releases the sneak the walk left behind, and that one line is the difference between
      * this working and not working at all.</b> {@code WalkerTickDrive} brakes into its goal with
      * {@code avatarSneak(a, brakeSneak)} + {@code p.setShiftKeyDown(brakeSneak)}, and nothing clears
-     * either when the process ends — {@code ServerPlayerAvatar.step} re-applies {@code pendingSneak}
+     * either when the process ends — {@code ServerPlayerBody.step} re-applies {@code pendingSneak}
      * on every step, so the flag survives into whatever runs next. Vanilla's
      * {@code Player.maybeBackOffFromEdge} refuses to let a shifting body walk off ANY edge, and a
      * portal cell with no floor is precisely an edge. Measured in
@@ -393,7 +393,7 @@ public final class JourneyPortalEntry {
         @Override public void attach(BotState st) { }
 
         @Override
-        public boolean tick(Avatar a, WorldView w, BotState st) {
+        public boolean tick(Body a, WorldView w, BotState st) {
             LivingEntity p = a.entity();
             if (p != null && p.level().getBlockState(p.blockPosition()).is(Blocks.NETHER_PORTAL)) {
                 // In. Stop pushing at once — the hold that follows is what re-arms vanilla's

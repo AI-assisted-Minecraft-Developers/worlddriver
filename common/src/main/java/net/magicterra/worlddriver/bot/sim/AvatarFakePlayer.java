@@ -31,14 +31,14 @@ import org.jetbrains.annotations.Nullable;
  * bookkeeping).
  *
  * <p><b>Override set</b> — mirrors NeoForge {@code FakePlayer} (decompiled for this
- * task) so the two bodies behave identically where {@link ServerPlayerAvatar}
+ * task) so the two bodies behave identically where {@link ServerPlayerBody}
  * relies on it (notably {@link #isInvulnerableTo} returning {@code true} — the
  * server avatar is invulnerable on both loaders, and {@link #tick()} being a no-op
  * so nothing double-integrates the manual physics):
  * <ul>
  *   <li>{@link #displayClientMessage}, {@link #awardStat}, {@link #updateOptions} — no-op (no client);</li>
  *   <li>{@link #isInvulnerableTo} → {@code true}; {@link #canHarmPlayer} → {@code false}; {@link #die} — no-op;</li>
- *   <li>{@link #tick()} — no-op (matches {@code FakePlayer.tick()}; {@code ServerPlayerAvatar} drives physics by hand);</li>
+ *   <li>{@link #tick()} — no-op (matches {@code FakePlayer.tick()}; {@code ServerPlayerBody} drives physics by hand);</li>
  *   <li>{@link #openMenu}, {@link #openHorseInventory} — no menus server-side; {@link #startRiding} → {@code false}.</li>
  * </ul>
  *

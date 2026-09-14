@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.movement;
 
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;

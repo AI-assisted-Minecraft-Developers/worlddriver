@@ -7,6 +7,10 @@
 ## 读法与证据规则
 
 - 每一条断言都带 `file:line`。worlddriver 的行号锚在 **`4b21f09a`**（`bot/sim/` 自 `bceeb8fc` 未动）；stagewright 的锚在 **`7646d84`**。
+- **类名已改，锚点没改**：2026-09-14 起 `bot/movement/Avatar.java` 是 `bot/body/Body.java`，
+  `bot/movement/ClientPlayerAvatar.java` 是 `bot/body/ClientPlayerBody.java`，
+  `bot/sim/ServerPlayerAvatar.java` 是 `bot/sim/ServerPlayerBody.java`。下文的旧名和行号
+  按上面那个锚点读（`git show 4b21f09a:…` 仍能解开），不要拿它们去对工作树。
 - vanilla 行号来自两份反编译产物，二者**必须分开引用**，因为它们在关键处不一样：
   - **vanilla**：`minecraft-merged-1.21.1-loom.mappings.1_21_1.layered+hash.652182843-v2.jar`
   - **neoforge 21.1.230 merged**：`neoforge-21.1.230-minecraft-merged-mojang`

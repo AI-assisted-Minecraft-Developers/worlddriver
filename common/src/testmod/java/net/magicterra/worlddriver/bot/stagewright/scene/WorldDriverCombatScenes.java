@@ -40,7 +40,7 @@ import net.minecraft.world.phys.AABB;
  *
  * <p><b>{@code makeMockPlayer} substitution.</b> The legacy used the GameTest-only
  * {@code helper.makeMockPlayer(GameType.SURVIVAL)} — a plain vulnerable {@link Player} (NOT a
- * {@code FakePlayer}/{@code ServerPlayerAvatar}, whose {@code isInvulnerableTo} returns true so
+ * {@code FakePlayer}/{@code ServerPlayerBody}, whose {@code isInvulnerableTo} returns true so
  * {@code hurt()} no-ops and {@code getLastDamageSource()} stays null, defeating the attacker
  * test). The scene harness has no {@code GameTestHelper}, so {@link #makeMockPlayer} below
  * reproduces vanilla {@code GameTestHelper.makeMockPlayer} byte-for-byte (anonymous vulnerable

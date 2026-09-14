@@ -1,5 +1,6 @@
-package net.magicterra.worlddriver.bot.movement;
+package net.magicterra.worlddriver.bot.body;
 
+import net.magicterra.worlddriver.bot.movement.BlastFooting;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -11,11 +12,11 @@ import net.minecraft.world.item.Item;
 /**
  * What a body does with its hands: hold, place, break, swing, use.
  *
- * <p>Split out of {@link Avatar} because these are the methods only a body with an inventory and
+ * <p>Split out of {@link Body} because these are the methods only a body with an inventory and
  * a main hand can answer. A client {@code LocalPlayer} and a server {@code ServerPlayer} both
  * have them; a driven mob may not, and a process that needs them says so by asking
- * {@link Avatar#hands()} and refusing the order when it is empty. Every method here was moved
- * from {@code Avatar} unchanged — the javadoc that travelled with each one is the reasoning.
+ * {@link Body#hands()} and refusing the order when it is empty. Every method here was moved
+ * from the old {@code Avatar} unchanged — the javadoc that travelled with each one is the reasoning.
  */
 public interface Hands {
 
@@ -27,13 +28,13 @@ public interface Hands {
     boolean holdPlaceable();
     /** Like {@link #holdPlaceable()} but also accepts supported FallingBlocks (sand/gravel)
      *  for a strictly VERTICAL pillar-up (the placed block rests on the rung below, so it
-     *  never falls). Defaults to {@link #holdPlaceable()} so non-client avatars are unchanged;
+     *  never falls). Defaults to {@link #holdPlaceable()} so non-client bodies are unchanged;
      *  the client overrides it. Use ONLY where the placement is supported below. */
     default boolean holdPillarBlock() { return holdPlaceable(); }
     /** Like {@link #holdPlaceable()} but avoids spending gathered-wood resources (logs/planks)
      *  as disposable filler (gap#81) — for the ROUTINE pillar/scaffold actuator only; life-safety
      *  escape/recovery paths keep using {@link #holdPlaceable()} since surviving is worth any
-     *  block. Defaults to {@link #holdPlaceable()} so non-client avatars are unchanged; the
+     *  block. Defaults to {@link #holdPlaceable()} so non-client bodies are unchanged; the
      *  client overrides it. */
     default boolean holdThrowawayPlaceable() { return holdPlaceable(); }
     /** Swap to the best tool for breaking the block at {@code cell}. */
@@ -65,7 +66,7 @@ public interface Hands {
     /**
      * Hold/release the break action.
      *
-     * <p><b>On a client avatar this alone breaks nothing</b>, and it never did. It is the dig
+     * <p><b>On a client body this alone breaks nothing</b>, and it never did. It is the dig
      * latch ({@code ClientIntents.holdDig}) — what {@link #breakHeld()} answers and what the
      * walker's tick tail releases — while {@link #continueDestroy(BlockPos)} is what advances the
      * block. Until 2026-09-14 the latch was {@code keyAttack} itself, on the theory that vanilla's
@@ -80,7 +81,7 @@ public interface Hands {
      * The hold for the bookkeeping, the drive for the block. Releasing the hold drops the pending
      * stand-aside too, so vanilla's next pass aborts the break exactly as a released key did.
      *
-     * <p>Server avatars: there {@code breakHold(true)} destroys the block directly and
+     * <p>Server bodies: there {@code breakHold(true)} destroys the block directly and
      * {@code continueDestroy} is an inherited no-op. That asymmetry is why the client half went
      * unnoticed for so long — every dig scene in the suite was a {@code wd.server*} scene.
      */
@@ -95,13 +96,13 @@ public interface Hands {
      * something it will never hit. The client answer is {@code true}: vanilla's own game mode owns
      * reach and the crosshair raycast, and second-guessing it here would only disagree with the
      * game. The server answer is real, because {@code Level#destroyBlock} enforces nothing — see
-     * {@code ServerPlayerAvatar}, where an avatar mining through solid rock sealed its own drops
+     * {@code ServerPlayerBody}, where a body mining through solid rock sealed its own drops
      * into pockets nothing could collect.
      */
     default boolean canBreak(BlockPos pos) { return true; }
 
     /** Vanilla mining progress of the block currently being destroyed, 0..1,
-     *  or -1 when unknown (no dig in flight / server-side avatar). Ground
+     *  or -1 when unknown (no dig in flight / server-side body). Ground
      *  truth for progress-aware dig watchdogs: fixed tick caps mis-time the
      *  x5 (eye-in-water) x x5 (airborne) vanilla dig penalties, which stack
      *  a bank dig to 450-3750t (2026-07-21 sticky-dig release loop). */
@@ -109,7 +110,7 @@ public interface Hands {
 
     /** Advance vanilla block destruction on {@code cell} directly, bypassing the
      *  crosshair raycast (self-starts on first call — AntiSuffocate gap#69
-     *  pattern). No-op on avatars without a client game mode. */
+     *  pattern). No-op on bodies without a client game mode. */
     default void continueDestroy(BlockPos cell) {}
 
     // --- swinging ---
@@ -127,9 +128,8 @@ public interface Hands {
      * method is {@link #attackEntityUnchecked} and the guard is on the way in. A new body gets
      * it for free; escaping it takes a deliberate override of THIS method.
      *
-     * <p>The other reachable swing path, the {@code mc.bot.attackEntity} RPC/MCP verb, does not go
-     * through any Avatar — it drives {@code mc.gameMode.attack} straight from
-     * {@code InteractionCommands}, and carries the same call there.
+     * <p>The other reachable swing path, the {@code mc.bot.attackEntity} RPC/MCP verb, takes
+     * the same route: it builds a {@code ClientPlayerBody} and calls this.
      */
     default void attackEntity(Entity target) {
         LivingEntity p = entity();
@@ -138,7 +138,7 @@ public interface Hands {
         if (refusal == null) attackEntityUnchecked(target);
     }
 
-    /** The raw swing, with no footing rule on it. Implemented by every avatar and called by
+    /** The raw swing, with no footing rule on it. Implemented by every body and called by
      *  {@link #attackEntity} only — a caller that reaches for this directly is opting out of
      *  {@link BlastFooting} and needs to say in a comment why that is safe. */
     void attackEntityUnchecked(Entity target);
@@ -148,7 +148,7 @@ public interface Hands {
     default void noteAttackRefusal(String why) {}
 
     /** Why the last {@link #attackEntity} did not swing, or {@code null} if it did. Read it right
-     *  after the call — a client avatar is rebuilt every tick, so this is a within-tick reading,
+     *  after the call — a client body is rebuilt every tick, so this is a within-tick reading,
      *  and「拒绝了」must never be inferred from silence. */
     default String lastAttackRefusal() { return null; }
 

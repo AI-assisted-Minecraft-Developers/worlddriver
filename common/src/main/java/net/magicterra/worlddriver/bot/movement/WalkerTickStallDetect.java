@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -27,7 +28,7 @@ final class WalkerTickStallDetect {
     private WalkerTickStallDetect() {}
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
+    static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;

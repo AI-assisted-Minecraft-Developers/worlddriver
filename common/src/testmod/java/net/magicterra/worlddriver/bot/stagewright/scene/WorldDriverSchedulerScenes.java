@@ -678,7 +678,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         BotProcess probe = new BotProcess() {
             @Override public String kind() { return "probe"; }
             @Override public void attach(BotState s) {}
-            @Override public boolean tick(net.magicterra.worlddriver.bot.movement.Avatar a,
+            @Override public boolean tick(net.magicterra.worlddriver.bot.body.Body a,
                                           net.magicterra.worlddriver.bot.pathfinder.WorldView w, BotState s) { return false; }
             @Override public void onCancelled(String reason) { cancelledWith.set(reason); }
         };

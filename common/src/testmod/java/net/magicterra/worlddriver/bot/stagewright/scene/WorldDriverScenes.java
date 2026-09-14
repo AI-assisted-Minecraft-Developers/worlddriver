@@ -26,7 +26,7 @@ import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.process.MineProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.magicterra.stagewright.scene.Scene;
@@ -66,7 +66,7 @@ import net.minecraft.world.phys.AABB;
  *   <li>per-key config save/restore → {@link BotConfig#pinnedBaseline()} +
  *       {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after
  *       the avatar discard) then the SAME explicit key set the legacy body flipped;</li>
- *   <li>{@code ServerPlayerAvatar.create(...)} → {@link ServerPlayerAvatar#createUnique}
+ *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
  *       (per-profile body, #48) + {@code ctx.cleanup(() -> fp.discard())} (the legacy
  *       self-shaft-dig-up body never discarded its avatar at all — the port closes
  *       that leak, matching every other migrated scene);</li>
@@ -132,7 +132,7 @@ import net.minecraft.world.phys.AABB;
  * <p><b>Driver-class porting pattern</b> (dogfood wave 2b, established by
  * {@code wd.gearScope}; the remaining {@code ServerWorldDriver} scenes follow it):
  * a legacy body that drives a {@link ServerWorldDriver} (not a raw
- * {@link ServerPlayerAvatar}) ports with two extra substitutions on top of the map
+ * {@link ServerPlayerBody}) ports with two extra substitutions on top of the map
  * above:
  * <ul>
  *   <li>{@code ServerWorldDriver.create(level, x, y, z)} →
@@ -349,7 +349,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.walkerAscendMovement = false;             // OFF leg → machine must be inert
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -382,7 +382,7 @@ public final class WorldDriverScenes implements SceneProvider {
         for (int dx = -2; dx <= 2; dx++)
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, baseY, cz + dz), Blocks.STONE.defaultBlockState());
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -443,7 +443,7 @@ public final class WorldDriverScenes implements SceneProvider {
     }
 
     /** Direct copy of {@code AgentGameTestTerrain#ascendCtx} (:1099-1102). */
-    private static MovementContext ascendCtx(ServerPlayer fp, LevelWorldView w, ServerPlayerAvatar av,
+    private static MovementContext ascendCtx(ServerPlayer fp, LevelWorldView w, ServerPlayerBody av,
                                              Move.Edge edge, BlockPos node, boolean digging) {
         return new MovementContext(fp, w, av, edge, fp.blockPosition(), node, 1, 1, null, null, digging);
     }
@@ -477,7 +477,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -622,7 +622,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -705,7 +705,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *
      * <p><b>task#86 FIXED (strict gate) — 2026-07-19.</b> This scene was a required
      * <i>golden-failure signature gate</i> while the gap #53 defect was open: under
-     * true isolation ({@link ServerPlayerAvatar#createUnique} body) the walk
+     * true isolation ({@link ServerPlayerBody#createUnique} body) the walk
      * deterministically fell {@code worstBackslide=20.252203415101263} back down the
      * shaft it dug (byte-identical across slots and both loaders, fabric×3 + neoforge×3
      * — see git history / task-1-report for the signature-gate rationale). <b>Root
@@ -753,7 +753,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -963,7 +963,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * disagreement reading: at {@code t=260} the body stood flush at {@code y=223.0000} with
      * {@code 脚底实心=0.0000} and {@code 落速=-0.0784} — one tick of gravity from rest, so it had been
      * resting on that support the tick before and the support was gone this tick — while vanilla's
-     * {@code onGround}, which describes the PREVIOUS move, still said true. {@code ServerPlayerAvatar}
+     * {@code onGround}, which describes the PREVIOUS move, still said true. {@code ServerPlayerBody}
      * gated its ground jump on that bit and handed the body a {@code +0.42} it had no standing to
      * take; that jump is what got it up the staircase. Gating the jump on the body's own sole (which
      * {@code wd.airborneJumpInert} now requires) removes it, and the climb stalls one riser short.

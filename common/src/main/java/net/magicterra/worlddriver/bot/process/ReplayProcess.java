@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -51,7 +51,7 @@ public final class ReplayProcess implements BotProcess {
         st.mc_goto.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         if (!begun) {
             // Adopt the fixed plan on the first tick — the WorldView is live here,
             // exactly as adoptPath expects (it must be called from the tick thread).

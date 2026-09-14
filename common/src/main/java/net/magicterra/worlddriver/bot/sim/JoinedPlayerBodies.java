@@ -39,7 +39,7 @@ import org.jetbrains.annotations.Nullable;
  * {@code Player.aiStep}), crafting tables would not open ({@code openMenu} returning empty), and
  * no advancement was ever awarded (no listener on {@code inventoryMenu}, and nothing calling
  * {@code broadcastChanges}). Each was fixed by hand-copying one more piece of vanilla into
- * {@code ServerPlayerAvatar.mirrorPlayerTick()} — and that list only grows, because it is a
+ * {@code ServerPlayerBody.mirrorPlayerTick()} — and that list only grows, because it is a
  * re-implementation of {@code Player.tick()} maintained by discovering what is missing.
  *
  * <p>A {@code FakePlayer} is a {@code ServerPlayer} that was never <i>placed</i>. The join path —
@@ -52,7 +52,7 @@ import org.jetbrains.annotations.Nullable;
  * <h2>What this is and is not</h2>
  *
  * This is the <b>first half</b>. It joins, and it still overrides {@link JoinedBody#tick()} to
- * nothing, because {@code ServerPlayerAvatar.step()} integrates locomotion by hand and vanilla's
+ * nothing, because {@code ServerPlayerBody.step()} integrates locomotion by hand and vanilla's
  * {@code aiStep} would integrate it a second time. Removing that override is the second half and a
  * bigger change: the driver has to stop writing positions and start writing the inputs a client
  * writes ({@code xxa}/{@code zza}/{@code jumping}), which is a rewrite of the most-churned
@@ -234,7 +234,7 @@ public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory 
         /**
          * ⚠️ The second half of this change is deleting this override.
          *
-         * <p>{@code ServerPlayerAvatar.step()} integrates locomotion by hand — it calls
+         * <p>{@code ServerPlayerBody.step()} integrates locomotion by hand — it calls
          * {@code travel()} itself and deliberately skips {@code aiStep} so nothing moves the body
          * twice. Letting vanilla tick would double-integrate every step. Until the driver writes
          * inputs instead of positions, a joined body still has to be ticked by the avatar's mirror
@@ -257,7 +257,7 @@ public final class JoinedPlayerBodies implements ServerAvatarBodies.BodyFactory 
          * Unlike both fake players, this does NOT return {@code OptionalInt.empty()}.
          *
          * <p>That override is why a crafting table could not be opened at all and why
-         * {@code ServerPlayerAvatar.useBlock} had to install station menus by hand. A placed player
+         * {@code ServerPlayerBody.useBlock} had to install station menus by hand. A placed player
          * has a real container counter and a real listener; vanilla's own implementation works, and
          * the hand-installed menu becomes dead weight rather than a workaround.
          */

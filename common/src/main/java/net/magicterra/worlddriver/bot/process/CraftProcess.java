@@ -3,9 +3,9 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Containers;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Containers;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -106,7 +106,7 @@ public final class CraftProcess implements BotProcess {
         s.craft.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState s) {
+    @Override public boolean tick(Body a, WorldView w, BotState s) {
         Player p = a.asPlayer();
         Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, null, "no player"); return true; }
@@ -154,7 +154,7 @@ public final class CraftProcess implements BotProcess {
     /** Enter RECLAIM if we placed a table and it's still standing. Returns true if the
      *  process must keep ticking to break it. Runs at most once — {@code reclaimTried}
      *  is set on the first call, so the terminal check below it can't loop. */
-    private boolean beginReclaim(Avatar a, Player p, Level lvl) {
+    private boolean beginReclaim(Body a, Player p, Level lvl) {
         if (reclaimTried) return false;
         reclaimTried = true;
         if (!BotConfig.craftReclaimTable) return false;
@@ -167,7 +167,7 @@ public final class CraftProcess implements BotProcess {
         return true;
     }
 
-    private void reclaimTick(Avatar a, Level lvl) {
+    private void reclaimTick(Body a, Level lvl) {
         if (isTable(lvl, placedTable)) {
             // Give up on the block, never on the craft: a reclaim that can't finish
             // (protected region, block replaced under us) must not turn a successful
@@ -193,14 +193,14 @@ public final class CraftProcess implements BotProcess {
     }
 
     /** Back to whichever terminal we were headed for when reclaim interrupted us. */
-    private void endReclaim(Avatar a) {
+    private void endReclaim(Body a) {
         hands.breakHold(false);
         st = error != null ? St.FAIL : St.DONE;
     }
 
     // === planning ============================================================
 
-    private void plan(Avatar a, Player p, Level lvl, BotState s) {
+    private void plan(Body a, Player p, Level lvl, BotState s) {
         RecipeManager rm = menus.recipeManager();
         HolderLookup.Provider ra = lvl.registryAccess();
         if (rm == null) { fail(s, p, "no recipe manager"); return; }
@@ -244,7 +244,7 @@ public final class CraftProcess implements BotProcess {
 
     // === station setup =======================================================
 
-    private void setupStation(Avatar a, Player p, Level lvl, BotState s) {
+    private void setupStation(Body a, Player p, Level lvl, BotState s) {
         RecipeResolver.Job job = jobs.get(jobIdx);
         if ("inventory2x2".equals(job.station())) {
             // Use the player inventory's 2×2 grid (container id 0). Closes any
@@ -288,7 +288,7 @@ public final class CraftProcess implements BotProcess {
 
     // === craft loop ==========================================================
 
-    private void place(Avatar a, Player p, BotState s) {
+    private void place(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         RecipeResolver.Job job = jobs.get(jobIdx);
         // Recipe-book single placement: server moves one ingredient set from the
@@ -298,7 +298,7 @@ public final class CraftProcess implements BotProcess {
         st = St.AWAIT_RESULT;
     }
 
-    private void awaitResult(Avatar a, Player p, BotState s) {
+    private void awaitResult(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         ItemStack result = menu.slots.isEmpty() ? ItemStack.EMPTY : menu.getSlot(0).getItem();
         if (!result.isEmpty()) {
@@ -355,7 +355,7 @@ public final class CraftProcess implements BotProcess {
     }
 
     /** Place a crafting table from inventory nearby, return its position (or null). */
-    private BlockPos placeTable(Avatar a, Player p, Level lvl) {
+    private BlockPos placeTable(Body a, Player p, Level lvl) {
         BlockPos cell = PlaceNearby.place(a, hands, p,lvl, Items.CRAFTING_TABLE, Blocks.CRAFTING_TABLE, "craft");
         // The ONLY assignment of placedTable: this table is ours, so it is the
         // only one reclaim may break (gap #276).

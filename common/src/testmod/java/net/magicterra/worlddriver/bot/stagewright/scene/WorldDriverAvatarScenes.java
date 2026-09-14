@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.ElytraProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -39,8 +39,8 @@ import net.minecraft.world.phys.Vec3;
  * no number moved. The canonical wave-6 substitutions apply: {@code helper.getLevel()} →
  * {@link SceneContext#level()}; absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} →
  * {@code origin.y + 20} / {@code floorY=200} → {@code origin.y}; {@code ServerWorldDriver.create} →
- * {@link ServerWorldDriver#createIsolated} and {@code ServerPlayerAvatar.create} →
- * {@link ServerPlayerAvatar#createUnique} (the #48 per-scene isolated body — the shell these tests
+ * {@link ServerWorldDriver#createIsolated} and {@code ServerPlayerBody.create} →
+ * {@link ServerPlayerBody#createUnique} (the #48 per-scene isolated body — the shell these tests
  * were promoted to a REQUIRED regression guard on; it changes identity only, not the body physics
  * the golden numbers measure); legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer};
  * {@code try/finally} config save/restore → {@link BotConfig#pinnedBaseline()}; {@code throw} →
@@ -313,7 +313,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ctx.cleanup(() -> av.fakePlayer().discard());
         ServerPlayer fp = av.fakePlayer();
         fp.getInventory().clearContent();

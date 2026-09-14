@@ -1350,8 +1350,8 @@ public final class BotApiImpl implements BotApi {
         // presses still need the one-shot cleanup below.
         boolean schedulerDroveThisTick = scheduler.current() != null;
         // The scheduler talks bodies; this tick chain is the client's, so the body is the local
-        // player's. Built fresh per tick, like every other ClientPlayerAvatar (see clientAvatar()).
-        scheduler.tick(new net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar(mc), world, state);
+        // player's. Built fresh per tick, like every other ClientPlayerBody (see clientAvatar()).
+        scheduler.tick(new net.magicterra.worlddriver.bot.body.ClientPlayerBody(mc), world, state);
         // Immediately after the chain has had its turn, so a caller polling on the next server
         // tick sees the ending rather than one tick of stale "still busy".
         settleLeg();
@@ -1518,15 +1518,15 @@ public final class BotApiImpl implements BotApi {
     }
 
     /**
-     * Built fresh per call rather than cached, because {@code ClientPlayerAvatar} binds
+     * Built fresh per call rather than cached, because {@code ClientPlayerBody} binds
      * {@code mc.player} in its constructor and that reference dies on every respawn and dimension
      * change. A cached one would keep actuating a stale body — the same「视图不跟着身体走」shape the
      * driver has already paid for once, where a view built at construction planned over the old
      * dimension's terrain for every rung after the portal.
      */
-    @Override public net.magicterra.worlddriver.bot.movement.Avatar clientAvatar() {
+    @Override public net.magicterra.worlddriver.bot.body.Body clientAvatar() {
         Minecraft mc = Minecraft.getInstance();
-        return mc.player == null ? null : new net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar(mc);
+        return mc.player == null ? null : new net.magicterra.worlddriver.bot.body.ClientPlayerBody(mc);
     }
 
     private void cancelCurrent(String reason) {

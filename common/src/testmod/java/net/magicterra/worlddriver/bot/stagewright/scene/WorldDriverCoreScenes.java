@@ -30,7 +30,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.MultiTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -61,7 +61,7 @@ import net.minecraft.world.phys.Vec3;
  * not re-explain the trivial ones): {@code helper.getLevel()} → {@link SceneContext#level()};
  * absolute {@code cx/cz} → origin X/Z; absolute Y → {@code origin.y + (legacy_Y − 200)} (grid
  * {@code GRID_Y = 200}, so mapped absolute Y equals the legacy Y — geometry unchanged, only X/Z
- * relocate); {@code ServerPlayerAvatar.create} → {@link ServerPlayerAvatar#createUnique} (#48
+ * relocate); {@code ServerPlayerBody.create} → {@link ServerPlayerBody#createUnique} (#48
  * per-scene body) + {@code ctx.cleanup(fp::discard)}; {@code try/finally} config save/restore →
  * {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code GameTestAssertException}
  * → {@link SceneContext#fail}; {@code helper.succeed()} → return; the {@code gtOnlySkips(...)}
@@ -576,11 +576,11 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // Avatar-driven physics / config arenas.
+    // Body-driven physics / config arenas.
     // ==================================================================================
 
     /** Ported from {@code AgentGameTest#physicsParity}: physics-parity gate for
-     *  {@link ServerPlayerAvatar} — a manual travel()+move() body must reproduce vanilla movement
+     *  {@link ServerPlayerBody} — a manual travel()+move() body must reproduce vanilla movement
      *  (horizontal travel, a jumped +1 step-up, a standing-jump apex ~1.25). */
     private static void physicsParity(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -589,7 +589,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         // 1) Flat sprint travel (+z) for 20 ticks → meaningful forward distance, stays grounded.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) { av.commandMove(0, 0); av.step(); }
@@ -604,7 +604,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("physicsParity: walker left the floor: dy=" + (fp.getY() - startY));
 
         // 2) Standing jump apex ~1.25.
-        ServerPlayerAvatar av2 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av2 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp2 = av2.fakePlayer();
         ctx.cleanup(() -> fp2.discard());
         for (int i = 0; i < 3; i++) { av2.step(); }
@@ -620,7 +620,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("physicsParity: jump apex off: " + apex + " (expected ~1.25)");
 
         // 3) Jumped +1 step-up: a full block ahead is cleared by forward+jump.
-        ServerPlayerAvatar av3 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av3 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp3 = av3.fakePlayer();
         ctx.cleanup(() -> fp3.discard());
         for (int dx = -1; dx <= 1; dx++)
@@ -658,7 +658,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
         SceneArena.buildFloor(level, cx, cz, floorY);
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
@@ -697,7 +697,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * <p><b>The mechanism under test.</b> {@code LivingEntity.handleRelativeFrictionAndCalculateMovement}
      * (1.21.1) rewrites the post-move vertical component to {@code +0.2} whenever
      * {@code (horizontalCollision || jumping) && (onClimbable() || powder snow)}; {@code travel()}'s
-     * tail then leaves {@code (0.2 − 0.08) × 0.98 = +0.1176}. {@code ServerPlayerAvatar.step()} mirrors
+     * tail then leaves {@code (0.2 − 0.08) × 0.98 = +0.1176}. {@code ServerPlayerBody.step()} mirrors
      * {@code fp.jumping = pendingJump} EVERY tick — deliberately, it is the only thing that drives a
      * wall-less vine — so merely ASKING for a jump arms that rewrite.
      *
@@ -842,8 +842,8 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * and only {@code onGround() || (inWater && g <= h)} reaches {@code jumpFromGround()} (0.42).
      * Support is the tiebreak in the shallow case, not the question.
      *
-     * <p>{@code ServerPlayerAvatar} asks support and nothing else — {@code soleOnSolid(...) > 0}
-     * (ServerPlayerAvatar.java:1054-1055) gates straight to {@code jumpFromGround()} (:1087), with
+     * <p>{@code ServerPlayerBody} asks support and nothing else — {@code soleOnSolid(...) > 0}
+     * (ServerPlayerBody.java:1054-1055) gates straight to {@code jumpFromGround()} (:1087), with
      * the {@code +0.04} only as the else-branch (:1094). Over a floor the two rules agree; on a pool
      * bottom they disagree by an order of magnitude, and this arm is the cell where they do.
      *
@@ -982,7 +982,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + "). At getFluidHeight(WATER)=" + deepArm.fluidAtRest() + " > threshold "
                     + threshold + ", vanilla's LivingEntity.aiStep takes jumpInLiquid (+0.04) and never"
                     + " reaches jumpFromGround (0.42) — support does not enter the decision until the"
-                    + " water is shallower than the threshold. The gate at ServerPlayerAvatar.java:1054"
+                    + " water is shallower than the threshold. The gate at ServerPlayerBody.java:1054"
                     + " asks only soleOnSolid>0, so it answers this cell with 0.42. That is the body"
                     + " being MORE permissive than a real player, not less: see"
                     + " docs/fake-player-parity.md T17 / N21.");
@@ -1071,14 +1071,14 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      *  red is diagnosable from the run that produced it rather than from a second one with logging
      *  on. */
     private static HeldJump heldJump(SceneContext ctx, ServerLevel level, int cx, int standY, int cz, String arm) {
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
         // The stance the FIRST jump is decided from — sampled HERE, not after the loop, because a
         // body that rose during the loop would report the depth it ended at as if it were the depth
-        // its decision was made at. ServerPlayerAvatar.step() runs fp.baseTick() every tick
-        // (ServerPlayerAvatar.java:1003), which is what keeps getFluidHeight live for a body that is
+        // its decision was made at. ServerPlayerBody.step() runs fp.baseTick() every tick
+        // (ServerPlayerBody.java:1003), which is what keeps getFluidHeight live for a body that is
         // on none of vanilla's tick chains; without those three settle steps it would read 0.
         double fluidAtRest = fp.getFluidHeight(FluidTags.WATER);
         double restY = fp.getY();
@@ -1136,7 +1136,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * state directly rather than hunting for terrain that produces it, which is the whole point:
      * the arena tests the GATE, not the geometry that happens to trip it.
      *
-     * <p>See {@code ServerPlayerAvatar.step()} for why the gate reads the body's own sole instead.
+     * <p>See {@code ServerPlayerBody.step()} for why the gate reads the body's own sole instead.
      */
     private static void flushJumpIgnoresOnGround(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -1144,7 +1144,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
         SceneArena.buildFloor(level, cx, cz, floorY);
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         for (int i = 0; i < 3; i++) av.step();
@@ -1186,7 +1186,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("buildBlockWhitelist: sand must NOT be usable (FallingBlock drops over gaps)");
 
         // LevelWorldView count delegates to the predicate: dirt+bamboo inventory → only dirt counts.
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -1242,7 +1242,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         BlockPos goal = new BlockPos(cx + 8, floorY + 1, cz);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         BotLevelHolder.current = level;
@@ -1306,7 +1306,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         BotLevelHolder.current = level;
 
         // ---- Phase 1: RECORD a real goto from A to B. ----
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -1361,10 +1361,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             BlockPos lastNode = plan.get(plan.size() - 1);
 
             // ---- Phase 3: REPLAY via a fresh Walker.beginReplay + armed capture. ----
-            // Avatar FIRST, then arm: the armed session is identity-pinned to the replay
+            // Body FIRST, then arm: the armed session is identity-pinned to the replay
             // avatar so concurrent walkers (the T1 client bot — see PathArchiveRecorder
             // replayEntityId) can't leak foreign samples into the deviation gate.
-            ServerPlayerAvatar rav = SceneBody.avatar(ctx,
+            ServerPlayerBody rav = SceneBody.avatar(ctx,
                     level, startFoot.getX() + 0.5, startFoot.getY(), startFoot.getZ() + 0.5);
             ServerPlayer rfp = rav.fakePlayer();
             ctx.cleanup(() -> rfp.discard());

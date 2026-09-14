@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
@@ -123,7 +123,7 @@ public final class ElytraProcess implements BotProcess {
         st.elytra.lastError = null;
     }
 
-    public boolean tick(Avatar a, WorldView w, BotState st) {
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { st.elytra.lastError = "player vanished"; st.elytra.reset(); return true; }
         hands = a.hands().orElse(null);
@@ -379,7 +379,7 @@ public final class ElytraProcess implements BotProcess {
      * <p>A separate method because {@code tick} is at its per-method budget — see
      * {@code scripts/check_source_budget.py}, which fails on growth rather than on size here.
      */
-    private boolean outOfBudget(Avatar a, BotState st) {
+    private boolean outOfBudget(Body a, BotState st) {
         st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
         if (BotConfig.elytraDebug) logSummary();
         a.releaseInputs();

@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright.journey;
 
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 
@@ -61,7 +61,7 @@ public final class HoldStill implements BotProcess {
     @Override public void attach(BotState st) { }
 
     @Override
-    public boolean tick(Avatar a, WorldView w, BotState st) {
+    public boolean tick(Body a, WorldView w, BotState st) {
         // Release everything a previous process may have latched. A leftover forward impulse would
         // walk the body off the hole just as surely as a goal would.
         a.commandMove(0, 0);

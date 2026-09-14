@@ -11,9 +11,9 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Phase 2: a fully server-side agent driver — the real {@link Walker} steering a
- * {@link ServerPlayerAvatar} (a headless {@link ServerPlayer} body) with no client. Each call to
+ * {@link ServerPlayerBody} (a headless {@link ServerPlayer} body) with no client. Each call to
  * {@link #tick()} advances the Walker (which sets the avatar's impulse/jump via
- * the {@code Avatar} seam) then runs the manual vanilla physics step. This is
+ * the {@code Body} seam) then runs the manual vanilla physics step. This is
  * exactly the loop the headless arenas validate; {@link ServerAvatarManager}
  * wires it to the live {@code ServerTickEvent} so a dedicated server drives the
  * FakePlayer with no {@code LocalPlayer}.
@@ -29,13 +29,13 @@ import net.minecraft.server.level.ServerPlayer;
  *
  * <p><b>The {@code non-final} accessors outlived the reason this javadoc gave for them.</b> It
  * said they existed so the NeoForge shim of the same simple name could covariantly return the
- * {@code FakePlayer} / neoforge {@code ServerPlayerAvatar} types «that legacy GameTest callers
+ * {@code FakePlayer} / neoforge {@code ServerPlayerBody} types «that legacy GameTest callers
  * bind to». That suite was retired in P4-final and nothing binds to those types now. The shim is
  * still here and still narrows {@link #avatar()} and {@link #fakePlayer()}, so this class and
  * those accessors stay {@code non-final} — but what stands behind it is one command, NeoForge's
  * {@code /worlddriver server}, not a caller population: no file outside
  * {@code net.magicterra.worlddriver.neoforge.sim} imports either shim class. (The MIGRATION note
- * above spells the old fully-qualified name, and so does its twin in {@link ServerPlayerAvatar};
+ * above spells the old fully-qualified name, and so does its twin in {@link ServerPlayerBody};
  * both are provenance, not use.)
  *
  * <p>Who holds a driver of THIS type: the testmod's scenes, via
@@ -45,7 +45,7 @@ import net.minecraft.server.level.ServerPlayer;
  * each loader's server-tick hook.
  */
 public class ServerWorldDriver {
-    private final ServerPlayerAvatar avatar;
+    private final ServerPlayerBody avatar;
     /**
      * Not final: the body can change dimension, and a view does not follow it.
      *
@@ -61,22 +61,22 @@ public class ServerWorldDriver {
     private volatile Walker.Step last = Walker.Step.WALKING;
     private volatile boolean finished;
     private volatile BlockPos mineTarget;   // non-null = mine task: navigate near, then break
-    private volatile BotProcess process;    // non-null = run a real (Avatar-migrated) BotProcess
+    private volatile BotProcess process;    // non-null = run a real (Body-migrated) BotProcess
 
-    public ServerWorldDriver(ServerPlayerAvatar avatar) {
+    public ServerWorldDriver(ServerPlayerBody avatar) {
         this.avatar = avatar;
         this.world = new LevelWorldView(avatar.fakePlayer().level(), avatar.fakePlayer());
     }
 
     /** Spawn a FakePlayer at {@code (x,y,z)} in {@code level} and wrap it in a driver. */
     public static ServerWorldDriver create(ServerLevel level, double x, double y, double z) {
-        return new ServerWorldDriver(ServerPlayerAvatar.create(level, x, y, z));
+        return new ServerWorldDriver(ServerPlayerBody.create(level, x, y, z));
     }
 
-    /** {@link #create} with an isolated body ({@link ServerPlayerAvatar#createUnique}) —
+    /** {@link #create} with an isolated body ({@link ServerPlayerBody#createUnique}) —
      *  the production entry point: every {@code /worlddriver server} agent gets its own FakePlayer. */
     public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
-        return new ServerWorldDriver(ServerPlayerAvatar.createUnique(level, x, y, z));
+        return new ServerWorldDriver(ServerPlayerBody.createUnique(level, x, y, z));
     }
 
     /**
@@ -97,7 +97,7 @@ public class ServerWorldDriver {
 
     /**
      * Mine task: navigate within reach of {@code target}, then break it. A real headless task beyond
-     * movement — reuses the validated Walker + the {@link ServerPlayerAvatar} break actuator.
+     * movement — reuses the validated Walker + the {@link ServerPlayerBody} break actuator.
      *
      * <p>⚠️ The {@code process = null} is the fix for a silent no-op. {@link #tick()} branches on
      * {@code process} before it looks at {@code mineTarget}, and neither this method nor
@@ -136,10 +136,10 @@ public class ServerWorldDriver {
         if (prev != null) prev.onCancelled(reason);
     }
 
-    /** Run a real (Avatar-migrated) {@link BotProcess} headless on the server tick.
+    /** Run a real (Body-migrated) {@link BotProcess} headless on the server tick.
      *  This is the Phase-2b process-layer seam: the SAME process the client
      *  scheduler runs (e.g. {@link net.magicterra.worlddriver.bot.process.IntentProcess})
-     *  drives the FakePlayer through its {@code tick(Avatar,...)} path — no
+     *  drives the FakePlayer through its {@code tick(Body,...)} path — no
      *  bespoke driver logic, no client {@code mc}. */
     public ServerWorldDriver runProcess(BotProcess p) {
         releaseProcess("superseded");
@@ -151,7 +151,7 @@ public class ServerWorldDriver {
         return this;
     }
 
-    public ServerPlayerAvatar avatar() { return avatar; }
+    public ServerPlayerBody avatar() { return avatar; }
     public ServerPlayer fakePlayer() { return avatar.fakePlayer(); }
     /** The view of the level the body is in <b>now</b>, rebuilt if it has changed dimension. */
     public LevelWorldView world() {

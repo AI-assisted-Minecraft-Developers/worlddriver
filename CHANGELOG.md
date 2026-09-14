@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **`Avatar` is `Body`, and the body types have their own package.** The interface the walker,
+  the processes and the scheduler drive is `net.magicterra.worlddriver.bot.body.Body`; `Hands`,
+  `Containers` and `BodyCapabilities` moved beside it unchanged, the client implementation is
+  `bot.body.ClientPlayerBody` and the server one `bot.sim.ServerPlayerBody` (the NeoForge
+  subclass follows). Nothing behavioural changed; this is the rename the split below was
+  waiting for, done once every signature had settled so a third-party implementation moves in
+  one step. It breaks that extension surface: any class that implemented `Avatar` or held a
+  `ClientPlayerAvatar`/`ServerPlayerAvatar` must re-import. The names that were never the
+  interface keep theirs — `AvatarInput`, `AvatarFakePlayer`, `AvatarNetHandler`,
+  `ServerAvatarBodies`, `ServerAvatarManager`, `ServerAvatarCommand` behind `/worlddriver server`
+  and the scene names that say "avatar" — as do the line-anchored audits under `docs/`, which
+  read against the commit they cite.
 - **The scheduler and its chains receive the body, not the client.** `ProcessScheduler.tick`,
   `Chain.priority` and `Chain.tick` take an `Avatar`; the client tick chain builds one
   `ClientPlayerAvatar` per tick and the chains hand it straight to the process they hold, so

@@ -1,4 +1,4 @@
-package net.magicterra.worlddriver.bot.movement;
+package net.magicterra.worlddriver.bot.body;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -10,10 +10,10 @@ import net.minecraft.world.item.crafting.RecipeManager;
 /**
  * What a body does with menus: the recipe book, container clicks, closing.
  *
- * <p>Split out of {@link Avatar} with {@link Hands}, and for the same reason: vanilla hangs
+ * <p>Split out of {@link Body} with {@link Hands}, and for the same reason: vanilla hangs
  * menus off {@code Player} ({@code containerMenu}, {@code inventoryMenu}), so only a player body
- * can answer these. A process that crafts or smelts asks {@link Avatar#containers()} and refuses
- * the order when it is empty. Every method here was moved from {@code Avatar} unchanged.
+ * can answer these. A process that crafts or smelts asks {@link Body#containers()} and refuses
+ * the order when it is empty. Every method here was moved from the old {@code Avatar} unchanged.
  */
 public interface Containers {
 

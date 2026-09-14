@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.bot.process.IntentProcess;
 import net.magicterra.worlddriver.bot.process.TowerProcess;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -75,7 +75,7 @@ import net.minecraft.world.phys.AABB;
  *       fixed.</b> {@code onGround()} is not a reading of where a body stands: {@code Entity.move}
  *       ends in {@code setOnGroundWithMovement(verticalCollisionBelow, …)}, so it means "my last
  *       requested move was downward and got clipped". A body that lands flush, or is placed rather
- *       than moved, stands on solid rock with that bit false. {@code ServerPlayerAvatar} already
+ *       than moved, stands on solid rock with that bit false. {@code ServerPlayerBody} already
  *       argues this at length and its jump gate reads {@code WalkerGeometry.soleOnSolid} instead;
  *       {@code wd.flushJumpIgnoresOnGround} pins that for the avatar. TowerProcess never got the
  *       memo, and this arm forces the state the same way that scene does —
@@ -247,7 +247,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * <p>⚠️ {@link #serverTowersAfterAWalk} deliberately does NOT settle. Not being landed is the
      * one variable that arm exists to hold.
      */
-    private static void settle(ServerPlayerAvatar av) {
+    private static void settle(ServerPlayerBody av) {
         for (int i = 0; i < 3; i++) av.step();
     }
 
@@ -576,7 +576,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      * not a reading of where a body stands. {@code Entity.move} ends in
      * {@code setOnGroundWithMovement(this.verticalCollisionBelow, vec3)}, so the bit means "my last
      * requested move was downward and got clipped" — false for a body that landed flush, and false
-     * for a body that was placed rather than moved. {@code ServerPlayerAvatar} spends a screen of
+     * for a body that was placed rather than moved. {@code ServerPlayerBody} spends a screen of
      * comment on exactly this and its own jump gate reads {@code WalkerGeometry.soleOnSolid}
      * instead; {@code wd.flushJumpIgnoresOnGround} is the scene that pins it there.
      *

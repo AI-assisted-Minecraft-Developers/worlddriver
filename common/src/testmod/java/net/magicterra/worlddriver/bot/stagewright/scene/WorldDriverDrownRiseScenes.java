@@ -31,7 +31,7 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>{@code wd.drownEscapePreempt} — mints a fake player, feeds {@code sensorForTest}, and
  *       asserts the scheduler's <b>bookkeeping</b>.</li>
  *   <li>{@code wd.drownEscapeSurface} — does assert a rise, but of the <b>Walker's</b> escape
- *       ({@code walkerDrowningEscape}), on a {@code ServerPlayerAvatar}, with the air supply
+ *       ({@code walkerDrowningEscape}), on a {@code ServerPlayerBody}, with the air supply
  *       simulated by hand. It never constructs {@code DrownEscapeChain}.</li>
  * </ul>
  *

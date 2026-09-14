@@ -322,7 +322,7 @@ loom {
         // has ever run, and it is the one with NO client at all: nothing renders, nothing sends a
         // movement packet, and every client-side class in this repo is absent from the JVM. A defect
         // that lives on that side cannot be observed there at ALL — which is how
-        // `ServerPlayerAvatar.commandUseItem(false)` shipped calling `stopUsingItem()` (clears the
+        // `ServerPlayerBody.commandUseItem(false)` shipped calling `stopUsingItem()` (clears the
         // flag) instead of `releaseUsingItem()` (routes to `ItemStack.releaseUsing`): a fully drawn
         // bow「fired」and produced no arrow, with no exception, past 222 green scenes.
         //

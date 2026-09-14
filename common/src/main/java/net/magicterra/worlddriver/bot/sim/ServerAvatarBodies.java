@@ -7,7 +7,7 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * Loader-injected body-factory seam for the server-agent sim core (P1.6 Task 1).
  *
- * <p>{@link ServerPlayerAvatar} needs a headless {@link ServerPlayer} body, but the
+ * <p>{@link ServerPlayerBody} needs a headless {@link ServerPlayer} body, but the
  * way to obtain one differs per loader and the common module must not depend on
  * either loader:
  * <ul>
@@ -28,7 +28,7 @@ public final class ServerAvatarBodies {
     private ServerAvatarBodies() {}
 
     /** Per-loader body source. Implementations return a fully-constructed, level-attached
-     *  headless player ready to be posed and driven by {@link ServerPlayerAvatar}. */
+     *  headless player ready to be posed and driven by {@link ServerPlayerBody}. */
     public interface BodyFactory {
         /** A per-LEVEL SHARED body (every caller in a level gets the same instance). */
         ServerPlayer shared(ServerLevel level);

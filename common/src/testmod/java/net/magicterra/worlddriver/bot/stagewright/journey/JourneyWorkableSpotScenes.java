@@ -5,7 +5,7 @@ import java.util.List;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -71,7 +71,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
     private static final int DIG_Z = 24;
 
     /** How far the positive control sits from the body, in cells. Twenty-four: well outside
-     *  {@code Avatar.canBreak}'s reach — which is the ONLY gate {@code breakItWhereItStands} has, as
+     *  {@code Body.canBreak}'s reach — which is the ONLY gate {@code breakItWhereItStands} has, as
      *  the bedrock version of this arm proved by removing bedrock — and about three times what
      *  {@link #DIG_TICKS} buys a walking body, so the budget cannot expire「nearly」in reach and make
      *  this control depend on pathfinding luck. Not further: a cell several chunks out is one whose
@@ -132,7 +132,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.DIAMOND_PICKAXE));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
         ServerLevel level = ctx.level();
         ctx.record("staged.cells", "够不着的 " + wontOpen.toShortString() + "="
@@ -200,7 +200,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 16));
         fp.getInventory().items.set(1, new ItemStack(Items.CRAFTING_TABLE, 1));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         BlockPos foot = fp.blockPosition();
@@ -255,7 +255,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
      * <p>{@code sturdy=false} is the test the placer and {@code JourneyStation} both used before
      * 2026-08-24: not air, not replaceable. {@code sturdy=true} adds the question the click will
      * actually ask. Both are spelled out here rather than called because the placer's copy is
-     * private to a process and takes an {@code Avatar} — and because the SCENE's job is to state
+     * private to a process and takes a {@code Body} — and because the SCENE's job is to state
      * what it staged, in numbers a reader can check, rather than to agree with the code under test
      * by construction.
      */

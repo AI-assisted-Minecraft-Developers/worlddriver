@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -70,7 +71,7 @@ final class WalkerTickPrelude {
      * old time box byte for byte: stall-only there would release at 60 ticks and be TIGHTER than what
      * it has today, which is a regression dressed as a fix.
      */
-    private static void expireDigClaim(Walker wk, Avatar a, WorldView world, LivingEntity p) {
+    private static void expireDigClaim(Walker wk, Body a, WorldView world, LivingEntity p) {
         if (!BotConfig.walkerDigAimPriority || wk.stickyDig.pos == null) return;
         float prog = wk.hands.destroyProgress();
         boolean spent;
@@ -89,7 +90,7 @@ final class WalkerTickPrelude {
                     || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
         }
         // Out of mining reach — measured EYE to block centre against the range the game grants
-        // this body, which is the same question ServerPlayerAvatar.canBreakFromHere asks before
+        // this body, which is the same question ServerPlayerBody.canBreakFromHere asks before
         // it lets a dig happen at all. This used to be `distToCenterSqr(p.position()) > 20`,
         // i.e. from the FEET at a hardcoded ~4.47, and the two are different measurements: a
         // cell 5 below is 5.0 from the feet but 6.6 from the eye (so the latch outlived reach
@@ -108,14 +109,14 @@ final class WalkerTickPrelude {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
+    static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         LivingEntity p = a.entity();
         if (p == null) { wk.lastError = "player vanished"; return wk.terminalReport(Walker.Step.FAILED, PathTrace.Outcome.ERROR, wk.lastError, "failed:" + wk.lastError, null); }
         wk.guardParkourTick = false;
         wk.jumpTag = null;
         wk.aimTag = null;
         wk.driveTag = null;
-        // AvatarInput install (client) is handled inside the Avatar implementation.
+        // AvatarInput install (client) is handled inside the Body implementation.
 
         // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky
         // timer; while it's live, route the planner's horizon/soft-commit/depth-penalty

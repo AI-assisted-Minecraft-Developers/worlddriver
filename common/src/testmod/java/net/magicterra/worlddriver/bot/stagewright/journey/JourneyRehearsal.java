@@ -1264,7 +1264,7 @@ public final class JourneyRehearsal {
      *
      * <h2>Why the path matters more than the result</h2>
      *
-     * Rung 18's entire subject is {@code Avatar.useBlock} → {@code EnderEyeItem.useOn}: that a DRIVEN
+     * Rung 18's entire subject is {@code Body.useBlock} → {@code EnderEyeItem.useOn}: that a DRIVEN
      * BODY can spend an eye into a frame. If this staging opened the door by driving the avatar, then
      * a rehearsal of rung 19 would be running rung 18's tested verb as scenery — and a staging that
      * performs the thing another rung is judged on has stopped being staging. Worse, it would be
@@ -1309,7 +1309,7 @@ public final class JourneyRehearsal {
         }
         JourneyLedger.staged("rehearsal: set " + lit + " eyes as block state and ran the tail of "
                 + "EnderEyeItem.useOn, instead of driving the avatar's useBlock (that is rung 18)");
-        ctx.record("rehearsal.eyesSet", lit + " 只（直接写 HAS_EYE，没走 Avatar.useBlock —— "
+        ctx.record("rehearsal.eyesSet", lit + " 只（直接写 HAS_EYE，没走 Hands.useBlock —— "
                 + "那是 18 级的被测动作，布景不许替它做）");
         BlockPattern.BlockPatternMatch match = last == null ? null
                 : EndPortalFrameBlock.getOrCreatePortalShape().find(level, last);
@@ -1507,7 +1507,7 @@ public final class JourneyRehearsal {
         // updateFluidOnEyes() a few lines later — so a body that walks through the End portal has its
         // fluid flags recomputed AT THE DESTINATION, in the same tick. Those two calls are the ONLY
         // writers of wasTouchingWater/wasEyeInWater, and baseTick reaches this body only through
-        // ServerPlayerAvatar.step(), which does not run while the driver is unregistered — which is
+        // ServerPlayerBody.step(), which does not run while the driver is unregistered — which is
         // exactly when staging runs. So a fixture teleport left the flags frozen at whatever the body
         // last saw: measured 2026-08-17, rung 20 arrived on the dry obsidian platform still reading
         // 水=true 没顶=true from an overworld pool, and WalkerTickDrive's `swimColumn` (both of whose
@@ -1524,7 +1524,7 @@ public final class JourneyRehearsal {
         // baseTick() and not the two update* methods: both of those are protected/private on Entity,
         // and reaching them would mean widening product visibility to fix a fixture. baseTick is also
         // the FAITHFUL call — it is the one the portal crossing itself runs, and the one
-        // ServerPlayerAvatar.step() runs every tick, so this stages no behaviour the driver does not
+        // ServerPlayerBody.step() runs every tick, so this stages no behaviour the driver does not
         // already perform on the body once a tick.
         fp.baseTick();
         ctx.record("rehearsal.wetOnDeparture", wetBefore + " → 落地时 " + wetOnArrival

@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.Capability;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
@@ -67,7 +68,7 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
  *
  * <p>The brake exclusion is the same launch tick seen from the other side: {@code edgeBrake} on the
  * lip makes {@code bridgeBrake} hold sneak through the takeoff, and
- * {@code ServerPlayerAvatar} (the {@code pendingSneak ? 0.3f : 1f} steering multiplier) then serves
+ * {@code ServerPlayerBody} (the {@code pendingSneak ? 0.3f : 1f} steering multiplier) then serves
  * the leap 30% of its control input. Sprint alone does not clear the gap while sneak is throttling
  * it. Sibling {@code parkourEdge} exclusions already exist in this file on the lane-keep strafe and
  * on {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
@@ -129,14 +130,14 @@ final class WalkerTickDrive {
      *  jumpInLiquid lifts the prone body until the water over the feet is shallower than 0.4, i.e. the eyes
      *  at the waterline. A breath latch bobs the body up when the air still runs low and rejoins once it
      *  has refilled; a dip that never gets the pose backs off for a while. */
-    private static Cruise surfaceCruise(Walker wk, WorldView world, LivingEntity p, Avatar a, BlockPos foot, BlockPos wp,
+    private static Cruise surfaceCruise(Walker wk, WorldView world, LivingEntity p, Body a, BlockPos foot, BlockPos wp,
                                         boolean diving, boolean diveUnderCap) {
         Cruise c = cruiseVerdict(wk, world, p, a, foot, wp, diving, diveUnderCap);
         BotConfig.walkerCruiseActive = c.on();   // AutoSwim's drowning backstop yields to it (per-tick reset in BotApiImpl)
         return c;
     }
 
-    private static Cruise cruiseVerdict(Walker wk, WorldView world, LivingEntity p, Avatar a, BlockPos foot, BlockPos wp,
+    private static Cruise cruiseVerdict(Walker wk, WorldView world, LivingEntity p, Body a, BlockPos foot, BlockPos wp,
                                         boolean diving, boolean diveUnderCap) {
         Walker.DriveLatches l = wk.driveLatch;
         double wdx = wp.getX() + 0.5 - p.getX(), wdz = wp.getZ() + 0.5 - p.getZ();
@@ -218,7 +219,7 @@ final class WalkerTickDrive {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
+    static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;
@@ -1008,7 +1009,7 @@ final class WalkerTickDrive {
                     }
             }
         }
-        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending) && !parkourEdge) {   // !parkourEdge: sneak on the takeoff tick costs the leap 70% of its steering (ServerPlayerAvatar's pendingSneak?0.3f:1f) — same lip, same measurement as the sprint term; see this class's javadoc. Sibling exclusions: the lane-keep strafe and descentAirborneDriftClamp above
+        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending) && !parkourEdge) {   // !parkourEdge: sneak on the takeoff tick costs the leap 70% of its steering (ServerPlayerBody's pendingSneak?0.3f:1f) — same lip, same measurement as the sprint term; see this class's javadoc. Sibling exclusions: the lane-keep strafe and descentAirborneDriftClamp above
             double bdx = (wp.getX() + 0.5) - p.getX();
             double bdz = (wp.getZ() + 0.5) - p.getZ();
             double blen = Math.sqrt(bdx * bdx + bdz * bdz);
@@ -1611,7 +1612,7 @@ final class WalkerTickDrive {
 
     /** Tick tail: release a dig latch the walker's own dig set once no dig has driven it for
      *  {@link WalkerConstants#DIG_KEY_RELEASE_TICKS} ticks. Holds other owners set are not ours. */
-    static void settleDigKey(Walker wk, Avatar a) {
+    static void settleDigKey(Walker wk, Body a) {
         if (wk.digDrivenThisTick) wk.digIdleTicks = 0;
         else if (wk.digKeyOwned && ++wk.digIdleTicks >= DIG_KEY_RELEASE_TICKS) {
             if (wk.hands.breakHeld()) wk.hands.breakHold(false);

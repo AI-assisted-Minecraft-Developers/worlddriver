@@ -17,7 +17,7 @@ import net.minecraft.core.BlockPos;
  * <p>This class is that seam. The bot records what it wants here, and
  * {@code net.magicterra.worlddriver.mixin.client.MinecraftMixin} makes vanilla's key pass see it:
  * <ul>
- *   <li><b>Dig.</b> Every client-side destroy drive ({@code ClientPlayerAvatar.continueDestroy},
+ *   <li><b>Dig.</b> Every client-side destroy drive ({@code ClientPlayerBody.continueDestroy},
  *       {@code BotInteract.continueDestroy}) calls {@link #assertDig} after advancing the block.
  *       On its next {@code continueAttack} vanilla sees the assertion and does nothing that
  *       tick — no {@code stopDestroyBlock} zeroing the progress, no crosshair-driven
@@ -37,7 +37,7 @@ import net.minecraft.core.BlockPos;
  *       {@code BotApiImpl.clientTick} and {@code CombatChain#releaseUseKey} keep their shape.</li>
  * </ul>
  *
- * <p>{@link #holdDig} is bookkeeping only: it is what {@code Avatar.breakHeld()} answers and
+ * <p>{@link #holdDig} is bookkeeping only: it is what {@code Body.breakHeld()} answers and
  * what the walker's {@code settleDigKey} releases, and it feeds the {@code attack} entry of
  * {@code mc.test.input.heldKeys} so the instrument keeps its shape. It gates nothing — a latch
  * that gated vanilla would block the human's left click forever if a site forgot to release it,

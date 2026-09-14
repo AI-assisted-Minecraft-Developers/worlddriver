@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.minecraft.core.BlockPos;
 
 /**
@@ -29,7 +31,7 @@ final class WalkerDig {
      * @param selectTool pick the best tool first — only for the sites that did so before the door
      *                   existed; a site that never swapped tools must not start now.
      */
-    static BlockPos avatarDig(Walker wk, Avatar a, BlockPos cell, boolean selectTool) {
+    static BlockPos avatarDig(Walker wk, Body a, BlockPos cell, boolean selectTool) {
         BlockPos target = cell;
         if (wk != null && cell != null && (BotConfig.walkerStickyDig || BotConfig.walkerDigAimPriority)) {
             wk.stickyDig.engage(cell);
@@ -51,7 +53,7 @@ final class WalkerDig {
     }
 
     /** {@link #avatarDig} for a dig that must not queue: suffocation. Takes the slot, then digs. */
-    static BlockPos avatarDigPreempt(Walker wk, Avatar a, BlockPos cell, boolean selectTool) {
+    static BlockPos avatarDigPreempt(Walker wk, Body a, BlockPos cell, boolean selectTool) {
         if (wk != null) wk.stickyDig.revoke();
         return avatarDig(wk, a, cell, selectTool);
     }

@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.sim.AvatarFakePlayer;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -37,7 +37,7 @@ import net.minecraft.server.level.ServerPlayer;
  * there is neither.
  *
  * <p>This class implements the second of those. Driving the real player is the larger job — the
- * gate scenes actuate through {@code ServerPlayerAvatar.step()}, which integrates locomotion by
+ * gate scenes actuate through {@code ServerPlayerBody.step()}, which integrates locomotion by
  * hand, and writing those positions onto a player whose client is also sending movement packets
  * makes the two fight. {@code JourneyRig} already carries the shape of the answer (flip the helm to
  * {@code BotApi.runProcess} and let the client's own task chain drive), and converting a scene
@@ -148,11 +148,11 @@ public final class SceneBody {
     }
 
     /**
-     * A bare {@link ServerPlayerAvatar}, for the scenes that never wanted a driver around it.
+     * A bare {@link ServerPlayerBody}, for the scenes that never wanted a driver around it.
      *
      * <p><b>This is the other half of the rule, and forgetting it would have made the first half a
      * lie.</b> {@code ServerWorldDriver.createIsolated} is only one of two ways a scene mints a body:
-     * ninety sites take that one, and NINETY-TWO more call {@code ServerPlayerAvatar.createUnique}
+     * ninety sites take that one, and NINETY-TWO more call {@code ServerPlayerBody.createUnique}
      * directly because they want to pose and step a body without a driver wrapped around it. Both
      * bottom out in {@code ServerAvatarBodies.unique}, so both produce a {@code JoinedBody} when the
      * flip is armed — a gate that covered only the first would have left the integrated topology
@@ -160,15 +160,15 @@ public final class SceneBody {
      *
      * <p>Deliberately nothing but the gate and the mint: the call sites downstream differ too much
      * to share a tail, and the value of this method is that substituting it for
-     * {@code ServerPlayerAvatar.createUnique} at a call site cannot change what that site does.
+     * {@code ServerPlayerBody.createUnique} at a call site cannot change what that site does.
      */
-    public static ServerPlayerAvatar avatar(SceneContext ctx, ServerLevel level, double x, double y, double z) {
+    public static ServerPlayerBody avatar(SceneContext ctx, ServerLevel level, double x, double y, double z) {
         refuseWhereAClientShouldDrive(ctx);
-        return ServerPlayerAvatar.createUnique(level, x, y, z);
+        return ServerPlayerBody.createUnique(level, x, y, z);
     }
 
     /** {@link #avatar} in this scene's own level. */
-    public static ServerPlayerAvatar avatar(SceneContext ctx, double x, double y, double z) {
+    public static ServerPlayerBody avatar(SceneContext ctx, double x, double y, double z) {
         return avatar(ctx, ctx.level(), x, y, z);
     }
 

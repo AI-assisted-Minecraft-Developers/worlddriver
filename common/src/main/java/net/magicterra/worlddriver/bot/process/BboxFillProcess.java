@@ -4,8 +4,8 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -64,7 +64,7 @@ public final class BboxFillProcess implements BotProcess {
         st.builder.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         hands = a.hands().orElse(null);
@@ -298,7 +298,7 @@ public final class BboxFillProcess implements BotProcess {
     }
 
     /** Vanilla survival block reach is 4.5 to the nearest face (≈5.0 to the centre, which is what
-     *  {@code ServerPlayerAvatar.canBreakFromHere} asks the game for). This selector buys a whole
+     *  {@code ServerPlayerBody.canBreakFromHere} asks the game for). This selector buys a whole
      *  block of margin on purpose: it picks a cell to WALK TO, and the body will not be standing
      *  exactly on that centre when it gets there. Choosing a stand the actuator can only just
      *  reach is how a fill reports a cell placed from a stand it then cannot place from.

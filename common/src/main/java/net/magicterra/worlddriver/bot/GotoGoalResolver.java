@@ -123,7 +123,7 @@ final class GotoGoalResolver {
 
     /** {@code route.requireTool: 'minecraft:iron_pickaxe'} — fail the goto up front unless the
      *  item is in the player inventory. Presence-only: the Walker already auto-equips the best
-     *  tool per dig (Avatar.selectTool), and mid-run tool loss is out of scope here. */
+     *  tool per dig (Hands.selectTool), and mid-run tool loss is out of scope here. */
     static void checkRequiredTool(String id, LocalPlayer player) {
         if (id == null || id.isBlank()) return;
         String want = id.contains(":") ? id : "minecraft:" + id;

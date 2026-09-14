@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -56,7 +56,7 @@ public final class FollowProcess implements BotProcess {
         st.follow.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         // Stamped for the same reason BackfillProcess/BuildProcess stamp theirs: `ProcessSlot
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an

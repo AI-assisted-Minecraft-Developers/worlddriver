@@ -90,7 +90,7 @@ public final class JourneyForge {
     /**
      * The width of the alcove, ordered OUTWARD from the shaft the body arrives down.
      *
-     * <p>Not cosmetic: {@code Avatar.canBreak} refuses a block whose six neighbours are all full
+     * <p>Not cosmetic: {@code Body.canBreak} refuses a block whose six neighbours are all full
      * solid faces, on the correct grounds that no ray from any eye could reach it. Sweeping
      * {@code -2 → 2} therefore asks for the far edge first, while it is still buried in rock — and
      * that cell is silently skipped, which then buries the cell BEHIND it at the next depth. Measured

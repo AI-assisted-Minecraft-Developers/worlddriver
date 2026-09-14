@@ -8,9 +8,9 @@ import java.util.function.IntSupplier;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.auto.DrownEscapeGate;
-import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
+import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -127,7 +127,7 @@ public final class DrownEscapeChain implements Chain {
 
     @Override public String name() { return NAME; }
 
-    @Override public float priority(Avatar body, WorldView w, BotState st) {
+    @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (underwaterForTest != null && airForTest != null) {
             return updateLatch(underwaterForTest.getAsBoolean(), airForTest.getAsInt())
@@ -159,7 +159,7 @@ public final class DrownEscapeChain implements Chain {
         return latched;
     }
 
-    @Override public void tick(Avatar body, WorldView w, BotState st) {
+    @Override public void tick(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (mc == null) return;                     // headless arena: decision-layer only
         LocalPlayer p = mc.player;
@@ -193,7 +193,7 @@ public final class DrownEscapeChain implements Chain {
             if (dir != null) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
                 p.setYRot(yaw); p.yHeadRot = yaw; p.yBodyRot = yaw; p.setXRot(0f);
-                ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+                ClientPlayerBody a = new ClientPlayerBody(mc);
                 a.commandJump(true);                // stay buoyant crossing under the lid
                 // Raw camera-frame forward: the yaw was just set at the open column, so "along
                 // the body" IS "toward open water". commandForward also forces leftImpulse to 0,
@@ -246,7 +246,7 @@ public final class DrownEscapeChain implements Chain {
         // do, never zeroed anything while a process was running: AvatarInput.tick overwrites
         // the impulses after vanilla's key pass, so the keys were the one input nobody read.
         // That is the same failure this class's own doc describes AutoSwim losing to.
-        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        ClientPlayerBody a = new ClientPlayerBody(mc);
         a.commandJump(true);
         a.commandSprint(false);
         a.commandSneak(false);                      // a held sneak SINKS the bot (aiStep sink)
@@ -405,8 +405,8 @@ public final class DrownEscapeChain implements Chain {
      *       This said "nine callers", which is {@code AutoSwim}'s count ALONE — one file measured
      *       and reported as the whole. A repo-wide {@code grep -rn "commandJump(" common/src/main}
      *       returned 41 lines on 2026-08-26, five of them plumbing (the declaration in
-     *       {@code Avatar}, the impl in {@code AvatarInput}, the since-retired {@code BotInput}
-     *       forwarder, and the {@code ClientPlayerAvatar} / {@code ServerPlayerAvatar} overrides), leaving
+     *       {@code Body}, the impl in {@code AvatarInput}, the since-retired {@code BotInput}
+     *       forwarder, and the {@code ClientPlayerBody} / {@code ServerPlayerBody} overrides), leaving
      *       ~36 writes across 14 behaviour classes. The argument survives either way (more
      *       contention, not less); the NUMBER is what a reader would use to bound a race audit,
      *       and it has already drifted once since being corrected here, so re-run the grep. ⚠️ The
@@ -601,7 +601,7 @@ public final class DrownEscapeChain implements Chain {
         keysHeld = false;
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.options == null) return;
-        new ClientPlayerAvatar(mc).commandJump(false);
+        new ClientPlayerBody(mc).commandJump(false);
         ClientIntents.holdDig(false);
     }
 }

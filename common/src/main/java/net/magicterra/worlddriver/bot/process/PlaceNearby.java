@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.process;
 
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
@@ -35,7 +35,7 @@ final class PlaceNearby {
      *
      * @return the cell now holding {@code expected}, or null (reason logged).
      */
-    static BlockPos place(Avatar a, Hands hands, Player p, Level lvl, Item item, Block expected, String logTag) {
+    static BlockPos place(Body a, Hands hands, Player p, Level lvl, Item item, Block expected, String logTag) {
         if (!hands.holdItem(item)) {
             LOG.info("[{}] placeNearby: holdItem({}) FAILED at foot={}", logTag, item, p.blockPosition());
             return null;

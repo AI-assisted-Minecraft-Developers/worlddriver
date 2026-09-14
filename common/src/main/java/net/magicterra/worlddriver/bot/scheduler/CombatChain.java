@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.scheduler;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
@@ -109,7 +109,7 @@ public final class CombatChain implements Chain {
         return intentMode != null || process != null;
     }
 
-    @Override public float priority(Avatar body, WorldView w, BotState st) {
+    @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         decayAutoSuppression();
         float bid = bid(mc);
@@ -161,7 +161,7 @@ public final class CombatChain implements Chain {
         return 0f;
     }
 
-    @Override public void tick(Avatar body, WorldView w, BotState st) {
+    @Override public void tick(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (process == null) {
             if (intentMode != null) {

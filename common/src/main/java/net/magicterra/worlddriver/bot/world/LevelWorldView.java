@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * backed by a controlling {@link Player} (a FakePlayer in the headless harness)
  * for break-cost/inventory queries. Unlike the read-only {@link ServerWorldView}
  * this enables break/place pathfinding: the view reads the live level, so blocks
- * the Avatar places or breaks are observed on the next tick automatically.
+ * the Body places or breaks are observed on the next tick automatically.
  *
  * <p>Passability, footing, obstruction and break pricing are {@link CellRules}' answers, the same
  * ones {@code ClientWorldView} gives the shipped client body — so what the {@code wd.*} suite and

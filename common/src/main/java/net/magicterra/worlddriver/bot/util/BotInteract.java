@@ -126,7 +126,7 @@ public final class BotInteract {
      * A {@code LocalPlayer} held in a local and called on its own methods was never the problem.
      * Full account in {@code docs/drown-escape-design.md} §5.
      *
-     * <p>The swing is not decoration — see {@code net.magicterra.worlddriver.bot.movement.Hands#breakHold}. Vanilla swings on every
+     * <p>The swing is not decoration — see {@code net.magicterra.worlddriver.bot.body.Hands#breakHold}. Vanilla swings on every
      * successful {@code continueDestroyBlock} tick, and a dig without one is both visibly armless
      * and, to a third-party server, a mining-without-swinging anticheat signature.
      */
@@ -191,7 +191,7 @@ public final class BotInteract {
      *       a different claim from "it landed". This said "nine writers", which is
      *       {@code AutoSwim}'s count ALONE — one file measured and reported as the whole. Derive
      *       it, do not quote it: {@code grep -rn "commandJump(" common/src/main} returned 41 lines
-     *       on 2026-08-26, five of them plumbing (the declaration in {@code Avatar}, the impl in
+     *       on 2026-08-26, five of them plumbing (the declaration in {@code Body}, the impl in
      *       {@code AvatarInput}, the since-retired {@code BotInput} forwarder, and the two avatar overrides),
      *       leaving ~36 writes across 14 behaviour classes. ⚠️ The same wrong nine was written
      *       into {@code DrownEscapeChain} as well, and both copies came from one memory rather
@@ -248,7 +248,7 @@ public final class BotInteract {
      *
      * <p><b>Callable from any thread; the click itself always runs on the client thread.</b> This
      * javadoc used to say "must be called from the client thread", and nothing enforced it, so the
-     * journey scenes — which drive a {@code ClientPlayerAvatar} from the SERVER thread — walked
+     * journey scenes — which drive a {@code ClientPlayerBody} from the SERVER thread — walked
      * straight through. Everything under {@code mc.gameMode.useItemOn} is client-state mutation:
      * {@code BlockItem.place} → {@code ClientLevel.playSound} → {@code SoundManager.play} →
      * {@code SoundEngine.play} → {@code HashMap.put}, while the Render thread iterates that very map
@@ -268,7 +268,7 @@ public final class BotInteract {
      *
      * <p><b>The off-thread return is {@link InteractionResult#PASS} and means "deferred", never
      * "refused".</b> Nothing may branch on it. All FOUR call sites discard it today
-     * ({@code ClientPlayerAvatar.placeOn} and {@code useBlock} are {@code void};
+     * ({@code ClientPlayerBody.placeOn} and {@code useBlock} are {@code void};
      * {@link #walkerPlace} ignores it; and this method's own {@code mc.execute} re-dispatch below
      * drops the result of the hop by construction) — a caller wanting an outcome must read the
      * world after the round trip, exactly as the ramp does. This said "three" and named three,

@@ -3,7 +3,7 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -51,7 +51,7 @@ public final class RunAwayProcess implements BotProcess {
         s.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         // Flee-context: mark this frame as an active flee BEFORE the Walker runs
         // its A* search, so ClientWorldView.beginSearch snapshots fleeSearch=true
         // and boosts water/ledge danger (no diving into water / off a cliff while

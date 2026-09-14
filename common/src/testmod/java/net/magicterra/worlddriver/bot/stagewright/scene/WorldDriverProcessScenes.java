@@ -25,7 +25,7 @@ import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -96,7 +96,7 @@ import net.minecraft.world.phys.Vec3;
  * cell each drive iteration. It cannot sun-burn to a false fire-kill because StageWright pins the
  * whole run to a frozen midnight — the scene used to do that for itself, and no longer has to.
  *
- * <p><b>{@code wd.serverWalkerDeepslateNoTool}</b> flips {@link ServerPlayerAvatar#faithfulBreak} (a
+ * <p><b>{@code wd.serverWalkerDeepslateNoTool}</b> flips {@link ServerPlayerBody#faithfulBreak} (a
  * static NOT covered by {@code pinnedBaseline}) — saved/restored via its own {@code ctx.cleanup}.
  *
  * <p><b>{@code buildFloor}</b> (the sole {@code AgentGameTestSupport} static the surviving Process
@@ -770,7 +770,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         // Aim and hold at each, generously — a slow-mine needs ticks, and giving the two that must
         // NOT break more ticks than the one that must is the point.
-        ServerPlayerAvatar avatar = driver.avatar();
+        ServerPlayerBody avatar = driver.avatar();
         for (BlockPos at : List.of(sealed, far, adjacent))
             for (int t = 0; t < 60; t++) {
                 avatar.selectTool(at);
@@ -1287,8 +1287,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
-        boolean ofb = ServerPlayerAvatar.faithfulBreak;
-        ctx.cleanup(() -> ServerPlayerAvatar.faithfulBreak = ofb);
+        boolean ofb = ServerPlayerBody.faithfulBreak;
+        ctx.cleanup(() -> ServerPlayerBody.faithfulBreak = ofb);
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         ctx.cleanup(() -> {
@@ -1329,7 +1329,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         BotConfig.walkerDebug = false;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
-        ServerPlayerAvatar.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
+        ServerPlayerBody.faithfulBreak = true;         // REAL destroy-progress: bare-hand deepslate ~650t (else instant destroyBlock masks the timing)
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         // NO pickaxe — empty-handed, matching the campaign soft-lock at y-14 deepslate.
@@ -1546,7 +1546,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.serverLookRaycast — Avatar.lookingAtBlock() eye→view clip raycast primitive.
+    // wd.serverLookRaycast — Body.lookingAtBlock() eye→view clip raycast primitive.
     // ==================================================================================
 
     private static void serverLookRaycastScene(SceneContext ctx) {
@@ -1576,7 +1576,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         level.setBlockAndUpdate(target, Blocks.STONE.defaultBlockState());
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         av.aimAtBlock(target);                       // sets yaw/pitch toward the cell
         BlockPos look = av.lookingAtBlock();         // eye→view clip raycast
         WorldDriverCommon.LOG.info("[wd.serverLookRaycast] aim={} look={} match={}",

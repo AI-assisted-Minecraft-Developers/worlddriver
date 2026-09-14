@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.moves.PillarUp;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -44,7 +44,7 @@ import net.minecraft.world.level.block.Blocks;
  *   <li>{@code try/finally} per-key config save/restore → {@link BotConfig#pinnedBaseline()}
  *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
  *       avatar discard) then the SAME keys the legacy body flipped;</li>
- *   <li>{@code ServerPlayerAvatar.create(...)} → {@link ServerPlayerAvatar#createUnique}
+ *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
  *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())} (closes the leak
  *       the throwaway-world GameTest bodies never had to);</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} →
@@ -117,7 +117,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTestTerrain#summitArena}: the REAL {@link Walker} pillars
-     *  a {@link ServerPlayerAvatar} up through an oak-leaf canopy (cardinal-neighbour leaf at
+     *  a {@link ServerPlayerBody} up through an oak-leaf canopy (cardinal-neighbour leaf at
      *  each rung ceiling). Break+place ON; the {@code walkerPillarReachGoalNoSnap} flag keeps
      *  the elevated air goal pillar-reachable. Asserts the canopy {@code toBreak} fix
      *  ({@link PillarUp#eval}) AND that the avatar reaches the elevated goal. */
@@ -140,7 +140,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.allowPlace = true;
         BotConfig.walkerPillarReachGoalNoSnap = true;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.06, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.06, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -198,7 +198,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.allowPlace = true;
         BotConfig.walkerDebug = true;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -249,7 +249,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.allowPlace = true;
         BotConfig.walkerDebug = true;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz - 4 + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -296,7 +296,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 5 + 0.5, launchY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 5 + 0.5, launchY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -353,7 +353,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz - 3.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz - 3.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -420,7 +420,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, poseX, poseY, poseZ);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, poseX, poseY, poseZ);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);       // resistance only — keeps a stray bonk from harming mid-test
@@ -507,7 +507,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, topY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -573,7 +573,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -645,7 +645,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, H, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, H, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -704,7 +704,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         BotConfig.allowBreak = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, H, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, H, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         boolean wallSolid = !level.getBlockState(new BlockPos(cx, H, cz + 2)).isAir();
@@ -748,7 +748,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, baseY + 2, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);
@@ -798,7 +798,7 @@ public final class WorldDriverTerrainScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, base + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, base + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();   // BARE HANDS — 150t/stone is the whole point

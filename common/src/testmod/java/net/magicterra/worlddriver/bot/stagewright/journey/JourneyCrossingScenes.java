@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
@@ -169,7 +169,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
                 + " 格 —— 满血能扛 22 格，所以这座场地里两个 walker 守卫都该按自己的规矩闭嘴，"
                 + "而不是被开关关掉");
 
-        ServerPlayerAvatar av = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
+        ServerPlayerBody av = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
         ServerPlayer fp = av.fakePlayer();
         Walk walk = walkOffTheLip(ctx, av);
         ctx.record("walk", walk.line());
@@ -230,7 +230,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         // No idle settle: every tick of one is a tick of this arm's own fall, and twenty of them
         // spent 14 of the 39 blocks before the allowance ever started (measured — the first run of
         // this arm landed on allowance tick 16 and read as a broken premise).
-        ServerPlayerAvatar av = spawn(ctx, ctx.originZ() + 12.5, DEEP_START, false);
+        ServerPlayerBody av = spawn(ctx, ctx.originZ() + 12.5, DEEP_START, false);
         ServerPlayer fp = av.fakePlayer();
         int t = 0;
         while (t < 20 && !JourneyNetherRungs.stillFalling(fp)) { step(av); t++; }
@@ -361,7 +361,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         stageTrench(ctx);
         ServerLevel level = ctx.level();
         int standY = ctx.rel(0, TRENCH_DECK + 1, 0).getY();
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level,
+        ServerPlayerBody av = SceneBody.avatar(ctx, level,
                 ctx.originX() + TRENCH_EDGE + 0.5, standY, ctx.originZ() + 1.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
@@ -530,7 +530,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
         // A: a body cornered on a neighbour. x = +0.05 puts its 0.6-wide box across the cell
         // boundary, so 0.15 of the sole is on the lone block and its own centre column is air.
-        ServerPlayerAvatar perch = SceneBody.avatar(ctx, ctx.level(),
+        ServerPlayerBody perch = SceneBody.avatar(ctx, ctx.level(),
                 ctx.originX() + 0.05, ctx.rel(0, DECK + 1, 0).getY(), ctx.originZ() + 0.5);
         ServerPlayer pf = perch.fakePlayer();
         ctx.cleanup(pf::discard);
@@ -548,7 +548,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
         // B: the stale-flag tick. A body one tick past the lip still reports onGround=true with its
         // whole sole on nothing — the same three readings, the opposite situation.
-        ServerPlayerAvatar off = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
+        ServerPlayerBody off = spawn(ctx, ctx.originZ() + 1.5, DECK + 1, true);
         ServerPlayer wf = off.fakePlayer();
         String rowAir = walkToTheStaleTick(ctx, off);
         ctx.record("midAir.row", rowAir);
@@ -615,7 +615,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * do with the sole. The tick wanted is the stale one: the sole already on nothing and the flag
      * still saying {@code true}, which is what {@code fortress.ground.*} printed on the live falls.
      */
-    private static String walkToTheStaleTick(SceneContext ctx, ServerPlayerAvatar av) {
+    private static String walkToTheStaleTick(SceneContext ctx, ServerPlayerBody av) {
         ServerLevel level = ctx.level();
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -690,7 +690,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * lip belongs to {@code wd.serverWalksOffASurvivableLedge}, and an arm asserting it here would
      * be a second opinion about a question that already has an owner.
      */
-    private static Walk walkOffTheLip(SceneContext ctx, ServerPlayerAvatar av) {
+    private static Walk walkOffTheLip(SceneContext ctx, ServerPlayerBody av) {
         ServerLevel level = ctx.level();
         ServerPlayer fp = av.fakePlayer();
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -737,7 +737,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * the crossing waits under it: a leftover forward impulse would walk the body off whatever it
      * lands on, which is「松手不是刹车」with the brake left off.
      */
-    private static Allowance allowanceToLand(SceneContext ctx, ServerPlayerAvatar av, String arm) {
+    private static Allowance allowanceToLand(SceneContext ctx, ServerPlayerBody av, String arm) {
         ServerPlayer fp = av.fakePlayer();
         int landedAt = -1;
         String lastMidAir = "没有 —— 身体从来没进入过「还在下坠」";
@@ -754,7 +754,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     }
 
     /** One idle physics tick with everything released — {@link HoldStill}'s own body. */
-    private static void step(ServerPlayerAvatar av) {
+    private static void step(ServerPlayerBody av) {
         av.commandMove(0f, 0f);
         av.commandJump(false);
         av.breakHold(false);
@@ -765,8 +765,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
      *  for an arm that starts ON something — it proves vanilla itself holds the stance up before the
      *  measurement rather than during it. An arm that starts in the air must NOT have it: those
      *  ticks are its own fall. */
-    private static ServerPlayerAvatar spawn(SceneContext ctx, double z, int dy, boolean settle) {
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, ctx.level(),
+    private static ServerPlayerBody spawn(SceneContext ctx, double z, int dy, boolean settle) {
+        ServerPlayerBody av = SceneBody.avatar(ctx, ctx.level(),
                 ctx.originX() + 0.5, ctx.rel(0, dy, 0).getY(), z);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);

@@ -8,7 +8,7 @@ import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerExpectAlarms;
 import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.ScenePlan;
@@ -98,7 +98,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = true;
         BotConfig.allowPlace = true;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -151,7 +151,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -234,7 +234,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 3 + 0.5, floorY - 3, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 3 + 0.5, floorY - 3, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -300,7 +300,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -343,7 +343,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -433,7 +433,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -531,7 +531,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -594,7 +594,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // every attempt (probe: bot looping fall-offs at dz 2.2-3.7 for 500t).
         BlockPos goal = new BlockPos(cx + 5, standY + 3, cz + 4);
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -686,7 +686,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         }
         BlockPos goal = new BlockPos(cx + 7, standY, cz);
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 7 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -784,7 +784,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 4 + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         fp.getInventory().clearContent();
@@ -904,7 +904,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // by 走.目标被吸附=false. The real cause was the plan's shape (see the plan below).
         BotConfig.walkerPillarReachGoalNoSnap = true;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(() -> fp.discard());
         SimProbes.grantWaterEffects(fp);

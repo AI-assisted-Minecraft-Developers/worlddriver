@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.process;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -42,7 +42,7 @@ public final class LookProcess implements BotProcess {
                     st.look.goal, BotConfig.smoothLook, BotConfig.smoothLookDegPerTick);
     }
 
-    public boolean tick(Avatar a, WorldView w, BotState st) {
+    public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) { st.look.lastError = "player vanished"; st.look.reset(); return true; }
         float ty = fixedYaw, tp = fixedPitch;

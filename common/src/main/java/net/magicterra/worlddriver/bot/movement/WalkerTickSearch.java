@@ -1,6 +1,7 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.pathfinder.PathFinder;
 import net.magicterra.worlddriver.bot.pathfinder.PathTrace;
 import net.magicterra.worlddriver.bot.pathfinder.PathTraceHolder;
@@ -41,7 +42,7 @@ final class WalkerTickSearch {
      * the gate's, in the gate's order, so nothing here changes what the gate does; the only reason
      * this is one method and not an expression is {@code run()}'s per-method budget.
      */
-    private static boolean futileGateExcluded(PathFinder.Result res, Avatar a, Walker wk,
+    private static boolean futileGateExcluded(PathFinder.Result res, Body a, Walker wk,
                                               WorldView world, BlockPos foot) {
         int bucket = -1;
         if (BotConfig.walkerFutileSearchCap <= 0) bucket = 0;
@@ -78,7 +79,7 @@ final class WalkerTickSearch {
      *
      * @return non-null Step to end the tick, or null to fall through.
      */
-    private static Walker.Step futileGateJudge(PathFinder.Result res, Avatar a, Walker wk,
+    private static Walker.Step futileGateJudge(PathFinder.Result res, Body a, Walker wk,
                                                WorldView world, BlockPos foot, LivingEntity p) {
         if (futileGateExcluded(res, a, wk, world, foot)) return null;
         // An unseeded baseline is +INFINITY, which makes the first comparison after every reset
@@ -119,7 +120,7 @@ final class WalkerTickSearch {
     }
 
     /** @return non-null Step to end the tick (propagated by the driver); null = fall through. */
-    static Walker.Step run(Walker wk, WalkerTickCtx cx, Avatar a, WorldView world) {
+    static Walker.Step run(Walker wk, WalkerTickCtx cx, Body a, WorldView world) {
         // ---- consume: rehydrate this phase's inputs from the tick products (WalkerTickCtx) ----
         LivingEntity p = cx.frame.p;
         BlockPos foot = cx.frame.foot;

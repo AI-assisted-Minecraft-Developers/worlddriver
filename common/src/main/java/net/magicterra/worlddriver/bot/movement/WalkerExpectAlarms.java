@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.LivingEntity;
@@ -67,7 +69,7 @@ public final class WalkerExpectAlarms {
         exRepathFlipTick = pfTickCounter;
     }
 
-    void tick(Hands hands, Avatar a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
+    void tick(Hands hands, Body a, WorldView world, LivingEntity p, List<BlockPos> path, int step, int noStepProgressTicks) {
         if (exThrottle > 0) exThrottle--;
         // DIG-dropped / DIG-slow: vanilla resets break progress on ANY released tick, so a
         // committed dig must hold continuously until the block breaks. Dropping the hold

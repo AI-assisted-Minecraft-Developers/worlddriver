@@ -564,7 +564,7 @@ public final class JourneyFill {
                     // <p>AND IT REALLY IS TAKEN BACK, which is the half that was worth checking
                     // before writing this. Obsidian needs a diamond pickaxe and this body carries
                     // stone, so "敲掉它" could have been a swing at nothing — three wasted aims and
-                    // an innocent line. It is not: {@code ServerPlayerAvatar.breakHold} calls
+                    // an innocent line. It is not: {@code ServerPlayerBody.breakHold} calls
                     // {@code Level#destroyBlock}, which has no tool-level gate at all (its own
                     // javadoc says so outright — this avatar "harvests obsidian with its fists"),
                     // so the swing lands and the frame cell is gone.

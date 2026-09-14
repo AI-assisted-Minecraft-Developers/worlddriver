@@ -340,7 +340,7 @@ final class WalkerConstants {
      * anti-stuck exemption even when its APPROACH was what wedged, the exact deadlock that reading
      * exists to refuse. Two ticks, not one: a phase that ends the tick early without reaching the
      * actuator (a place-off re-search kickoff, a breath bail) must not cost a server body its
-     * accumulated progress, which {@code ServerPlayerAvatar.breakHold(false)} zeroes. Only a hold
+     * accumulated progress, which {@code ServerPlayerBody.breakHold(false)} zeroes. Only a hold
      * the walker set is released; AntiSuffocate and the processes keep their own.
      */
     public static final int DIG_KEY_RELEASE_TICKS = 2;

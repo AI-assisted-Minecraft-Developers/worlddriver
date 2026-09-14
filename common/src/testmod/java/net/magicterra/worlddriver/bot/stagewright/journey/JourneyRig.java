@@ -13,16 +13,16 @@ import net.magicterra.worlddriver.bot.BotApi;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
 import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
 import net.magicterra.worlddriver.bot.sim.JoinedPlayerBodies;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -85,8 +85,8 @@ import net.minecraft.world.level.GameType;
  *
  * <h2>How a real player gets driven, and why it is the same code</h2>
  *
- * {@code BotProcess.tick(Minecraft,…)} default-bridges to {@code tick(Avatar,…)} over a
- * {@code ClientPlayerAvatar}, so ONE process object drives a client {@code LocalPlayer} on the
+ * {@code BotProcess.tick(Minecraft,…)} default-bridges to {@code tick(Body,…)} over a
+ * {@code ClientPlayerBody}, so ONE process object drives a client {@code LocalPlayer} on the
  * client tick and a headless {@code FakePlayer} on the server tick. That seam is what makes this
  * possible without a second ladder: a rung still builds a {@code TowerProcess} or an
  * {@code IntentProcess} and hands it to {@link #drive}, and only the HELM changes —
@@ -101,7 +101,7 @@ import net.minecraft.world.level.GameType;
  *
  * <p><b>Two honest compromises</b>, both stated into the record rather than hidden.
  * {@link #breakItWhereItStands} calls {@code Level#destroyBlock} through a
- * {@link ServerPlayerAvatar} wrapped around the real player, so an in-place swing is a
+ * {@link ServerPlayerBody} wrapped around the real player, so an in-place swing is a
  * server-side write on every topology and never exercises the client's multi-tick
  * {@code continueDestroy}. And the joining topology ({@code dedicatedServerWithClient}) keeps the
  * headless body on purpose: the client bot lives in the OTHER process, and a
@@ -374,7 +374,7 @@ public final class JourneyRig {
      * <p>On the integrated topology a real player is already standing in this world, and a rung that
      * spawned a second, invulnerable body beside it would be testing the wrong one — 「集成服上验证
      * 本就需要真实玩家来执行」. So the driver is built around the player that is there:
-     * {@code ServerPlayerAvatar} takes any {@link ServerPlayer}, so every single-shot actuation the
+     * {@code ServerPlayerBody} takes any {@link ServerPlayer}, so every single-shot actuation the
      * rungs already use ({@code holdItem}, {@code aimAtBlock}, {@code useItemInHand},
      * {@code placeOn}, {@code canBreak}) and every read ({@code player()}, inventory, advancements)
      * is unchanged code operating on a real body. Only the per-tick DRIVING changes helms — see
@@ -435,7 +435,7 @@ public final class JourneyRig {
                     "%.1f 格：%.0f,%.0f,%.0f → %d,%d,%d（世界出生点）",
                     wasAt.distanceTo(real.position()),
                     wasAt.x, wasAt.y, wasAt.z, spawn.getX(), surface, spawn.getZ()));
-            driver = new ServerWorldDriver(new ServerPlayerAvatar(real));
+            driver = new ServerWorldDriver(new ServerPlayerBody(real));
             adoptedRealPlayer = true;
         } else {
             driver = ServerWorldDriver.createIsolated(level,
@@ -470,7 +470,7 @@ public final class JourneyRig {
      *
      * <p>{@link #startLeg} routes the per-tick driving to whichever side owns the body. This routes
      * the one-shot verbs the same way, and for the same reason. Thirty-six call sites reached
-     * {@code body().avatar()} directly, which is a {@code ServerPlayerAvatar} even when the body is
+     * {@code body().avatar()} directly, which is a {@code ServerPlayerBody} even when the body is
      * the client's real player — so on the integrated topology they wrote the SERVER's copy of
      * quantities vanilla lets only the client own.
      *
@@ -501,10 +501,10 @@ public final class JourneyRig {
      * write to these fields may not throw, so a green reading here is not by itself evidence of
      * correctness — judge this path only with the calling thread recorded beside the numbers.
      */
-    public Avatar avatar() {
+    public Body avatar() {
         if (!realPlayerHelm(ctx)) return body().avatar();
         BotApi bot = BotHooks.impl();
-        Avatar client = bot == null ? null : bot.clientAvatar();
+        Body client = bot == null ? null : bot.clientAvatar();
         if (client != null) return client;
         evidence("actuator.fellBackToServerAvatar",
                 "客户端没有 LocalPlayer（加载中／死亡／换维度），这一次单发动作退回了服务端 avatar —— "
@@ -715,7 +715,7 @@ public final class JourneyRig {
      * ({@link #drive}, {@link #settle}, {@link #mineBlock}, {@link #mineCellOrGiveUp}). That is the
      * shape this repo keeps paying for: an invariant with sibling paths that ignore it. Here the
      * invariant is load-bearing — registering the adopted driver would run
-     * {@code ServerPlayerAvatar.step()}'s manual physics ON a client-controlled player, which the
+     * {@code ServerPlayerBody.step()}'s manual physics ON a client-controlled player, which the
      * client then contradicts with its own movement packet every tick, and vanilla resolves that by
      * rubber-banding. Routing all four through one method makes that structurally unreachable
      * instead of conventionally avoided.
@@ -843,7 +843,7 @@ public final class JourneyRig {
      * <p><b>Because the integrated topology changes two variables at once</b>, and the entire
      * reason three topologies exist is to tell 「假人的 gap」 apart from 「真问题」. That run swaps
      * the BODY (fake → real) and the STEER (the server tick's {@code ServerAvatarManager} → the
-     * client's user-task chain over a {@code ClientPlayerAvatar}) in the same step. A row carrying
+     * client's user-task chain over a {@code ClientPlayerBody}) in the same step. A row carrying
      * only topology and body would let a divergence be explained equally well by either, which is
      * the conjunction this repo keeps paying for: two arms are only readable when they differ in
      * ONE variable. Recording the steer separately does not create the fourth arm that would
@@ -1206,7 +1206,7 @@ public final class JourneyRig {
         if (lvl.getBlockState(target).isAir() && !fluid) return;
         ServerPlayer p = player();
         BlockPos at = p.blockPosition();
-        ServerPlayerAvatar a = body().avatar();
+        ServerPlayerBody a = body().avatar();
         boolean exposed = false;
         for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values()) {
             BlockPos n = target.relative(d);
@@ -1239,7 +1239,7 @@ public final class JourneyRig {
      * If the body can already break this cell, break it — do not route to it.
      *
      * <p><b>{@code canBreak} is the same predicate the break itself enforces</b>, and that is what
-     * makes this exact rather than optimistic. {@code ServerPlayerAvatar.canBreak} delegates to
+     * makes this exact rather than optimistic. {@code ServerPlayerBody.canBreak} delegates to
      * {@code canBreakFromHere}, which is EXPOSED (some neighbour is not a full solid face) AND IN
      * RANGE (eye to block centre within {@code blockInteractionRange() + 0.5}) — reach included,
      * measured from the live eye. {@code breakHold(true)} then gates on that same
@@ -1282,7 +1282,7 @@ public final class JourneyRig {
         // standing and this method would report false for every cell it was actually able to break.
         // Routing it through avatar() to be consistent would turn every in-place dig into a silent
         // no-op — the class of change that looks like tidying and removes a capability.
-        ServerPlayerAvatar a = body().avatar();
+        ServerPlayerBody a = body().avatar();
         if (!a.canBreak(target)) return false;
         a.selectTool(target);
         a.aimAtBlock(target);

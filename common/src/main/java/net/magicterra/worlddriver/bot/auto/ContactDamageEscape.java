@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
+import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.util.BotUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -111,7 +111,7 @@ public final class ContactDamageEscape {
         // an active `goto` is what pressed the hull into the cactus in the first place (death #14
         // above). keyJump survived only because the Walker rarely commands jump, which is why the
         // reflex looked half-alive rather than dead.
-        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        ClientPlayerBody a = new ClientPlayerBody(mc);
         a.commandMove(0f, 1f);
         a.commandJump(p.horizontalCollision);
         return true;
@@ -172,7 +172,7 @@ public final class ContactDamageEscape {
             // the sibling LavaProximityEscape, which drives the same two keys, never had it:
             // its reset() only logs, so every lava episode left the forward key held until
             // something else happened to clear it. The channel swap retires that asymmetry.
-            ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+            ClientPlayerBody a = new ClientPlayerBody(mc);
             a.commandForward(0f);
             a.commandJump(false);
         }

@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.movement;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
@@ -66,14 +68,14 @@ public final class ClutchController {
      * an MLG that is not cosmetic: the drift-damping spring below fights the residual momentum
      * one way while the still-live walker command pushes the other, and coasting one block off
      * a 1-wide landing column is exactly the failure the spring exists to prevent.
-     * {@link Avatar#commandMove} is the channel that outranks the walker's own command.
+     * {@link Body#commandMove} is the channel that outranks the walker's own command.
      *
      * <p>{@code keySprint.setDown(false)} is gone rather than translated: both sites already
      * paired it with {@code setSprinting(false)}, which is the flag {@code aiStep} actually
      * reads to emit STOP_SPRINTING. The key was redundant at both.
      */
     private static void yieldMovement(Minecraft mc) {
-        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        ClientPlayerBody a = new ClientPlayerBody(mc);
         a.commandMove(0f, 0f);
         a.commandJump(false);
         a.commandSprint(false);

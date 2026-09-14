@@ -1,8 +1,8 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.client.Minecraft;
 
@@ -31,10 +31,10 @@ public interface Chain {
      * @param body the body the scheduler is steering this tick; null in the headless matrix
      *             scenes, which tick the scheduler with no body to exercise the bidding alone
      */
-    float priority(Avatar body, WorldView w, BotState st);
+    float priority(Body body, WorldView w, BotState st);
 
     /** Run when this chain wins the bid for the movement channel. */
-    void tick(Avatar body, WorldView w, BotState st);
+    void tick(Body body, WorldView w, BotState st);
 
     /**
      * The client a reflex chain runs on, or null when {@code body} is not the client player's.
@@ -47,8 +47,8 @@ public interface Chain {
      * until it is decided, a chain over a body that is not the client's sees the same null it
      * sees in the headless matrix scenes and sits the bid out.
      */
-    static Minecraft clientOf(Avatar body) {
-        return body instanceof ClientPlayerAvatar c ? c.mc() : null;
+    static Minecraft clientOf(Body body) {
+        return body instanceof ClientPlayerBody c ? c.mc() : null;
     }
 
     /** Called when a higher-priority chain preempts this one: save a minimal

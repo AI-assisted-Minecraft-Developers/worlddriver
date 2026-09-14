@@ -5,10 +5,10 @@ import java.util.List;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.BodyCapabilities;
-import net.magicterra.worlddriver.bot.movement.Containers;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.BodyCapabilities;
+import net.magicterra.worlddriver.bot.body.Containers;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.world.ServerWorldView;
@@ -33,7 +33,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * {@link Avatar} over a server {@link ServerPlayer} body, with MANUAL vanilla physics
+ * {@link Body} over a server {@link ServerPlayer} body, with MANUAL vanilla physics
  * (Approach A): the agent sets impulse/jump/yaw each tick, then {@link #step()}
  * runs the same {@link Player#travel(Vec3)} → move()/collision the client runs
  * for a LocalPlayer (the bugs we hunt live in {@code Entity.move()} collision,
@@ -55,7 +55,7 @@ import net.minecraft.world.phys.Vec3;
  * P4-final and the name now survives nowhere else in the tree.
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
- * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerAvatar}; the ONLY
+ * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerBody}; the ONLY
  * substantive change is that the body type is now vanilla {@link ServerPlayer}
  * (was NeoForge {@code FakePlayer}) and the body is obtained through the
  * loader-injected {@link ServerAvatarBodies} seam instead of {@code
@@ -90,7 +90,7 @@ import net.minecraft.world.phys.Vec3;
  * but an armed {@code -Dworlddriver.realPlayerBodies=true} preempts BOTH and hands back a body
  * that has actually joined.
  */
-public class ServerPlayerAvatar implements Avatar, Hands, Containers {
+public class ServerPlayerBody implements Body, Hands, Containers {
 
     private final ServerPlayer fp;
 
@@ -147,7 +147,7 @@ public class ServerPlayerAvatar implements Avatar, Hands, Containers {
     private BlockPos breakProgPos;
     private float breakProg;
 
-    public ServerPlayerAvatar(ServerPlayer fp) {
+    public ServerPlayerBody(ServerPlayer fp) {
         this.fp = fp;
         // Attach vanilla's own inventory-menu listener. A real player gets this from
         // PlayerList.placeNewPlayer; a body that was never placed through the player list has an
@@ -183,7 +183,7 @@ public class ServerPlayerAvatar implements Avatar, Hands, Containers {
     private static final java.util.concurrent.atomic.AtomicInteger BODY_SEQ =
             new java.util.concurrent.atomic.AtomicInteger();
 
-    public static ServerPlayerAvatar create(ServerLevel level, double x, double y, double z) {
+    public static ServerPlayerBody create(ServerLevel level, double x, double y, double z) {
         return init(ServerAvatarBodies.shared(level), x, y, z);
     }
 
@@ -207,19 +207,19 @@ public class ServerPlayerAvatar implements Avatar, Hands, Containers {
      *  <p>NOTE: {@code FakePlayerFactory.get} caches per profile per level; each call mints a new
      *  entry that lives until level unload, fine for the single-demo-agent command, revisit if
      *  agents get spawned in bulk. */
-    public static ServerPlayerAvatar createUnique(ServerLevel level, double x, double y, double z) {
+    public static ServerPlayerBody createUnique(ServerLevel level, double x, double y, double z) {
         String name = "agent-body-" + BODY_SEQ.incrementAndGet();
         com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
                 java.util.UUID.nameUUIDFromBytes(name.getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
         return init(ServerAvatarBodies.unique(level, profile), x, y, z);
     }
 
-    private static ServerPlayerAvatar init(ServerPlayer fp, double x, double y, double z) {
+    private static ServerPlayerBody init(ServerPlayer fp, double x, double y, double z) {
         fp.setPos(x, y, z);
         fp.setDeltaMovement(Vec3.ZERO);
         fp.setYRot(0);
         fp.setXRot(0);
-        return new ServerPlayerAvatar(fp);
+        return new ServerPlayerBody(fp);
     }
 
     public ServerPlayer fakePlayer() { return fp; }
@@ -681,7 +681,7 @@ public class ServerPlayerAvatar implements Avatar, Hands, Containers {
      * {@link AvatarFakePlayer}, which is the FABRIC body; NeoForge injects its own
      * {@code FakePlayer} through {@link ServerAvatarBodies} and this repo cannot edit it. Fixing it
      * there would fix one loader and leave the other timing out, which is the exact shape of
-     * divergence this project has been bitten by before. {@link ServerPlayerAvatar} is common to
+     * divergence this project has been bitten by before. {@link ServerPlayerBody} is common to
      * both, so the seam belongs here.
      *
      * <p><b>What is deliberately skipped.</b> Vanilla's {@code initMenu} attaches a slot listener
@@ -766,7 +766,7 @@ public class ServerPlayerAvatar implements Avatar, Hands, Containers {
         fp.attack(target);   // server-authoritative: applies damage/knockback/crit directly
     }
 
-    /** Why the last swing was declined by {@code Avatar.attackEntity}'s footing guard, or null.
+    /** Why the last swing was declined by {@code Hands.attackEntity}'s footing guard, or null.
      *  Unlike the client's, this body outlives the tick — so a stale reading here would be a lie
      *  the next tick; {@code attackEntity} therefore writes it on EVERY call, pass or refuse. */
     private String lastAttackRefusal;
@@ -991,7 +991,7 @@ public class ServerPlayerAvatar implements Avatar, Hands, Containers {
     @Override public boolean dbgSneak() { return pendingSneak; }
     @Override public long dbgLastJumpTick() { return lastJumpTick; }
 
-    /** Game tick of the last EMITTED jump impulse — see {@link Avatar#dbgLastJumpTick()}. */
+    /** Game tick of the last EMITTED jump impulse — see {@link Body#dbgLastJumpTick()}. */
     private long lastJumpTick = -1;
 
     private boolean loggedFiredOffGround, loggedRefusedOnGround;

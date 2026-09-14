@@ -14,7 +14,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -221,7 +221,7 @@ public final class JourneyRampScenes implements SceneProvider {
     }
 
     private static void settle(ServerWorldDriver driver) {
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
     }
 

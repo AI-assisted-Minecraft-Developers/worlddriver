@@ -77,9 +77,9 @@ state, follow that pattern.
 
 A behaviour driven once per tick; implementations all live in `process/`.
 
-The one method is `tick(Avatar, WorldView, BotState)`. The scheduler's chains hand
+The one method is `tick(Body, WorldView, BotState)`. The scheduler's chains hand
 a process the body the scheduler was given, and the client tick chain builds a
-`ClientPlayerAvatar` once per tick for that. There used to be a
+`ClientPlayerBody` once per tick for that. There used to be a
 `tick(Minecraft, …)` default bridge for the client callers; nothing overrode it and
 nothing calls it now, so it is gone. A process that names `Minecraft` in its own
 signature is a process that will not run on a server body.
@@ -87,8 +87,8 @@ signature is a process that will not run on a server body.
 Adding a process means implementing that method. There is no "not yet migrated"
 state to be in.
 
-The scheduler talks bodies too — `Chain.priority(Avatar, …)` and
-`Chain.tick(Avatar, …)` — but the chains themselves still read the local player,
+The scheduler talks bodies too — `Chain.priority(Body, …)` and
+`Chain.tick(Body, …)` — but the chains themselves still read the local player,
 the client level and the client-only helpers through `Minecraft`, so each one
 downcasts at the top of both methods via `Chain.clientOf(body)`. That returns null
 for any body that is not the client's, which is also what the headless matrix
@@ -147,9 +147,10 @@ owns the shared constants plus the `ALL` catalog assembled from its subclasses.
 Prefer a `CostModifier` over a new hard constraint: a tax steers the search,
 while a gate can make a region unreachable and turn a slow path into no path.
 
-## 6. The `Avatar` seam
+## 6. The `Body` seam
 
-`Walker` and every process drive an **`Avatar`**, not a player. Its `entity()` is a
+`Walker` and every process drive a **`Body`** (package `bot/body/`; it was
+`movement/Avatar` until 2026-09-14), not a player. Its `entity()` is a
 `LivingEntity`: everything the walker reads (position, ground contact, water,
 velocity, bounding box, health) and every pose it sets lives there, on a client
 `LocalPlayer`, a server `ServerPlayer` and a driven mob alike, so those stay
@@ -166,7 +167,7 @@ abilities, the attack cooldown) and is null for a body that is not one. The
 walker, which cannot refuse an order, drives `WalkerNoHands` for a handless body:
 its dig and place gates fall closed on their own readings.
 
-`ClientPlayerAvatar` and `ServerPlayerAvatar` implement all three interfaces, so
+`ClientPlayerBody` and `ServerPlayerBody` implement all three interfaces, so
 a caller holding either concrete type is unchanged. This is what lets the same
 process run on a client body and headless on a server tick, and what a
 non-player body will plug into.
@@ -222,7 +223,8 @@ sequential method without semantic drift. Follow that, not a fresh invention.
 
 | Package | What it is |
 |---|---|
-| `movement/` | `Walker`, the `WalkerTick*` phases, `Avatar` and its implementations |
+| `body/` | `Body`, `Hands`, `Containers`, `BodyCapabilities` and the client implementation `ClientPlayerBody` |
+| `movement/` | `Walker`, the `WalkerTick*` phases, the look and input controllers |
 | `pathfinder/` | A*, the move catalog, constraints, cost modifiers |
 | `process/` | One class per verb behaviour |
 | `scheduler/` | `ProcessScheduler`, `Chain` and the priority ladder |

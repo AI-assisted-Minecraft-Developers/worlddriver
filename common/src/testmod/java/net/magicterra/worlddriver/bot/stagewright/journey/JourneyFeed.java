@@ -22,7 +22,7 @@ import net.minecraft.world.item.ItemStack;
  * change in the next run becomes unattributable — that, and not the use key itself, is the
  * objection. ⚠️ An earlier version of this paragraph also refused the key as「a key press in a
  * tick」; {@link #startBite} now holds it, because the ban is on hammering a key every tick as a
- * drive loop, not on {@code net.magicterra.worlddriver.bot.movement.Hands#commandUseItem}, which is an edge-triggered actuator verb the
+ * drive loop, not on {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem}, which is an edge-triggered actuator verb the
  * engine steers its own bow with. An explicit leg eats where eating is wanted and nowhere else.
  *
  * <p><b>What it does NOT assert.</b> Nothing here fails a rung. Every branch records what it saw
@@ -56,7 +56,7 @@ import net.minecraft.world.item.ItemStack;
  * hand correct is ended by something outside this file, and the suspect is the client: a
  * {@code LocalPlayer} whose use key was never pressed sees the synced「using」flag and releases it.
  *
- * <p><b>So the bite is begun the way the engine begins one.</b> {@code net.magicterra.worlddriver.bot.movement.Hands#commandUseItem} holds
+ * <p><b>So the bite is begun the way the engine begins one.</b> {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem} holds
  * the client's own use key — the route {@code CombatProcess} draws a bow with and the one rung 20
  * shoots the dragon with — and a use the client started is not one it takes back. See
  * {@link #startBite}. {@link #finishTheBite} stays behind it as a recorded fallback, so a run where
@@ -184,13 +184,13 @@ final class JourneyFeed {
      * <p><b>Through the avatar, not through {@code startUsingItem}.</b> The first two runs drove
      * this by calling {@code fp.startUsingItem(MAIN_HAND)} on the server and then watching the flag
      * — and on a client-driven body the flag went out two ticks into a thirty-two-tick meal with
-     * the hand correct. The engine has had the held use all along: {@code net.magicterra.worlddriver.bot.movement.Hands#commandUseItem} is
+     * the hand correct. The engine has had the held use all along: {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem} is
      * how {@code CombatProcess} draws a bow and how rung 20 shoots the dragon, and on this topology
-     * it resolves to {@code ClientPlayerAvatar}, which holds the CLIENT's use key. A bite begun by
+     * it resolves to {@code ClientPlayerBody}, which holds the CLIENT's use key. A bite begun by
      * the client is a bite the client will not take back. Driving the engine path by hand also
      * stops testing it — {@code JourneyEndRungs}' bow comment paid for that lesson once already.
      *
-     * <p><b>Down-edge first.</b> {@code ServerPlayerAvatar}'s side of this verb is edge-triggered on
+     * <p><b>Down-edge first.</b> {@code ServerPlayerBody}'s side of this verb is edge-triggered on
      * its own {@code useHeld} flag, so a stale {@code true} makes every later {@code (true)} a
      * no-op — the failure that cost the dragon fight 21975 ticks of dead bow. Releasing first costs
      * nothing on either implementation.
@@ -252,7 +252,7 @@ final class JourneyFeed {
      * half is the same measurement on a client-driven body.
      *
      * <p><b>A fallback, not the route.</b> {@link #startBite} holds the client's own use key
-     * through {@code net.magicterra.worlddriver.bot.movement.Hands#commandUseItem}, which is how the engine draws a bow; this runs only
+     * through {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem}, which is how the engine draws a bow; this runs only
      * when even that came back with the bar unmoved and the clock cut short. It is not an imitation
      * of a bite's ending — {@link ItemStack#finishUsingItem} is the call
      * {@code LivingEntity.completeUsingItem} itself makes, so nutrition, saturation, stack shrink

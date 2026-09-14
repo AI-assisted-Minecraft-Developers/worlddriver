@@ -10,7 +10,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
@@ -298,7 +298,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
 
         BlockPos foot = ctx.rel(0, BOX_Y0 + PERCH_LAYER, 0);
         double x0 = foot.getX() + PERCH_DX, z0 = foot.getZ() + PERCH_DZ;
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, x0, foot.getY(), z0);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, x0, foot.getY(), z0);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
@@ -487,7 +487,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         BotConfig.walkerDescentNodeHold = hold;
 
         BlockPos top = ctx.rel(0, STAIR_TOP + 1, 0);
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level,
+        ServerPlayerBody av = SceneBody.avatar(ctx, level,
                 top.getX() + 0.5, top.getY(), top.getZ() + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
@@ -804,7 +804,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         BlockPos perch = doorPerch(ctx, dw);
         BlockPos step = doorstep(ctx, dw);
         double x0 = perch.getX() + dw.dx(), z0 = perch.getZ() + dw.dz();
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, x0, perch.getY(), z0);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, x0, perch.getY(), z0);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);

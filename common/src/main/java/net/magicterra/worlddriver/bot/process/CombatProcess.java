@@ -5,8 +5,8 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -31,7 +31,7 @@ import net.minecraft.world.phys.Vec3;
  * target (or the whole area, in ENGAGE mode) is dead, then self-terminates so the
  * suspended user task resumes.
  *
- * <p>Drives through the {@link Avatar} seam: locomotion via the player's own input
+ * <p>Drives through the {@link Body} seam: locomotion via the player's own input
  * ({@code commandMove}/{@code commandForward}/{@code commandJump} — never the shared
  * human keybinds), the hit via {@link Hands#attackEntity} (the vanilla left-click
  * path: weapon damage, sweep, knockback, crit), and the bow draw via
@@ -108,7 +108,7 @@ public final class CombatProcess implements BotProcess {
         s.combat.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         Player p = a.asPlayer();
         if (p == null || p.level() == null) { cleanup(a); return true; }
         hands = a.hands().orElse(null);
@@ -251,7 +251,7 @@ public final class CombatProcess implements BotProcess {
 
     // === melee ===============================================================
 
-    private void meleeTick(Avatar a, Player p, WorldView w, Entity target, double dist, BotState st) {
+    private void meleeTick(Body a, Player p, WorldView w, Entity target, double dist, BotState st) {
         if (dist > BotConfig.combatReach + 0.4) {
             approach(a, w, target);
             return;
@@ -275,7 +275,7 @@ public final class CombatProcess implements BotProcess {
     }
 
     /** Path toward the target's block (re-goaling as it moves), like FollowProcess. */
-    private void approach(Avatar a, WorldView w, Entity target) {
+    private void approach(Body a, WorldView w, Entity target) {
         approaching = true;
         BlockPos tb = target.blockPosition();
         int radius = Math.max(1, (int) Math.floor(BotConfig.combatReach));
@@ -319,7 +319,7 @@ public final class CombatProcess implements BotProcess {
 
     // === ranged ==============================================================
 
-    private void rangedTick(Avatar a, Player p, Entity target, double dist, BotState st) {
+    private void rangedTick(Body a, Player p, Entity target, double dist, BotState st) {
         if (approaching) { approaching = false; lastGoalBlock = null; }
         aimAt(p, target, dist * 0.12);   // lead a little high for arrow drop
         p.setSprinting(false);
@@ -352,7 +352,7 @@ public final class CombatProcess implements BotProcess {
      *  automatic on touch). Returns {@code true} when done: no live drops left in
      *  {@link #COLLECT_RADIUS} of the kill spot, or the tick budget ran out
      *  (unreachable drop — never wedge the suspended user task). */
-    private boolean collectSweep(Avatar a, Player p, WorldView w, BotState st) {
+    private boolean collectSweep(Body a, Player p, WorldView w, BotState st) {
         if (++collectTicks > COLLECT_BUDGET_TICKS) return true;
         AABB box = new AABB(lastTargetPos).inflate(COLLECT_RADIUS);
         ItemEntity nearest = null;
@@ -423,7 +423,7 @@ public final class CombatProcess implements BotProcess {
         return BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString();
     }
 
-    private void cleanup(Avatar a) {
+    private void cleanup(Body a) {
         a.releaseInputs();
         a.hands().ifPresent(h -> h.commandUseItem(false));
         Player p = a.asPlayer();

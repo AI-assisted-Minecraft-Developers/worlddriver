@@ -5,7 +5,7 @@ import java.util.List;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -117,7 +117,7 @@ public final class RetreatChain implements Chain {
 
     @Override public String name() { return "retreat"; }
 
-    @Override public float priority(Avatar body, WorldView w, BotState st) {
+    @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (!BotConfig.autoRetreat || mc.player == null) {
             // gap#72-④: an in-flight flee killed by the toggle is a transition too.
@@ -472,7 +472,7 @@ public final class RetreatChain implements Chain {
         return false;
     }
 
-    @Override public void tick(Avatar body, WorldView w, BotState st) {
+    @Override public void tick(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (mc.player == null) return;
         if (process == null) {

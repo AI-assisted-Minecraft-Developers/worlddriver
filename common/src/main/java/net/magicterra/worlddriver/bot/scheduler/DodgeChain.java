@@ -1,10 +1,10 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
-import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
+import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
@@ -24,13 +24,13 @@ public final class DodgeChain implements Chain {
 
     @Override public String name() { return "dodge"; }
 
-    @Override public float priority(Avatar body, WorldView w, BotState st) {
+    @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (!BotConfig.autoDodge || mc.player == null) return 0f;
         return imminent(mc) != null ? Priorities.DODGE : 0f;
     }
 
-    @Override public void tick(Avatar body, WorldView w, BotState st) {
+    @Override public void tick(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         ThreatScanner.Incoming in = imminent(mc);
         if (in == null || mc.player == null) return;
@@ -43,7 +43,7 @@ public final class DodgeChain implements Chain {
             p.setYRot((float) (Math.toDegrees(Math.atan2(pz, px)) - 90.0));
             p.setXRot(0f);
         }
-        ClientPlayerAvatar a = new ClientPlayerAvatar(mc);
+        ClientPlayerBody a = new ClientPlayerBody(mc);
         a.commandForward(1f);
         a.commandSprint(true);
     }

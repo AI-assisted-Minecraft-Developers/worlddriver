@@ -5,7 +5,7 @@ import java.util.List;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -108,7 +108,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         BlockPos foot = fp.blockPosition();
@@ -160,7 +160,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().items.set(1, new ItemStack(Items.STONE_PICKAXE));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         BlockPos foot = fp.blockPosition();
@@ -220,7 +220,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // Staging it empty-handed was testing a body the ladder never has.
         fp.getInventory().items.set(1, new ItemStack(Items.COBBLESTONE, 32));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         BlockPos foot = fp.blockPosition();
@@ -304,7 +304,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
@@ -388,7 +388,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
@@ -533,7 +533,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.BUCKET));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         for (int i = 0; i < 3; i++) av.step();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.OBSIDIAN, driver);
@@ -837,7 +837,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // whose support had just gone, fall distance zero, one tick from the flip.
         ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
         ServerPlayer fp = driver.fakePlayer();
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         fp.addEffect(new net.minecraft.world.effect.MobEffectInstance(
                 net.minecraft.world.effect.MobEffects.SLOW_FALLING, 400, 0));
         fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.4, ends.getZ() + 0.5);
@@ -919,7 +919,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // ladder's, not a guess — see the javadoc.
         ServerWorldDriver driver = SceneBody.managed(ctx, ends.above());
         ServerPlayer fp = driver.fakePlayer();
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         fp.moveTo(ends.getX() + 0.20, ends.getY() + 1, ends.getZ() + 0.5);
         for (int i = 0; i < 3; i++) av.step();
 

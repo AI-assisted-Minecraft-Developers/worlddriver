@@ -24,7 +24,7 @@ import java.util.Map;
  * (server {@code ObserveApi.playerSnapshot}, client {@code ClientObserve.observePlayer});
  * duplicating the arithmetic is exactly how one field grows two meanings — see gap #41.
  * Derived purely from public API, so it needs none of the reflection
- * {@code ServerPlayerAvatar} needs for the protected {@code attackStrengthTicker}.
+ * {@code ServerPlayerBody} needs for the protected {@code attackStrengthTicker}.
  */
 public final class AttackSnap {
     private AttackSnap() {}

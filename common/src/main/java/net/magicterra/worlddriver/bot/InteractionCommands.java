@@ -1,6 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
-import net.magicterra.worlddriver.bot.movement.ClientPlayerAvatar;
+import net.magicterra.worlddriver.bot.body.ClientPlayerBody;
 import net.magicterra.worlddriver.bot.process.LookProcess;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.client.Minecraft;
@@ -132,7 +132,7 @@ final class InteractionCommands {
             // Swung BEFORE the aim, so a refusal returns with the body not yet turned toward
             // something it declined to hit; the server's attack handling reads the packet's
             // target and the distance, never the rotation, so the order costs nothing.
-            ClientPlayerAvatar hands = new ClientPlayerAvatar(mc);
+            ClientPlayerBody hands = new ClientPlayerBody(mc);
             hands.attackEntity(target);
             String refusal = hands.lastAttackRefusal();
             if (refusal != null) {

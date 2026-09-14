@@ -61,7 +61,7 @@ class UseKeyOwnershipTest {
             "AutoShield.java", "arbitration winner; release() called by the losers' branch",
             "AutoHeal.java", "arbitration participant; release() on loss and on completion",
             "AutoEat.java", "arbitration participant; releaseIfActive() on loss, self-clears when fed",
-            "ClientPlayerAvatar.java", "commandUseItem(hold) — CombatProcess's bow draw, "
+            "ClientPlayerBody.java", "commandUseItem(hold) — CombatProcess's bow draw, "
                     + "released on the up-edge that shoots and by CombatChain#releaseUseKey on preempt");
 
     private static final Pattern SET_DOWN = Pattern.compile("ClientIntents\\s*\\.\\s*holdUse\\s*\\(([^)]*)\\)");

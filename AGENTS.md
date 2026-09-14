@@ -388,8 +388,8 @@ respawns and earns advancements, because it is a player who joined.
 The other two keep the fake body, and the joining one does so **by construction, not by omission**:
 its client bot lives in the other PROCESS, and the object this seam passes cannot cross a socket.
 
-*How the same rung code drives either.* A process has one method, `tick(Avatar,…)`; the client
-tick chain hands it a `ClientPlayerAvatar` and the server tick a `ServerPlayerAvatar`, so one
+*How the same rung code drives either.* A process has one method, `tick(Body,…)`; the client
+tick chain hands it a `ClientPlayerBody` and the server tick a `ServerPlayerBody`, so one
 process object drives a `LocalPlayer` on the client tick and a joined `ServerPlayer` on the
 server tick. A rung still builds a `TowerProcess` and hands it
 to `rig.drive`; only the **helm** changes — `ServerAvatarManager` headless, `BotApi.runProcess` (the
@@ -401,7 +401,7 @@ contradicts with its own movement packet every tick.
 *The helm has two halves, and both must be routed.* The paragraph above is about the per-tick LEGS.
 Single-shot actions — hold an item, aim, right-click, place — are a second population of 36 call
 sites, and they were NOT routed for the first day this topology existed: they went through a
-`ServerPlayerAvatar` wrapped around the adopted player, i.e. they wrote the SERVER's copy of
+`ServerPlayerBody` wrapped around the adopted player, i.e. they wrote the SERVER's copy of
 quantities vanilla lets only the client own. Measured on this topology by
 `wd.actuatorSplitOnAnAdoptedBody`: server slot 4 against client 0, server aim (-55.32, 29.55)
 against client (283.23, 0.00), unchanged ten ticks later — not a race, two unrelated values. They
@@ -412,7 +412,7 @@ helm, mirroring `startLeg`. **A new rung must use `rig.avatar()`, never `rig.bod
 client's `breakHold` only presses a keybind, so `breakItWhereItStands` — whose contract is「did this
 cell open within this call」, verified against the world — stays server-side or becomes a silent
 no-op. `canBreak` is `default -> true` on the client, so routing it produces an always-true
-predicate, worse than deleting the check. `placeTally` is not on the `Avatar` interface at all. Two
+predicate, worse than deleting the check. `placeTally` is not on the `Body` interface at all. Two
 sites that mixed aiming with breaking now hold one avatar of each kind.
 
 *The ladder cannot judge any of this.* `runJourneyServer` is headless — no client, `realPlayerHelm`

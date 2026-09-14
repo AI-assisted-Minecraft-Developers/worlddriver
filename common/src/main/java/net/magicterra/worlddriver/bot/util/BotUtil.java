@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.util;
 
 import net.magicterra.worlddriver.bot.BotConfig;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -428,7 +428,7 @@ public final class BotUtil {
      *
      * <table><caption>reach predicates, 2026-08-23</caption>
      * <tr><th>site</th><th>eye</th><th>radius</th></tr>
-     * <tr><td>{@code ServerPlayerAvatar.canBreakFromHere} — <b>the authority</b>, and where
+     * <tr><td>{@code ServerPlayerBody.canBreakFromHere} — <b>the authority</b>, and where
      *     {@link #blockReachToCentre} came from</td><td>the real eye</td>
      *     <td>{@code blockInteractionRange() + 0.5}</td></tr>
      * <tr><td>{@code WalkerTickPrelude} dig-claim release</td><td>the real eye</td>
@@ -499,7 +499,7 @@ public final class BotUtil {
      * <p>{@code blockInteractionRange()} is the player's own attribute and is measured to the
      * nearest FACE; the half block converts it to the centre, erring outward so a gate never
      * rejects an interaction vanilla would allow. Lifted from
-     * {@code ServerPlayerAvatar.canBreakFromHere}, which is where this repo first asked the game
+     * {@code ServerPlayerBody.canBreakFromHere}, which is where this repo first asked the game
      * instead of hardcoding a number.
      *
      * <p>Only players carry {@code BLOCK_INTERACTION_RANGE} in their attribute map, and asking
@@ -596,7 +596,7 @@ public final class BotUtil {
      * @return true while still closing in — the caller must yield the tick; false once centred, in
      *         which case forward has already been released and the placement may proceed.
      */
-    public static boolean stepToStandCentre(LivingEntity p, Avatar a, BlockPos stand) {
+    public static boolean stepToStandCentre(LivingEntity p, Body a, BlockPos stand) {
         double dxToCenter = (stand.getX() + 0.5) - p.getX();
         double dzToCenter = (stand.getZ() + 0.5) - p.getZ();
         if (Math.sqrt(dxToCenter * dxToCenter + dzToCenter * dzToCenter) > 0.25) {

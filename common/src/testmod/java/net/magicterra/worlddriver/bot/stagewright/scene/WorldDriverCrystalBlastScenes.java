@@ -9,7 +9,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.movement.BlastFooting;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -77,7 +77,7 @@ import net.minecraft.world.phys.AABB;
  *       onto the obsidian, which is still「在柱子上」. This is the real invariant and it is
  *       unchanged.</li>
  *   <li><b>要么砸碎，要么带理由地拒绝.</b> {@code 水晶=碎了}, <i>or</i> the driver's
- *       {@code Avatar.lastAttackRefusal} is non-empty AND carries
+ *       {@code Body.lastAttackRefusal} is non-empty AND carries
  *       {@code BlastFooting.footingTag(块id, 抗性)} for the block the scene itself read under the
  *       swing stand before the hit. The pair is checked as ONE token on purpose: iron bars are 6.0
  *       and the blast is 6.0, so asking separately for the id and for「6.0」would be satisfied by
@@ -93,7 +93,7 @@ import net.minecraft.world.phys.AABB;
  * green row here as「bot 会自己换落脚了」. It does not, and this rig could not observe it if it did:
  *
  * <ul>
- *   <li><b>X1 — a process that owns「接近 + 挥刀」两步.</b> {@code Avatar.attackEntity} is one-shot
+ *   <li><b>X1 — a process that owns「接近 + 挥刀」两步.</b> {@code Body.attackEntity} is one-shot
  *       and single-tick; it can swing or decline, and it must never teleport. Choosing a stand is a
  *       multi-tick job and belongs to whatever walks the body in ({@code SwingAt} on rung 20,
  *       {@code CombatProcess} in production).</li>
@@ -138,7 +138,7 @@ import net.minecraft.world.phys.AABB;
  *       because their subject is a leap; here the subject is which block is under the feet, and
  *       steering would put a second variable between the two arms. The body is created and stepped
  *       exactly the way {@code wd.parkourVoidShortRunway} creates and steps its own —
- *       {@link ServerPlayerAvatar#createUnique} plus a synchronous {@code av.step()} loop — with
+ *       {@link ServerPlayerBody#createUnique} plus a synchronous {@code av.step()} loop — with
  *       every input released each tick.</li>
  * </ul>
  *
@@ -336,7 +336,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     private static void swingAndWatch(SceneContext ctx, String name, ServerLevel level,
                                       EndCrystal crystal, int cx, int cz, int topY, int standY,
                                       int standAt) {
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 1.5, standAt, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, standAt, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         SimProbes.grantWaterEffects(fp);   // inert here — the body is already invulnerable

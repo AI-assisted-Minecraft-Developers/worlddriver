@@ -3,8 +3,8 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -34,7 +34,7 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.yawFor;
  * <p>Result: a sealed 1×1 pocket offset from the shaft, no falling-block hazard.
  * Needs hand-droppable walls (sand/dirt/gravel — bare stone by hand drops nothing
  * to plug with, so it bails). Aborts on water/lava/bedrock. Drives through the
- * {@link Avatar} seam (break / place / tool / forward on the player's own input),
+ * {@link Body} seam (break / place / tool / forward on the player's own input),
  * so it runs over a client LocalPlayer or a server FakePlayer alike.
  */
 public final class BunkerProcess implements BotProcess {
@@ -127,7 +127,7 @@ public final class BunkerProcess implements BotProcess {
      *  plugged before trusting it). SEALED is the only "safe to walk away" state. */
     @Override public String statusDetail() { return phase.name(); }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
         if (p == null) return finish(st, w, a, "no-player", "player entity unavailable — no action taken");
         hands = a.hands().orElse(null);
@@ -200,7 +200,7 @@ public final class BunkerProcess implements BotProcess {
      *  "besieged into a corner" and was measured false during a genuinely SEALED
      *  state on day60 live). Always returns {@code true} so call sites can just
      *  {@code return finish(...)} without altering their control flow. */
-    private boolean finish(BotState st, WorldView w, Avatar a, String endReason, String err) {
+    private boolean finish(BotState st, WorldView w, Body a, String endReason, String err) {
         st.bunker.endReason = endReason;
         if (err != null) st.bunker.lastError = err;
         boolean sealedNow = phase == Phase.SEALED || (phase == Phase.DONE && sealedOk);
@@ -213,7 +213,7 @@ public final class BunkerProcess implements BotProcess {
      *  neighbors of the FOOT cell, the head cell's 4 horizontal neighbors, and the
      *  cell above the head are all solid. hazardSummary.cornered 语义是"被敌对逼
      *  死角",不可用作围合断言。 */
-    private static boolean enclosed(WorldView w, Avatar a) {
+    private static boolean enclosed(WorldView w, Body a) {
         if (a.entity() == null) return false;
         return enclosed(w, a.entity().blockPosition());
     }
@@ -230,7 +230,7 @@ public final class BunkerProcess implements BotProcess {
             && w.isSolid(head.above());
     }
 
-    private boolean digDown(Avatar a, WorldView w, BotState st, LivingEntity p, BlockPos foot) {
+    private boolean digDown(Body a, WorldView w, BotState st, LivingEntity p, BlockPos foot) {
         int d = startY - foot.getY();
         if (d != lastDepth) { lastDepth = d; digTicks = 0; }
         if (d >= effectiveDepth) {
@@ -260,7 +260,7 @@ public final class BunkerProcess implements BotProcess {
         return false;
     }
 
-    private boolean carve(Avatar a, WorldView w, BotState st, LivingEntity p) {
+    private boolean carve(Body a, WorldView w, BotState st, LivingEntity p) {
         if (nicheDir == null) {
             // Pick a cardinal whose 2-tall niche is a solid (diggable) wall with a
             // solid floor (so we can stand), a SOLID NON-FALLING ROOF (n1.above() —
@@ -312,7 +312,7 @@ public final class BunkerProcess implements BotProcess {
         return false;
     }
 
-    private boolean stepIn(Avatar a, WorldView w, LivingEntity p, BlockPos foot) {
+    private boolean stepIn(Body a, WorldView w, LivingEntity p, BlockPos foot) {
         hands.breakHold(false);
         BlockPos n0 = bottom.relative(nicheDir);
         // Must enter the niche FULLY — pressed against its back wall — before
@@ -349,7 +349,7 @@ public final class BunkerProcess implements BotProcess {
 
     private static String fmt(double v) { return String.format(Locale.ROOT, "%.2f", v); }
 
-    private boolean plug(Avatar a, WorldView w, BotState st, LivingEntity p) {
+    private boolean plug(Body a, WorldView w, BotState st, LivingEntity p) {
         a.commandForward(0f);
         // Plug the shaft column the bot vacated: bottom foot then the cell above.
         // Both gain support from below (floor / the foot-plug) so even sand holds.

@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.scheduler;
 
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -60,7 +60,7 @@ public final class ProcessScheduler {
         return lastPriorities;
     }
 
-    public void tick(Avatar body, WorldView w, BotState st) {
+    public void tick(Body body, WorldView w, BotState st) {
         Chain best = null;
         float bestP = 0f;
         float currentP = 0f;        // the incumbent's priority THIS tick

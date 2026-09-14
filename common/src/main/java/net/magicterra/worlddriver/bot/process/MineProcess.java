@@ -4,8 +4,8 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
@@ -255,7 +255,7 @@ public final class MineProcess implements BotProcess {
         st.mine.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         Player p = a.asPlayer();
         if (p == null) { st.mine.lastError = "player vanished"; finish(st, null, null, "player vanished"); return true; }
         hands = a.hands().orElse(null);
@@ -427,7 +427,7 @@ public final class MineProcess implements BotProcess {
                 }
             }
             case BREAKING -> {
-                // Release walking keys, hold the break action via the Avatar:
+                // Release walking keys, hold the break action via the Body:
                 //  - CLIENT: the dig latch PLUS a direct continueDestroy on the same block.
                 //    The latch drives nothing (see Hands#breakHold); the direct call is what
                 //    advances the break, and it makes vanilla's own attack pass stand aside for
@@ -449,10 +449,10 @@ public final class MineProcess implements BotProcess {
                 //
                 // Note this is a CLIENT-path concern only. It was first written down as the
                 // explanation for the journey's empty iron bag, and that was wrong:
-                // ServerPlayerAvatar breaks through Level#destroyBlock, which drops through
+                // ServerPlayerBody breaks through Level#destroyBlock, which drops through
                 // Block.dropResources(..., ItemStack.EMPTY) and never reads the hand at all. On
                 // the server avatar the held item cannot cost you a drop today (see
-                // ServerPlayerAvatar#DROP_HARVEST) — it would only start to once breaking moves
+                // ServerPlayerBody#DROP_HARVEST) — it would only start to once breaking moves
                 // to the faithful gameMode route.
                 // Swing at what is IN THE WAY, not at what is wanted. A buried ore is not
                 // breakable from a stand on the surface, and before the avatar had a reach gate
@@ -759,7 +759,7 @@ public final class MineProcess implements BotProcess {
     }
 
     /** True when at least one of the six faces is open — i.e. some ray could reach this block.
-     *  The same test {@code ServerPlayerAvatar} gates breaking on, asked here so the miner can
+     *  The same test {@code ServerPlayerBody} gates breaking on, asked here so the miner can
      *  tell "too far" (permanent from this stand) from "walled in" (the peel will fix it). */
     private static boolean isExposed(Level lvl, BlockPos pos) {
         for (Direction d : Direction.values()) {

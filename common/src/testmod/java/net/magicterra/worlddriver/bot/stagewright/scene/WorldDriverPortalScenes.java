@@ -7,7 +7,7 @@ import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.minecraft.core.BlockPos;
@@ -195,7 +195,7 @@ public final class WorldDriverPortalScenes {
         // source, the aim is the problem; if it IS and the use still fails, the problem is the use.
         // Clipped the way BucketItem clips, not with Entity.pick, and the difference is not
         // cosmetic. `pick` calls getViewYRot, which LivingEntity overrides to return yHeadRot —
-        // and Avatar.aimAtBlock sets yRot/xRot only, so a pick rays down a direction nobody aimed.
+        // and Body.aimAtBlock sets yRot/xRot only, so a pick rays down a direction nobody aimed.
         // In this arena that produced a quietly nonsensical reading (`-5,-59,-2` for a floor at
         // y=220) and nothing depended on it; in the journey the same call drove a tunnel, and the
         // tunnel mined eight blocks AWAY from the lava. Item.getPlayerPOVHitResult reads
@@ -496,7 +496,7 @@ public final class WorldDriverPortalScenes {
      *
      * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayerBodies.JoinedBody} overrides
      * {@code tick()} to do <i>nothing</i> — deliberately, so vanilla does not integrate locomotion
-     * a second time on top of {@code ServerPlayerAvatar.step()}. Vanilla's portal handling lives in
+     * a second time on top of {@code ServerPlayerBody.step()}. Vanilla's portal handling lives in
      * {@code Entity.baseTick()}, and whether that is reached depends entirely on the avatar's own
      * mirror of the tick. It is: {@code step()} calls {@code fp.baseTick()} first, and
      * {@code checkInsideBlocks()} rides {@code move()}. So the machinery is present — but "present"
@@ -630,7 +630,7 @@ public final class WorldDriverPortalScenes {
      * field there is no two-thick wall waiting beside the lava. The body has to build the mould.
      *
      * <p><b>Placement is exact and reach-free, which is why this is affordable.</b>
-     * {@code ServerPlayerAvatar.useBlock} constructs its own {@code BlockHitResult} from the cell
+     * {@code ServerPlayerBody.useBlock} constructs its own {@code BlockHitResult} from the cell
      * and face it is given rather than ray-tracing for one, and vanilla's distance check lives in
      * {@code ServerGamePacketListenerImpl.handleUseItemOn} — a packet this body never sends. So a
      * driven body can place a block in a named cell from wherever it is standing, and the mould is
@@ -926,7 +926,7 @@ public final class WorldDriverPortalScenes {
      * block is not itself ignitable — obsidian is not — vanilla puts the fire at
      * {@code clickedPos.relative(clickedFace)}. So the click has to be on a FRAME block with the face
      * pointing INTO the interior, and clicking the interior's floor with face UP is the natural way
-     * to say that. {@code ServerPlayerAvatar.useBlock} builds its {@code BlockHitResult} from that
+     * to say that. {@code ServerPlayerBody.useBlock} builds its {@code BlockHitResult} from that
      * face, so the parameter really does reach vanilla.
      */
     private static void serverLightsPortal(SceneContext ctx) {
@@ -1003,7 +1003,7 @@ public final class WorldDriverPortalScenes {
 
     /** The block a use would hit, clipped the way {@code Item.getPlayerPOVHitResult} clips it —
      *  from {@code getXRot()}/{@code getYRot()}, not from the head rotation {@code Entity.pick}
-     *  reads and {@code Avatar.aimAtBlock} never sets. */
+     *  reads and {@code Body.aimAtBlock} never sets. */
     private static net.minecraft.world.phys.BlockHitResult aimedAt(
             net.minecraft.server.level.ServerPlayer fp, double range, boolean hitFluids) {
         net.minecraft.world.phys.Vec3 eye = fp.getEyePosition();

@@ -21,16 +21,16 @@ import net.neoforged.neoforge.common.util.FakePlayer;
  */
 public class ServerWorldDriver extends net.magicterra.worlddriver.bot.sim.ServerWorldDriver {
 
-    public ServerWorldDriver(ServerPlayerAvatar avatar) { super(avatar); }
+    public ServerWorldDriver(ServerPlayerBody avatar) { super(avatar); }
 
-    /** Spawn an isolated FakePlayer ({@link ServerPlayerAvatar#createUnique}) at {@code (x,y,z)}
+    /** Spawn an isolated FakePlayer ({@link ServerPlayerBody#createUnique}) at {@code (x,y,z)}
      *  and wrap it in a driver — the {@code /worlddriver server} entry point: every agent gets its own
      *  body. */
     public static ServerWorldDriver createIsolated(ServerLevel level, double x, double y, double z) {
-        return new ServerWorldDriver(ServerPlayerAvatar.createUnique(level, x, y, z));
+        return new ServerWorldDriver(ServerPlayerBody.createUnique(level, x, y, z));
     }
 
-    @Override public ServerPlayerAvatar avatar() { return (ServerPlayerAvatar) super.avatar(); }
+    @Override public ServerPlayerBody avatar() { return (ServerPlayerBody) super.avatar(); }
 
     @Override public FakePlayer fakePlayer() { return (FakePlayer) super.fakePlayer(); }
 }

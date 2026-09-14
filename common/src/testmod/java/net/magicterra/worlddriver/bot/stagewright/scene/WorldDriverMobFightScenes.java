@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.stagewright.SceneArena;
@@ -487,7 +487,7 @@ public final class WorldDriverMobFightScenes {
         // would buy nothing and spend a minute of every gate run.
         BotConfig.pathfinderMaxNodes = 2_000;
 
-        ServerPlayerAvatar av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+        ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         fp.getInventory().clearContent();          // nothing to pillar with even if allowPlace flips
@@ -552,7 +552,7 @@ public final class WorldDriverMobFightScenes {
      * engine half of that contract: latch, DON'T move the body, then set a genuinely new goal within
      * easy reach — searches must resume and the body must go.
      */
-    private static void recoverArm(SceneContext ctx, ServerPlayerAvatar av, ServerPlayer fp,
+    private static void recoverArm(SceneContext ctx, ServerPlayerBody av, ServerPlayer fp,
                                    LevelWorldView w, BlockPos high, int cx, int floorY, int cz) {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
         Walker walker = new Walker();
@@ -607,7 +607,7 @@ public final class WorldDriverMobFightScenes {
      * budget; the only thing that changed is that the goal is eight blocks away instead of two
      * hundred straight up.
      */
-    private static ArmReading chaseArm(ServerPlayerAvatar av, ServerPlayer fp, LevelWorldView w,
+    private static ArmReading chaseArm(ServerPlayerBody av, ServerPlayer fp, LevelWorldView w,
                                        int cx, int floorY, int cz) {
         fp.setPos(cx - 4.5, floorY + 1, cz + 0.5);
         long[] before = futileSnapshot();
@@ -670,7 +670,7 @@ public final class WorldDriverMobFightScenes {
      * search every single tick. Stopping at the terminal turns that into a tidy "6 searches, FAILED"
      * while the real fight keeps burning one A* per tick behind it.
      */
-    private static ArmReading creepArm(ServerPlayerAvatar av, ServerPlayer fp, LevelWorldView w, String tag,
+    private static ArmReading creepArm(ServerPlayerBody av, ServerPlayer fp, LevelWorldView w, String tag,
                                        BlockPos high, int cx, int floorY, int cz,
                                        int regoalEvery, boolean retarget) {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);     // every arm starts from the same cell

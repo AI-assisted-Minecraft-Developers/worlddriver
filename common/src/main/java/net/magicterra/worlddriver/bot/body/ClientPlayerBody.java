@@ -1,8 +1,11 @@
-package net.magicterra.worlddriver.bot.movement;
+package net.magicterra.worlddriver.bot.body;
 
 import java.util.Optional;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.bot.movement.AvatarInput;
+import net.magicterra.worlddriver.bot.movement.ClientIntents;
+import net.magicterra.worlddriver.bot.movement.LookController;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.util.BotInteract;
 import net.minecraft.client.Minecraft;
@@ -13,18 +16,18 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * {@link Avatar} over the client {@code LocalPlayer}. Every method maps 1:1 to
+ * {@link Body} over the client {@code LocalPlayer}. Every method maps 1:1 to
  * the behaviour the Walker used inline before the seam was extracted, so client
  * movement is unchanged by construction (the zero-regression oracle). Installs
  * the decoupled {@link AvatarInput} lazily, exactly as the old Walker.tick did
  * (a respawn / dimension change builds a fresh vanilla KeyboardInput).
  */
-public final class ClientPlayerAvatar implements Avatar, Hands, Containers {
+public final class ClientPlayerBody implements Body, Hands, Containers {
 
     private final Minecraft mc;
     private final LocalPlayer p;
 
-    public ClientPlayerAvatar(Minecraft mc) {
+    public ClientPlayerBody(Minecraft mc) {
         this.mc = mc;
         this.p = mc.player;
         if (p != null && !(p.input instanceof AvatarInput)) p.input = new AvatarInput(mc.options);
@@ -73,7 +76,7 @@ public final class ClientPlayerAvatar implements Avatar, Hands, Containers {
         if (mc.gameMode != null && p != null) mc.gameMode.attack(p, target);
     }
 
-    /** Within-tick only: Walker.tick builds a fresh ClientPlayerAvatar every tick, so this field
+    /** Within-tick only: Walker.tick builds a fresh ClientPlayerBody every tick, so this field
      *  never outlives the call its caller is reading it for — which is the only window anyone
      *  should be asking about anyway. */
     private String lastAttackRefusal;
@@ -93,7 +96,7 @@ public final class ClientPlayerAvatar implements Avatar, Hands, Containers {
         // destroyProgress by a tick's worth, so a cell driven twice in one tick mines at double
         // speed. Two walker phases now do exactly that on the committed dig cell — the prelude
         // services the sticky dig, then digAimReassert re-asserts it — and they share one avatar,
-        // because Walker.tick builds a fresh ClientPlayerAvatar per tick and hands it to every
+        // because Walker.tick builds a fresh ClientPlayerBody per tick and hands it to every
         // phase. That shared instance is the whole scope of this guard: a process driving the same
         // cell in the same tick holds its own avatar and is not caught here. Same-cell only, on
         // purpose — two phases driving DIFFERENT cells in one tick is a separate bug, and quietly

@@ -25,7 +25,7 @@ import static net.magicterra.worlddriver.bot.movement.WalkerConstants.*;
  *  ({@code import static WalkerGeometry.*}) so every call site is unchanged. Visibility
  *  widened private->public only; bodies and doc comments preserved exactly. No behaviour change.
  *
- *  <p>The CLASS is public (its members already were) because {@code ServerPlayerAvatar} — in
+ *  <p>The CLASS is public (its members already were) because {@code ServerPlayerBody} — in
  *  {@code bot.sim}, one package over — gates its ground jump on {@link #soleOnSolid}. That is the
  *  point of it living here: "is this body standing on something" must have exactly ONE answer in
  *  this repo, and an actuator asking a different one from {@link Walker#footingGuard} is how an

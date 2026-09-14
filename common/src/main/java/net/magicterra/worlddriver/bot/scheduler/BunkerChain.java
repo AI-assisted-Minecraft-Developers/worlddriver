@@ -2,7 +2,7 @@ package net.magicterra.worlddriver.bot.scheduler;
 
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.combat.ThreatScanner;
 import net.magicterra.worlddriver.bot.combat.ClientThreatScanner;
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
@@ -45,7 +45,7 @@ public final class BunkerChain implements Chain {
 
     @Override public String name() { return "bunker"; }
 
-    @Override public float priority(Avatar body, WorldView w, BotState st) {
+    @Override public float priority(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         if (!BotConfig.autoBunker || mc.player == null) return 0f;
         int near = surroundCount(mc);
@@ -99,7 +99,7 @@ public final class BunkerChain implements Chain {
         return !sealed && hp <= retreatThr && scan.underRangedFire();
     }
 
-    @Override public void tick(Avatar body, WorldView w, BotState st) {
+    @Override public void tick(Body body, WorldView w, BotState st) {
         Minecraft mc = Chain.clientOf(body);
         LocalPlayer p = mc.player;
         if (p == null) return;

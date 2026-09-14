@@ -13,7 +13,7 @@ import net.magicterra.stagewright.scene.SceneProvider;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.minecraft.core.BlockPos;
@@ -373,7 +373,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         // `dropResources` — a fist opens the cell and drops nothing.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().selected = 0;
-        ServerPlayerAvatar av = driver.avatar();
+        ServerPlayerBody av = driver.avatar();
         // Three physics steps with no input, so the body is flush before any eye is read.
         for (int i = 0; i < 3; i++) av.step();
         return driver;

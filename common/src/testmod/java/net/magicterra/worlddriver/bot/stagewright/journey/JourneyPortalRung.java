@@ -945,7 +945,7 @@ public final class JourneyPortalRung {
 
         // THE JUDGE'S RADIUS, NOT ONLY THE EXECUTOR'S. {@code withinDigReach} is the executor's:
         // DIG_ARRIVE exists to match the {@code Goal.Near(cell, 2)} that mineCellOrGiveUp walks.
-        // But what decides whether a swing lands is {@code Avatar.canBreak}, an eye-distance test
+        // But what decides whether a swing lands is {@code Body.canBreak}, an eye-distance test
         // with a ceiling of 5.0 — so asking only the tighter number sends a body that could already
         // swing off to build a staircase it does not need.
         //

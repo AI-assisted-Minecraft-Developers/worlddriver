@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.PreviewSearch;
-import net.magicterra.worlddriver.bot.movement.Avatar;
+import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.pathfinder.Constraint;
 import net.magicterra.worlddriver.bot.pathfinder.CostModifier;
@@ -28,7 +28,7 @@ import java.util.List;
  * The generic navigation process for the LLM navigation intent layer: drives the
  * {@link Walker} toward an {@link Intent}'s target. Supersedes the old
  * {@code GotoProcess} — the {@code mc.bot.goto} verb, replay installs, and the
- * server Avatar proof all build an {@link Intent} and start this process. Phase A1
+ * server Body proof all build an {@link Intent} and start this process. Phase A1
  * handles a static target (behavior-identical to the old goto); later phases add
  * dynamic/derived targets, cost modifiers, capability profiles, and constraints.
  *
@@ -56,7 +56,7 @@ public final class IntentProcess implements BotProcess {
      *  first; arriving at one moves to the next, and only the last one ends the process. */
     private int leg;
     /** The dimension the goal's coordinates belong to, latched on the first tick that has a body.
-     *  Not taken in {@link #attach} because that is handed a {@link BotState} and no Avatar. */
+     *  Not taken in {@link #attach} because that is handed a {@link BotState} and no Body. */
     private ResourceKey<Level> plannedIn;
     /** The route events of this intent (null when the route declared nothing to report on),
      *  judged once per finished deep search: {@link #searchesJudged} is the walker's count the
@@ -121,10 +121,10 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.finalDist = -1;
     }
 
-    /** Avatar-migrated: drives the client LocalPlayer (via the BotProcess bridge)
+    /** Body-migrated: drives the client LocalPlayer (via the BotProcess bridge)
      *  or a server FakePlayer (ServerWorldDriver) identically — pure movement, so
-     *  it just hands the Walker the same Avatar. */
-    @Override public boolean tick(Avatar a, WorldView w, BotState st) {
+     *  it just hands the Walker the same Body. */
+    @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
         if (here != null) {

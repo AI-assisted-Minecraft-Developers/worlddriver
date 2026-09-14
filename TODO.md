@@ -414,9 +414,9 @@ water8.liftedY=64/60
   `moveCommanded` 压过 `rawMoveCommanded`，walker 每 tick 下 `commandMove`，于是同 tick 的 `BotInput.stop`
   一类后备被静默丢弃，其 javadoc「Stop horizontal movement this tick」在 walker 活跃时是假的。
   升级通道会改后备与进程的仲裁语义，所有拓扑都受影响。
-- **到同一个 `AvatarInput` 有四条路**（janitor F3）：`Avatar` 接口、`BotInput`、`AutoSwim:86` 自抄的一份、
-  `mc.options.key*`（只剩 `keyAttack`／`keyUse`）。只有 `Avatar` 能驱动服务端身体；把四个反射搬上
-  `Avatar` 是架构决定，不是清理。
+- **到同一个 `AvatarInput` 有四条路**（janitor F3）：`Body` 接口、`BotInput`（已退役）、`AutoSwim:86` 自抄的一份、
+  `mc.options.key*`（只剩 `keyAttack`／`keyUse`）。只有 `Body` 能驱动服务端身体；把四个反射搬上
+  `Body` 是架构决定，不是清理。
 - **进程的 `attach()` 不清上一趟的终局字段**（janitor F14）：`goalReached`／`endReason`／`finalDist` 由
   `reset()` 故意保留、该由 `attach()` 清，`bot/process/` 下只有 1 个文件写 `goalReached = false`。
   `mc.bot.status` 于是把上一趟的判词挂在活着的运行上。收成一个 `beginRun()`，要闸。

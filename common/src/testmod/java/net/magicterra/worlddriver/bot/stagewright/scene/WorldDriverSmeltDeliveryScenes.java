@@ -5,7 +5,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.SmeltProcess;
 import net.magicterra.worlddriver.bot.sim.ServerWorldDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
-import net.magicterra.worlddriver.bot.sim.ServerPlayerAvatar;
+import net.magicterra.worlddriver.bot.sim.ServerPlayerBody;
 import net.magicterra.worlddriver.bot.stagewright.SceneBody;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -58,7 +58,7 @@ public final class WorldDriverSmeltDeliveryScenes {
      * slot is taken. The process then reported DONE with {@code lastError} null: ingots made, ingots
      * stranded in the furnace, caller told nothing. Intermittent live for a reason that is not about
      * smelting at all — the body stands beside the furnace for a thousand ticks with
-     * {@code ServerPlayerAvatar}'s pickup loop running, so the slot its own ore vacated at LOAD
+     * {@code ServerPlayerBody}'s pickup loop running, so the slot its own ore vacated at LOAD
      * refills with whatever the mining rung left on the ground. So phase 2 plugs every free slot at
      * the moment the ore enters the furnace — deterministically, and before the first ingot exists,
      * which is what keeps it out of a race with COLLECT — and requires the run to come back with a

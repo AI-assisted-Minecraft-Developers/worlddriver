@@ -3,9 +3,9 @@ package net.magicterra.worlddriver.bot.process;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.BodyReady;
-import net.magicterra.worlddriver.bot.movement.Avatar;
-import net.magicterra.worlddriver.bot.movement.Containers;
-import net.magicterra.worlddriver.bot.movement.Hands;
+import net.magicterra.worlddriver.bot.body.Body;
+import net.magicterra.worlddriver.bot.body.Containers;
+import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.core.BlockPos;
@@ -111,7 +111,7 @@ public final class SmeltProcess implements BotProcess {
         s.smelt.lastError = null;
     }
 
-    @Override public boolean tick(Avatar a, WorldView w, BotState s) {
+    @Override public boolean tick(Body a, WorldView w, BotState s) {
         Player p = a.asPlayer();
         Level lvl = p == null ? null : p.level();
         if (p == null || lvl == null) { fail(s, "no player"); return true; }
@@ -166,7 +166,7 @@ public final class SmeltProcess implements BotProcess {
         return false;
     }
 
-    private void init(Avatar a, Player p, Level lvl, BotState s) {
+    private void init(Body a, Player p, Level lvl, BotState s) {
         ResourceLocation rl = ResourceLocation.tryParse(input == null ? "" : input);
         if (rl == null || !BuiltInRegistries.ITEM.containsKey(rl)) { fail(s, "unknown item: " + input); return; }
         int have = countInInventory(p, input);
@@ -222,7 +222,7 @@ public final class SmeltProcess implements BotProcess {
         if (++waited > OPEN_TIMEOUT) fail(s, "打开熔炉超时");
     }
 
-    private void load(Avatar a, Player p, BotState s) {
+    private void load(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         if (adopt) {
             // Furnace already holds the load (or is empty — SMELT_WAIT's cold
@@ -273,7 +273,7 @@ public final class SmeltProcess implements BotProcess {
      *  @return the burn ticks now sitting in the FUEL slot, or −1 when the bag holds no usable
      *          fuel. {@code 0} is its own answer and a distinct bug: a fuel WAS found and the
      *          click did not land, which used to be indistinguishable from having none. */
-    private int loadFuel(Avatar a, AbstractContainerMenu menu) {
+    private int loadFuel(Body a, AbstractContainerMenu menu) {
         int fuelSlot = pickFuelMenuSlot(menu, fuelId);
         if (fuelSlot < 0) return -1;
         fuelChosen = shortId(idOf(menu.slots.get(fuelSlot).getItem()));
@@ -287,7 +287,7 @@ public final class SmeltProcess implements BotProcess {
         return fuelBurnLoaded;
     }
 
-    private void smeltWait(Avatar a, Player p, BotState s) {
+    private void smeltWait(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         if (!(menu instanceof AbstractFurnaceMenu fm)) { fail(s, "熔炉界面意外关闭"); return; }
         // Is the furnace still THERE? Nothing in this repo reclaims one mid-smelt, so a hit here
@@ -381,7 +381,7 @@ public final class SmeltProcess implements BotProcess {
         }
     }
 
-    private void collect(Avatar a, Player p, BotState s) {
+    private void collect(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
         // Take back ALL THREE furnace slots, not just the result (gap#64③): the
         // shift-click loading moves whole stacks, so surplus ingredient and unburned
@@ -406,7 +406,7 @@ public final class SmeltProcess implements BotProcess {
         // NOTHING when every player slot is taken, and this method then reported DONE with
         // lastError null. Measured shape, and it is intermittent for a reason that has nothing to
         // do with smelting: the body stands beside the furnace for 200 ticks per item with
-        // ServerPlayerAvatar's pickup loop running, so the slot its own ore vacated at LOAD fills
+        // ServerPlayerBody's pickup loop running, so the slot its own ore vacated at LOAD fills
         // back up with whatever the mining rung left lying around — and the ingots it just made
         // have nowhere to go. From the rung's side that is byte-identical to a smelt that never
         // happened, which is exactly how it was read ("mined is not collected", one container
@@ -512,7 +512,7 @@ public final class SmeltProcess implements BotProcess {
         return nearestBlockWithinReach(p, lvl, Blocks.FURNACE, REACH, 4, 2);
     }
 
-    private BlockPos placeFurnace(Avatar a, Player p, Level lvl) {
+    private BlockPos placeFurnace(Body a, Player p, Level lvl) {
         return PlaceNearby.place(a, hands, p,lvl, Items.FURNACE, Blocks.FURNACE, "smelt");
     }
 
