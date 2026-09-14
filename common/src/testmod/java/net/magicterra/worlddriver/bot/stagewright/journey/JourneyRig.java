@@ -1577,6 +1577,7 @@ public final class JourneyRig {
     public void await(BooleanSupplier done, int withinTicks, Runnable then) {
         ctx.await(() -> {
             pinAroundBody();
+            stepIdleBody();
             legTicks++;
             heartbeat(withinTicks);
             noteHurt();
@@ -1588,6 +1589,26 @@ public final class JourneyRig {
             if (diedOf != null) { ctx.fail(diedOf); return; }
             then.run();
         });
+    }
+
+    /**
+     * Give a headless body the server tick nobody else is giving it.
+     *
+     * <p>A connected player is ticked by its connection every server tick, key held or not, so a
+     * meal finishes and health comes back while it stands still. A {@code JoinedBody} advances only
+     * when {@code ServerPlayerBody.step()} pumps it, and between legs no driver does. The hand
+     * physics hid that, since food never drained; on the vanilla pump {@link JourneyFeed}'s first
+     * bite on the portal-kit rung held the use key on a body nobody ticked and timed out unfed.
+     *
+     * <p>Only while no driver is registered, so a leg's step is never doubled, and never on an
+     * adopted real player, whose client ticks it. Walking inputs are released so an idle wait does
+     * not replay a leg's last press; a held use survives, which is what a bite needs.
+     */
+    private void stepIdleBody() {
+        ServerWorldDriver d = driver;
+        if (d == null || adoptedRealPlayer || realPlayerHelm(ctx) || ServerAvatarManager.isRegistered(d)) return;
+        d.avatar().releaseInputs();
+        d.avatar().step();
     }
 
     /**

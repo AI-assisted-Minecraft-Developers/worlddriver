@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-15
+
+- **The ladder ticks its body while it waits.** A `JoinedBody` advances only when
+  `ServerPlayerBody.step()` pumps it, and between legs no driver is registered to do that, so on the
+  headless ladder a meal never finished and health never came back while the rig waited. The hand
+  physics hid this: food never drained, so `JourneyFeed` never had to eat. The first headless ladder
+  on the vanilla pump stopped at the portal-kit rung, whose opening bite held the use key for 60
+  ticks on a body nobody ticked. `JourneyRig.await` now steps the body itself, walking inputs
+  released, whenever no driver is registered and the body is not an adopted real player;
+  `ServerAvatarManager.isRegistered` is new for that check.
+
 ## 2026-09-14
 
 - **A server body opens a station only the way a player does.** `ServerPlayerBody.useBlock` no

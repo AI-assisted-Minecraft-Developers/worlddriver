@@ -24,6 +24,8 @@ public final class ServerAvatarManager {
 
     public static void register(ServerWorldDriver d) { ACTIVE.addIfAbsent(d); }
     public static void unregister(ServerWorldDriver d) { ACTIVE.remove(d); }
+    /** Whether {@code d} is still on the tick list; {@link #tickAll} drops a finished driver itself. */
+    public static boolean isRegistered(ServerWorldDriver d) { return ACTIVE.contains(d); }
     public static int activeCount() { return ACTIVE.size(); }
     public static void clear() { ACTIVE.clear(); }
 
