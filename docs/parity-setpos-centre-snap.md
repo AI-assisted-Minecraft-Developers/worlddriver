@@ -128,6 +128,9 @@ public void setPos(double, double, double);
   `fp.baseTick()` → `mirrorPlayerTick()` → `fp.travel(...)`，**从不进 `aiStep()`**
   （这就是 `fake-player-parity.md` §2 的通道(二)不跑）；`AvatarNetHandler` 也没有 `handleMovePlayer`。
   **插进去就一直插着。**
+- **2026-09-14 起这一条的服务端一半不再成立**：`ServerPlayerBody.step()` 改走 `JoinedBody.pump`，
+  身体跑原版 `aiStep()`；`JoinedBody.aiStep` 移植了 `LocalPlayer.aiStep` 四个水平角上的
+  `moveTowardsClosestSpace`，两具身体在这一点上对称了。
 
 这与文档 §0 末尾那条判据同构：**这不是「客户端缺能力」，是「服务端身体缺纠正」。**
 

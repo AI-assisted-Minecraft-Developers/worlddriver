@@ -1301,6 +1301,16 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // scene's premise that nothing ever gets placed, and it would also flip the phase-class
         // semantics J24b just settled. One moving part, not three.
         BotConfig.walkerPillarSurfacePlace = false;
+        // TRUE, explicitly, because the pinned baseline turns it off and the takeover never engages
+        // without it. With it off, `deepDig` sends the bank to the dig at stall 21, nine ticks before
+        // the pillar may engage at 30. The hand-integrated body bobbed low enough that the dig was
+        // judged infeasible and the pillar got its turn anyway; the pumped body rides the bank to feet
+        // 208.99 over a 208 surface, as the client does, the dig becomes feasible, takes the riser and
+        // walks out (`climb-ctx … stall=20 deepDig=true` → `block-less bank dig`, ARRIVED in 55 ticks).
+        // It is also the production default, so this pins the order the walker ships with.
+        BotConfig.walkerFootholdBeforeBankDig = true;
+        // The climb-ctx rows are what told that staging failure apart from a ledger one; keep them.
+        BotConfig.walkerDebug = true;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
@@ -1445,6 +1455,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // and turning it on adds the :921 crest-place, which fills cells WITHOUT going through the
         // ledger — the one route that would let this scene see a fill it is not measuring.
         BotConfig.walkerPillarSurfacePlace = false;
+        // TRUE for the same reason as the positive scene: off, the bank dig beats the takeover to the
+        // bank and the pumped body walks out before a single place is clicked.
+        BotConfig.walkerFootholdBeforeBankDig = true;
+        BotConfig.walkerDebug = true;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 

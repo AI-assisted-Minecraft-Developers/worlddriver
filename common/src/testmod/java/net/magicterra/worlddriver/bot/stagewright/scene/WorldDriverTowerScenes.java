@@ -51,7 +51,7 @@ import net.minecraft.world.phys.AABB;
  * therefore unmeasured: that N courses produce N blocks of climb, that the blocks land in the
  * column the body started in, that a body still moving when the order arrives climbs at all.
  *
- * <h2>What these six arms are</h2>
+ * <h2>What these five arms are</h2>
  *
  * <b>Sensors. Nothing in this file touches the product.</b> Every arm's expected colour is written
  * down HERE, before the first run — a criterion chosen after seeing the number it has to accept is
@@ -71,18 +71,6 @@ import net.minecraft.world.phys.AABB;
  *       {@code if (!p.onGround()) return false} burns stuck-ticks while it settles. Neither is
  *       observable through a rig that lands the body first, which is why the covered scene lands
  *       it.</li>
- *   <li><b>{@code wd.serverTowersWithoutOnGround} — expected RED until {@code TowerProcess:128} is
- *       fixed.</b> {@code onGround()} is not a reading of where a body stands: {@code Entity.move}
- *       ends in {@code setOnGroundWithMovement(verticalCollisionBelow, …)}, so it means "my last
- *       requested move was downward and got clipped". A body that lands flush, or is placed rather
- *       than moved, stands on solid rock with that bit false. {@code ServerPlayerBody} already
- *       argues this at length and its jump gate reads {@code WalkerGeometry.soleOnSolid} instead;
- *       {@code wd.flushJumpIgnoresOnGround} pins that for the avatar. TowerProcess never got the
- *       memo, and this arm forces the state the same way that scene does —
- *       {@code fp.setOnGround(false)} every tick — rather than hunting terrain that produces it.
- *       <b>Its red is distinguishable from arms 1 and 2 by shape, not just by colour</b>: it dies on
- *       the stuck guard ({@code "stuck (no Y gain in 60t — out of blocks?)"}) with a full stack of
- *       cobblestone in hand, where arms 1 and 2 report {@code done (placed=N}.</li>
  *   <li><b>{@code wd.serverTowersOnAFreePillar} — expected GREEN, and it is the drift sensor.</b>
  *       A 1x1 pillar with five clear cells of air on every side and a long drop under it: any
  *       horizontal slip at all shows up as a block placed off-column, and there is no floor to hide
@@ -135,7 +123,7 @@ import net.minecraft.world.phys.AABB;
  *       because it is the only reading that splits「没调过 / 无面 / 无块」— and this process never
  *       calls {@code exAlarms.notePlace}, so a place it silently loses is invisible everywhere
  *       else.</li>
- *   <li><b>Only arm 2 plans.</b> The other five drive {@code ServerWorldDriver.tick()} synchronously
+ *   <li><b>Only arm 2 plans.</b> The other four drive {@code ServerWorldDriver.tick()} synchronously
  *       inside the scene body, the way the sibling {@code wd.parkourVoid*} scenes drive their
  *       Walker: TowerProcess never touches the pathfinder, so a few hundred of its ticks inside one
  *       server tick costs nothing. Arm 2's walk DOES plan, so it runs over
@@ -153,10 +141,6 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                 // JourneyEndRungs.smashCrystal's own ordering. Expected RED.
                 Scene.of("wd.serverTowersAfterAWalk", 600,
                         WorldDriverTowerScenes::serverTowersAfterAWalk),
-                // Expected RED until TowerProcess:128 stops asking onGround(). Expected to die on
-                // the stuck guard, which is what keeps its red distinguishable from arms 1 and 2.
-                Scene.of("wd.serverTowersWithoutOnGround", 200,
-                        WorldDriverTowerScenes::serverTowersWithoutOnGround),
                 // The drift sensor for TowerProcess:155-157. Expected GREEN.
                 Scene.of("wd.serverTowersOnAFreePillar", 200,
                         WorldDriverTowerScenes::serverTowersOnAFreePillar),
@@ -189,7 +173,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
 
     /** Clear cells kept above every floor. Well past the tallest arm (12 courses) so no arm can be
      *  stopped by its own ceiling — a tower that hits rock reports the stuck guard, and that would
-     *  read exactly like arm 3's defect. */
+     *  read like a verdict on the process instead of on the arena. */
     private static final int HEADROOM = 40;
 
     /** Synchronous ticks any single tower drive may spend. Twelve courses cost about ten ticks each
@@ -239,9 +223,9 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     /**
      * Three physics steps with no input, so the body is standing flush before anything is measured.
      *
-     * <p>{@code wd.flushJumpIgnoresOnGround} settles the same way and for the same reason: a body
-     * that has never moved reports {@code onGround() == false}, and {@code TowerProcess}'s READY
-     * phase refuses to jump on that. An unsettled start would spend its first ticks landing and
+     * <p>{@code wd.jumpWaitsForOnGround} settles the same way and for the same reason: a body
+     * that has never moved reports {@code onGround() == false}, and vanilla's jump refuses a
+     * press on that. An unsettled start would spend its first ticks landing and
      * charge them to the tower, which is a reading about the spawn and not about the verb.
      *
      * <p>⚠️ {@link #serverTowersAfterAWalk} deliberately does NOT settle. Not being landed is the
@@ -252,7 +236,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
     }
 
     /** Total count of an item across the WHOLE inventory, not the hotbar — a place spends a block
-     *  whichever slot it came out of, and arm 6 stocks the bag on purpose. */
+     *  whichever slot it came out of, and arm 5 stocks the bag on purpose. */
     private static int carrying(ServerPlayer fp, Item item) {
         int n = 0;
         for (ItemStack st : fp.getInventory().items) if (st.is(item)) n += st.getCount();
@@ -340,12 +324,12 @@ public final class WorldDriverTowerScenes implements SceneProvider {
      *
      * <p>The process is constructed directly, the way {@code JourneyEndRungs.smashCrystal} does,
      * NOT through {@code BotApiImpl}: the API layer holds guards the constructor does not (see the
-     * class javadoc on arm 5), and routing through it would test the guards instead of the process.
+     * class javadoc on arm 4), and routing through it would test the guards instead of the process.
      *
      * @param columnCells how many cells of the START column to read back afterwards — the reading
      *                    that catches a tower which gained height by leaning into another column
-     * @param beforeEachTick run immediately before every {@code driver.tick()}; the seam arm 3 uses
-     *                       to hold {@code onGround} false, and a no-op everywhere else
+     * @param beforeEachTick run immediately before every {@code driver.tick()}; the seam
+     *                       {@link #apexWatch} samples through, and a no-op everywhere else
      */
     private static Run runTower(SceneContext ctx, String arm, ServerWorldDriver driver,
                                 int targetY, int columnCells, int budget, Runnable beforeEachTick) {
@@ -446,7 +430,7 @@ public final class WorldDriverTowerScenes implements SceneProvider {
         ServerWorldDriver driver = body(ctx, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Slot 0, because that is the constraint TowerProcess actually has outside creative — see
-        // arm 6, which holds the other side of it.
+        // arm 5, which holds the other side of it.
         fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
         fp.getInventory().selected = 0;
         settle(driver.avatar());
@@ -567,62 +551,6 @@ public final class WorldDriverTowerScenes implements SceneProvider {
                             + " latched at the jump, so a moving body builds under where it is going"
                             + " rather than where it jumped").isTrue();
         });
-    }
-
-    /**
-     * <b>The same twelve-course rig, four courses, and {@code onGround} held false every tick.</b>
-     *
-     * <p>{@code TowerProcess:128} gates its whole state machine on {@code p.onGround()}, which is
-     * not a reading of where a body stands. {@code Entity.move} ends in
-     * {@code setOnGroundWithMovement(this.verticalCollisionBelow, vec3)}, so the bit means "my last
-     * requested move was downward and got clipped" — false for a body that landed flush, and false
-     * for a body that was placed rather than moved. {@code ServerPlayerBody} spends a screen of
-     * comment on exactly this and its own jump gate reads {@code WalkerGeometry.soleOnSolid}
-     * instead; {@code wd.flushJumpIgnoresOnGround} is the scene that pins it there.
-     *
-     * <p>The actuation is copied from that scene: {@code fp.setOnGround(false)} directly, rather
-     * than hunting for terrain that produces the state. The arena must test the GATE, not the
-     * geometry that happens to trip it — and {@code av.step()} restores the bit every tick, so it is
-     * cleared again immediately before each {@code driver.tick()}.
-     *
-     * <h2>Expected RED, and expected to LOOK different from arms 1 and 2</h2>
-     *
-     * READY returns early forever, so no jump ever fires, {@code lastApexFloorY} never moves, and
-     * the run dies on the stuck guard at tick 61 with {@code "stuck (no Y gain in 60t — out of
-     * blocks?)"} while holding 64 cobblestone. Arms 1 and 2 report {@code done (placed=N}. That
-     * difference is what makes a three-arm red readable at a glance instead of "the tower family is
-     * red"; the message being wrong about its own cause is arm 6's subject.
-     */
-    private static void serverTowersWithoutOnGround(SceneContext ctx) {
-        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
-        final int floorY = floorY(ctx), standY = floorY + 1;
-        final int courses = 4, stock = 64;
-
-        var pin = BotConfig.pinnedBaseline();
-        ctx.cleanup(pin::close);
-        towerConfig();
-        ServerAvatarManager.clear();
-        ctx.cleanup(ServerAvatarManager::clear);
-        stageFlatArena(ctx, 3, floorY);
-
-        ServerWorldDriver driver = body(ctx, cx + 0.5, standY, cz + 0.5);
-        ServerPlayer fp = driver.fakePlayer();
-        fp.getInventory().items.set(0, new ItemStack(ITEM, stock));
-        fp.getInventory().selected = 0;
-        settle(driver.avatar());
-
-        requireStaged(ctx, "tower", fp, new BlockPos(cx, standY, cz), cx, standY, courses, cz, stock);
-
-        final int startFeetY = fp.blockPosition().getY();
-        Run r = runTower(ctx, "tower", driver, startFeetY + courses, courses, DRIVE_BUDGET,
-                () -> fp.setOnGround(false));
-
-        ctx.check(r.endFeetY).as("A 仍然涨 " + courses + " 格: end feet y (start " + startFeetY
-                + ") with onGround() forced false every tick — the body's sole never left the stone,"
-                + " so a gate that read the sole instead would be unaffected")
-                .isEqualTo(startFeetY + courses);
-        ctx.check(r.spent).as("B 恰好耗 " + courses + " 块: cobblestone spent (still holding "
-                + r.carriedAfter + " — a stuck verdict here is NOT 'out of blocks')").isEqualTo(courses);
     }
 
     /**

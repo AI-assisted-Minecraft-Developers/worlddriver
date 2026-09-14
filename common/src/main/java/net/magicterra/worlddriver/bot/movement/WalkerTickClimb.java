@@ -142,9 +142,9 @@ final class WalkerTickClimb {
         // TWO ways to be making progress, and the second one is not a courtesy. The takeover's
         // product is「fill the cell under my own feet, then jump off it」, one cell per cycle — the
         // fill and the rise are two readings of ONE event, taken a tick apart, and either may be the
-        // one this tick can see. wd.waterLowBank is the whole cycle in eight ticks: click at X.98,
-        // the cell turns solid, soleOnSolid reads a full footprint, the ground-jump gate fires
-        // +0.42, and the body arrives at (X+1).98 to do it again — three times, out of the water.
+        // one this tick can see. wd.waterLowBank is the whole cycle: click at X.98, the cell turns
+        // solid, the body stands on it, a ground jump fires +0.42, and the body arrives at (X+1).98
+        // to do it again — three times, out of the water.
         // Counting only the click is what broke: Hands#place returns void, so a refused click and a
         // landed one were the same event, and a body bobbing in a band it could never place from
         // pressed the button forever while the dig fallback behind it could not fire.

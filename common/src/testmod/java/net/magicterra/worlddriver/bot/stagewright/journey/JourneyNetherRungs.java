@@ -2352,12 +2352,13 @@ public final class JourneyNetherRungs {
         // diagnosis, and it is invisible in a line that only names blocks: the body has walked
         // itself off a ceiling and every later reading is about wherever it lands.
         //
-        // NOT fallDistance. `ServerPlayer.checkFallDamage` — the override Entity.move() calls — is
-        // an EMPTY method: the accumulating one is `doCheckFallDamage`, which runs only when a
-        // movement packet arrives, and a FakePlayer sends none. So `fp.fallDistance` is 0 for this
-        // body always, and the `坠=0.0` this line used to print was a diagnostic that answered
-        // "not falling" about a body measured dropping 1.14 blocks in a single tick. The body's own
-        // vertical velocity is the reading that survives having no client.
+        // NOT fallDistance, and the reason is history worth keeping. `ServerPlayer.checkFallDamage` —
+        // the override Entity.move() calls — is an EMPTY method: the accumulating one is
+        // `doCheckFallDamage`, which vanilla runs only off a movement packet. Until 2026-09-14 the
+        // server body sent none and nothing stood in for it, so `fp.fallDistance` was 0 for this body
+        // always, and the `坠=0.0` this line used to print answered "not falling" about a body
+        // measured dropping 1.14 blocks in a single tick. JoinedBody.pump runs the packet tail now,
+        // so the field counts; the body's own vertical velocity stays because it needs neither.
         sb.append(" onGround=").append(fp.onGround())
           .append(" 落速=").append(String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y))
           .append(" 血=").append(Math.round(fp.getHealth()))
@@ -2449,9 +2450,11 @@ public final class JourneyNetherRungs {
      *
      * <p>This used to read {@code fallDistance > 2.0f}, and <b>that branch could never fire</b>:
      * {@code ServerPlayer.checkFallDamage} is an empty override, the accumulating
-     * {@code doCheckFallDamage} runs only off a movement packet, and this body has no connection —
-     * so the field is 0 through an eleven-block drop. The guard that this rung's whole "a retry that
-     * changes nothing" note is about therefore only ever worked through its lava and water branches.
+     * {@code doCheckFallDamage} runs only off a movement packet, and until 2026-09-14 nothing ran it
+     * for this body — so the field was 0 through an eleven-block drop. The guard that this rung's
+     * whole "a retry that changes nothing" note is about therefore only ever worked through its lava
+     * and water branches. {@code JoinedBody.pump} runs it now; the velocity test stays, since it reads
+     * the body itself rather than a field some other code path has to keep up to date.
      *
      * <p>−0.3 blocks per tick is roughly four ticks of gravity, which is past any step-down and well
      * short of the −0.7 a three-block fall reaches. Measured on the crossing: 1.14 blocks in one

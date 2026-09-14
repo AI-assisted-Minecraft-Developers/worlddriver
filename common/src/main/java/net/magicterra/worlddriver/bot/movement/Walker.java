@@ -1084,12 +1084,12 @@ public final class Walker {
                 .append(String.format(java.util.Locale.ROOT, " 属性=%.4f(稳态上限应为 %.4f)",
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED),
                         p.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED) * 2.1585))
-                // THE QUANTITY THE JUMP USED TO BRANCH ON, kept as an input rather than as truth:
-                // onGround IS vanilla's verticalCollisionBelow (Entity.move assigns one from the
-                // other in a single statement), so it describes the previous MOVE and is wrong in
-                // both directions about where the body is.
+                // THE QUANTITY THE JUMP BRANCHES ON (vanilla's gate, on both bodies), kept as an
+                // input rather than as truth: onGround IS vanilla's verticalCollisionBelow
+                // (Entity.move assigns one from the other in a single statement), so it describes the
+                // previous MOVE and is wrong in both directions about where the body is.
                 .append(" onGround=").append(p.onGround())
-                // WHAT THE GATE ASKS NOW — see ServerPlayerBody.step(). Printed beside onGround
+                // THE SOLE READING the walker's own footing guards use. Printed beside onGround
                 // so a run says which of the two was lying, and printed with the EXACT y because
                 // that is the only thing that tells a standing body from a falling one when the
                 // block coordinate below is the same for both (a body falling from y=49.9 spends
@@ -1339,8 +1339,8 @@ public final class Walker {
      * distance without a footing is the same row in both worlds, and the whole point of the line is
      * that they be different rows.
      *
-     * <p>{@code 脚底实心} is {@link WalkerGeometry#soleOnSolid}, the predicate the ground jump gate
-     * itself steers by, deliberately rather than a second opinion about what standing means: an
+     * <p>{@code 脚底实心} is {@link WalkerGeometry#soleOnSolid}, the predicate the walker's footing
+     * guards steer by, deliberately rather than a second opinion about what standing means: an
      * executor and a reading that answer that question differently is how a diagnosis comes to
      * describe a body that does not exist.
      *
@@ -2249,9 +2249,8 @@ public final class Walker {
         if (!BotConfig.walkerStrideFloorGuard || guardParkourTick) return skipStride(0);
         LivingEntity p = a.entity();
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
-        // last move() and is wrong in BOTH directions, which is why ServerPlayerBody's jump gate
-        // abandoned it and why `wd.flushJumpIgnoresOnGround` pins that a body can be flush on stone
-        // while it reads false. Every other reader of it has been converted one at a time; this one
+        // last move() and is wrong in BOTH directions: a body can be flush on stone while it reads
+        // false. Every other reader of it has been converted one at a time; this one
         // is the most expensive to have left, because a stale false silently switches OFF the only
         // guard whose job is to stop the body striding into a bottomless drop. Measured on journey
         // rung 20 (2026-08-18): a whole run over the End island — void on every side — logged the

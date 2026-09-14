@@ -328,9 +328,9 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
      *
      * <p>The loop is deliberately the dumbest thing that can produce the measurement: every input is
      * released on every tick, so the only forces acting on the body are gravity, collision and the
-     * explosion. {@code av.step()} runs {@code fp.travel(...)}, which is the same
-     * gravity-then-{@code move()} pipeline the client's {@code aiStep} runs — so a body whose footing
-     * has been deleted falls, and one whose footing survived does not.
+     * explosion. {@code av.step()} runs the body's own vanilla {@code aiStep}, the same
+     * gravity-then-{@code move()} pipeline the client runs — so a body whose footing has been
+     * deleted falls, and one whose footing survived does not.
      */
     private static void swingAndWatch(SceneContext ctx, String name, ServerLevel level,
                                       EndCrystal crystal, int cx, int cz, int topY, int standY,

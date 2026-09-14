@@ -36,9 +36,9 @@ import net.minecraft.server.level.ServerPlayer;
  * there is neither.
  *
  * <p>This class implements the second of those. Driving the real player is the larger job — the
- * gate scenes actuate through {@code ServerPlayerBody.step()}, which integrates locomotion by
- * hand, and writing those positions onto a player whose client is also sending movement packets
- * makes the two fight. {@code JourneyRig} already carries the shape of the answer (flip the helm to
+ * gate scenes actuate through {@code ServerPlayerBody.step()}, which ticks the player it pumps,
+ * and ticking a player whose own client is also moving it and sending movement packets makes the
+ * two fight. {@code JourneyRig} already carries the shape of the answer (flip the helm to
  * {@code BotApi.runProcess} and let the client's own task chain drive), and converting a scene
  * family to it is per-family work, not a rename. Until a family is converted, a recorded skip is
  * the honest state: it is accounted for in the results, it names where the coverage actually is, and

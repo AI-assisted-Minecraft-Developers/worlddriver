@@ -111,7 +111,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.schemaUnionRendering", 200, WorldDriverCoreScenes::schemaUnionRendering),
                 Scene.of("wd.physicsParity", 200, WorldDriverCoreScenes::physicsParity),
                 Scene.of("wd.airborneJumpInert", 200, WorldDriverCoreScenes::airborneJumpInert),
-                Scene.of("wd.flushJumpIgnoresOnGround", 200, WorldDriverCoreScenes::flushJumpIgnoresOnGround),
+                Scene.of("wd.jumpWaitsForOnGround", 200, WorldDriverCoreScenes::jumpWaitsForOnGround),
                 Scene.of("wd.climbableGroundJump", 200, WorldDriverCoreScenes::climbableGroundJump),
                 Scene.of("wd.buoyantJumpStaysABob", 200, WorldDriverCoreScenes::buoyantJumpStaysABob),
                 Scene.of("wd.buildBlockWhitelist", 200, WorldDriverCoreScenes::buildBlockWhitelist),
@@ -591,7 +591,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     // ==================================================================================
 
     /** Ported from {@code AgentGameTest#physicsParity}: physics-parity gate for
-     *  {@link ServerPlayerBody} — a manual travel()+move() body must reproduce vanilla movement
+     *  {@link ServerPlayerBody} — the pumped body must reproduce vanilla movement
      *  (horizontal travel, a jumped +1 step-up, a standing-jump apex ~1.25). */
     private static void physicsParity(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -630,7 +630,10 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (apex < 1.0 || apex > 1.5)
             ctx.fail("physicsParity: jump apex off: " + apex + " (expected ~1.25)");
 
-        // 3) Jumped +1 step-up: a full block ahead is cleared by forward+jump.
+        // 3) Jumped +1 step-up: a full block ahead is cleared by forward+jump. Judged by the body
+        //    STANDING on the block, not by where it is after a fixed tick count: a vanilla sprint-jump
+        //    carries it over the one-block row and off the ±5 floor well inside 30 ticks, which read
+        //    as climbed=-6.29 the first time this ran on the pumped body.
         ServerPlayerBody av3 = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
         ServerPlayer fp3 = av3.fakePlayer();
         ctx.cleanup(() -> fp3.discard());
@@ -638,9 +641,12 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(cx + dx, standY, cz + 3), Blocks.STONE.defaultBlockState());
         for (int i = 0; i < 3; i++) { av3.step(); }
         double su0 = fp3.getY();
+        double climbed = 0;
         fp3.setSprinting(true);
-        for (int i = 0; i < 30; i++) { fp3.setYRot(0f); av3.commandForward(1f); av3.commandJump(fp3.onGround()); av3.step(); }
-        double climbed = fp3.getY() - su0;
+        for (int i = 0; i < 30 && climbed < 0.9; i++) {
+            fp3.setYRot(0f); av3.commandForward(1f); av3.commandJump(fp3.onGround()); av3.step();
+            if (fp3.onGround()) climbed = Math.max(climbed, fp3.getY() - su0);
+        }
         if (climbed < 0.9)
             ctx.fail("physicsParity: jumped +1 step-up failed: climbed=" + climbed);
 
@@ -696,21 +702,21 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /**
-     * The coverage the ground gate's SECOND half never had: a body standing on solid rock beside —
-     * and then inside — a climbable must still be able to jump while the walker holds jump.
+     * A body standing on solid rock beside — and then inside — a climbable must still be able to
+     * jump while the walker holds jump.
      *
-     * <p>The gate is {@code soleOnSolid > 0 && deltaMovement.y <= 0}. Every other scene exercises
-     * only the first term: {@code wd.airborneJumpInert} refuses on sole 0 with {@code dy} negative
-     * the whole fall, {@code wd.flushJumpIgnoresOnGround} fires on sole 0.36 with
-     * {@code dy = −0.0784}. Neither can move the {@code dy} term, so it shipped untested — and it
-     * has a named way to be wrong, which is why this arena exists rather than a note.
+     * <p>Written when the server body's gate was its own, {@code soleOnSolid > 0 && deltaMovement.y
+     * <= 0}, to cover the {@code dy} term no other scene could move, which had a named way to be
+     * wrong. The gate is vanilla's now ({@code onGround} and {@code noJumpDelay}), and the arena
+     * still asks what matters for any gate: whether a jump held on a climbable locks the body out of
+     * jumping.
      *
      * <p><b>The mechanism under test.</b> {@code LivingEntity.handleRelativeFrictionAndCalculateMovement}
      * (1.21.1) rewrites the post-move vertical component to {@code +0.2} whenever
      * {@code (horizontalCollision || jumping) && (onClimbable() || powder snow)}; {@code travel()}'s
-     * tail then leaves {@code (0.2 − 0.08) × 0.98 = +0.1176}. {@code ServerPlayerBody.step()} mirrors
-     * {@code fp.jumping = pendingJump} EVERY tick — deliberately, it is the only thing that drives a
-     * wall-less vine — so merely ASKING for a jump arms that rewrite.
+     * tail then leaves {@code (0.2 − 0.08) × 0.98 = +0.1176}. {@code jumping} is the jump input
+     * itself, on every player, so merely ASKING for a jump arms that rewrite; it is also the only
+     * thing that drives a wall-less vine.
      *
      * <p><b>The consequence, measured, that this scene originally got backwards.</b> The first draft
      * demanded TWO jumps per arm, reasoning that a body would land back on rock with the ask still
@@ -776,7 +782,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         if (adjacent.rises() < 2)
             ctx.fail("climbableGroundJump: adjacent arm jumped " + adjacent.rises() + " time(s), expected >=2. "
                     + "A ladder one cell away must not reach the body at all (onClimbable reads the FEET "
-                    + "cell) — so this is the arena or the ground gate's support term, not the climbable path.");
+                    + "cell) — so this is the arena or the jump gate, not the climbable path.");
         // The arm is worthless if the ladder never armed the rewrite; say so instead of reading a
         // plain-ground trajectory as if it proved something about climbables.
         if (!underfoot.climbable())
@@ -1088,9 +1094,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         for (int i = 0; i < 3; i++) av.step();
         // The stance the FIRST jump is decided from — sampled HERE, not after the loop, because a
         // body that rose during the loop would report the depth it ended at as if it were the depth
-        // its decision was made at. ServerPlayerBody.step() runs fp.baseTick() every tick
-        // (ServerPlayerBody.java:1003), which is what keeps getFluidHeight live for a body that is
-        // on none of vanilla's tick chains; without those three settle steps it would read 0.
+        // its decision was made at. The level's entity loop does not tick this body; its baseTick
+        // runs inside ServerPlayerBody.step(), which is what keeps getFluidHeight live, so without
+        // those three settle steps it would read 0.
         double fluidAtRest = fp.getFluidHeight(FluidTags.WATER);
         double restY = fp.getY();
         // Sampled in the SAME breath as fluidAtRest, and that is not tidiness. Vanilla writes
@@ -1136,20 +1142,22 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /**
-     * The positive half: a body whose sole is flush on a full block must jump even when vanilla's
-     * {@code onGround} says otherwise.
+     * The ground jump waits for {@code onGround}, as vanilla's does, and a refused press costs one step.
      *
-     * <p>{@code onGround} is not an independent reading — {@code Entity.move} ends in
-     * {@code setOnGroundWithMovement(this.verticalCollisionBelow, vec3)}, so it is exactly
-     * "the move I asked for last was downward and got clipped". A body that lands flush (its
-     * requested drop fitted with nothing left to clip) or that is placed rather than moved is
-     * standing on solid rock with that bit false. {@code setOnGround(false)} here reproduces that
-     * state directly rather than hunting for terrain that produces it, which is the whole point:
-     * the arena tests the GATE, not the geometry that happens to trip it.
+     * <p>{@code onGround} is not a reading of where a body stands: {@code Entity.move} ends in
+     * {@code setOnGroundWithMovement(this.verticalCollisionBelow, vec3)}, so it means "the move I
+     * asked for last was downward and got clipped". The server body used to jump off its own sole
+     * instead, and this scene pinned that. It now runs vanilla's {@code aiStep}, whose gate is
+     * {@code onGround}, the client body's gate too, so the scene pins the opposite.
+     * {@code setOnGround(false)} reproduces a flush landing directly rather than hunting for
+     * terrain that produces one.
      *
-     * <p>See {@code ServerPlayerBody.step()} for why the gate reads the body's own sole instead.
+     * <p>Two presses. The first is refused and the body does not rise; its own move clips the next
+     * bit of fall, so the bit is true again and the second press jumps. A body that jumps on the
+     * first press is reading something other than {@code onGround}; one that refuses the second is
+     * holding a cooldown that a refused press must not start.
      */
-    private static void flushJumpIgnoresOnGround(SceneContext ctx) {
+    private static void jumpWaitsForOnGround(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int floorY = ctx.origin().getY() + 20, standY = floorY + 1;
@@ -1162,16 +1170,25 @@ public final class WorldDriverCoreScenes implements SceneProvider {
 
         double y0 = fp.getY();
         if (Math.abs(y0 - standY) > 1.0E-6)
-            ctx.fail("flushJumpIgnoresOnGround: body did not settle flush on the floor: y=" + y0
+            ctx.fail("jumpWaitsForOnGround: body did not settle flush on the floor: y=" + y0
                     + " (expected " + standY + ") — the arena, not the gate, is wrong");
         fp.setOnGround(false);
         av.commandJump(true);
         av.step();
-        double rise = fp.getY() - y0;
-        WorldDriverCommon.LOG.info("[wd.flushJumpIgnoresOnGround] rise={} onGround={}", rise, fp.onGround());
-        if (rise < 0.3)
-            ctx.fail("flushJumpIgnoresOnGround: sole flush on stone and the jump did not fire:"
-                    + " rise=" + rise + " (a ground jump is +0.42) — the gate is still reading onGround");
+        double refused = fp.getY() - y0;
+        boolean groundAfterRefusal = fp.onGround();
+        av.commandJump(true);
+        av.step();
+        double jumped = fp.getY() - y0;
+        ctx.record("jump.refusedRise", String.format(java.util.Locale.ROOT, "%.4f", refused));
+        ctx.record("jump.onGroundAfterRefusal", String.valueOf(groundAfterRefusal));
+        ctx.record("jump.secondRise", String.format(java.util.Locale.ROOT, "%.4f", jumped));
+        if (Math.abs(refused) > 1.0E-6)
+            ctx.fail("jumpWaitsForOnGround: onGround was false and the body still rose: rise=" + refused
+                    + " — the jump is not reading vanilla's gate");
+        if (jumped < 0.3)
+            ctx.fail("jumpWaitsForOnGround: the press after the refused one did not jump: rise=" + jumped
+                    + " onGroundAfterRefusal=" + groundAfterRefusal + " (a ground jump is +0.42)");
     }
 
     /** Ported from {@code AgentGameTest#buildBlockWhitelistArena}: gates {@link BotConfig#isUsableBuildBlock}

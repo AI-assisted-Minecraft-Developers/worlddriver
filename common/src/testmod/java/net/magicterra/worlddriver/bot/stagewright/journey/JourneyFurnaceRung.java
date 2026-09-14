@@ -38,7 +38,7 @@ final class JourneyFurnaceRung {
      *
      * <p><b>The happy path still does no walking and no mining</b>, and that is deliberate: a rung
      * that is purely a 3×3 craft is the cheapest possible regression sensor for the station-menu
-     * seam — if {@code openStationMenu} ever breaks again, this is the rung that says so in eight
+     * seam — if a server body's table ever stops opening again, this is the rung that says so in eight
      * seconds rather than the iron rung saying it after a two-minute dig. The top-up is a no-op when
      * the bag is full enough, so that property survives.
      *

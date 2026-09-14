@@ -1,7 +1,5 @@
 package net.magicterra.worlddriver.bot.sim;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import net.magicterra.worlddriver.WorldDriverCommon;
@@ -12,20 +10,13 @@ import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.WalkerGeometry;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.world.ServerWorldView;
-import net.minecraft.Util;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.MenuProvider;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.FallingBlock;
@@ -33,21 +24,16 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * {@link Body} over a server {@link ServerPlayer} body, with MANUAL vanilla physics
- * (Approach A): the agent sets impulse/jump/yaw each tick, then {@link #step()}
- * runs the same {@link Player#travel(Vec3)} → move()/collision the client runs
- * for a LocalPlayer (the bugs we hunt live in {@code Entity.move()} collision,
- * identical client/server). Jump CALLS {@link net.minecraft.world.entity.player.Player#jumpFromGround()}.
+ * {@link Body} over a server {@link ServerPlayer} body. The driver writes what a client's input
+ * would hold — impulse, jump, sneak, sprint, yaw — and {@link #step()} hands that to
+ * {@code JoinedBody.pump}, which ticks the player through vanilla's own chain the way a connected
+ * player is ticked: {@code baseTick}, the jump gate and its cooldown, {@code travel}, item use, food,
+ * pose and pickups are the game's code, not a copy of it.
  *
- * <p><b>This line used to say the opposite, and the lie cost a defect.</b> It read "Jump is
- * replicated by seeding {@code deltaMovement.y} (the protected {@code jumping}/{@code jumpFromGround}
- * path isn't reachable externally)". On 1.21.1 {@code jumpFromGround()} is {@code public} on both
- * {@code LivingEntity} (:2094) and {@code Player} (:1471); only the {@code jumping} FIELD is
- * protected, and the accesswidener already opens that. Because the comment said the door was
- * locked, nobody tried it, and the hand-copy at {@link #step()} kept dropping
- * {@code awardStat(Stats.JUMP)} and {@code causeFoodExhaustion} for as long as it stood — see the
- * jump branch there for the full list. If a comment here ever tells you a vanilla path is
- * unreachable, <b>check the modifier before believing it</b>.
+ * <p><b>It used to integrate movement by hand</b> — {@code baseTick}, a hand-written jump gate,
+ * {@code travel}, and the pieces of {@code Player.tick} it had been caught missing, mirrored one
+ * defect at a time — because the fake player it once drove could not run its own tick.
+ * {@code docs/fake-player-parity.md} keeps what that copy got wrong while it stood.
  *
  * <p>Physics parity is asserted by the {@code wd.physicsParity} and {@code wd.waterPhysicsParity}
  * scenes in the testmod ({@code WorldDriverCoreScenes} / {@code WorldDriverWaterBankScenes}). This
@@ -214,7 +200,8 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }
     @Override public void commandJump(boolean v) { pendingJump = v; }
     @Override public void commandSneak(boolean v) { pendingSneak = v; }
-    /** The flag itself: {@code step()} seeds the movement speed from {@code isSprinting()}. */
+    /** The flag itself, as the client body sets it. The pump's stop rules can clear it again within
+     *  the same step, as {@code LocalPlayer.aiStep} does on the client. */
     @Override public void commandSprint(boolean v) { fp.setSprinting(v); }
     @Override public void commandUseItem(boolean hold) {
         // Edge-trigger: start using on the rising edge, release on the falling edge.
@@ -509,9 +496,9 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     /**
      * Break the aimed cell, and say so once if the body was standing on it.
      *
-     * <p>Asked with the SAME predicate the ground gate uses, before and after, so there is no second
-     * notion of "standing" to keep in sync: sole area {@code > 0} then {@code 0} means the block that
-     * vanished was the one carrying this body. That is a real invariant break — a body may dig its
+     * <p>Asked with {@code soleOnSolid}, the reading the walker's footing guards use, before and
+     * after, so there is no second notion of "standing" to keep in sync: sole area {@code > 0} then
+     * {@code 0} means the block that vanished was the one carrying this body. That is a real invariant break — a body may dig its
      * own floor deliberately (a descent, a shaft), but it must then FALL, and what the log records is
      * the tick the fall becomes owed.
      *
@@ -594,7 +581,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * <p><b>What that cost.</b> A server-side agent could mine all day and acquire nothing: the
      * block vanished and no {@code ItemEntity} was ever created, so {@code MineProcess} met its
      * broken-block quota, entered its COLLECT phase and walked laps around a drop that did not
-     * exist. Paired with the missing entity-touch loop (see {@link #touchNearbyEntities()}) it meant
+     * exist. Paired with the missing entity-touch loop (vanilla's, in {@code Player.aiStep}) it meant
      * <b>no material could be gathered on the headless path at all</b> — which is every rung of a
      * playthrough. Neither gap was visible to the 222 scenes that were green over them, because none
      * of them asserted that an item reached the inventory; the one named for it,
@@ -633,64 +620,25 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         return fp.getServer() != null ? fp.getServer().getRecipeManager() : null;
     }
 
+    /**
+     * Raw {@code useItemOn} (no holdPlaceable gate): places a held block OR triggers the block's
+     * use, and a station's use opens its menu through vanilla's own {@code openMenu}.
+     *
+     * <p>There is deliberately no fallback when that declines. One existed while the server bodies
+     * were fake players whose {@code openMenu} returned empty: it built the station's menu by hand
+     * so a server craft could reach the 3×3 grid. On a joined body it never fired once across
+     * both loaders' dedicated gates, sixteen menu scenes included, and the only places left for it
+     * to fire are the ones vanilla refuses on purpose (a sneaking body holding a block, a blocked
+     * chest), where opening the menu anyway would give this body what a player cannot have.
+     */
     @Override public void useBlock(BlockPos cell, Direction face) {
-        // Raw useItemOn (no holdPlaceable gate): places a held block OR triggers the block's use.
         Vec3 hit = new Vec3(
                 cell.getX() + 0.5 + face.getStepX() * 0.5,
                 cell.getY() + 0.5 + face.getStepY() * 0.5,
                 cell.getZ() + 0.5 + face.getStepZ() * 0.5);
         BlockHitResult brh = new BlockHitResult(hit, face, cell, false);
-        AbstractContainerMenu before = fp.containerMenu;
         fp.gameMode.useItemOn(fp, fp.level(), fp.getMainHandItem(), InteractionHand.MAIN_HAND, brh);
-        if (fp.containerMenu == before) openStationMenu(cell);
     }
-
-    /**
-     * Install the menu this block would have opened, when vanilla's own route declined to.
-     *
-     * <p><b>Why this was needed at all.</b> A fake player's {@code openMenu} returned
-     * {@code OptionalInt.empty()} — NeoForge's {@code FakePlayer} does it and the Fabric fake body
-     * mirrored it, on the reasoning that a body with no client has no screen to show. But
-     * {@code CraftingTableBlock.useWithoutItem} reaches the menu ONLY through
-     * {@code player.openMenu(...)}, so on this avatar a right-click on a table did nothing at all
-     * and {@code CraftProcess} sat in {@code OPEN_WAIT} until it timed out. Both this method's old
-     * comment and {@code CraftProcess}'s called that a "capability cliff" and left it — which meant
-     * <b>the server-side agent could craft only what fits the 2×2 inventory grid</b>. Everything a
-     * playthrough is made of — pickaxes, a furnace, buckets, flint and steel — is 3×3.
-     *
-     * <p><b>What changed.</b> Both fake bodies were deleted. A {@code JoinedBody} keeps vanilla's
-     * {@code openMenu}, and the adopted real player always had it, so on today's bodies vanilla
-     * opens the menu itself and this runs only when it declined to. Whether that can still happen
-     * is to be judged with the vanilla pump, not assumed here.
-     *
-     * <p><b>What is deliberately skipped.</b> Vanilla's {@code initMenu} attaches a slot listener
-     * and a synchronizer, both of which exist to send packets to a screen. This body's connection
-     * swallows every outbound packet, so attaching them would buy nothing and cost per-slot work on
-     * the tick thread; they are private on {@code ServerPlayer} anyway, and prying them open would
-     * need an access widener for no behaviour (AGENTS.md hard rule #9). Everything the menu does
-     * that MATTERS is server-side and untouched: {@code CraftingMenu.slotsChanged} still recomputes
-     * the result slot, {@code clicked} still moves stacks, and {@code closeContainer} still returns
-     * what was left in the grid.
-     *
-     * <p>Menu ids are a per-body rolling counter that never yields 0, because 0 is the inventory
-     * menu's own id and {@code containerClick}/{@code placeRecipe} both match on it. Nothing
-     * synchronises these ids with a client, so they only have to be distinct from that one.
-     */
-    private void openStationMenu(BlockPos cell) {
-        MenuProvider provider = fp.level().getBlockState(cell).getMenuProvider(fp.level(), cell);
-        if (provider == null) return;
-        AbstractContainerMenu menu = provider.createMenu(nextMenuId(), fp.getInventory(), fp);
-        if (menu == null) return;
-        fp.containerMenu = menu;
-    }
-
-    /** Rolling 1..99 menu id — never 0, which belongs to the inventory menu. */
-    private int nextMenuId() {
-        menuId = menuId % 99 + 1;
-        return menuId;
-    }
-
-    private int menuId;
 
     @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
         // Mirror ServerGamePacketListenerImpl.handlePlaceRecipe: fill the open menu's
@@ -753,547 +701,41 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     @Override public void noteAttackRefusal(String why) { this.lastAttackRefusal = why; }
     @Override public String lastAttackRefusal() { return lastAttackRefusal; }
 
-    /**
-     * Last stack seen in each slot, so a change can be detected the way vanilla detects it.
-     *
-     * <p>Keyed by the BODY entity, not held per-avatar: {@link ServerAvatarBodies#shared}/{@code
-     * unique} hand the same body back for the same profile, so a new {@code ServerWorldDriver}
-     * inherits the previous one's entity — and its attribute map. With a per-avatar record the fresh
-     * avatar starts with no memory, cannot remove modifiers it did not add, and the previous run's
-     * weapon bonus survives onto an empty hand. That is not hypothetical: the full suite caught it (a
-     * bare-handed swing measured 2.94 damage instead of 0.94, because an earlier arena's weapon was
-     * still on the attribute map). The record belongs to the entity that carries the state.
-     * Weak so a discarded body is not pinned.
-     */
-    private static final java.util.Map<ServerPlayer, java.util.EnumMap<EquipmentSlot, ItemStack>> EQUIP_MEMO =
-            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
-
-    /**
-     * Move the equipped items' {@code ItemAttributeModifiers} onto the attribute map when the
-     * gear changes — gap #46.
-     *
-     * <p>Vanilla does this in {@code LivingEntity.detectEquipmentUpdates()}, which is PRIVATE and
-     * called only from {@code LivingEntity.tick()}. This avatar never gets it from either end:
-     * it deliberately runs {@code baseTick()} only (to avoid double-integrating physics), and the
-     * body's own {@code tick()} is an empty override anyway — so calling {@code tick()}
-     * would not help. Without this the body's ATTACK_DAMAGE / ATTACK_SPEED stay at the
-     * BARE-HANDED baseline no matter what it holds: measured, an iron sword dealt exactly as much
-     * as a fist (0.94) and recharged on the fist's 5-tick rhythm instead of 13. Server-mode melee
-     * was therefore ~7x weaker than the same bot on a client, and {@link Player#getAttackStrengthScale}
-     * — which CombatProcess gates every swing on — was measuring the wrong weapon.
-     *
-     * <p>Armor is included for the same reason, but note it changes nothing today:
-     * {@code JoinedBody.isInvulnerableTo} returns {@code true} unconditionally, so a server avatar
-     * cannot be damaged at all and its ARMOR value never gets consulted. Syncing every slot keeps
-     * one rule instead of a special case that would silently rot if that ever changes.
-     */
-    private void syncEquipmentAttributes() {
-        java.util.EnumMap<EquipmentSlot, ItemStack> lastEquipped =
-                EQUIP_MEMO.computeIfAbsent(fp, k -> new java.util.EnumMap<>(EquipmentSlot.class));
-        for (EquipmentSlot slot : EquipmentSlot.values()) {
-            ItemStack now = fp.getItemBySlot(slot);
-            ItemStack was = lastEquipped.get(slot);
-            if (was != null && ItemStack.matches(was, now)) continue;   // unchanged: nothing to move
-            if (was != null && !was.isEmpty()) {
-                was.forEachModifier(slot, (attr, mod) -> {
-                    var inst = fp.getAttributes().getInstance(attr);
-                    if (inst != null) inst.removeModifier(mod.id());
-                });
-            }
-            if (!now.isEmpty()) {
-                now.forEachModifier(slot, (attr, mod) -> {
-                    var inst = fp.getAttributes().getInstance(attr);
-                    if (inst != null) { inst.removeModifier(mod.id()); inst.addTransientModifier(mod); }
-                });
-            }
-            lastEquipped.put(slot, now.copy());
-        }
-    }
-
-    /**
-     * The per-tick PLAYER bookkeeping that {@code Player.tick()} / {@code LivingEntity.tick()} do and
-     * {@code baseTick()} does not — gap #47.
-     *
-     * <p>This avatar deliberately runs {@code baseTick()} only (see {@link #step()}: it integrates
-     * locomotion by hand, so it must not let {@code aiStep()} integrate it a second time), and the
-     * body's own {@code tick()} is an empty override — so EVERYTHING vanilla does in
-     * {@code tick()} outside {@code aiStep} is simply absent unless mirrored here. It was previously
-     * discovered one field at a time by whichever arena happened to trip over it (#45 the attack
-     * ticker, #46 the equipment attributes); this method is the enumeration, so the next omission is
-     * a line missing from a list rather than an ambush.
-     *
-     * <p>MIRRORED (vanilla order preserved — {@code updatingUsingItem} and {@code detectEquipmentUpdates}
-     * run in {@code LivingEntity.tick()} before {@code aiStep}; the ticker/cooldowns are the tail of
-     * {@code Player.tick()}):
-     * <ol>
-     *   <li>the held item-use countdown ({@code LivingEntity.updatingUsingItem}) — without it eat/drink/bow never finish;</li>
-     *   <li>equipment → attribute modifiers ({@link #syncEquipmentAttributes()});</li>
-     *   <li>{@code attackStrengthTicker++} — the melee recharge bar;</li>
-     *   <li>the main-hand SWAP reset: vanilla empties the recharge bar when the held ITEM changes
-     *       (damage/NBT changes don't count — hence {@code isSameItem}, not {@code matches}). Without
-     *       it an agent could bank a full bar on one weapon, switch to another and swing it at full
-     *       strength immediately — and {@code observe.player.attack} (gap #45) would report that
-     *       phantom full bar as fact;</li>
-     *   <li>{@code cooldowns.tick()} — ItemCooldowns (ender pearl, shield-disable, chorus fruit)
-     *       otherwise never expire, so the first use of such an item disables it permanently.</li>
-     *   <li>{@link #touchNearbyEntities()} — the entity-touch loop out of {@code Player.aiStep}, which
-     *       is how a player picks anything up. Without it the avatar could break a block, watch the
-     *       drop land at its feet and never acquire it, so <b>no server-side agent could gather any
-     *       material at all</b>. It went unnoticed because nothing asked: the one scene named for it,
-     *       {@code wd.serverCombatCollectDrops}, passes when the bot ends within two blocks of the
-     *       drop and never requires the item to reach the inventory. The wood leg of the journey
-     *       ladder asked directly and got zero logs after felling the tree.</li>
-     * </ol>
-     *
-     * <p>DELIBERATELY NOT MIRRORED — these are capability cliffs of the server avatar, not oversights:
-     * <ul>
-     *   <li>{@code aiStep()}/{@code travel()} MOVEMENT drive: {@link #step()} integrates movement by
-     *       hand; running vanilla's would double-integrate. Note the carve-out above — the touch loop
-     *       lives in {@code aiStep} too but moves nothing, so mirroring it cannot double-integrate
-     *       anything. "aiStep is not run" was true and was quietly read as "nothing in aiStep is
-     *       needed", which is how the pickup went missing.</li>
-     *   <li>{@code foodData.tick()}: still not mirrored, but <b>the reason below is now only half
-     *       true, and the half that broke is the load-bearing one.</b> It used to read "exhaustion
-     *       accrues in {@code Player.aiStep}/{@code causeFoodExhaustion}, which this avatar never
-     *       runs, so the bot would never get hungry". Since the jump branch of {@link #step()} began
-     *       calling {@link net.minecraft.world.entity.player.Player#jumpFromGround()} instead of
-     *       hand-copying its velocity, {@code causeFoodExhaustion} <b>does</b> run — every jump
-     *       spends 0.05, or 0.2 sprinting. {@code wd.bodyParityCensus} measures it:
-     *       {@code foodExhaustion 0.050→0.100} across one jump.
-     *
-     *       <p>So this body now accrues exhaustion and has no {@code foodData.tick()} to convert it,
-     *       and no way to eat. Today that is inert — the number climbs and nothing reads it — and it
-     *       stops being inert the moment anyone removes the empty {@code tick()} override, because
-     *       then hunger starts draining on a body that cannot feed itself. <b>Do not mirror
-     *       {@code foodData.tick()} here as an isolated fix</b>; it is one half of a pair, and the
-     *       other half (a feeding path, or a written decision to exempt this body from hunger) has
-     *       to land with it. See {@code docs/fake-player-parity.md} §6.5.</li>
-     *   <li>damage, health and every health-driven reflex: {@code JoinedBody.isInvulnerableTo}
-     *       returns {@code true} unconditionally — a server avatar cannot be hurt by anything. On top
-     *       of that {@link ServerWorldDriver} wires no reflex chains at all (no Retreat/Panic/Bunker/
-     *       Dodge/AutoHeal/AutoShield). The server agent is a TASK automaton, not a survivalist; treat
-     *       any survival guarantee on this path as absent until both of those change.</li>
-     *   <li>cosmetic/irrelevant server bookkeeping: swim amount, arrow/stinger counts, cloak,
-     *       container-menu validity.
-     *
-     *       <p><b>「statistics」 used to be in this list and does not belong here.</b> On a
-     *       {@code JoinedBody} — the only body the seam mints — stats
-     *       are live and are written by ordinary play: {@code wd.bodyParityCensus} measures
-     *       {@code walk_one_cm 0→227} over a 2-block walk and {@code Stats.JUMP 0→1} over one jump.
-     *       Calling them cosmetic is what let the hand-copied jump drop {@code awardStat} unnoticed;
-     *       stats are the observable that made that defect visible, not noise.</li>
-     * </ul>
-     */
-    private void mirrorPlayerTick() {
-        if (fp.isUsingItem()) fp.updatingUsingItem();
-        // Read the previous main-hand BEFORE the sync overwrites the memo: this is the same
-        // `lastItemInMainHand` comparison vanilla makes, against the same per-entity record.
-        java.util.EnumMap<EquipmentSlot, ItemStack> memo = EQUIP_MEMO.get(fp);
-        ItemStack lastMain = memo == null ? ItemStack.EMPTY
-                : memo.getOrDefault(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
-        syncEquipmentAttributes();
-        fp.attackStrengthTicker++;
-        // Vanilla order: the ticker is incremented first, then a swap zeroes it (Player.tick).
-        if (!ItemStack.isSameItem(lastMain, fp.getMainHandItem())) fp.resetAttackStrengthTicker();
-        fp.getCooldowns().tick();
-        touchNearbyEntities();
-        broadcastMenuChanges();
-    }
-
-    /**
-     * Let the open menu notice what changed — which is what awards advancements.
-     *
-     * <p>A real {@code ServerPlayer} calls {@code containerMenu.broadcastChanges()} once per tick
-     * from {@code doTick}. This avatar mirrors {@code Player}'s tick rather than
-     * {@code ServerPlayer}'s, so it never did, and the omission looked free: broadcasting is
-     * "sending slot updates to a screen", and this body's connection swallows every packet.
-     *
-     * <p>It is not free. `ServerPlayer`'s own {@code ContainerListener} — attached in its
-     * constructor, so this body has it — fires {@code CriteriaTriggers.INVENTORY_CHANGED} from
-     * {@code slotChanged}, and that trigger is what awards {@code story/root},
-     * {@code story/mine_stone}, {@code story/upgrade_tools} and {@code story/smelt_iron}: the whole
-     * early advancement tree. Without the broadcast the listener is never called, so a
-     * server-driven agent could craft a table, mine cobblestone, upgrade its pickaxe and smelt iron
-     * and earn <b>nothing</b>. The journey ladder records an advancement per rung and reported
-     * {@code not-earned} for every one of them, which is how this surfaced.
-     *
-     * <p>Cost is one comparison per slot per tick, against the copy the menu already keeps — the
-     * same work vanilla does — and the packets the synchronizer emits still go nowhere.
-     */
-    private void broadcastMenuChanges() {
-        if (fp.isRemoved() || fp.containerMenu == null) return;
-        fp.containerMenu.broadcastChanges();
-    }
-
-    /**
-     * Pick up what is lying next to the body — the entity-touch loop from {@code Player.aiStep}.
-     *
-     * <p>Vanilla runs this every tick for every player and it is the ONLY route by which an item on
-     * the ground becomes an item in a bag: {@code Entity.playerTouch} is what {@code ItemEntity},
-     * {@code ExperienceOrb} and {@code AbstractArrow} implement to hand themselves over. This avatar
-     * never runs {@code aiStep} — see the mirror list on {@link #mirrorPlayerTick()} for why — so
-     * before this method a server-driven agent could mine all day and end with an empty inventory.
-     *
-     * <p>Replicated rather than delegated because {@code Player.touch} is private; the one line it
-     * contains ({@code entity.playerTouch(this)}) is public API, so no reflection and no access
-     * widener is involved (AGENTS.md hard rule #9).
-     *
-     * <p><b>The experience-orb split is vanilla's, not a simplification.</b> Orbs are collected into
-     * a list and exactly ONE of them, chosen at random, is touched per tick; everything else is
-     * touched immediately. That is the game's own rate limit on orb pickup, and flattening it would
-     * make a server agent hoover a kill's whole orb cloud in a single tick — a divergence from the
-     * client path that would show up as a levelling-speed difference nobody could account for.
-     */
-    private void touchNearbyEntities() {
-        if (fp.isRemoved()) return;
-        // The same box vanilla uses: one block out horizontally, half a block vertically.
-        List<Entity> near = fp.level().getEntities(fp, fp.getBoundingBox().inflate(1.0, 0.5, 1.0));
-        if (near.isEmpty()) return;
-        List<Entity> orbs = new ArrayList<>();
-        for (Entity entity : near) {
-            if (entity.getType() == EntityType.EXPERIENCE_ORB) {
-                orbs.add(entity);
-            } else if (!entity.isRemoved()) {
-                entity.playerTouch(fp);
-            }
-        }
-        if (!orbs.isEmpty()) {
-            Util.getRandom(orbs, fp.getRandom()).playerTouch(fp);
-        }
-    }
-
     @Override public BodyCapabilities capabilities() { return BodyCapabilities.PLAYER; }
 
     @Override public boolean dbgForwardImpulse() { return pendingForward != 0; }
     @Override public boolean dbgJumping() { return pendingJump; }
     @Override public boolean dbgSneak() { return pendingSneak; }
-    @Override public long dbgLastJumpTick() { return lastJumpTick; }
-
-    /** Game tick of the last EMITTED jump impulse — see {@link Body#dbgLastJumpTick()}. */
-    private long lastJumpTick = -1;
-
-    private boolean loggedFiredOffGround, loggedRefusedOnGround;
-
-    /**
-     * Say, once per body per direction, that the ground gate and vanilla's {@code onGround}
-     * disagreed about this tick.
-     *
-     * <p>The swap from {@code onGround()} to the sole reading is only visible where the two differ,
-     * and a suite that reports PASS/FAIL cannot show that: a scene is in the affected class if and
-     * only if one of these lines appears inside its window, whether or not its colour moved. Guessing
-     * the class membership from arena names is what missed {@code wd.buriedOre} — its riser is dug at
-     * runtime, so nothing about the arena says "this scene jumps". Two lines per body is the whole
-     * budget: the FIRST of each direction is the event, and a body beside a ledge produces hundreds.
-     *
-     * <p>{@code 站着却报没站} is the direction this change was made for (a jump that now fires);
-     * {@code 悬空却报站着} is the one it takes away (a jump that no longer does). Both carry the sole
-     * area and the exact y, because a block coordinate cannot tell a body resting at 222.0 from one
-     * falling through 222.9.
-     *
-     * <p><b>Why the previous iteration is on the line, and what it is here to separate.</b> Every
-     * quantity above describes THIS iteration, and this iteration cannot tell two very different
-     * histories apart:
-     * <ol>
-     *   <li><b>the support was taken away</b> — the body stood on a block last iteration and
-     *       something (only ever this body's own {@code destroyAimed}, the single destroy channel in
-     *       the repo) removed it, so the body is now falling out of the cell it was standing in;</li>
-     *   <li><b>the body walked off a lip that was never under it</b> — vanilla {@code Entity.collide}
-     *       moves <b>Y first, XZ second</b>, so a fall can be clipped on the top face of the column
-     *       the body starts the tick in (which is what makes {@code y} a whole number and
-     *       {@code onGround()} true) and the horizontal half of the SAME move can then carry the body
-     *       into a DIFFERENT column whose floor was always air — a dug-out stair tread, for
-     *       instance. Not one block has to change for this to produce identical readings.</li>
-     * </ol>
-     * The distinguishing quantity is <b>which column the body was in last iteration</b>: same column
-     * means the floor under it changed, a different column means the body moved off its support. No
-     * other field on this line can make that cut, which is why {@code 上迭代身体} is here.
-     * {@code 上迭代脚底实心} says whether that previous column was standable at all (case 1 requires
-     * it to have been {@code > 0}), and {@code 上迭代水平碰撞} says whether the horizontal half of
-     * the previous move was itself clipped — a body that was pressed against a wall did not glide
-     * anywhere.
-     *
-     * <p>"Iteration", not "tick", is exact: the {@code wd.buriedOre} family pumps
-     * {@code ServerAvatarManager.tickAll()} hundreds of times inside ONE server tick, so a
-     * game-time-keyed cache would hold the value from the START of the whole scene. The snapshot is
-     * taken at the tail of {@link #step()} and is therefore always exactly one {@code step()} old.
-     */
-    private void noteGateDisagreement(boolean footed, double sole) {
-        if (footed == fp.onGround()) return;
-        if (footed && !loggedFiredOffGround) {
-            loggedFiredOffGround = true;
-            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 站着却报没站: t={} 脚底实心={} y={} 落速={} 身体={} {} {}",
-                    fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
-                    String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
-                    String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
-                    fp.blockPosition().toShortString(),
-                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp),
-                    prevIterationRow());
-        } else if (!footed && !loggedRefusedOnGround) {
-            loggedRefusedOnGround = true;
-            WorldDriverCommon.LOG.info("[avatar] 起跳闸分歧 悬空却报站着: t={} 脚底实心={} y={} 落速={} 身体={} {} {}",
-                    fp.level().getGameTime(), String.format(java.util.Locale.ROOT, "%.4f", sole),
-                    String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),
-                    String.format(java.util.Locale.ROOT, "%.4f", fp.getDeltaMovement().y),
-                    fp.blockPosition().toShortString(),
-                    WalkerGeometry.soleRow(new ServerWorldView(fp.serverLevel()), fp),
-                    prevIterationRow());
-        }
-    }
-
-    /** Post-move snapshot of the PREVIOUS {@link #step()} — see {@link #noteGateDisagreement}. */
-    private BlockPos prevFootPos;
-    private double prevSole = Double.NaN;
-    private boolean prevHorizontalCollision;
-
-    /** The three previous-iteration fields as one log fragment; {@code 无} before the first step. */
-    private String prevIterationRow() {
-        if (prevFootPos == null) return "上迭代身体=无 上迭代脚底实心=无 上迭代水平碰撞=无";
-        return "上迭代身体=" + prevFootPos.toShortString()
-                + " 上迭代脚底实心=" + (Double.isNaN(prevSole) ? "无"
-                        : String.format(java.util.Locale.ROOT, "%.4f", prevSole))
-                + " 上迭代水平碰撞=" + prevHorizontalCollision;
+    /** When vanilla's jump gate last let a press through — see {@code JoinedBody.jumpFromGround}. */
+    @Override public long dbgLastJumpTick() {
+        return fp instanceof JoinedPlayerBodies.JoinedBody joined ? joined.lastJumpGameTime() : -1;
     }
 
     /**
-     * Take the post-move snapshot the NEXT iteration's disagreement line reads back.
+     * Advance this body one tick, after the driver has set this tick's input.
      *
-     * <p>Unconditional on purpose. The disagreement line fires at most twice per body and nothing
-     * can predict which iteration that will be, so the snapshot cannot be taken on demand; and it is
-     * deliberately not behind {@code BotConfig.walkerDebug}, because the scenes that need it most
-     * turn that flag OFF ({@code wd.buriedOre} does, at its own setup) — a diagnostic a scene can
-     * silence is a diagnostic that is absent exactly when it matters. Cost is the four block reads
-     * {@code soleOnSolid} already does at the jump gate, now once per iteration instead of once per
-     * jump ask.
-     */
-    private void rememberThisIteration() {
-        prevFootPos = fp.blockPosition();
-        prevHorizontalCollision = fp.horizontalCollision;
-        prevSole = fp.level() instanceof ServerLevel sl
-                ? WalkerGeometry.soleOnSolid(new ServerWorldView(sl), fp)
-                : Double.NaN;
-    }
-
-    /**
-     * Advance one tick of faithful vanilla physics AFTER the agent has set its
-     * impulse/jump/yaw for this tick. Call once per server tick following
-     * {@code walker.tick(avatar, world)}.
+     * <p>Vanilla ticks the body ({@code JoinedBody.pump}); this only hands it the input. The jump ask
+     * keeps the shape it always had: an edge on land, released after one step unless the caller asks
+     * again, and held in water, where a swim upward keeps rising until the caller lets go.
+     *
+     * <p><b>Why a chunk-map move is part of every step.</b> {@code handleMovePlayer} ends in
+     * {@code ChunkSource.move} for every movement packet, and a driven body sends none, so without it
+     * the chunk map keeps the section the body joined in: its chunk tickets, its entity tracking and
+     * {@code DistanceManager.hasPlayersNearby}, the gate in front of {@code NaturalSpawner}. Measured
+     * on the ladder's nether rungs before the move was added: 107 monsters within 128 blocks beside
+     * the portal, 2 at a fortress 360 blocks away, 0 for 7200 ticks in a warped forest. The pump does
+     * it.
+     *
+     * @throws IllegalStateException for a player this server did not join, such as the real player
+     *         {@code JourneyRig} adopts: its own connection ticks it, and pumping it here would tick
+     *         it twice
      */
     public void step() {
-        // Faithful per-tick STATE: vanilla Entity.tick() runs baseTick() FIRST,
-        // which (via updateInWaterStateAndDoFluidPushing) sets isInWater()/
-        // isUnderWater()/the swimming pose and applies the water-current push.
-        // We integrate locomotion manually below (validated on land by
-        // physicsParity), but travel() takes its land branch in a water cell
-        // unless isInWater() is live — so baseTick() must run each tick. It does
-        // NOT call move()/travel(), so there is no double-integration. (Survival
-        // noise it introduces — drowning, inWall damage — is neutralised by the
-        // protective effects the harness grants the avatar in water arenas; none
-        // of those effects alter locomotion.)
-        fp.baseTick();
-        // Everything Player.tick()/LivingEntity.tick() do that baseTick() skips, in one place —
-        // see mirrorPlayerTick() for the mirrored list AND the deliberate omissions (gap #47).
-        mirrorPlayerTick();
-        boolean inWater = fp.isInWater();
-
-        if (pendingJump) {
-            // THE GATE — and deliberately NOT fp.onGround(). Vanilla writes that field from exactly
-            // one place, Entity.move's `setOnGroundWithMovement(this.verticalCollisionBelow, vec3)`,
-            // so onGround() IS verticalCollisionBelow: "the move I asked for last was downward and
-            // something clipped it". That is a claim about the previous MOVE, not about where the
-            // body is now, and it is wrong in both directions. False for a body that is standing:
-            // one that landed flush (its requested drop fitted exactly, so nothing was clipped) or
-            // that was set into place without a move. True for a body that is not: a fall clipped at
-            // the START of a tick whose horizontal half then carried the body off the lip — measured
-            // one tick before an eleven-block drop into a nether lava lake as 实心接触面积
-            // 0.0000/0.36 with onGround true. Both directions cost a leap: the false one refused the
-            // 0.42 (and with it the sprint boost) on a planned parkour3 the planner had priced as a
-            // sprint-jump, dropping the body into the gap it was meant to clear; the true one fired
-            // +0.42 off a lip into lava. Swapping the gate closes both, because it asks a different
-            // KIND of question.
-            //
-            // soleOnSolid asks the world: how much of this body's own 0.6-wide sole overlaps a solid
-            // block in the row its bounding box sits on (floor(minY − 1e-7) — the block below for a
-            // body flush on a full cube, the block itself for one on a slab). Any positive area is
-            // flush contact, which a body in mid-air cannot have: even 0.02 blocks of rise moves the
-            // row up to the air the body is passing through. It is the same reading
-            // Walker#footingGuard already steers by, so this adds no second notion of "standing".
-            // Four block reads, and only on ticks the walker actually asks for a jump.
-            //
-            // THIS USED TO CARRY A SECOND TERM, `deltaMovement.y <= 0`, AND IT WAS WRONG. It was
-            // added for buoyancy: a body carried UP through a block boundary — a water surface, a
-            // slime bounce — is touching the floor, not standing on it, and must keep its 0.04 bob
-            // rather than take a 0.42 jump. The motive is sound; `dy` is the wrong quantity for it.
-            // `LivingEntity.handleRelativeFrictionAndCalculateMovement` rewrites the post-move
-            // vertical component to +0.2 whenever `(horizontalCollision || jumping) && onClimbable()`
-            // (or powder snow), and travel()'s tail leaves (0.2 − 0.08) × 0.98 = +0.1176. This class
-            // mirrors `fp.jumping = pendingJump` every tick — deliberately; it is the only thing that
-            // drives a wall-less vine — so merely ASKING for a jump arms that rewrite. A body standing
-            // on rock in a ladder cell with the ask held therefore reads dy > 0 while standing, was
-            // refused, and could never jump again: `wd.climbableGroundJump` measured exactly one jump
-            // where two were required. The term conflated "the world is lifting me" with "I am on a
-            // ladder holding jump", and only the first was ever meant.
-            //
-            // The flush-contact test already covers the buoyancy motive, which is why nothing replaces
-            // the term. soleOnSolid reads the row `floor(minY − 1e-7)` — the row the sole SITS on — so
-            // a body held up by water is not flush on anything and answers 0; the only way a body in
-            // water answers > 0 is by genuinely resting on the bottom.
-            //
-            // AND THAT LAST SENTENCE IS TRUE AND WAS STILL NOT ENOUGH. The paragraph above used to
-            // finish: "...which is the shallow-water ground jump this branch is documented to serve.
-            // `wd.buoyantJumpStaysABob` pins both halves: afloat over deep water the rise must stay
-            // bob-sized, resting on the bottom of a SHALLOW pool it must still be a 0.42." Read the
-            // word "shallow" and then read the code that followed it: `if (footed)`. The comment
-            // stated a depth precondition the gate never tested. Nothing asked how deep the water
-            // was, so "resting on the bottom of a shallow pool" and "resting on the bottom of an
-            // ocean" took the same branch — and the scene cited as pinning both halves had no arm
-            // standing on a deep bottom either, so the claim went unchecked for as long as it stood.
-            //
-            // Vanilla does not gate on support first. `LivingEntity.aiStep`'s jump branch asks the
-            // FLUID first and lets support break the tie only once the water is shallower than the
-            // threshold:
-            //
-            //   g  = getFluidHeight(WATER); bl = isInWater() && g > 0; h = getFluidJumpThreshold()
-            //   if (bl && (!onGround() || g > h))                    jumpInLiquid   // +0.04
-            //   else if ((onGround() || (bl && g <= h)) && …)        jumpFromGround // 0.42
-            //
-            // so a real player standing on a lake bed gets the 0.04 bob, not the leap. This body took
-            // the leap, which is the body being MORE permissive than a player rather than less — the
-            // rare direction, and the one a parity suite is least likely to notice, because nothing
-            // fails: the body simply does things a player cannot. Measured: on seed 5471 the
-            // dedicated-server body took +0.420 out of a two-deep swamp cell and walked ashore in
-            // ~120 ticks while the client body in the byte-identical cell took +0.035 and bobbed at
-            // the surface until its leg timed out. See docs/fake-player-parity.md §6.8 (T17 / N21).
-            //
-            // The predicate below is vanilla's, with `footed` substituted for `onGround()` for all the
-            // reasons above — that substitution is the ORIGINAL point of this gate and is unchanged.
-            // Deliberately NOT included: vanilla's `noJumpDelay == 0` cooldown (still absent — that is
-            // T18, landing on its own so its effect on `wd.climbableGroundJump` can be read alone) and
-            // vanilla's lava branch. Lava behaviour is bit-unchanged here: with `isInWater()` false,
-            // `buoyant` is false, so a body in lava reaches exactly the branch it reached before.
-            double sole = WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp);
-            boolean footed = sole > 0.0;
-            noteGateDisagreement(footed, sole);
-            // getFluidHeight is live because step() runs fp.baseTick() first (see :1003), which is
-            // what refreshes both this cache and isInWater(). Vanilla writes the two from one call, so
-            // they cannot disagree at one instant — `inWater` above and `fluid` here are one fact.
-            double fluid = fp.getFluidHeight(FluidTags.WATER);
-            double jumpThreshold = fp.getFluidJumpThreshold();
-            boolean buoyant = inWater && fluid > 0.0;
-            if (buoyant && (!footed || fluid > jumpThreshold)) {
-                // Buoyant bob: vanilla aiStep calls jumpInLiquid every tick the jump is held while the
-                // water is over the threshold — floating, OR standing on the bottom of water this
-                // deep. Adds 0.04 * swimSpeed upward (swim_speed attr = 1.0 for a vanilla player).
-                // This is the weak rise that famously cannot mount a sheer wall from water.
-                Vec3 dm = fp.getDeltaMovement();
-                fp.setDeltaMovement(dm.x, dm.y + 0.04, dm.z);
-            } else if (footed || (buoyant && fluid <= jumpThreshold)) {
-                lastJumpTick = fp.level().getGameTime();
-                // Ground / shallow-water jump: CALL vanilla's jump, do not re-implement it.
-                //
-                // This used to hand-copy the body of Player.jumpFromGround — `y = 0.42`, plus the
-                // 0.2 sprint forward boost — because the class javadoc claimed the real method
-                // "isn't reachable externally". That claim is false on 1.21.1 and cost us a defect:
-                // `LivingEntity.jumpFromGround()` is `public` (LivingEntity.java:2094) and
-                // `Player` overrides it, also `public` (Player.java:1471). Only the `jumping` FIELD
-                // is protected, and that one is already opened by the accesswidener (see :1073).
-                // Decompiled from neoforge 21.1.230 minecraft-merged-mojang-patched.jar with
-                // vineflower 1.10.1 `-dgs=1`, 2026-08-22 — cite the METHOD, the line drifts with
-                // the decompiler's flags.
-                //
-                // The copy reproduced the VELOCITY and silently dropped everything else, and
-                // `wd.bodyParityCensus` measured the damage: `Stats.JUMP 0→0` on a body whose
-                // awardStat was demonstrably live. What the real call restores:
-                //
-                //   Player.jumpFromGround     → awardStat(Stats.JUMP)
-                //                             → causeFoodExhaustion(sprinting ? 0.2F : 0.05F)
-                //   LivingEntity.jumpFromGround → getJumpPower() instead of a literal 0.42, i.e.
-                //                                 JUMP_STRENGTH × getBlockJumpFactor() + jump-boost
-                //                                 (honey/slime damp the jump; the potion raises it —
-                //                                 the copy ignored both and always jumped 0.42)
-                //                             → the `power <= 1e-5` refusal
-                //                             → hasImpulse, and the loader's own jump event
-                //
-                // On plain ground with no effects getJumpPower() is 0.42 × 1.0 + 0.0 = 0.42, so the
-                // ordinary case is bit-identical to the copy; the differences are exactly the cases
-                // the copy got wrong.
-                fp.jumpFromGround();
-            }
+        if (!(fp instanceof JoinedPlayerBodies.JoinedBody joined)) {
+            throw new IllegalStateException("step() pumps a body this server joined; "
+                    + fp.getGameProfile().getName() + " is ticked by its own connection");
         }
-        // Sneak-SINK in water: the exact counterpart of the jumpInLiquid bob above.
-        // Vanilla LocalPlayer.aiStep calls goDownInWater() (deltaMovement.y -= 0.04)
-        // EVERY tick shift is held in water — the active descent every live dive rides
-        // (the Walker holds sneak while a swimDown* edge is pending; on the client the
-        // real aiStep turns that into the sink). This emulation was missing, so a
-        // HEADLESS dive had pitch-down + sneak but ZERO downward force and the avatar
-        // floated at the surface forever (A5 surfaceDiveArena: pos pinned at the top
-        // water layer for 600t while the plan below it was correct). Faithful to
-        // vanilla: independent of the jump branch (both held = net 0, as aiStep does),
-        // no onGround gate (a collision zeroes the tiny -0.04 in a shallow film).
-        if (pendingSneak && inWater) {
-            Vec3 dm = fp.getDeltaMovement();
-            fp.setDeltaMovement(dm.x, dm.y - 0.04, dm.z);
-        }
-        // Movement speed: LocalPlayer.aiStep seeds `speed` each tick; without
-        // aiStep we seed it from MOVEMENT_SPEED (sprint ×1.3). travel()'s water
-        // branch also reads getSpeed(), so this feeds both land and water.
-        double ms = fp.getAttributeValue(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
-        fp.setSpeed((float) (fp.isSprinting() ? ms * 1.3 : ms));
-        fp.setShiftKeyDown(pendingSneak);
-        float mult = pendingSneak ? 0.3f : 1f;
-        fp.xxa = pendingLeft * mult;
-        fp.yya = 0f;
-        fp.zza = pendingForward * mult;
-        // Mirror the real LivingEntity.jumping bit so travel()'s climbable branch can drive the
-        // wall-less vine vy=+0.2 (see the accesswidener entry for LivingEntity.jumping). Cleared/re-set every tick from pendingJump.
-        fp.jumping = pendingJump;
-        // travel() rotates the impulse by getYRot(), applies friction + gravity
-        // (or water drag + the wall auto-climb-out), and calls move() for
-        // collision — the same pipeline LocalPlayer.aiStep runs on the client.
-        fp.travel(new Vec3(fp.xxa, fp.yya, fp.zza));
-        // Ground jump is a one-shot edge (like AvatarInput); the buoyant bob must
-        // repeat each tick underwater, so only clear when NOT floating in water.
-        if (!inWater) pendingJump = false;
-        tellTheChunkMapWeMoved();
-        // Last thing in the iteration: the post-move readings the NEXT iteration's ground-gate
-        // disagreement line quotes as 上迭代*. Must stay at the tail — the whole point is that it
-        // describes the world AFTER this move(), not the state the gate saw before it.
-        rememberThisIteration();
-    }
-
-    /**
-     * Tell the {@code ChunkMap} the body is somewhere else now — the one thing a moving player does
-     * that arrives by PACKET rather than by ticking.
-     *
-     * <p>{@code ServerGamePacketListenerImpl.handleMovePlayer} ends in
-     * {@code player.serverLevel().getChunkSource().move(player)} for every movement packet a client
-     * sends. A driven body sends none, so for a body that JOINED the server
-     * ({@link JoinedPlayerBodies}) the chunk map keeps the section the body was at when it was
-     * placed — and three separate things read that stale section rather than the body's position:
-     * the player's chunk tickets, its entity tracking, and {@code DistanceManager
-     * .hasPlayersNearby}, which is the gate {@code ServerChunkCache.tickChunks} puts in front of
-     * {@code NaturalSpawner.spawnForChunk}. That last one is a fixed 8-chunk window, so a body that
-     * walks more than 128 blocks from where it joined walks out of the only place the level will
-     * spawn a mob, and nothing says so: mobs keep spawning, back where it came from.
-     *
-     * <p>Measured on the ladder's nether rungs: 107 monsters within 128 blocks while the body was
-     * still beside its portal, 2 after it had walked to a fortress 360 blocks away, and 0 for 7200
-     * ticks in a warped forest — a biome whose monster list is endermen and nothing else.
-     *
-     * <p>The guard is load-bearing rather than defensive. {@code ChunkMap.move} ends in
-     * {@code DistanceManager.removePlayer}, which reaches into {@code playersPerChunk} for the
-     * section it is leaving and dereferences what it finds; a body that was never placed has no
-     * entry there and the call would NPE. Membership of {@code ServerLevel.players()} is exactly the
-     * right question, because the callback that fills that list is the same one that calls
-     * {@code ChunkMap.addEntity} — a body is in both or in neither.
-     */
-    private void tellTheChunkMapWeMoved() {
-        if (!(fp.level() instanceof ServerLevel level)) return;
-        // NOT a defensive null-check — deleting this line crashes every fake-player body in the
-        // repo, which is most of them. ChunkMap.move ends in DistanceManager.removePlayer, which
-        // does playersPerChunk.get(sectionBeingLeft).remove(player) with no null guard, and a body
-        // that never went through placeNewPlayer has no entry there. See the javadoc for why
-        // membership of players() is exactly the "was this body placed?" question.
-        if (!level.players().contains(fp)) return;
-        level.getChunkSource().move(fp);
+        joined.pump(pendingLeft, pendingForward, pendingJump, pendingSneak);
+        if (!fp.isInWater()) pendingJump = false;
     }
 }

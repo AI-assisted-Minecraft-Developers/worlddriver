@@ -733,10 +733,18 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
                                          int cx, int floorY, int cz) {
         // Start from a known cell on solid ground: jumpApex ran just before this and left the body
         // wherever its fall ended.
+        //
+        // TWO settling steps, because vanilla's jump gate reads onGround and onGround describes the
+        // last move(). After setPos with zero velocity the first step moves by nothing vertically,
+        // hits no floor and reads onGround=false; gravity only lands the second. With one step the
+        // pumped body refused the press and this row read「起跳升高 0.000」. The hand-integrated body
+        // asked the world instead (soleOnSolid), which is why one step used to be enough.
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
         fp.setDeltaMovement(Vec3.ZERO);
         avatar.step();
+        avatar.step();
         boolean sprinting = fp.isSprinting();
+        boolean groundedAtPress = fp.onGround();
         float before = fp.getFoodData().getExhaustionLevel();
         double startY = fp.getY();
         avatar.commandJump(true);
@@ -752,9 +760,10 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         // its drop: a zero delta beside a zero rise is a jump that never happened, which is a broken
         // rig; a zero delta beside a real rise is the defect this key exists to see.
         return String.format(Locale.ROOT,
-                "起跳升高 %.3f 格（冲刺=%b），foodExhaustion %.3f→%.3f（差 %.3f；"
+                "起跳升高 %.3f 格（冲刺=%b，按跳时 onGround=%b），foodExhaustion %.3f→%.3f（差 %.3f；"
                         + "真玩家 jumpFromGround 应加 %.2f）",
-                apex - startY, sprinting, before, after, after - before, sprinting ? 0.2f : 0.05f);
+                apex - startY, sprinting, groundedAtPress, before, after, after - before,
+                sprinting ? 0.2f : 0.05f);
     }
 
     /**

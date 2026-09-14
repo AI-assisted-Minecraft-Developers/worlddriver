@@ -840,7 +840,14 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerPlayerBody av = driver.avatar();
         fp.addEffect(new net.minecraft.world.effect.MobEffectInstance(
                 net.minecraft.world.effect.MobEffects.SLOW_FALLING, 400, 0));
-        fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.4, ends.getZ() + 0.5);
+        // +1.15, so the head stays under the stairwell's three-high cut (top at +2.95). This was +1.4,
+        // which put the head 0.2 into the solid block over the terminal. The client's
+        // moveTowardsClosestSpace, which the pumped body runs, answers that with 0.1/tick toward the
+        // nearest free column — the tread above — and the body was shoved onto the lip it is meant to
+        // be falling past (`staged.pose … 247967.40`, then resting at `.15/218.00`). The hand-
+        // integrated body had no push-out and fell straight. The ladder's own pose was +1.0 with the
+        // head clear; +1.15 still reads about +0.8 when the leg calls back, well past SETTLED_SLACK.
+        fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.15, ends.getZ() + 0.5);
         av.step();
         ctx.check(fp.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING))
                 .as("控制组 C：缓降必须真的挂上了 —— 没挂上，身体四 tick 就穿过格边界，"

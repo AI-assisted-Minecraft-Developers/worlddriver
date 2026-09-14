@@ -134,8 +134,9 @@ tick 只走一步，而本仓库按「一 tick 多步」写成的用法遍布测
   `ServerLevel.tickNonPassenger` 里）→ `super.tick()`（即 `ServerPlayer.tick()`：`gameMode.tick`、
   `broadcastChanges`、`invulnerableTime--`、`trackStartFallingPosition`）→ `doTick()`（以 `invokespecial Player.tick`
   进链，绕过子类覆写；内含唯一一次 `baseTick`、`aiStep` 的原版跳跃闸与 `noJumpDelay`、`travel`、
-  `checkMovementStatistics`、`foodData.tick`、`updatePlayerPose`）→ `doCheckFallDamage(位移, onGround())`
-  （`ServerPlayer.checkFallDamage` 是空覆写，原版只在 `handleMovePlayer` 里调这个公开方法）→ `ChunkSource.move`。
+  `checkMovementStatistics`（在 `ServerPlayer` 覆写的 `travel` 里）、`foodData.tick`、`updatePlayerPose`）→
+  `doCheckFallDamage(位移, onGround())`（`ServerPlayer.checkFallDamage` 是空覆写，原版只在 `handleMovePlayer` 里调这个公开方法）
+  → `ChunkSource.move`。
 - **输入要身体自己按客户端的规矩写**，因为原版只在 `LocalPlayer.aiStep` 里做：移动冲量乘 `SNEAKING_SPEED`
   （潜行或爬行）与 0.2（正在用物）；潜行入水 `goDownInWater`；冲刺的停止条件（无前向冲量、饱食不足、
   撞墙、在水面而不在水下）。`setSpeed` 对玩家是死的（`Player.getSpeed` 直读属性），冲刺只靠 `setSprinting`。
@@ -169,6 +170,35 @@ tick 只走一步，而本仓库按「一 tick 多步」写成的用法遍布测
 - **`tickCount`/`setOldPosAndRot` 的守卫**要按身体当前所在的关卡判（传送门场景会在循环中换维度），
   并经得起 `SimProbes` 在步进循环里重入 `level.tick`。
 - **真梯**：没有地方设难度，世界是 EASY；只有砾石那一级喂食，按冲刺消耗约 760 米后饱食度降到 6 以下、停冲刺。
+
+**P1b 落地时的取舍（2026-09-14，跑闸之前写下）。**
+
+- 泵是 `JoinedBody.pump`，`ServerPlayerBody.step()` 只交输入。对不是本服务器 join 的玩家（`JourneyRig`、
+  `WorldDriverActuatorSplitScenes` 收养的真玩家）`step()` 直接抛异常；`JourneyRig` 的三处注册都在 helm 判断之后，碰不到。
+- `tickCount`/`setOldPosAndRot` 的守卫是一个标志：`JoinedBody.tick()`（关卡实体循环的入口）置位，泵读完清零。
+  不按游戏时间判，所以重入 `level.tick` 和循环中途换维度都不用特判。
+- 潜行降速按**本 tick** 的潜行键：`LocalPlayer.isCrouching()` 返回的是 `aiStep` 开头刚算出的字段。上面「客户端晚一步」
+  的说法是调查读错了，今天服务端身体的「立即」本来就对，`WalkerTickDrive` 的跑酷豁免照旧成立。
+- 冲刺停止规则照搬客户端，另把 `LocalPlayer.isHorizontalCollisionMinor` 覆写到 `JoinedBody` 上，擦墙不算撞墙。
+- 另移植了 `LocalPlayer.aiStep` 的四角推出方块（`moveTowardsClosestSpace`）。没移植：起跑规则（驱动直接置冲刺位，
+  与客户端身体一致）、创造飞行、跳键开鞘翅、骑乘跳。
+- `handleMovePlayer` 的尾巴除 `doCheckFallDamage` 与 `ChunkSource.move` 外，还补了 `setKnownMovement`、上行清落差、
+  `tryResetCurrentImpulseContext`。包处理器里的 `checkMovementStatistics` **故意不补**：`ServerPlayer` 覆写的 `travel`
+  自己就调它，泵经 `doTick` 跑到 `travel` 时已经算过一次；再调一次，统计和游泳、冲刺的饥饿消耗都会翻倍。
+- 输入语义不动：跳在陆上是一步的边沿、在水里保持；潜行保持到被松开。客户端 `AvatarInput` 两者都是「本 tick 不下令就松开」，
+  潜行这一处的不对称（走完路的服务端身体会一直蹲着）原本留给闸的读数决定要不要收：六个闸的失败集与 P0 基线逐条一致，
+  没有一条读数指向它，不收。
+- `openStationMenu` 删了。跑闸时每装一次菜单打一行 `[avatar] 菜单旁路`，两个 loader 的专用服闸与两个集成服闸
+  一次都没打（专用服上 16 条要开菜单的场景全过）。还剩能触发它的只有原版故意拒开的情形（潜行且手里有方块、箱子被挡），
+  在那里补一个菜单，等于给身体开了玩家开不了的菜单。`JoinedBody` 那个只调 `super` 的 `openMenu` 覆写一并删。
+- 场景：`wd.flushJumpIgnoresOnGround` 改为 `wd.jumpWaitsForOnGround`，断言相反；删 `wd.serverTowersWithoutOnGround`；
+  `wd.serverLowHpEdgePin` 把饱食度定在 17，关掉自然回血。
+- 跑闸后又改了五处靠手写物理才成立的布景（跑闸之后写）：两条 `wd.pillarLedger*` 显式打开
+  `walkerFootholdBeforeBankDig`（钉住的基线关着它，挖岸排在垫柱前；泵出来的身体贴岸浮得够高，挖岸变得可行，
+  接管还没开就挖出去了）；`wd.physicsParity` 改判「站上了台阶」；
+  `wd.waterStepDownFloat` 去掉睡莲（活了的姿态会让身体从墙下钻过去）；
+  `wd.journeyJudgesTheLastStepAfterTheDropLands` 把摆放高度降到头顶不进方块（否则移植来的推出方块把它推上唇）；
+  普查的起跳消耗探针落稳两步（`setPos` 之后第一次 `move()` 碰不到地面，原版跳闸读的正是它）。
 
 `LivingBody` 里「腿归谁」用一个显式的模式（Taterzens 的 `movement mode` 那一手）：`DRIVEN` 时 `Mob.serverAiStep`
 的导航与移动控制不跑、`LookControl` 不跑；`FREE` 时全部还给原版。模式切换在 `attach`/`release` 上，

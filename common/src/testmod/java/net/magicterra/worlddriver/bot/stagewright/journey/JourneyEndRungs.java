@@ -2415,9 +2415,8 @@ public final class JourneyEndRungs {
                 aimAtPart(p, head, headAway * 0.12);      // lead high for arrow drop
                 // Vanilla's own draw, on vanilla's own counter. An earlier cut counted ticks here
                 // and called releaseUsing by hand, on the theory that getTicksUsingItem() is frozen
-                // for this body. It is NOT: ServerPlayerBody.mirrorPlayerTick() has always run
-                // `if (fp.isUsingItem()) fp.updatingUsingItem();`, so the timer advances exactly as
-                // it does for a real player. That workaround routed around a defect that did not
+                // for this body. It is NOT: the server body runs LivingEntity.tick, whose
+                // updatingUsingItem() advances the timer exactly as it does for a real player. That workaround routed around a defect that did not
                 // exist — and a test that drives an engine path by hand stops testing it, which is
                 // the worst possible trade for a rung whose whole job is to exercise the engine.
                 // The two real causes of 「射出 0 箭」 were the HAND (the bow sat in the bag) and the

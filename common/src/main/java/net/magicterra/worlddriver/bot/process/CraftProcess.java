@@ -273,8 +273,7 @@ public final class CraftProcess implements BotProcess {
         }
         tablePos = table;
         // Right-click the table to open its menu (block.use takes priority over
-        // placing even while holding a crafting_table). NOTE: a server FakePlayer
-        // can't open menus, so OPEN_WAIT will time out there (capability cliff).
+        // placing even while holding a crafting_table).
         a.aimAtBlock(table);
         hands.useBlock(table, faceTowardEye(table, p));
         waited = 0;

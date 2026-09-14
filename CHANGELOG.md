@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-14
 
+- **A server body opens a station only the way a player does.** `ServerPlayerBody.useBlock` no
+  longer builds a crafting table's or furnace's menu by hand when vanilla's `openMenu` declines. That
+  fallback dates from the fake players, whose `openMenu` returned empty. On joined bodies it did not
+  fire once across both loaders' dedicated gates, sixteen menu scenes included. What it could still
+  catch were the refusals vanilla means, a sneaking body holding a block or a blocked chest, and
+  there it handed the body a menu no player could open. `JoinedBody`'s `openMenu` override, which
+  only called `super`, went with it.
+- **The server body is ticked by vanilla.** `ServerPlayerBody.step()` no longer integrates movement
+  by hand. It hands the tick's input to `JoinedBody.pump`, which runs `ServerPlayer.tick()` and
+  `doTick()` the way a connected player is ticked, then the tail of `handleMovePlayer`: fall
+  distance, known movement, the upward fall-distance reset, and `ChunkMap.move`. The packet
+  handler's movement statistics are left out on purpose: `ServerPlayer.travel` already counts them
+  inside `doTick()`, and counting twice would double the food that swimming and sprinting cost. The half of
+  `LocalPlayer.aiStep` that a server never runs is ported onto the body: the sneak and item-use
+  input scales, the push out of a block, the sprint stop rules with the client's minor-collision
+  test, and the sink while sneaking in water. Gone with the hand physics are the `soleOnSolid` jump
+  gate and its `[avatar] 起跳闸分歧` lines, the mirror of `Player.tick` (item use, equipment
+  attributes, the attack ticker, cooldowns, pickups, the menu broadcast), and the direct
+  `setSpeed`/`travel` calls. What the body gains is what that mirror never had: food and natural
+  regeneration, pose, `invulnerableTime` and `takeXpDelay` counting down, the `noJumpDelay`
+  cooldown, fall distance, and entity pushing. Hunger drains on EASY; the body still cannot be hurt.
+  `step()` now refuses a player the server did not join, because that player's connection already
+  ticks it. `wd.flushJumpIgnoresOnGround` became `wd.jumpWaitsForOnGround` and asserts the
+  opposite. `wd.serverTowersWithoutOnGround` is deleted: holding `onGround` false now refuses every
+  jump, by design. `wd.serverLowHpEdgePin` holds food at 17 so regeneration cannot lift the body out
+  of the low-health walk it measures. Five more had been staged on the hand physics and are
+  restaged. The two `wd.pillarLedger*` scenes turn foothold-first back on: under the pinned
+  baseline the bank dig goes before the pillar, and the pumped body rides the bank high enough for
+  that dig to be feasible, so it dug out before the takeover the scenes measure could engage.
+  `wd.physicsParity` judges the +1 step by the body standing on it, since a vanilla
+  sprint-jump carries past the row and off the floor inside the old 30 ticks;
+  `wd.waterStepDownFloat` loses the lily pad whose collision box now drops the body into the
+  swimming pose that slides under the head-wall; `wd.journeyJudgesTheLastStepAfterTheDropLands`
+  poses the body with its head clear of the block above the stairwell, which the ported push-out
+  answered by shoving it onto the lip; and the census's jump-exhaustion probe settles for two steps,
+  because after a `setPos` the first `move()` finds no floor and vanilla's jump gate reads that.
 - **Server bodies always join; the fake players and `-Dworlddriver.realPlayerBodies` are gone.**
   `ServerAvatarBodies` now mints only `JoinedBody`, a player placed through
   `PlayerList.placeNewPlayer`. Every gate, ladder and rehearsal run already set that switch, so what

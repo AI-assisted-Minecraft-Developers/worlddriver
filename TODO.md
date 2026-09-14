@@ -150,10 +150,10 @@
 
 这些在旧版里只有正文小节、没有队列行。**它们和上表一样是开着的活**，别因为表里没有就当它们结了。
 
-### 🔴 J130：身体抽象的 P1b–P3 未落
+### 🔴 J130：身体抽象的 P2–P3 未落
 
-阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4：P1b `ServerPlayerBody.step()` 改走原版泵、
-删 `mirrorPlayerTick()`；P2 testmod 的自定义猪灵 `LivingBody`；P3 `BodyRegistry` 与 `mc.bot.*` 的 `body` 参数。
+阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4：P2 testmod 的自定义猪灵 `LivingBody`；
+P3 `BodyRegistry` 与 `mc.bot.*` 的 `body` 参数。
 §6 第 3 条（反射层上不上服务端身体）未决。
 
 ### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖

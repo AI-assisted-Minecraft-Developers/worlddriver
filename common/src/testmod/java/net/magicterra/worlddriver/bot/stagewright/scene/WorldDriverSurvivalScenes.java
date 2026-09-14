@@ -396,6 +396,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
 
         ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 13, cz + 0.5);
         driver.fakePlayer().setHealth(2.0f);
+        // Hungry enough that natural regeneration stays off (FoodData.tick heals a hurt player only
+        // at food >= 18) and fed enough to sprint (> 6). The body runs FoodData.tick every step, and
+        // at full food it would heal past lowHealthCareful long before the flee ends, switching off
+        // the careful walk this scene is about.
+        driver.fakePlayer().getFoodData().setFoodLevel(17);
         driver.runProcess(new RunAwayProcess(from, minDist));
         ServerAvatarManager.register(driver);
         for (int t = 0; t < 800 && ServerAvatarManager.activeCount() > 0; t++)

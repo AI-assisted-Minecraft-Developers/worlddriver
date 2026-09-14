@@ -282,11 +282,11 @@ cap.structuresRegistryReads
 # registers so a family that silently stopped registering shows up in a five-minute gate.
 wd.journeyArmed
 
-# The ground-jump gate. `soleOnSolid > 0` replaced `fp.onGround()` (which reports the last move(),
-# not where the body stands) and then shed its `dy <= 0` term; these four hold both directions so a
-# future widening or over-correction cannot pass unnoticed.
+# The ground jump. The server body jumps through vanilla's aiStep, so its gate is `onGround`, as the
+# client body's is; these four hold it: no jump in mid-air, a refused press while onGround is false,
+# a jump on a climbable, and the bob in deep water.
 wd.airborneJumpInert
-wd.flushJumpIgnoresOnGround
+wd.jumpWaitsForOnGround
 wd.climbableGroundJump
 wd.buoyantJumpStaysABob
 
@@ -305,11 +305,10 @@ wd.crystalBlastOnThePillar
 
 # One TowerProcess call, many courses — the shape 253 scenes never executed: the only covered tower
 # (wd.serverTowersOutOfADeepShaft) drives ONE course per call, lands the body first, and stands in a
-# walled shaft, while the only multi-course production caller does none of the three. Six arms; the
-# walk, the onGround gate and the already-at-target verdict are expected RED and say why.
+# walled shaft, while the only multi-course production caller does none of the three. Five arms; the
+# walk and the already-at-target verdict are expected RED and say why.
 wd.serverTowersTwelveCourses
 wd.serverTowersAfterAWalk
-wd.serverTowersWithoutOnGround
 wd.serverTowersOnAFreePillar
 wd.serverTowersToWhereItStands
 wd.serverTowersWithAFullBackpack

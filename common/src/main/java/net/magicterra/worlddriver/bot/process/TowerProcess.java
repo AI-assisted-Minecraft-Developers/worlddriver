@@ -127,11 +127,10 @@ public final class TowerProcess implements BotProcess {
         // standing at/above the target.
         //
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
-        // last move() and is wrong in both directions; ServerPlayerBody's own jump gate abandoned
-        // it for exactly this reason (see the note at its jump branch) and `wd.flushJumpIgnoresOnGround`
-        // pins that a body can be flush on stone with onGround false. This process was the last
-        // reader of it, which made a tower refuse to start on a footing the engine was happy to jump
-        // from — measured by `wd.serverTowersWithoutOnGround`, which spent 60 ticks and zero blocks.
+        // last move() and is wrong in both directions: a body can be flush on stone with it false.
+        // Reading it here made a tower refuse to start on a footing it was standing on. The jump
+        // itself is vanilla's on both bodies and does wait for onGround, so a press made while the
+        // bit is still false is refused and the short-jump retry below presses again.
         boolean footed = WalkerGeometry.soleOnSolid(w, p) > 0.0;
         if (feetY >= targetY && footed) {
             // A tower that was never needed and a tower that built must not read alike. They did:

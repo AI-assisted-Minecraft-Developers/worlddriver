@@ -395,8 +395,9 @@ server tick. A rung still builds a `TowerProcess` and hands it
 to `rig.drive`; only the **helm** changes — `ServerAvatarManager` headless, `BotApi.runProcess` (the
 client's own user-task chain) integrated. Every path that starts a leg goes through
 `JourneyRig.startLeg`, and that is load-bearing: registering the adopted driver with
-`ServerAvatarManager` would run manual physics on a client-controlled body, which the client then
-contradicts with its own movement packet every tick.
+`ServerAvatarManager` would have the server tick a body its own client is moving, which the client
+then contradicts with its own movement packet every tick. `ServerPlayerBody.step()` refuses such a
+body, so that mistake now throws in the server tick instead.
 
 *The helm has two halves, and both must be routed.* The paragraph above is about the per-tick LEGS.
 Single-shot actions — hold an item, aim, right-click, place — are a second population of 36 call

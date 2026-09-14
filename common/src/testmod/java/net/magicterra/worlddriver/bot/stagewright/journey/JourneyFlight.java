@@ -489,18 +489,19 @@ public final class JourneyFlight implements JourneyRig.TickWatcher {
                 : onGround ? "落到 " + at.toShortString() + "（脚下 " + names(level, support) + "）"
                 : "落进水里 " + at.toShortString();
         // The two speeds are printed together on purpose. fastestDrop is measured off the body's own
-        // y; fallDistance is the field vanilla keeps — and on a FakePlayer it stays 0 forever,
-        // because ServerPlayer.checkFallDamage (the one Entity.move calls) is an EMPTY override and
-        // the accumulating version, doCheckFallDamage, runs only off a movement packet this body
-        // never sends. Printing both is what makes that provable from an evidence row instead of
-        // arguable: 1.14 blocks in one tick against a fallDistance of 0.0.
+        // y; fallDistance is the field vanilla keeps. Until 2026-09-14 the server body's stayed 0
+        // forever, because ServerPlayer.checkFallDamage (the one Entity.move calls) is an EMPTY
+        // override and the accumulating version, doCheckFallDamage, runs only off a movement packet
+        // that body never sent; printing both made that provable from an evidence row: 1.14 blocks in
+        // one tick against a fallDistance of 0.0. JoinedBody.pump runs the packet tail now, so the
+        // two should agree, and a row where they do not is worth reading again.
         falls.add("#" + fallCount + " t=" + launchTick + " 从 " + launchAt.toShortString()
                 + " " + launchWhy + " → " + ended
                 + "，坠 " + drop + " 格（最快一 tick 掉 "
                 + String.format(Locale.ROOT, "%.2f", fastestDrop)
                 + " 格；同期 fallDistance 最大 "
                 + String.format(Locale.ROOT, "%.1f", deepestFallField)
-                + " —— 这个字段对 FakePlayer 恒为 0，不是「没掉」）"
+                + "）"
                 + "，已走 " + walkedAt(launchAt) + "/" + legLength + " 格"
                 + "，" + launchPlan);
     }

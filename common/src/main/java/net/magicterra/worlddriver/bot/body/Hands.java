@@ -55,9 +55,9 @@ public interface Hands {
     /** Place against the given face of {@code cell} directly. */
     void placeOn(BlockPos cell, Direction face);
     /** Right-click a block face to USE it (open a crafting table / furnace) — the raw
-     *  {@code useItemOn} with no place-a-block gate. NOTE: a server FakePlayer cannot
-     *  open menus ({@code openMenu} is a no-op), so a container open succeeds only on the
-     *  client; the server path degrades to a graceful "open timeout". This same call also
+     *  {@code useItemOn} with no place-a-block gate. The block's own use opens the menu
+     *  through vanilla's {@code openMenu} on either body: server bodies are joined players,
+     *  not the fake players whose {@code openMenu} was a no-op. This same call also
      *  PLACES a held block (after {@link #holdItem}) since vanilla useItemOn places when
      *  the targeted block has no use action. */
     void useBlock(BlockPos cell, Direction face);

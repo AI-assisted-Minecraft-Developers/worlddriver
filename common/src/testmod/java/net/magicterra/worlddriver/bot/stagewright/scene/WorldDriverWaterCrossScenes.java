@@ -334,12 +334,17 @@ public final class WorldDriverWaterCrossScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(cx + dx, y, cz + dz), Blocks.STONE.defaultBlockState());
         }
         // NODE = the water-surface stepDown foothold at (cx, waterY, cz). HEAD-WALL the node so the buoyant
-        // body pins in the east cell ~0.6-1.0 b short. A lily pad sits in the EAST cell's head (passable).
+        // body pins in the east cell ~0.6-1.0 b short.
+        //
+        // No lily pad in the east cell's head any more. Its 1.5/16 collision box leaves room for neither a
+        // standing nor a crouching body, so vanilla's updatePlayerPose drops the body into the 0.6-tall
+        // swimming pose, and that pose slides under the head-wall: the pumped body reached the node
+        // centre in 5 ticks and the OFF leg measured nothing. The hand-integrated body never ran
+        // updatePlayerPose, stayed standing, and pinned; the pin was the missing pose, not the pad.
         BlockPos node  = new BlockPos(cx,     waterY, cz);
         BlockPos cont  = new BlockPos(cx - 3, waterY, cz);   // continuation further WEST along the shelf
         BlockPos goalN = new BlockPos(cx - 6, waterY, cz);
         level.setBlockAndUpdate(node.above(), Blocks.STONE.defaultBlockState());   // head-wall at the node cell
-        level.setBlockAndUpdate(new BlockPos(cx + 1, waterY + 1, cz), Blocks.LILY_PAD.defaultBlockState());
 
         Goal goal = new Goal.Block(goalN);
 

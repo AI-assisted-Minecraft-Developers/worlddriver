@@ -121,9 +121,9 @@ final class WalkerTickProgress {
      *       {@code onGround=false} and {@code soleOnSolid=0} for the whole of every crossing, and a
      *       flat surface swim advances on {@code passed} every few ticks. Without this term the
      *       water family would not stall occasionally — it would never advance again.</li>
-     *   <li><b>{@code soleOnSolid < FOOTING_MIN}, not {@code !onGround()}.</b> Same predicate as the
-     *       ground-jump gate and {@code Walker}'s footing guard, so this introduces no fifth opinion
-     *       about what standing means. {@code onGround} describes the previous {@code move()} and is
+     *   <li><b>{@code soleOnSolid < FOOTING_MIN}, not {@code !onGround()}.</b> Same predicate as
+     *       {@code Walker}'s footing guard and {@code TowerProcess}'s footing check, so this
+     *       introduces no further opinion about what standing means. {@code onGround} describes the previous {@code move()} and is
      *       wrong in both directions.</li>
      * </ul>
      *

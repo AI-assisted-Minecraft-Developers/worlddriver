@@ -67,9 +67,9 @@ import static net.magicterra.worlddriver.bot.movement.WalkerGeometry.*;
  * is what {@code wd.bridgeLethalGapStop} guards — a walk-off lip must still lose its sprint.
  *
  * <p>The brake exclusion is the same launch tick seen from the other side: {@code edgeBrake} on the
- * lip makes {@code bridgeBrake} hold sneak through the takeoff, and
- * {@code ServerPlayerBody} (the {@code pendingSneak ? 0.3f : 1f} steering multiplier) then serves
- * the leap 30% of its control input. Sprint alone does not clear the gap while sneak is throttling
+ * lip makes {@code bridgeBrake} hold sneak through the takeoff, and a crouching body's input is
+ * scaled by {@code SNEAKING_SPEED} (0.3) from that same tick — {@code LocalPlayer.aiStep} on the
+ * client, {@code JoinedBody.aiStep} on the server — so the leap gets 30% of its control input. Sprint alone does not clear the gap while sneak is throttling
  * it. Sibling {@code parkourEdge} exclusions already exist in this file on the lane-keep strafe and
  * on {@code descentAirborneDriftClamp}; the brake block was the one that was missing.
  */
@@ -1009,7 +1009,7 @@ final class WalkerTickDrive {
                     }
             }
         }
-        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending) && !parkourEdge) {   // !parkourEdge: sneak on the takeoff tick costs the leap 70% of its steering (ServerPlayerBody's pendingSneak?0.3f:1f) — same lip, same measurement as the sprint term; see this class's javadoc. Sibling exclusions: the lane-keep strafe and descentAirborneDriftClamp above
+        if ((bridging || edgeBrake) && (!plannedDescent || descentPlacePending) && !parkourEdge) {   // !parkourEdge: sneak on the takeoff tick costs the leap 70% of its steering (SNEAKING_SPEED 0.3 from the crouching tick on, on both bodies) — same lip, same measurement as the sprint term; see this class's javadoc. Sibling exclusions: the lane-keep strafe and descentAirborneDriftClamp above
             double bdx = (wp.getX() + 0.5) - p.getX();
             double bdz = (wp.getZ() + 0.5) - p.getZ();
             double blen = Math.sqrt(bdx * bdx + bdz * bdz);

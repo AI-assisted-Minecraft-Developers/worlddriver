@@ -494,12 +494,11 @@ public final class WorldDriverPortalScenes {
      * whole rung, and it would do so silently: the body would stand in purple fog forever and the
      * budget would run out, which reads as a slow walk.
      *
-     * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayerBodies.JoinedBody} overrides
-     * {@code tick()} to do <i>nothing</i> — deliberately, so vanilla does not integrate locomotion
-     * a second time on top of {@code ServerPlayerBody.step()}. Vanilla's portal handling lives in
-     * {@code Entity.baseTick()}, and whether that is reached depends entirely on the avatar's own
-     * mirror of the tick. It is: {@code step()} calls {@code fp.baseTick()} first, and
-     * {@code checkInsideBlocks()} rides {@code move()}. So the machinery is present — but "present"
+     * <p><b>Why it was genuinely in doubt.</b> {@code JoinedPlayerBodies.JoinedBody} keeps
+     * {@code tick()} empty for the level's entity loop, so the body is ticked only when its driver
+     * steps it. Vanilla's portal handling lives in {@code Entity.baseTick()}, which each step reaches
+     * through {@code JoinedBody.pump}'s {@code doTick()}, and {@code checkInsideBlocks()} rides
+     * {@code move()}. So the machinery is present — but "present"
      * and "works for a body with a connection that discards every packet it is given" are different
      * claims, and only one of them can be tested.
      *

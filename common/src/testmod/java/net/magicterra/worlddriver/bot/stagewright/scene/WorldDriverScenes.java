@@ -1073,8 +1073,8 @@ public final class WorldDriverScenes implements SceneProvider {
                     + "'[pathfinder] search-begin owner=mine' lines in this window: NONE = gap#60 "
                     + "proper (the stand pre-filter refused to hand the walker a dig goal); ONE OR "
                     + "MORE = the pre-filter did its job and the walker failed to CLIMB the "
-                    + "staircase it digs — check for '[avatar] 挖掉了自己的落脚' and "
-                    + "'[avatar] 起跳闸分歧' in the same window. lastError=" + err
+                    + "staircase it digs — check for '[avatar] 挖掉了自己的落脚' in the same"
+                    + " window. lastError=" + err
                     + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
         if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
             ctx.fail("buriedOre: buried-ore MineProcess did not finish+unregister: finished="

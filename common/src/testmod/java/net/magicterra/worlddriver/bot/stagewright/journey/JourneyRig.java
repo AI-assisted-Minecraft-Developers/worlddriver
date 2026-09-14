@@ -714,10 +714,11 @@ public final class JourneyRig {
      * <p>Four call sites used to register with {@code ServerAvatarManager} independently
      * ({@link #drive}, {@link #settle}, {@link #mineBlock}, {@link #mineCellOrGiveUp}). That is the
      * shape this repo keeps paying for: an invariant with sibling paths that ignore it. Here the
-     * invariant is load-bearing — registering the adopted driver would run
-     * {@code ServerPlayerBody.step()}'s manual physics ON a client-controlled player, which the
-     * client then contradicts with its own movement packet every tick, and vanilla resolves that by
-     * rubber-banding. Routing all four through one method makes that structurally unreachable
+     * invariant is load-bearing — registering the adopted driver would make
+     * {@code ServerPlayerBody.step()} tick a client-controlled player that its own connection
+     * already ticks, and the client contradicts every such move with its own movement packet. The
+     * step now refuses that body outright, which turns the mistake into an exception in the server
+     * tick rather than rubber-banding. Routing all four through one method makes that structurally unreachable
      * instead of conventionally avoided.
      */
     private void startLeg(ServerWorldDriver d, BotProcess process) {
@@ -779,7 +780,7 @@ public final class JourneyRig {
      * <p>For the legs {@link #drive} and {@link #settle} cannot express: a fight ends when the
      * target dies, not when the process says so, so those rungs own their own await predicate. They
      * used to reach past this rig and call {@code ServerAvatarManager.register} themselves, which
-     * on the real-player helm would step manual physics on a client-controlled body. Pair with
+     * on the real-player helm would have the server tick a body its own client is moving. Pair with
      * {@link #legDone()} and {@link #legReleased()}.
      */
     public void legStart(BotProcess process) { startLeg(body(), process); }
@@ -1953,9 +1954,10 @@ public final class JourneyRig {
      * the landing was into water the body then drowned in. The cell is also the only reading that
      * survives being wrong about the mechanism entirely.
      *
-     * <p>{@code fallDistance} is included but is NOT trustworthy on every body: a headless FakePlayer
-     * reports 0 for it always ({@code fakeplayer-falldistance-is-always-zero}), so read it as
-     * corroboration on the client-driven body and as nothing at all on the other two topologies.
+     * <p>{@code fallDistance} is included as corroboration. Until 2026-09-14 it was worth nothing on a
+     * server body, which reported 0 for it always ({@code fakeplayer-falldistance-is-always-zero});
+     * since {@code JoinedBody.pump} runs {@code doCheckFallDamage} it counts there as it does on the
+     * client-driven body, so a death row from before that date still reads it as nothing.
      */
     private String deathCell(ServerPlayer fp) {
         var level = fp.serverLevel();
