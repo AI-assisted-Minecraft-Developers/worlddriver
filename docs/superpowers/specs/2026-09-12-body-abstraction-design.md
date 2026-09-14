@@ -123,9 +123,11 @@ parity 表里 A1、A2、T5（硬编码 0.42 跳）、T8（`updatePlayerPose` 不
 `useItemOn`/`useItem`），因为那一层就是 51 个 handler 下面的真实现。
 
 **2026-09-14 修订：泵不放进实体自己的 `tick()`。** Carpet 的 `tick(){ super.tick(); doTick(); }` 让身体一个服务器
-tick 只走一步，而本仓库有两处按「一 tick 多步」写成的用法：测试模组里上百处在同一个服务器 tick 内同步调
-`step()`，`Walker`/`JourneyRig` 的快进一 tick 推进数百到上千步。反编译核实（Fabric 原版合并 jar 与 NeoForge
-21.1.230 补丁 jar）之后的形状：
+tick 只走一步，而本仓库按「一 tick 多步」写成的用法遍布测试模组：139 处 `step()`、77 处 `tickAll()`，
+多数在同一个服务器 tick 内同步推进，常见 200–2200 步，最大 9000 步（`wd.tallBankDigClimb`）。
+（此前这里还写着「`Walker`/`JourneyRig` 的快进一 tick 推进数百到上千步」，2026-09-14 只读调查核过：
+主代码与真梯里没有这种快进，`JourneyRig` 是注册后按真 tick 等；结论不变。）反编译核实（Fabric 原版合并 jar
+与 NeoForge 21.1.230 补丁 jar）之后的形状：
 
 - `JoinedBody.tick()` 对关卡实体循环**继续为空**；`step()` 调 `JoinedBody` 上的泵方法，依次：写输入 →
   若关卡实体循环本步之前没替它做过，补 `setOldPosAndRot()` 与 `tickCount++`（二者只在
@@ -141,6 +143,32 @@ tick 只走一步，而本仓库有两处按「一 tick 多步」写成的用法
   再调一次就是双倍。
 - **代价写明**：食物、效果、火、空气、冷却、用物、`noJumpDelay` 按**步**推进，不按服务器 tick；
   NeoForge 的 `PlayerTickEvent` 每步触发一次（`EntityTickEvent` 仍每服务器 tick 一次）。
+
+**P1b 的波及面（2026-09-14 只读调查，未跑）。** 下面每条都会左右泵怎么写，动手前先定：
+
+- **两条必需场景断言的就是今天的非原版闸，必红**：`wd.flushJumpIgnoresOnGround` 把 `onGround` 置假后要求起跳，
+  `wd.serverTowersWithoutOnGround` 每 tick 置假后要求爬四格。P1b 要删掉或改成断言原版行为，不能留着红。
+- **冲刺停止规则不能照抄客户端**：`Entity.move` 从 `isHorizontalCollisionMinor` 取 `minorHorizontalCollision`，
+  只有 `LocalPlayer` 覆写它，`ServerPlayer` 上恒为假；照抄「撞墙且非轻微」会碰任何台阶就停冲刺，丢掉冲刺跳的
+  +0.2，`wd.parkourAscend`、`wd.parkourVoid*`、`wd.diagonalAscentSpeed`（余量约 18%）首当其冲。
+- **潜行降速的时机要选**：客户端按上一 tick 的姿态（`isMovingSlowly`）晚一步生效，今天的服务端身体是立即；
+  `WalkerTickDrive` 里的跑酷豁免是照「立即」写的。
+- **回血会改场景前提**：EASY 下 `foodData.tick` 给受伤身体回血，`wd.serverLowHpEdgePin` 把血设为 2，约 170 步后
+  超过 `lowHealthCareful = 6`，行走器的谨慎模式中途关掉。
+- **真姿态**：CROUCHING（高 1.5）与 SWIMMING（高 0.6）落地后，`BuildProcess`/`BackfillProcess` 等 `isCrouching()`
+  的分支、瞄准与够距的眼高都会变；`HoldStill` 不释放潜行，走完路的身体会一直蹲着。
+- **由 `soleOnSolid` 决定、却要经 `onGround`/`noJumpDelay` 执行的起跳**：`TowerProcess`、水中爬出
+  （`WalkerTickClimb`）、`wd.buoyantWall`、`wd.deepWaterClimboutDrift`、`wd.serverTowersOutOfADeepShaft` 要跑一趟才知道。
+- **无声丢失**：`dbgLastJumpTick` 的唯一写入者是手写闸；删掉后行走器起跳读数与塔场景的 `control.jumpTick`
+  变成「无」/−1，不会红。要保留就在 `JoinedBody.jumpFromGround` 上记。
+- **访问放宽**：`LivingEntity.jumping`、`attackStrengthTicker`、`updatingUsingItem` 三条 AW/AT 变成无人用
+  （两份文件要一起删，`check_remap_safety.py` 只比对两份是否一致）；泵放在 `JoinedBody` 上不需要新条目，
+  `goDownInWater` 是 protected，只能从 `JoinedBody` 里调。
+- **非 `JoinedBody` 的身体**：`JourneyRig` 与 `WorldDriverActuatorSplitScenes` 把 `ServerPlayerBody` 包在收养来的
+  真玩家上，今天不 `step()`，但泵若强转 `JoinedBody` 要守卫。
+- **`tickCount`/`setOldPosAndRot` 的守卫**要按身体当前所在的关卡判（传送门场景会在循环中换维度），
+  并经得起 `SimProbes` 在步进循环里重入 `level.tick`。
+- **真梯**：没有地方设难度，世界是 EASY；只有砾石那一级喂食，按冲刺消耗约 760 米后饱食度降到 6 以下、停冲刺。
 
 `LivingBody` 里「腿归谁」用一个显式的模式（Taterzens 的 `movement mode` 那一手）：`DRIVEN` 时 `Mob.serverAiStep`
 的导航与移动控制不跑、`LookControl` 不跑；`FREE` 时全部还给原版。模式切换在 `attach`/`release` 上，
