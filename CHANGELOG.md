@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the legs on any topology; a fixture that gives `hand` or `equip` is refused on it. Every committed
   fixture that gives nothing to hold also runs as `<name>.npc`, judged by its markers but not by the
   `expect` numbers, which were accepted from a player's run: `human.flatStep.npc`.
+- **The validation scripts leave no diamonds on the test pad.** `33_world_snapshot.js` ended with its
+  restored chest still holding five diamonds, and `61_world_block.js` cleared a chest of its own the
+  same way. On a server a client had joined, the real player `wd.agentRpcSmoke` stands on the pad made
+  the "Diamonds!" advancement there on every gate, and `43_recipe` and `47_plan` read those diamonds
+  out of its bag. Both scripts now empty the chest before removing it; on both loaders' with-client
+  gates the advancement no longer comes before `wd.fullInventoryVisible`, which stages diamonds itself.
 - **The testmod has an NPC body: a driven piglin the walker drives like a player.**
   `worlddriver:driven_piglin` is a piglin whose move, jump and look controls and whose brain stand
   down while a driver holds it. The driver's step runs its tick through `pump()`, the way `JoinedBody`

@@ -64,7 +64,7 @@
 | 🔴 判：改（先要一条场景，生存反射没闸不动） | J112 | **上岸扫描能把一具没气的身体瞄准岩浆。** `AutoSwim.nearestShore:284-286` 的判据是 `isSolid(below) && !isWater(foot) && isPassable(foot) && isPassable(head) && !isHazard(below)` —— **`isHazard` 只问了 `below`**，而 `canStandAt` 三格都问。已验：`ClientWorldView.isPassable:160` 第一句 `if (!s.blocksMotion() ...) return true`，**岩浆不 blocksMotion ⇒ 返回 true**；岩浆不是水 ⇒ `!isWater(foot)` 为真；石头底 ⇒ `isSolid`/`!isHazard(below)` 皆真。五句全过。修法方向是**变严**：`&& !w.isHazard(foot) && !w.isHazard(head)`，退化良性（调用方 `dir == null` 那支继续按住 jump 上浮） | 我 |
 | 🔴 判：先补测量（探针便宜、能搭车） | J111 | **沙箱那七条断言全绿，而它们守护的过滤器整趟没拒过一个名字。** `ScriptClassFilter.DISABLED = !"on".equals(getProperty("worlddriver.sandbox","off"))` 出厂为真，`isAllowed:87` 第一行就 `return true`，且 `*.gradle` 里零命中 ⇒ 每趟闸这个过滤器都是关的。AGENTS.md 硬规则 #3 点名 `08_sandbox.js` 作为放宽沙箱的守卫，而它在放宽发生时不会红一行。⛔ 别急着加断言——会撞覆盖漂移闸的两个精确总数。**缺的读数＝`typeof java` / `typeof java.io.File`**：若为 `undefined` 则七条当场证伪为空断言（`java` 根本解析不出来，`denied()` 抓的是 TypeError），**不需要开沙箱就能判**；只有解析得出来时才轮到 `-Dworlddriver.sandbox=on` 的对照趟。另：`Runtime.exec("id")` 与 `Socket("127.0.0.1",1)` 那两条**原理上分辨不了任何东西**（宿主没有 `id`、连接被拒都必抛） | 我 |
 |---|---|---|---|
-| 🟠 判：先补测量 | Q15c | **集成服 NeoForge 上，客户端身体场景一族和 `pack.placesAndReadsBack` 在 PREP 里 ENV_FAIL：arena 9 格全部 FULL、0 格 entity-ticking，此后不再变化。** 每趟若干条、成员不固定，身体抽象 P0 之前的树上同样出现，Fabric 集成服没有。是卡住不是慢，所以原先要的 `readyTicks` 分布判不了它。**缺的读数＝ENV_FAIL 那一刻 arena 各格的票等级、`getEntityTickingChunkFuture()` 是否完成及其错误、周围 5×5 的票等级**（落 StageWright 的 PREP 失败信息，只加仪器不改行为） | 我 |
+| 🟠 判：先补测量 | Q15c | **集成服 NeoForge 上，客户端身体场景一族和 `pack.placesAndReadsBack` 在 PREP 里 ENV_FAIL：arena 9 格全部 FULL、0 格 entity-ticking，此后不再变化。** 每趟若干条、成员不固定，身体抽象 P0 之前的树上同样出现，Fabric 集成服没有。是卡住不是慢，所以原先要的 `readyTicks` 分布判不了它。StageWright 的 PREP 失败信息（`ArenaChunkReport`）已读到：9 格票等级 31（中心 30）、全状态 ENTITY_TICKING，`getEntityTickingChunkFuture()` 却一直 `pending`；外围 7×7 票等级 32/33 齐全。票到位、晋升没完成。**缺的读数＝那一刻 arena 周围 5×5 邻格各自的加载进度（`getLatestStatus()`、full-chunk future 是否完成）**，找出哪一格没到 FULL（只加仪器不改行为） | 我 |
 | 🟠 已量·修法挂 Q7c | Q7 | V1 冻屏**数出来了**：单秒最高 **20 次**搜索、**26%** 的秒 ≥3 次，全在 Render thread；最大单一来源是 **174 次起点目标全同的重问**（`owner=mine`）。「缺计数器」是错的——`search-begin` 一直无条件在打。**修法定形在 Q7c，本行只留测量** | 我 |
 | ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪＋放时钟）。**重开条件**：`PORTAL_LIT`（12 级）在钉住的世界**连续两趟 PASS**。今 12 级仍 FAIL（最近三趟排练依次死在门洞清渣、`goto` 吃楼梯支撑、`Goal.XZ` 打竖井），条件明确不成立；现在开刷怪，方差恰好砸在正被查的那一级上。⚠️ 这条到期时**必须真的执行**，别让它变成又一个「永远不来的触发词」（同 J7 的教训） | 我 |
 | 🔴 判：做（触发改具体：下一个 knob 之前） | J7 | **`BotConfig.java` 2993/3000，零死 import**——顶着上限，**要拆不要刮**（[[a-file-pinned-at-its-budget]]）。触发词从「梯子稳后」改成「**任何要新增 `BotConfig` knob 的修法之前，先拆**」；Q7c 已被迫复用 `walkerFutileSearchCap` 就是这条上限在收税 | 我（下一个 knob 之前） |
@@ -150,18 +150,12 @@
 
 这些在旧版里只有正文小节、没有队列行。**它们和上表一样是开着的活**，别因为表里没有就当它们结了。
 
-### 🔴 J130：身体抽象的 P3 只落了第一版
+### 🟡 J130：身体抽象 P3 之后还开着的
 
-阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4。第一版只有 `mc.bot.goto`、`mc.bot.cancel`、`mc.bot.status` 认 `body`。
-还欠：其余 23 个 `mc.bot.*` 动词；`FixtureRunner` 的 `body: npc:…`；RPC 驱动的 NPC 的区块票据（§5）；人工验证手册的一节。
-`wd.bodyRoutesWalkAPlayerAndAnNpcByName` 里服务端玩家身体停在终点格前 0.016 格，以 `path-consumed`、`goalReached=false` 收单，NPC 是 `arrived`；场景按 1.5 格判到达，未归因。
+阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4；P3 已落（驱动身体的 `mc.bot.*` 动词都认 `body`，`FixtureRunner` 认 `body: npc`）。
+其他身体上 `goto` 仍拒 `route.mode fly`，而 `elytraFly` 已认 `body`，两条路不一致。
 P2 留下的可选项 `NavigationMover`（原版导航作对照）没做。
 §6 第 3 条（反射层上不上服务端身体）未决。
-
-### 🟡 J132：带客户端拓扑上，测试台附近地上有钻石
-
-`wd.agentRpcSmoke` 把真玩家传送到测试台后约 2 秒，玩家就拿到「Diamonds!」进度，每趟带客户端的闸都有这一行。
-这些掉落物是哪个场景留下的还没找；47_plan 和 43_recipe 的钻石检查已改为从空背包规划，不再受它影响。
 
 ### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖
 
@@ -178,6 +172,8 @@ P2 留下的可选项 `NavigationMover`（原版导航作对照）没做。
 （`FixtureRunner.arrived` 的容差）而 `body.blockPosition()` 是邻格。这是客户端身体停靠与 `Goal.Block` 精确格
 的既有差距（同族：「到达不是那条腿说的那件事」）。**在它修好之前，客户端拓扑全量闸不会绿**；是否把该场景
 在此拓扑标为 optional 由人拍板。
+待验的线索：`FixtureRunner` 钉的基线关着 `walkerHoldLastNodeUntilStanding`；`wd.bodyRoutesWalkAPlayerAndAnNpcByName`
+里服务端玩家身体在同一开关下也是差一格收单，打开后以 `arrived` 收单。`human.flatStep` 的 `config` 打开它跑一趟客户端拓扑即可判。
 
 ### 🟡 J129：实验室世界 `lab.parkour` 的 25 个标记在两趟 run 之间全部消失，原因未定位
 
