@@ -1,5 +1,7 @@
 package net.magicterra.worlddriver.bot.stagewright;
 
+import java.util.Map;
+
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.movement.Walker;
@@ -18,6 +20,10 @@ import net.minecraft.world.level.Level;
  * finishes, registered again by {@link #start}. A difference between the two bodies under the same
  * route is then the body's and not the host's. Like that driver, a finished host stops stepping its
  * body, and a driven mob nobody pumps stands where it stopped.
+ *
+ * <p>An NPC holds no chunk ticket, so a walk can carry it out of the loaded area. The tick after its
+ * chunk unloads, or after it dies, ends the task with the reason {@link #refusal} would have refused
+ * the order with, left in the slot.
  */
 public final class NpcBodyHost implements BodyHost, BodyDriver {
 
@@ -57,16 +63,18 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
     @Override public String cancel(String which) {
         BotProcess p = busy() ? process : null;
         if (p == null || !("all".equals(which) || p.kind().equals(which))) return null;
-        release("user-cancel");
-        BotState.ProcessSlot slot = botState.slotFor(p.kind());
-        if (slot != null) { slot.lastError = "user-cancel"; slot.reset(); }
-        finished = true;
+        end(p, "user-cancel");
         return p.kind();
     }
 
     @Override public Walker.Step tick() {
         BotProcess p = process;
         if (finished || p == null) return Walker.Step.ARRIVED;
+        Map<String, Object> gone = refusal();
+        if (gone != null) {
+            end(p, String.valueOf(gone.get("reason")));
+            return Walker.Step.FAILED;
+        }
         boolean done = p.tick(body, view(), botState);
         body.step();
         if (done) finished = true;
@@ -80,6 +88,13 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
         Level now = body.entity().level();
         if (view == null || view.level() != now) view = LevelWorldView.forBody(now, body.entity());
         return view;
+    }
+
+    private void end(BotProcess p, String reason) {
+        release(reason);
+        BotState.ProcessSlot slot = botState.slotFor(p.kind());
+        if (slot != null) { slot.lastError = reason; slot.reset(); }
+        finished = true;
     }
 
     private void release(String reason) {
