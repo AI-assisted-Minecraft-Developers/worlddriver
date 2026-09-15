@@ -344,18 +344,6 @@ public final class DriverApi {
         // The verbs that also take `body` are in putBodyRoutes().
         putBodyRoutes();
         routes.put("mc.bot.equip",     body(p -> requireBot().equip(p)));
-        routes.put("mc.bot.lookAt",    body(p -> requireBot().lookAt(p)));
-        // mc.bot.useItem dispatches based on params: pass `entityId` to right-click
-        // an entity (mount / trade / shear / milk / feed / leash); pass `pos` to use
-        // the held item ON a block face (place / bone-meal / shears / etc.); omit both
-        // to use the item in mid-air (eat / draw bow / throw snowball).
-        routes.put("mc.bot.useItem",     body(p -> {
-            if (p != null && p.get("entityId") != null) return requireBot().useItemOnEntity(p);
-            if (p != null && p.get("pos") != null) return requireBot().useItemOn(p);
-            return requireBot().useItem(p);
-        }));
-        routes.put("mc.bot.holdItem",    body(p -> requireBot().holdItem(p)));
-        routes.put("mc.bot.attackEntity",body(p -> requireBot().attackEntity(p)));
         // pause/resume are reachable through mc.bot.setting{paused:bool} —
         // same vol-toggle handler in BotApiImpl.setting absorbs both.
         routes.put("mc.bot.setting",   p -> requireBot().setting(p));
@@ -436,38 +424,45 @@ public final class DriverApi {
      */
     private void putBodyRoutes() {
         BodyRoutes bodies = new BodyRoutes(this);
-        Function<Map<String, Object>, Object> selfGoto = body(p -> awaitable(p, "goto", requireBot()::mcGoto));
-        routes.put("mc.bot.goto",   p -> BodyRoutes.isSelf(p) ? selfGoto.apply(p)
-                : awaitable(p, "goto", bodies::mcGoto, bodies.slotsOf(p)));
         routes.put("mc.bot.cancel", p -> BodyRoutes.isSelf(p) ? requireBot().cancel(p) : bodies.cancel(p));
         routes.put("mc.bot.status", bodies::status);
-        putOrder(bodies, "mc.bot.mine",      "mine",    BotApi::mine,      VerbOrders::mine);
-        putOrder(bodies, "mc.bot.bunker",    "bunker",  BotApi::bunker,    VerbOrders::bunker);
-        putOrder(bodies, "mc.bot.escape",    null,      BotApi::escape,    VerbOrders::escape);
-        putOrder(bodies, "mc.bot.craft",     "craft",   BotApi::craft,     VerbOrders::craft);
-        putOrder(bodies, "mc.bot.smelt",     "smelt",   BotApi::smelt,     VerbOrders::smelt);
-        putOrder(bodies, "mc.bot.combat",    "combat",  BotApi::combat,    VerbOrders::combat);
-        putOrder(bodies, "mc.bot.build",     "builder", BotApi::build,     VerbOrders::build);
-        putOrder(bodies, "mc.bot.clearArea", "builder", BotApi::clearArea, VerbOrders::clearArea);
-        putOrder(bodies, "mc.bot.farm",      "builder", BotApi::farm,      VerbOrders::farm);
-        putOrder(bodies, "mc.bot.construct", "builder", BotApi::construct, VerbOrders::construct);
-        putOrder(bodies, "mc.bot.sleep",     "goto",    BotApi::sleep,     VerbOrders::sleep);
-        putOrder(bodies, "mc.bot.follow",    "follow",  BotApi::follow,    VerbOrders::follow);
-        putOrder(bodies, "mc.bot.explore",   "explore", BotApi::explore,   VerbOrders::explore);
-        putOrder(bodies, "mc.bot.runAway",   "runAway", BotApi::runAway,   VerbOrders::runAway);
-        putOrder(bodies, "mc.bot.elytraFly", "elytra",  BotApi::elytraFly, VerbOrders::elytraFly);
+        putBodyVerb(bodies, "mc.bot.goto",      "goto",    BotApi::mcGoto,    BodyRoutes::mcGoto);
+        putBodyVerb(bodies, "mc.bot.mine",      "mine",    BotApi::mine,      BodyRoutes.order(VerbOrders::mine));
+        putBodyVerb(bodies, "mc.bot.bunker",    "bunker",  BotApi::bunker,    BodyRoutes.order(VerbOrders::bunker));
+        putBodyVerb(bodies, "mc.bot.escape",    null,      BotApi::escape,    BodyRoutes.order(VerbOrders::escape));
+        putBodyVerb(bodies, "mc.bot.craft",     "craft",   BotApi::craft,     BodyRoutes.order(VerbOrders::craft));
+        putBodyVerb(bodies, "mc.bot.smelt",     "smelt",   BotApi::smelt,     BodyRoutes.order(VerbOrders::smelt));
+        putBodyVerb(bodies, "mc.bot.combat",    "combat",  BotApi::combat,    BodyRoutes.order(VerbOrders::combat));
+        putBodyVerb(bodies, "mc.bot.build",     "builder", BotApi::build,     BodyRoutes.order(VerbOrders::build));
+        putBodyVerb(bodies, "mc.bot.clearArea", "builder", BotApi::clearArea, BodyRoutes.order(VerbOrders::clearArea));
+        putBodyVerb(bodies, "mc.bot.farm",      "builder", BotApi::farm,      BodyRoutes.order(VerbOrders::farm));
+        putBodyVerb(bodies, "mc.bot.construct", "builder", BotApi::construct, BodyRoutes.order(VerbOrders::construct));
+        putBodyVerb(bodies, "mc.bot.sleep",     "goto",    BotApi::sleep,     BodyRoutes.order(VerbOrders::sleep));
+        putBodyVerb(bodies, "mc.bot.follow",    "follow",  BotApi::follow,    BodyRoutes.order(VerbOrders::follow));
+        putBodyVerb(bodies, "mc.bot.explore",   "explore", BotApi::explore,   BodyRoutes.order(VerbOrders::explore));
+        putBodyVerb(bodies, "mc.bot.runAway",   "runAway", BotApi::runAway,   BodyRoutes.order(VerbOrders::runAway));
+        putBodyVerb(bodies, "mc.bot.elytraFly", "elytra",  BotApi::elytraFly, BodyRoutes.order(VerbOrders::elytraFly));
+        putBodyVerb(bodies, "mc.bot.lookAt",       null, BotApi::lookAt,       BodyInteractions::lookAt);
+        putBodyVerb(bodies, "mc.bot.holdItem",     null, BotApi::holdItem,     BodyInteractions::holdItem);
+        putBodyVerb(bodies, "mc.bot.attackEntity", null, BotApi::attackEntity, BodyInteractions::attackEntity);
+        // mc.bot.useItem dispatches based on params: pass `entityId` to right-click
+        // an entity (mount / trade / shear / milk / feed / leash); pass `pos` to use
+        // the held item ON a block face (place / bone-meal / shears / etc.); omit both
+        // to use the item in mid-air (eat / draw bow / throw snowball).
+        putBodyVerb(bodies, "mc.bot.useItem", null, (bot, p) -> p != null && p.get("entityId") != null ? bot.useItemOnEntity(p)
+                : p != null && p.get("pos") != null ? bot.useItemOn(p) : bot.useItem(p), BodyInteractions::useItem);
     }
 
     /**
-     * A verb that starts a process: on self the client bot's {@code onSelf} behind {@link #body}, on
-     * another body the {@code order} {@link BodyRoutes#order} starts there. {@code slot} is what
-     * {@code awaitMs} waits on, or null for a verb that does not wait.
+     * {@code method} on self through {@code onSelf} behind {@link #body}, on another body through
+     * {@code onHost} by way of {@link BodyRoutes#onHost}. {@code slot} is what {@code awaitMs} waits
+     * on, or null for a verb that does not wait.
      */
-    private void putOrder(BodyRoutes bodies, String method, String slot,
-                          BiFunction<BotApi, Map<String, Object>, Map<String, Object>> onSelf,
-                          BiFunction<Params, LivingEntity, VerbOrders.Order> order) {
+    private void putBodyVerb(BodyRoutes bodies, String method, String slot,
+                             BiFunction<BotApi, Map<String, Object>, Map<String, Object>> onSelf,
+                             BiFunction<net.magicterra.worlddriver.bot.body.BodyHost, Params, Map<String, Object>> onHost) {
         Function<Map<String, Object>, Map<String, Object>> self = p -> onSelf.apply(requireBot(), p);
-        Function<Map<String, Object>, Map<String, Object>> other = p -> bodies.order(p, order);
+        Function<Map<String, Object>, Map<String, Object>> other = p -> bodies.onHost(p, onHost);
         Function<Map<String, Object>, Object> selfRoute = body(slot == null ? self::apply : p -> awaitable(p, slot, self));
         routes.put(method, p -> BodyRoutes.isSelf(p) ? selfRoute.apply(p)
                 : slot == null ? other.apply(p) : awaitable(p, slot, other, bodies.slotsOf(p)));

@@ -158,18 +158,21 @@ public final class BotTools {
                     + "equipping while digging is automatic, mid-run loss is not monitored."));
     }
 
-    /** The verbs that start a process and so also take {@code body}; api/BodyRoutes answers them. */
-    private static final java.util.Set<String> ORDERS_A_BODY_TAKES = java.util.Set.of(
+    /** The verbs that start a process or use the hands, which also take {@code body}; api/BodyRoutes
+     *  answers them. goto, status and cancel declare theirs with their own words. */
+    private static final java.util.Set<String> VERBS_A_BODY_TAKES = java.util.Set.of(
         "mc.bot.mine", "mc.bot.bunker", "mc.bot.escape", "mc.bot.craft", "mc.bot.smelt", "mc.bot.combat",
         "mc.bot.build", "mc.bot.clearArea", "mc.bot.farm", "mc.bot.construct", "mc.bot.sleep",
-        "mc.bot.follow", "mc.bot.explore", "mc.bot.runAway", "mc.bot.elytraFly");
+        "mc.bot.follow", "mc.bot.explore", "mc.bot.runAway", "mc.bot.elytraFly",
+        "mc.bot.lookAt", "mc.bot.holdItem", "mc.bot.useItem", "mc.bot.attackEntity");
 
-    /** {@code tools} with {@code body} on the verbs in {@link #ORDERS_A_BODY_TAKES}. */
+    /** {@code tools} with {@code body} on the verbs in {@link #VERBS_A_BODY_TAKES}. */
     private static List<ToolSchema> withBody(List<ToolSchema> tools) {
         for (ToolSchema t : tools) {
-            if (ORDERS_A_BODY_TAKES.contains(t.name()) && t.schema() instanceof Schema.Obj o) {
+            if (VERBS_A_BODY_TAKES.contains(t.name()) && t.schema() instanceof Schema.Obj o) {
                 o.prop("body", bodyId().desc("Which body: 'self' (default, this client's player) or an id from "
-                        + "mc.bot.status bodies. Another body has no reflexes; combat's force has nothing to lift there."));
+                        + "mc.bot.status bodies. Another body has no reflexes and an NPC no hands; out of reach "
+                        + "is refused there, combat's force lifts nothing, and useItem on an entity answers menu, not screen."));
             }
         }
         return tools;

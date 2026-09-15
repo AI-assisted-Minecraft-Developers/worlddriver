@@ -27,6 +27,7 @@ public final class ServerBodyHost implements BodyHost {
 
     @Override public String id() { return id; }
     @Override public String kind() { return KIND; }
+    @Override public ServerPlayerBody body() { return driver.avatar(); }
     @Override public LivingEntity entity() { return driver.fakePlayer(); }
     @Override public BotState botState() { return driver.botState(); }
 

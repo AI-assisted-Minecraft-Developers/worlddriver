@@ -10,8 +10,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * A body the API addresses by name: what {@code mc.bot.goto}, {@code mc.bot.cancel} and
- * {@code mc.bot.status} need from a body that is not this client's own.
+ * A body the API addresses by name: what the {@code mc.bot.*} verbs that take {@code body} need from
+ * a body that is not this client's own.
  *
  * <p>A host runs one process at a time and the server tick advances it, so every method here is
  * called on the server thread. The client's body is not a host. {@code self} keeps going through
@@ -24,6 +24,9 @@ public interface BodyHost {
 
     /** {@code player} or {@code npc}. */
     String kind();
+
+    /** The body its processes drive; its {@link Body#hands()} is what the hand verbs act through. */
+    Body body();
 
     /** The entity, or null once there is none. */
     LivingEntity entity();

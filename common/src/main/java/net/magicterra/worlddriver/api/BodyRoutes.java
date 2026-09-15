@@ -26,10 +26,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * The {@code mc.bot.*} verbs that take {@code body}, for the bodies {@link BodyRegistry} names:
- * {@code goto}, {@code cancel}, {@code status} and the verbs that start a process. An absent, blank
- * or {@code self} {@code body} leaves the call to the client's {@link BotApi}, as before the param
- * existed.
+ * The {@code mc.bot.*} verbs that take {@code body}, for the bodies {@link BodyRegistry} names. An
+ * absent, blank or {@code self} {@code body} leaves the call to the client's {@link BotApi}, as before
+ * the param existed.
  *
  * <p>Every read and write of a host hops to the server thread, which is the thread that advances it.
  * The exception is the slot poll behind {@code awaitMs}, which reads {@code BotState}'s volatile
@@ -53,46 +52,44 @@ final class BodyRoutes {
         return BodyRegistry.isSelf(bodyId(p));
     }
 
-    /** {@code mc.bot.goto} on a registered body. */
-    Map<String, Object> mcGoto(Map<String, Object> params) {
+    /**
+     * {@code verb} on the registered body {@code params} names, on the server thread. An unknown id and
+     * a body that cannot act now answer before the verb runs.
+     */
+    Map<String, Object> onHost(Map<String, Object> params, BiFunction<BodyHost, Params, Map<String, Object>> verb) {
         String id = bodyId(params);
         Params p = Params.of(params);
         return api.onServerThread(() -> {
             BodyHost host = BodyRegistry.get(id);
             if (host == null) return BodyRegistry.unknown(id);
             Map<String, Object> refused = host.refusal();
-            return refused != null ? refused : start(host, p);
+            return refused != null ? refused : verb.apply(host, p);
         });
     }
 
     /**
-     * A verb that starts a process, on a registered body: the order {@code self} would take, read by
-     * the same {@link VerbOrders} builder. Whether the body can do the work is the process's to say;
-     * one that needs hands ends on its first tick with {@code no_hands} on an NPC, in the slot
-     * {@code awaitMs} waits on.
+     * A verb that starts a process: the order {@code self} would take, read by the same
+     * {@link VerbOrders} builder, started on the host. Whether the body can do the work is the
+     * process's to say; one that needs hands ends on its first tick with {@code no_hands} on an NPC,
+     * in the slot {@code awaitMs} waits on.
      */
-    Map<String, Object> order(Map<String, Object> params, BiFunction<Params, LivingEntity, VerbOrders.Order> build) {
-        String id = bodyId(params);
-        Params p = Params.of(params);
-        return api.onServerThread(() -> {
-            BodyHost host = BodyRegistry.get(id);
-            if (host == null) return BodyRegistry.unknown(id);
-            Map<String, Object> refused = host.refusal();
-            if (refused != null) return refused;
+    static BiFunction<BodyHost, Params, Map<String, Object>> order(BiFunction<Params, LivingEntity, VerbOrders.Order> build) {
+        return (host, p) -> {
             VerbOrders.Order o = build.apply(p, host.entity());
             if (o.refused()) return o.reply();
             host.start(o.process());
             Map<String, Object> out = new LinkedHashMap<>(o.reply());
             out.put("body", host.id());
             return out;
-        });
+        };
     }
 
     /**
-     * The goal forms {@code self} takes, less three: a waypoint lives in the client's memory, a
-     * preview is the client's planner, and fly hands the order to the client's elytra process.
+     * {@code mc.bot.goto}: the goal forms {@code self} takes, less three. A waypoint lives in the
+     * client's memory, a preview is the client's planner, and fly hands the order to the client's
+     * elytra process.
      */
-    private static Map<String, Object> start(BodyHost host, Params p) {
+    static Map<String, Object> mcGoto(BodyHost host, Params p) {
         if (p.get("waypoint") != null) return error("waypoint is only accepted on body self");
         if (p.get("planId") != null) return error("planId is only accepted on body self");
         if (planned(p.get("plan"))) return error("plan is only accepted on body self");
@@ -155,6 +152,7 @@ final class BodyRoutes {
     /**
      * {@code mc.bot.cancel} on a registered body. A host holds one process, so a named cancel matches
      * its kind or nothing; {@code all} answers ok whatever was running, as it does on {@code self}.
+     * A body that cannot act can still be cancelled, so no refusal is asked first.
      */
     Map<String, Object> cancel(Map<String, Object> params) {
         String id = bodyId(params);

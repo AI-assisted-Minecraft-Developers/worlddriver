@@ -43,6 +43,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
 
     @Override public String id() { return id; }
     @Override public String kind() { return KIND; }
+    @Override public net.magicterra.worlddriver.bot.body.Body body() { return body; }
     @Override public LivingEntity entity() { return body.entity(); }
     @Override public BotState botState() { return botState; }
 
