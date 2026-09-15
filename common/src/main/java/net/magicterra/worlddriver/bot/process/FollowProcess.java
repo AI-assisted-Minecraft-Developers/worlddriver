@@ -17,7 +17,6 @@ import net.minecraft.world.phys.Vec3;
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
-import net.minecraft.client.multiplayer.ClientLevel;
 
 public final class FollowProcess implements BotProcess {
     private static final int REPLAN_TICKS = 30;
