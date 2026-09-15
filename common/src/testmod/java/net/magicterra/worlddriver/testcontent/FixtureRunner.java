@@ -201,6 +201,10 @@ public final class FixtureRunner {
         /** Let the body's client catch up with the adoption teleport before the first leg starts; a
          *  server body is where it was put the moment it was put there. */
         default void settle(Runnable then) { then.run(); }
+        /** Let the server read where the body stopped before a leg is judged. A client's body reaches
+         *  the server a move packet late, so its walker can say arrived while the server still has it
+         *  a step short; a server body and an NPC are read where they are. */
+        default void caughtUp(Runnable then) { then.run(); }
     }
 
     private static final class Run {
@@ -263,7 +267,6 @@ public final class FixtureRunner {
 
             var pin = BotConfig.pinnedBaseline();
             ctx.cleanup(pin::close);
-            applyConfig(f.config());
 
             BlockPos foot = FixtureIO.at(origin, start.pos());
             if (isNpc(bodyKind) && (!f.hand().isEmpty() || !f.equip().isEmpty())) {
@@ -271,6 +274,9 @@ public final class FixtureRunner {
             }
             helm = isNpc(bodyKind) ? npcHelm(foot, start.yaw())
                     : bodyKind.equals("self") ? clientHelm(foot, start.yaw()) : serverHelm(foot, start.yaw());
+            // After the helm: adopting the real player pins the baseline again, so a config applied
+            // before it never reached the walker that player's legs run on.
+            applyConfig(f.config());
             LivingEntity body = helm.entity();
             body.setHealth(body.getMaxHealth());
             if (body instanceof ServerPlayer player) {
@@ -308,6 +314,8 @@ public final class FixtureRunner {
                 // The client trails the teleport by the move packets the server has not consumed
                 // (six ticks measured); a walker that snapshots before that plans from the old cell.
                 @Override public void settle(Runnable then) { helm.sync(10, then); }
+                // The same packets trail a leg's last steps; ten ticks outlast the six measured.
+                @Override public void caughtUp(Runnable then) { helm.sync(10, then); }
                 @Override public LivingEntity entity() { return helm.player(); }
                 @Override public String describe() { return "real player " + helm.player().getGameProfile().getName() + " (BotApi.runProcess)"; }
             };
@@ -364,32 +372,51 @@ public final class FixtureRunner {
                 if (!helm.busy()) { ended[0] = true; return true; }
                 return ++waited[0] >= leg.budget();
             }).within(leg.budget() + 100).then(() -> {
-                ticks += waited[0];
-                if (walker != null) {
-                    WalkerTallies t = walker.tallies();
-                    searches += t.searches;
-                    hops += t.recoveryHops;
-                    digs += t.digs;
-                }
-                LivingEntity body = helm.entity();
-                String where = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", body.getX(), body.getY(), body.getZ());
-                boolean arrived = goal != null && arrived(body, goal, leg.goalKind());
-                String how = ended[0] ? "ended at tick " + waited[0] : "budget " + leg.budget() + " spent, process still busy";
-                ctx.record(tag, how + ", at " + where + (goal == null ? "" : ", arrived=" + arrived));
-                if (goal != null) {
-                    auto.put("arrive." + i, arrived);
-                    line(arrived, "leg " + i + " " + leg.verb() + " arrived at " + goal.toShortString()
-                            + " (" + how + ")");
-                    if (!arrived) failures.add("leg " + i + " did not arrive at " + goal.toShortString() + ": " + how);
-                } else if (!ended[0]) {
-                    auto.put("finish." + i, false);
-                    line(false, "leg " + i + " " + leg.verb() + " did not finish within " + leg.budget() + " ticks");
-                    failures.add("leg " + i + " " + leg.verb() + " did not finish");
-                } else {
-                    auto.put("finish." + i, true);
-                    line(true, "leg " + i + " " + leg.verb() + " finished at tick " + waited[0]);
-                }
-                leg(i + 1);
+                // Where the server had the body the tick the leg ended, before a client's last move
+                // packets land: the reading this runner judged by until it waited for them.
+                LivingEntity seen = helm.entity();
+                String endedAt = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", seen.getX(), seen.getY(), seen.getZ());
+                helm.caughtUp(() -> {
+                    ticks += waited[0];
+                    if (walker != null) {
+                        WalkerTallies t = walker.tallies();
+                        searches += t.searches;
+                        hops += t.recoveryHops;
+                        digs += t.digs;
+                    }
+                    LivingEntity body = helm.entity();
+                    String where = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", body.getX(), body.getY(), body.getZ());
+                    boolean arrived = goal != null && arrived(body, goal, leg.goalKind());
+                    String how = ended[0] ? "ended at tick " + waited[0] : "budget " + leg.budget() + " spent, process still busy";
+                    // The walker's own end beside the leg's: arrived here allows a cell of slack, and a walk
+                    // that stopped a cell short reads arrived=true with the walker saying why it stopped.
+                    ctx.record(tag, how + ", at " + where + (where.equals(endedAt) ? "" : " (" + endedAt + " as it ended)")
+                            + (goal == null ? "" : ", arrived=" + arrived)
+                            + (walker == null ? "" : ", walker ended " + walker.lastEndReason));
+                    // What the fixture's config reads when the leg ends, not when it was applied.
+                    if (!f.config().isEmpty()) {
+                        Map<String, Object> now = new LinkedHashMap<>();
+                        for (String k : f.config().keySet()) {
+                            try { now.put(k, BotConfig.class.getField(k).get(null)); }
+                            catch (ReflectiveOperationException | RuntimeException e) { now.put(k, "unreadable"); }
+                        }
+                        ctx.record(tag + ".config", String.valueOf(now));
+                    }
+                    if (goal != null) {
+                        auto.put("arrive." + i, arrived);
+                        line(arrived, "leg " + i + " " + leg.verb() + " arrived at " + goal.toShortString()
+                                + " (" + how + ")");
+                        if (!arrived) failures.add("leg " + i + " did not arrive at " + goal.toShortString() + ": " + how);
+                    } else if (!ended[0]) {
+                        auto.put("finish." + i, false);
+                        line(false, "leg " + i + " " + leg.verb() + " did not finish within " + leg.budget() + " ticks");
+                        failures.add("leg " + i + " " + leg.verb() + " did not finish");
+                    } else {
+                        auto.put("finish." + i, true);
+                        line(true, "leg " + i + " " + leg.verb() + " finished at tick " + waited[0]);
+                    }
+                    leg(i + 1);
+                });
             });
         }
 
