@@ -49,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the "Diamonds!" advancement there on every gate, and `43_recipe` and `47_plan` read those diamonds
   out of its bag. Both scripts now empty the chest before removing it; on both loaders' with-client
   gates the advancement no longer comes before `wd.fullInventoryVisible`, which stages diamonds itself.
+- **Integrated NeoForge no longer loses client-body scenes to ENV_FAIL.** Each run lost 2 to 13 in
+  PREP. A scene that adopts the real player sends it back where it came from when it ends, the chunks
+  there reload ahead of the next arena, and StageWright's stall test watched only the arena. It now
+  counts the whole level's chunk progress; two runs since had none, their longest PREP 670 ticks.
 - **The testmod has an NPC body: a driven piglin the walker drives like a player.**
   `worlddriver:driven_piglin` is a piglin whose move, jump and look controls and whose brain stand
   down while a driver holds it. The driver's step runs its tick through `pump()`, the way `JoinedBody`
