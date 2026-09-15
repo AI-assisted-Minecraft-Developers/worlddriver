@@ -300,6 +300,7 @@ mixin 要进发布 jar，留给第一只被驾驶的原版生物。其余形状�
   `chunkRadius`/forceload 兜住，RPC 驱动的 NPC 在 `ready()` 里检查区块并以 `chunk_unloaded` 拒单。
 - **不给 `LivingEntity` 分叉一份原版 `PathNavigation`**（Citizens `BasicMobAI` 的做法）。我们已有自己的
   寻路器且它不依赖实体类型，分叉三个原版类只会多一套要维护的物理。`NavigationMover` 只给真 `Mob` 用，作对照。
+  **2026-09-15 定为不做**：P2 的判据不靠它就核过了，也没有哪条开着的活在等原版导航的读数；要拿它作对照时再立项。
 - **不做上帝参数对象**（Citizens 的 `NavigatorParameters` 六十个 setter 加一个 `useNewPathfinder` 布尔）。
   路线条件已经有 `route` 一个对象，身体差异走 `BodyCapabilities`，两者不合并。
 - **不吞异常**（Carpet 的 `catch (NullPointerException ignored)`）：`SilentConnection` 把 NPE 面补齐，
@@ -311,7 +312,8 @@ mixin 要进发布 jar，留给第一只被驾驶的原版生物。其余形状�
    `ServerPlayerBody` 因此是模组本体的公开类型，改名与拆分要当作 API 变更登 CHANGELOG。
 2. **已拍板（2026-09-14）**：NPC 的第一具身体是 testmod 里一个自定义的猪灵实体（`Piglin` 子类，自己的
    `EntityType`），不披玩家皮；皮是展示问题，单独立项。
-3. 反射层要不要上服务端身体（自动吃、自动游）。第一版不上；真梯在专用服上的死因族如果指向这里再议。
+3. **已拍板（2026-09-15，按第一版的推荐）**：反射层（自动吃、自动游）不上服务端身体。
+   **重开条件**：真梯在专用服上的死因族指向缺反射。
 4. **P1b 的实施假设（2026-09-14，未经拍板）**：服务端身体的饥饿、状态效果、火、空气、冷却按原版跑，
    不豁免——那正是换原版泵要换来的东西；`JoinedBody.isInvulnerableTo → true` 仍在，所以饿不死也摔不死，
    只是会饿、会停冲刺。进食走现有的 `commandUseItem`/`JourneyFeed`。若场景或真梯因此变红，再议是否给

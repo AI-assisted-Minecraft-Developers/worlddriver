@@ -150,13 +150,6 @@
 
 这些在旧版里只有正文小节、没有队列行。**它们和上表一样是开着的活**，别因为表里没有就当它们结了。
 
-### 🟡 J130：身体抽象 P3 之后还开着的
-
-阶段与判据在 `docs/superpowers/specs/2026-09-12-body-abstraction-design.md` §4；P3 已落（驱动身体的 `mc.bot.*` 动词都认 `body`，`FixtureRunner` 认 `body: npc`）。
-其他身体上 `goto` 仍拒 `route.mode fly`，而 `elytraFly` 已认 `body`，两条路不一致。
-P2 留下的可选项 `NavigationMover`（原版导航作对照）没做。
-§6 第 3 条（反射层上不上服务端身体）未决。
-
 ### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖
 
 `WalkerTickStallDetect.offPath` 量的是到追踪节点的距离；`adoptPath` 把平直段拉成一条长边后，
