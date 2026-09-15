@@ -273,7 +273,7 @@ public final class BotTools {
                     .prop("awaitMs", awaitMs())
                     .prop("body", bodyId()
                         .desc("Which body walks: 'self' (default) or an id from mc.bot.status bodies. Another body "
-                            + "refuses waypoint, plan, planId and route.mode fly, and route.requireTool unless it is a player."))
+                            + "refuses waypoint, plan and planId, and route.requireTool unless it is a player."))
                 ),
 
             wrTool("mc.bot.waypoint",

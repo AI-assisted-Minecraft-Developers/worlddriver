@@ -85,9 +85,8 @@ final class BodyRoutes {
     }
 
     /**
-     * {@code mc.bot.goto}: the goal forms {@code self} takes, less three. A waypoint lives in the
-     * client's memory, a preview is the client's planner, and fly hands the order to the client's
-     * elytra process.
+     * {@code mc.bot.goto}: the goal forms {@code self} takes, less the three the client holds. A
+     * waypoint lives in its memory, and a preview and {@code planId} are its planner.
      */
     static Map<String, Object> mcGoto(BodyHost host, Params p) {
         if (p.get("waypoint") != null) return error("waypoint is only accepted on body self");
@@ -103,7 +102,6 @@ final class BodyRoutes {
             return error(e.getMessage());
         }
         if (planned(route.plan())) return error("route.plan is only accepted on body self");
-        if (route.fly()) return error("route.mode fly is only accepted on body self");
         if (goal == null) return error("missing goal — provide pos|xz|y|block|entity|entityId|direction");
         String tool = route.requireTool();
         if (tool != null && !tool.isBlank()) {
@@ -113,6 +111,7 @@ final class BodyRoutes {
             try { GotoGoalResolver.checkRequiredTool(tool, player); }
             catch (IllegalArgumentException e) { return error(e.getMessage()); }
         }
+        if (route.fly()) return fly(host, goal);
         List<Goal> targets = new ArrayList<>();
         for (BlockPos v : route.via()) targets.add(new Goal.Near(v, 1));
         targets.add(goal);
@@ -127,6 +126,25 @@ final class BodyRoutes {
         out.put("body", host.id());
         out.put("goal", goal.toString());
         if (!route.via().isEmpty()) out.put("via", route.via().size());
+        return out;
+    }
+
+    /**
+     * {@code route.mode} fly: {@code mc.bot.elytraFly}'s order for the goal's cell, walking there when the
+     * body wears no usable elytra, as on {@code self}. The reply names the slot the order lives in, so
+     * {@code awaitMs} waits on {@code elytra} for a flight and on {@code goto} for the walk.
+     */
+    private static Map<String, Object> fly(BodyHost host, Goal goal) {
+        BlockPos target = goal.targetPos();
+        if (target == null) return error("route.mode fly needs a goal with a target cell (pos/entity), got " + goal);
+        Map<String, Object> cell = Map.of("x", target.getX(), "y", target.getY(), "z", target.getZ());
+        VerbOrders.Order o = VerbOrders.elytraFly(Params.of(Map.of("pos", cell, "groundFallback", true)), host.entity());
+        if (o.refused()) return o.reply();
+        host.start(o.process());
+        Map<String, Object> out = new LinkedHashMap<>(o.reply());
+        out.put("slot", o.process() instanceof IntentProcess ? "goto" : "elytra");
+        out.put("goal", goal.toString());
+        out.put("body", host.id());
         return out;
     }
 

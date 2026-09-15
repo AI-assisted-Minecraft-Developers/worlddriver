@@ -13,9 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on `goto`, `cancel`, `status`, the fifteen verbs that start a process, and `lookAt`, `holdItem`,
   `useItem` and `attackEntity`; `equip`, `setting`, `waypoint` and `playbook` do not declare it, so
   schema validation rejects it there. Another body runs one process on the server tick with no
-  reflexes, so `goto` refuses the goal forms that live on the client (waypoints, `plan`, `planId`,
-  `route.mode` fly) and `route.requireTool` unless the body is a player, and `combat`'s `force` has no
-  frail gate to lift. A process verb reads its params through `VerbOrders`, which the client's verbs
+  reflexes, so `goto` refuses the goal forms that live on the client (waypoints, `plan`, `planId`)
+  and `route.requireTool` unless the body is a player, and `combat`'s `force` has no frail gate to
+  lift. `route.mode` fly is `elytraFly`'s order for the goal's cell there as on `self`; on both, the
+  walk it falls back to without a usable elytra now answers `slot: goto`, where `self` said `elytra`
+  and an `awaitMs` returned before the walk had begun. A process verb reads its params through `VerbOrders`, which the client's verbs
   now use too, so the two bodies cannot read one order differently. The hand verbs do on the server
   what a click's packets get done there: out of reach is refused where the client's click is silently
   ignored, a use on an entity names the open `menu` where the client names its `screen`, and an NPC

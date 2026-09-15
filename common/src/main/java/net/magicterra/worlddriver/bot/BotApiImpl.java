@@ -253,7 +253,8 @@ public final class BotApiImpl implements BotApi {
                 flyParams.put("pos", posMap(target));
                 flyParams.put("groundFallback", true);
                 Map<String, Object> out = new LinkedHashMap<>(elytraFly(flyParams));
-                out.put("slot", "elytra");
+                // With no usable elytra the fallback walks, and a walk lives in the goto slot.
+                out.put("slot", "groundFallback".equals(out.get("mode")) ? "goto" : "elytra");
                 out.put("goal", goal.toString());
                 return out;
             }
