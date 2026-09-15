@@ -52,7 +52,9 @@ ScriptTest.run("61_world_block: block-entity NBT via nbt:true", function(t) {
     t.assertTrue(air.blockEntity === null || air.blockEntity === undefined,
         "no block entity at air cell");
 
-    // Cleanup the scratch cells.
+    // Cleanup the scratch cells, the chest emptied first so no diamonds can drop on the pad.
+    Driver.invoke("mc.action.runCommand",
+        { cmd: "item replace block " + x + " " + y + " " + z + " container.0 with minecraft:air" });
     Driver.invoke("mc.action.runCommand",
         { cmd: "fill " + (origin.x + 24) + " " + (origin.y + 4) + " " + (origin.z + 24) + " "
             + (origin.x + 24) + " " + (origin.y + 6) + " " + (origin.z + 24) + " minecraft:air" });

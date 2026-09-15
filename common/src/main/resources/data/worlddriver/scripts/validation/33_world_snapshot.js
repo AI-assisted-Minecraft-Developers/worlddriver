@@ -54,8 +54,14 @@ ScriptTest.run("33_world_snapshot: block-entity contents survive restore", funct
     var snap = Driver.invoke("mc.world.snapshot", { id: "be", from: pos, to: pos });
     t.assertEqual(snap.blockEntities, 1, "chest captured as a block entity");
 
-    // Destroy the chest entirely.
-    Driver.invoke("mc.action.runCommand", { cmd: "setblock " + c + " air" });
+    // Destroy the chest entirely. It is emptied first, here and at the end: a chest of diamonds left
+    // on the pad is broken by whatever runs there next, and on a server a client joined the real
+    // player picks the drop up, which reddens every later check that reads that player's bag.
+    function removeChest() {
+        Driver.invoke("mc.action.runCommand", { cmd: "item replace block " + c + " container.0 with minecraft:air" });
+        Driver.invoke("mc.action.runCommand", { cmd: "setblock " + c + " air" });
+    }
+    removeChest();
     tick(1);
     var gone = Driver.invoke("mc.observe.container", { pos: pos });
     t.assertEqual(gone.present, false, "chest is gone before restore");
@@ -75,6 +81,7 @@ ScriptTest.run("33_world_snapshot: block-entity contents survive restore", funct
     var threw = false;
     try { Driver.invoke("mc.world.restore", { id: "be" }); } catch (e) { threw = true; }
     t.assertTrue(threw, "restore of a discarded id must throw");
+    removeChest();
 });
 
 ScriptTest.run("33_world_snapshot: metadata identical across in-JVM, RPC, MCP", function(t) {
