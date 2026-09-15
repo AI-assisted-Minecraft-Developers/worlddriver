@@ -49,18 +49,14 @@ public final class BotInteract {
 
     private BotInteract() {}
 
+    /** {@link net.magicterra.worlddriver.model.Params#toHand}, which a body on the server reads too. */
     public static InteractionHand parseHand(Object o) {
-        if (o instanceof String s && (s.equalsIgnoreCase("off") || s.equalsIgnoreCase("offhand") || s.equalsIgnoreCase("off_hand"))) {
-            return InteractionHand.OFF_HAND;
-        }
-        return InteractionHand.MAIN_HAND;
+        return net.magicterra.worlddriver.model.Params.toHand(o);
     }
 
-    /** Parse "up"/"down"/"north"/... ; null on missing or unrecognized. */
+    /** {@link net.magicterra.worlddriver.model.Params#toFace}, which a body on the server reads too. */
     public static Direction parseFace(Object o) {
-        if (!(o instanceof String s) || s.isBlank()) return null;
-        try { return Direction.byName(s.toLowerCase(Locale.ROOT)); }
-        catch (Exception e) { return null; }
+        return net.magicterra.worlddriver.model.Params.toFace(o);
     }
 
     /** Yaw/pitch to aim from {@code p} at {@code target}'s mid-bounding-box —

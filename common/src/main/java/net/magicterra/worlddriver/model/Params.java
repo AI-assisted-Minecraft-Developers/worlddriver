@@ -118,6 +118,21 @@ public final class Params {
         return null;
     }
 
+    /** {@code "off"}, {@code "offhand"} or {@code "off_hand"} is the off hand; anything else the main hand. */
+    public static net.minecraft.world.InteractionHand toHand(Object o) {
+        if (o instanceof String s && (s.equalsIgnoreCase("off") || s.equalsIgnoreCase("offhand") || s.equalsIgnoreCase("off_hand"))) {
+            return net.minecraft.world.InteractionHand.OFF_HAND;
+        }
+        return net.minecraft.world.InteractionHand.MAIN_HAND;
+    }
+
+    /** {@code "up"}, {@code "north"}, … as a Direction; null when missing or unrecognized. */
+    public static net.minecraft.core.Direction toFace(Object o) {
+        if (!(o instanceof String s) || s.isBlank()) return null;
+        try { return net.minecraft.core.Direction.byName(s.toLowerCase(java.util.Locale.ROOT)); }
+        catch (RuntimeException e) { return null; }
+    }
+
     /** Parse a {@code "x,y,z"} token to a BlockPos. Throws on a malformed token. */
     public static BlockPos parsePos(String s) {
         String[] p = s.split(",");
