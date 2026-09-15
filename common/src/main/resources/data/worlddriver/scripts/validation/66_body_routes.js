@@ -1,7 +1,7 @@
-// mc.bot.goto, mc.bot.cancel and mc.bot.status address a body by the `body` param. An id nothing is
-// registered under must refuse with the same bytes on every transport, and status must list the
-// registered bodies the same way on each. Needs no body of its own, so it runs on every topology;
-// walking a registered body is the dedicated-server scene's job.
+// The mc.bot.* verbs that take `body` address a body by it. An id nothing is registered under must
+// refuse with the same bytes on every transport, and status must list the registered bodies the same
+// way on each. Needs no body of its own, so it runs on every topology; driving a registered body is the
+// dedicated-server scenes' job.
 
 function jsonStable(v) {
     if (v === null || typeof v !== "object") return JSON.stringify(v);
@@ -26,10 +26,15 @@ function viaEveryTransport(method, params) {
             Driver.system.mcpRoundtrip(method, params)];
 }
 
-ScriptTest.run("66_body_routes: an unknown body refuses goto, cancel and status alike on every transport", function(t) {
+ScriptTest.run("66_body_routes: an unknown body refuses every verb that takes body alike on every transport", function(t) {
     var calls = [["mc.bot.goto", { body: NOBODY, pos: { x: 0, y: 64, z: 0 } }],
                  ["mc.bot.cancel", { body: NOBODY }],
-                 ["mc.bot.status", { body: NOBODY }]];
+                 ["mc.bot.status", { body: NOBODY }],
+                 ["mc.bot.mine", { body: NOBODY, blocks: ["minecraft:stone"] }],
+                 ["mc.bot.escape", { body: NOBODY }],
+                 ["mc.bot.combat", { body: NOBODY, mode: "defend" }],
+                 ["mc.bot.runAway", { body: NOBODY, awaitMs: 1000 }],
+                 ["mc.bot.elytraFly", { body: NOBODY }]];
     for (var i = 0; i < calls.length; i++) {
         var method = calls[i][0];
         var r = viaEveryTransport(method, calls[i][1]);
@@ -56,7 +61,7 @@ ScriptTest.run("66_body_routes: status lists the same bodies on every transport"
 
 ScriptTest.run("66_body_routes: a verb that does not route by body rejects it as an unknown key", function(t) {
     var msg = null;
-    try { Driver.invoke("mc.bot.mine", { body: NOBODY }); }
+    try { Driver.invoke("mc.bot.waypoint", { op: "list", body: NOBODY }); }
     catch (e) { msg = String(e); }
     t.assertTrue(msg !== null && msg.indexOf("unexpected key 'body'") >= 0, "got: " + msg);
 });
