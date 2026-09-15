@@ -158,12 +158,6 @@
 P2 留下的可选项 `NavigationMover`（原版导航作对照）没做。
 §6 第 3 条（反射层上不上服务端身体）未决。
 
-### 🟡 J131：没有驱动器在步的服务端身体整个停住
-
-`JoinedBody` 只在 `ServerPlayerBody.step()` 里走；没人注册驱动器时它不下落、不饿、不回血、一口吃不完，真玩家却由连接每 tick 推着。
-真梯靠 `JourneyRig.await` 自己补步，`/worlddriver server` 的空闲身体和 P3 的 RPC 身体没有。
-待定：关卡实体循环要不要在本 tick 没被步过时替它空步（改的是 spec §3.2 写明的 tick 契约）。
-
 ### 🟡 J132：带客户端拓扑上，测试台附近地上有钻石
 
 `wd.agentRpcSmoke` 把真玩家传送到测试台后约 2 秒，玩家就拿到「Diamonds!」进度，每趟带客户端的闸都有这一行。
