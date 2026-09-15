@@ -70,6 +70,10 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
+        // The shipped arrival rule, which the pinned baseline turns off: without it the walker spends the
+        // last node from 0.67 out, and a player body ended path-consumed a cell short (x=…329.984,
+        // finalDist 10) on both loaders while the NPC arrived.
+        BotConfig.walkerHoldLastNodeUntilStanding = true;
         fill(level, lo, hi, AIR);
         ctx.cleanup(() -> fill(level, lo, hi, AIR));
         fill(level, lo, o.offset(COURSE + 2, -1, 4), STONE);
@@ -120,12 +124,14 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
 
         ctx.await(() -> !player.busy() && !npc.busy()).within(400).then(() -> {
             BlockPos playerAt = b.driver().fakePlayer().blockPosition(), npcAt = b.npcBody().entity().blockPosition();
-            ctx.record("player.goto", String.valueOf(call(api, "mc.bot.status", Map.of("body", player.id())).get("goto")));
-            ctx.record("npc.goto", String.valueOf(call(api, "mc.bot.status", Map.of("body", npc.id())).get("goto")));
-            ctx.check(playerAt.closerThan(playerGoal, 1.5))
-                    .as("服务端玩家身体按名字走到终点：停在 " + playerAt.toShortString()).isTrue();
-            ctx.check(npcAt.closerThan(npcGoal, 1.5))
-                    .as("NPC 按名字走到终点：停在 " + npcAt.toShortString()).isTrue();
+            Object playerSlot = call(api, "mc.bot.status", Map.of("body", player.id())).get("goto");
+            Object npcSlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("goto");
+            ctx.record("player.goto", String.valueOf(playerSlot));
+            ctx.record("npc.goto", String.valueOf(npcSlot));
+            ctx.check(playerAt.closerThan(playerGoal, 1.5) && endedArrived(playerSlot))
+                    .as("服务端玩家身体按名字走到终点并以 arrived 收单：停在 " + playerAt.toShortString() + "，" + playerSlot).isTrue();
+            ctx.check(npcAt.closerThan(npcGoal, 1.5) && endedArrived(npcSlot))
+                    .as("NPC 按名字走到终点并以 arrived 收单：停在 " + npcAt.toShortString() + "，" + npcSlot).isTrue();
 
             Map<String, Object> back = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcStart)));
             Map<String, Object> cancelled = call(api, "mc.bot.cancel", Map.of("body", npc.id(), "process", "goto"));
@@ -203,6 +209,11 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> call(DriverApi api, String method, Map<String, Object> params) {
         return (Map<String, Object>) api.route(method, params);
+    }
+
+    /** A goto slot that ended with the foot in the goal, not with the path merely spent. */
+    private static boolean endedArrived(Object slot) {
+        return slot instanceof Map<?, ?> m && "arrived".equals(m.get("endReason"));
     }
 
     private static List<Object> ids(Map<String, Object> status) {
