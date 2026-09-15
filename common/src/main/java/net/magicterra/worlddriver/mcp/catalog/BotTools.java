@@ -158,8 +158,25 @@ public final class BotTools {
                     + "equipping while digging is automatic, mid-run loss is not monitored."));
     }
 
+    /** The verbs that start a process and so also take {@code body}; api/BodyRoutes answers them. */
+    private static final java.util.Set<String> ORDERS_A_BODY_TAKES = java.util.Set.of(
+        "mc.bot.mine", "mc.bot.bunker", "mc.bot.escape", "mc.bot.craft", "mc.bot.smelt", "mc.bot.combat",
+        "mc.bot.build", "mc.bot.clearArea", "mc.bot.farm", "mc.bot.construct", "mc.bot.sleep",
+        "mc.bot.follow", "mc.bot.explore", "mc.bot.runAway", "mc.bot.elytraFly");
+
+    /** {@code tools} with {@code body} on the verbs in {@link #ORDERS_A_BODY_TAKES}. */
+    private static List<ToolSchema> withBody(List<ToolSchema> tools) {
+        for (ToolSchema t : tools) {
+            if (ORDERS_A_BODY_TAKES.contains(t.name()) && t.schema() instanceof Schema.Obj o) {
+                o.prop("body", bodyId().desc("Which body: 'self' (default, this client's player) or an id from "
+                        + "mc.bot.status bodies. Another body has no reflexes; combat's force has nothing to lift there."));
+            }
+        }
+        return tools;
+    }
+
     public static List<ToolSchema> tools() {
-        return List.of(
+        List<ToolSchema> all = List.of(
             wrTool("mc.bot.goto",
                 "Pathfind and walk the local player to a goal. Async (see category note); pass " +
                 "`awaitMs` to block until completion. Implicitly cancels any prior mc.bot.goto. " +
@@ -752,5 +769,6 @@ public final class BotTools {
                             + "one process and no reflex chains, so a named cancel matches its process kind or nothing."))
                 )
         );
+        return withBody(all);
     }
 }

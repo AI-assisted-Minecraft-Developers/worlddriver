@@ -29,8 +29,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import net.magicterra.worlddriver.bot.VerbOrders;
 import java.util.function.Predicate;
 import net.magicterra.worlddriver.bot.util.BlockMatch;
 import java.util.function.Supplier;
@@ -339,19 +341,9 @@ public final class DriverApi {
         // Verbs that drive the body go through body(): BodyReady's refusal answers
         // first when the player is missing, dead, paused, in bed, loading or off a
         // loaded chunk. status/cancel/setting/waypoint stay open while it is down.
+        // The verbs that also take `body` are in putBodyRoutes().
         putBodyRoutes();
-        routes.put("mc.bot.mine",      body(p -> awaitable(p, "mine",    requireBot()::mine)));
-        routes.put("mc.bot.bunker",    body(p -> awaitable(p, "bunker",  requireBot()::bunker)));
-        routes.put("mc.bot.escape",    body(p -> requireBot().escape(p)));
-        routes.put("mc.bot.craft",     body(p -> awaitable(p, "craft",   requireBot()::craft)));
-        routes.put("mc.bot.smelt",     body(p -> awaitable(p, "smelt",   requireBot()::smelt)));
-        routes.put("mc.bot.combat",    body(p -> awaitable(p, "combat",  requireBot()::combat)));
         routes.put("mc.bot.equip",     body(p -> requireBot().equip(p)));
-        routes.put("mc.bot.build",     body(p -> awaitable(p, "builder", requireBot()::build)));
-        routes.put("mc.bot.clearArea", body(p -> awaitable(p, "builder", requireBot()::clearArea)));
-        routes.put("mc.bot.follow",    body(p -> awaitable(p, "follow",  requireBot()::follow)));
-        routes.put("mc.bot.explore",   body(p -> awaitable(p, "explore", requireBot()::explore)));
-        routes.put("mc.bot.runAway",   body(p -> awaitable(p, "runAway", requireBot()::runAway)));
         routes.put("mc.bot.lookAt",    body(p -> requireBot().lookAt(p)));
         // mc.bot.useItem dispatches based on params: pass `entityId` to right-click
         // an entity (mount / trade / shear / milk / feed / leash); pass `pos` to use
@@ -368,10 +360,6 @@ public final class DriverApi {
         // same vol-toggle handler in BotApiImpl.setting absorbs both.
         routes.put("mc.bot.setting",   p -> requireBot().setting(p));
         routes.put("mc.bot.waypoint",  p -> requireBot().waypoint(p));
-        routes.put("mc.bot.farm",      body(p -> awaitable(p, "builder", requireBot()::farm)));
-        routes.put("mc.bot.sleep",     body(p -> awaitable(p, "goto",    requireBot()::sleep)));
-        routes.put("mc.bot.construct", body(p -> awaitable(p, "builder", requireBot()::construct)));
-        routes.put("mc.bot.elytraFly", body(p -> awaitable(p, "elytra",  requireBot()::elytraFly)));
         // Phase G boss playbooks — Rhino scripts run on a background thread by the
         // PlaybookRunner (bound at startup, like scriptHandler). op=start|status|cancel.
         routes.put("mc.bot.playbook", p -> {
@@ -443,9 +431,8 @@ public final class DriverApi {
     }
 
     /**
-     * goto, cancel and status also take {@code body}: anything but self goes to {@link BodyRoutes},
-     * which never touches the client bot, so these three answer for server bodies on a dedicated
-     * server.
+     * The verbs that also take {@code body}: anything but self goes to {@link BodyRoutes}, which
+     * never touches the client bot, so these answer for server bodies on a dedicated server.
      */
     private void putBodyRoutes() {
         BodyRoutes bodies = new BodyRoutes(this);
@@ -454,6 +441,36 @@ public final class DriverApi {
                 : awaitable(p, "goto", bodies::mcGoto, bodies.slotsOf(p)));
         routes.put("mc.bot.cancel", p -> BodyRoutes.isSelf(p) ? requireBot().cancel(p) : bodies.cancel(p));
         routes.put("mc.bot.status", bodies::status);
+        putOrder(bodies, "mc.bot.mine",      "mine",    BotApi::mine,      VerbOrders::mine);
+        putOrder(bodies, "mc.bot.bunker",    "bunker",  BotApi::bunker,    VerbOrders::bunker);
+        putOrder(bodies, "mc.bot.escape",    null,      BotApi::escape,    VerbOrders::escape);
+        putOrder(bodies, "mc.bot.craft",     "craft",   BotApi::craft,     VerbOrders::craft);
+        putOrder(bodies, "mc.bot.smelt",     "smelt",   BotApi::smelt,     VerbOrders::smelt);
+        putOrder(bodies, "mc.bot.combat",    "combat",  BotApi::combat,    VerbOrders::combat);
+        putOrder(bodies, "mc.bot.build",     "builder", BotApi::build,     VerbOrders::build);
+        putOrder(bodies, "mc.bot.clearArea", "builder", BotApi::clearArea, VerbOrders::clearArea);
+        putOrder(bodies, "mc.bot.farm",      "builder", BotApi::farm,      VerbOrders::farm);
+        putOrder(bodies, "mc.bot.construct", "builder", BotApi::construct, VerbOrders::construct);
+        putOrder(bodies, "mc.bot.sleep",     "goto",    BotApi::sleep,     VerbOrders::sleep);
+        putOrder(bodies, "mc.bot.follow",    "follow",  BotApi::follow,    VerbOrders::follow);
+        putOrder(bodies, "mc.bot.explore",   "explore", BotApi::explore,   VerbOrders::explore);
+        putOrder(bodies, "mc.bot.runAway",   "runAway", BotApi::runAway,   VerbOrders::runAway);
+        putOrder(bodies, "mc.bot.elytraFly", "elytra",  BotApi::elytraFly, VerbOrders::elytraFly);
+    }
+
+    /**
+     * A verb that starts a process: on self the client bot's {@code onSelf} behind {@link #body}, on
+     * another body the {@code order} {@link BodyRoutes#order} starts there. {@code slot} is what
+     * {@code awaitMs} waits on, or null for a verb that does not wait.
+     */
+    private void putOrder(BodyRoutes bodies, String method, String slot,
+                          BiFunction<BotApi, Map<String, Object>, Map<String, Object>> onSelf,
+                          BiFunction<Params, LivingEntity, VerbOrders.Order> order) {
+        Function<Map<String, Object>, Map<String, Object>> self = p -> onSelf.apply(requireBot(), p);
+        Function<Map<String, Object>, Map<String, Object>> other = p -> bodies.order(p, order);
+        Function<Map<String, Object>, Object> selfRoute = body(slot == null ? self::apply : p -> awaitable(p, slot, self));
+        routes.put(method, p -> BodyRoutes.isSelf(p) ? selfRoute.apply(p)
+                : slot == null ? other.apply(p) : awaitable(p, slot, other, bodies.slotsOf(p)));
     }
 
     public void attachServer(MinecraftServer s) {

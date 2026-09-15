@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import net.magicterra.worlddriver.bot.BotApi;
@@ -11,6 +12,7 @@ import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.GotoGoalResolver;
 import net.magicterra.worlddriver.bot.RouteParams;
+import net.magicterra.worlddriver.bot.VerbOrders;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.body.BodyRegistry;
 import net.magicterra.worlddriver.bot.process.Intent;
@@ -24,9 +26,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * {@code mc.bot.goto}, {@code mc.bot.cancel} and {@code mc.bot.status} for the bodies
- * {@link BodyRegistry} names. An absent, blank or {@code self} {@code body} leaves the call to the
- * client's {@link BotApi}, as before the param existed.
+ * The {@code mc.bot.*} verbs that take {@code body}, for the bodies {@link BodyRegistry} names:
+ * {@code goto}, {@code cancel}, {@code status} and the verbs that start a process. An absent, blank
+ * or {@code self} {@code body} leaves the call to the client's {@link BotApi}, as before the param
+ * existed.
  *
  * <p>Every read and write of a host hops to the server thread, which is the thread that advances it.
  * The exception is the slot poll behind {@code awaitMs}, which reads {@code BotState}'s volatile
@@ -59,6 +62,29 @@ final class BodyRoutes {
             if (host == null) return BodyRegistry.unknown(id);
             Map<String, Object> refused = host.refusal();
             return refused != null ? refused : start(host, p);
+        });
+    }
+
+    /**
+     * A verb that starts a process, on a registered body: the order {@code self} would take, read by
+     * the same {@link VerbOrders} builder. Whether the body can do the work is the process's to say;
+     * one that needs hands ends on its first tick with {@code no_hands} on an NPC, in the slot
+     * {@code awaitMs} waits on.
+     */
+    Map<String, Object> order(Map<String, Object> params, BiFunction<Params, LivingEntity, VerbOrders.Order> build) {
+        String id = bodyId(params);
+        Params p = Params.of(params);
+        return api.onServerThread(() -> {
+            BodyHost host = BodyRegistry.get(id);
+            if (host == null) return BodyRegistry.unknown(id);
+            Map<String, Object> refused = host.refusal();
+            if (refused != null) return refused;
+            VerbOrders.Order o = build.apply(p, host.entity());
+            if (o.refused()) return o.reply();
+            host.start(o.process());
+            Map<String, Object> out = new LinkedHashMap<>(o.reply());
+            out.put("body", host.id());
+            return out;
         });
     }
 
