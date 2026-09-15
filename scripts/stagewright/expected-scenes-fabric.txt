@@ -581,7 +581,9 @@ wd.npcClimbsALadder
 wd.npcRefusesWorkThatNeedsHands
 # A server player body and an NPC addressed by name through goto, cancel and status.
 wd.bodyRoutesWalkAPlayerAndAnNpcByName
-# The verbs that start a process, ordered to a server player body and an NPC by name.
+# The verbs that start a process or use the hands, ordered to a server player body and an NPC by name.
 wd.bodyRoutesStartProcessesByName
 # Hand-built fixtures (common/src/testmod/resources/scenes/index.txt): a name here and in the index, same commit.
 human.flatStep
+# A fixture that gives nothing to hold also runs on an NPC under <name>.npc (HumanScenes).
+human.flatStep.npc

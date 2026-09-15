@@ -38,11 +38,15 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.magicterra.worlddriver.bot.stagewright.LivingBody;
+import net.magicterra.worlddriver.bot.stagewright.NpcBodyHost;
 
 /**
  * Runs one hand-built scene: puts a body at the start marker, walks the legs, and judges the
@@ -51,10 +55,12 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
  * in-place run from the chat bar or RPC ({@link #startInPlace}, driven by {@link #tickInPlace}
  * off Architectury's server tick) — so what a tester watched is what the gate later judges.
  *
- * <p>The body is chosen by the topology, never by the file: a dedicated server mints a headless
+ * <p>A player body is chosen by the topology, not by the file: a dedicated server mints a headless
  * body ({@link SceneBody#mint}), an integrated server adopts the real player
  * ({@link ClientHelm#adopt}); each refuses on the other and the scene skips saying so. An in-place
- * run may ask for one explicitly and gets the same refusal as an error.
+ * run may ask for one explicitly and gets the same refusal as an error. An NPC ({@link SceneBody#npc})
+ * is legal on every topology, so a file whose {@code body} is {@code npc} or {@code npc:<name>} runs
+ * on one, and so does an in-place run that asks for it.
  *
  * <p>Counts come off the process's own {@link Walker#tallies()} — the walker the leg actually
  * ran, on whichever helm — never off the JVM-wide statics, so two bodies in one process cannot
@@ -76,7 +82,18 @@ public final class FixtureRunner {
     /** The scene body for the suite: terrain at the harness origin, then the shared run. */
     public static void runAuto(SceneContext ctx, SceneFixture fixture, StructureTemplate template) {
         FixtureIO.placeTerrain(ctx.level(), fixture, template, ctx.origin());
-        new Run(ctx, fixture, ctx.origin(), bodyForTopology(ctx.server()), null, null).start();
+        new Run(ctx, fixture, ctx.origin(), bodyFor(fixture, ctx.server()), null, null).start();
+    }
+
+    /** The file's NPC when its {@code body} names one, else {@link #bodyForTopology}. */
+    public static String bodyFor(SceneFixture fixture, MinecraftServer server) {
+        return isNpc(fixture.body()) ? fixture.body().trim() : bodyForTopology(server);
+    }
+
+    /** {@code npc}, or {@code npc:<name>} with the mob's name after the colon. */
+    static boolean isNpc(String body) {
+        String b = body == null ? "" : body.trim();
+        return b.equals("npc") || b.startsWith("npc:");
     }
 
     /** Which body this JVM can drive: the integrated server with the client half present adopts the
@@ -115,7 +132,7 @@ public final class FixtureRunner {
      * Server thread only. Refuses while another run is going: two bodies on one tick hook would
      * share the markers and the report.
      *
-     * @param body {@code server} or {@code self}; null picks {@link #bodyForTopology}
+     * @param body {@code server}, {@code self}, {@code npc} or {@code npc:<name>}; null picks {@link #bodyFor}
      * @param progress where the every-20-ticks line goes when the caller asked to watch, or null
      */
     public static InPlace startInPlace(ServerLevel level, String name, SceneFixture fixture, BlockPos origin,
@@ -125,8 +142,12 @@ public final class FixtureRunner {
         if (going != null && !going.done.isDone()) {
             throw new IllegalStateException("scene.run: '" + going.name + "' is still running; wait for it or stop the server");
         }
-        String kind = body == null || body.isBlank() ? bodyForTopology(level.getServer()) : body.trim().toLowerCase(Locale.ROOT);
-        if (!kind.equals("server") && !kind.equals("self")) throw new IllegalArgumentException("scene.run: body must be server or self");
+        String asked = body == null ? "" : body.trim();
+        // The name after npc: keeps its case; the three words do not.
+        String kind = asked.isEmpty() ? bodyFor(fixture, level.getServer()) : isNpc(asked) ? asked : asked.toLowerCase(Locale.ROOT);
+        if (!kind.equals("server") && !kind.equals("self") && !isNpc(kind)) {
+            throw new IllegalArgumentException("scene.run: body must be server, self, npc or npc:<name>");
+        }
         SceneContext ctx = new SceneContext(level, origin, fixture.chunkRadius());
         Run run = new Run(ctx, fixture, origin, kind, progress, name);
         InPlace ip = new InPlace(name, fixture, ctx, run);
@@ -170,11 +191,12 @@ public final class FixtureRunner {
 
     // ------------------------------------------------------------------ the run
 
-    /** What a leg's process is driven by: the two helms behind one face. */
+    /** What a leg's process is driven by: the three helms behind one face. */
     private interface Helm {
         void start(BotProcess p);
         boolean busy();
-        ServerPlayer player();
+        /** A player for {@code server} and {@code self}, the driven mob for {@code npc}. */
+        LivingEntity entity();
         String describe();
         /** Let the body's client catch up with the adoption teleport before the first leg starts; a
          *  server body is where it was put the moment it was put there. */
@@ -244,12 +266,18 @@ public final class FixtureRunner {
             applyConfig(f.config());
 
             BlockPos foot = FixtureIO.at(origin, start.pos());
-            helm = bodyKind.equals("self") ? clientHelm(foot, start.yaw()) : serverHelm(foot, start.yaw());
-            ServerPlayer body = helm.player();
+            if (isNpc(bodyKind) && (!f.hand().isEmpty() || !f.equip().isEmpty())) {
+                throw new SceneFailure("scene '" + f.name() + "' gives hand or equip, and an npc body has no inventory");
+            }
+            helm = isNpc(bodyKind) ? npcHelm(foot, start.yaw())
+                    : bodyKind.equals("self") ? clientHelm(foot, start.yaw()) : serverHelm(foot, start.yaw());
+            LivingEntity body = helm.entity();
             body.setHealth(body.getMaxHealth());
-            body.getFoodData().setFoodLevel(20);
-            giveHand(body, f.hand());
-            equip(body, f.equip());
+            if (body instanceof ServerPlayer player) {
+                player.getFoodData().setFoodLevel(20);
+                giveHand(player, f.hand());
+                equip(player, f.equip());
+            }
             ctx.record("helm", helm.describe());
             helm.settle(() -> leg(0));
         }
@@ -267,7 +295,7 @@ public final class FixtureRunner {
                 // The manager drops a finished driver, so every leg registers again.
                 @Override public void start(BotProcess p) { driver.runProcess(p); ServerAvatarManager.register(driver); }
                 @Override public boolean busy() { return !driver.finished(); }
-                @Override public ServerPlayer player() { return fp; }
+                @Override public LivingEntity entity() { return fp; }
                 @Override public String describe() { return "server body " + fp.getGameProfile().getName() + " (ServerAvatarManager)"; }
             };
         }
@@ -280,8 +308,39 @@ public final class FixtureRunner {
                 // The client trails the teleport by the move packets the server has not consumed
                 // (six ticks measured); a walker that snapshots before that plans from the old cell.
                 @Override public void settle(Runnable then) { helm.sync(10, then); }
-                @Override public ServerPlayer player() { return helm.player(); }
+                @Override public LivingEntity entity() { return helm.player(); }
                 @Override public String describe() { return "real player " + helm.player().getGameProfile().getName() + " (BotApi.runProcess)"; }
+            };
+        }
+
+        /**
+         * A driven piglin under the {@link NpcBodyHost} the {@code body} param reaches NPCs through, so a
+         * leg runs on it the way an order by name does. {@code npc:<name>} names the mob;
+         * {@code npc:worlddriver:driven_piglin} is the one type there is. Not put in the registry: a
+         * run is not something to send orders to.
+         */
+        private Helm npcHelm(BlockPos foot, float yaw) {
+            String label = bodyKind.equals("npc") ? "" : bodyKind.substring("npc:".length());
+            if (label.contains(":")) {
+                if (!label.equals("worlddriver:driven_piglin")) {
+                    throw new SceneFailure("body " + bodyKind + ": worlddriver:driven_piglin is the one npc type");
+                }
+                label = "";
+            }
+            LivingBody npc = SceneBody.npc(ctx, foot);
+            LivingEntity mob = npc.entity();
+            mob.setYRot(yaw);
+            mob.setYHeadRot(yaw);
+            if (!label.isBlank()) mob.setCustomName(Component.literal(label));
+            NpcBodyHost host = new NpcBodyHost(label.isBlank() ? name : label, npc);
+            ctx.cleanup(() -> ServerAvatarManager.unregister(host));
+            return new Helm() {
+                @Override public void start(BotProcess p) { host.start(p); }
+                @Override public boolean busy() { return host.busy(); }
+                // A mob put on a cell's floor takes a few steps with no input before its first move finds it.
+                @Override public void settle(Runnable then) { for (int i = 0; i < 5; i++) npc.step(); then.run(); }
+                @Override public LivingEntity entity() { return mob; }
+                @Override public String describe() { return "npc " + host.id() + " (NpcBodyHost)"; }
             };
         }
 
@@ -312,7 +371,7 @@ public final class FixtureRunner {
                     hops += t.recoveryHops;
                     digs += t.digs;
                 }
-                ServerPlayer body = helm.player();
+                LivingEntity body = helm.entity();
                 String where = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", body.getX(), body.getY(), body.getZ());
                 boolean arrived = goal != null && arrived(body, goal, leg.goalKind());
                 String how = ended[0] ? "ended at tick " + waited[0] : "budget " + leg.budget() + " spent, process still busy";
@@ -361,7 +420,7 @@ public final class FixtureRunner {
                 case "escape" -> {
                     if (!(p.get("targetY") instanceof Number n)) throw new SceneFailure("leg " + i + ": escape needs params.targetY (origin-relative)");
                     int targetY = origin.getY() + n.intValue();
-                    boolean down = targetY < helm.player().blockPosition().getY();
+                    boolean down = targetY < helm.entity().blockPosition().getY();
                     return down ? new DescendProcess(targetY) : new EscapeProcess(targetY);
                 }
                 case "elytra" -> {
@@ -387,7 +446,7 @@ public final class FixtureRunner {
 
         /** Arrival as the marker meant it: a near goal within its radius, a y goal on its level,
          *  a block goal with the feet on the cell (one cell of slack, the walker's own tolerance). */
-        private static boolean arrived(ServerPlayer body, BlockPos goal, String kind) {
+        private static boolean arrived(LivingEntity body, BlockPos goal, String kind) {
             String k = kind == null ? "block" : kind.trim();
             BlockPos feet = body.blockPosition();
             if (k.equals("y:") || k.equals("y")) return feet.getY() == goal.getY();
@@ -399,7 +458,7 @@ public final class FixtureRunner {
         // ---- the per-tick watcher
 
         private void watch(int tick) {
-            ServerPlayer body = helm.player();
+            LivingEntity body = helm.entity();
             BlockPos feet = body.blockPosition();
             BlockPos head = feet.above();
             if (forbidHit == null && (forbid.contains(feet) || forbid.contains(head))) {
@@ -426,7 +485,7 @@ public final class FixtureRunner {
         // ---- the end
 
         private void finish() {
-            ServerPlayer body = helm.player();
+            LivingEntity body = helm.entity();
             if (!via.isEmpty()) {
                 boolean ok = viaReached == via.size();
                 auto.put("via", ok);

@@ -70,6 +70,15 @@ public record SceneFixture(
                 file.body(), file.hand(), file.equip(), file.config(), legs, markers, file.expect(), file.verdicts());
     }
 
+    /**
+     * The same scene on an NPC, named {@code <name>.npc}: the markers still judge it, the {@code expect}
+     * numbers do not, since they were accepted from a player's run and an NPC's are its own to accept.
+     */
+    public SceneFixture onNpc() {
+        return new SceneFixture(name + ".npc", author, created, terrain, size, origin, placedAt, chunkRadius,
+                "npc", hand, equip, config, legs, markers, Map.of(), verdicts);
+    }
+
     // ------------------------------------------------------------------ encode
 
     public String toJson() {

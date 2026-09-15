@@ -124,12 +124,13 @@ public final class SceneVerbs {
             + "name when this world has one (the file adds hand/equip/config/expect and the legs' verb and "
             + "budget); otherwise the saved terrain is placed at `pos` and run there (no `pos`: refused — "
             + "`scene.place` first). body: "
-            + "server (headless, dedicated server) or self (the real player, integrated server); default by "
-            + "topology. watch: a progress line to the first player every 20 ticks. awaitMs: wait for the "
-            + "outcome (not from the server thread).",
+            + "server (headless, dedicated server), self (the real player, integrated server), or npc / "
+            + "npc:<name> (a driven piglin, any topology, no inventory); default: the file's npc when it names "
+            + "one, else by topology. watch: a progress line to the first player every 20 ticks. awaitMs: wait "
+            + "for the outcome (not from the server thread).",
             object().additionalProperties(false)
                     .req("name", string())
-                    .prop("body", stringEnum("server", "self"))
+                    .prop("body", string())
                     .prop("watch", bool())
                     .prop("pos", pos())
                     .prop("around", pos())

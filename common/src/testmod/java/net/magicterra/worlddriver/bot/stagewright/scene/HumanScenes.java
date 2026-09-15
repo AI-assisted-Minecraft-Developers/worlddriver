@@ -27,7 +27,9 @@ import net.magicterra.worlddriver.testcontent.SceneFixture;
  *       scan: Java cannot portably list a classpath directory, and {@code JsScenes} reads the run
  *       directory's file system, not resources. A committed fixture is an ordinary scene, judged
  *       with the {@code wd.*} ones, and belongs in both {@code expected-scenes-*.txt} in the same
- *       commit — the manifest is part of the judge.</li>
+ *       commit — the manifest is part of the judge. A fixture that gives the body nothing to hold
+ *       or wear also runs on an NPC as {@code <name>.npc} ({@link SceneFixture#onNpc}), which goes
+ *       in the manifests beside it.</li>
  *   <li>the local {@code config/worlddriver/scenes/} directory, only under a hold
  *       ({@code -Dstagewright.hold}) or {@code -Dworlddriver.localScenes=true}. Not on a gate run:
  *       the judge's UNDECLARED check makes every prefix seen in the manifest a checked namespace,
@@ -46,7 +48,7 @@ public final class HumanScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         List<Scene> out = new ArrayList<>();
-        for (String name : indexNames()) out.add(fromResource(name));
+        for (String name : indexNames()) out.addAll(fromResource(name));
         if (Boolean.getBoolean("stagewright.hold") || Boolean.getBoolean("worlddriver.localScenes")) {
             out.addAll(fromLocalDir());
         }
@@ -70,7 +72,8 @@ public final class HumanScenes implements SceneProvider {
         return names;
     }
 
-    private static Scene fromResource(String name) {
+    /** The fixture, and its NPC twin when the body is given nothing to hold or wear. */
+    private static List<Scene> fromResource(String name) {
         SceneFixture fixture;
         try (InputStream in = HumanScenes.class.getResourceAsStream("/scenes/" + name + ".json")) {
             if (in == null) throw new IllegalStateException("scenes/index.txt names '" + name + "' but scenes/" + name + ".json is not in the jar");
@@ -82,6 +85,13 @@ public final class HumanScenes implements SceneProvider {
             throw new IllegalStateException("scenes/" + name + ".json calls itself '" + fixture.name() + "'");
         }
         String nbt = "/scenes/" + name + ".nbt";
+        List<Scene> out = new ArrayList<>();
+        out.add(resourceScene(fixture, nbt));
+        if (fixture.hand().isEmpty() && fixture.equip().isEmpty()) out.add(resourceScene(fixture.onNpc(), nbt));
+        return out;
+    }
+
+    private static Scene resourceScene(SceneFixture fixture, String nbt) {
         return scene(fixture, ctx -> {
             try {
                 FixtureRunner.runAuto(ctx, fixture, FixtureRunner.templateFromResource(ctx.level(), nbt));
