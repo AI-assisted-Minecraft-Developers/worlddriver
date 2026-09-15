@@ -7,17 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-15
 
-- **`mc.bot.goto`, `mc.bot.cancel` and `mc.bot.status` address a body by name.** A new `body` param
-  takes `self`, the default and unchanged, or an id from the new `bodies` list in `mc.bot.status`:
-  `player:<name>` for a body spawned by `/worlddriver server spawn <name>`, `npc:<name>` for one the
-  testmod registers. Another body walks on the server tick with one process and no reflexes, so it
-  refuses the goal forms that live on the client (waypoints, `plan`, `planId`, `route.mode` fly), and
-  `route.requireTool` unless it is a player. An id nothing is registered under answers `unknown_body`.
-  On a dedicated server there is no client bot, and `mc.bot.status` used to throw there; it now answers
-  with `bodies`. The other `mc.bot.*` verbs do not declare `body`, so schema validation rejects it on
-  them. `/worlddriver server clear` forgets the named bodies along with their drivers, and
+- **The `mc.bot.*` verbs that drive a body address one by name.** A new `body` param takes `self`, the
+  default and unchanged, or an id from the new `bodies` list in `mc.bot.status`: `player:<name>` for a
+  body spawned by `/worlddriver server spawn <name>`, `npc:<name>` for one the testmod registers. It is
+  on `goto`, `cancel`, `status`, the fifteen verbs that start a process, and `lookAt`, `holdItem`,
+  `useItem` and `attackEntity`; `equip`, `setting`, `waypoint` and `playbook` do not declare it, so
+  schema validation rejects it there. Another body runs one process on the server tick with no
+  reflexes, so `goto` refuses the goal forms that live on the client (waypoints, `plan`, `planId`,
+  `route.mode` fly) and `route.requireTool` unless the body is a player, and `combat`'s `force` has no
+  frail gate to lift. A process verb reads its params through `VerbOrders`, which the client's verbs
+  now use too, so the two bodies cannot read one order differently. The hand verbs do on the server
+  what a click's packets get done there: out of reach is refused where the client's click is silently
+  ignored, a use on an entity names the open `menu` where the client names its `screen`, and an NPC
+  answers them with `no_hands`. An id nothing is registered under answers `unknown_body`; an NPC whose
+  chunk unloads or that dies mid-task ends it with `chunk_unloaded` or `dead` in the slot. On a
+  dedicated server there is no client bot, and `mc.bot.status` used to throw there; it now answers with
+  `bodies`. `/worlddriver server clear` forgets the named bodies along with their drivers, and
   `ServerAvatarManager` ticks any `BodyDriver`. Covered by `66_body_routes.js` on every transport and
-  by `wd.bodyRoutesWalkAPlayerAndAnNpcByName`.
+  by `wd.bodyRoutesWalkAPlayerAndAnNpcByName` and `wd.bodyRoutesStartProcessesByName`.
+- **A hand-built scene can run on an NPC.** `body: npc` or `npc:<name>` in the fixture,
+  `/worlddriver scene run <name> npc`, or `body` on `worlddriver.scene.run` puts a driven piglin through
+  the legs on any topology; a fixture that gives `hand` or `equip` is refused on it. Every committed
+  fixture that gives nothing to hold also runs as `<name>.npc`, judged by its markers but not by the
+  `expect` numbers, which were accepted from a player's run: `human.flatStep.npc`.
 - **The testmod has an NPC body: a driven piglin the walker drives like a player.**
   `worlddriver:driven_piglin` is a piglin whose move, jump and look controls and whose brain stand
   down while a driver holds it. The driver's step runs its tick through `pump()`, the way `JoinedBody`

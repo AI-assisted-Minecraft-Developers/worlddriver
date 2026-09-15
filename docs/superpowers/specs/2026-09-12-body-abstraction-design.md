@@ -1,6 +1,6 @@
 # 身体抽象层的设计：一套 Bot 层，三种身体（真玩家、服务端玩家、NPC）
 
-> 状态：P0、P1a、P1b、P2 已落；P3 落了第一版（`goto`、`cancel`、`status` 三个动词认 `body`），其余未动。读者：开发者。
+> 状态：P0、P1a、P1b、P2 已落；P3 已落（驱动身体的 `mc.bot.*` 动词都认 `body`，`FixtureRunner` 认 `body: npc`），闸待核。读者：开发者。
 > 2026-09-14 拍板：服务端身体是**给第三方扩展用的公开面**，留在模组本体（`bot/sim/` 不搬）；NPC 的第一具身体是
 > testmod 里一个**自定义的猪灵**实体。§0 第 2 条、§3.2、§3.3、§4 P1 与 §6 按此改过；客户端身体的挖掘/用物已于同日
 > 脱离 `keyAttack`/`keyUse`（`ClientIntents` + `MinecraftMixin`）。
@@ -254,6 +254,21 @@ mixin 要进发布 jar，留给第一只被驾驶的原版生物。其余形状�
 - **验证**：validation 脚本在三个 transport 上比对 `unknown_body` 拒单与 `status.bodies` 的字节是否一致，任何拓扑都能跑，不造身体。
   专用服场景注册一具服务端玩家身体和一只 NPC，经 `DriverApi.route` 让两者各走一段，判到达。
 - **第一版不做**：其余 23 个动词；§3.5 的 `FixtureRunner` `body: npc:…`；RPC 驱动的 NPC 的区块票据（§5）。
+
+**2026-09-15 修订（P3 其余部分）。** 驱动身体的动词都认 `body`；`equip`、`setting`、`waypoint`、`playbook` 不认
+（前者读写客户端的背包点击，后三者是客户端或 JVM 的状态）。
+- **进程动词**（`mine`、`bunker`、`escape`、`craft`、`smelt`、`combat`、`build`、`clearArea`、`farm`、`construct`、`sleep`、
+  `follow`、`explore`、`runAway`、`elytraFly`）：参数解析从 `BotApiImpl` 搬进不碰客户端类的 `bot/VerbOrders`，
+  客户端与其他身体用同一个构造器，进程交给 host。其他身体上 `combat` 直接起 `CombatProcess`：拦体弱入场的是客户端的
+  `CombatChain`，`force` 在那里无事可做。要手的进程在 NPC 上照旧第一 tick 以 `no_hands` 收单，路由不预先拒。
+- **手上的动词**（`lookAt`、`holdItem`、`useItem`、`attackEntity`）：`api/BodyInteractions` 在服务端做客户端点击的包
+  到了服务端会做的事，含触及距离判定；因此其他身体上超距是拒单（客户端是被服务端静默丢弃），对实体使用回
+  `menu` 而不是 `screen`。攻击走 `Hands.attackEntity`，脚下爆炸的守卫仍只在那一条路上。NPC 回 `no_hands`。
+- **区块（§5）**：不给 NPC 票据。下单时 `refusal()` 判区块；走到一半区块卸载或死掉，`NpcBodyHost` 下一 tick
+  以 `chunk_unloaded`/`dead` 收单，原因留在槽位。
+- **`FixtureRunner`**：`body` 认 `server | self | npc | npc:<name>`，场景文件与现场运行都认；`npc:worlddriver:driven_piglin`
+  是唯一的类型写法，其余带冒号的一律拒。NPC 没有背包，给了 `hand`/`equip` 的场景拒跑。套件里每个不给手持物的
+  `human.*` 场景另跑一份 `<name>.npc`，照判标记、不判 `expect`（那组数是按玩家那趟接受的）。
 
 ### 3.5 testmod 里的用法
 

@@ -114,12 +114,15 @@ shows where every scene begins and ends.
 ```
 /worlddriver scene run here                 # the markers in the world, terrain as is
 /worlddriver scene run here server watch    # body choice and a progress line every 20 ticks
+/worlddriver scene run here npc             # a driven piglin instead of a player
 ```
 
 `here` needs the two corners, a start and a goal (and an origin, unless the start is it). A run on
 your own body (`self`) fails at once if you are dead — respawn first; the bot verbs it uses refuse a
-dead, paused, sleeping or still-loading player the same way (`{ok:false, reason:…}` over RPC). When
-the run ends the chat shows one line per automatic check, then four buttons:
+dead, paused, sleeping or still-loading player the same way (`{ok:false, reason:…}` over RPC). `npc`
+runs anywhere, your own world included; it has no inventory, so a scene whose file gives `hand` or
+`equip` refuses it, and it cannot dig, place or climb a pillar. When the run ends the chat shows one
+line per automatic check, then four buttons:
 
 ```
 [scene here] PASS
@@ -220,3 +223,32 @@ uv run --with websockets scripts/.claude/skills/worlddriver-rpc/rpc.py --port $(
 With `awaitMs` the reply carries `status`, the `auto` checks, the `observed` numbers and the
 report lines; `worlddriver.scene.verdict` and `worlddriver.scene.accept` follow. One run at a
 time per server.
+
+## Drive a body by name
+
+A server can hold bodies besides yours, and the `mc.bot.*` verbs that drive a body reach them by
+name. Spawn one, find it, send it somewhere, stop it:
+
+```
+/worlddriver server spawn alex              # a headless player body, registered as player:alex
+```
+
+```bash
+RPC="uv run --with websockets scripts/.claude/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port)"
+$RPC mc.bot.status '{}'                                        # bodies: [{id:"player:alex", kind, entityId, pos, busy}]
+$RPC mc.bot.goto '{"body":"player:alex","pos":{"x":100010,"y":200,"z":100000},"awaitMs":30000}'
+$RPC mc.bot.status '{"body":"player:alex"}'                   # its busy flag and slots
+$RPC mc.bot.runAway '{"body":"player:alex","minDist":8}'
+$RPC mc.bot.cancel '{"body":"player:alex","process":"runAway"}'
+```
+
+Accept when the reply names the body (`"body":"player:alex"`), the body you watch in the world is
+the one that moves, `status` with that `body` shows the slot go active and then idle, and your own
+player does not move. A name nobody spawned answers `reason:"unknown_body"`; a body whose chunk is
+not loaded answers `chunk_unloaded`. The other body has no reflexes: it will not eat, flee or fight
+back unless told to. `/worlddriver server clear` removes it and forgets the name.
+
+`npc:<name>` bodies exist only while a testmod scene holds one (the `wd.bodyRoutes*` scenes do);
+there is no command to spawn one. They have no hands, so `holdItem`, `useItem` and `attackEntity`
+answer `no_hands`, and a process that needs hands ends on its first tick with `no_hands` in its
+slot.

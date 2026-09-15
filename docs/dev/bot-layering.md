@@ -176,13 +176,20 @@ testmod's NPC body (`LivingBody` over a driven piglin) plugs into.
 besides the client's own: `/worlddriver server spawn <name>` registers
 `player:<name>` (`bot/sim/ServerBodyHost` over a `ServerWorldDriver`), the testmod
 registers `npc:<name>` (`NpcBodyHost` over a `LivingBody`), and the registry
-empties when the server stops. `mc.bot.goto`, `mc.bot.cancel` and `mc.bot.status`
-take `body`; anything but `self` goes to `api/BodyRoutes`, which hops to the
-server thread, refuses in `BodyReady.Reason` words judged on the entity, and
-hands an `IntentProcess` to the host. A host runs one process on the server tick
+empties when the server stops. The `mc.bot.*` verbs that drive a body take
+`body` — `goto`, the fifteen that start a process, `lookAt`, `holdItem`, `useItem`,
+`attackEntity` — and so do `cancel` and `status`; `equip`, `setting`, `waypoint`
+and `playbook` stay with the client. Anything but `self` goes to
+`api/BodyRoutes`, which hops to the server thread and refuses in
+`BodyReady.Reason` words judged on the entity. A process verb's params are read
+by `bot/VerbOrders`, the builder `BotApiImpl` uses for `self` too, so the two
+cannot read one order differently; the hand verbs are `api/BodyInteractions`,
+which does on the server what a client click's packets get done there, reach
+check included. A host runs one process on the server tick
 (`ServerAvatarManager` ticks any `BodyDriver`) with no scheduler, chains or
-reflexes; `self` keeps all three. `BodyRoutes` must not name a client class: on a
-dedicated server it is the only `mc.bot.*` code that runs.
+reflexes; `self` keeps all three. `BodyRoutes`, `BodyInteractions` and
+`VerbOrders` must not name a client class: on a dedicated server they are the
+only `mc.bot.*` code that runs.
 
 ⛔ **`bot/sim/**` and the fidelity boundary belong to the parity role.** How
 faithfully a `FakePlayer` reproduces a real player — and every known divergence —
