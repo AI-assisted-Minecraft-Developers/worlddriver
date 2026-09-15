@@ -31,6 +31,8 @@ import net.minecraft.world.level.block.state.BlockState;
  * <ul>
  *   <li>{@code goto}, {@code cancel}, {@code status}: listed, refused the goal forms only {@code self}
  *       takes, walked down the course, and the NPC's second walk cancelled;</li>
+ *   <li>the hand verbs: the player body takes a stack up and turns, the NPC refuses the three that
+ *       need hands;</li>
  *   <li>the verbs that start a process: a bad order refused before anything starts, the NPC's mine
  *       ended by the process for want of hands, the player body run away from where it stands.</li>
  * </ul>
@@ -151,6 +153,25 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ctx.record("player.badOrder", String.valueOf(empty));
         ctx.check(Boolean.FALSE.equals(empty.get("ok")) && "blocks list required".equals(empty.get("error")) && !player.busy())
                 .as("空 blocks 的 mine 该在开工前被拒，玩家身体保持空闲：" + empty).isTrue();
+
+        // The hand verbs: the player body takes a stack up from its hotbar and turns; the NPC has no
+        // hands to hold, use or swing with, and says so before anything happens.
+        b.driver().fakePlayer().getInventory().items.set(5,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE, 4));
+        Map<String, Object> hold = call(api, "mc.bot.holdItem", Map.of("body", player.id(), "item", "stone"));
+        Map<String, Object> look = call(api, "mc.bot.lookAt", Map.of("body", player.id(), "yaw", 90, "pitch", 10));
+        float yaw = b.driver().fakePlayer().getYRot();
+        ctx.record("player.hands", hold + " / " + look + " / yRot=" + yaw);
+        ctx.check("minecraft:stone".equals(hold.get("held")) && Boolean.TRUE.equals(look.get("ok")) && Math.abs(yaw - 90f) < 0.01f)
+                .as("玩家身体按名字把石头拿到手上并转到 yaw 90：" + hold + " / " + look + " / yRot=" + yaw).isTrue();
+        Map<String, Object> npcHold = call(api, "mc.bot.holdItem", Map.of("body", npc.id(), "item", "stone"));
+        Map<String, Object> npcUse = call(api, "mc.bot.useItem", Map.of("body", npc.id()));
+        Map<String, Object> npcHit = call(api, "mc.bot.attackEntity", Map.of("body", npc.id(),
+                "entityId", b.driver().fakePlayer().getId()));
+        ctx.record("npc.hands", npcHold + " / " + npcUse + " / " + npcHit);
+        ctx.check(List.of(npcHold, npcUse, npcHit).stream().allMatch(r -> "no_hands".equals(r.get("reason"))))
+                .as("NPC 的 holdItem/useItem/attackEntity 该以 no_hands 拒单：" + npcHold + " / " + npcUse + " / " + npcHit)
+                .isTrue();
 
         Map<String, Object> mine = call(api, "mc.bot.mine", Map.of("body", npc.id(), "blocks", List.of("minecraft:stone"),
                 "radius", 4));
