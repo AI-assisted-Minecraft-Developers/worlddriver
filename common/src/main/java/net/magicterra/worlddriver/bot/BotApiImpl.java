@@ -1,7 +1,6 @@
 package net.magicterra.worlddriver.bot;
 
 import net.magicterra.worlddriver.bot.pathfinder.Move;
-import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
@@ -14,16 +13,13 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import net.magicterra.worlddriver.client.internal.ClientChatLog;
 
 import net.magicterra.worlddriver.bot.movement.ClientIntents;
@@ -348,43 +344,28 @@ public final class BotApiImpl implements BotApi {
         return ReplayInstaller.startReplayReplan(this, cells, start, goal, archiveName, restoreBlocks);
     }
 
-    @Override
-    public Map<String, Object> elytraFly(Map<String, Object> params) {
-        final Params p = Params.of(params);
+    /**
+     * Starts a {@link VerbOrders} order on this client's body. {@code noPlayerSlot} names the slot a
+     * missing player is recorded on, or null for the verbs that only answer it.
+     */
+    private Map<String, Object> order(Map<String, Object> params, String noPlayerSlot,
+                                      java.util.function.BiFunction<Params, net.minecraft.world.entity.LivingEntity, VerbOrders.Order> build) {
+        final Params p = Params.of(params == null ? Map.of() : params);
         return onClient(() -> {
             LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null) return Map.of("ok", false, "error", "no player");
-            BlockPos target = p.getPos("pos");
-            Float yaw = p.getFloat("yaw");
-            boolean hasPitch = p.get("pitch") instanceof Number;
-            float pitch = (float) p.getDouble("pitch", 0.0);
-            // Reactive sim-lookahead control (milestone B): used when a 3D target
-            // is given and no fixed test-pitch is pinned (explicit pitch forces
-            // the fixed-heading glide rig); can be forced on/off via `reactive`.
-            boolean reactive = target != null && p.getBool("reactive", !hasPitch);
-            boolean fireworks = reactive
-                    ? !Boolean.FALSE.equals(p.get("fireworks"))   // reactive: boost on by default
-                    : p.getBool("fireworks");
-            int fwEvery = p.getIntClamped("fireworkEveryTicks", 40, 5, 400);
-            int maxTicks = p.getIntClamped("ticks", reactive ? 2000 : 200, 1, 20_000);
-            double stopXZ = p.getDouble("stopXZDist", 3.0);
-            // Ground fallback (milestone D): with no usable elytra, optionally walk
-            // to the target via the normal pathfinder instead of failing.
-            ItemStack chest = player.getItemBySlot(EquipmentSlot.CHEST);
-            boolean flyable = chest.is(Items.ELYTRA)
-                    && chest.getMaxDamage() > 0 && chest.getDamageValue() < chest.getMaxDamage() - 1;
-            if (!flyable && target != null && p.getBool("groundFallback")) {
-                int near = p.getIntClamped("near", 1, 0, 64);
-                Goal g = near > 0 ? new Goal.Near(target, near) : new Goal.Block(target);
-                startProcess(new IntentProcess(new Intent(g)));
-                return Map.of("ok", true, "started", true, "mode", "groundFallback",
-                        "reason", "no usable elytra", "goal", g.toString());
+            if (player == null) {
+                if (noPlayerSlot != null) state.slotFor(noPlayerSlot).lastError = "no player";
+                return Map.of("ok", false, "error", "no player");
             }
-            startProcess(new ElytraProcess(target, yaw, pitch, fireworks, fwEvery, maxTicks, stopXZ, reactive));
-            return Map.of("ok", true, "started", true,
-                    "mode", reactive ? "reactive" : (target != null ? "goal" : "glide"),
-                    "pitch", pitch, "fireworks", fireworks);
+            VerbOrders.Order o = build.apply(p, player);
+            if (!o.refused()) startProcess(o.process());
+            return o.reply();
         });
+    }
+
+    @Override
+    public Map<String, Object> elytraFly(Map<String, Object> params) {
+        return order(params, null, VerbOrders::elytraFly);
     }
 
     @Override
@@ -443,153 +424,44 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> mine(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing blocks");
-        Params p = Params.of(params);
-        List<String> ids = p.getStringList("blocks");
-        if (ids.isEmpty()) return Map.of("ok", false, "error", "blocks list required");
-        int qtyIn = p.getInt("quantity", 1);
-        if (qtyIn < 1) return Map.of("ok", false, "error", "quantity must be ≥ 1");
-        final int qty = clamp(qtyIn, 1, 256);
-        final int radius = p.getIntClamped("radius", 16, 1, 64);
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) {
-                state.mine.lastError = "no player";
-                return Map.of("ok", false, "error", "no player");
-            }
-            startProcess(new MineProcess(ids, qty, radius));
-            return Map.of("ok", true, "started", true,
-                    "blocks", ids, "quantity", qty, "radius", radius);
-        });
+        return order(params, "mine", VerbOrders::mine);
     }
 
     @Override
     public Map<String, Object> bunker(Map<String, Object> params) {
-        Params p = Params.of(params == null ? Map.of() : params);
-        final int depth = p.getIntClamped("depth", BotConfig.bunkerDepth, 1, 5);
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) {
-                return Map.of("ok", false, "error", "no player");
-            }
-            startProcess(new BunkerProcess(depth));
-            // "acted" (did BunkerProcess ever really break/place a block) can't be
-            // known synchronously here — the dig/carve/plug runs over many later
-            // ticks, not within this call. This response stays a start ack
-            // ("ok:true" = "受理", not "sealed"); the honest terminal verdict
-            // (goalReached/endReason, folded in via awaitable()) lands on the
-            // bunker slot once BunkerProcess actually finishes or bails.
-            return Map.of("ok", true, "started", true, "depth", depth);
-        });
+        return order(params, null, VerbOrders::bunker);
     }
 
     @Override
     public Map<String, Object> escape(Map<String, Object> params) {
-        Params p = Params.of(params == null ? Map.of() : params);
-        return onClient(() -> {
-            LocalPlayer pl = Minecraft.getInstance().player;
-            if (pl == null) return Map.of("ok", false, "error", "no player");
-            // Climb until this Y (default: ~32 above current — far enough to clear
-            // any pit; the skyOpen check ends it the moment it surfaces sooner).
-            int targetY = p.getIntClamped("targetY", pl.blockPosition().getY() + 32, -64, 320);
-            // A targetY below the feet means DIG DOWN: dispatch to the descent
-            // mirror (A*'s YLevel descent hunts distant cave mouths instead of
-            // digging and stalls in hill terrain — devil-bench day1_iron). Both
-            // report through the same escape slot, so await/status are unchanged.
-            boolean down = targetY < pl.blockPosition().getY();
-            startProcess(down ? new DescendProcess(targetY) : new EscapeProcess(targetY));
-            return Map.of("ok", true, "started", true, "targetY", targetY,
-                    "direction", down ? "down" : "up");
-        });
+        return order(params, null, VerbOrders::escape);
     }
 
     @Override
     public Map<String, Object> craft(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing item");
-        Params p = Params.of(params);
-        String item = p.getNonBlank("item");
-        if (item == null) return Map.of("ok", false, "error", "item required");
-        final int count = p.getIntClamped("count", 1, 1, 256);
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) {
-                state.craft.lastError = "no player";
-                return Map.of("ok", false, "error", "no player");
-            }
-            startProcess(new CraftProcess(item, count));
-            return Map.of("ok", true, "started", true, "item", item, "count", count);
-        });
+        return order(params, "craft", VerbOrders::craft);
     }
 
     @Override
     public Map<String, Object> smelt(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing item");
-        Params p = Params.of(params);
-        String item = p.getNonBlank("item");
-        if (item == null) return Map.of("ok", false, "error", "item required");
-        final int count = p.getIntClamped("count", 1, 1, 256);
-        final String fuel = p.getNonBlank("fuel");
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) {
-                state.smelt.lastError = "no player";
-                return Map.of("ok", false, "error", "no player");
-            }
-            startProcess(new SmeltProcess(item, count, fuel));
-            return Map.of("ok", true, "started", true, "item", item, "count", count,
-                    "fuel", fuel == null ? "auto" : fuel);
-        });
+        return order(params, "smelt", VerbOrders::smelt);
     }
 
     @Override
     public Map<String, Object> combat(Map<String, Object> params) {
-        Params p = Params.of(params);
-        String modeStr = p.get("mode") instanceof String s ? s.trim().toLowerCase() : "engage";
-        CombatProcess.Mode mode = switch (modeStr) {
-            case "kill"   -> CombatProcess.Mode.KILL;
-            case "defend" -> CombatProcess.Mode.DEFEND;
-            case "engage" -> CombatProcess.Mode.ENGAGE;
-            default       -> null;
-        };
-        if (mode == null) {
-            return Map.of("ok", false, "error", "mode must be engage|defend|kill");
-        }
-        // target:{id:int} or {type:"minecraft:zombie"} (also accepts a bare type/id key).
-        Integer id = null;
-        String type = null;
-        Object tgt = p.get("target");
-        if (tgt instanceof Map<?, ?> tm) {
-            Object idObj = tm.get("id");
-            if (idObj instanceof Number n) id = n.intValue();
-            Object tyObj = tm.get("type");
-            if (tyObj instanceof String ts && !ts.isBlank()) type = normalizeEntityId(ts.trim());
-        } else if (tgt instanceof Number n) {
-            id = n.intValue();
-        } else if (tgt instanceof String ts && !ts.isBlank()) {
-            type = normalizeEntityId(ts.trim());
-        }
-        if (mode == CombatProcess.Mode.KILL && id == null && type == null) {
-            return Map.of("ok", false, "error", "kill mode requires target:{id|type}");
-        }
-        // gap#68-②: force:true overrides the frail-HP entry gate for this explicit order.
-        final boolean force = p.get("force") instanceof Boolean b && b;
-        final CombatProcess.Mode fMode = mode;
-        final Integer fId = id;
-        final String fType = type;
+        final VerbOrders.CombatOrder c;
+        try { c = VerbOrders.combatOrder(Params.of(params)); }
+        catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
         return onClient(() -> {
             if (Minecraft.getInstance().player == null) {
                 state.combat.lastError = "no player";
                 return Map.of("ok", false, "error", "no player");
             }
-            combatChain.engage(fMode, fId, fType, force);
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("started", true);
-            out.put("mode", fMode.name().toLowerCase());
-            if (fId != null) out.put("targetId", fId);
-            if (fType != null) out.put("targetType", fType);
-            return out;
+            combatChain.engage(c.mode(), c.targetId(), c.targetType(), c.force());
+            return c.reply();
         });
-    }
-
-    /** Accept a bare entity name ("zombie") or a full id ("minecraft:zombie"). */
-    private static String normalizeEntityId(String s) {
-        return s.indexOf(':') >= 0 ? s : "minecraft:" + s;
     }
 
     @Override
@@ -722,253 +594,45 @@ public final class BotApiImpl implements BotApi {
     @Override
     public Map<String, Object> clearArea(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing from/to");
-        Params p = Params.of(params);
-        BlockPos from = p.getPos("from");
-        BlockPos to   = p.getPos("to");
-        if (from == null || to == null) return Map.of("ok", false, "error", "from and to required");
-        long volume = (long)(Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getY() - to.getY()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
-        if (volume > 4096) return Map.of("ok", false, "error", "area too large (max 4096 blocks)");
-        // Baritone sel-system parity: fill="id" places id after clearing each
-        // cell; replace={from,to} only touches cells matching the from id and
-        // leaves the to id behind. Each cell costs walk+break(+place) so the
-        // bbox is bot-driven (matches Baritone's survival path — survival
-        // requires the fill blocks to be in inventory, hotbar preferred).
-        final String fillId = p.getNonBlank("fill");
-        String rFrom = null, rTo = null;
-        if (p.get("replace") instanceof Map<?,?> rm) {
-            if (rm.get("from") instanceof String s) rFrom = s;
-            if (rm.get("to") instanceof String s)   rTo = s;
-            if (rFrom == null || rTo == null) return Map.of("ok", false, "error", "replace requires {from:'id', to:'id'}");
-        }
-        if (fillId != null && rFrom != null) return Map.of("ok", false, "error", "specify fill OR replace, not both");
-        // Effective semantics — clear: no fill / no filter. fill: fillId, no
-        // filter. replace: fillId=replace.to, filterFromId=replace.from.
-        final String effFillId = (rTo != null) ? rTo : fillId;
-        final String effFilterFromId = rFrom; // null for clear/fill
-        final String mode = (rFrom != null) ? "replace" : (fillId != null ? "fill" : "clear");
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
-            startProcess(new BboxFillProcess(from, to, effFillId, effFilterFromId));
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true); out.put("started", true);
-            out.put("mode", mode);
-            out.put("from", posMap(from)); out.put("to", posMap(to));
-            out.put("volume", (int) volume);
-            if (effFillId != null) out.put("fill", effFillId);
-            if (effFilterFromId != null) out.put("replaceFrom", effFilterFromId);
-            return out;
-        });
+        return order(params, null, VerbOrders::clearArea);
     }
 
     @Override
     public Map<String, Object> farm(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing from/to");
-        Params p = Params.of(params);
-        BlockPos from = p.getPos("from");
-        BlockPos to   = p.getPos("to");
-        if (from == null || to == null) return Map.of("ok", false, "error", "from and to required");
-        long area = (long)(Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
-        if (area > 4096) return Map.of("ok", false, "error", "area too large (max 4096 cells)");
-        // Crops filter: caller may restrict to a subset, otherwise all four
-        // vanilla crops. Validated against known ids — unknown entries get
-        // silently dropped (Baritone shrugs the same way on bad filter input).
-        Set<String> crops = new HashSet<>();
-        if (p.get("crops") instanceof List<?> l) {
-            for (Object o : l) if (o instanceof String s && FarmProcess.SEED_FOR.containsKey(s)) crops.add(s);
-            if (crops.isEmpty()) return Map.of("ok", false, "error",
-                    "crops must be subset of " + FarmProcess.SEED_FOR.keySet());
-        } else {
-            crops = new HashSet<>(FarmProcess.SEED_FOR.keySet());
-        }
-        boolean replant = !(p.get("replant") instanceof Boolean rb) || rb;
-        final Set<String> effCrops = crops;
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
-            startProcess(new FarmProcess(from, to, effCrops, replant));
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true); out.put("started", true);
-            out.put("from", posMap(from)); out.put("to", posMap(to));
-            out.put("area", (int) area);
-            out.put("crops", new ArrayList<>(effCrops));
-            out.put("replant", replant);
-            return out;
-        });
+        return order(params, null, VerbOrders::farm);
     }
 
     @Override
     public Map<String, Object> construct(Map<String, Object> params) {
-        final Params p = Params.of(params);
-        String mode = (p.get("mode") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : null;
-        if (mode == null || (!mode.equals("tower") && !mode.equals("bridge")))
-            return Map.of("ok", false, "error", "mode required (tower|bridge)");
-        String blockId = (p.get("block") instanceof String s && !s.isBlank()) ? s.trim() : null;
-        if (mode.equals("tower")) {
-            // height OR targetY; height is relative, targetY is absolute.
-            Integer targetY = null;
-            if (p.get("targetY") instanceof Number n) targetY = n.intValue();
-            int height = p.getInt("height", -1);
-            if (targetY == null && height < 0) return Map.of("ok", false, "error", "tower requires height or targetY");
-            if (height > 256) return Map.of("ok", false, "error", "height too large (max 256)");
-            final Integer targetYf = targetY;
-            final int heightF = height;
-            return onClient(() -> {
-                LocalPlayer pl = Minecraft.getInstance().player;
-                if (pl == null) return Map.of("ok", false, "error", "no player");
-                int startY = (int) Math.floor(pl.getY());
-                int finalTargetY = targetYf != null ? targetYf : startY + heightF;
-                if (finalTargetY <= startY)
-                    return Map.of("ok", false, "error", "target Y (" + finalTargetY + ") must be > current feet Y (" + startY + ")");
-                if (finalTargetY - startY > 256)
-                    return Map.of("ok", false, "error", "tower span too large (max 256)");
-                startProcess(new TowerProcess(finalTargetY, blockId));
-                Map<String, Object> out = new LinkedHashMap<>();
-                out.put("ok", true); out.put("started", true);
-                out.put("mode", "tower");
-                out.put("startY", startY); out.put("targetY", finalTargetY);
-                if (blockId != null) out.put("block", blockId);
-                return out;
-            });
-        }
-        // mode == "bridge"
-        String dir = (p.get("direction") instanceof String s && !s.isBlank()) ? s.trim().toLowerCase(Locale.ROOT) : "forward";
-        int distance = p.getInt("distance", -1);
-        if (distance < 1) return Map.of("ok", false, "error", "bridge requires distance >= 1");
-        if (distance > 64) return Map.of("ok", false, "error", "distance too large (max 64)");
-        final int distanceF = distance;
-        return onClient(() -> {
-            LocalPlayer pl = Minecraft.getInstance().player;
-            if (pl == null) return Map.of("ok", false, "error", "no player");
-            Direction face = resolveCardinalDirection(pl, dir);
-            if (face == null) return Map.of("ok", false, "error", "unknown direction: " + dir + " (use forward|back|left|right|north|south|east|west)");
-            startProcess(new BridgeProcess(face, distanceF, blockId));
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true); out.put("started", true);
-            out.put("mode", "bridge");
-            out.put("direction", dir);
-            out.put("face", face.getName());
-            out.put("distance", distanceF);
-            if (blockId != null) out.put("block", blockId);
-            return out;
-        });
+        return order(params, null, VerbOrders::construct);
     }
 
     @Override
     public Map<String, Object> sleep(Map<String, Object> params) {
-        final Params p = Params.of(params);
-        BlockPos explicit = p.getPos("pos");
-        int radius = p.getIntClamped("radius", 16, 1, 64);
-        return onClient(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            LocalPlayer pl = mc.player;
-            if (pl == null) return Map.of("ok", false, "error", "no player");
-            startProcess(new SleepProcess(explicit, radius));
-            Map<String, Object> out = new LinkedHashMap<>();
-            out.put("ok", true);
-            out.put("started", true);
-            if (explicit != null) out.put("pos", posMap(explicit));
-            out.put("radius", radius);
-            return out;
-        });
+        return order(params, null, VerbOrders::sleep);
     }
 
     @Override
     public Map<String, Object> build(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing origin/schematic");
-        Params p = Params.of(params);
-        BlockPos origin = p.getPos("origin");
-        if (origin == null) return Map.of("ok", false, "error", "origin required");
-        Object schemObj = p.get("schematic");
-        Object schemB64Obj = p.get("schematicBase64");
-        if (schemObj != null && schemB64Obj != null)
-            return Map.of("ok", false, "error", "specify either schematic OR schematicBase64, not both");
-        Schematic s;
-        try {
-            if (schemB64Obj instanceof String b64 && !b64.isBlank()) {
-                byte[] bytes;
-                try { bytes = java.util.Base64.getDecoder().decode(b64.trim()); }
-                catch (IllegalArgumentException e) {
-                    return Map.of("ok", false, "error", "schematicBase64: invalid base64");
-                }
-                s = Schematic.fromSpongeSchem(bytes);
-            } else if (schemObj instanceof Map<?, ?> schem) {
-                s = Schematic.parse(schem);
-            } else {
-                return Map.of("ok", false, "error",
-                        "schematic (procedural object) or schematicBase64 (sponge .schem bytes) required");
-            }
-        } catch (RuntimeException e) {
-            return Map.of("ok", false, "error", "schematic: " + e.getMessage());
-        }
-        final Schematic finalS = s;
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
-            startProcess(new BuildProcess(origin, finalS));
-            return Map.of("ok", true, "started", true, "origin", posMap(origin),
-                "size", Map.of("w", finalS.w, "h", finalS.h, "d", finalS.d),
-                "blocks", finalS.entries.size());
-        });
+        return order(params, null, VerbOrders::build);
     }
 
     @Override
     public Map<String, Object> follow(Map<String, Object> params) {
-        Params p = Params.of(params);
-        String entityType = p.getString("entityType");
-        String name = p.getString("name");
-        int radius = p.getIntClamped("radius", 3, 1, 16);
-        int maxIdleTicks = p.getIntClamped("maxIdleTicks", 0, 0, 100_000);
-        if (entityType == null && name == null) return Map.of("ok", false, "error", "entityType or name required");
-        // The same route object goto takes, minus what a follow has no use for: it already tracks
-        // an entity, so via points, an entity leash and the fly mode are refused rather than
-        // silently dropped.
-        RouteParams.Parsed route;
-        try { route = RouteParams.parse(p.getMap("route")); }
-        catch (IllegalArgumentException e) { return Map.of("ok", false, "error", e.getMessage()); }
-        if (!route.via().isEmpty()) return Map.of("ok", false, "error", "route.via: follow has no waypoints");
-        if (route.entityLeash() != null) return Map.of("ok", false, "error", "route.leash.entity: follow already tracks an entity; give a center");
-        if (route.fly()) return Map.of("ok", false, "error", "route.mode: follow cannot fly");
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
-            SearchProfile followProfile = route.profile();
-            startProcess(new FollowProcess(entityType, name, radius, maxIdleTicks, followProfile));
-            Map<String, Object> r = new LinkedHashMap<>();
-            r.put("ok", true); r.put("started", true);
-            if (entityType != null) r.put("entityType", entityType);
-            if (name != null) r.put("name", name);
-            r.put("radius", radius);
-            if (maxIdleTicks > 0) r.put("maxIdleTicks", maxIdleTicks);
-            return r;
-        });
+        return order(params, null, VerbOrders::follow);
     }
 
     @Override
     public Map<String, Object> explore(Map<String, Object> params) {
         if (params == null) return Map.of("ok", false, "error", "missing centerX/centerZ");
-        Params p = Params.of(params);
-        int cx = p.getInt("centerX", Integer.MIN_VALUE);
-        int cz = p.getInt("centerZ", Integer.MIN_VALUE);
-        if (cx == Integer.MIN_VALUE || cz == Integer.MIN_VALUE)
-            return Map.of("ok", false, "error", "centerX and centerZ required");
-        int maxChunks = p.getIntClamped("maxChunks", 16, 1, 64);
-        return onClient(() -> {
-            if (Minecraft.getInstance().player == null) return Map.of("ok", false, "error", "no player");
-            startProcess(new ExploreProcess(cx, cz, maxChunks));
-            return Map.of("ok", true, "started", true, "centerX", cx, "centerZ", cz, "maxChunks", maxChunks);
-        });
+        return order(params, null, VerbOrders::explore);
     }
 
     @Override
     public Map<String, Object> runAway(Map<String, Object> params) {
-        Params q = Params.of(params);
-        BlockPos source = q.getPos("from");
-        int minDist = q.getIntClamped("minDist", 16, 4, 64);
-        return onClient(() -> {
-            LocalPlayer p = Minecraft.getInstance().player;
-            if (p == null) return Map.of("ok", false, "error", "no player");
-            BlockPos src = source;
-            if (src == null) src = blockPosOf(p.getX(), p.getY(), p.getZ());
-            startProcess(new RunAwayProcess(src, minDist));
-            return Map.of("ok", true, "started", true, "from", posMap(src), "minDist", minDist);
-        });
+        return order(params, null, VerbOrders::runAway);
     }
 
     @Override
