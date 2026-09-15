@@ -30,7 +30,8 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <ul>
  *   <li>{@code goto}, {@code cancel}, {@code status}: listed, refused the goal forms only {@code self}
- *       takes, walked down the course, and the NPC's second walk cancelled;</li>
+ *       takes, walked down the course, the NPC's second walk cancelled, and a fly order it has no
+ *       elytra for walked back instead;</li>
  *   <li>the hand verbs: the player body takes a stack up and turns, the NPC refuses the three that
  *       need hands;</li>
  *   <li>the verbs that start a process: a bad order refused before anything starts, the NPC's mine
@@ -142,6 +143,24 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
                             && slot instanceof Map<?, ?> m && "user-cancel".equals(m.get("lastError")))
                     .as("按名字取消 NPC 的第二段 goto：" + cancelled + "，之后 busy=" + after.get("busy") + " goto=" + slot)
                     .isTrue();
+
+            // route.mode fly on another body is elytraFly's order; the NPC wears no elytra, so it walks,
+            // and the reply names the goto slot the walk lives in.
+            Map<String, Object> fly = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcStart),
+                    "route", Map.of("mode", List.of("fly"))));
+            ctx.record("npc.fly", String.valueOf(fly));
+            if (!Boolean.TRUE.equals(fly.get("started")) || !"groundFallback".equals(fly.get("mode"))
+                    || !"goto".equals(fly.get("slot"))) {
+                ctx.fail("NPC 的 route.mode fly 该退回步行、回复 goto 槽：" + fly);
+                return;
+            }
+            ctx.await(() -> !npc.busy()).within(400).then(() -> {
+                BlockPos at = b.npcBody().entity().blockPosition();
+                Object flySlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("goto");
+                ctx.record("npc.flyBack", at.toShortString() + " " + flySlot);
+                ctx.check(at.closerThan(npcStart, 2.5))
+                        .as("NPC 没有鞘翅，fly 单退回步行走回起点附近：停在 " + at.toShortString() + "，" + flySlot).isTrue();
+            });
         });
     }
 
