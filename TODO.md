@@ -158,16 +158,6 @@
 它们依赖这个节奏。理由与证据在 `offPath` 的 javadoc 和 `CHANGELOG.md` 2026-09-06；
 `wd.clientRoutePreviewAdopted` 的检查 E 现在只记不判。**重开条件**：先把拴绳和岸边接管从这个节奏上解开。
 
-### 🔴 J128：`human.flatStep` 在客户端拓扑上红——真玩家停在目标格西侧一格（x=…11.93），fixture 的 `stand` 要精确格
-
-专用服（服务端身体）两个 loader 都过；`stagewrightIntegratedServerFabric` 上稳定复现三趟（2026-09-06），
-`walkerTangentAim`／`walkerTangentPursuit` 各关一次都不改结果，不是本日转向改动。腿报 `arrived=true`
-（`FixtureRunner.arrived` 的容差）而 `body.blockPosition()` 是邻格。这是客户端身体停靠与 `Goal.Block` 精确格
-的既有差距（同族：「到达不是那条腿说的那件事」）。**在它修好之前，客户端拓扑全量闸不会绿**；是否把该场景
-在此拓扑标为 optional 由人拍板。
-待验的线索：`FixtureRunner` 钉的基线关着 `walkerHoldLastNodeUntilStanding`；`wd.bodyRoutesWalkAPlayerAndAnNpcByName`
-里服务端玩家身体在同一开关下也是差一格收单，打开后以 `arrived` 收单。`human.flatStep` 的 `config` 打开它跑一趟客户端拓扑即可判。
-
 ### 🟡 J129：实验室世界 `lab.parkour` 的 25 个标记在两趟 run 之间全部消失，原因未定位
 
 2026-09-11 第一趟 `run lab.parkour` 正常（找到锚点、PASS），几趟别的场景之后再 run 时锚点已是空气，

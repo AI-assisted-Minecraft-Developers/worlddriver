@@ -32,6 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the legs on any topology; a fixture that gives `hand` or `equip` is refused on it. Every committed
   fixture that gives nothing to hold also runs as `<name>.npc`, judged by its markers but not by the
   `expect` numbers, which were accepted from a player's run: `human.flatStep.npc`.
+- **A hand-built scene judges the real player where it stopped, under its own config.** `FixtureRunner`
+  applied a fixture's `config` before adopting the real player, and adopting it pins the test baseline
+  again, so on an integrated server no `config` key ever reached that player's walker. It also judged a
+  leg the tick the walker ended, from the server's copy of a body whose client is a move packet or more
+  ahead: `human.flatStep`'s walker ended `arrived` in the goal cell while the server still had the
+  player at x=…27.95, a cell short of the `stand` marker, and the scene was red on both integrated gates.
+  The config now goes on after the helm, a leg on the real player is judged ten ticks after it ends, and
+  the leg's line gives where the server had the body as it ended and after, the walker's own end reason
+  and the config read back. `human.flatStep` turns `walkerHoldLastNodeUntilStanding` on, as shipped;
+  under the test baseline's off, a player body ends a cell short of an exact goal. Both integrated gates
+  pass it: the server had the player at x=…28.23 as the leg ended and at …28.56 ten ticks later.
 - **The validation scripts leave no diamonds on the test pad.** `33_world_snapshot.js` ended with its
   restored chest still holding five diamonds, and `61_world_block.js` cleared a chest of its own the
   same way. On a server a client had joined, the real player `wd.agentRpcSmoke` stands on the pad made
