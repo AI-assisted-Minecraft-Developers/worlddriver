@@ -158,6 +158,13 @@ Two related building blocks for conditions the raw event types don't cover:
   then returns a fresh `uptimeMs`. If you must wait on the port, one loop is fine:
   `until ss -ltnp | grep -q ':39801'; do sleep 3; done` (Linux) — on Windows there
   is no `ss`, use `netstat -ano | grep -q ':39801.*LISTENING'` instead.
+- **A port that never opens may be a client that never started.** The mod opens its
+  ports at client init, so a client that hangs *before* mod loading looks exactly
+  like a firewall or a wrong port. Tell them apart in the client's own log:
+  zero `Found mod file` lines means the hang is upstream of every mod, and a thread
+  dump of that JVM names the frame (a window that never maps is the usual one —
+  the loader's early-display window is created before any mod is discovered). No
+  amount of retrying the port helps, and nothing the mod can do reaches that far up.
 - **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server they error
   with "not available (client only …)". `mc.system/action/observe/query/wait`
   work server-side.
