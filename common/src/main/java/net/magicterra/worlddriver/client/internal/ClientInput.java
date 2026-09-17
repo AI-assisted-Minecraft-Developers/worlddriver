@@ -328,9 +328,16 @@ public final class ClientInput {
         }
     }
 
-    public static Map<String, Object> key(String key, String action) {
+    /** How long a click waits for the tick that carries its release before reporting it undelivered. */
+    private static final long CLICK_RELEASE_MS = 2_000;
+
+    /** One half of a key event: where it went, and whether that recipient took it. */
+    private record Half(String via, boolean delivered) {}
+
+    public static Map<String, Object> key(String key, String action, String route) {
         final String kn = (key == null) ? "" : key.trim().toUpperCase(Locale.ROOT);
         final String act = (action == null || action.isBlank()) ? "click" : action.trim().toLowerCase(Locale.ROOT);
+        final String rt = (route == null || route.isBlank()) ? "auto" : route.trim().toLowerCase(Locale.ROOT);
         int code = glfwKeyCode(kn);
         if (code < 0) {
             return Map.of("ok", false, "error", "unknown key name: " + kn);
@@ -338,47 +345,93 @@ public final class ClientInput {
         if (!act.equals("press") && !act.equals("release") && !act.equals("click")) {
             return Map.of("ok", false, "error", "action must be press|release|click (got " + act + ")");
         }
-        return runOnClient(() -> {
+        if (!rt.equals("auto") && !rt.equals("keybind") && !rt.equals("screen")) {
+            return Map.of("ok", false, "error", "route must be auto|keybind|screen (got " + rt + ")");
+        }
+        final int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
+        final boolean down = !act.equals("release");
+        Map<String, Object> out = runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
-            Screen s = mc.screen;
-            int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
-            // No screen open → dispatch as a raw GLFW key event through
-            // KeyboardHandler.keyPress so in-game keybinds (F3 debug, F5
-            // perspective, Q drop, F swap hands, T chat, etc.) fire exactly
-            // like a player pressing the key. The method is package-private in
-            // vanilla and opened by worlddriver.accesswidener.
-            if (s == null) {
+            if (mc.screen == null) {
+                if (rt.equals("screen")) {
+                    return Map.of("ok", false, "reason", "no_screen",
+                            "error", "route screen was asked for, but no screen is open");
+                }
                 // Between worlds there is neither a screen nor a player; the event would reach
                 // nothing, and the old {ok:true, via:"keybind"} said it had been delivered.
                 if (mc.player == null) {
                     return Map.of("ok", false, "reason", "no_player",
                             "error", "no screen open and no player to receive the key — open a screen or join a world first");
                 }
-                long window = mc.getWindow().getWindow();
-                int glfwPress = org.lwjgl.glfw.GLFW.GLFW_PRESS;
-                int glfwRelease = org.lwjgl.glfw.GLFW.GLFW_RELEASE;
-                boolean pressed = false, released = false;
-                if (act.equals("press") || act.equals("click")) {
-                    mc.keyboardHandler.keyPress(window, code, scan, glfwPress, 0);
-                    pressed = true;
-                }
-                if (act.equals("release") || act.equals("click")) {
-                    mc.keyboardHandler.keyPress(window, code, scan, glfwRelease, 0);
-                    released = true;
-                }
-                return Map.of("ok", true, "key", kn, "code", code, "action", act,
-                    "pressed", pressed, "released", released, "via", "keybind");
             }
-            boolean pressed = false, released = false;
-            if (act.equals("press") || act.equals("click")) {
-                pressed = s.keyPressed(code, scan, 0);
-            }
-            if (act.equals("release") || act.equals("click")) {
-                released = s.keyReleased(code, scan, 0);
-            }
-            return Map.of("ok", true, "key", kn, "code", code, "action", act,
-                "pressed", pressed, "released", released, "via", "screen");
+            Half h = deliver(code, scan, rt, down);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("ok", true);
+            m.put("key", kn);
+            m.put("code", code);
+            m.put("action", act);
+            m.put("route", rt);
+            m.put("via", h.via());
+            m.put("pressed", down && h.delivered());
+            m.put("released", !down && h.delivered());
+            return m;
         });
+        if (!act.equals("click") || !Boolean.TRUE.equals(out.get("ok"))) return out;
+        // A real keystroke spans ticks, and a click that collapses into one does not act like one:
+        // the press can open or close a screen, so the release belongs to whatever is open AFTER
+        // it, and vanilla only consumes a keybind's click on a tick boundary. So release on the
+        // next client tick, routed again from what is open then.
+        Half rel = ClientThread.runNextTick(() -> deliver(code, scan, rt, false), CLICK_RELEASE_MS);
+        Map<String, Object> full = new LinkedHashMap<>(out);
+        full.put("released", rel != null && rel.delivered());
+        if (rel == null) {
+            full.put("releaseNote", "the client did not tick within " + CLICK_RELEASE_MS
+                    + " ms, so the key is still down — send action release once it ticks again");
+        } else if (!rel.via().equals(out.get("via"))) {
+            // The press moved the screen out from under the release; say so, because the caller's
+            // next read of screen.info is explained by it.
+            full.put("releaseVia", rel.via());
+        }
+        return full;
+    }
+
+    /**
+     * Delivers one half of a key event and says where it went.
+     *
+     * <p>{@code route} picks the recipient: {@code screen} hands it to the open screen,
+     * {@code keybind} to the key mappings, {@code auto} to the screen when one is open and to the
+     * key mappings otherwise — which is the routing a real keystroke gets from vanilla.
+     *
+     * <p>With no screen open the event goes through {@code KeyboardHandler.keyPress} as a raw GLFW
+     * event, so vanilla's own handling (ESC opens the pause menu, F3 debug, F5 perspective, Q drop,
+     * T chat) runs exactly as it does for a player. That method is package-private in vanilla and
+     * opened by worlddriver.accesswidener. Forcing {@code keybind} while a screen IS open cannot
+     * use it — vanilla would hand the raw event to that screen — so it sets the mapping directly,
+     * which is the same thing minus the screen's veto.
+     */
+    private static Half deliver(int code, int scan, String route, boolean down) {
+        Minecraft mc = Minecraft.getInstance();
+        Screen s = mc.screen;
+        boolean toScreen = switch (route) {
+            case "screen" -> true;
+            case "keybind" -> false;
+            default -> s != null;
+        };
+        if (toScreen) {
+            if (s == null) return new Half("screen", false);
+            return new Half("screen", down ? s.keyPressed(code, scan, 0) : s.keyReleased(code, scan, 0));
+        }
+        if (s == null) {
+            long window = mc.getWindow().getWindow();
+            int glfwAction = down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE;
+            mc.keyboardHandler.keyPress(window, code, scan, glfwAction, 0);
+            return new Half("keybind", true);
+        }
+        com.mojang.blaze3d.platform.InputConstants.Key k =
+                com.mojang.blaze3d.platform.InputConstants.getKey(code, scan);
+        net.minecraft.client.KeyMapping.set(k, down);
+        if (down) net.minecraft.client.KeyMapping.click(k);
+        return new Half("keybind", true);
     }
 
     private static int glfwKeyCode(String name) {

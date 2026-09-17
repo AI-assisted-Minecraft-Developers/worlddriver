@@ -8,6 +8,7 @@ import net.magicterra.worlddriver.bot.BotApiImpl;
 import net.magicterra.worlddriver.bot.BotHooks;
 import net.magicterra.worlddriver.bot.FocusPolicy;
 import net.magicterra.worlddriver.bot.MouseYieldHud;
+import net.magicterra.worlddriver.client.internal.ClientThread;
 
 /**
  * The driver's client-side bootstrap and event subscriptions, shared by both loaders' client
@@ -42,6 +43,9 @@ public final class WorldDriverClientEvents {
         ClientTickEvent.CLIENT_POST.register(mc -> {
             BotApiImpl b = bot;
             if (b != null) b.clientTick();
+            // Whatever asked for a tick boundary rather than the next render task — the release
+            // half of mc.client.input.key's click, so far.
+            ClientThread.drainNextTick();
         });
         // FocusPolicy holds the human's real pauseOnLostFocus while the bot drives. Minecraft
         // saves options.txt on close, so a force-quit mid-drive would otherwise PERSIST our

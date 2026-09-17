@@ -229,16 +229,20 @@ public final class ClientTools {
             wrTool("mc.client.input.key",
                 "Synthesize a keyboard event. Keys: ENTER, ESCAPE, TAB, BACKSPACE, DELETE, SPACE, " +
                 "LEFT/RIGHT/UP/DOWN, HOME, END, PAGEUP/DOWN, F1..F25, A..Z, 0..9. action: 'press', " +
-                "'release', or 'click' (default; press+release). " +
-                "Routes via Screen.keyPressed when a screen is open (via:'screen'), else " +
-                "KeyboardHandler.keyPress so in-game keybinds (F3/F5/Q/F/T/…) fire as if pressed " +
-                "(via:'keybind'). For WASD movement use mc.bot.* — they're stickier. " +
-                "Returns {ok, key, code, action, pressed, released, via}.",
+                "'release', or 'click' (default; the release lands on the NEXT client tick, routed " +
+                "again from whatever the press left open). route picks the recipient: 'auto' " +
+                "(default) = the open screen, else the keybinds, which is what a real keystroke " +
+                "gets; 'keybind' reaches keybinds even under an open screen; 'screen' refuses when " +
+                "none is open. For WASD movement use mc.bot.* — they're stickier. " +
+                "Returns {ok, key, code, action, route, via, pressed, released} plus releaseVia " +
+                "when the press changed the screen under it.",
                 object()
                     .req("key", string()
                         .desc("Key name (see description for supported set)."))
                     .prop("action", stringEnum("press", "release", "click")
-                        .desc("Default 'click' = press+release."))),
+                        .desc("Default 'click' = press now, release next tick."))
+                    .prop("route", stringEnum("auto", "keybind", "screen")
+                        .desc("Who receives it. Default 'auto' routes as vanilla would."))),
 
             wrTool("mc.client.input.setHotbarSlot",
                 "Select the held hotbar slot (0–8). Sends ServerboundSetCarriedItemPacket so " +

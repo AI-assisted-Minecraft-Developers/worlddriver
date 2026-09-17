@@ -168,11 +168,14 @@ public interface ClientDriverApi {
     Map<String, Object> setSlider(String match, Integer index, Double fraction);
 
     /**
-     * Synthesizes a keyboard key event on the current screen — Enter/Escape/Tab/F-keys,
-     * letters and digits. action: "press" / "release" / "click" (default; press+release).
-     * Returns ok:false when no screen is open or the key name is unrecognized.
+     * Synthesizes a keyboard key event — Enter/Escape/Tab/F-keys, letters and digits.
+     * action: "press" / "release" / "click" (default), whose release lands on the next client
+     * tick, routed again from whatever the press left open. route: "auto" (default) sends it
+     * where vanilla would — the open screen, else the keybinds — while "keybind" and "screen"
+     * name the recipient outright. Returns ok:false for an unrecognized key name, for
+     * route "screen" with nothing open, and for no screen with no player.
      */
-    Map<String, Object> key(String key, String action);
+    Map<String, Object> key(String key, String action, String route);
 
     /**
      * Captures the framebuffer and returns {@code {format, width, height, base64}}.

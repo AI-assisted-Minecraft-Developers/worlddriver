@@ -158,7 +158,7 @@ Crafting/acquisition planning off the live recipe table — `resolve` expands a 
 | method | params | returns / notes |
 |---|---|---|
 | `mc.client.screen.info` | — | cheap probe → `{hasScreen, worldOpen, hasPlayer, overlayActive, type?, title?, width?, height?, causeOfDeath?}`. Call before other `mc.client.*`. `causeOfDeath` set on a DeathScreen. |
-| `mc.client.screen.tree` | — | widget tree → `{type,width,height,children:[{type,x,y,width,height,visible,active,message?,children?}]}`; pick click targets from this. |
+| `mc.client.screen.tree` | — | widget tree → `{type,width,height,children:[{type,x,y,width,height,visible,active,message?,children?}]}`; pick click targets from this. A widget that throws (modded screens do) leaves `error` on its own node and `slotsError` on the root, never a blank answer. |
 | `mc.client.screen.close` | — | `setScreen(null)` → `{ok}`; always succeeds. |
 
 ## mc.client.chat.*
@@ -176,7 +176,7 @@ Logical screen coords (post-GUI-scale). Reflection-based, work under Xvfb.
 | `mc.client.input.mouseMove` | `x,y` (req) | move cursor + fire hover → `{ok, scale, refl, wx, wy}`. |
 | `mc.client.input.typeText` | `text` (req) | charTyped per codepoint into focused widget → `{ok, typed, length}`. Appends; use `replaceText` to overwrite. |
 | `mc.client.input.replaceText` | `text` (req), `match?` | atomically replace a text box's whole contents → `{ok, value, previous}`. Targets the focused box, else the box whose text/hint matches `match`, else the sole box. |
-| `mc.client.input.key` | `key` (req), `action?` | synth key (ENTER/ESCAPE/TAB/BACKSPACE/DELETE/arrows/F1..F25/A..Z/0..9); action press\|release\|click(default). Routes to Screen.keyPressed or in-game keybind → `{ok, key, code, action, pressed, released, via}`. |
+| `mc.client.input.key` | `key` (req), `action?`, `route?` | synth key (ENTER/ESCAPE/TAB/BACKSPACE/DELETE/arrows/F1..F25/A..Z/0..9); action press\|release\|click(default — release lands next client tick, re-routed from what the press left open). route auto(default: open screen, else keybinds)\|keybind(reaches keybinds under a screen)\|screen(refuses with none open) → `{ok, key, code, action, route, via, pressed, released}`, plus `releaseVia` when the press changed the screen under it. |
 | `mc.client.input.setHotbarSlot` | `slot` (req, 0–8) | select hotbar slot (sends carried-item packet) → `{ok, slot, previous}`. |
 | `mc.client.input.slider` | `match?`, `index?`, `fraction?` (0–1) | omit `fraction` to READ → `{ok, mode:"read", sliders:[{index,label,value}]}`; pass it to SET a slider (by `match`/`index`) → `{ok, mode:"set", label, value, previousLabel, previousValue}`. |
 

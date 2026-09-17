@@ -59,7 +59,7 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
     public Map<String, Object> setSlider(String match, Integer index, Double fraction) { return ClientInput.setSlider(match, index, fraction); }
 
     @Override
-    public Map<String, Object> key(String key, String action) { return ClientInput.key(key, action); }
+    public Map<String, Object> key(String key, String action, String route) { return ClientInput.key(key, action, route); }
 
     @Override
     public Map<String, Object> chatSend(String text, int awaitReplyMs) { return ClientChat.chatSend(text, awaitReplyMs); }

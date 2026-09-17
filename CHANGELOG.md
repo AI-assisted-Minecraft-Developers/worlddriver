@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-18
+
+- **`mc.client.input.key`'s click releases on the next client tick, and says where each half went.**
+  A click used to press and release inside one client task, which is not what a keystroke is: the
+  press can open or close a screen, and the release was still aimed at whatever had been open before
+  it — so `{key:"ESCAPE"}` under an open screen closed that screen, handed the release to it after it
+  was gone, and answered `ok:true, pressed:true, released:false` with no pause menu. The release now
+  runs on the next tick, routed again from what is open then, and the reply carries `route`, `via`,
+  and `releaseVia` when the press moved the screen out from under it. A client that stops ticking
+  gets `releaseNote` instead of a silent `released:false`.
+- **`mc.client.input.key` takes `route`, so the caller picks the recipient.** `auto` (default) is
+  unchanged — the open screen, else the keybinds, which is how vanilla routes a real keystroke — but
+  `keybind` reaches the keybinds even while a screen is open (a screen that swallows `E` as a typed
+  character can no longer eat it) and `screen` refuses with `no_screen` rather than firing a keybind
+  by surprise. Until now `via` only reported the choice after the fact, so a caller had to read
+  `mc.client.screen.info` first and race the answer.
+- **One widget that throws no longer blanks `mc.client.screen.tree`.** On a modded creative inventory
+  the whole call came back empty while `screen.info` still answered — a third-party widget throwing
+  from `getMessage()` took the tree with it. Each child, and each container slot, is now judged on
+  its own: the one that threw carries `error` (the root carries `slotsError` for the slot list) and
+  everything else is still reported.
+
 ## 2026-09-15
 
 - **The `mc.bot.*` verbs that drive a body address one by name.** A new `body` param takes `self`, the
