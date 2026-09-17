@@ -55,20 +55,30 @@ public final class ClientKeybinds {
             }
             KeyMapping km = hits.get(0);
             if (act.equals("release")) {
+                String raw = fireRaw(km, false);
+                // Unconditionally, unlike the press: vanilla's release does the same thing, and a
+                // mapping left down walks the player into whatever runs next.
                 km.setDown(false);
-                Map<String, Object> m = reply(km, act, 0);
-                m.put("rawEvent", fireRaw(km, false));
+                Map<String, Object> m = reply(km, act, km.clickCount);
+                m.put("rawEvent", raw);
                 return m;
             }
-            km.setDown(true);
-            // A press is both for vanilla: the key goes down AND a click is counted. Owners that
-            // poll isDown() see the first, owners that poll consumeClick() see the second, and a
-            // verb that set only one of them would work for half the bindings in a pack.
-            // Private in vanilla, opened by worlddriver.accesswidener.
-            km.clickCount++;
+            // The raw event first, and the mapping driven by hand only if that event did not go.
+            // Vanilla's keyPress sets the mapping down and counts its click BEFORE it fires the
+            // loader's key event — set, click, onKeyInput, in that order — so doing both would
+            // leave two clicks pending and a mod that polls them would act twice.
+            String raw = fireRaw(km, true);
+            if (!raw.startsWith("sent")) {
+                km.setDown(true);
+                // A press is both for vanilla: the key goes down AND a click is counted. Owners
+                // that poll isDown() see the first, owners that poll consumeClick() see the
+                // second, and driving only one of them works for half the bindings in a pack.
+                // Private in vanilla, opened by worlddriver.accesswidener.
+                km.clickCount++;
+            }
             held[0] = km;
-            Map<String, Object> m = reply(km, act, 1);
-            m.put("rawEvent", fireRaw(km, true));
+            Map<String, Object> m = reply(km, act, km.clickCount);
+            m.put("rawEvent", raw);
             return m;
         });
         if (!act.equals("click") || !Boolean.TRUE.equals(out.get("ok")) || held[0] == null) return out;
