@@ -74,7 +74,16 @@ public final class ScreenIntrospection {
             root.put("title", s.getTitle().getString());
             root.put("width", s.width);
             root.put("height", s.height);
-            List<Map<String, Object>> kids = walk(s);
+            List<Map<String, Object>> kids;
+            // A screen belongs to whatever mod drew it, and a widget that throws from getMessage
+            // or getNarration used to take the whole answer with it — the caller got an empty
+            // object and only screen.info still spoke. Each node is judged on its own now.
+            try {
+                kids = walk(s);
+            } catch (Throwable t) {
+                kids = new ArrayList<>();
+                root.put("error", describeThrowable(t));
+            }
             // Container screens (InventoryScreen, ChestScreen, FurnaceScreen, …)
             // expose their slots through the AbstractContainerMenu, not via the
             // GuiEventListener tree — so a plain walk omits every clickable slot.
@@ -82,8 +91,12 @@ public final class ScreenIntrospection {
             // vanilla slot index, and itemstack so agents can pick a slot by
             // label/index without resorting to pixel-counting.
             if (s instanceof AbstractContainerScreen<?> acs) {
-                Map<String, Object> slotsNode = containerSlotsNode(acs);
-                if (slotsNode != null) kids.add(slotsNode);
+                try {
+                    Map<String, Object> slotsNode = containerSlotsNode(acs);
+                    if (slotsNode != null) kids.add(slotsNode);
+                } catch (Throwable t) {
+                    root.put("slotsError", describeThrowable(t));
+                }
             }
             // DeathScreen's cause-of-death is rendered directly from a
             // private Component field, never a child widget — without this
@@ -115,37 +128,50 @@ public final class ScreenIntrospection {
         for (GuiEventListener child : ceh.children()) {
             Map<String, Object> n = new LinkedHashMap<>();
             n.put("type", child.getClass().getSimpleName());
-            if (child instanceof AbstractWidget w) {
-                n.put("x", w.getX());
-                n.put("y", w.getY());
-                n.put("width", w.getWidth());
-                n.put("height", w.getHeight());
-                n.put("visible", w.visible);
-                n.put("active", w.active);
-                n.put("message", w.getMessage().getString());
+            // Per child, so a third-party widget that throws costs its own subtree and no more.
+            try {
+                describe(child, n);
+            } catch (Throwable t) {
+                n.put("error", describeThrowable(t));
             }
-            // EditBox holds typed text. Without exposing the current value, agents
-            // can drive the cursor and call typeText but never verify what was
-            // entered (or what vanilla pre-filled, e.g. last-used server address).
-            if (child instanceof EditBox eb) {
-                n.put("value", eb.getValue());
-                n.put("focused", eb.isFocused());
-            }
-            // AbstractSelectionList entries (SelectWorldScreen rows, ServerSelectionList,
-            // RealmsList…) don't extend AbstractWidget, so a plain walk leaves them
-            // with only a type name — agents can't pick a row by label. Project the
-            // list's per-row geometry + display name onto each entry.
-            if (child instanceof AbstractSelectionList<?> list) {
-                List<Map<String, Object>> entries = listEntries(list);
-                if (!entries.isEmpty()) n.put("children", entries);
-                out.add(n);
-                continue;
-            }
-            List<Map<String, Object>> grand = walk(child);
-            if (!grand.isEmpty()) n.put("children", grand);
             out.add(n);
         }
         return out;
+    }
+
+    private static String describeThrowable(Throwable t) {
+        return t.getClass().getSimpleName() + (t.getMessage() == null ? "" : ": " + t.getMessage());
+    }
+
+    /** Fills one node's geometry, label and children; the type is already in {@code n}. */
+    private static void describe(GuiEventListener child, Map<String, Object> n) {
+        if (child instanceof AbstractWidget w) {
+            n.put("x", w.getX());
+            n.put("y", w.getY());
+            n.put("width", w.getWidth());
+            n.put("height", w.getHeight());
+            n.put("visible", w.visible);
+            n.put("active", w.active);
+            n.put("message", w.getMessage().getString());
+        }
+        // EditBox holds typed text. Without exposing the current value, agents
+        // can drive the cursor and call typeText but never verify what was
+        // entered (or what vanilla pre-filled, e.g. last-used server address).
+        if (child instanceof EditBox eb) {
+            n.put("value", eb.getValue());
+            n.put("focused", eb.isFocused());
+        }
+        // AbstractSelectionList entries (SelectWorldScreen rows, ServerSelectionList,
+        // RealmsList…) don't extend AbstractWidget, so a plain walk leaves them
+        // with only a type name — agents can't pick a row by label. Project the
+        // list's per-row geometry + display name onto each entry.
+        if (child instanceof AbstractSelectionList<?> list) {
+            List<Map<String, Object>> entries = listEntries(list);
+            if (!entries.isEmpty()) n.put("children", entries);
+            return;
+        }
+        List<Map<String, Object>> grand = walk(child);
+        if (!grand.isEmpty()) n.put("children", grand);
     }
 
     /** Project per-row bbox + display label for AbstractSelectionList entries.
@@ -245,21 +271,27 @@ public final class ScreenIntrospection {
         int leftPos = acs.leftPos, topPos = acs.topPos;
         List<Map<String, Object>> slotNodes = new ArrayList<>(menu.slots.size());
         for (int i = 0; i < menu.slots.size(); i++) {
-            Slot slot = menu.slots.get(i);
             Map<String, Object> n = new LinkedHashMap<>();
             n.put("type", "Slot");
             n.put("index", i);
-            n.put("x", leftPos + slot.x);
-            n.put("y", topPos + slot.y);
-            n.put("width", 16);   // vanilla slot icon is 16×16 in GUI coords
-            n.put("height", 16);
-            n.put("active", slot.isActive());
-            ItemStack stk = slot.getItem();
-            if (!stk.isEmpty()) {
-                Map<String, Object> item = new LinkedHashMap<>();
-                item.put("id", BuiltInRegistries.ITEM.getKey(stk.getItem()).toString());
-                item.put("count", stk.getCount());
-                n.put("item", item);
+            // Per slot, for the same reason as the widget walk: a modded slot that throws from
+            // isActive or getItem should cost its own row, not the screen's whole slot list.
+            try {
+                Slot slot = menu.slots.get(i);
+                n.put("x", leftPos + slot.x);
+                n.put("y", topPos + slot.y);
+                n.put("width", 16);   // vanilla slot icon is 16×16 in GUI coords
+                n.put("height", 16);
+                n.put("active", slot.isActive());
+                ItemStack stk = slot.getItem();
+                if (!stk.isEmpty()) {
+                    Map<String, Object> item = new LinkedHashMap<>();
+                    item.put("id", BuiltInRegistries.ITEM.getKey(stk.getItem()).toString());
+                    item.put("count", stk.getCount());
+                    n.put("item", item);
+                }
+            } catch (Throwable t) {
+                n.put("error", describeThrowable(t));
             }
             slotNodes.add(n);
         }
