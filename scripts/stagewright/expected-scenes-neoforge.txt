@@ -83,6 +83,7 @@ wd.fullInventoryVisible
 wd.attackCooldownSurface
 wd.clientResetClearsEntry
 wd.clientResetReleasesKeys
+wd.clientKeybindOpensABinding
 wd.hurtCarriesItsSource
 wd.clientPlayerInWorld
 # P4b wave 5 — CombatSense family (2 migrated from AgentGameTestCombatSense; single-tick NoAI, time-independent)

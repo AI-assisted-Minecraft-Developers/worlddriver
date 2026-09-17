@@ -125,6 +125,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                 Scene.of("wd.attackCooldownSurface", 300, WorldDriverCoreScenes::attackCooldownSurface),
                 Scene.of("wd.clientResetClearsEntry", 300, WorldDriverCoreScenes::clientResetClearsEntry),
                 Scene.of("wd.clientResetReleasesKeys", 300, WorldDriverCoreScenes::clientResetReleasesKeys),
+                Scene.of("wd.clientKeybindOpensABinding", 300, WorldDriverCoreScenes::clientKeybindOpensABinding),
                 Scene.of("wd.hurtCarriesItsSource", 300, WorldDriverCoreScenes::hurtCarriesItsSource),
                 Scene.of("wd.clientPlayerInWorld", 200, WorldDriverCoreScenes::clientPlayerInWorld));
     }
@@ -1799,6 +1800,66 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         for (Object t : tokens)
             if (t instanceof String s && s.startsWith(prefix)) return s;
         return "no " + prefix + "… token in " + tokens;
+    }
+
+    /**
+     * {@code mc.client.input.keybind} opens what a named binding opens, and leaves it released.
+     *
+     * <p>The verb exists for the bindings no synthesized key can reach: a mod pack binds GUIs to
+     * modified keys, and the modifier half of that match is read from the physical keyboard, where
+     * a driver has never been. That half cannot be held here — vanilla has no modified binding to
+     * name, and the loader that has them is one of two. What is held here is everything else the
+     * verb promises, on a binding whose effect is unmistakable: name it, and the screen it opens is
+     * open; the reply says the key went out as a real event, which is what the mods that subscribe
+     * to key input need and what driving the mapping alone never gave them; and the mapping is down
+     * during the click and released after it, because a binding left down outlives this scene.
+     *
+     * <p>{@code key.inventory}, rather than a binding this testmod registers for itself: the verb's
+     * subject is bindings it does not own, and a registered one would also be the only binding in
+     * the run whose owner is the test.
+     */
+    private static void clientKeybindOpensABinding(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("mc.client.input.keybind is client-only — only an integrated server has a client here");
+        DriverApi api = WorldDriverCommon.api();
+        ctx.cleanup(() -> api.route("mc.client.screen.close", Map.of()));
+
+        // From no screen: with one open the raw half has nowhere to go but that screen, and the
+        // reply would say `skipped` — a different assertion than the one this scene is making.
+        api.route("mc.client.screen.close", Map.of());
+        Object r = api.route("mc.client.input.keybind", Map.of("name", "key.inventory"));
+        Map<?, ?> m = r instanceof Map<?, ?> mm ? mm : Map.of();
+        ctx.record("keybind.reply", String.valueOf(m));
+        ctx.expect(m.get("ok")).as("the verb took the binding's name").isEqualTo(true);
+        ctx.expect(m.get("name")).as("the mapping it resolved the name to").isEqualTo("key.inventory");
+        ctx.expect(String.valueOf(m.get("rawEvent")))
+                .as("what became of the raw key event — `sent` is what an event-driven mod needs")
+                .isEqualTo("sent");
+        ctx.expect(m.get("released")).as("the click released the mapping").isEqualTo(true);
+        ctx.expect(m.get("down")).as("the mapping was down while the click was in flight")
+                .isEqualTo(true);
+
+        ctx.await(() -> Boolean.TRUE.equals(screenInfo(api).get("hasScreen"))).within(100).then(() -> {
+            ctx.expect(screenInfo(api).get("type")).as("the screen the inventory binding opens")
+                    .isEqualTo("InventoryScreen");
+            // Read back from the listing, not from the reply that claimed it: the reply is the
+            // verb's own account of the release, and a release that only the replier believes in
+            // is the failure this checks for.
+            ctx.expect(keybindDown(api, "key.inventory"))
+                    .as("key.inventory still down after the click, read back from the listing")
+                    .isEqualTo(false);
+        });
+    }
+
+    /** What {@code mc.client.input.keybind}'s listing says about one mapping's {@code down}. */
+    private static Object keybindDown(DriverApi api, String name) {
+        Object r = api.route("mc.client.input.keybind", Map.of());
+        Object rows = r instanceof Map<?, ?> m ? m.get("keybinds") : null;
+        if (rows instanceof List<?> l) {
+            for (Object row : l)
+                if (row instanceof Map<?, ?> k && name.equals(k.get("name"))) return k.get("down");
+        }
+        return "no " + name + " row in the keybind listing";
     }
 
     /** {@code mc.client.screen.info}, or empty when the verb answered with something else. */
