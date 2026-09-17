@@ -2,7 +2,7 @@
 name: worlddriver-rpc
 description: >-
   Live-control the worlddriver Minecraft mod over its JSON-RPC websocket
-  (port 39801) with the bundled rpc.py client and a complete 72-method reference.
+  (port 39801) with the bundled rpc.py client and a complete 73-method reference.
   CONSULT THIS SKILL before doing anything with the worlddriver mod's runtime
   API: any mc.bot.* / mc.action.* / mc.observe.* / mc.world.* / mc.client.* /
   mc.query / mc.events / mc.wait.* / mc.recipe.* / mc.plan.acquire /
@@ -86,7 +86,7 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 
 ## Method surface (overview)
 
-72 methods across 13 namespaces, all carrying a visible `ToolSchema` — the driver
+73 methods across 13 namespaces, all carrying a visible `ToolSchema` — the driver
 layer owns no hidden verb since `mc.test.yaml` retired with the YAML harness. The
 only RPC-route-only verbs left belong to the StageWright runtime and exist only
 while it is loaded. Full per-method params + returns are in **`references/methods.md`**

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-18
 
+- **`mc.client.input.keybind` drives a key mapping by name, which is the only way to reach a
+  modified binding.** A mod pack binds GUIs to `ALT+Y` and the like, and no sequence of synthesized
+  keys opens one: the modifier half of that match asks `Screen.hasAltDown()`, which reads the real
+  keyboard through `glfwGetKey`, where a driver's key press has never been. This verb skips the
+  question — it marks the mapping down and counts a click on it, which is what `consumeClick()`
+  hands the mod that owns the binding — and it reaches a binding whose key the human rebound, which
+  a caller cannot know. With no `name` it lists every mapping with its id, title, bound key and
+  whether it is down; with one it takes a mapping id or a substring of an id or title.
+- **`mc.client.input.key` accepts the modifier keys by name and a `modifiers` list.** `LEFT_ALT`,
+  `ALT`, `LEFT_CONTROL`, `CTRL`, `SHIFT`, `SUPER` and the rest were answered with "unknown key
+  name". They are keys and now press like keys, and `modifiers: ["alt"]` sets the bits a screen
+  reads for its own shortcuts. Neither reaches a modified key binding, for the reason above — the
+  tool descriptions say so rather than leaving the caller to find out.
 - **`mc.client.input.key`'s click releases on the next client tick, and says where each half went.**
   A click used to press and release inside one client task, which is not what a keystroke is: the
   press can open or close a screen, and the release was still aimed at whatever had been open before

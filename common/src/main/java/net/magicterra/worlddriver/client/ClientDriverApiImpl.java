@@ -5,6 +5,7 @@ import java.util.Map;
 import net.magicterra.worlddriver.client.internal.ClientBoss;
 import net.magicterra.worlddriver.client.internal.ClientChat;
 import net.magicterra.worlddriver.client.internal.ClientInput;
+import net.magicterra.worlddriver.client.internal.ClientKeybinds;
 import net.magicterra.worlddriver.client.internal.ClientObserve;
 import net.magicterra.worlddriver.client.internal.ScreenIntrospection;
 import net.magicterra.worlddriver.client.internal.Screenshots;
@@ -59,7 +60,10 @@ public final class ClientDriverApiImpl implements ClientDriverApi {
     public Map<String, Object> setSlider(String match, Integer index, Double fraction) { return ClientInput.setSlider(match, index, fraction); }
 
     @Override
-    public Map<String, Object> key(String key, String action, String route) { return ClientInput.key(key, action, route); }
+    public Map<String, Object> key(String key, String action, String route, Object modifiers) { return ClientInput.key(key, action, route, modifiers); }
+
+    @Override
+    public Map<String, Object> keybind(String name, String action) { return ClientKeybinds.keybind(name, action); }
 
     @Override
     public Map<String, Object> chatSend(String text, int awaitReplyMs) { return ClientChat.chatSend(text, awaitReplyMs); }

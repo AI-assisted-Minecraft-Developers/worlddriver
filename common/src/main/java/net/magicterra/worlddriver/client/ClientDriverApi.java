@@ -174,8 +174,21 @@ public interface ClientDriverApi {
      * where vanilla would — the open screen, else the keybinds — while "keybind" and "screen"
      * name the recipient outright. Returns ok:false for an unrecognized key name, for
      * route "screen" with nothing open, and for no screen with no player.
+     * modifiers ("alt", ["alt","shift"], or the raw GLFW int) are what a screen reads for its own
+     * shortcuts; a modified key BINDING is matched against the real keyboard, so use
+     * {@link #keybind} for those.
      */
-    Map<String, Object> key(String key, String action, String route);
+    Map<String, Object> key(String key, String action, String route, Object modifiers);
+
+    /**
+     * Drives a key mapping by name — the only way to reach one whose binding carries a modifier
+     * (ALT+Y), since that match reads the real keyboard and no synthesized ALT appears there.
+     * action: "press" / "release" / "click" (default), whose release lands on the next client tick.
+     * {@code name} is a mapping id ({@code key.inventory},
+     * {@code key.yes_steve_model.player_model.desc}) or a substring of one or of its title; with no
+     * name it lists every mapping with its id, title, bound key and whether it is down.
+     */
+    Map<String, Object> keybind(String name, String action);
 
     /**
      * Captures the framebuffer and returns {@code {format, width, height, base64}}.

@@ -227,6 +227,7 @@ public final class ClientTools {
                         .desc("Target value 0..1. OMIT to read all sliders instead of setting."))),
 
             keyTool(),
+            keybindTool(),
 
             wrTool("mc.client.input.setHotbarSlot",
                 "Select the held hotbar slot (0–8). Sends ServerboundSetCarriedItemPacket so " +
@@ -273,6 +274,28 @@ public final class ClientTools {
                 .prop("action", stringEnum("press", "release", "click")
                     .desc("Default 'click' = press now, release next tick."))
                 .prop("route", stringEnum("auto", "keybind", "screen")
-                    .desc("Who receives it. Default 'auto' routes as vanilla would.")));
+                    .desc("Who receives it. Default 'auto' routes as vanilla would."))
+                .prop("modifiers", array(stringEnum("shift", "ctrl", "alt", "super"))
+                    .desc("Modifier bits for a SCREEN shortcut. A modified KEYBIND needs "
+                        + "mc.client.input.keybind — see its description.")));
+    }
+
+    /** Out of {@link #tools()} for the same reason as {@link #keyTool()}. */
+    private static ToolSchema keybindTool() {
+        return wrTool("mc.client.input.keybind",
+            "Drive a key mapping BY NAME. Use this, not input.key, whenever the binding carries a " +
+            "modifier (ALT+Y, common in mod packs): that match asks the real keyboard through " +
+            "glfwGetKey, where a synthesized ALT press does not appear, so pressing ALT then Y " +
+            "fires nothing. It also reaches a binding whose key the human has rebound. " +
+            "name = a mapping id (key.inventory, key.yes_steve_model.player_model.desc) or a " +
+            "substring of an id or title; OMIT it to list every mapping, which is how you find " +
+            "the one you want. action: 'press', 'release', or 'click' (default; released on the " +
+            "next client tick). Returns {ok, name, title, key, boundTo, category, action, clicks, " +
+            "down, released}, or {ok, count, keybinds:[…]} when listing.",
+            object()
+                .prop("name", string()
+                    .desc("Mapping id or a substring of one. Omit to list every mapping."))
+                .prop("action", stringEnum("press", "release", "click")
+                    .desc("Default 'click' = down now, up next tick.")));
     }
 }

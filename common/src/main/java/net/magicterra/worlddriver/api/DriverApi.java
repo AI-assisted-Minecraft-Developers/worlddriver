@@ -331,7 +331,10 @@ public final class DriverApi {
                 p.get("index") == null ? null : num(p.get("index")),
                 p.get("fraction") == null ? null : numD(p.get("fraction"))));
         routes.put("mc.client.input.key",            p -> requireClient().key(
-                (String) p.get("key"), (String) p.get("action"), (String) p.get("route")));
+                (String) p.get("key"), (String) p.get("action"), (String) p.get("route"),
+                p.get("modifiers")));
+        routes.put("mc.client.input.keybind",        p -> requireClient().keybind(
+                (String) p.get("name"), (String) p.get("action")));
         routes.put("mc.client.screenshot",           p -> requireClient().screenshot(p));
 
         // Bot routes — client-side; unavailable on dedicated server.

@@ -334,7 +334,7 @@ public final class ClientInput {
     /** One half of a key event: where it went, and whether that recipient took it. */
     private record Half(String via, boolean delivered) {}
 
-    public static Map<String, Object> key(String key, String action, String route) {
+    public static Map<String, Object> key(String key, String action, String route, Object modifiers) {
         final String kn = (key == null) ? "" : key.trim().toUpperCase(Locale.ROOT);
         final String act = (action == null || action.isBlank()) ? "click" : action.trim().toLowerCase(Locale.ROOT);
         final String rt = (route == null || route.isBlank()) ? "auto" : route.trim().toLowerCase(Locale.ROOT);
@@ -347,6 +347,12 @@ public final class ClientInput {
         }
         if (!rt.equals("auto") && !rt.equals("keybind") && !rt.equals("screen")) {
             return Map.of("ok", false, "error", "route must be auto|keybind|screen (got " + rt + ")");
+        }
+        final int mods;
+        try {
+            mods = modifierBits(modifiers);
+        } catch (IllegalArgumentException e) {
+            return Map.of("ok", false, "error", "modifiers take shift|ctrl|alt|super (got " + e.getMessage() + ")");
         }
         final int scan = org.lwjgl.glfw.GLFW.glfwGetKeyScancode(code);
         final boolean down = !act.equals("release");
@@ -364,13 +370,14 @@ public final class ClientInput {
                             "error", "no screen open and no player to receive the key — open a screen or join a world first");
                 }
             }
-            Half h = deliver(code, scan, rt, down);
+            Half h = deliver(code, scan, rt, down, mods);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("ok", true);
             m.put("key", kn);
             m.put("code", code);
             m.put("action", act);
             m.put("route", rt);
+            m.put("modifiers", mods);
             m.put("via", h.via());
             m.put("pressed", down && h.delivered());
             m.put("released", !down && h.delivered());
@@ -381,7 +388,7 @@ public final class ClientInput {
         // the press can open or close a screen, so the release belongs to whatever is open AFTER
         // it, and vanilla only consumes a keybind's click on a tick boundary. So release on the
         // next client tick, routed again from what is open then.
-        Half rel = ClientThread.runNextTick(() -> deliver(code, scan, rt, false), CLICK_RELEASE_MS);
+        Half rel = ClientThread.runNextTick(() -> deliver(code, scan, rt, false, mods), CLICK_RELEASE_MS);
         Map<String, Object> full = new LinkedHashMap<>(out);
         full.put("released", rel != null && rel.delivered());
         if (rel == null) {
@@ -409,7 +416,7 @@ public final class ClientInput {
      * use it — vanilla would hand the raw event to that screen — so it sets the mapping directly,
      * which is the same thing minus the screen's veto.
      */
-    private static Half deliver(int code, int scan, String route, boolean down) {
+    private static Half deliver(int code, int scan, String route, boolean down, int mods) {
         Minecraft mc = Minecraft.getInstance();
         Screen s = mc.screen;
         boolean toScreen = switch (route) {
@@ -419,12 +426,12 @@ public final class ClientInput {
         };
         if (toScreen) {
             if (s == null) return new Half("screen", false);
-            return new Half("screen", down ? s.keyPressed(code, scan, 0) : s.keyReleased(code, scan, 0));
+            return new Half("screen", down ? s.keyPressed(code, scan, mods) : s.keyReleased(code, scan, mods));
         }
         if (s == null) {
             long window = mc.getWindow().getWindow();
             int glfwAction = down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE;
-            mc.keyboardHandler.keyPress(window, code, scan, glfwAction, 0);
+            mc.keyboardHandler.keyPress(window, code, scan, glfwAction, mods);
             return new Half("keybind", true);
         }
         com.mojang.blaze3d.platform.InputConstants.Key k =
@@ -432,6 +439,38 @@ public final class ClientInput {
         net.minecraft.client.KeyMapping.set(k, down);
         if (down) net.minecraft.client.KeyMapping.click(k);
         return new Half("keybind", true);
+    }
+
+    /**
+     * GLFW modifier bits from {@code ["alt"]}, {@code "alt+shift"}, or the raw int.
+     *
+     * <p>These reach a SCREEN, which is handed them as the {@code modifiers} argument it reads for
+     * its own shortcuts. They do not reach a modified key binding: that match asks
+     * {@code Screen.hasAltDown()}, which reads the real keyboard, so a bit set here is invisible to
+     * it — {@code mc.client.input.keybind} is the verb for those. Throws
+     * {@link IllegalArgumentException} naming the token it did not recognize.
+     */
+    private static int modifierBits(Object mods) {
+        if (mods == null) return 0;
+        if (mods instanceof Number n) return n.intValue();
+        List<String> names = new ArrayList<>();
+        if (mods instanceof List<?> l) {
+            for (Object o : l) if (o != null) names.add(o.toString());
+        } else {
+            for (String part : mods.toString().split("[+,\\s]+")) names.add(part);
+        }
+        int bits = 0;
+        for (String raw : names) {
+            switch (raw.trim().toLowerCase(Locale.ROOT)) {
+                case "" -> { }
+                case "shift" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_SHIFT;
+                case "ctrl", "control" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_CONTROL;
+                case "alt" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_ALT;
+                case "super", "meta", "cmd" -> bits |= org.lwjgl.glfw.GLFW.GLFW_MOD_SUPER;
+                default -> throw new IllegalArgumentException(raw);
+            }
+        }
+        return bits;
     }
 
     private static int glfwKeyCode(String name) {
@@ -450,6 +489,26 @@ public final class ClientInput {
             case "END":                      return org.lwjgl.glfw.GLFW.GLFW_KEY_END;
             case "PAGEUP":                   return org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_UP;
             case "PAGEDOWN":                 return org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_DOWN;
+            // The modifiers, under their GLFW names and the short ones. Pressing one of these is
+            // NOT how a modified keybind (ALT+Y) is reached — that match reads the real keyboard,
+            // see ClientKeybinds — but a screen shortcut can want the key itself, and refusing the
+            // name outright told callers the key did not exist.
+            case "LEFT_ALT": case "LALT": case "ALT":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_ALT;
+            case "RIGHT_ALT": case "RALT":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_ALT;
+            case "LEFT_CONTROL": case "LCTRL": case "CTRL": case "CONTROL":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL;
+            case "RIGHT_CONTROL": case "RCTRL":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_CONTROL;
+            case "LEFT_SHIFT": case "LSHIFT": case "SHIFT":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
+            case "RIGHT_SHIFT": case "RSHIFT":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SHIFT;
+            case "LEFT_SUPER": case "LSUPER": case "SUPER": case "META": case "CMD":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SUPER;
+            case "RIGHT_SUPER": case "RSUPER":
+                return org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT_SUPER;
             default:
                 // F1..F25
                 if (name.length() >= 2 && name.charAt(0) == 'F') {
