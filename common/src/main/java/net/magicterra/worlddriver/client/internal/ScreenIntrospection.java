@@ -45,6 +45,14 @@ public final class ScreenIntrospection {
             Overlay ov = mc.getOverlay();
             out.put("overlayActive", ov != null);
             if (ov != null) out.put("overlayType", ov.getClass().getSimpleName());
+            // The environment a mod's key handler usually demands before it does anything: Yes
+            // Steve Model, measured, refuses every keystroke unless the window is focused and the
+            // mouse is grabbed. On a shared desktop the window loses focus to whatever the human is
+            // doing, so a driver whose keystrokes vanish needs to read this before it reads
+            // anything else — it is the difference between "the mod refused it" and "it never
+            // arrived", and no amount of retrying fixes the first.
+            out.put("windowActive", mc.isWindowActive());
+            out.put("mouseGrabbed", mc.mouseHandler.isMouseGrabbed());
             if (s != null) {
                 out.put("type", s.getClass().getSimpleName());
                 out.put("title", s.getTitle().getString());

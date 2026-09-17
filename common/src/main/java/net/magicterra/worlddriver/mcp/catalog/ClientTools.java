@@ -21,7 +21,10 @@ public final class ClientTools {
             roTool("mc.client.screen.info",
                 "Lightweight probe of the current client screen. Cheap; call this first as an " +
                 "availability check before any other mc.client.* tool. " +
+                "windowActive/mouseGrabbed are the environment a mod's key handler usually demands " +
+                "before it acts at all — read them when a keystroke seems to vanish. " +
                 "Returns {hasScreen:boolean, worldOpen:boolean, hasPlayer:boolean, overlayActive:boolean, " +
+                "windowActive:boolean, mouseGrabbed:boolean, " +
                 "type?:string, title?:string, width?:integer, height?:integer, " +
                 "causeOfDeath?:string (on a DeathScreen — e.g. 'Player was slain by Phantom')}.",
                 emptyObject()),

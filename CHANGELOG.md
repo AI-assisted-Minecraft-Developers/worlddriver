@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-18
 
+- **`mc.client.screen.info` reports whether the window is focused and the mouse grabbed.** A mod's
+  key handler commonly refuses to act unless both are true — the measured one refuses every
+  keystroke that arrives while the window is in the background. On a shared desktop that is the
+  normal state, so a driver whose keystrokes vanish was reading `hasScreen` and `overlayActive`,
+  finding them right, and retrying something no retry fixes. Both are now in the cheap probe that
+  every caller already makes first.
 - **`mc.client.input.keybind` also sends the key as a raw event, with the binding's modifier
   cleared for it.** Driving the mapping reaches only the mods that poll it. The other family
   subscribes to the loader's key-input event and re-tests the mapping inside it, so with no event

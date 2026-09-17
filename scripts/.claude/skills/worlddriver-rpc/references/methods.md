@@ -157,7 +157,7 @@ Crafting/acquisition planning off the live recipe table — `resolve` expands a 
 ## mc.client.screen.*
 | method | params | returns / notes |
 |---|---|---|
-| `mc.client.screen.info` | — | cheap probe → `{hasScreen, worldOpen, hasPlayer, overlayActive, type?, title?, width?, height?, causeOfDeath?}`. Call before other `mc.client.*`. `causeOfDeath` set on a DeathScreen. |
+| `mc.client.screen.info` | — | cheap probe → `{hasScreen, worldOpen, hasPlayer, overlayActive, windowActive, mouseGrabbed, type?, title?, width?, height?, causeOfDeath?}`. Call before other `mc.client.*`. `causeOfDeath` set on a DeathScreen. `windowActive`/`mouseGrabbed` false = a mod's key handler will refuse the keystroke however you send it; on a shared desktop the game window loses focus to whatever the human is doing. |
 | `mc.client.screen.tree` | — | widget tree → `{type,width,height,children:[{type,x,y,width,height,visible,active,message?,children?}]}`; pick click targets from this. A widget that throws (modded screens do) leaves `error` on its own node and `slotsError` on the root, never a blank answer. |
 | `mc.client.screen.close` | — | `setScreen(null)` → `{ok}`; always succeeds. |
 
