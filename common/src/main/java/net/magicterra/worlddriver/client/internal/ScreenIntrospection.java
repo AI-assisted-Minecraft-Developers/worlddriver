@@ -202,6 +202,14 @@ public final class ScreenIntrospection {
             n.put("height", itemHeight - 4);
             String label = entryLabel(entry);
             if (label != null) n.put("message", label);
+            // Walk INTO the row. Every list row that holds widgets is a ContainerEventHandler
+            // (ContainerObjectSelectionList.Entry, KeyBindsList's rows, the options rows), and
+            // projecting only its bbox is why a key-binds screen came back as a stack of nameless
+            // Entry nodes with no way to tell one binding's row from another's.
+            if (entry instanceof GuiEventListener gel) {
+                List<Map<String, Object>> kids = walk(gel);
+                if (!kids.isEmpty()) n.put("children", kids);
+            }
             out.add(n);
         }
         return out;
@@ -257,6 +265,24 @@ public final class ScreenIntrospection {
             String s = n == null ? "" : n.getString();
             if (!s.isBlank()) return s;
         }
+        // Last resort, and by TYPE rather than by name: a row that renders its text straight from a
+        // private Component field has no getter to probe, and that field is the only thing saying
+        // which row it is — a key-binds screen is a stack of such rows, one per binding. Most
+        // derived class first, and never a static: those hold shared button titles ("Reset"), which
+        // would label every row identically.
+        try {
+            for (Class<?> c = entry.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                    if (java.lang.reflect.Modifier.isStatic(f.getModifiers())) continue;
+                    if (!Component.class.isAssignableFrom(f.getType())) continue;
+                    f.setAccessible(true);
+                    if (f.get(entry) instanceof Component comp) {
+                        String s = comp.getString();
+                        if (!s.isBlank()) return s;
+                    }
+                }
+            }
+        } catch (RuntimeException | ReflectiveOperationException ignored) { /* no label to be had */ }
         return null;
     }
 

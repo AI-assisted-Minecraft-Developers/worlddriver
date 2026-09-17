@@ -34,6 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   character can no longer eat it) and `screen` refuses with `no_screen` rather than firing a keybind
   by surprise. Until now `via` only reported the choice after the fact, so a caller had to read
   `mc.client.screen.info` first and race the answer.
+- **`mc.client.screen.tree` walks into a list's rows and can name them.** A row of an
+  `AbstractSelectionList` got its bounding box and a label guessed from four getter names, and
+  nothing else — so a key-binds screen came back as a stack of nameless `Entry` nodes with no way
+  to tell one binding's row from another's, and no click target inside them. Every such row holds
+  its widgets as children, which are now walked like any other node, and a row whose text comes
+  straight from a private `Component` field (vanilla's key-binds rows, and the modded screens built
+  from them) is labelled from that field — by type, skipping statics, since a shared button title
+  would otherwise label every row "Reset".
 - **One widget that throws no longer blanks `mc.client.screen.tree`.** On a modded creative inventory
   the whole call came back empty while `screen.info` still answered — a third-party widget throwing
   from `getMessage()` took the tree with it. Each child, and each container slot, is now judged on
