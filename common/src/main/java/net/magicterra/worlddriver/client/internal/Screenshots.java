@@ -47,13 +47,7 @@ public final class Screenshots {
 
                 // PNG, no resize → fast path uses NativeImage's own encoder.
                 if (fmt.equals("png") && dstW == srcW && dstH == srcH) {
-                    byte[] png = img.asByteArray();
-                    return Map.of(
-                            "format", "png",
-                            "width", srcW,
-                            "height", srcH,
-                            "base64", Base64.getEncoder().encodeToString(png)
-                    );
+                    return reply("png", srcW, srcH, img.asByteArray());
                 }
 
                 // Resize/transcoding path via AWT: copy ARGB pixels into a
@@ -106,18 +100,36 @@ public final class Screenshots {
                 } else {
                     javax.imageio.ImageIO.write(out, "png", baos);
                 }
-                return Map.of(
-                        "format", mime,
-                        "width", dstW,
-                        "height", dstH,
-                        "base64", Base64.getEncoder().encodeToString(baos.toByteArray())
-                );
+                return reply(mime, dstW, dstH, baos.toByteArray());
             } catch (IOException e) {
                 throw new RuntimeException("screenshot encode failed", e);
             } finally {
                 img.close();
             }
         });
+    }
+
+    /**
+     * The capture, plus what it is a capture of.
+     *
+     * <p>A window nothing is presenting keeps its last frame: the framebuffer still reads, the
+     * image is the right size and looks entirely plausible, and it can be minutes old — three
+     * captures seven seconds apart of a rainy world came back byte-identical. So the reply carries
+     * the two measurements that tell a live frame from a retained one rather than a verdict:
+     * whether the compositor considers the window active, and how many frames the client believes
+     * it drew in the last second. Identical captures with {@code windowActive:false} are a stale
+     * frame, not a still world.
+     */
+    private static Map<String, Object> reply(String format, int width, int height, byte[] bytes) {
+        Minecraft mc = Minecraft.getInstance();
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("format", format);
+        m.put("width", width);
+        m.put("height", height);
+        m.put("windowActive", mc.isWindowActive());
+        m.put("fps", mc.getFps());
+        m.put("base64", Base64.getEncoder().encodeToString(bytes));
+        return m;
     }
 
     private static int clampInt(int v, int lo, int hi) { return Math.max(lo, Math.min(hi, v)); }

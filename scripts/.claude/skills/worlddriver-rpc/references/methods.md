@@ -190,7 +190,7 @@ Client-authoritative reads — diff against the server-side `mc.observe.*` to sp
 | `mc.client.scene` | — | client hazard/threat blackboard → `{present, pos, health, food, dayPhase:"DAY"\|"DUSK"\|"NIGHT"\|"DAWN", skyExposed, exposedAtNight, cornered, lethalCount, rows?}`. |
 | `mc.client.blocks` | `center?`, `filter?:{in_radius? (0–16, dflt 4), type?}` | client-authoritative block scan (Chebyshev radius around player/center) → `{blocks:[{pos,type}], center, radius}`. `type` accepts `#tag` selectors. NOTE: `in_radius:0` still scans the default radius. |
 | `mc.client.overlays` | `tutorial?`, `toasts?` | both default true (`{}` clears all): kill tutorial toasts + toast queue → `{ok, tutorial?, toasts?}`. |
-| `mc.client.screenshot` | `maxWidth?`, `maxHeight?`, `format?:"png"\|"jpeg"`, `quality?` | framebuffer capture (aspect-preserving downscale). Over RPC → `{format, width, height, base64}`. |
+| `mc.client.screenshot` | `maxWidth?`, `maxHeight?`, `format?:"png"\|"jpeg"`, `quality?` | framebuffer capture (aspect-preserving downscale). Over RPC → `{format, width, height, windowActive, fps, base64}`. ⚠️ A window nothing is presenting keeps its last frame — captures seconds apart come back byte-identical and look fine. Check `windowActive`/`fps` before using one as evidence of the current state. |
 
 ## mc.bot.*
 Movement/automation processes. The async ones take `awaitMs?` — see [Async](#async--awaitms).

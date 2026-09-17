@@ -245,7 +245,10 @@ public final class ClientTools {
                 "Capture the framebuffer. maxWidth/maxHeight = aspect-preserving downscale caps. " +
                 "format: png (default, lossless) or jpeg (smaller). quality 1-100 for JPEG (default 85). " +
                 "Over MCP returns two content blocks: text {format,width,height} + image (base64). " +
-                "In-JVM/WebSocket callers get a single Map {format,width,height,base64}.",
+                "In-JVM/WebSocket callers get a single Map {format,width,height,windowActive,fps,base64}. " +
+                "A window nothing is presenting keeps its last frame, so a capture can be minutes " +
+                "old and still look right: check windowActive and fps before treating one as " +
+                "evidence of the current state.",
                 object()
                     .prop("maxWidth", integer(16, 8192)
                         .desc("Cap on output width in pixels. Omit for native size."))

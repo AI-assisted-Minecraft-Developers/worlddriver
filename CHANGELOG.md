@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-18
 
+- **`mc.client.screenshot` says whether the frame it returns is a live one.** A window nothing is
+  presenting keeps its last frame, and the capture of it is the right size, plausible, and minutes
+  old: three shots seven seconds apart of a rainy world came back byte-identical, and were nearly
+  taken for evidence that the world had stopped. The reply now carries `windowActive` and `fps` —
+  measurements, not a verdict, since a still world and a stale frame look the same in one image.
 - **`mc.client.screen.info` reports whether the window is focused and the mouse grabbed.** A mod's
   key handler commonly refuses to act unless both are true — the measured one refuses every
   keystroke that arrives while the window is in the background. On a shared desktop that is the
