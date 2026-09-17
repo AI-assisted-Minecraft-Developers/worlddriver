@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-18
 
+- **`mc.client.input.keybind` also sends the key as a raw event, with the binding's modifier
+  cleared for it.** Driving the mapping reaches only the mods that poll it. The other family
+  subscribes to the loader's key-input event and re-tests the mapping inside it, so with no event
+  nothing of theirs runs — measured on Yes Steve Model, whose handler is
+  `km.matches(key, scanCode) && km.getKeyModifier().equals(KeyModifier.getActiveModifier())`, and
+  whose GUI stayed shut for a driven mapping even on a binding with no modifier at all. The event
+  is now sent too, and because that second half reads the physical keyboard, the binding's own
+  modifier is cleared for the event's duration and restored after: the comparison becomes NONE
+  against NONE. `rawEvent` says what became of it, and the reply carries `windowActive` and
+  `mouseGrabbed`, the two gates such a handler puts in front of itself.
 - **`mc.client.input.keybind` drives a key mapping by name, which is the only way to reach a
   modified binding.** A mod pack binds GUIs to `ALT+Y` and the like, and no sequence of synthesized
   keys opens one: the modifier half of that match asks `Screen.hasAltDown()`, which reads the real

@@ -290,8 +290,15 @@ public final class ClientTools {
             "name = a mapping id (key.inventory, key.yes_steve_model.player_model.desc) or a " +
             "substring of an id or title; OMIT it to list every mapping, which is how you find " +
             "the one you want. action: 'press', 'release', or 'click' (default; released on the " +
-            "next client tick). Returns {ok, name, title, key, boundTo, category, action, clicks, " +
-            "down, released}, or {ok, count, keybinds:[…]} when listing.",
+            "next client tick). It drives the mapping AND sends the key as a raw event, because " +
+            "mods split into two families: those that poll the mapping and those that subscribe " +
+            "to the key event and re-test the mapping inside it. For the second family the " +
+            "binding's modifier is cleared for the length of that event and restored after, since " +
+            "their test reads the physical keyboard. rawEvent in the reply says what became of " +
+            "it, and windowActive/mouseGrabbed report the two gates such a handler usually puts " +
+            "in front of itself — a keystroke that arrives while either is false is refused by " +
+            "the mod, not lost. Returns {ok, name, title, key, boundTo, category, action, clicks, " +
+            "down, released, rawEvent, windowActive, mouseGrabbed}, or {ok, count, keybinds:[…]}.",
             object()
                 .prop("name", string()
                     .desc("Mapping id or a substring of one. Omit to list every mapping."))

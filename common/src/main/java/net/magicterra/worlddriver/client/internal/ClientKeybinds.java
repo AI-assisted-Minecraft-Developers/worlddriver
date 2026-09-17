@@ -56,7 +56,9 @@ public final class ClientKeybinds {
             KeyMapping km = hits.get(0);
             if (act.equals("release")) {
                 km.setDown(false);
-                return reply(km, act, 0);
+                Map<String, Object> m = reply(km, act, 0);
+                m.put("rawEvent", fireRaw(km, false));
+                return m;
             }
             km.setDown(true);
             // A press is both for vanilla: the key goes down AND a click is counted. Owners that
@@ -65,7 +67,9 @@ public final class ClientKeybinds {
             // Private in vanilla, opened by worlddriver.accesswidener.
             km.clickCount++;
             held[0] = km;
-            return reply(km, act, 1);
+            Map<String, Object> m = reply(km, act, 1);
+            m.put("rawEvent", fireRaw(km, true));
+            return m;
         });
         if (!act.equals("click") || !Boolean.TRUE.equals(out.get("ok")) || held[0] == null) return out;
         // Same reason as mc.client.input.key's click: a keystroke spans ticks, and the mapping's
@@ -74,6 +78,7 @@ public final class ClientKeybinds {
         final KeyMapping km = held[0];
         Boolean up = ClientThread.runNextTick(() -> {
             km.setDown(false);
+            fireRaw(km, false);
             return Boolean.TRUE;
         }, CLICK_RELEASE_MS);
         Map<String, Object> full = new LinkedHashMap<>(out);
@@ -126,12 +131,100 @@ public final class ClientKeybinds {
     }
 
     private static Map<String, Object> reply(KeyMapping km, String act, int clicks) {
+        Minecraft mc = Minecraft.getInstance();
         Map<String, Object> m = new LinkedHashMap<>(describe(km));
         m.put("ok", true);
         m.put("action", act);
         m.put("clicks", clicks);
         m.put("released", act.equals("release"));
+        // The two gates a mod's key handler is most likely to put in front of itself, reported so a
+        // caller whose keystroke vanished can tell "the mod refused it" from "it never arrived":
+        // Yes Steve Model, to pick the one that was measured, does nothing unless the window is
+        // focused and the mouse is grabbed, whatever the binding says.
+        m.put("windowActive", mc.isWindowActive());
+        m.put("mouseGrabbed", mc.mouseHandler.isMouseGrabbed());
         return m;
+    }
+
+    /**
+     * Also deliver the keystroke as a raw key event, and say what became of it.
+     *
+     * <p>Marking a mapping down reaches only the mods that poll it. A large family instead
+     * subscribes to the loader's key-input event and asks the mapping whether the event matches, so
+     * with no event nothing of theirs runs at all. Yes Steve Model is one, and its test —
+     * {@code km.matches(key, scanCode) && km.getKeyModifier().equals(KeyModifier.getActiveModifier())}
+     * — is also why no synthesized modifier can satisfy it: the active modifier is read from the
+     * physical keyboard. So the binding's own modifier is cleared for the length of the event,
+     * which makes that comparison NONE against NONE, and restored immediately after. On a loader
+     * with no key modifiers the clearing step is absent and only the event is sent.
+     */
+    private static String fireRaw(KeyMapping km, boolean down) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.screen != null) return "skipped: a screen is open, and a raw key belongs to it";
+        if (km.isUnbound()) return "skipped: the mapping is unbound";
+        com.mojang.blaze3d.platform.InputConstants.Key k;
+        try {
+            k = com.mojang.blaze3d.platform.InputConstants.getKey(km.saveString());
+        } catch (RuntimeException e) {
+            return "skipped: " + km.saveString() + " is not a key that can be synthesized";
+        }
+        if (k.getType() != com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM) {
+            return "skipped: " + km.saveString() + " is not a keyboard key";
+        }
+        Object modifier = keyModifier(km);
+        String modName = modifier == null ? "NONE" : modifierName(modifier);
+        boolean cleared = !"NONE".equals(modName) && setModifier(km, modifierNamed("NONE"), k);
+        try {
+            mc.keyboardHandler.keyPress(mc.getWindow().getWindow(), k.getValue(),
+                    org.lwjgl.glfw.GLFW.glfwGetKeyScancode(k.getValue()),
+                    down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE, 0);
+        } finally {
+            if (cleared) setModifier(km, modifier, k);
+        }
+        if (cleared) return "sent, with the " + modName + " modifier cleared for it";
+        return "NONE".equals(modName) ? "sent" : "sent, but the " + modName
+                + " modifier could not be cleared — a handler that compares it will refuse";
+    }
+
+    /** The binding's modifier, or null on a loader that has none. Reflective: the method and its
+     *  type belong to the loader, not to the game, so neither exists in common's mappings. */
+    private static Object keyModifier(KeyMapping km) {
+        try {
+            return km.getClass().getMethod("getKeyModifier").invoke(km);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static Object modifierNamed(String name) {
+        try {
+            Class<?> type = Class.forName("net.neoforged.neoforge.client.settings.KeyModifier");
+            Object[] all = type.getEnumConstants();
+            if (all != null) {
+                for (Object c : all) if (c instanceof Enum<?> e && e.name().equals(name)) return c;
+            }
+        } catch (ClassNotFoundException | RuntimeException ignored) { /* no modifiers here */ }
+        return null;
+    }
+
+    private static String modifierName(Object modifier) {
+        return modifier instanceof Enum<?> e ? e.name() : String.valueOf(modifier);
+    }
+
+    /** Puts {@code modifier} back on the binding, keeping its key. False when this loader has none. */
+    private static boolean setModifier(KeyMapping km, Object modifier,
+                                       com.mojang.blaze3d.platform.InputConstants.Key k) {
+        if (modifier == null) return false;
+        try {
+            Class<?> type = Class.forName("net.neoforged.neoforge.client.settings.KeyModifier");
+            km.getClass()
+                    .getMethod("setKeyModifierAndCode", type,
+                            com.mojang.blaze3d.platform.InputConstants.Key.class)
+                    .invoke(km, modifier, k);
+            return true;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return false;
+        }
     }
 
     private static String title(KeyMapping km) {
