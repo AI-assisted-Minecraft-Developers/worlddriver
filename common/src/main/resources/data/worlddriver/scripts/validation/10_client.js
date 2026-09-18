@@ -54,6 +54,18 @@ if (!clientAvailable()) {
             "base64 payload must be non-trivial (got " + (shot.base64 ? shot.base64.length : 0) + " bytes)");
     });
 
+    ScriptTest.run("10_client: a capture waits for a frame of its own", function(t) {
+        // The failure this guards is invisible in the image: a capture of the frame that predates
+        // the request looks entirely plausible. So the check is on the frame number, which is the
+        // same quantity the capture is made of.
+        var a = Driver.invoke("mc.client.screenshot", {});
+        var b = Driver.invoke("mc.client.screenshot", {});
+        t.assertTrue(a.frameWaited === true,
+            "capture did not get a frame of its own (frame=" + a.frame + ", fps=" + a.fps + ")");
+        t.assertTrue(b.frame > a.frame,
+            "frame did not advance between captures (" + a.frame + " -> " + b.frame + ")");
+    });
+
     ScriptTest.run("10_client: screenshot also reachable via WebSocket RPC", function(t) {
         // Cross-path parity check: screenshot bytes can differ frame-to-frame, but
         // the shape and format fields must match between in-JVM and TCP paths.

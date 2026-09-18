@@ -331,8 +331,17 @@ public final class ClientInput {
     /** How long a click waits for the tick that carries its release before reporting it undelivered. */
     private static final long CLICK_RELEASE_MS = 2_000;
 
-    /** One half of a key event: where it went, and whether that recipient took it. */
-    private record Half(String via, boolean delivered) {}
+    /**
+     * One half of a key event: where it went, whether it was handed over at all, and — only when
+     * the recipient is a screen, the one recipient that answers — whether it took it.
+     *
+     * <p>The two are different questions and were once one field. A screen that ignores a key
+     * returns false, and so does a key that was never delivered; reporting both as
+     * {@code pressed:false} made "ESC did not close this screen" indistinguishable from "ESC was
+     * never sent". Vanilla screens in particular almost never consume a key RELEASE, so a
+     * correctly delivered click reads as {@code handled:false} on its second half every time.
+     */
+    private record Half(String via, boolean delivered, Boolean handled) {}
 
     /** That half, plus the screen standing open once it had landed. */
     private record Tail(Half half, String screenAfter) {}
@@ -342,8 +351,9 @@ public final class ClientInput {
      *
      * <p>In every key reply because a keystroke is the thing that opens screens, and the caller's
      * NEXT keystroke is routed by whatever this one left behind: a key sent at a screen that the
-     * caller does not know is there comes back {@code via:"screen", pressed:false} and looks for
-     * all the world like the verb not working.
+     * caller does not know is there comes back {@code via:"screen"} with the screen named here,
+     * which is the only field that separates "the verb is broken" from "something else was
+     * listening".
      */
     private static String screenName() {
         Screen s = Minecraft.getInstance().screen;
@@ -397,6 +407,7 @@ public final class ClientInput {
             m.put("via", h.via());
             m.put("pressed", down && h.delivered());
             m.put("released", !down && h.delivered());
+            if (h.handled() != null) m.put(down ? "pressHandled" : "releaseHandled", h.handled());
             m.put("screenAfter", screenName());
             return m;
         });
@@ -409,6 +420,7 @@ public final class ClientInput {
                 () -> new Tail(deliver(code, scan, rt, false, mods), screenName()), CLICK_RELEASE_MS);
         Map<String, Object> full = new LinkedHashMap<>(out);
         full.put("released", rel != null && rel.half().delivered());
+        if (rel != null && rel.half().handled() != null) full.put("releaseHandled", rel.half().handled());
         if (rel != null) full.put("screenAfter", rel.screenAfter());
         if (rel == null) {
             full.put("releaseNote", "the client did not tick within " + CLICK_RELEASE_MS
@@ -444,20 +456,23 @@ public final class ClientInput {
             default -> s != null;
         };
         if (toScreen) {
-            if (s == null) return new Half("screen", false);
-            return new Half("screen", down ? s.keyPressed(code, scan, mods) : s.keyReleased(code, scan, mods));
+            if (s == null) return new Half("screen", false, null);
+            boolean took = down ? s.keyPressed(code, scan, mods) : s.keyReleased(code, scan, mods);
+            return new Half("screen", true, took);
         }
+        // The keybind routes report no `handled`: neither KeyboardHandler.keyPress nor
+        // KeyMapping.set answers, and inventing a `true` would claim a consumption nobody checked.
         if (s == null) {
             long window = mc.getWindow().getWindow();
             int glfwAction = down ? org.lwjgl.glfw.GLFW.GLFW_PRESS : org.lwjgl.glfw.GLFW.GLFW_RELEASE;
             mc.keyboardHandler.keyPress(window, code, scan, glfwAction, mods);
-            return new Half("keybind", true);
+            return new Half("keybind", true, null);
         }
         com.mojang.blaze3d.platform.InputConstants.Key k =
                 com.mojang.blaze3d.platform.InputConstants.getKey(code, scan);
         net.minecraft.client.KeyMapping.set(k, down);
         if (down) net.minecraft.client.KeyMapping.click(k);
-        return new Half("keybind", true);
+        return new Half("keybind", true, null);
     }
 
     /**

@@ -18,6 +18,9 @@ import static net.magicterra.worlddriver.client.internal.ClientThread.runOnClien
 public final class Screenshots {
     private Screenshots() {}
 
+    /** How long a capture waits for a frame of its own before reporting that none was drawn. */
+    private static final long FRESH_FRAME_MS = 1_000;
+
     public static Map<String, Object> screenshot(Map<String, Object> opts) {
         final int maxW = (opts != null && opts.get("maxWidth") instanceof Number n) ? n.intValue() : 0;
         final int maxH = (opts != null && opts.get("maxHeight") instanceof Number n) ? n.intValue() : 0;
@@ -26,6 +29,14 @@ public final class Screenshots {
         if (!fmt.equals("png") && !fmt.equals("jpeg") && !fmt.equals("jpg")) {
             return Map.of("ok", false, "error", "unsupported format: " + fmt + " (png|jpeg)");
         }
+
+        // Wait for a frame drawn AFTER this request arrived, so the capture cannot be the frame
+        // that predates whatever the caller did just before asking for it. Off the client thread
+        // only: on it, we are the thread that would draw it. A timeout is not an error — it means
+        // the client is not drawing, which `frameWaited:false` reports rather than hides.
+        final long before = FrameClock.drawn();
+        final boolean waited = !Minecraft.getInstance().isSameThread()
+                && FrameClock.awaitAfter(before, FRESH_FRAME_MS) > before;
 
         return runOnClient(() -> {
             Minecraft mc = Minecraft.getInstance();
@@ -47,7 +58,7 @@ public final class Screenshots {
 
                 // PNG, no resize → fast path uses NativeImage's own encoder.
                 if (fmt.equals("png") && dstW == srcW && dstH == srcH) {
-                    return reply("png", srcW, srcH, img.asByteArray());
+                    return reply("png", srcW, srcH, img.asByteArray(), waited);
                 }
 
                 // Resize/transcoding path via AWT: copy ARGB pixels into a
@@ -100,7 +111,7 @@ public final class Screenshots {
                 } else {
                     javax.imageio.ImageIO.write(out, "png", baos);
                 }
-                return reply(mime, dstW, dstH, baos.toByteArray());
+                return reply(mime, dstW, dstH, baos.toByteArray(), waited);
             } catch (IOException e) {
                 throw new RuntimeException("screenshot encode failed", e);
             } finally {
@@ -114,18 +125,24 @@ public final class Screenshots {
      *
      * <p>A window nothing is presenting keeps its last frame: the framebuffer still reads, the
      * image is the right size and looks entirely plausible, and it can be minutes old — three
-     * captures seven seconds apart of a rainy world came back byte-identical. So the reply carries
-     * the two measurements that tell a live frame from a retained one rather than a verdict:
-     * whether the compositor considers the window active, and how many frames the client believes
-     * it drew in the last second. Identical captures with {@code windowActive:false} are a stale
-     * frame, not a still world.
+     * captures seven seconds apart of a rainy world came back byte-identical.
+     *
+     * <p>{@code frame} is the one field that settles it, because it is the same quantity the
+     * capture is made of: two replies carrying the same number are the same image, whatever the
+     * picture shows. {@code frameWaited} says this capture waited for a frame of its own, so
+     * anything the caller caused before asking is in it. {@code windowActive} and {@code fps}
+     * stay as context — note that {@code fps} above zero only rules out a renderer that has
+     * stopped, not a frame that is one round-trip out of date.
      */
-    private static Map<String, Object> reply(String format, int width, int height, byte[] bytes) {
+    private static Map<String, Object> reply(String format, int width, int height, byte[] bytes,
+                                             boolean frameWaited) {
         Minecraft mc = Minecraft.getInstance();
         Map<String, Object> m = new java.util.LinkedHashMap<>();
         m.put("format", format);
         m.put("width", width);
         m.put("height", height);
+        m.put("frame", FrameClock.drawn());
+        m.put("frameWaited", frameWaited);
         m.put("windowActive", mc.isWindowActive());
         m.put("fps", mc.getFps());
         m.put("base64", Base64.getEncoder().encodeToString(bytes));

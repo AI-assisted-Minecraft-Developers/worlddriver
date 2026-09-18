@@ -240,10 +240,12 @@ public final class ClientTools {
                 "Capture the framebuffer. maxWidth/maxHeight = aspect-preserving downscale caps. " +
                 "format: png (default, lossless) or jpeg (smaller). quality 1-100 for JPEG (default 85). " +
                 "Over MCP returns two content blocks: text {format,width,height} + image (base64). " +
-                "In-JVM/WebSocket callers get a single Map {format,width,height,windowActive,fps,base64}. " +
-                "A window nothing is presenting keeps its last frame, so a capture can be minutes " +
-                "old and still look right: check windowActive and fps before treating one as " +
-                "evidence of the current state.",
+                "In-JVM/WebSocket callers get a single Map " +
+                "{format,width,height,frame,frameWaited,windowActive,fps,base64}. " +
+                "The capture waits for a frame drawn after your request, so what you did just " +
+                "before it is in the picture; frameWaited:false means none was drawn in time and " +
+                "the image is whatever was left over. frame is that frame's number — two captures " +
+                "with the same frame are the same image, however different the situation is.",
                 object()
                     .prop("maxWidth", integer(16, 8192)
                         .desc("Cap on output width in pixels. Omit for native size."))
@@ -284,9 +286,12 @@ public final class ClientTools {
             "gets; 'keybind' reaches keybinds even under an open screen; 'screen' refuses when " +
             "none is open. For WASD movement use mc.bot.* — they're stickier. " +
             "Returns {ok, key, code, action, route, modifiers, via, pressed, released, screenAfter} " +
-            "plus releaseVia when the press changed the screen under it. screenAfter names the " +
+            "plus releaseVia when the press changed the screen under it. pressed/released mean the " +
+            "half went out; pressHandled/releaseHandled (screen route only) mean the screen " +
+            "consumed it — screens rarely consume a release, so " +
+            "releaseHandled:false is normal and is NOT a failed release. screenAfter names the " +
             "screen this keystroke left open ('none' if it left none) — the NEXT key is routed by " +
-            "it, and one sent at a screen you did not know was there comes back undelivered.",
+            "it, and one sent at a screen you did not know was there lands on that screen instead.",
             object()
                 .req("key", string()
                     .desc("Key name (see description for supported set)."))

@@ -14,6 +14,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file the JVM actually loaded the class bytes out of. Measured rather than stamped in by
   gradle on purpose: a build-time stamp agrees with the build in exactly the case worth
   catching, when a cache serves the game something older than gradle last produced.
+- **A capture now waits for a frame of its own, and says which frame it is.** Reporting
+  `windowActive` and `fps` was not enough: a driver read `fps:15` as "the frame is live" and got
+  the frame from before the screen it had just opened — the capture reads the render target, which
+  holds the LAST frame drawn, and at 15 fps that is up to 66 ms and several round-trips old. The
+  capture now blocks off-thread until `GameRenderer.render` completes once more, and the reply
+  carries `frame` (monotonic; two captures with the same number are the same image) and
+  `frameWaited`. Counted at the renderer rather than the window's buffer swap, which vanilla runs
+  even on ticks that drew nothing.
+- **`mc.client.input.key` separates "the key went out" from "something took it".** `pressed` and
+  `released` carried the recipient's return value on the screen route and a hardcoded `true` on
+  the keybind route — one name for two quantities. Worse, vanilla screens do not consume key
+  releases, so a perfectly delivered click reported `released:false` every time: a field that
+  could only ever take one value on that route, read by a driver as a release that never fired.
+  Delivery keeps `pressed`/`released`; consumption moves to `pressHandled`/`releaseHandled`,
+  present only on the screen route, because the keybind paths are never told.
 - **Both key verbs say which screen the keystroke left standing.** A screen nobody knows is open
   eats the next keystroke: it comes back `via:"screen", pressed:false`, which reads exactly like a
   broken verb — a driver lost four readings to a chat screen that appeared between two calls and

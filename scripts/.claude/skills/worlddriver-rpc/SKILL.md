@@ -165,6 +165,12 @@ Two related building blocks for conditions the raw event types don't cover:
   dump of that JVM names the frame (a window that never maps is the usual one —
   the loader's early-display window is created before any mod is discovered). No
   amount of retrying the port helps, and nothing the mod can do reaches that far up.
+- **Find the game window by PID, never by title.** A modpack can rename it — one
+  ships as `Mium 麦吉克服务器 1.21.1`, with no "Minecraft" anywhere in it, so
+  `xdotool search --name Minecraft` comes back empty and reads as "there is no
+  window". The PID is not something a pack can change, and the RPC port already
+  names it: `ss -tlnp | grep :39801` → that PID → `xdotool search --pid <pid>`.
+  (Usually `_NET_CLIENT_LIST` holds one window anyway, so enumerating is cheap.)
 - **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server they error
   with "not available (client only …)". `mc.system/action/observe/query/wait`
   work server-side.
