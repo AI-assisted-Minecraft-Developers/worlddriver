@@ -381,6 +381,12 @@ water8.liftedY=64/60
 - **更早报出、都需要编译器的余项**：`prelude.js` 的 `\| 0` 取整与 `Params.toInt`／`SchemaValidator`
   分叉（脚本通道吞 `2.7`／`"8"`／回绕，MCP/RPC 会拒——**行为变更，必须配闸**，排在 ROADMAP §6.5 序 17）。
 
+### 🟡 J134：帧计数 mixin 只到「编译」，闸未验
+
+`04ee7615` 起截图会等一帧并报 `frame`／`frameWaited`，计数来自新的 `GameRendererMixin`
+（`defaultRequire=1`，没应用就是客户端起不来，不是降级）。判据：集成客户端闸上的
+`10_client: a capture waits for a frame of its own` 通过。
+
 ---
 
 ## 🧹 从散落处收拢进来的待办（2026-09-04）
