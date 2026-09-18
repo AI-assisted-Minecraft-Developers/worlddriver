@@ -704,16 +704,17 @@ def provisionRun = { String taskName, String dirName, String what, String port =
             }
         }
         new File(runDir, 'eula.txt').text = 'eula=true\n'
-        // Three client settings, written unconditionally because a dedicated server never reads the
-        // file and guessing the run type here would be one more thing to keep in step. The first is
-        // the one that matters on this box: vanilla singleplayer PAUSES when the window loses focus,
-        // which on a desktop happens constantly and stops the integrated server dead — a ladder rung
-        // does not fail, it simply stops advancing, and the run reports a step timeout on whatever
-        // leg was in flight when somebody alt-tabbed. Copied from StageWright's own
-        // RunDirectory.seedClientOptions; Minecraft merges the keys it does not find with its
-        // defaults, so a three-line file is a complete one.
+        // Four client settings, written unconditionally because a dedicated server never reads the
+        // file and guessing the run type here would be one more thing to keep in step. Two of them
+        // are about the desktop this runs on, not about the game: vanilla singleplayer PAUSES when
+        // the window loses focus, and with vsync on the client blocks in the buffer swap whenever
+        // the compositor is not presenting it, which drops the client to ~1 fps and therefore to
+        // ten game ticks a second against the server's twenty. Both turn a desktop's ordinary
+        // behaviour into body-shaped scene failures. Kept in step with StageWright's own
+        // RunDirectory.seedClientOptions, where the vsync reasoning is written out; Minecraft
+        // merges the keys it does not find with its defaults, so a four-line file is a complete one.
         new File(runDir, 'options.txt').text =
-                'pauseOnLostFocus:false\nonboardAccessibility:false\nnarrator:0\n'
+                'pauseOnLostFocus:false\nonboardAccessibility:false\nnarrator:0\nenableVsync:false\n'
         def properties = new File(runDir, 'server.properties')
         def body = properties.exists() ? properties.text : ''
         // server-port=0 → the OS assigns a free one. Nobody connects to most of these servers; a
