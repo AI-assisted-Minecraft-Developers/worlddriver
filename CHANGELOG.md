@@ -71,6 +71,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   character can no longer eat it) and `screen` refuses with `no_screen` rather than firing a keybind
   by surprise. Until now `via` only reported the choice after the fact, so a caller had to read
   `mc.client.screen.info` first and race the answer.
+- **`mc.client.screen.tree` reports what state it can actually see: focus, and a list's chosen
+  row.** Every widget now carries `focused`, and the row an `AbstractSelectionList` considers
+  selected carries `selected`. The limit is worth stating because it cost a driver a wrong verdict:
+  the tree is structure, not paint. A widget that draws its own selection — a mod's model cards,
+  picked out by a coloured border — leaves the tree byte-identical before and after the click that
+  chose it, and the only way to read that selection is a screenshot.
 - **`mc.client.screen.tree` walks into a list's rows and can name them.** A row of an
   `AbstractSelectionList` got its bounding box and a label guessed from four getter names, and
   nothing else — so a key-binds screen came back as a stack of nameless `Entry` nodes with no way

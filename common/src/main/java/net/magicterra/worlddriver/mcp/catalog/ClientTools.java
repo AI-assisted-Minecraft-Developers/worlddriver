@@ -29,12 +29,7 @@ public final class ClientTools {
                 "causeOfDeath?:string (on a DeathScreen — e.g. 'Player was slain by Phantom')}.",
                 emptyObject()),
 
-            roTool("mc.client.screen.tree",
-                "Walk the current Screen widget tree and return a JSON snapshot. The canonical " +
-                "input for picking a click target without taking a screenshot. " +
-                "Returns {hasScreen:boolean, type:string, width:integer, height:integer, " +
-                "children:[{type, x, y, width, height, visible, active, message?, children?}, ...]}.",
-                emptyObject()),
+            screenTreeTool(),
 
             roTool("mc.client.player",
                 "Client-AUTHORITATIVE player snapshot — reads the LocalPlayer / ClientLevel " +
@@ -260,6 +255,22 @@ public final class ClientTools {
                         .desc("JPEG quality. Default 85. Ignored for PNG.")),
                 Map.of("anthropic/maxResultSizeChars", 500000))
         );
+    }
+
+    /** Out of {@link #tools()} for the same reason as {@link #keyTool()}. */
+    private static ToolSchema screenTreeTool() {
+        return roTool("mc.client.screen.tree",
+            "Walk the current Screen widget tree and return a JSON snapshot. The canonical " +
+            "input for picking a click target without taking a screenshot; the coordinates " +
+            "are right for modded, self-drawn screens too. STRUCTURE, NOT PAINT: 'selected' " +
+            "is only what a selection list reports, and a widget that draws its own selection " +
+            "leaves this tree identical before and after the click that chose it — read that " +
+            "with a screenshot. A widget that throws leaves 'error' on its own node instead " +
+            "of blanking the answer. " +
+            "Returns {hasScreen:boolean, type:string, width:integer, height:integer, " +
+            "children:[{type, x, y, width, height, visible, active, focused, message?, " +
+            "selected?, error?, children?}, ...]}.",
+            emptyObject());
     }
 
     /** Out of {@link #tools()} because routing and the two halves of a click take a paragraph. */

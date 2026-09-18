@@ -160,6 +160,7 @@ public final class ScreenIntrospection {
             n.put("height", w.getHeight());
             n.put("visible", w.visible);
             n.put("active", w.active);
+            n.put("focused", w.isFocused());
             n.put("message", w.getMessage().getString());
         }
         // EditBox holds typed text. Without exposing the current value, agents
@@ -198,6 +199,11 @@ public final class ScreenIntrospection {
         // each entry as Object — the concrete subclass (e.g. WorldListEntry)
         // is public, so getClass()/reflection on Object is fine.
         List<?> children = list.children();
+        // Which row the list considers chosen. The only selection state vanilla exposes without
+        // reflection, and the only one a caller can read at all: a widget that paints its own
+        // selection — a mod's model cards, highlighted by a border — leaves this tree byte-identical
+        // before and after the click that chose it, so selection there is a screenshot question.
+        Object selected = list.getSelected();
         for (int i = 0; i < children.size(); i++) {
             Object entry = children.get(i);
             int rowTop = list.getRowTop(i);
@@ -208,6 +214,7 @@ public final class ScreenIntrospection {
             n.put("y", rowTop);
             n.put("width", rowWidth);
             n.put("height", itemHeight - 4);
+            if (entry == selected) n.put("selected", true);
             String label = entryLabel(entry);
             if (label != null) n.put("message", label);
             // Walk INTO the row. Every list row that holds widgets is a ContainerEventHandler
