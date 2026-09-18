@@ -48,6 +48,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.material.Fluids;
 import net.minecraft.world.phys.Vec3;
@@ -1824,9 +1825,34 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         DriverApi api = WorldDriverCommon.api();
         ctx.cleanup(() -> api.route("mc.client.screen.close", Map.of()));
 
+        // Survival, said out loud. WHICH screen the inventory binding opens is a function of the
+        // player's mode — the same call on a creative player opens CreativeModeInventoryScreen —
+        // so a scene that inherits whatever mode the previous one left is asserting about a
+        // variable it never set. Measured on a live client: same call, same reply fields, two
+        // different screens.
+        ServerPlayer player = ctx.playerHere();
+        GameType was = player.gameMode.getGameModeForPlayer();
+        ctx.cleanup(() -> player.setGameMode(was));
+        player.setGameMode(GameType.SURVIVAL);
+        ctx.record("gamemode", "SURVIVAL, restored to " + was + " after");
+
         // From no screen: with one open the raw half has nowhere to go but that screen, and the
         // reply would say `skipped` — a different assertion than the one this scene is making.
         api.route("mc.client.screen.close", Map.of());
+        // The mode reaches the client as a packet, and the screen it opens is the client's
+        // decision, so drive only once the client agrees about the mode.
+        ctx.await(() -> "survival".equals(clientGameMode(api))).within(100).then(() ->
+                keybindOpensTheInventory(ctx, api));
+    }
+
+    /** {@code mc.client.player}'s view of the mode, which is the one that picks the screen. */
+    private static String clientGameMode(DriverApi api) {
+        Object r = api.route("mc.client.player", Map.of());
+        Object mode = r instanceof Map<?, ?> m ? m.get("gameMode") : null;
+        return mode == null ? "" : String.valueOf(mode);
+    }
+
+    private static void keybindOpensTheInventory(SceneContext ctx, DriverApi api) {
         Object r = api.route("mc.client.input.keybind", Map.of("name", "key.inventory"));
         Map<?, ?> m = r instanceof Map<?, ?> mm ? mm : Map.of();
         ctx.record("keybind.reply", String.valueOf(m));
