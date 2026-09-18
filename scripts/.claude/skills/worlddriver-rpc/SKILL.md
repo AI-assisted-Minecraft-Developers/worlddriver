@@ -156,8 +156,10 @@ Two related building blocks for conditions the raw event types don't cover:
 - **Don't poll readiness with long curl/sleep loops** — it's slow and annoying.
   After a relaunch, probe `mc.system.version` once; it errors until up (~30–60s)
   then returns a fresh `uptimeMs`. If you must wait on the port, one loop is fine:
-  `until ss -ltnp | grep -q ':39801'; do sleep 3; done` (Linux) — on Windows there
-  is no `ss`, use `netstat -ano | grep -q ':39801.*LISTENING'` instead.
+  `until ss -ltnp | grep -q ":$PORT"; do sleep 3; done` (Linux) — on Windows there
+  is no `ss`, use `netstat -ano | grep -q ":$PORT.*LISTENING"` instead. Take `$PORT`
+  from `<rundir>/worlddriver-rpc.port`, which the client writes with the port it
+  actually got; 39801 is only the default and launchers do move it.
 - **A port that never opens may be a client that never started.** The mod opens its
   ports at client init, so a client that hangs *before* mod loading looks exactly
   like a firewall or a wrong port. Tell them apart in the client's own log:
@@ -168,9 +170,12 @@ Two related building blocks for conditions the raw event types don't cover:
 - **Find the game window by PID, never by title.** A modpack can rename it — one
   ships as `Mium 麦吉克服务器 1.21.1`, with no "Minecraft" anywhere in it, so
   `xdotool search --name Minecraft` comes back empty and reads as "there is no
-  window". The PID is not something a pack can change, and the RPC port already
-  names it: `ss -tlnp | grep :39801` → that PID → `xdotool search --pid <pid>`.
-  (Usually `_NET_CLIENT_LIST` holds one window anyway, so enumerating is cheap.)
+  window". The PID is not something a pack can change, and the RPC port names it —
+  but take the port from the file the client itself writes, not from 39801: that
+  default is overridable and one launcher here runs on 39811 to stay clear of a
+  single-player instance. `ss -tlnp | grep ":$(cat <rundir>/worlddriver-rpc.port)"`
+  → that PID → `xdotool search --pid <pid>`. (Usually `_NET_CLIENT_LIST` holds one
+  window anyway, so enumerating is cheap.)
 - **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server they error
   with "not available (client only …)". `mc.system/action/observe/query/wait`
   work server-side.
