@@ -239,7 +239,7 @@ public final class ClientTools {
             roTool("mc.client.screenshot",
                 "Capture the framebuffer. maxWidth/maxHeight = aspect-preserving downscale caps. " +
                 "format: png (default, lossless) or jpeg (smaller). quality 1-100 for JPEG (default 85). " +
-                "Over MCP returns two content blocks: text {format,width,height} + image (base64). " +
+                "Over MCP returns two content blocks: text (every field below but base64) + image. " +
                 "In-JVM/WebSocket callers get a single Map " +
                 "{format,width,height,frame,frameWaited,windowActive,fps,base64}. " +
                 "The capture waits for a frame drawn after your request, so what you did just " +
