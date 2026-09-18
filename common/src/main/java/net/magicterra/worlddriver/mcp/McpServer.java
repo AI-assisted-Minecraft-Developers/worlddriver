@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.mcp;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import net.magicterra.worlddriver.BuildStamp;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.model.DriverEvent;
@@ -73,7 +74,7 @@ public final class McpServer implements Closeable {
             List.of("2025-06-18", "2025-03-26", "2024-11-05");
     private static final String LATEST_PROTOCOL_VERSION = SUPPORTED_PROTOCOL_VERSIONS.get(0);
     private static final String SERVER_NAME = "worlddriver";
-    private static final String SERVER_VERSION = "0.1.0-dev";
+    private static final String SERVER_VERSION = BuildStamp.VERSION;
     /** Maximum inbound POST body — shared with the WebSocket transport's frame
      *  limit so the two cannot disagree about what a request may weigh. See
      *  {@link TransportLimits}. */

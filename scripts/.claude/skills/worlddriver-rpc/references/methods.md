@@ -94,7 +94,7 @@ its result directly, no `awaitMs`); `mc.bot.playbook` runs on a **background thr
 ## mc.system.*
 | method | params | returns / notes |
 |---|---|---|
-| `mc.system.version` | — | `{modid, version, uptimeMs}`. Probe first; errors with "Unable to connect" until up. |
+| `mc.system.version` | — | `{modid, version, uptimeMs, loadedFrom, loadedKind, builtAt?, builtMs?, sizeBytes?}`. Probe first; errors with "Unable to connect" until up. `version` is pinned and identical across builds — use `loadedFrom`/`builtAt` to tell whether the game got the build you just made. |
 | `mc.system.testOrigin` | — | `{x,y,z}` canonical arena origin (default 0,200,0); the default search center for observe/query. |
 | `mc.system.waitTicks` | `ticks` (req) | block ~ticks×50ms → `{waited, interrupted?}`. Refuses to run on the server thread. |
 

@@ -1,8 +1,10 @@
 package net.magicterra.worlddriver.api;
 
+import net.magicterra.worlddriver.BuildStamp;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -14,12 +16,19 @@ public final class SystemApi {
     private final DriverApi api;
     SystemApi(DriverApi api) { this.api = api; }
 
+    /**
+     * {@code {modid, version, uptimeMs}} plus {@link BuildStamp#asMap()} — where the running
+     * code was loaded from and when that file was written. The version string is pinned and
+     * cannot tell two builds apart; the stamp can, which is what makes this usable as evidence
+     * that a fix actually reached the game.
+     */
     public Map<String, Object> version() {
-        return Map.of(
-            "modid", "worlddriver",
-            "version", "0.1.0-dev",
-            "uptimeMs", (System.nanoTime() - api.startNanos) / 1_000_000L
-        );
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("modid", "worlddriver");
+        out.put("version", BuildStamp.VERSION);
+        out.put("uptimeMs", (System.nanoTime() - api.startNanos) / 1_000_000L);
+        out.putAll(BuildStamp.asMap());
+        return out;
     }
 
     public BlockPos testOrigin() { return DriverApi.ORIGIN; }

@@ -13,8 +13,11 @@ public final class SystemTools {
     public static List<ToolSchema> tools() {
         return List.of(
             roTool("mc.system.version",
-                "Probe the agent driver. Use first to confirm the server is reachable. " +
-                "Returns {modid:string, version:string, uptimeMs:integer}.",
+                "Probe the agent driver. Use first to confirm the server is reachable, and to " +
+                "tell builds apart: version is pinned and never moves, loadedFrom/builtAt name " +
+                "the file the running code was actually loaded from and when it was written. " +
+                "Returns {modid:string, version:string, uptimeMs:integer, loadedFrom:string, " +
+                "loadedKind:string, builtAt?:string, builtMs?:integer, sizeBytes?:integer}.",
                 emptyObject()),
 
             roTool("mc.system.testOrigin",

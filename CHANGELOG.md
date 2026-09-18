@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-18
 
+- **`mc.system.version` can now tell two builds apart.** Its `version` field is pinned in
+  `gradle.properties` and stays put across every recompile, so a driver asking "is the fix in
+  the game yet" got the same answer before and after — and correctly refused to treat it as
+  evidence. The reply now also carries `loadedFrom`, `builtAt` and `sizeBytes`, read from the
+  file the JVM actually loaded the class bytes out of. Measured rather than stamped in by
+  gradle on purpose: a build-time stamp agrees with the build in exactly the case worth
+  catching, when a cache serves the game something older than gradle last produced.
 - **Both key verbs say which screen the keystroke left standing.** A screen nobody knows is open
   eats the next keystroke: it comes back `via:"screen", pressed:false`, which reads exactly like a
   broken verb — a driver lost four readings to a chat screen that appeared between two calls and
