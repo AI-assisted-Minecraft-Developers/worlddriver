@@ -272,8 +272,10 @@ public final class ClientTools {
             "(default) = the open screen, else the keybinds, which is what a real keystroke " +
             "gets; 'keybind' reaches keybinds even under an open screen; 'screen' refuses when " +
             "none is open. For WASD movement use mc.bot.* — they're stickier. " +
-            "Returns {ok, key, code, action, route, via, pressed, released} plus releaseVia " +
-            "when the press changed the screen under it.",
+            "Returns {ok, key, code, action, route, modifiers, via, pressed, released, screenAfter} " +
+            "plus releaseVia when the press changed the screen under it. screenAfter names the " +
+            "screen this keystroke left open ('none' if it left none) — the NEXT key is routed by " +
+            "it, and one sent at a screen you did not know was there comes back undelivered.",
             object()
                 .req("key", string()
                     .desc("Key name (see description for supported set)."))

@@ -334,6 +334,22 @@ public final class ClientInput {
     /** One half of a key event: where it went, and whether that recipient took it. */
     private record Half(String via, boolean delivered) {}
 
+    /** That half, plus the screen standing open once it had landed. */
+    private record Tail(Half half, String screenAfter) {}
+
+    /**
+     * The screen open right now, or {@code none}.
+     *
+     * <p>In every key reply because a keystroke is the thing that opens screens, and the caller's
+     * NEXT keystroke is routed by whatever this one left behind: a key sent at a screen that the
+     * caller does not know is there comes back {@code via:"screen", pressed:false} and looks for
+     * all the world like the verb not working.
+     */
+    private static String screenName() {
+        Screen s = Minecraft.getInstance().screen;
+        return s == null ? "none" : s.getClass().getSimpleName();
+    }
+
     public static Map<String, Object> key(String key, String action, String route, Object modifiers) {
         final String kn = (key == null) ? "" : key.trim().toUpperCase(Locale.ROOT);
         final String act = (action == null || action.isBlank()) ? "click" : action.trim().toLowerCase(Locale.ROOT);
@@ -381,6 +397,7 @@ public final class ClientInput {
             m.put("via", h.via());
             m.put("pressed", down && h.delivered());
             m.put("released", !down && h.delivered());
+            m.put("screenAfter", screenName());
             return m;
         });
         if (!act.equals("click") || !Boolean.TRUE.equals(out.get("ok"))) return out;
@@ -388,16 +405,18 @@ public final class ClientInput {
         // the press can open or close a screen, so the release belongs to whatever is open AFTER
         // it, and vanilla only consumes a keybind's click on a tick boundary. So release on the
         // next client tick, routed again from what is open then.
-        Half rel = ClientThread.runNextTick(() -> deliver(code, scan, rt, false, mods), CLICK_RELEASE_MS);
+        Tail rel = ClientThread.runNextTick(
+                () -> new Tail(deliver(code, scan, rt, false, mods), screenName()), CLICK_RELEASE_MS);
         Map<String, Object> full = new LinkedHashMap<>(out);
-        full.put("released", rel != null && rel.delivered());
+        full.put("released", rel != null && rel.half().delivered());
+        if (rel != null) full.put("screenAfter", rel.screenAfter());
         if (rel == null) {
             full.put("releaseNote", "the client did not tick within " + CLICK_RELEASE_MS
                     + " ms, so the key is still down — send action release once it ticks again");
-        } else if (!rel.via().equals(out.get("via"))) {
+        } else if (!rel.half().via().equals(out.get("via"))) {
             // The press moved the screen out from under the release; say so, because the caller's
             // next read of screen.info is explained by it.
-            full.put("releaseVia", rel.via());
+            full.put("releaseVia", rel.half().via());
         }
         return full;
     }

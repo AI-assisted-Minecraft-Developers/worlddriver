@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.client.internal;
 
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 
 import java.util.ArrayList;
@@ -63,19 +64,23 @@ public final class ClientKeybinds {
                 m.put("rawEvent", raw);
                 return m;
             }
-            // The raw event first, and the mapping driven by hand only if that event did not go.
-            // Vanilla's keyPress sets the mapping down and counts its click BEFORE it fires the
-            // loader's key event — set, click, onKeyInput, in that order — so doing both would
-            // leave two clicks pending and a mod that polls them would act twice.
+            // Count the click BEFORE the event, then take one back if vanilla counted one too.
+            //
+            // A press is both things for vanilla: the key goes down AND a click is counted, and
+            // driving only one of them works for half the bindings in a pack. Vanilla's keyPress
+            // does both before it fires the loader's key event, so letting it do the counting
+            // looked right — until a real ALT+Y binding came back with zero clicks pending: the
+            // lookup that keyPress counts through is indexed by modifier, and clearing the
+            // binding's modifier for the event does not reindex it. An event-driven mod did not
+            // care; one that polls consumeClick() would have seen nothing. So the click is ours
+            // and it is in place before any handler runs; if vanilla managed to add its own, the
+            // count is one too high afterwards and gives it back.
+            // clickCount is private in vanilla, opened by worlddriver.accesswidener.
+            int before = km.clickCount;
+            km.setDown(true);
+            km.clickCount = before + 1;
             String raw = fireRaw(km, true);
-            if (!raw.startsWith("sent")) {
-                km.setDown(true);
-                // A press is both for vanilla: the key goes down AND a click is counted. Owners
-                // that poll isDown() see the first, owners that poll consumeClick() see the
-                // second, and driving only one of them works for half the bindings in a pack.
-                // Private in vanilla, opened by worlddriver.accesswidener.
-                km.clickCount++;
-            }
+            if (km.clickCount >= before + 2) km.clickCount--;
             held[0] = km;
             Map<String, Object> m = reply(km, act, km.clickCount);
             m.put("rawEvent", raw);
@@ -86,14 +91,18 @@ public final class ClientKeybinds {
         // owner only gets its turn on a tick boundary. Holding it down until then is what makes a
         // click of a movement binding move anything.
         final KeyMapping km = held[0];
-        Boolean up = ClientThread.runNextTick(() -> {
+        // The screen as of the release tick, not of the press: the press is what opens one, and
+        // that is the tick it becomes visible on.
+        String after = ClientThread.runNextTick(() -> {
             km.setDown(false);
             fireRaw(km, false);
-            return Boolean.TRUE;
+            Screen s = Minecraft.getInstance().screen;
+            return s == null ? "none" : s.getClass().getSimpleName();
         }, CLICK_RELEASE_MS);
         Map<String, Object> full = new LinkedHashMap<>(out);
-        full.put("released", Boolean.TRUE.equals(up));
-        if (up == null) {
+        full.put("released", after != null);
+        if (after != null) full.put("screenAfter", after);
+        if (after == null) {
             full.put("releaseNote", "the client did not tick within " + CLICK_RELEASE_MS
                     + " ms, so the binding is still down — send action release once it ticks again");
         }
@@ -153,6 +162,9 @@ public final class ClientKeybinds {
         // focused and the mouse is grabbed, whatever the binding says.
         m.put("windowActive", mc.isWindowActive());
         m.put("mouseGrabbed", mc.mouseHandler.isMouseGrabbed());
+        // What this keystroke left standing: the caller's NEXT one is routed by it, and a key sent
+        // at a screen nobody knows is open comes back undelivered and reads like a broken verb.
+        m.put("screenAfter", mc.screen == null ? "none" : mc.screen.getClass().getSimpleName());
         return m;
     }
 

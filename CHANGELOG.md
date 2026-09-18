@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-18
 
+- **Both key verbs say which screen the keystroke left standing.** A screen nobody knows is open
+  eats the next keystroke: it comes back `via:"screen", pressed:false`, which reads exactly like a
+  broken verb — a driver lost four readings to a chat screen that appeared between two calls and
+  nearly reported two of them as bugs. `screenAfter` is in every reply now, measured on the tick
+  the release lands (the press is what opens a screen, so the press's own reading is too early),
+  and it names the screen or says `none`.
 - **`mc.client.screenshot` says whether the frame it returns is a live one.** A window nothing is
   presenting keeps its last frame, and the capture of it is the right size, plausible, and minutes
   old: three shots seven seconds apart of a rainy world came back byte-identical, and were nearly
@@ -18,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   normal state, so a driver whose keystrokes vanish was reading `hasScreen` and `overlayActive`,
   finding them right, and retrying something no retry fixes. Both are now in the cheap probe that
   every caller already makes first.
+- **A driven keybind's click is counted by the driver, not left to vanilla.** Vanilla counts a
+  click inside `keyPress` before the key event fires, so letting it do the counting looked right —
+  and a real `ALT+Y` binding came back with none pending: the lookup vanilla counts through is
+  indexed by modifier, and clearing the binding's modifier for the event does not reindex it. The
+  mod measured is event-driven and opened anyway; one that polls `consumeClick()` would have seen
+  nothing at all. The click is now in place before any handler runs, and given back if vanilla
+  managed to add its own.
 - **`mc.client.input.keybind` also sends the key as a raw event, with the binding's modifier
   cleared for it.** Driving the mapping reaches only the mods that poll it. The other family
   subscribes to the loader's key-input event and re-tests the mapping inside it, so with no event
@@ -27,7 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is now sent too, and because that second half reads the physical keyboard, the binding's own
   modifier is cleared for the event's duration and restored after: the comparison becomes NONE
   against NONE. `rawEvent` says what became of it, and the reply carries `windowActive` and
-  `mouseGrabbed`, the two gates such a handler puts in front of itself.
+  `mouseGrabbed`, the two gates such a handler puts in front of itself. Read back on the pack it
+  was designed against: naming that mod's `ALT+Y` binding opened its GUI, with `rawEvent` reporting
+  the modifier cleared. Of that mod's two gates only `windowActive` decided anything — the same
+  binding opened with the mouse ungrabbed, so nothing here needs to take the cursor off the human.
 - **`mc.client.input.keybind` drives a key mapping by name, which is the only way to reach a
   modified binding.** A mod pack binds GUIs to `ALT+Y` and the like, and no sequence of synthesized
   keys opens one: the modifier half of that match asks `Screen.hasAltDown()`, which reads the real
@@ -63,11 +79,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   straight from a private `Component` field (vanilla's key-binds rows, and the modded screens built
   from them) is labelled from that field — by type, skipping statics, since a shared button title
   would otherwise label every row "Reset".
-- **One widget that throws no longer blanks `mc.client.screen.tree`.** On a modded creative inventory
-  the whole call came back empty while `screen.info` still answered — a third-party widget throwing
-  from `getMessage()` took the tree with it. Each child, and each container slot, is now judged on
-  its own: the one that threw carries `error` (the root carries `slotsError` for the slot list) and
-  everything else is still reported.
+- **One widget that throws no longer blanks `mc.client.screen.tree`.** A modded creative inventory
+  answered the whole call with an empty object while `screen.info` still described the screen, so a
+  single node was taking the tree down with it — which node was never established, and the same
+  screen on the same pack has since come back whole with no node reporting an error, so the
+  original cause is still unknown. What the change is worth stands either way: each child, and each
+  container slot, is judged on its own, so a node that throws carries `error` (the root carries
+  `slotsError` for the slot list) and costs its own subtree instead of the answer.
 
 ## 2026-09-15
 
