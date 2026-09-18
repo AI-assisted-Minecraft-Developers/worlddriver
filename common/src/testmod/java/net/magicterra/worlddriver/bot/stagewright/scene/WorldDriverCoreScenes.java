@@ -1838,6 +1838,14 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         ctx.expect(m.get("released")).as("the click released the mapping").isEqualTo(true);
         ctx.expect(m.get("down")).as("the mapping was down while the click was in flight")
                 .isEqualTo(true);
+        // One click pending, not two: the driver counts one before the event so a mod that polls
+        // consumeClick() sees it, and vanilla's keyPress counts one of its own inside that event.
+        // Two would make every poll-driven binding act twice.
+        ctx.expect(m.get("clicks")).as("clicks left pending on the mapping").isEqualTo(1);
+        // What the keystroke left open, which is what routes the caller's NEXT one. A driver lost
+        // four readings to a screen it did not know was there, so the reply names it.
+        ctx.expect(m.get("screenAfter")).as("the screen this keystroke left standing")
+                .isEqualTo("InventoryScreen");
 
         ctx.await(() -> Boolean.TRUE.equals(screenInfo(api).get("hasScreen"))).within(100).then(() -> {
             ctx.expect(screenInfo(api).get("type")).as("the screen the inventory binding opens")
