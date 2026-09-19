@@ -57,9 +57,10 @@ For NeoForge: `./gradlew :neoforge:runClient`.
 
 ## Smoke tests
 
-`scripts/smoke-test-react.sh` boots a headless client under Xvfb and drives it
-through TitleScreen → CreateWorld → in-world via the WebSocket RPC. Outputs
-(PNGs, traces, runclient log) land in `fabric/run/smoke/`.
+Start a client yourself, then `uv run scripts/react_smoke.py` drives it through
+TitleScreen → CreateWorld → in-world over the WebSocket RPC — no OS-level input,
+so it works on whatever display the host has. Outputs (PNGs, traces) land in
+`fabric/run/smoke/`.
 
 ## Code layout
 

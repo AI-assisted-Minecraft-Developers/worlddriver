@@ -5,7 +5,7 @@ live 链路(spec §7 工作流第1步):
   2) mc.debug.replay {file, restoreBlocks:true}
   3) 轮询 fabric/run/logs/latest.log 的 [walker] 行,到达 arrive_x 或超时即停
   4) 解析这段日志切片 → maxStuck + conformance
-RPC 调用复用 scripts/journey_runner.py 的 call() 模式(websockets, JSON-RPC, port 39801)。
+RPC 调用是 websockets + JSON-RPC 直连 port 39801(同 worlddriver-rpc skill 的 rpc.py)。
 """
 import asyncio
 import os

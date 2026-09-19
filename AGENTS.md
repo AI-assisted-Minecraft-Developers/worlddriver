@@ -347,8 +347,9 @@ TESTKIT_ENDPOINT=$PWD/fabric/run-stagewright-integrated/stagewright-endpoint.jso
 JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
   ./gradlew :fabric:runClient
 
-# Headless smoke driving (Xvfb + matchbox, drives client via RPC)
-scripts/smoke-test-react.sh
+# Smoke driving — ReAct loop over the client RPC (start a client yourself first,
+# on whatever display this host actually has; the driver never touches the OS input layer)
+uv run scripts/react_smoke.py
 ```
 
 ## The playthrough ladder, and its three topologies

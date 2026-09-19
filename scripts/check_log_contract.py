@@ -3,13 +3,12 @@
 
 WHY THIS EXISTS
 ---------------
-Five scripts recover bot state by scraping the game log with regexes:
+Four scripts recover bot state by scraping the game log with regexes:
 
     scripts/forensic.py             P_T ([walker] t=), P_K (walk-keys), P_E ([expect])
     scripts/pmcs/telemetry.py       _RE ([walker] t=), _RE_YAW
     scripts/pmcs/run_case.py        polls [walker] lines for arrival
     scripts/accept_cycle.py         [expect] lines
-    scripts/probe_unreachable_churn.py  "lastError" out of a JSON blob
 
 The producing side is two `LOG.info` format strings deep in the tick path
 (WalkerTickClimb.java:97 for `[walker] t=`, WalkerTickDrive.java:1300 for
