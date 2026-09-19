@@ -197,6 +197,5 @@ Two related building blocks for conditions the raw event types don't cover:
 ## Relationship to the other scripts here
 
 `rpc.py` is the general-purpose, reusable client (one-shot / batch / `--jq`).
-`rpc_call.py` (repo `scripts/`) is the minimal one-shot seed it grew from —
-`rpc.py` supersedes it. `into_world.py` and `react_smoke.py` use the same RPC
-socket for the specific title→in-world flow; lean on them for client bring-up.
+`into_world.py` and `react_smoke.py` (repo `scripts/`) use the same RPC socket
+for the specific title→in-world flow; lean on them for client bring-up.

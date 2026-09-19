@@ -287,7 +287,7 @@ rangedAvoidRadius, penalty: mobAvoidPenalty}`（不带 `cluster`）」，意图�
 `WorldDriverBiasScenes` 等十几个文件）用的是 Java 类，`new SearchProfile(…, List.of(new NoBreak()))`，
 不经过 JSON 字段名，改字段名对它们零影响，闸不会因此变红。真正按字段名读老字段的，仓库内只有
 三处消费者：`validation/65_schema_union.js`（十几处断言）、`WorldDriverCoreScenes` 里对
-`mc.bot.follow` 的 `hugShore` 断言、`scripts/.claude/skills/worlddriver-rpc/references/methods.md`；
+`mc.bot.follow` 的 `hugShore` 断言、`.agents/skills/worlddriver-rpc/references/methods.md`；
 再加三处定义：`GotoGoalResolver`、`BotTools` 的 goto 与 follow 两个 schema、`BotApiImpl.follow`。
 这六个文件和 `route` 的解析在同一次提交里改完。仓库外的 Journeyman 今天不使用这些字段，不用动。
 

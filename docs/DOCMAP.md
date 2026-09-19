@@ -45,8 +45,8 @@
 | ~~`TODO-rung10-forensics.md`~~ | meta | — | — | 同上 |
 | ~~`TODO-rung20-stand.md`~~ | meta | — | — | 同上 |
 | `path-replay/README.md` | dev | — | — | replay 工具链用法（record / replay / analyze） |
-| `scripts/.claude/skills/worlddriver-rpc/SKILL.md` | user·dev | — | — | ⚠️ 跨平台，Linux 主机也读它——别写 Windows 专用指令 |
-| `scripts/.claude/skills/worlddriver-rpc/references/methods.md` | user·dev | **stale** | 2026-09-06 | 72 方法 RPC 参考。`mc.bot.goto`／`mc.bot.follow` 两行已改成 `route` 对象（2026-09-06 硬切）；goto 行含 `plan`／`planId`／`includePath` 与 `route.blocked`／`route.detour`／`route.exposed` 三个事件，`mc.observe.scene` 行含 `sight`／`mobDensity` 叠加层与 `route` 参数。⚠️ 296 行 `mc.script.eval` 写「sandboxed…No file/network/reflection」同 S1，且「server thread」与 `ScriptEvaluator` 的 worker 线程相反 |
+| `.agents/skills/worlddriver-rpc/SKILL.md` | user·dev | — | — | ⚠️ 跨平台，Linux 主机也读它——别写 Windows 专用指令 |
+| `.agents/skills/worlddriver-rpc/references/methods.md` | user·dev | **stale** | 2026-09-06 | 72 方法 RPC 参考。`mc.bot.goto`／`mc.bot.follow` 两行已改成 `route` 对象（2026-09-06 硬切）；goto 行含 `plan`／`planId`／`includePath` 与 `route.blocked`／`route.detour`／`route.exposed` 三个事件，`mc.observe.scene` 行含 `sight`／`mobDensity` 叠加层与 `route` 参数。⚠️ 296 行 `mc.script.eval` 写「sandboxed…No file/network/reflection」同 S1，且「server thread」与 `ScriptEvaluator` 的 worker 线程相反 |
 
 ## 二、`docs/` 顶层
 
@@ -218,7 +218,7 @@ buoyant 留的是 Phase 0 的现场读数。**删之前要把横幅读完，再�
 | ~~P11~~ | ~~删 `handoffs/2026-07-16-…`~~ | 删 | **2026-08-27 已删**，判据确实清楚：待办全兑现、主题（GameTest）已退休、唯一值钱的发现已存进 `keep` 的 migration-log |
 | P12 | 删除波 3+：导航意图层 9 份 + 其余 13 份 | 删 | 逐份核实，最慢 |
 | P13 | `coverage-exemptions.md` 标题去掉 `task#95b` | 核对 | 违反禁编号，顺手 |
-| P14 | `scripts/agent-driver-channel.mcp.json.example` 的旧项目名 | 核对 | `agent-driver` 已改名 WorldDriver；文件名与内容都要看 |
+| ~~P14~~ | ~~`scripts/agent-driver-channel.mcp.json.example` 的旧项目名~~ | 已消 | 文件已删——工作区根 `.mcp.json` 是唯一的注册样例 |
 
 ### S1 的证据与正确改法
 
@@ -239,7 +239,7 @@ private static final boolean DISABLED = !"on".equalsIgnoreCase(System.getPropert
 | `mcp/catalog/ScriptTools.java:28` | `Sandboxed (no file/network/reflection)` | **最重**：它是 tool schema，**进每个 LLM 客户端的 prompt**——模型据此判断这个动词安不安全 |
 | `README.md:6,220-222` | `sandboxed` / `ScriptClassFilter blocks …` | 主页；读者据此决定要不要开 `rpcHost` |
 | `README-zh_CN.md:196` | 同上中译 | 与 `README.md` **同批改** |
-| `scripts/.claude/skills/worlddriver-rpc/references/methods.md:296` | `sandboxed … No file/network/reflection` | 顺带：同行的「server thread」也与 `ScriptEvaluator` 的 worker 线程矛盾 |
+| `.agents/skills/worlddriver-rpc/references/methods.md:296` | `sandboxed … No file/network/reflection` | 顺带：同行的「server thread」也与 `ScriptEvaluator` 的 worker 线程矛盾 |
 | `CONTRIBUTING.md:93` | `Any new Rhino-exposed surface must pass through ScriptClassFilter` | 它要求的关卡默认不在路径上 |
 | `AGENTS.md:91` | 「Don't widen the Rhino sandbox」硬规则 | 同上；`08_sandbox.js` 断言「必须被拒」而默认放行 |
 

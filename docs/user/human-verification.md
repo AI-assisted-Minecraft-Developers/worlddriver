@@ -216,7 +216,7 @@ The same verbs work over RPC, so a night job can run every local scene and leave
 for the morning:
 
 ```bash
-uv run --with websockets scripts/.claude/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port) \
+uv run --with websockets .agents/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port) \
   worlddriver.scene.run '{"name":"human.flatStep","pos":{"x":100000,"y":200,"z":100000},"awaitMs":45000}'
 ```
 
@@ -234,7 +234,7 @@ name. Spawn one, find it, send it somewhere, stop it:
 ```
 
 ```bash
-RPC="uv run --with websockets scripts/.claude/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port)"
+RPC="uv run --with websockets .agents/skills/worlddriver-rpc/rpc.py --port $(cat fabric/run-dogfood/worlddriver-rpc.port)"
 $RPC mc.bot.status '{}'                                        # bodies: [{id:"player:alex", kind, entityId, pos, busy}]
 $RPC mc.bot.goto '{"body":"player:alex","pos":{"x":100010,"y":200,"z":100000},"awaitMs":30000}'
 $RPC mc.bot.status '{"body":"player:alex"}'                   # its busy flag and slots

@@ -67,7 +67,7 @@ ps -C java -o pid,args
 不停机的替代品：
 
 - `mc.script.eval`：游戏内 Rhino REPL，能读改任何 public 状态，不需要 agent
-  （`scripts/.claude/skills/worlddriver-rpc`）。
+  （`.agents/skills/worlddriver-rpc`）。
 - `jstack <pid>`：只看线程此刻在哪，不需要 agent。栈顶散在同一个环里就是循环，不是阻塞。
 - Arthas 这类字节码注入型工具能不停机 watch 方法出入参，**未在本仓库验证**。
 

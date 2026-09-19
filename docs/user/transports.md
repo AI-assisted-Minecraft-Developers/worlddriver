@@ -137,7 +137,7 @@ non-muted event regardless of it. `mc.events.unsubscribe` stops the stream.
 
 ### A client you don't have to write
 
-`scripts/.claude/skills/worlddriver-rpc/` ships a working Python client (`rpc.py`,
+`.agents/skills/worlddriver-rpc/` ships a working Python client (`rpc.py`,
 one-shot / batch / event tail) and `references/methods.md`, the per-method
 parameter reference. **That reference and `mcp/ToolCatalog.java` are the authority
 on the method surface** — this page deliberately does not restate the method list,
