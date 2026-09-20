@@ -1,201 +1,116 @@
-# ROADMAP
+# Roadmap
 
-> worlddriver 的演进路线图：把一个由外部 LLM（Claude）驱动的 Minecraft agent，做成能在
-> **无作弊生存**里活下来、并最终**搭下界门、进下界**。控制架构是手段，生存进度是北极星。
->
-> 配套：架构设计见 [`docs/design/00`–`04`](docs/design/)；本路线图是它们的实现状态索引 + 前瞻。
+WorldDriver's long-term goal is an agent that survives in Minecraft without cheating:
+no creative mode, no teleports, no items conjured into the inventory. The control
+architecture is the means; survival progress is the measure. This file records the
+order in which the remaining work has to happen and why one item depends on another.
+It is not a status board — what a release actually changed is in
+[`CHANGELOG.md`](CHANGELOG.md).
 
-图例：✅ 已落地并验证 · 🟡 进行中 · ⬜ 计划中 · 🧊 已延后（含原因）
+The architecture these items build on is described in [`docs/dev/bot-layering.md`](docs/dev/bot-layering.md),
+and the decisions behind individual pieces are in [`docs/design/`](docs/design/).
 
----
+## The layering every item below assumes
 
-## 1. 控制架构（三层执行模型）
+Decisions are placed in one of three layers, and putting a decision in the wrong layer
+is the failure the layering exists to prevent. A reflex runs inside a game tick with a
+fixed algorithm and never consults a language model, because anything that waits for a
+network round trip is already too slow to stop a fall or a creeper. A process is a
+bounded skill that closes its own loop over a few seconds — walk there, mine that,
+build this. An agent is the external language model; it is event-driven, it decides
+strategy, and it never runs inside a tick.
 
-核心模型见 [`docs/design/00-execution-model.md`](docs/design/00-execution-model.md)：**L0 反射**（in-tick 算法，绝不经
-LLM）/ **L1 process**（有界技能，数秒闭环）/ **L2 Agent**（外部 LLM，事件驱动，从不进 tick），由
-`ProcessScheduler` + 优先级链按 bid 仲裁（HYSTERESIS=5）。
+`ProcessScheduler` arbitrates between them by bid, with a hysteresis margin so two
+near-equal chains do not trade the movement channel every tick. The bands are declared
+in `bot/scheduler/Priorities.java`; read them there rather than from prose, because
+they are tuned.
 
-| 设计文档 | 主题 | 状态 |
-|---|---|---|
-| [00](docs/design/00-execution-model.md) | 执行模型 + 优先级链调度器 | ✅ 调度器、UserTaskChain、移动反射链（Panic/Retreat/Dodge）落地 |
-| [01](docs/design/01-knowledge-and-crafting.md) | 合成知识与执行（RecipeResolver / plan.acquire / skill 库） | ✅ |
-| [02](docs/design/02-combat-and-defense.md) | 御敌、战斗、装备（CombatChain / autoTotem / autoEquip） | 🟡 有装备 bot 可用；**裸装反骷髅缺 L0 反射**（见 §4） |
-| [03](docs/design/03-boss-playbooks.md) | Boss 作战剧本（末影龙 / 凋零） | ✅ 感知 + 结构守卫；实战手动冒烟 |
-| [04](docs/design/04-perception-and-decision-boundary.md) | **感知层 + 决策边界基座** | ✅ **本切片（见 §2）** |
+## In place
 
-当前优先级带：`PANIC=1000` · `DODGE=900` · `BUNKER=300`(user) · `SURVIVAL=100` · `COMBAT=60` ·
-`USER=50` · **`IDLE_SECURE=40`**（新）。
+These are done, and are listed because later items depend on them rather than as a
+record of activity.
 
-### 1.1 🟡 执行层 actuation：去全局键盘化（发包驱动）
+- **The scheduler and the reflex chains.** `ProcessScheduler`, the user-task chain,
+  and the movement reflexes: panic, dodge, retreat, drown escape, an emergency bunker
+  when cornered, and a proactive dusk shelter.
+- **Recipe knowledge and goal-directed acquisition.** The bot reads the game's own
+  recipe table instead of carrying hardcoded recipes, resolves a sub-recipe tree from
+  what is in the inventory, and `mc.plan.acquire` plans the chain for "get me N of X".
+  Reusable skills persist through `mc.skill`.
+- **Boss sensing and playbooks.** Boss-fight perception plus a hot-reloadable
+  multi-phase script runner.
+- **The perception layer and the decision boundary.** `WorldModel` recomputes derived
+  facts once per tick and publishes an immutable snapshot; it makes no decisions and
+  has no side effects. Around it sit pure, headless-testable seams — `HazardField` and
+  `HazardCell` for cells that kill, `SurvivalMath` and `SurvivalFacts` for the
+  derived survival predicates, `AsciiMapRenderer` for the glanceable map. Hazard
+  avoidance is a pathfinding cost rather than a separate chain, and the client-side
+  read (`mc.client.scene`) shares its source with the reflexes, so it cannot disagree
+  with what the reflexes see.
+- **Locomotion, digging and item use no longer fight the human at the keyboard.**
+  Movement drives the player's own input object rather than the shared `KeyMapping`
+  singletons, which vanilla then serialises into the ordinary movement packets.
+  Digging and item use go through `ClientIntents` and a mixin that widens vanilla's
+  own keybind reads, so start, hold and release remain vanilla's code. A test refuses
+  any new write to the shared attack or use keybinds outside that mixin.
 
-三层模型决定"谁掌控"，这一层决定"L0/L1 如何按键驱动玩家"。方向：**绝不写人类共享的 `mc.options.keyXXX`，
-改驱动玩家自己的输入对象（`AvatarInput` 的 impulse/jumping/shiftKeyDown）+ `setSprinting` + gameMode 包**
-——vanilla 自动把它们序列化成 `ServerboundMovePlayer` / `PlayerCommand` 包，这就是"发包不用按键"。
+## In progress
 
-- **根因**：`mc.options.keyXXX` 是人机共享对象，MC 只在 GLFW 按下边沿重置 isDown；旧执行层每 tick `setDown` /
-  idle `releaseKeys` 抢这些键 → **即使没 Agent 连接，手动 WASD/空格也被 ~50ms 清零卡手**（= Baritone
-  InputOverrideHandler 抢键问题），且移动硬绑镜头 yaw、slew 滞后时前进键顶错向墙。
-- **收益**：人机共存（手动游玩不被抢键）+ 镜头解耦动态纠偏（impulse 沿真实 heading，不等镜头追上）。
-- 🟡 **已落地**（compiled + headless GT 绿，待 live A/B）：`InputReleaseGate` edge-gate（bot 真按过键才清一次，
-  从不驱动 → 永不碰人类键）+ `AvatarInput` 全 locomotion 通道（`commandMove` 解耦 + `commandForward/Jump/Sneak`）+
-  `BotInput` facade + `setSprinting`=sprint 发包（反编译 `LocalPlayer` 证：`keySprint.setDown` 在每站点都与
-  `setSprinting` 配对，纯冗余可删）→ **Walker + 14 进程/链全迁**（Build/Backfill/Mine/Follow/Farm/BboxFill/
-  Escape/Bunker/Bridge/Elytra/Panic/Dodge/Tower/Sleep）。
-- ⬜ **待续**：CombatProcess 环绕 strafe（需 2D 向量命令 forward+back+左右）；AutoSwim/ClutchController 反射
-  （与 `InputReleaseGate`/clientTick 时序耦合，单独打通）。终态后 `releaseKeys` 只剩管移动键。
-- ✅ **2026-09-14 挖掘/用物脱离键位**：`keyAttack`/`keyUse` 两处原本「刻意保留」的键位改成 `ClientIntents`
-  意图 + `MinecraftMixin`——挖掘由 `continueDestroy` 直驱并让 vanilla 的 `continueAttack` 那一 tick 让位，
-  用物由 mixin 把 `handleKeybinds` 里的 `keyUse.isDown()` 读成 `按下 || 机器人持用`，起用/续用/松开仍是
-  vanilla 自己的代码。Bot 层从此不写任何 `KeyMapping`；`SharedKeybindQuarantineTest` 钉死。
-  **原则不变：能干净发包的才发包；挖掘/用物不能，所以让 vanilla 的管线替我们发。**
+**Finish removing the bot from the shared input path.** Two channels are left. Combat
+has no strafing, because the movement command currently forces the sideways impulse to
+zero; circling a target needs a two-dimensional command. And single-shot actuations —
+hold an item, aim, right-click, place — are routed separately from the per-tick legs,
+which means a body driven by one helm can have its aim and its held slot written by
+the other. Originating single-shot actions from the client tick chain is the coherent
+fix and is not built.
 
----
+## Planned, in dependency order
 
-## 2. ✅ 切片：感知层 + 决策边界基座（doc 04）
+Each item is a spec, a plan and an implementation, and each reuses `WorldModel` as its
+shared substrate. The order is a dependency order, not a preference.
 
-**目标**：把"决策放错层 = 死"这一生存病根，从架构上修掉——反应式生存下沉到 L0 算法，LLM 只做策略。
-**成功判据（达成）**：裸 bot 从 FAIR 的黄昏暴露态、在 LLM 完全不进反应回路的前提下，靠反射活过一夜。
+1. **Memory across sessions.** Persist resources, base locations, deaths and explored
+   territory, and wrap `WorldModel` into a full world model the agent can reason over
+   between sessions. Everything after this needs somewhere to remember a decision, and
+   a multi-session goal such as reaching the Nether is unreachable without it.
+2. **Multi-step task scheduling.** A plan expressed as a directed acyclic graph of
+   intentions, scheduled above the world model. This needs the memory layer first,
+   because a plan that cannot survive a disconnect is a plan for one session.
+3. **Combat content.** Fighting a skeleton or a spider with no armour — breaking line
+   of sight, taking cover, keeping distance — is still a decision the external agent
+   has to make, which means it is made too slowly. Closing it needs line-of-sight and
+   cover fields in `WorldModel`, so it follows the two items above.
+4. **Perception increments.** Vertical-plane queries, facing-relative queries, and a
+   biome overlay. These are additive and deliberately last: each is cheap on its own
+   and none of the items above is blocked by them.
 
-落地内容（branch `feat/perception-decision-boundary`，15 任务，GameTest **107/107**）：
+## Survival milestones
 
-- **`WorldModel` 黑板**（`bot/world/`）：每 tick 在 `clientTick` 顶部重算派生事实，发布不可变
-  volatile `Snapshot`（镜像 BotState 模式）；零决策、零副作用。
-- **纯函数缝**：`HazardField`/`HazardCell`（崖/深水/熔岩致死格，over `WorldView`，headless 可测）、
-  `SurvivalMath`、`SurvivalFacts`（cornered/fleeStep）、`AsciiMapRenderer`（致死 glyph 的 ASCII 地图）。
-- **客户端权威感知**：`mc.client.scene`（client `WorldModel`，与反射同源 → 不可能 desync）vs
-  `mc.observe.scene`（server `ServerWorldView` 概览，含 plane/extent-clamp/height overlay 查询）。
-- **避险逃跑下沉 L0**：`HazardField.lethalPenalty` 注入 `ClientWorldView.dangerCost`（不改 RetreatChain）。
-- **黄昏自保反射** `DuskSecureChain`（prio **40**，低于 USER）：空闲 + 暴露 + 无威胁 + 去抖才触发，驱动
-  `BunkerProcess`；上报 `duskExposed`/`cornered` 边沿事件让 L2 可抢先。**LIVE-CERTIFIED**：clean idle →
-  挖坑 → cornered → **latch 守住通道** → 封顶（skyExposed→false）→ 满血过夜（latch 修复 71406a3）。
-- **决策归层规则 + 分类表 + 错位清单**：见 doc 04。
+The milestones are how the control architecture is judged. Nothing is granted: world
+edits are confined to test arenas, and progress in a real world has to come from the
+same verbs an external agent has.
 
----
-
-## 3. ⬜ 前瞻切片（按依赖顺序）
-
-每个切片自成一个 spec → plan → 实现闭环，复用 `WorldModel` 黑板作为共享基底。
-
-1. **大脑 / 记忆**（next）：持久化资源 / 基地 / 死亡日志 / 已探索 + 目标循环。把 `WorldModel` 包成
-   完整世界模型 + 记忆，让 L2 决定"随时间做什么"。这是 NeTher 多 session 长程目标的承重件。
-2. **任务调度**：多步计划 DAG（doc 00 §8 延后的排队）；在 `WorldModel` 之上排意图。
-3. **战斗内容**（兑现错位 #5）：裸装反骷髅（断线 / 掩体 / 走位）、`cornered` 的自动应对、给
-   `WorldModel` 加 LOS / 掩体字段。
-4. **感知增量**：竖直剖面查询（plane:vertical）、facing-相对查询、biome overlay（doc 04 错位 #6 延后项）。
-
----
-
-## 4. 已知缺口 / 延后项（teeth）
-
-来自 doc 04 §5 + 生存实测 + 本切片 live-cert：
-
-- 🧊 **裸装反骷髅 / 反蜘蛛无 L0 反射** → 一个生存决策仍卡在 L2。延后到**战斗切片**。
-- 🧊 **`cornered` 不自动 bunker**：本切片刻意不做（尊重历史 + 围 melee bunker = 死）；作为事件上报，
-  由 L2 决定 bunker / 打 / 搭柱。
-
-这里只留延后决定；开着的缺口记在 [`TODO.md`](TODO.md)「🧹」节。
-
----
-
-## 5. 🟡 生存里程碑（北极星：进下界）
-
-控制架构的检验场。无作弊（fill/setblock/tp/effect/give 仅限测试竞技场），靠 MCP 动词推进。
-
-| 阶段 | 目标 | 状态 |
-|---|---|---|
-| N0 | 复活 → 东进脱离死亡出生点 → 木镐（重建 Stage1） | ✅ |
-| N1 | 床 anchor（重置出生点，耐久 keystone） | ⬜ |
-| N2 | 石器 + 食物 | 🟡 |
-| N3 | 铁 → 桶 ×2 + 打火石 | ⬜ |
-| N4 | 浇筑黑曜石（×10+） | ⬜ |
-| N5 | 建门框 + 点火 + **进下界** | ⬜ |
-
-> 已验证的生存基本功：水下寻路 + 破岸上岸、踮脚采高处原木、挖三填一 bunker（封顶 + 破出 + 黄昏自保
-> 反射）、死井挖阶梯爬出、reach-across 采水上原木、配置持久化。详见 `docs/design/` 与各 `validation/*.js`。
-
----
-
-## 6. 🟡 本轮执行排期（窗口 0–4，定于 2026-08-25）
-
-> 这一节排的是**当前这一轮的执行顺序**，不是长期架构演进（那在 §1–§4）。
-> 每一笔的调查记录、证据键、判据与重开条件都在 [`TODO.md`](TODO.md) 里，**代号一一对应**；
-> 这里只回答「按什么顺序做」，不回答「还欠什么」。
-
-**排序凭什么——四条，按优先级**：
-
-1. **一次编译窗口只放互不干扰的笔。** 共享工作树，每个 gradle 运行任务都编译对方此刻的半成品，
-   所以一个窗口里的两笔行为改动＝下一趟排练是双变量。
-2. **仪器先于修法。** 零行为改动的笔可以任意多笔同窗口，因为它们不改变下一趟的结局，
-   只改变下一趟**能不能被判读**。而「先补测量」那几条要的读数只有排练/真梯产得出来，
-   所以它们必须**赶上**下一趟，晚一窗口就晚一整趟。
-3. **当前前沿优先。** 12 级现在**同时**挡在浇筑那一族（第 8 格没浇成／`forge.carved 66/67`／
-   门洞单遍清渣）和「壁龛淹到只剩楼梯一根可用柱」上，不挡在 J47／J44c／J70 上。
-4. **13–20 级与工程债都不许与真梯同趟。**
-
-### 6.1 ⬜ 窗口 0（排练在跑，一行都不碰树）
-
-零代码、纯读日志，是唯一能在排练期间推进的事。
-
-| 笔 | 内容 |
+| In order | What it takes |
 |---|---|
-| **Q7c 的离线回放** | 拿 ladder-14 已录的 174 案／816 案回放新计数规则。必须抓住那两案且不误伤正常绕行（`journey03Wood` 绕树那段是现成阴性样本） |
-| **丙 的分族读数** | 把 `304373fc` 那趟 18011 tick 的 38 条 `*.stairsBroken` 按 `lava*`（上行腿）／`cast*`（下行腿）拆开读；它决定窗口 1／2 里要不要给「淹」留一笔 |
-| **下一趟排练必须是 `runRehearsalIntegratedServer`** | 真 `LocalPlayer` 上 `SETTLED_SLACK` **零后置样本**：四条 `finishTheFlight` 场景在集成闸上全跳过，而兑现它的三趟排练跑的是假玩家。收 `flightLastStepSettled`／`flightLastStepEnd` |
+| Recover from a death and reach a wooden pickaxe | Respawn, leave a hostile spawn point, fell a tree, craft up. Reached. |
+| Anchor the respawn point with a bed | Craft a bed, sleep in it, and keep it as the point deaths return to. |
+| Stone tools and a standing food supply | Partly reached; the food half is what is missing. |
+| Iron enough for two buckets and flint and steel | Find and smelt iron; the buckets are what makes the next milestone possible without mining obsidian. |
+| Cast obsidian, at least ten blocks of it | Pour water onto lava in place, repeatedly, without drowning or falling in. |
+| Build the portal frame, light it, and enter the Nether | The frame, the ignition, and surviving arrival. |
 
-### 6.2 ⬜ 窗口 1（排练退出后的第一个编译窗口）—— 仪器批，零行为改动，一次编译一并落
+The groundwork already verified against live worlds: underwater pathfinding and
+getting ashore, reaching logs above head height, digging and sealing a one-block
+shelter, cutting a staircase out of a pit, reaching across water to mine, and
+configuration that persists across a restart.
 
-| 序 | 笔 | 为什么在这一窗口 |
-|---|---|---|
-| 1 | **J72 第 1/2 笔**：`aimThatLandsIn` 五个 `continue` 出声（今在 `JourneyPour:1011/1017/1024/1030/1036`，⚠️ 原写的 `:885-893` 已过期）；tries=1 的 `ctx.fail` 改说「身体不在它自己选的落脚格上」 | 直指当前前沿，且**零行为改动**。判词错族会把下一个读者送去挖 k=0。⚠️ **顺手给成功那支 `:1044` 的 `return aim` 也补一行**，否则 `aimForked` 的分母仍不可数 |
-| 1b | **`JourneyRamp` 三行加共同 pass 序号**：`.aside`（`:779`）／`.step.N`（`:764`）／`.laid`（`:772`），并让 `.laid` 印 `:768` 改写之前的 `Stop` | 纯仪器。没有它，「挪开再问一次不够」与「停因被改写成 `REFUSED` 所以没再问」读不开 |
-| 2 | ✅ **J70 已落**（`f985dd17`）：`JourneyDrain:179` 实测就是 `HoldStill(DRAIN_TICKS)` | 原因照留：`drain.N.upstream` 裁决的说法不能被夸大一倍（判词印 200 而实际等 100）。**验收仍欠**：下一趟 12 级 `drain.7` 是否翻成「已排干」。⚠️ 它晚于第 3 趟真梯 12 小时，所以「200 tick 不够」**从没在 200 tick 上量过**，别据旧读数去调 `DRAIN_LEGS` |
-| 3 | **J54 的出处行**：给撞上的水落「天然／上级留／自浇」一行（照 12 级 `water0.spent` 的问法） | 「先补测量」的对象；不落这一行，11 级两条腿都不许修 |
-| 4 | **J41 头条**：`WorldDriverJourneyScenes:2521` 的 `tunnel.fell` 走 `ascendByTowering` 的 `String tag` 入口，三行 `recordExit` 一行都没有——而它爬的是**岩浆廊道** | 纯仪器；其余 12 个入口**不做**（无证据） |
-| 5 | **J75 的 `enderman.stall.*` 一行** | 不占排练槽，只占编译窗口 |
-| 6 | **J40 的 ②**：`JourneyRig.await` 逐 tick 判活时顺手读 `getAirSupply()` 与血量，**无条件按腿落行** | 「过线中止去补救」的线画在哪要分布；量级＝每腿一行，不用节流 |
-| 7 | **Q15c**：PREP 无条件写 `readyTicks`/`readyMs`（`stagewright-scenes/pack.js`） | 只加仪器不改行为，随下一轮闸读分布 |
-| 7a | **判到达吃掉调用方容差的证据行**：`WorldDriverJourneyScenes:795`，`tolerance < away <= ARRIVED_WITHIN` 时打一条「按调用方容差本不算到达」 | 只是 a，不收紧判据、不会让任何场景变色。14 个调用点里 **8** 个传 0，一刀收紧会同时冒出一堆互相掩盖的红——先数出谁在吃这个宽松 |
-| 7b | **排水深度与耗时**：`JourneyDrain:140-141` 现在只写干／仍有流体，补「清掉了几格、实际花了多少 tick」 | 「先补测量」那条判词要的就是这一个量——第 8 格的水为什么比前八趟深一格，是径流更远还是上一趟留了底。零行为改动 |
-| 7c | **走丢与拆塔两条读数**：`strand` 支接进 `settleOntoHomeGround`（`WorldDriverJourneyScenes:1327-1333`）；`towerRecovered`（`:1420`）补上拆塔**前**的圆石数 | 判了做却一直没排期。走丢的身体正是最需要落地读数的那一具；拆塔只记一个数，「拆回来几块」只能靠净损间接推 |
-| 7d | **带坐标与作者的放置行**：每次放置落一行「哪一格、由哪条腿放的」 | 两个消费者共用一行：撞墙那条要问 `2,64,18`／`3,59,19` 是谁填的（现在全份零命中），归属字段那条要问「这一格由谁写」。⚠️ **没有它，撞墙那条的重开条件永远开不了火**——它点的正是这一行 |
+## Deferred, with the reason
 
-⇒ 然后**一趟排练**把 1–6 的读数一次收齐；Q15c 的分布随下一轮全量闸收。
-**J71 不需要这个窗口**——它要的是「连跑 N 趟 `runRehearsalIntegratedServer` 列
-`forge.carved`×结局表」，不改一行码。
-
-### 6.3 ⬜ 窗口 2 —— 行为改动，一笔一笔，按前沿排
-
-| 序 | 笔 | 为什么这个位置 |
-|---|---|---|
-| 8 | **J72 第 3 笔**：记下身体走不到的落脚格，重试时从 `standToPour` 候选里排除（按 cast 清零） | 唯一的行为改动，且直指前沿。必须排在 1/2 之后：没有那两行仪器，它的三态判据读不出来 |
-| 9 | **J44c**：撤掉坑沿加价的「每趟重算」，改回去程算一次的快照；**加价本身一字不动** | 预期读数是「无影响」（15 条 `*.rimTax` 恒 752），所以它**不会混淆** 8 的归因，可同窗口。它买的是每趟一次 25×25×9 全量扫描的开销 |
-| ~~10~~ | ❌ **撤掉：J47 写死步骤**（脚下垫一块） | 2026-08-26 改判**不做**——几何不成立（岸 221／身体 220／`at.below()`=219）。ashore 的翻绿整个挪到 **13b**；四样见 `TODO.md` 的 🅹 块 |
-| 10b | **只判排不判柱的 early-return，一族两处同一笔**：`JourneyPour:265` 的回调与 `JourneyShaft:246`，`pin=true` 时并上同柱判断 | 排在 8 之后：`water8.raisedY=65/60（停在 2,18，指定柱 3,19）` 是真缺陷，但 `2,18` 只是撞墙的**候选**上游，不是已证死因。⚠️ 只改 `:265` 会当场撞到 `:246`，两处必须同笔 |
-
-⇒ 排练 → **双 loader 全量闸** → 真梯。
-
-> 序号 **11 空缺**是有原因的，别当漏排：它原来是 **丙**（水源的存活窗口）。`304373fc` 那趟把水
-> 读成了死因，丙 改判「先补测量」，而那一步是**读日志**，所以它挪到了窗口 0。读出族之后再插队。
-
-### 6.4 ⬜ 窗口 3 —— 13–20 级
-
-| 序 | 笔 | 说明 |
-|---|---|---|
-| 12 | **J24 的 grep**（`JourneyShaft.supportUnder` 用 `rig.ctx().level()`） | **13–20 级开工的第一步**，不是 J33 之后 |
-| 13 | **J33**：两套 `WorldView` 两张破坏价目表（含 Q14 的残余） | 引擎批，**双闸，不与真梯同趟**。五条分歧已定位、三条承重断言已核 |
-| 13b | **J47 引擎侧那半**：末节点被 `within` 的**水平**项（`cur2<0.45`）在无落脚时吃掉 | 同属引擎批，**排在 13 之后**：判词与凭据在 `TODO.md` 的 🅹 块。⚠️ 不能照搬 `airborneClimbConsume`——它 scoped `nx != null` 且 `!p.isInWater()` 是量出来的排除 |
-
-### 6.5 ⬜ 窗口 4 —— 工程债（红绿不影响真梯排期，但 J7 有硬触发）
-
-| 序 | 笔 | 排这个位置的理由 |
-|---|---|---|
-| 14 | **J43**：9 处手写天光高度收进 `JourneyTerrain.daylightAt` | 最便宜：机械、不改证据键、`:common:compileTestmodJava` 即闸。⚠️ 动手前逐个确认 9 处 `level` 的声明类型（`daylightAt` 形参是 `ServerLevel`），`JourneyRehearsal:983` 要的是 `BlockPos` |
-| 15 | **J15**：scenes 侧 `fillFrom`（`WorldDriverJourneyScenes:2671`，`:2673` 的 `holdForUse` 返回值仍丢）补同款「拿不到桶」守卫 | 第一步只补守卫，**合并成单份留给证据键允许变的那一轮** |
-| 16 | **Q7c 的 Java 半**：`WalkerTickSearch:85` 两条盲区（`!res.goalReached()`、`distSqr(foot) > 4`），复用 `walkerFutileSearchCap`，**不加新 knob** | 前置是窗口 0 的离线回放调好阈值 |
-| 17 | **J55**（`prelude.js` 的 tunnel 提升成真路由，委托 `applyDirection`）＋ **`prelude.js` 的 `\| 0` 取整**与 `Params.toInt`/`SchemaValidator` 分叉 | 两笔都是**行为变更，必须各自配闸**，且与主线无关。⚠️ 不要顺手统一 `back`/`backward` |
-| 18 | **J7**：拆 `BotConfig.java`（2993/3000） | **触发式**，位置固定在「**任何要新增 `BotConfig` knob 的修法之前**」——上面 16 笔里没有一笔要加 knob（Q7c 明确复用现成的），所以它排在这里；哪一笔要加 knob，它就提到那一笔之前 |
-
-**代价**：这个序判错的暴露形式很具体——窗口 1 里混进了一笔行为改动，
-下一趟排练的死因就归不了因（症状：读数变了而找不到唯一的自变量）；
-或者「先补测量」那几条有一条没赶上窗口 1，于是下一趟排练白跑一次它要的分布（症状：
-那条的读数键在归档 results 里 0 行，与「未触发」长得一模一样）。
+- **Bare-handed ranged combat has no reflex.** Deferred to the combat item above
+  rather than patched ahead of it, because a reflex without line-of-sight and cover
+  data in `WorldModel` would be guessing.
+- **Being cornered does not by itself commit the bot to a bunker.** Sealing yourself
+  in while surrounded by melee attackers is a way to die, so being cornered is
+  reported as an event and the emergency bunker reflex has its own entry conditions
+  (low health and several hostiles close by) rather than firing on the cornered signal
+  alone.
