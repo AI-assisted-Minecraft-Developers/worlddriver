@@ -1,7 +1,14 @@
-# Canonical expected-scene manifest for the neoforge dogfood suite (t0 --expect-file).
-# One name per line. Every migrated wd.* scene MUST be listed here in its migration commit —
-# a name missing from BOTH this file and registered[] is exactly the silent-composition
-# hole this gate exists to close (P1c final review).
+# The expected-scene manifest for the NeoForge suite, passed to the harness as --expect-file.
+# One scene name per line; a line beginning with # is a comment.
+#
+# The wd.* scenes live in common (net.magicterra.worlddriver.bot.stagewright) and register for
+# both loaders through the same SceneProvider service file, so this list and
+# expected-scenes-fabric.txt are identical by construction. A scene added to common must be
+# added to BOTH manifests, in the same commit as the scene itself.
+#
+# This file is what makes a missing registration loud. A scene absent from both the manifest and
+# the run's registered set would otherwise pass unnoticed, having tested nothing; the run compares
+# the two sets and fails when they disagree.
 wd.ascendMovementNoop
 wd.ascendDeadZoneWatchdog
 wd.diagonalAscentSpeed
@@ -12,7 +19,7 @@ wd.buriedOre
 wd.entityLeash
 wd.entityLeashLowY
 wd.settingRegistryClosed
-# P4b wave 2 — Terrain family (12 migrated from AgentGameTestTerrain; descentDrift retired-without-scene, pending adjudication)
+# Terrain family — slopes, summits, sheer walls and the descents between them.
 wd.summit
 wd.sheerWall
 wd.bridgeGap
@@ -25,7 +32,7 @@ wd.ledgeOvershoot
 wd.wallCollisionProbe
 wd.bridgeDescend
 wd.bareHandDigCadence
-# P4b wave 3 — Bias family (13 migrated from AgentGameTestBias; all planner-only)
+# Bias family — route cost and intent bias. Planner-only: no scene here moves a body.
 wd.avoidRegionDetour
 wd.digUpY
 wd.digDownY
@@ -39,7 +46,8 @@ wd.shorelineHug
 wd.shorelineSmoother
 wd.escapeFarthestNoRockDrill
 wd.budgetAwayTunnelChurn
-# P4b wave 4 — WaterBank family (11 migrated from AgentGameTestWaterBank; 2 optional sensors: vineClingFidelityProbe (optional-PASS), vineOverWaterClimb (optional-FAIL, live −711 bug); riverSheerBank now required — task#91 structural fix walkerWaterClimbLateralGate)
+# WaterBank family — leaving water onto a bank. Two members are optional sensors rather than
+# required scenes: they record readings and have no verdict to give.
 wd.waterPhysicsParity
 wd.buoyantWall
 wd.vineClingFidelityProbe
@@ -53,7 +61,7 @@ wd.deepWaterClimboutDrift
 wd.waterFarAimBankCorner
 wd.pillarLedgerCountsRefusedPlaces
 wd.pillarLedgerClearsOnARealPlace
-# P4b wave 4 — WaterCross family (10 migrated from AgentGameTestWaterCross; all deterministic)
+# WaterCross family — crossing a body of water. Every member is deterministic.
 wd.goalSnapBuried
 wd.basin
 wd.waterClimbOutRoute
@@ -64,7 +72,7 @@ wd.vineOverWaterCross
 wd.padOverWaterCross
 wd.padClusterCross
 wd.deepWaterFloatBeeline
-# P4b wave 5 — Core family (12 migrated from AgentGameTest, main class)
+# Core family — the walker and pathfinder basics every other family assumes.
 wd.agentRpcSmoke
 wd.pinch
 wd.horizon
@@ -86,14 +94,14 @@ wd.clientResetReleasesKeys
 wd.clientKeybindOpensABinding
 wd.hurtCarriesItsSource
 wd.clientPlayerInWorld
-# P4b wave 5 — CombatSense family (2 migrated from AgentGameTestCombatSense; single-tick NoAI, time-independent)
+# CombatSense family — threat sensing. A single tick with mob AI disabled, so time-independent.
 wd.threatScanZombie
 wd.threatScanHurtAttacker
-# P4b wave 5 — BuildBlock family (2 migrated from AgentGameTestBuildBlock; planner/API-only predicate probes)
+# BuildBlock family — placement predicates, exercised through the planner and the API only.
 wd.buildBlockRejectsInteractive
 wd.valuablePlacementBlockMatrix
 
-# P4c wave 6 — Station family (15 migrated from AgentGameTestServer; craft/smelt/recipe/observe)
+# Station family — crafting, smelting, recipe lookup and container observation.
 wd.serverCraft
 wd.serverRecipeSpecies
 wd.serverCraftTableInject
@@ -110,7 +118,7 @@ wd.serverCraftGridConservation
 wd.serverCraftFailTelemetry
 wd.serverCraftFailGridReturn
 
-# P4c wave 7 — Scheduler-semantics matrix family (11 migrated from AgentGameTestServer; #54P1 regression guards)
+# Scheduler-semantics family — the ordering and pre-emption rules the process scheduler promises.
 wd.retreatGateMatrix
 wd.walkerTerminalReportMatrix
 wd.antiSuffocateShouldTriggerMatrix
@@ -123,7 +131,7 @@ wd.cancelRouting
 wd.manualSlotGraceMatrix
 wd.nearestFirstScanMatrix
 
-# P4c wave 8 — Survival family (13 migrated from AgentGameTestServer; escape/bunker/dive/drown/anti-suffocate)
+# Survival family — escaping, bunkering, diving, drowning and avoiding suffocation.
 wd.serverEscape
 wd.serverBunker
 wd.serverBunkerAnchorRatchet
@@ -139,14 +147,14 @@ wd.drownEscapePreempt
 wd.serverObserveAirSupply
 wd.antiSuffocateWaterNotSuffocating
 
-# P4c wave 8 — Avatar family (5 migrated from AgentGameTestServer; #45/#46/#47/#48 golden regression guards)
+# Avatar family — regression guards on the server-side body, each pinned to a recorded baseline.
 wd.serverAgentDistinctBodies
 wd.serverAvatarTickFidelity
 wd.serverAttackCooldown
 wd.serverCapability
 wd.serverElytra
 
-# P4c wave 9 — Process-core family (15 migrated from AgentGameTestServer; the FINAL wave, legacy suite 15→0)
+# Process-core family — the per-verb process lifecycle: start, poll, cancel, finish.
 # driver/mine/process/flee/mineProcess/mineNoTool/walkerDeepslate/forbidDigWall/build/lookRaycast/follow/combat/look/mineCanopyRadius/bridgePillar
 wd.serverDriver
 wd.serverMine
@@ -342,7 +350,8 @@ wd.journeyCraftStepsAsideForRoom
 
 # The same complaint one layer down: a dig that gives up and says nothing. mineCellOrGiveUp had
 # three exits and none of them recorded whether the cell opened, so rung 12's rehearsal asked for
-# three doorway cells, got two, and carried no row at all between「要清三格」and「还堵着一格」. This
+# three doorway cells, got two, and carried no row at all distinguishing "three cells must be
+# cleared" from "one of them is still blocked". This
 # arm calibrates the new row on a known positive (bedrock, unbreakable by construction) AND a known
 # negative (plain stone, which must leave NO row) in one scene — an absence only means something
 # once something has been seen to speak.
@@ -367,7 +376,8 @@ wd.journeyReseatsWhenItCanSeeNoWater
 wd.journeyKeepsTheSeatItMovedTo
 # Where the flight itself stops. The mould's own runoff floods the bottom step from the row the pour
 # is aimed at, and a waypoint whose cell and head room are both water cannot be walked to — the leg
-# stops four cells short and the rung reads that as「走不回模腔」. Two arms, asserting opposite
+# stops four cells short, which the run reports as a failure to walk back into the mould cavity.
+# Two arms, asserting opposite
 # values, because the flight's cell list is process-wide.
 wd.journeyFlightEndsOnADryStep
 # And whether the body actually gets down onto it. Ending one step early puts the arrival tolerance's
@@ -425,7 +435,7 @@ wd.serverWalksOffASurvivableLedge
 
 # The same guard's other half. The shore pair asks whether it refuses a stride INTO a lake; these
 # ask what the refusal costs a body walking PAST one — rung 12 logged 83 pins on two cells of a
-# lake's rim in one run, so「pins at every rim」is a live failure mode and not a hypothetical.
+# lake's rim in one run, so "pins at every rim" is a live failure mode and not a hypothetical.
 # One trench, its fill the only variable, and each arm drives it twice with the guard as the only
 # difference between the drives.
 wd.serverKeepsWalkingAtALavaRim
@@ -472,10 +482,12 @@ wd.pourLineOccupiedStandsAreOutsideTheAlcove
 wd.pourLineTopPairAimsAtItsSideNeighbour
 
 # Rung 14's crossing stopped 141 blocks short with 18 of 24 hops unspent, because a hop's verdict was
-# taken from a body one tick above netherrack (脚下到实心 0). One shelf, one bay, and how far it is to
+# taken from a body one tick above netherrack, where the distance from feet to solid ground reads
+# as zero. One shelf, one bay, and how far it is to
 # the floor as the only variable: a survivable step-down must be waited out, a fall past the allowance
 # must still stop the crossing. The first arm judges the same fall twice, before and after the
-# allowance, so「等待起了作用」cannot be confused with「这座场地本来就不会停手」.
+# allowance, so "the wait did its job" cannot be confused with "this staging would never have
+# stopped the crossing anyway".
 wd.crossingWaitsOutASurvivableDrop
 wd.crossingStillStopsForALongFall
 wd.crossingRowSeparatesAPerchFromMidAir
@@ -483,7 +495,7 @@ wd.guardRepathSeparatesARimWalkFromALivelock
 
 # The delivery half of rung 12's cast-9 death: the raise walks the body into the column it verified,
 # the planner's bottom course comes to rest on the very cell the body is standing in, and the loop
-# answers「laid nothing」with the rule written for a refused placement — 0/3, silently. The arms drive
+# answers "laid nothing" with the rule written for a refused placement — 0/3, silently. The arms drive
 # the production loop and its decision directly; the controls are a spent step-aside, a REFUSED pass
 # and an OUT_OF_REACH pass, all of which must still get nothing. The second arm settles that the
 # pinned tower's drift into the flooded floor row is a consequence of the empty flight, not a second
@@ -498,17 +510,18 @@ wd.rampFootholdRisesWithTheFlightItLaid
 wd.rampNeverFoldsBackIntoItsOwnHeadroom
 wd.rampSeparatesAFaceThatExistsFromOneItCanHit
 # The staircase was complete and the body never got on it: `cast8.lift.laid = 3/3 … FINISHED`
-# then `cast8.lift.rampedY = 57/59（停在 1, 57, 19，要的落脚格 3, 59, 19）`. Judges the decision,
+# then `cast8.lift.rampedY = 57/59`, stopped at 1, 57, 19 with the foothold it wanted at
+# 3, 59, 19. Judges the decision,
 # not the walk — a settle needs a JourneyRig and a scene cannot host one.
 wd.rampClimbsTheFlightItJustLaid
 # Calibration for the corridor fire census. Rung 14 burnt off ten hit points and the archive has
-# no column that separates「the fire was there when the leg was planned」from「it appeared after」.
+# no column that separates "the fire was there when the leg was planned" from "it appeared after".
 # The census is that column; this pins that it can say yes (B) AND still say no (A, C, D).
 wd.netherCensusNamesTheFireInTheCorridorBox
-# A ruler, not a test: zero assertions, only ctx.record. Permanently optional — it has no
-# verdict to give. On THIS loader its factory column is a real net.neoforged FakePlayer, which
-# is the body being retired — so this loader's readings are the ones that cannot be taken again
-# afterwards. See docs/fake-player-parity.md §6.5.
+# An instrument rather than a test: it makes no assertions and only records. Permanently optional,
+# because it has no verdict to give. Its readings are what the body parity boundary table is built
+# from; the column for the retired fake player now records as unavailable. See
+# docs/dev/fake-player-parity.md.
 wd.bodyParityCensus
 # Also a ruler rather than a test, and its one assertion is about the INSTRUMENT: it measures how
 # far the server-side actuators (ServerPlayerBody.holdItem / aimAtBlock, which the ladder still
@@ -530,7 +543,7 @@ wd.drownEscapeClientStaysDownDisarmed
 # because cappedColumn is false in every arena they stage.
 wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff
 # Same arm staged over water instead of rock: the control for the stand-up-to-dig guard's
-# negative side, whose 盖.破了 must NOT move while its shallow twin's falls to about a fifth.
+# negative side, whose lid-broken count must NOT move while its shallow twin's falls to about a fifth.
 wd.drownEscapeClientKeepsFloatingWhenThePocketIsDeep
 # Water legs driven on the client's real player (ClientHelm). Skip on the dedicated server by design.
 wd.clientFlushBankClimbOut
@@ -553,7 +566,7 @@ wd.clientWorldViewParity
 wd.clientShallowPoolStepOut
 wd.clientShallowPoolStepOutEmptyHanded
 wd.clientOpenWaterCross
-# LLM route selection (docs/superpowers/specs/2026-09-06-llm-route-selection-design.md). The constraint
+# Route selection under language-model-supplied constraints (docs/design/route-selection.md). The constraint
 # layer runs on a headless body on every topology; the verb layer (goto route / plan / planId / the
 # route.blocked event) lives in the client half and skips on a dedicated server.
 wd.routeAvoidsMobCluster
@@ -566,7 +579,7 @@ wd.clientRoutePreviewDoesNotInterrupt
 wd.clientRouteBlockedEventFires
 wd.clientRouteOldFieldRejected
 wd.clientBodyRefusedWhileDead
-# Human verification — the testmod's marker block (docs/superpowers/specs/2026-09-05-human-in-the-loop-verification-design.md)
+# Human verification — the testmod's marker block (docs/design/human-in-the-loop-verification.md)
 wd.markerBlockNeverBlocksMotion
 # The NPC body (a driven piglin) on five terrains, with the server player body on the same course
 # where one may be minted, and refusing the work that needs hands.
