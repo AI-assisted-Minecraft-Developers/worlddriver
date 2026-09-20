@@ -13,7 +13,7 @@
 - Minecraft **1.21.1**，Architectury（Fabric + NeoForge）
 - JDK **21**
 - Rhino 分支：`dev.latvian.mods:rhino:2101.2.7-build.81`（KubeJS-Mods）
-- 协议：[LGPL-3.0-only](LICENSE)
+- 协议：[LGPL-3.0-only](COPYING.LESSER)（它所附加的 GPL-3.0 正文在 `COPYING`）
 
 ---
 

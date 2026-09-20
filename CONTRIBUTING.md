@@ -123,5 +123,5 @@ Never write logs to the project root or to a top-level `logs/` directory.
 ## License
 
 Contributions are licensed under the [GNU Lesser General Public License v3.0
-only](LICENSE), same as the rest of the project. By submitting a change you
-agree to release it under that license.
+only](COPYING.LESSER), same as the rest of the project. By submitting a change
+you agree to release it under that license.
