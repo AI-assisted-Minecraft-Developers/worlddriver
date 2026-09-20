@@ -1,4 +1,4 @@
-// Conviction/regression guard for docs/feedback/2026-06-07: mc.query q='blocks'
+// Conviction/regression guard for docs/archive/feedback/2026-06-07: mc.query q='blocks'
 // was reported to silently omit stair blocks (vanilla + modded) while returning
 // neighbours normally. Today's scan code has no shape predicate that could skip
 // them, so the bug likely died in a refactor — this sweep either convicts it or

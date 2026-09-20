@@ -1,4 +1,4 @@
-// Regression guard for two feedback-driven fixes (docs/feedback/):
+// Regression guard for two feedback-driven fixes (docs/archive/feedback/):
 //  - 912dda9: mc.action.runCommand returns the command's own outcome
 //    (success/value via CommandResultCallback, feedback[] collected)
 //    instead of suppressing output.
@@ -22,7 +22,7 @@ ScriptTest.run("58_cmd_result: execute-if count lands in value", function(t) {
     // The gametest world persists across runs (run-gametest/world), and an
     // aborted earlier run can leave tagged strays behind — kill defensively so
     // the counts below are hermetic. (This "entity soup" gotcha was first written
-    // up in the retired docs/yaml-gametest.md §12.5; it is a property of the
+    // up in a retired test-authoring format's own documentation; it is a property of the
     // persistent world, not of that harness, so it outlived the doc.)
     Driver.invoke("mc.action.runCommand", { cmd: "kill @e[tag=t58]" });
     // Assert the setup, not just the subject. These two summons used to be fire-and-forget, so

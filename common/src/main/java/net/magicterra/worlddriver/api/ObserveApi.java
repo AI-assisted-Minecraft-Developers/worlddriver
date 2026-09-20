@@ -169,7 +169,7 @@ public final class ObserveApi {
             // Active MobEffects, mirroring the client-side snapshot
             // (ClientObserve.observePlayer). The client path grew this first;
             // headless dedicated servers — the main external-consumer scenario
-            // (docs/feedback/2026-06-04, bug #4) — read the player through HERE,
+            // (docs/archive/feedback/2026-06-04, bug #4) — read the player through HERE,
             // so the server snapshot must carry the same field.
             List<Map<String, Object>> fx = new ArrayList<>();
             for (var inst : pl.getActiveEffects()) {

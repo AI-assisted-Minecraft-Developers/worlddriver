@@ -1,7 +1,7 @@
 """解析 Walker 的 [walker] telemetry 行。
 
 发射点是 WalkerTickClimb.java 里的 `LOG.info("[walker] t={} step=...")`
-——不再是 Walker.java(该类已按 docs/walker-tick-architecture.md 拆成 WalkerTick* 相
+——不再是 Walker.java(该类已按 docs/dev/movement-tick-phases.md 拆成 WalkerTick* 相
 位类),所以这里不再钉行号:行号会漂,类名不会。
 
 下面的正则与发射端的格式字符串是一份**没有编译期约束**的契约。

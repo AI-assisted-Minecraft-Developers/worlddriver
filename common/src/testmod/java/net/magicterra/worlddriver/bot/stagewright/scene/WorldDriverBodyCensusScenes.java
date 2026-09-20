@@ -36,8 +36,8 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>Why a scene that can never go red is worth having</h2>
  *
- * {@code docs/fake-player-parity.md} classifies 39 ways the driven body differs from a real player
- * into four buckets, and every one of those rows was derived by <b>reading code</b>: this override
+ * {@code docs/dev/fake-player-parity.md} classifies the ways the driven body differs from a real
+ * player by subsystem, and every one of those rows was derived by <b>reading code</b>: this override
  * is empty, that field is only decremented on a tick path nothing calls, this handler has no verb
  * on our side. Reading is how the list was found; it is not how the list gets confirmed. A row that
  * says「这具身体一辈子只吸一颗经验球」is a prediction about a running game, and the repo's own

@@ -61,7 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <b>widening</b>. Handing a client type to a parameter declared {@code Player}/{@code Entity}
  * makes the verifier load {@code LocalPlayer} to prove the subtype relation, and that is what
  * actually took the gate down in {@code 239be43b} (AGENTS.md hard rule 12,
- * {@code docs/drown-escape-design.md} §5, and {@code BotInteract#riseBlockedCell}, which exists
+ * {@code docs/design/drowning-escape.md}, and {@code BotInteract#riseBlockedCell}, which exists
  * solely to host one). The owner scan reads Methodref/Fieldref OWNERS and cannot see a widening by
  * construction, so a second scan reads the invoked <b>descriptors</b> and asserts that no call
  * site in this package takes a wide body type at all — see {@link #wideBodyParams}.

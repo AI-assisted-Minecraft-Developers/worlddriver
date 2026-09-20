@@ -177,7 +177,7 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 // key on `instanceof FakePlayer`, and JoinedBody extends ServerPlayer without being
                 // one. THIS RED THEREFORE DISAPPEARS WITH THE FakePlayer RETIREMENT rather than with
                 // a fix, and this scene should be promoted back to required at that point, not
-                // before. See docs/fake-player-parity.md §6.5 (甲档) for the full derivation.
+                // before. See docs/dev/fake-player-parity.md for the full derivation.
                 Scene.of("wd.serverAvatarEarnsAdvancement", 300,
                         WorldDriverProcessScenes::serverAvatarEarnsAdvancementScene).withRequired(false),
                 Scene.of("wd.serverMineNoTool", 600, WorldDriverProcessScenes::serverMineNoToolScene),

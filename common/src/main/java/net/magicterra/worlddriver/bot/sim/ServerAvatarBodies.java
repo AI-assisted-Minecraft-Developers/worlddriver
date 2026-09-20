@@ -12,7 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
  * here (NeoForge's {@code FakePlayerFactory}, and a Fabric copy of it minting
  * {@code AvatarFakePlayer}), and {@code -Dworlddriver.realPlayerBodies=true} swapped both for joined
  * bodies. Every gate, ladder and rehearsal topology already ran with that switch on, so the switch
- * and the fake bodies were deleted together; {@code docs/fake-player-parity.md} keeps what the fake
+ * and the fake bodies were deleted together; {@code docs/dev/fake-player-parity.md} keeps what the fake
  * bodies lacked.
  *
  * <p>Common rather than per loader because joining is vanilla. Nothing here needs a loader API,

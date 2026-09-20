@@ -120,7 +120,7 @@ public final class BotInteract {
      * declared as a wider type</b> ({@code Player}/{@code Entity}) forces the verifier to LOAD
      * {@code LocalPlayer} to prove the subtype relation, and a dedicated server has no such class.
      * A {@code LocalPlayer} held in a local and called on its own methods was never the problem.
-     * Full account in {@code docs/drown-escape-design.md} §5.
+     * Full account in {@code docs/design/drowning-escape.md}.
      *
      * <p>The swing is not decoration — see {@code net.magicterra.worlddriver.bot.body.Hands#breakHold}. Vanilla swings on every
      * successful {@code continueDestroyBlock} tick, and a dig without one is both visibly armless

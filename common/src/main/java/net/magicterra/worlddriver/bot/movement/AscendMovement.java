@@ -4,7 +4,7 @@ import net.minecraft.core.BlockPos;
 
 /** Thin decision-weave machine for the ascent family (stepUp, stairUpBreak, diagUp).
  *
- *  B1 architecture (plan 2026-07-16-executor-b1-thin-machine): the legacy drive in Walker.tickInner
+ *  Thin-machine architecture (docs/design/ascend-deadzone-watchdog.md): the legacy drive in Walker.tickInner
  *  stays the SINGLE actuation source — the delegation branch falls through on PREP/RUNNING/SUCCESS
  *  and this machine emits no inputs of its own. It owns only the per-edge episode lifecycle and the
  *  dig-aware no-progress watchdog (→ UNREACHABLE, the task#82 dead-zone fix: the cur2∈(0.45,4.0),

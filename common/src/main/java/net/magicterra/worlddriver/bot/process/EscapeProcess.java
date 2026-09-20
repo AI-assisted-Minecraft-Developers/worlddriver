@@ -346,7 +346,7 @@ public final class EscapeProcess implements BotProcess {
         // that HAS such neighbours.
         //
         // Not observed: EscapeProcess appears in none of the logs on disk (see
-        // docs/parity-setpos-centre-snap.md). This closes a hole in the shape its own siblings
+        // docs/archive/centre-snap-teleport-audit.md). This closes a hole in the shape its own siblings
         // already closed, rather than answering a failure. A body that lands off-column now falls
         // to the phase's own 100-tick stall and re-PICKs, which is the escape this process already
         // has for every other way a rise can fail.

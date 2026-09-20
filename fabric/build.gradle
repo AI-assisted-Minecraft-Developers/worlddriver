@@ -263,14 +263,14 @@ loom {
             source sourceSets.testmod
         }
         // The lab: a client on a persistent flat world for hand-built scenes. Not a StageWright
-        // task, so nothing provisions (= wipes) `run-lab`. See docs/user/human-verification.md.
+        // task, so nothing provisions (= wipes) `run-lab`. See docs/guide/human-verification.md.
         labClient {
             client()
             property 'stagewright.client.world', 'Lab'
             property 'stagewright.client.exitWhenDone', 'false'
             property 'worlddriver.rpcPort', '39801'
             property 'worlddriver.mcpPort', '39800'
-            // Unfocused on a desktop; vanilla would pause it. See docs/user/human-verification.md.
+            // Unfocused on a desktop; vanilla would pause it. See docs/guide/human-verification.md.
             property 'worlddriver.pauseOnLostFocus', 'false'
             runDir 'run-lab'
             vmArg '-Xmx2g'

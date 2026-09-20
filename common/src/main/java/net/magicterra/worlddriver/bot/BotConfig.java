@@ -489,7 +489,8 @@ public final class BotConfig {
 
     /** Deep water is priced by the water taxes, not charged the HazardField's 10 000 lethal
      *  penalty (which sent every lake crossing to the nearest rim). The lethal verdict stays for
-     *  the panic chain, the survival facts and the map. See docs/water-model.md. Not pinned. */
+     *  the panic chain, the survival facts and the map. See docs/design/water-and-swimming.md.
+     *  Not pinned. */
     public static volatile boolean pathfinderDeepWaterPriced = true;
 
     /** Per-search blockstate memoisation in {@link net.magicterra.worlddriver.bot.ClientWorldView}.
@@ -1320,7 +1321,7 @@ public final class BotConfig {
     /** Cost added per node where the bot's foot is in water, when {@link
      *  #avoidDanger} is on. Additive, not a ban: a short ford or a sole crossing is
      *  still taken, and a long swim loses to a comparable land detour. Sized from the
-     *  surface sprint-swim cruise (docs/water-model.md): ~0.19 block/tick against a
+     *  surface sprint-swim cruise (docs/design/water-and-swimming.md): ~0.19 block/tick against a
      *  walk's ~0.22 on cost 10, plus the dip that starts each cruise. The old 12 was
      *  priced for the 2 block/s tread it replaced and pushed A* onto any rim it
      *  could find. Set 0 to disable. */
@@ -2356,7 +2357,7 @@ public final class BotConfig {
 
     /** Cruise open water in vanilla's prone sprint-swim: dip for the pose, then sprint with a slight
      *  look-up, bobbing up to breathe. The held surface jump had kept the head out, so the sprint was
-     *  cancelled every tick and the body treaded at ~2 blocks/s. See docs/water-model.md.
+     *  cancelled every tick and the body treaded at ~2 blocks/s. See docs/design/water-and-swimming.md.
      *  Default ON; the gametest baseline pins it OFF like every other walker flag. */
     public static volatile boolean walkerSurfaceSprintSwim = true;
 

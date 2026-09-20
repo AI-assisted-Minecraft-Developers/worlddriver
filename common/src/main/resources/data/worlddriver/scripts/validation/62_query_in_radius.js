@@ -1,4 +1,4 @@
-// Conviction/regression guard for docs/feedback/2026-06-04 §C: mc.query
+// Conviction/regression guard for docs/archive/feedback/2026-06-04 §C: mc.query
 // q='entities' in_radius reportedly missed an entity standing 1 block from the
 // center ({8,200,8} r=3 missed {8,200,9}) while it was taking AoE damage.
 // The scan is a block-symmetric AABB slab — center CELL inflated by r, so cells

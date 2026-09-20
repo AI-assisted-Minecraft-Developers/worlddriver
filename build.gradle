@@ -249,7 +249,7 @@ subprojects {
                 // is nested in the jar via Jar-in-Jar, so the published
                 // POM must not re-declare them: a consumer that naively resolves
                 // the POM would put a SECOND copy of Rhino on its classpath
-                // (docs/feedback/2026-06-04, bug #2).
+                // (docs/archive/feedback/2026-06-04-first-external-consumer-winefoxs.md).
                 pom.withXml {
                     def deps = asNode().dependencies
                     if (!deps.isEmpty()) asNode().remove(deps.first())

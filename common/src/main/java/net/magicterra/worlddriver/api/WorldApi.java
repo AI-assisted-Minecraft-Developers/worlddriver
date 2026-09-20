@@ -92,7 +92,7 @@ public final class WorldApi {
      * Read-only single-cell inspection: blockstate id + property map, light
      * levels, and (opt-in) block-entity NBT. External consumers had no
      * first-class way to answer "what blockstate is at this position?" or read
-     * a light level at all (docs/feedback/2026-06-08); every verification became
+     * a light level at all (docs/archive/feedback/2026-06-08); every verification became
      * an {@code execute if block … run setblock <scratch>} hack. This is the
      * verify half of the build→verify loop, one round-trip, no side effects.
      */

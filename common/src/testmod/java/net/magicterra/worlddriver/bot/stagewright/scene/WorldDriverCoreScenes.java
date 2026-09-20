@@ -873,7 +873,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
      * <p>This was not hypothetical when the arm was written. A controlled A/B on one seed had the
      * dedicated-server body take {@code +0.420} out of a two-deep swamp cell and walk ashore, while
      * the client body in the byte-identical cell took {@code +0.035} and bobbed at the surface until
-     * the leg timed out — see {@code docs/fake-player-parity.md} §6.8 (T17 / N21).
+     * the leg timed out — see {@code docs/dev/fake-player-parity.md}.
      *
      * <p><b>The arena adds no blocks.</b> It reuses afloat's five-deep pool one column over
      * ({@code dz=-2} against afloat's {@code dz=-3}: the bodies are 0.6 wide and their centres 1.0
@@ -1008,7 +1008,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + " water is shallower than the threshold. The gate at ServerPlayerBody.java:1054"
                     + " asks only soleOnSolid>0, so it answers this cell with 0.42. That is the body"
                     + " being MORE permissive than a real player, not less: see"
-                    + " docs/fake-player-parity.md T17 / N21.");
+                    + " docs/dev/fake-player-parity.md.");
     }
 
     /** One arm's readings into the results row, under that arm's own key prefix. {@code later} is

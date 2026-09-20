@@ -1,5 +1,5 @@
 // ROADMAP Phase G — Ender Dragon playbook. A Rhino script (NOT hardcoded Java) so
-// it hot-reloads and the community can tune it — see docs/design/03-boss-playbooks.md.
+// it hot-reloads and the community can tune it — see docs/design/boss-playbooks.md.
 // It orchestrates the existing primitives (combat / goto / equip / setting) plus the
 // boss sensing verb (mc.observe.boss) into a multi-phase fight:
 //

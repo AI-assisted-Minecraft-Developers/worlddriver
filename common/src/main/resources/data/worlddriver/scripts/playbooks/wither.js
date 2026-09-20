@@ -1,5 +1,5 @@
 // ROADMAP Phase G — Wither playbook. Rhino script (hot-reloadable; see
-// docs/design/03-boss-playbooks.md). The Wither is gear- and arena-gated, so the
+// docs/design/boss-playbooks.md). The Wither is gear- and arena-gated, so the
 // playbook hard-checks Phase F gear up front and aborts back to the planner if it
 // is not ready. It then (optionally) summons in place, backs off the spawn
 // explosion, and melee-grinds both phases while T0 reflexes handle skull dodging

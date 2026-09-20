@@ -211,7 +211,7 @@ public final class DriverApi {
         // World snapshot/restore — deterministic test setup/teardown. restore
         // emits a world.restore event, so it honors returnEvents like the action.* group.
         // Read-only single-cell inspection (blockstate + light + optional BE NBT)
-        // — the verify half of build→verify (docs/feedback/2026-06-08).
+        // — the verify half of build→verify (docs/archive/feedback/2026-06-08).
         routes.put("mc.world.block",       p -> world.block(p));
         routes.put("mc.world.snapshot",    p -> world.snapshot(p));
         routes.put("mc.world.restore",     p -> withEvents(p, () -> world.restore(p)));
@@ -972,7 +972,7 @@ public final class DriverApi {
                             row.put("pos", new BlockPos(bp.getX(), bp.getY(), bp.getZ()));
                             row.put("type", id);
                             // Blockstate properties (lit/facing/half/…) so callers can
-                            // verify more than the block id (docs/feedback/2026-06-08,
+                            // verify more than the block id (docs/archive/feedback/2026-06-08,
                             // fix #2). Omitted for property-less states (stone etc.)
                             // to keep large scans lean.
                             if (!st.getProperties().isEmpty()) {
@@ -991,7 +991,7 @@ public final class DriverApi {
             Boolean wantHostile = (p.filter.get("is_hostile") instanceof Boolean b) ? b : null;
             // filter.is_living drops non-living rows (dropped items, XP orbs) so
             // health-delta assertions don't need client-side filtering
-            // (docs/feedback/2026-06-04, bug #6).
+            // (docs/archive/feedback/2026-06-04, bug #6).
             Boolean wantLiving = (p.filter.get("is_living") instanceof Boolean b) ? b : null;
             // filter.type restricts to one entity id (exact match; bare paths get the
             // minecraft: namespace) — mirrors the blocks branch, which had it first.
@@ -1018,7 +1018,7 @@ public final class DriverApi {
                     if (e instanceof LivingEntity le) {
                         row.put("health", (double) le.getHealth());
                         // Active MobEffects — the single biggest gap for testing
-                        // effect-based mechanics (docs/feedback/2026-06-04, bug #4).
+                        // effect-based mechanics (docs/archive/feedback/2026-06-04, bug #4).
                         // Same entry shape as mc.observe.player's effects.
                         List<Object> fx = new ArrayList<>();
                         for (var inst : le.getActiveEffects()) {
@@ -1050,7 +1050,7 @@ public final class DriverApi {
     private static final Set<String> BLOCK_SELECT_KEYS = Set.of("pos", "type", "state");
 
     /** Unknown select keys used to be silently ignored, misleading callers into
-     *  "field not supported" detours (docs/feedback/2026-06-04, bug #3). Reject
+     *  "field not supported" detours (docs/archive/feedback/2026-06-04, bug #3). Reject
      *  them instead; the transport layers surface the message as isError. */
     private static void checkSelect(List<String> select, Set<String> allowed) {
         if (select == null) return;

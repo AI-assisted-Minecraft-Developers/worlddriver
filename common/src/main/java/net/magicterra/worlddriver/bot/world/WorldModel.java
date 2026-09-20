@@ -14,7 +14,7 @@ import java.util.Map;
  * Per-tick derived-facts blackboard. Mutated ONLY on the client tick thread; each
  * {@link #update} publishes an immutable {@link Snapshot} to a volatile field for
  * off-thread readers (mc.client.scene). Makes NO decisions — pure derived facts.
- * See docs/design/04-perception-and-decision-boundary.md.
+ * See docs/design/perception-and-decision-layers.md.
  */
 public final class WorldModel {
     private volatile Snapshot snapshot = Snapshot.absent();

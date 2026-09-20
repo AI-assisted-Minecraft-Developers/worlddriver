@@ -1,5 +1,5 @@
 // Guard for mc.world.block — the read-only single-cell accessor requested in
-// docs/feedback/2026-06-08 ("no first-class way to read a blockstate, a light
+// docs/archive/feedback/2026-06-08 ("no first-class way to read a blockstate, a light
 // level, or a command's diagnostic output"). The reporter's exact pain was
 // ars_nouveau:source_lamp[lit=true] (extends CopperBulbBlock) with no way to
 // confirm `lit` persisted; vanilla copper_bulb reproduces that shape 1:1.

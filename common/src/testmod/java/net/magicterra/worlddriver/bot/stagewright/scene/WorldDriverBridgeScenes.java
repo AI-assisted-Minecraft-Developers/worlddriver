@@ -31,7 +31,7 @@ import net.minecraft.world.level.block.Blocks;
  * rule; the catch floor is itself a failure detector, not a route).
  *
  * <p>Dedicated-topology caveats (same class as the documented DIG-hold / GEAR-degraded
- * exemptions in docs/coverage-exemptions.md):
+ * exemptions in docs/dev/coverage-exemptions.md):
  * <ul>
  *   <li><b>Fall damage:</b> FakePlayer avatars are damage-immune by contract, so the
  *       "damaging drop" scene asserts ROUTING+traversal (the planner accepts a

@@ -218,7 +218,7 @@ public final class WorldDriverCommon {
                 } catch (Exception bindFail) {
                     // A pinned port already held (e.g. another instance's runClient)
                     // used to be a hard ERROR with no server at all; consumers only
-                    // saw a mid-log BindException (docs/feedback/2026-06-04). Fall
+                    // saw a mid-log BindException (docs/archive/feedback/2026-06-04). Fall
                     // back to an ephemeral port — run/worlddriver-rpc.port records the
                     // real one, which is how well-behaved clients resolve it anyway.
                     if (wantPort == 0) throw bindFail;

@@ -6,7 +6,7 @@ import net.minecraft.world.entity.LivingEntity;
 
 /**
  * Per-tick data flowing between the WalkerTick* phases, grouped by the stage that
- * PRODUCES it (census 2026-07-19, docs/walker-tick-architecture.md). A fresh instance
+ * PRODUCES it (see docs/dev/movement-tick-phases.md). A fresh instance
  * is built every tick by the driver in {@link Walker#tickInner}; nothing here survives
  * the tick — cross-tick state stays in {@link Walker} fields.
  *

@@ -33,7 +33,7 @@ import net.minecraft.world.phys.Vec3;
  * <p><b>It used to integrate movement by hand</b> — {@code baseTick}, a hand-written jump gate,
  * {@code travel}, and the pieces of {@code Player.tick} it had been caught missing, mirrored one
  * defect at a time — because the fake player it once drove could not run its own tick.
- * {@code docs/fake-player-parity.md} keeps what that copy got wrong while it stood.
+ * {@code docs/dev/fake-player-parity.md} keeps what that copy got wrong while it stood.
  *
  * <p>Physics parity is asserted by the {@code wd.physicsParity} and {@code wd.waterPhysicsParity}
  * scenes in the testmod ({@code WorldDriverCoreScenes} / {@code WorldDriverWaterBankScenes}). This
@@ -258,7 +258,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * <p>Vanilla has no {@code setSelectedSlot(player, slot)} to reuse: {@code Inventory.selected}
      * is a public field that {@code ServerGamePacketListenerImpl.handlePickItem} writes directly
      * before sending this packet by hand. What is reusable is the PACKET, not a method. See
-     * {@code docs/fake-player-parity.md} §6.9/§6.10 for the full derivation, the jar-wide proof
+     * {@code docs/dev/fake-player-parity.md} for the full derivation, the jar-wide proof
      * that no menu path ever syncs this field, and the residuals this does not close.
      */
     private void carryTo(int slot) {

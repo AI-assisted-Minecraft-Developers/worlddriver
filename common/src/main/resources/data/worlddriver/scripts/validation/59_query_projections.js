@@ -1,5 +1,5 @@
 // Guards for the mc.query projection gaps reported by external consumers
-// (docs/feedback/2026-06-04 bugs #3/#4/#6, 2026-06-08 fix #2):
+// (docs/archive/feedback/2026-06-04 bugs #3/#4/#6, 2026-06-08 fix #2):
 //   - q='entities' rows carry uuid / id / effects (LivingEntity only)
 //   - filter.is_living drops non-living rows
 //   - unknown select keys are rejected (isError) instead of silently ignored

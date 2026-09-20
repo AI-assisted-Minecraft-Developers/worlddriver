@@ -21,7 +21,7 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.releaseKeys;
  * Idle-only proactive shelter at dusk (controlled re-intro of the shelved BunkerChain).
  * Bids IDLE_SECURE (40) — below USER (50) — ONLY when dusk/night + sky-exposed + not
  * cornered + no nearby threat, and only after a short debounce so a brief between-intents
- * pause doesn't trigger a dig. Drives BunkerProcess. See docs/design/04 / spec §4.3.
+ * pause doesn't trigger a dig. Drives BunkerProcess. See docs/design/perception-and-decision-layers.md.
  *
  * <p>gap#68-④⑨: a user task bidding USER(50) permanently suppressed this reflex all
  * night (it never outbids 40). When still exposed and unsheltered — and not already
