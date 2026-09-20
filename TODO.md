@@ -1,1582 +1,821 @@
 # TODO
 
-## 📖 本文件是怎么来的（2026-08-26 精简重写）
+Open work, and nothing else. Each entry says what is not done and where to look; a few lines is
+the budget. Why a change was made belongs in `CHANGELOG.md`, why code is shaped a given way
+belongs in a comment beside that code, and what order the work happens in belongs in `ROADMAP.md`.
+Investigation records, evidence tables and accounts of how a conclusion was reached do not belong
+in any of those, and they do not belong here.
 
-这一版是一次**精简重写**。重写之前 `TODO.md` 是 25 670 行 / 2.0 MB 的连续工作日志，
-里面绝大多数是**已结的调查记录**——已验、已闸、已落、已撤回、已作废。这次把它们全部删掉，
-只留三类东西：**开着的活**、**判了「不做」但写了重开条件的条件式待办**、
-**还没落地的预登记**。
+When an item is finished, delete the entry in the same commit that finishes it.
 
-- **删掉的东西一条都没丢，全在 git 里。** 重写前那一版的完整内容在提交
-  `fb94af03d59f4bc16639f102ab184ac5c037ac9f` 里，一条命令就能翻回全部历史读数：
-
-  ```bash
-  git show fb94af03d59f4bc16639f102ab184ac5c037ac9f:TODO.md
-  ```
-
-- **执行排期搬走了。** 「窗口 0–4」那一节现在是 [`ROADMAP.md` §6](ROADMAP.md)。
-  待办是「还欠什么」，路线图是「按什么顺序做」，两件事不该住在一起。
-  **这里不留副本**——两处各存一份，过几天就会分叉。
-- **已结的行为变更搬进 [`CHANGELOG.md`](CHANGELOG.md)。** 「为什么这个行为变了」归那里。
-- **2026-09-04 把散落在外面的开着条目收拢进来。** 旁边三份 `TODO-*.md`、`ROADMAP.md` §4、几份 docs
-  正文与 javadoc 里的待办并入「🧹」一节；三份旁文件同日删除，推理留在各自原处。
-
-⚠️ **两条从旧版继承下来、代价已经付过的纪律，别丢**：
-
-1. **开一趟真梯之前，把所有「在查／冻结中／待验」的行拿去 `git show HEAD:` 核一遍。**
-   旧版被抓到过整批过期状态行（修法早在 HEAD 而行里还写着「在查」）。
-   一行过期的状态会让这一趟的读数被判给错的账本。
-2. **修法或场景落地的那笔提交顺手改队列行**，别等下一次审账来抓。
+Entries marked **Unverified** were carried across from an earlier working log and have not been
+checked against the current tree. Read the code before acting on one.
 
 ---
 
-## 📋 队列（真客户端通关，2026-08-22 起）
+## Engine and mod code
 
-一行一件，**状态在最左**。做完就把行删掉并把结论写进 `CHANGELOG.md`，不要在这里写细节。
+### The shore scan can aim a drowning body at lava
 
-| 状态 | # | 事 | 归属 |
-| 🟡 判：条件式（场合已消失，重开条件见行尾） | J121 | **抬升报的是高度，不是柱；于是一笔它自己判为「没垒成」的活儿被当成做完了交下去。** ladder-19 浇到 8/10（cast0–7 全 SUCCESS），死在顶排 `cast8`：`lift#11.verdict = 没垒成 —— 落在 0,19 而不是指定柱 1,19；脚下 Block{minecraft:air} 不是地板`，紧接着 `cast8.liftedY = 59/59`，下游照着这个数往下走，于是 `cast8.picks.1` 从壁龛**外面**的 `0, 59, 19` 开火，瞄中 `1, 60, 19` dirt、**落进 `0, 60, 19`**——离目标格 `4, 60, 19` 四格。⇒ 判据要连柱一起判，`verdict` 那一行已经算好了、只是没人读。⚠️ 同一形状的警告 `cast6#6.verdict` 自己就写着「`gained` 只量高度差，单独读会把这一趟读成成功」。⭐ **上游先修了**（见 J123）：`liftedY` 拿到的那个高度本来就不该由塔来出——楼梯 `3/3 级垫好了` 而身体没走上去，才轮到塔。J121 本身仍开着（塔停手之后那个数依旧不带柱），但它现在是**第二道**，不是第一道。⭐ **ladder-20 把场合整个拿掉了**：全趟 `liftTower` **0 条**、光秃秃的 `liftedY` **0 条**——塔一次都没被启用，因为 `raiseOffTheFlight` 五次全靠 J116 的侧邻加宽换到了非楼梯柱（`改用 2,19 / 3,20 / 3,20 / 3,21 / 2,21`）。⛔ **别删**：模腔每趟随机，ladder-19 那种「顶排只剩楼梯那一柱」的地形会再抽到，那时塔照样上场。**重开条件**：任一趟真梯里出现 `liftTower` | 我 |
-| 🟢 判：已落，闸已投毒验过（`wd.rampClimbsTheFlightItJustLaid`），真梯未验 | J123 | **楼梯垒完了，身体从来没走上去。** `JourneyRamp#lay` 收尾发的是一个瞄准**顶级**的 `Goal.Block`，而壁龛是空心的，A* 完全可以绕过坑沿从地表下来——楼梯不是它必须走的那条路。同一形状量到两次：2026-08-25 的 `wet.8`（五块全放进去、楼梯完整，随后的 `goto 3,60,20` 往西走出壁龛、停在地表 `-5,65,20`，9.85 格外；那趟修的是规划器的折回规则，**这条腿没动过**），以及 ladder-19 的 `cast8`——`lift.laid = 3/3 级垫好了（身体 1, 57, 19，停在 FINISHED）` 紧接 `lift.rampedY = 57/59（… 不是同一柱）`，**身体一格没挪**。之后的一切都是它的下游：升级去用塔 → 塔漂到 `0,19` → 互逆改写死锁 → 浇筑从壁龛外四格开火三次（三次都被浇筑自己的射线闸正确拦下）。修法：`walkTo(landing)` 照旧先跑、照旧是正常情况下到达的那一条（同一趟的 `cast7.ramp.rampedY = 58/58（… 同一柱）`），**只有它没到达才**逐级走——每一级都是从下一级迈一步，没有余地走出壁龛；走不上去的第一级就停并印出来。⚠️ 闸判的是**决策**（`JourneyRamp.coursesToClimb`）不是那条腿：settle 要 `JourneyRig`，场景托不住一个。投毒两次，都与预登记一致：「永远返回整条楼梯」→ 恰好 A、D 红；「按排判不按格判」→ 恰好 E 红。⚠️ **ladder-20 之后等级仍是「compiled + 闸投毒过」，不是 backtested**：它自己的场合（`cast8.lift`）那一趟没出现（`cast8` 直接成了），四条预登记签名全缺。它只开火过一次且失败——`recover6.rise.ramp.climbStopped.0 = 第 0 级 3, 57, 21 没走上去，停在 2, 57, 21（脚下 water，身处 water）`，恰是预登记写下的反例形状：**卡的不是「目标太远」，是身体泡在水里迈不上台阶**。三条 `climbSkipped` 是守卫正确地不开火（楼梯没垒全），代价为零 | 我 |
-| 🔴 判：查（第 14 级，两趟都死在这） | J124 | **第 5 条腿是现在的墙。** ladder-21 在它上面走了 **2403 tick**（`death.legTicks`；`death.leg` 写于第 232 tick < 2403 ⇒ 死在本腿，不是跨腿），一路往**西**退到 `66,42,86` 反复摔，死于累积摔伤、`death.food = 4/20` 零回血。ladder-20 则**根本没走过**这条腿（那趟死在起腿后第 8 tick）。⇒ 火只占 4/20，饱食与摔伤是主因，而两者都被「这条腿走不通」拖出来。⚠️ 两趟归档里都**没有** `bridgePlace` 读数——`walkerCensus` 没印这个字段，那是**没有读数**不是「没造桥」 | 我 |
-| 🟢 已落 | J124c | 审计给每个坏路点加了**最近的可站格**（真 3D 距离；扫半宽 8 的立方体、按 3D 距离排名，`d ≤ 8` 时半径 d 的球整个在立方体内 ⇒ 「最近」为真，`d > 8` 时降级成「扫过的格里最近的」并印出来）。⚠️ 还没有任何一趟印过它，数要等下一趟真梯 | 我 |
-| 🔴 做（现在的下一笔） | J125 | **一趟没跑完的梯子报告了成功。** ladder-22 前 13 级全 PASS，第 14 级开跑 4 分钟后 `suite over (finished=false, connected=false) — closing client`，第 14 级**零行 results**，而 BUILD SUCCESSFUL、退出码 0。⇒ 两笔：`finished=false` 必须让构建失败；查客户端为什么在第 14 级掉线。**J124 全族在这之前验不了**（走廊一次都没被完整跑过） | 我 |
-| 🔴 做（依赖 J125） | J124e | **切短第 5 腿**，不是「换掉走不到的路点」——目标可达（一次 `reached=true steps=36 end=74,41,95`），死因是搜索代价：**全预算档 4 次里 3 次撞满 `maxNodes=100000`**，唯一解出的那次花了 88646 节点（预算的 89%）。⇒ 在 wp4 `72,42,85` 与 wp5 之间插中继点让每跳变短；`74,41,95` 可直接当新的 wp5（实测可站、实测到达过）。⚠️ 挑中继点要地形图 ⇒ 依赖 J124i | 我 |
-| ⛔ 已更正 | J124g | 撤回：`maxNodes=600` 那 113 次**不是**内联重规划预算，是 `pathfinderQuickNodes` 渐进式快启桩（一帧预算、由 `adoptPath` 顶替）。桩在难地形上返回 `end=none` 是它该有的行为。「那条 36 步的路没被走过」也降级为单样本假说——心跳每 200 tick 才采一次，而 `adoptPath` 本就会对起点变了的路做快进 | 我 |
-| 🟡 判 | J124h | 全预算档 `maxMs=Long.MAX_VALUE/2`（没有时间闸），单次 3.9–5.1 秒。⇒ 问「这一档该不该有时钟」，以及 88646 节点解一条 13 格的腿说明启发式在开阔岩浆上不收敛 | 我 |
-| 🟡 备选（不进这一批） | J124j | `pathfinderQuickNodes` 是可写设置（`SettingsCommand` 允许 0–10000，现值 600）。⇒ 走廊里临时调大，让真搜索分片的那 4 秒里身体有更长的桩可走。**不进 ladder-23**：那一批已有四笔，再加会毁掉归属 | 我 |
-| 🔴 做（与 J124e 同批） | J124i | **走廊地形图一次都没写出来过**：`JourneyCorridorProbe.record` 只接在「腿被放弃」的两条路径上（到达判定失败、`corridorGaveUp`），而两趟都是**死亡**结束的——第三条路径没接线。⇒ 死亡路径也要写一次。⚠️ `JourneyNetherRungs.java:486` 的注释记着上次数出「两种」，真值是三种 | 我 |
-| 🟡 做 | J124f | 验收闸（零个路点「脚下也空」）**没地方放**：审计跑在走廊起点，`ctx.fail` 会在这一级产出证据之前掐掉它，把闸要喂的读数一起弄没。⇒ 闸要自己一条 rung-13 之后的 optional 场景，登记时同一笔改两份 `expected-scenes-*.txt`（见 [[a-manifest-is-part-of-the-judge]]） | 我 |
-| 🔴 做（判已出，改法未落） | J124a | 走廊火**判定为 (b)**（ladder-21 单趟成立，论证在 `JourneyFireCensus` javadoc 与 CHANGELOG）⇒ **修法是重规划触发，不是加价**；(a) 那条「给火旁边的格加价」作废，别再捡起来。⛔ 「逐 tick 身体格 vs 路径节点」那件仪器也一并作废——它是拆 (a) 内部用的，(a) 已被否 | 我 |
-| 🟢 已落 | J124d | 读数器改以 `death.blow` 的**伤害类型**为准（`hp.trace` 只供坐标与分段），并把段→腿归属机械化：tick 归零切段、盒含格给候选、按写入序取单调解。歧义不再由它挑一个，而是**每个候选腿各判一次、族不一致就拒答**。五臂阳性对照（(a)／截断／出盒／无类型／候选相斥）全部动作正确 | 我 |
-| 🔴 做（现在的下一笔之二） | J124b1 | **把生牛肉烤了**（五份生肉在第 10 级就被吃光，所以第 14 级是「没得吃」而非「没吃」）。落点定在第 9 级 `smeltIron` 之后——炉子已放好、流程已被两趟验证；第 8 级只是「熔炉到手」，要另起一遍放置。⚠️ 先查 `SmeltProcess` 第三参传 `null` 时烧什么、从哪扣：铁和肉共用同一个包的燃料 | 我 |
-| 🔴 做（与上一条捆绑，缺一等于没落） | J124b2 | **第 14 级没有任何进食路径**：`JourneyFeed.eatIfLow` 全工程只有一个调用点（`WorldDriverJourneyScenes.java:2111`，砂砾级）。⇒ 走廊里加一次 `eatIfLow`，放在腿间落定点或进走廊之前，不放腿中间（一口 32 tick 站桩）。⚠️ 只烤不吃 = 熟肉当死重；只吃不烤 = 包里本来就空 | 我 |
-| 🟢 已落 | J125 | 审计行改成数 `waypoints.length`，javadoc 里的数字整句去掉 | 我 |
-| 🟢 已落 | J126 | `death.blow` 补「更早还有 N 次没列出」。⚠️ 它落地当天就自己证明了必要性：ladder-21 丢掉的那一条正是全趟最大的一记（`−8.0→12.0@161`） | 我 |
-| 🟡 判：条件式（与 J121 同一场合，同一个重开条件） | J122 | **两次改写互为逆操作，塔认出来了并正确停手——但上层不知道。** `cast8.lift#11.driftLoop = 1,19 是楼梯那一柱，而航道要改回的 2,18 正是这一腿刚走不到的那一柱 —— 两次改写互为逆操作，再垒一课还是停在 1, 57, 19；塔到此为止`。这一步是对的（[[a-retry-that-changes-nothing]] 的第三例就是它），问题在它之后：`walkerFallback = True`、`endedIn = 0,19`、`endedOn = 脚格 air，脚下 air`，而调用方拿到的只有 `liftedY`（见 J121）。⇒ 缺的是「塔停手」这个事实的**出口**：它现在只写进证据行，不进返回值。⭐ **ladder-20 全趟 `driftLoop` 0 条**，跟 J121 同因（塔没上场）⇒ 同一个重开条件：任一趟真梯里出现 `liftTower` | 我 |
-| 🟢 判：已落，闸已投毒验过（Fabric 整闸 GREEN，失败集与基线逐字相同） | J118 | **收水那一枪没有 `atUse` 行。** 浇筑有——`cast6.atUse` 印客户端/服务端槽 6、满桶线、空桶线、命中面、距离；收水一行都没有。于是同一个读数有三个同样说得通的作者而读数分不开：用的那一刻手里可能不是桶（`recover6.hand = minecraft:cobblestone`，`hand#2` 才是 `minecraft:bucket`）／`4,59,19` 那一刻可能不是源块（`recover6.miss.3` 只印方块名，没印 源块 与 液位）／`BucketItem` 的 `SOURCE_ONLY` 射线可能不是场景仪器那条（同一趟 `aimsAt` 说停在 `4,60,19` dirt，`miss.3` 说停在 `4,59,19` water）。修法两半都已落：`spendTheBucket` 在 use 之前调同一个 `JourneyHands.handsAtUse`；`miss.*` 补印目标格**发包那一刻**与 3 tick 后的 源块/液位 配对（只印「现在」的话，装成功也会把源取走 ⇒ 成败同读数）。闸 `wd.journeyScoopPrintsTheHandItFiredWith` 走生产入口 `JourneyFill.fillFrom` 再问证据（隔壁 `wd.journeyScoopsPastItsOwnObsidian` 自己调 `handsAtUse`，所以它对这个洞恒绿）。投毒验过：摘掉那一行 ⇒ RED，恰好 C/D/E 三条失败、`实到 null`，而 A/B 仍绿（生产路径照跑、水照装上 `0 → 1`）。⚠️ **闸只守住 `atUse` 那一半**：源块/液位那一对要一趟真的没装上才写得出来，而干净趟与投毒趟都装上了 ⇒ 那一半目前只有一次离线的格式串执行（12 占位对 12 实参，跑过），没有场景。要闸它得另造一个「持续非源块」的布景 | 我 |
-| 🟡 判：读数已落已闸（投毒验过，F/G 两条红），修法仍开着 | J119 | **瞄准算在身体还在下坠的时候。** `recover6.aimsAt` 自己写着「settle 这两 tick 里眼睛挪了 0.25 格（y 60.70→60.48）」；眼睛 60.48 ⇒ 脚 ≈58.86，而同一批行里 `blockPosition()` 报 `3,58,19`。多出来的 0.86 格把射线推进门框格——`4,60,19` 落在眼睛与 `4,59,19` 之间（`frameOnLine.3`），`frameStuck.3` 于是判「门框挡着且没有别的落脚点」→ `recover6.result = FAIL`。⛔ 换角度救不了：挡路的原因是眼睛太高，不是角度不对。落定判据用格号、瞄准用精确坐标。**控制组已量，修法方向因此换掉了**：ladder-18 的 12 条 `aimsAt` 里 11 条落定后脚正好在整数格（眼 65.62/57.62 ⇒ 脚 64.0/56.0），而这 11 条的漂移是 0.10–0.30 格，跟死掉那条（0.25）同一档 ⇒ **漂移不是判别量，落定后的脚 y 才是**。⛔ 所以修法不是把 `HoldStill(2)` 加长——`scoop:497` 那段注释已经写明「等更久是另一个缺陷」（十 tick 那趟身体掉了四格），而且身体正悬在空中，等更久只会掉得更远。修法＝落定之后**判一次「落地了没有」**（`onGround` 与「脚 y 是整数」并排印值），没落地就别从这儿瞄。11/12 零成本通过，第 12 条正是这一级的死因。⇒ 与 J120 是同一条链：J120 把身体停在空中（`arrivedY = 59…脚下=Block{minecraft:air}`），J119 在它落地之前就瞄了。**修法草案（两条先例各给一条约束，合起来正好是一个判据）**：`HoldStill` 的 javadoc 记着「等到不动为止」试过就撤（2026-08-16），但它否掉的量是**位移稳定**——被流水的水平漂移打死（`眼睛 y 57.62→57.62，共挪了 0.57 格`，高度纹丝不动），跟「落地没有」不是同一个量；它同时记着 recover8 多等 8 tick 掉了 **3.60 格**、害得收水改走路还挖掉一格模腔。而这一趟身体脚在 **58.86**、要站的是 `3,58,19`（地板 y=57）⇒ **正落在一格下坠里，再等三四 tick 就落到要站的那格**。⇒ 判据草案＝「身体悬空就再等，但脚一旦跌到起始那一排减一以下就停等」。⚠️ **这条草案对 recover8 不成立，别当它已经解决**：停等只是不再等，身体照样在空中、照样要瞄——所以它必须配第二支「等不到就**不瞄**、重新选落脚格」，而 recover8 恰恰证明那个重选也会出错（落到壁龛底之后 `standToFill` 一处都没验过，收水改走路还挖掉一格模腔）。⇒ **两条先例是互相拉扯的**，所以先落的是**读数**（已落）：`eyeNow` 现在印 `脚 y=…，落在整数排上|★ 不在整数排上，身体还在坠，onGround=…`，三处瞄准行一起吃到；下一趟真梯就能把「门框挡着」和「身体没落地」分开——ladder-18 的 `frameStuck.3` 否决计数（`脚下不实心=11`）是从空中那具身体量出来的，本身已被污染。**还开着的是修法本身**，等下一趟真梯的读数再定走哪一支。⛔ 落地之后**要重新瞄**（存的是角度不是目标），`scoop` 已经是这个顺序 | 我 |
-| 🟡 判：花腿不花命（排在 J118/J119 之后） | J120 | **「到达」腿拿 5 格的尺回答一个 0 格的问题，而它点名的两级补救都开了火、都按自己的判据成功了、身体仍不在指定柱上。** `recover6.rise.raiseTo.gotoEnd.1` 判到达于 `3,59,18`（距指定柱 `3,19` 1 格，容差 5）；`raiseColumnMissed` 开火并点名「塔的偏柱修正」；`ramp.laid = 2/2 级垫好了 … FINISHED`，而 `ramp.rampedY = 停在 3,59,20，要的落脚格 3,58,19，不是同一柱`。**补救的判据量的是台阶垒了几级，不含「落在指定柱」。** ⚠️ 它没杀死这一趟：`frameOnLine.3`／`frameStuck.3` 印的身体是 `3,58,19`，正是 `recover6.spot` 要的那一格 ⇒ 收水自己的走位把身体救了回来 | 我 |
-| 🟢 判：已落，闸已投毒验过（`683e111a` `2515f5a4`） | J117 | **「让开哪一格」按趟随机，而它在第 12 级自己的路径上。** `stepAsideFor` 原本「取最近再否决」：`builderStand` 挑离底级最近的落脚格，挑中的若恰是身体已站着的那格就整条补救返 null，把走廊里其余合法格一起扔掉。而 `support` 的水平邻格里**正好两个并列最近**，谁赢由 `Set.copyOf` 造的 `SetN` 迭代顺序定、**每 JVM 一撒盐** ⇒ 一枚硬币，九趟归档五红四绿。**钉住它的是对照组**：九趟的 `staged=`／`要垫的是` 逐字相同（相对偏移都是 `(0,0,+1)`）⇒ flight 稳定，凶手确系平局赢家；而 null 的两个可能作者里 `aside == null` 被穷举排除（场景挑 `beside` 时已验它站得住且不在 flight 足迹上）。修法两半：`builderStand` 加 `exclude` 把身体那格**从搜索里划掉**（不是事后否决），平局改由 `compareTo` 裁决。布景把并列的邻格封实 ⇒ 毒测**一趟定色**不再掷骰子。投毒验过：RED、唯一 required 失败在 C、`aside=null`，而活性读数 C0 通过（`不排除自身格时最近的是 257696, 220, 99998` ＝身体那格）；复原后 Fabric GREEN，`aside=257697, 220, 99998`。⚠️ **不保证第 12 级变绿**，它拆掉的是 `JourneyRamp` 那条因果链的第一环（`ramp.laid 0/N` 且停在 `BODY_IN_THE_WAY`）。⚠️ ladder-18 **无场合**：全趟没有一行 `ramp.laid 0/N … BODY_IN_THE_WAY`（`recover6.rise.ramp.laid = 2/2 级垫好了`）⇒ 这一趟对它既不算证实也不算证伪 | 我 |
-| 🟢 判：已落，闸已投毒验过（`b75e2746` `8cf78764` `1c069ca6`） | J116 | **传送门顶排失去了侧柱赖以成功的那条瞄法，所以它不是「随机没浇上」。** 框架 10 格（`frame.roll.*`），侧柱正下方**也是框架格**，浇成黑曜石后可以瞄它的 `face=up`——`cast7` 就是这么成的（瞄 `4,58,22` 的 obsidian 顶面）。**顶排正下方是门洞**（`4,59,20`），永远不实心：`cast8.raiseVeto` 的最大一族否决就是 `4,59,20 不是实心的，弹不出流体 = 8`，全表**验得过 0**。于是只剩背板 `5,60,20` 一个候选，而它要求进壁龛到 4.5 格内，身体停在 `0,59,20`（**5.21 > 4.50**）。佐证：`castN.stand.*` 的「脚下不实心」随框架单调升 8→12→17→13→25→19→**36**，因为壁龛地板只有 y=56 一层。⛔ **不是水的错**：`4,61,20` 是 cast8 自己的水格（`frame.roll.8`），舀掉它 cast8 就不可能。⛔ **也不是容差 5 的错**：同一句 `raiseColumnMissed` 在**成了的** cast7 里逐字印过。**已 grep 产码，不再是假设**：`JourneyPour:951` 的候选表字面上就两条——`List.of(target.relative(away), target.below())`，而 `:944` 的 javadoc 自己写着「The exception is the top pair, whose floor is an interior cell … there this finds nothing and `standLevelWith` still has to build the step」⇒ **顶排是已知缺口，被 punt 给垒台阶，而台阶在水里垒不起来**。⭐ **缺的第三条候选是同排的侧邻**（`away` 的顺/逆时针格）：对 cast8 就是 `4,60,19`／`4,60,21`，瞄它们的对面即落进目标格。它们实心**是不变量不是巧合**——`JourneyPortalRung:781` 每一浇只开「门框格＋水位格」两格，其余框架格**故意留实心**给这一格当地板（注释：全开会 cast 0/10）⇒ 未浇的侧邻恒实心，已浇的侧邻是黑曜石，两种都可点。加宽已落：两处候选表合并成 `JourneyPour.aimCandidates`（追加不重排，cast0–7 仍走原两条），闸是 `wd.pourLineTopPairAimsAtItsSideNeighbour`。**投毒验过**：把候选表改回两条那一趟，它红在 C 且值就是预言的兜底（`瞄 …=air`）；改回四条那一趟 GREEN，失败集与三趟基线逐字相同。⚠️ **还没在真梯上验**——闸证明的是「顶排的瞄法存在且打得中」，不是「第 12 级会过」。⚠️ 布景里能打中侧邻的落脚格**只有目标那一排往回退一格**（侧邻朝目标的那一面只能从那儿够着），而壁龛是空心的 ⇒ 真梯里那一格要么靠 `standLevelWith` 垒出来、要么靠浮水，**这两条正是第 12 级已经失败过的路** ⇒ 下一步要量的是「顶排的落脚格是怎么来的」，不是再加候选。⚠️ ladder-18 **仍无场合**：只浇到 6/10，顶排没轮到。但加宽确认是活的——`cast6.here.noAim` 印满四条候选，每条各带一个真否决。⭐ **ladder-19 给了它场合，而上面那句预判被读数证实了**：这一趟浇到 8/10、真的走到顶排 `cast8`，加宽的侧邻候选如期出现在 `cast8.1.noAim` 的**候选3 `4, 60, 20`**，否决理由是 `线段先撞上 1, 60, 19=Block{minecraft:dirt}`——**不是候选错，是身体不在壁龛里**（`身体 0, 59, 19`，而 候选1 `5,60,19` 的否决是 `够不着(5.23>4.50)`，跟当初算的 5.21 对得上）。⇒ **J116 到此为止不再是瓶颈**，瓶颈是把身体送上那一格，见 J121／J122。⭐⭐ **ladder-20 把它验成了 backtested，而且是同一处模腔的对照**：ladder-17 与 ladder-20 首格都是 `4,56,20`（同处），`cast8` 逐行差别只有——候选表 **2 条 → 4 条**（多出的正是侧邻）、`raiseVeto` **验得过 0 → 1**、`raiseOffTheFlight` 从「只有楼梯那一柱，别无选择」变成「**改用 `3,20`**」，于是台阶垒在水外、`stand.3 否决计数 {}`、`picks.3 落进 4,60,20` **SUCCESS**，全趟 **10/10**。⚠️ 17→20 之间不止这一笔提交，所以这是「机制可见的同处对照」不是单变量实验。⚠️ 顺带第一次用到 `POUR_ROW_SLACK=1` 并用对：`raisedY = 60/59（同一柱，比要站的排高 1 排）` 照样浇成 | 我 |
-| 🟡 判：先补测量（前提已换，见下） | J114 | 原提法「关卡说合格的柱，walker **总是**只走到邻格」**已被 ladder-17 证伪**：同一份代码第 11 级 PASS，两腿中第 2 腿距 **0 格**。⇒ 问题不是「走不到」，是「**有时**走不到」。还开着的是同一个谓词分裂：选柱问 `whyNotDiggable`／`columnIsSafeToSink`，walker 问 `canStandAt`（J110 的发作现场）。**缺的读数仍是 `canStandAt(选定柱)` 各子句的值**（印值不印谓词），但现在要**成对采**：走到的那腿和没走到的那腿各一份 | 我 |
-| 🔴 判：做（机制已证，缺闸） | J115 | **从 `seg.commitEnd` 起的续接搜索几乎 100% 被丢弃后原样重发，活锁。** `WalkerTickStallDetect:248` 手抄了 `SegmentCommit.reset()` 的半份——只清 `activeSearch`／`searchFromEnd`，留着 `commitEnd`／`pathBestEffort`，正好把 `WalkerTickRepath:152` 的三个条件凑齐。ladder-17 全程浪费 **807** 次（`goto` 672／`mine` 133／`mine.collect` 2／`combat` 0）。⛔ **不能直接换成 `reset()`**：它还清 `pendingSegment`，语义不同，要逐字段算变严还是变松。判修法用分布量（同 `(start,goal)` 对最大重复数 **545**→个位、`goto` 完成率 **60%**（剔掉第 12 级是 **32%**）），**不用级色**——不只因为真梯不可复现，更因为**按级分摊后丢弃率与级色反相关**：06Food 丢 334/370（90%）PASS，而唯一 FAIL 的第 12 级只丢 22/709（3%）⇒ **J115 明确不在第 12 级的路径上，修它买不到级号，只买时间** | 我 |
-| 🔴 判：改（要闸，与 J112 同批） | J113 | **唯一一个「声明了区间却没人校验」的设置键。** `SettingsDocs:202` 给 `lowHealthCareful` 打了 `[0,20]`，而全仓没有任何代码拒绝越界值。对照组：`fleeDangerBoost` 的 `[1,20]` 在 `SettingsCommand:271` 有拒绝分支——把 `SettingsDocs` 里所有声明区间的键逐个对过，只有这一个没闸。补钳方向是**变严**。⛔ 场景要能在补钳缺席时**红**，别写成「加了钳所以不越界」那种只能取一个值的判据 | 我 |
-| 🔴 判：改（先要一条场景，生存反射没闸不动） | J112 | **上岸扫描能把一具没气的身体瞄准岩浆。** `AutoSwim.nearestShore:284-286` 的判据是 `isSolid(below) && !isWater(foot) && isPassable(foot) && isPassable(head) && !isHazard(below)` —— **`isHazard` 只问了 `below`**，而 `canStandAt` 三格都问。已验：`ClientWorldView.isPassable:160` 第一句 `if (!s.blocksMotion() ...) return true`，**岩浆不 blocksMotion ⇒ 返回 true**；岩浆不是水 ⇒ `!isWater(foot)` 为真；石头底 ⇒ `isSolid`/`!isHazard(below)` 皆真。五句全过。修法方向是**变严**：`&& !w.isHazard(foot) && !w.isHazard(head)`，退化良性（调用方 `dir == null` 那支继续按住 jump 上浮） | 我 |
-| 🔴 判：先补测量（探针便宜、能搭车） | J111 | **沙箱那七条断言全绿，而它们守护的过滤器整趟没拒过一个名字。** `ScriptClassFilter.DISABLED = !"on".equals(getProperty("worlddriver.sandbox","off"))` 出厂为真，`isAllowed:87` 第一行就 `return true`，且 `*.gradle` 里零命中 ⇒ 每趟闸这个过滤器都是关的。AGENTS.md 硬规则 #3 点名 `08_sandbox.js` 作为放宽沙箱的守卫，而它在放宽发生时不会红一行。⛔ 别急着加断言——会撞覆盖漂移闸的两个精确总数。**缺的读数＝`typeof java` / `typeof java.io.File`**：若为 `undefined` 则七条当场证伪为空断言（`java` 根本解析不出来，`denied()` 抓的是 TypeError），**不需要开沙箱就能判**；只有解析得出来时才轮到 `-Dworlddriver.sandbox=on` 的对照趟。另：`Runtime.exec("id")` 与 `Socket("127.0.0.1",1)` 那两条**原理上分辨不了任何东西**（宿主没有 `id`、连接被拒都必抛） | 我 |
-|---|---|---|---|
-| 🟠 已量·修法挂 Q7c | Q7 | V1 冻屏**数出来了**：单秒最高 **20 次**搜索、**26%** 的秒 ≥3 次，全在 Render thread；最大单一来源是 **174 次起点目标全同的重问**（`owner=mine`）。「缺计数器」是错的——`search-begin` 一直无条件在打。**修法定形在 Q7c，本行只留测量** | 我 |
-| ⏸ 推迟 | Q12b | 新增一条「真世界」拓扑（开刷怪＋放时钟）。**重开条件**：`PORTAL_LIT`（12 级）在钉住的世界**连续两趟 PASS**。今 12 级仍 FAIL（最近三趟排练依次死在门洞清渣、`goto` 吃楼梯支撑、`Goal.XZ` 打竖井），条件明确不成立；现在开刷怪，方差恰好砸在正被查的那一级上。⚠️ 这条到期时**必须真的执行**，别让它变成又一个「永远不来的触发词」（同 J7 的教训） | 我 |
-| 🔴 判：做（触发改具体：下一个 knob 之前） | J7 | **`BotConfig.java` 2993/3000，零死 import**——顶着上限，**要拆不要刮**（[[a-file-pinned-at-its-budget]]）。触发词从「梯子稳后」改成「**任何要新增 `BotConfig` knob 的修法之前，先拆**」；Q7c 已被迫复用 `walkerFutileSearchCap` 就是这条上限在收税 | 我（下一个 knob 之前） |
-| 🟠 判：做（排练退出后的编译窗口） | J15 | **两份装桶实现并存**：`WorldDriverJourneyScenes.fillFrom`（今在 `:2671`，10 级隧道用，一次瞄准一次 use，没有重瞄／换源／装料站）与 `JourneyFill.fillFrom:255`（就近夹＋三次进近＋`scoop` 三次重瞄＋`fillStation`）。已咬两口：Q25 是 scenes 份缺 `BUCKET_REACH` 那半格；j46 判词证明 11 级走的仍是 scenes 份（有 `fill.hand` 无 `.spot`／`.aimsAt`）。且 J48-(B) 的 `bucketInHand` 守卫只落在 `JourneyFill`，scenes 侧 `:2673` 的 `holdForUse(rig, Items.BUCKET, "fill")` **返回值仍丢**、拿不到桶就白花一次 use、红挂在「没装到」名下。**第一步只补同款守卫点名「拿不到桶」；合并成单份留给证据键允许变的那一轮** | 我 |
-| 🟠 判：做（先离线回放；Java 等排练退出后的编译窗口） | Q7c | 形状已定：**加宽现有那道闸，不造第二个调速器**——`WalkerTickSearch:85` 自己写着「two governors on one loop would race」。规格＝已量出的**两条盲区**：`!res.goalReached()` 让「搜得到、走不了」永不计数，`distSqr(foot) > 4` 让 5 格 ping-pong 每次清零。**不加新 `BotConfig` 开关**，复用 `walkerFutileSearchCap`。**落 Java 之前先离线回放**：拿 ladder-14 已录的 **174 案／816 案**回放新计数规则，必须抓住那两案且**不误伤正常绕行**（`journey03Wood` 绕树那段是现成阴性样本）。Q22 那 42 次岩浆重搜正是这道闸该数而没数的案 | 我 |
-| 🟠 判：排到引擎批之后（验收随 ashore 翻绿） | J39 | 修法 `bdece564`（`JourneyCast.leaveWithTheLava` 在 `climbOut` 之后补 `standOnDryGround`，复用 `JourneyTerrain.dryUnderfoot`，预算 **600 tick**）**在 HEAD 但至今未验**——真梯发作条件没复现。验收已移交 `wd.journeyGetsAshoreBeforePouring`（J45b），而它常驻已知红，红的不是 `standOnDryGround` 而是**浮体走不上齐平岸**（J47）⇒ **写死步骤那条路已在 2026-08-26 判掉（几何不成立），本行随 ashore 一起排到引擎批之后；ashore 绿则此行随之验** | 我 |
-| 🟠 判：血量半已落，空气半还欠 | J40 | ② **血量那一半在 HEAD 且已实测出行**：`JourneyRig.noteHurt`（`:1563`，无 flag、无节流、只记掉血、上限 60 行），排练日志里写出 `hp.trace=掉血 N 次、回血 M 次；t20 −1.0→19.0 @…`。⇒ **14 级的推进条件（读血量曲线）已经满足，不必再等这一项**。**还欠 `getAirSupply()`**——它服务的是 j39 溺水那条线，不挡 14 级。① 引擎自救维持**不做**（先用写死步骤） | 我 |
-| 🟠 判：头条做（窗口 1 仪器批），其余 12 个不做 | J41 | 头条＝`WorldDriverJourneyScenes:2521` 的 `tunnel.fell`，走 `ascendByTowering` 的 `String tag` 入口，**根本不进 `recordExit`**（`toY`／`endedIn`／`endedOn`／`gained`／`lost`／`pillarStock` **六行一行都没有**，只有 `tunnel.climbedBackTo`），而它爬的是**岩浆廊道**。全表比例：afloat **1/13**、`endedIn` **1/13**、`gained/lost` 在调用点判 **2/13**（#4 #5），另 **4 处**靠下游或下一级守卫兜（#3 #7 #9 #10），**完全没接 5 处**（#2 #6 #8 #11 #13）。**尾巴那 12 个**：重开条件＝判词把红记在一次爬升的结局上而那一段三行皆无，届时只补那一个入口——展开说就是：任一趟的判词把红记在一次爬升的结局上，而那一段找不到 `*.afloat`／`*.endedIn`／`*.gained` 任何一行 ⇒ 给**那一个**入口补，**不批量补** | janitor 查，我排 |
-| 🟠 判：做（排练退出后的编译窗口，机械） | J43 | 同一句天光高度（`getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, …).getY()`）在 journey 包里手写 **12 次**，`JourneyTerrain` 自己那 3 处已收进 `daylightAt`（`f1cf067d`）。**剩 9 处（今日重核）**：`JourneyEndRungs:889`、`JourneyRehearsal:983`／`:2028`、`JourneyRoute:456`／`:526`／`:572`／`:639`、`WorldDriverJourneyScenes:255`、`JourneyRig:381`（⚠️ 从本行原写的 `:333` 挪到了 `:381`——**行号照核不照抄**）；`JourneyTerrain.daylightAt:280` 现成。不改证据键，`:common:compileTestmodJava` 即闸。⚠️ 动手前逐个确认 9 处 `level` 的**声明类型**（`daylightAt` 形参是 `ServerLevel`），`JourneyRehearsal:983` 要的是 `BlockPos` 不是 `int`；顺手清掉 4 处内联 FQN（硬规则 7） | janitor |
-| 🟠 判：先补测量（工程窗口仪器批） | J75 | **末影人有些仗根本不结束**：`wd.serverEarnsAnEnderPearl` 在 NeoForge 上约 **1/4** 翻红。四趟 24 场，每场要么 **66–150 tick** 打完、要么**恰好烧满 4000**，**中间值一个都没有** ⇒ 是**卡死**不是慢。补一行 `enderman.stall.<场次>`，详见「拍板」节 | 我 |
-| 🟠 判：先补测量（补判，`304373fc` 推翻了「排到 J72 之后」） | 丙 | **水源的存活窗口**（`JourneyStairs.java:385` 点名的「reclaim it」）。18011 tick 那趟把水读成了死因，原判第一条理由当场作废；但命中的是「淹」不是「丙 是解」⇒ 先把 38 条 `*.stairsBroken` 按 `lava*`／`cast*` 拆开读，零代码。详见「拍板」节 | 我 |
-| 🟠 判：做（引擎批，双 loader 闸） | J46 | **引擎侧那份孪生没修**：`PlaceNearby.place`（`PlaceNearby.java:52`，今日重核）用的还是「非空气且不可替换」，而 testmod 侧 `54e4bc14` 之后问的是 `isFaceSturdy(lvl, below, UP)` ⇒ [[two-ones-that-disagree]] 从风险变成**现状**（它仍会对着睡莲白点一次）。谓词照抄 `54e4bc14` 那句；**两份必须一起改**。走独立双 loader 专用服闸，不与真梯同趟 | 我 |
-| 🟠 判：做（排练退出后的编译窗口） | J44c | **坑沿加价「每趟重算」白花了**：j48 的 12 级 15 条 `*.rimTax` **格数恒为 752**，一次都没涨——`onThePoolsLip` 要的是「脚边有个能掉下去、底下 8 格内是岩浆的洞」，而抽走源块留下的是空气、清射线敲的是岩浆层的挡土，都没造出新的**站得住**的沿格。⇒ 每趟一次 **25×25×9** 全量扫描是纯开销。**修法一句：重算撤回去程算一次的快照，加价本身一字不动**（j48 的 12 级零岩浆死是它买的） | 我 |
-| 🟠 判：先补测量（2026-08-25） | J54 | **11 级两根下挖柱都被流体废掉，退出爬升在流动水里被冲下柱子 8 次。** 代码自己诊断对了也决策对了（`shaft.reColumn.1 = 这一柱中段有水，身体浮起来了…爬回 y=63 换第 2 根柱子重挖`）；吃掉这趟的是退出爬升：`climb.1`…`climb.8` 每次 `placed=1` 就 `washedOff = 水把身体冲下柱子了（流速²=1.00000）`，重试 3→2→1→0 用尽。**要补的读数**：给撞上的水落「天然／上级留／自浇」一行出处，**照 12 级 `water0.spent=water_bucket 1→0` 的问法**；在它有分布之前**两条腿都不修**。⚠️ 别把「起塔在流动水里」和「换柱预算不够」合并成一条修法——它们是两条腿 | 我 |
-| 🟠 判：先补测量（收源那笔等点名，2026-08-25） | J52 | **模腔的水顺楼梯流到底。** 仪器半已在 HEAD（`DRAIN_UPSTREAM=8`，`JourneyDrain:103`），**2026-08-26 第 7 趟拿到第一条读数**：`drain.7.upstream=周围 8 格内没有水源块` ⇒ 是纯退水，不是「有源在喂」，所以「收走被点名的源」这条修法**在这一趟没有对象**（真链条见 J85）。⚠️ 别把 J70 排进这条因果（实测趟内的水是 `water0` 自浇、`JourneyStairs:250` 收水排在下降之后）。⚠️ 12 级现在**同时**挡在浇筑那一族和这摊水上：`cast8#10` 里它一口气做了五件事——淹掉楼梯底（`stairFoot`）、用 `wouldOpenFluid` 掐断**两次**起塔、让垫台阶的 `placeOn` 拒绝、占住要清的那几格、最后把身体泡在水里 | 我 |
-| ❌ 判：写死步骤不做（改判 2026-08-26）；ashore 翻绿排到引擎批之后 | J47 | **浮在水面的身体走不上齐平的岸**，而每一行读数都像成功：`dryLand=242843,221` → `end=path-consumed`、停在 `242844,221`、`脚下=water`。**与浮力无关**——干体证人 `wd.journeyWalksOffTheLipOntoTheDryStep`（`inWater=false`、`onGround=true`、脚下 stone）读数逐字相同 ⇒ 是 `within` 把差一格判成到达、指针被推进（⚠️ 本行原写「**1.2 垂直闸**」，实测开火的是**水平项** `cur2=0.372 < 0.45` 而垂直项只有 0.619，凭据见「拍板」节 🅹）。⛔ 「脚下垫一块」那个写死步骤**几何上不成立**（岸 221／身体 220／`at.below()`=219），四样见「拍板」节 🅹；ashore 常驻红是引擎缺陷的唯一常驻证人 | 我 |
-| 🟠 判：做（工程债；排练退出后的编译窗口，独立配闸） | J55 | **一个游戏动词住在脚本传输层**：`prelude.js:194` 的 `Driver.bot.tunnel` 是一整个动词（挖 1×2 走廊），只有 in-JVM Rhino 够得着——`DriverApi` 无路由、`ToolCatalog` 无 schema（grep 双零命中）⇒ MCP／RPC 客户端根本调不到。**不能直接删**（`validation/25_phase_d3.js` 在闸里跑它）。提升成真路由并**委托 `GoalResolver.applyDirection`**（`:93`，三者里唯一全集且唯一做归一化），做法四步见「拍板」节 | janitor 报，我判 |
-| 🟠 判：做（排练退出后的编译窗口，三笔照定稿次序） | J72 | **验证过的几何和开火的几何不是同一个。** 今核 HEAD 三笔都没落：`aimThatLandsIn` 五个 `continue` 仍静默（`JourneyPour:885-893`）、`planned = aimNow != null ? aimNow : backing` 仍在（`JourneyPortalRung:1621`，settle 后那问也同样 `settled != null ? settled : planned` 回退）、`standToPour`（**已搬到** `JourneyPour:786`／`:815`）没有排除集。**先 1/2（零风险仪器与判词），再 3（唯一的行为改动）**，判据三态见「拍板」节 | 我 |
-| 🟠 判：先补测量 | J71 | **`forge.carved` 在同一份布景上不是确定性的**，这是「1 绿 / 3 趟」那枚硬币的候选。四份日志里没挖动的每次都是同一格同一层：`carve.firstStuck=2, 62, 17=dirt：身体 4, 64, 17，距 2.8 格，canBreak=true，六邻实心 4/6，手上 stone_pickaxe`。**下一步是量不是修**：连跑 N 趟 **`runRehearsalIntegratedServer`**（⚠️ 必须固定这一种身体，混拓扑的方差有一半来自身体种类）列 `forge.carved` × 结局表。67/67 全绿、66/67 全红 ⇒ 它就是硬币；66/67 也能绿 ⇒ 只是噪声。**表出来之前不动开凿代码** | 我 |
-| 🟠 已交付（`05dc3299`），等我跑三趟（健康树绿 + 两个负面样本各红一次） | J81 | **配置隔离纪律是完好的**（578 处直写 / 51 字段，512 处在 `pinnedBaseline()` 之内，pin 有 178 个调用点；自动扫描判「无保护」的 29 条逐条手验后全部由调用者的 pin 覆盖）——⛔ 上一版本行写的「零调用点、124 处泄漏」是错的，已撤回。**还开着的是：这个不变量不会自己说话**，确认「场景 X 受保护」要往上翻两帧，人工核对四次错了四次。要一个 `ConfigPinDisciplineTest`（`common/src/test`，静态、秒级、不占闸槽）断言每个注册场景的调用树里都有 `pinnedBaseline`，**必须带负面样本**（去掉一个 pin 它要变红），并写进 `AGENTS.md` 的 pre-flight，否则会变成第二个造好没人跑的守卫 | janitor |
-| 🔍 判：查（不是死因，是**已经在起作用**的补救） | J83 | **抬一行的腿净升 8 格，而四道补救把它救回来了**：`cast7.raiseTo.arrivedY=65（起 57，净升 8）` → `raiseRowTooHigh` → `raiseRowRetry.returnedY=57` → `raiseTo3D.landed=2,57,21（想去 2,58,21，距 1.00 格）` → `ramp.standShort=没走到`，**然后 `cast7.atUseGate.3` 照样放行、`cast7.spent=lava_bucket 1→0`**。⛔ 上一版本行把这条写成第 7 趟的死因，**是错的**——死的是 `cast8`（见 J85），`cast7` 铸成了。⇒ 唯一还开着的问题：`Goal.XZ` 那第一趟每次都白走 8 格，值不值得直接走 3D | 我 |
-| 🟡 判：引擎路线已验通，欠一条挂在 6→9 级之间的进食腿 | J84 | ✅ v3 兑现：六口全部 `useItemRemaining=1`（跑满 31 tick），**一句「服务端补完」都没有** ⇒ 引擎的进食路径第一次真跑了，后备零次。✅ v4 已量（用的是一直在场的 `body.vitals`，不是缺席的 `hp.trace`）：第 11/12 趟掉血位置完全不同 ⇒ 掉血是**遭遇**不是结构，⛔ 不许据此加腿；两趟**共有**的是饱食从 6 级起跌破 18 且饱和恒 0 ⇒ **6–9 级自然回血从不发生**，10 级那口是全程第一次进食。原文如下 —— | 我 |
-| 🗒️ 原始条目（保留背景） | J84-bg | **饱食从 6 级起就低于自然回血线 18**（第 11 趟逐级：20/20/20/20/16/11/6/4），而全梯唯一的进食调用点是 `WorldDriverJourneyScenes:2112`（10 级砾石那一步）⇒ 7、8、9 级和 11、12 级都没有进食机会，6 级猎到的生肉 ×5 一路带到顶上才吃。⛔ 在那一口被证明真能喂饱之前，不要去别的级挂第二条同样吃不下去的腿。判据 `feed-finish-criteria.md` | 我 |
-| 🔍 判：查（顺带发现，今天无害） | J82 | `JourneyShaft.climbFrom:210` 无条件 `allowPlace = true`，于是**成功的爬出一直在替降井做复原**——三个降井级的正确性挂在一个不相干 helper 的副作用上 | janitor |
-| ❌ 判：撤回（前提假的，2026-08-26 查证） | J80 | 原判「排干扫不到浇线」**是错的**：`pourLine:1947` 的「壁龛内」标签**就是** `forgeCorridor.contains(c)`，所以那几格本来就在 `drainTheAlcove` 的扫描集里。`drain.N=已排干` 与浇线有水**不是同一时刻的两个读数**——中间隔着 `water8` 自己浇下去的新水源。同族：[[a-lagging-reading-became-the-crime-scene]]。真链条在 J85 | 我 |
-| ❌ 判：这一支关掉（`验得过 0` 不是死因，三次确认） | J85 | 第 12 趟到了门框：`cast6/7/recover6` 都是 `验得过 3`，只有 `cast8` 是 `验得过 0` —— 而 `验得过 0` 在**通过的**排练里也出现过。⇒ 候选集为空最多是必要不充分条件。12 级现在的死因见 J91。原文如下 —— | 我 |
-| 🗒️ 原始条目（保留背景） | J85-bg | **12 级连三趟都倒在第 9 格**（第 7/9/10 趟；那是全环最高一格，壁龛地板 y=56 而它在 y=61）。第 9 趟是塔被自己浇的水源冲下，第 10 趟是三条抬升腿都够到了高度、**都停在别的柱**（`water8.raisedY=60/60（停在 -1,20，指定柱 3,20）`）⇒ 不是同一族，⛔ 别按单趟认因。⛔ 不许加第五道补救腿。三态判据在 `ladder9-verdict.md` | 我 |
-| 🟡 判：已落，防死侧仍无样本 | J86 | 落点闸在 HEAD（`f3b084e4`）。回测 A/B 两臂皆绿：起跳/压制 `77/131 → 183/5`，最长连压 `37→1`，确定性停滞消失。⚠️ **真梯第 12 趟它一次都没压制过**（游走 224 行 + 突进 46 行全部放行），所以「12 级不再掉进岩浆」**不能归给它**——两道闸这一趟只差 9 跳，方向也不对。⛔ 防死侧至今零直接样本 | 我 |
-| ❌ 判：这一支关掉（塔偏柱不是死因） | J89 | `cast8.raisedY = 59/59（停在 0,20，指定柱 2,20）` 在**通过的**排练 #1、#4 里**逐字相同**。⇒ 与 `验得过 0`（J85）同级：必要不充分。⛔ 不许动 `raiseInColumn` | 我 |
-| ❌ 判：这一支关掉（ramp 偏柱不是死因） | J90 | `rampedY … 不是同一柱` 的次数：P1=0、P3=1、**P4=2**（都 PASS）、L12=3。⇒ 通过的跑里同样出现。⛔ 不许动 `JourneyRamp`，也不许再按「放宽 `raiseRowTooHigh`」去改 | 我 |
-| 🔴 判：查，但**排练复现不了它** | J91 | 真梯 12 趟 `cast8`：`raise` 抬到 y=59 之后身体再没回过壁龛，2600 tick 在地表 y=64–66 上 x 从 −8 荡到 +8，`lift` 于是从屋顶（`身体柱 2,20` 只有 y=63 一格草）出发、`standShort` 下不去 `2,56,22`。⚠️ 两处更正：`returnedY=66` 那条**重试就成了**（`returnedY#2=57`）；而 `returnStopped` 在 PASS 排练里也开火（#1:2、#3:7、#4:2）⇒ 必要不充分，⛔ 不是死因信号。九趟 ~70 条腿里 `returnedY` 只有这**一条**不是 57 ⇒ **排练八趟一次没复现**，⛔ 撤回我今天写的「排练是 J91 的合法场合」（#5 是**上**不去楼梯，反方向） | 我 |
-| 🟢 认证过（专用服闸 GREEN，失败集与基线逐条相同）；⚠️ `LocalPlayer` 上零覆盖 | J93 | `浇不到 4,57,19`，13 趟占 4（#6#8#9 + noaim2）。真因：`finishTheFlight` 的 `down()` 判格号不判身体，脚一进末路排就跳过「等落地」，浇筑于是在身体下坠 0.92 格的途中决定瞄准、又低 0.69 格开火。修法 `JourneyStairwell` 改判位置（`SETTLED_SLACK`）。⛔ 「回落无视守卫」（`at = settled != null ? settled : planned`）是**另一条真缺陷**，下一轮单独落——同时落会让本轮主测量 `picks.3` 消失。⚠️ `finishTheFlight` 是共享的（`JourneyLandingScenes` 的 drop/lip 两臂直接断言 `flightLastStepSettled`／`flightLastStepEnd`），所以排练回测绿了**只到「回测」**——要跑专用服闸（命令以 `AGENTS.md` 为准）才算认证。判据 `j93-fix-preregistration.md` | 我 |
-| 🔴 判：查（⚠️ 降级只覆盖**排练**：幸存的三趟全是排练，而真梯第 12 级从没通过过 ⇒ 真梯没有 PASS 对照，那组免罪不能外推。归档真梯 `results-ladder12-rung12PourAim.jsonl` 里这就是 `cast8` 的终局） | J96 | `cast8` 起塔被自己浇的水冲：`climb.0.stalled stuck (no Y gain in 60t: placed=0, shortJumps=15)`、`state onGround=true inWater=true y=57.00`、`washedOffUpstream 还在喂它的水源：4, 61, 20`、`verdict 没垒成 —— 落在 0,20 而不是指定柱 2,20`。产码已经把机制诊断完了（`washedOffFed` 明说「上游有源在喂，重试等不到那一刻」），欠的是**处置**：起塔柱被活水占住时该换柱还是先断源。⛔ 不是「不该钉」：`JourneyShaft:229` 的 `climbPinned ? want : towerColumnClearOfTheFlight(…)` 说明钉住整个跳过避让检查，而钉住有正当理由（换柱等于换射线）；后备腿也不算处置——`JourneyShaft:266` 的 `Goal.YLevel(surfaceY)` **只要高度不要柱**，读数逐字兑现（`endedIn 0,20`、`脚下=air`）。⚠️ **降级依据**：修法后三趟 `cast8.raisedY 59/59（停在 0,20，指定柱 2,20）` 逐字复现，而三趟都越过它跑到了第 9 格 ⇒ 是真缺陷、不是死因。我曾拿这条腿的判词当 fix-land-1 的死因写进本表（[[a-verdict-has-upstream-verdicts]]），已改。判据 `j96-tower-washed-off.md` | 我 |
-| 🟢 排练验机制（②）＋真梯验不变式（①）；**还开着的是「身体低于床格顶面」那一种几何的直接样本** | J101 | **浇筑闸只比命中的块、不比命中的面**，于是一次「成功地浇进错格」。真梯 ladder-1 第 11 级：站 `3,60,63`（目标下方两排）、`cast.picks=3,61,62 dirt face=south`、桶花掉、黑曜石落在 `3,61,63`，而判词写成「浇不出黑曜石」。香草 `BucketItem.use` 对非水流体恒落 `blockpos.relative(direction)`。三处一起改：`JourneyFill.bucketPourLandsIn` 新谓词、重挑闸改问浇筑（原来拿装桶谓词答浇筑问题，正是放行那一格的门）、`pourInto` 硬闸贴着 use（`tries==0` 会 fall through）。⛔ 床格加进拒绝集——挡路的就是要浇那格水的地板，判 false 会去挖它。验收判的是**「预言落点 == 实际落点」这个逐趟不变式**，不是颜色（真梯不可复现）。**已验**（`runRehearsalIntegratedServer -Prehearse=OBSIDIAN`，PASS 4242 tick）：`cast.landsElsewhere` 先预言了一个**错的**落点（`-4,64,55`）⇒ 收半径重挪 ⇒ `cast.lands = -4,62,54 ✓` 与 `obsidian.anywhere` 逐字相同 ⇒ 等式两侧各验一次，不是恒真式。⚠️ 排练复现的是**另一种**错落点（脚下植物挡线、面朝上），**不是**真梯那一种（身体在目标下方两排、面朝南）——那个几何还没有直接样本。**真梯 ladder-2 第 11 级 PASS 8072 tick**（ladder-1 同级 FAIL 14626），`cast.lands = -8,62,53 ✓` 与 `obsidian.anywhere` 逐字相同 ⇒ 不变式在真梯上也成立。⛔ **但不许把这个 PASS 记到修法头上**：身体停在 `-8,63,53` 比目标高一排，是旧闸也会放行的好站位，新闸这一趟**零开火**；两趟挑的水面不同（`3,62,63` vs `-8,62,53`），几何差异在浇筑**上游**（[[existence-is-not-attribution]]）。修法的真实保证只有一句：**落点≠目标时桶不会花掉**。判据 `j101-the-guard-checks-the-block-not-the-face.md` | 我 |
-| 🟢 认证（真梯已验，预登记 ②）；后继另立 J102 | J97 | 抬升腿把身体送出井口站到地表，随后隔着 9.6 m 收水失手。**真梯 ladder-2 判词**：`ceilingTax` 挂在五条腿上并全部生效——`cast6/cast7/water8/cast8.raiseTo.arrivedY = 56/56/56/57`、`recover6.rise=59`，而归档控照同一个 `cast7.raiseTo.arrivedY` 是 **66**（净升 9 + `raiseRowTooHigh`）⇒ 预登记的 ③「税没带到真梯」被否定。⚠️ 那一列的「归档控照」来自三趟 `dedicatedServer` 排练（**跨身体证据**，见 J102）——这里不影响结论（税是否开火由真梯自己那五条腿的读数判的，控照只提供税前的量级），但**凡是拿那三份归档当对照的判词都要带这个标注**：J96 的降级、J85／J89 的「三次确认」同此。⛔ **不许加大数字**。⚠️ 本行原写的警告（「fl1 死的是 `water9.lift`，另一个调用点同形」）**这一趟被实测坐实**：身体最后停在地表 `0,66,20`，送它上去的是 `cast8.lift`／`standShort`（`没走到 2,56,21，停在 4,65,15`，脚下 grass_block），那一族**没有 `ceilingTax` 行**。要不要给 `lift` 侧也挂税见 J102。行为变更记在 `CHANGELOG.md`，判据 `j97-raise-leaves-the-shaft.md` + `ladder-2-verdict.md` | 我 |
-| 🟡 排练 3 判 ③（闸零开火，未判）；另修 `77b273c9`，闸验中 | J102 | **12 级卡在第 8 格，而同一趟第 8 格的另一条腿成功了——差别是有没有第二根柱可选。** `cast8.raiseVeto = 验得过 0（另有楼梯柱 1 柱也验得过）` ⇒ `raiseOffTheFlight = 只有楼梯那一柱 2,19 验得过射线，别无选择 —— 仍然用它，**抬升多半会被冲下来**`，随后逐字兑现（`washedOffUpstream 4,61,19`、`pinnedShort`、`落在 0,19 而不是 2,19`）。而 `water8` 同族逻辑挑到了 `3,19` 并 `raisedY 60/60 同一柱`、`spent 1→0`。两者目标只差一排（`4,60,19` vs `4,61,19`）。⇒ **要读的是这个差**：为什么 `wantY=60` 时 `3,19` 验得过、`wantY=59` 时验不过。否决点名里已有候选答案：`4, 59, 19 不是实心的，弹不出流体=8`（目标格下面那格是水，八次否决全指向它）。⛔ 不是「让塔别被冲下来」——代码的判断是对的，问题是**没有第二个选项**。⛔ 零运行先查，不要先改代码。**已查掉两个假设**：① 差不在射线（两边 `射线否决` 都是 8，候选池同为 14，唯一差是「落脚或头顶被占」1 vs 0）；② 不是自己垒的圆石堵死（`cast8.clear3` 清掉了它，第二枪那格已是 water，仍失败，理由变成「脚下不实心」）。⛔ **那三趟排练根本不是这一问的对照组，三项全塌**：① 身体不同——归档自己写着 `journey.topology = dedicatedServer（真玩家 0）`，真梯是 `integratedServer（真玩家 1）`；② 仪器世代不同——缺的不是 `cast8.here.noAim` 一个键而是**整个 `noAim` 族**（真梯 50+ 个、排练零个），出生于 `ad514c1d`；③ 布景不同——三趟都是显式 `-PforgeAway=east`，真梯自然挑。⇒ **「唯一的判别字段」已撤回**；「验得过 0 与塔落错柱在 PASS 里也出现」**降级不撤回**（仍证明它们不普遍致命，但是跨身体证据，答不了同身体的因果）。⚠️ 我写的「朝向不同」本身也没量过，`4,59,20` 与 `4,60,19` 只差一格一排，未必是朝向。✅ **同身体同世代的对照跑完了**（`runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`，14m11s，12 级 FAIL）：`frame.roll.0` 与 `.8` **与真梯逐字相同**（`4,56,19` / `4,60,19`，`.9` 同样缺席）⇒ ⛔ **「朝向不同」是我造的假混淆项**——当初拿第 7 格的水格 `4,59,20` 比了第 8 格的目标 `4,60,19`，比错下标；`-PforgeAway` 那个方子是空的（本趟自然挑 west，环还是同一个）。⚠️ n=1，第二趟落地前不许写「可复现」。**死法**：桶没花，三枪 `cast8.picks.{3,2,1}`（⚠️ 倒着数）全被拦，身体最后在 y=64 地表，射线落自己脚边。⛔ 拦它的是 `JourneyPortalRung:1726` 早就有的闸，**不是 J101**（`cast.lands` 在 `JourneyCast`，本趟零出现）。**上游**：壁龛 `3,59..61,19`／`2,59..60,19` 整片是水 ⇒ `验得过 0`、`落脚格被占=84`。⚠️ 「水冲塔」这一半本趟落在**第 6 格**（`cast6#1.washedOffUpstream = 4,59,19`，正是第 6 格自己的水格）**且没致命**，`cast8` 零 `washedOff` ⇒ 两半独立、都不充分，⛔ 别焊成一个故事。✅ `recover0..7 = SUCCESS` 在本归档核过。✅ `aimThatLandsIn` 恰两条返回路径，每条 null 都写 `.noAim` ⇒ 联合态表成立，`(∅,∅)` 恰两个来源。**第二趟排练（`2cc386cf`）交出了判别变量，而且撤回了我两条**：⛔「环位置固定」假（run2 在 z=21）、⛔「两趟都死第 8 格」假（run2 浇成 **9/10**、`recover8=SUCCESS`，死在第 **9** 格——我又比错了下标）。⇒ **run2 的 `cast8` 是「成功」那一格，与 run1 失败的 `cast8` 构成同趟同身体的干净对照**。三样本一变量：`raiseTo.arrivedY` = **65 / 57 / 地表**，`lift.standShort` 停在 **地表 / 井里 y=59 / 地表**，`picks.1` 落进 **自己脚边 / 目标 / 自己脚边**，结局 **FAIL / PASS / FAIL**。⇒ **判别的只有「身体有没有跑到地表」**；而 `here.noAim`、`验得过 0`、`ceilingTax` 在成功那一格里**逐字同样出现**（第四次否掉，这次同趟同身体）。**机制**：`JourneyRamp.buildTo` 的楼梯从壁龛地板 y=56 起planning，`approach` 用「走到坐标」下井、从地表两趟都没走到（`standShort.probe.head` 一片 `+` ⇒ 不是净空问题）；而同趟 `raiseRowTooHigh` 用 `returnToTheForge`**按名字走楼梯**回到了井里。⇒ **修法 `06a60e5f`**：`liftInPlace` 在身体高出落脚格超过 `POUR_ROW_SLACK` 时先 `returnToTheForge` 再 `buildTo`。⚠️ 条件在三样本上分得干净（+5／+5 触发，−3 不触发）。⛔ **判据是同一格的 `standShort` 停在井里，不是这一级的颜色**。**排练 3 判 ③**：闸零开火（`here.y − landing.y = −2`，几何没给场合），修法未判；同趟另查出 ramp 把「碰撞箱跨界」判成 `REFUSED`，已修 `77b273c9`。判据 `portallit-integrated-{1,2,3}-verdict.md`、`portallit-integrated-4-preregistration.md` | 我 |
-| 🟢 认证（缺的字段已补且已答，缺陷已定位并修，闸绿） | J99 | 当年缺的通道持有者心跳已在 `water.drown` 里，2026-08-26 真梯上答出「握过但浮不上去」（`drownEscape=75/130` 采样、532 tick 零位移）。死因见 `CHANGELOG.md` 2026-08-28 条。**还开着的只有一件**：破盖那条腿在真身体上赢不赢那场赛跑（约 375 tick 挖 vs 约 290 tick 存活窗），要一条活体场景，落在带真客户端的闸上 | 我 |
-| 🟡 判：仪器已落，读数要换一个字段 | J109 | `shaft.stepEnd.*` 已按 `lava.gotoEnd` 的格式落地（`76b2a907`），ladder-16／17 都读到了。⛔ **但它印的 `end=预算用完时进程还在走` 是个恒定值**：ladder-17 第 2 腿**走到了**（距 0 格）也印同一句——`endReason` 只在终止步写，而 `settle` 用满预算时本来就不写。⇒ 这个字段分不出成功失败，**别再拿它当死因**。还缺的是「这一腿有没有拿到过一条完整路径」，读 `search-end` 的 `reached=`／`end=` 按腿切窗 | 我 |
-| 🔴 判：改（纯文案，便宜） | J107 | `shaft.stepStuck` 那句括号注解写「拒绝来自它前面那三个布尔之一」，漏掉了**它自己刚打印的第四个合取项**（`columnIsSafeToSink(脚下那一柱)`，值就在同一行），把读者送去找不存在的第四来源；且场景顶层 `reason` 的兜底文案（「该柱在岩浆层不是实心, 或柱子里还有岩浆」）与实测 `理由=null` 矛盾——`WorldDriverJourneyScenes:2450` 的注释早记过这个坑，只是顶层文案没跟着改。**两处都改文案，不补字段** | 我 |
-| 🔴 判：查（⛔ 第一个方案已被实测否掉，别再实现它） | J108 | 换柱时 `shaft.reColumn.N.upstream` 印出 29 个水源并写明「换到的下一根柱子若离得不够远会淹在同一片水里」，而换到的柱确实还在同一片水里。⛔ **但「把水域距离当选柱输入」行不通**：`JourneyTerrain.whyNotDiggable` 的 javadoc 记着实测「要求整根柱子干燥，这个种子的湖周围 **280 个候选否掉 280 个**——含水层就是这样」。⇒ 挑不到干柱，真问题是**下井遇水要有办法**（就地封源／取源／换下挖技术），不是换得更远。重新立案前先读那条 javadoc | 我 |
-| 🔴 判：查（先加仪器，别先改） | J106 | 破盖那 379 tick 疑似**自己造出来的**：`DrownEscapeChain.tick:244` 无条件按住跳键，破盖在同一 tick 的下面跑，于是身体全程不着地，香草挖速腐蚀 ÷5（腾空）× ÷5（头在水）= ÷25，泥土 15×25=375 对上实测 379。⛔ `onGround` **没有读数**，归因未验。先给场景加 `盖.着地率` / `盖.脚下` / `跳.按住率` 再谈改。守卫条件是「脚下那格站得住」——`RISE_PROBE=0.5` 决定浅口袋着地也探得到盖、深口袋一沉就丢盖会震荡。对照组用**第二个口袋**（脚下是水）而不是配置开关 | 我 |
-| 🟢 判：验成（关） | J106 | 站着挖：破盖时若脚下站得住则松跳落地。集成闸实测 **浅 79 tick / 深 391 tick，比值 4.95×**（预登记写死 4–6），着地率 3/380 → 80/79，浅口袋末态落到地板顶面 y=208.000 而深口袋停在 y=208.235（与修法前逐字相同 ⇒ 守卫否定臂守住）。⇒ **J105 不必做**，79 tick 对 300 tick 的气预算绰绰有余 | 我 |
-| ⚫ 判：不做（J106 已验成，病没了） | J105 | 被盖住且横向无路时开火太晚：气 100 开火只剩约 300 tick，破盖要 379。抬到 240 得约 440——但满血才勉强赢，10 血又输。**若 J106 成立则 379→~76，这条不必做**；两笔都做等于给同一个病开两副药 | 我 |
-| 🟡 判：验（修法已落 `c34027cd`；排练与 ladder-15 **两趟都无场合**，仍欠一次） | J104 | 真梯 ladder-14 断在第 11 级（浇筑站位差 2 格、只打得到 south 面）。真因：收紧半径那条腿与 re-pick **共用 `tries` 预算**，没用的 re-pick 先花光，而幂等证据把三轮白走折叠成一条藏住了它。改法两笔：证据正向编号 + 从收紧那道门删掉 `tries > 0`。⛔ 验收只认 `cast.landsElsewhere.N` 且 **N ≥ 4**（`approach = 3 - tries + 1`，N≥4 ⇔ `tries≤0`，旧门那时是关的）；`rePickBlocked` 开火而 N 只到 3 = 无场合，不许记成通过 | 我 |
-| 🔴 判：查（缺归属字段，别现在追） | J103 | 起塔守卫拒挖 81,59,82（会放出 81,60,82 的水），随后身体却站在那格的水里淹死。**谁挖开的**没有读数能答：候选是 walker 后备自带 `allowBreak` 的寻路。要一个「这一格由谁写」的归属字段，不是再推一轮 | 我 |
-| 🔴 判：先补测量（不改） | J100 | 坑沿税只扫 `y=lava.y+1 .. +rise`（`JourneyTerrain#poolsLipCells:411`，实测 band `y=64..72`），守不住已经在坑里的身体——tax-2 烧死在 `y=59..61`。缺的读数是死腿归属，`death.leg` 已加；先攒样本再判要不要往下扩 band | 我 |
-| 🟠 判：查（⛔ 撤回「先补仪器」——仪器一直够用，是我把一族读成了一条） | J95 | `走不上楼梯`，4 份归档（#5#10 + noaim1#3）。**零运行查清三件**：① `upStopped` 是**一族**：`lava8` 出现 54 次且**三趟 PASS 里结构逐字相同** ⇒ 噪声，与 J85/J89/J90 同级，⛔ 别再拿它归因；`lava2` 出现 16 次（4 份 ×2），与致命判词**充要**（4/4 且别的 67 份 0 次）。分开两者的字段（趟号+段号+z）**一直都印着**。② TODO 原引的「起跳格 `<x>,58,19=stone`（挡着，跳不起来）」是**退役文案**，产码 `JourneyStairwell:820` 明写那两个猜测「唯一一次被读时都是错的」。③ `stair.wedged` 开火 0/71 **是真读数不是断线**——它挂在 `digStairsDown`（下楼），⛔ 不许去修。**收窄后的问题**：第 **1/3** 段的终点为何恒落 z=19（楼梯轴 z=20）、脚踩 stone、泡水、头顶 **stone 所以跳不起来**，而这条腿带 `NoBreak()` 挖不开（要去的 `0,58,20` 上下两格全空）。④ **两条腿对同一格待遇不同**：下行 `cast*.flightEnd` 认得「楼梯底 `2,56,20` 站不了（积水）」并把末路点抬到 `1,57,20`，而上行 `lava2.up` 的起点**就是 `2,56,20` 本身**（同 [[a-fix-that-cannot-reach-its-own-occasion]]）。⛔ 因果没建立（`drain.N.stairFoot` 还说那三格已排干）⇒ **唯一该补的一条**：`goUpToThePool` 写 `.up` 时把起点格的 `cellStory` 一并印出（和下行同一个函数），⛔ 不许顺手把「抬末路点」复制到上行。判据 `j95-upstopped-is-a-family-not-a-signal.md` | 我 |
-| 🔴 判：改（死因已定：框浇完是 10/10，打火时 `frame.obsidianNow 9/10`，丢失发生在 `strike` 的走路里；仪器已加印格号） | J94 | 点不着：`frame.obsidian=10/10`、`portal.slag=门洞六格都是空气`、`light.cellAfter=fire`、`portal.cells=0/6`。#2 与 #7 在七个点火键上**逐字相同**，与 PASS 只差最后两个。真因看不见，因为两个上游读数都在 `clearTheDoorway` 里取、而 `strike()` 随后要走最多 1500 tick，且 `portal.cells` 只印计数不印内容。`4d29b247` 加了 `portal.cellsNow`／`frame.obsidianNow`（贴着打火重读）。判据 `rehearse8-doorway-criteria.md`。⚠️ 为拿样本链的三趟（#8#9#10）**一趟都没走到点火**，`portal.cellsNow` 至今零样本 —— 6/10 到不了那一步 | 我 |
-| ❌ 判：撤案（是排练参数造的，不是缺陷） | J98 | 「真身体迈不出第 12 级第一步」：`-PshaftColumn` 钉死井柱后，身体站在一根 `whyNotDiggable=null` 的合格柱上仍被拒，因为 `stepOntoDiggableColumn` 的就地采纳短路要求 `!offTheStagedSide`。去掉钉柱 ⇒ 16300 tick（钉柱时 270/1022），真梯本就跑到 14472 tick。仪器 `d94bc208`（`shaft.stepStuck` 印四个条件与两侧 `whyNotDiggable` 理由）留下，它是分辨「没走到」与「柱被拒」的唯一读数 | 我 |
-| ❌ 判：这一支关掉（停滞时长与颜色**负相关**） | J92 | 六趟排练的身体轨迹分布：最长停滞段 PASS=1000/1000/1000 tick、FAIL=400/400/400，停滞占比也是绿的更高。`#2` 是心跳数 75 的 FAIL ⇒ 不是「红趟死得早所以撞不上长停」。这个量测的是**跑到第几阶段**、不是病得多重：绿趟的 1000-tick 停滞全在 `y=56/57` 浇筑点，是烧满 1300 预算的**已到达**腿。12 级死因回 J91。原文如下 —— | 我 |
-| ✅ 判：已落（与 J86 同一笔） | J87 | 突进那条腿改用落点闸并第一次有了自己的读数行（`解卡突进跳`，`%8` 无状态节流）。⛔ 它至今**零样本**，沉默不证明它对 | 我 |
-| 🟠 判：做（额度） | J88 | `Walker.java` **2999/3000**，只剩一行。下一笔碰 `Walker` 的改动之前得先腾地方。⛔ 刮注释不算腾地方 | 我 |
-| 🟠 判：做（真梯主线，第 5 趟 9/20 的死因） | J79 | **一级的伤在下一级致命，而两级各自都「正常」**：9 级挖铁摔三次（−4/−7/−3，三行全是 `身处=air`）血剩 **4.0**，9 级判据只问铁锭、照样 REACHED；10 级第一 tick `hpNow<=MINE_HP_CRITICAL=4` 立即 abort，`broke 0/64` ⇒ 砾石 0 ⇒ 燧石 0 ⇒ FAIL。整趟 `hp.trace` 两行都写 **回血 0 次**，身体带着 5 生肉和一台熔炉从没吃过。⛔ 别动 `MINE_HP_CRITICAL`（它正在阻止身体挖死）、⛔ 别翻 `autoHeal`／`autoEat` 全局开关（会给二十级同时引入抢占，下一趟任何变化都归不了因）。修法是一条显式的腿。**腿已在 HEAD 且吃不下去的原因已经量到**：第 9 趟 `bite0.trace` 读出「那一刻手里=`minecraft:bucket`、正在用的是=`minecraft:bucket`」——`holdBoth` 只是**发出**了换手，客户端的 SWAP 点击还没到，而下一行 `startUsingItem` 是直接的服务端调用，用掉的是 10 级刚合成的那只桶（用时 0 tick）。修法 `awaitHand` 已落，等第 10 趟读 `还在吃了 N tick` 的 N | 我 |
-| 🟠 判：做（工程债；下一个碰它的人先读这行） | J76 | **`BotConfig.java` 顶在 2993/3000，只剩 7 行。** 唯一干净的切口是尾部约 348 行持久化块，但 `COMPILED_DEFAULTS` 由类末尾静态块调 `captureCompiledDefaults()` 赋值 —— 搬走会让 BotConfig 的 clinit 触发新类的 clinit，而新类要读 BotConfig 半初始化的 statics。⛔ **这个坑编译干净、静默污染 captured defaults** | janitor |
-| 🟠 判：做，但**现在 hold** | J77 | **`BotUtil.canStandHereStatic` 没有 hazard 子句而 `WorldView.canStandAt` 有**：MAGMA_BLOCK 与岩浆脚格在选择器里合法、在 A* 里被拒 ⇒ `findStandAdjacent` 把 A* 永不展开的格当 `Goal.Block` 递给 Walker。修法是收紧，新拒的格 A* 本来就拒，但会改 `goto block:` 与两个 fill 动词的选择结果。⛔ **等 Q16e 的 `walkerCensus` 点名 6 级的拒绝者之后再动**，否则两件事的归因缠在一起 | janitor |
-| 🟠 判：做（放宽方向，单独配闸） | J78 | **`isSolid()` 当支撑判据被复制三份**（`BuildProcess:221`、`BackfillProcess:182`、`BboxFillProcess:268`），而 `PlaceNearby` 的头注释已把这个判据记为 gap#62 缺陷（拒绝树叶/土径）。同处：Build/Backfill 选落脚点无 reach 测试，`BboxFillProcess:299-300` 自己标注了这个差异却没修 | janitor |
-| 🔍 判：查（执行侧仪器已补，等下一趟真梯出行） | Q16e | 6 级第 4 趟 TIMEOUT 8040 tick，`kill.*` 三键**零行** ⇒ 落在本行原预登记的「另一件事」支：战斗从没开始，身体走完 74 格里的 47 格后钉死在离目标 26 格处，搜索每 1.4 tick 成功一次而没人执行。`37f9d89c` 补 `WalkerCensus`（此前执行侧一个每级读数都没有）。⛔ 别改 6 级预算（第 3 趟 1632 tick 就过）、别改战斗 | 我 |
-| ❌ 判：不做（复发即重开） | Q13 | **垒塔/解卡的取料不看下游需求**：5 级花 14 圆石开井口；6/7/8 级花的是**土**（14 放 18 拒），圆石零消耗。代价已量到零：6+7 级圆石净损 22→22=**0**（上趟 16→7=9），`furnace.topUp=不需要` 两趟同句。**重开条件**：哪趟判词再把红记在取料/补料上即重开 | 我 |
-| ❌ 判：不做（动机已消失） | Q14 | 破坏税与真梯的矛盾：`pathfinderLogBreakTax` 3.0 / `pathfinderBreakCostMultiplier` 2.5 二分。动机（3 级砍树被破坏税劝退）已被 J32-A 的定域木税豁免直接解决且带出厂配置真梯验过。**两个乘数照旧全局生效那部分属「两套 WorldView 两张价目表」的账，在 J33 名下** | 我 |
-| ❌ 判：不做 | J2 | 到达半径统一成眼→格心，抽进 `BotUtil`，五处指过去。纯预防：五处至今零已量分歧，没有一笔失败记在到达半径不一致名下；且同族旁证 J60-(B)（`JourneyFill:987-988`）说明「格心」这个基准自己还在动。**重开条件**：射线族定型后 janitor 可重提 | janitor |
-| ❌ 判：不做 | J3 | `ContactDamageEscape` / `LavaProximityEscape` 升级成 `commandMove`。Q23 读码收窄已写明：反射前五次发作全部成功，败因是进了源块 40 tick 挪不满 1 格（物理上没救），换驱动改不了这个。**重开条件**：哪趟 `death.blow` 把逃生失败归到转向/驱动延迟上再重开 | janitor |
-| ❌ 判：不做（关闭） | J4 | `keyAttack` 五取用者协议——只做诊断表，**不要发明全局仲裁器**。诊断表已被 `5d81dee5` 的三键仪器替代，6 级此后连续 PASS。**重开条件**：Q16e 下次发作且归因不清再重开 | janitor |
-| ❌ 判：不做（闸已武装，首现即判读） | Q21 | 三次进近逐字相同：`liftInPlace` 的闸是 `y >= wantY`，而失败的是**柱**。闸已拆三支（`b825a2a1` 的 `.liftSkipped.N`／`.liftSideways.N`／`.liftIsHere.N`），在 j48 以来全部归档 results 与 j57 已写部分里 **0 行**。零样本上改重试逻辑没有判据可言。**三键常驻，首现即判** | 我 |
-| ✅ 判：结案（不再挡路，**复发即重开**，2026-08-25） | Q22 | 12 级下楼那一段在地表打转 → 落进岩浆湖 `-10,63,19` → 在岩浆里重搜 42 次烧死。代价已被 J44 的三腿坑沿加价买断（j48 真梯 12 级整趟零岩浆死），`death.strideGuard` 常驻。「在岩浆里重搜 42 次」那半账在 Q7c。**重开条件**：哪趟 `death.blow` 再写 lava 即重开 | 我 |
-| ❌ 判：不做 | Q27 | 放置前不问目标格是不是空的：整趟 ladder-14 **101 成功／67 拒绝**，其中 63 条（94%）的邻格不是 air。代价本行已量：**0.66 拒绝/成功**，拒绝不消耗物品不写方块，只是簇状重复（单点 ≤12 次）。**重开条件**：等哪趟把失败或预算烧尽归到「重复拒绝」名下再重开 | 我 |
-| ❌ 判：不做（闸已武装，首现即判读） | Q26c | `cast.rePickBlocked`（`JourneyCast:250`）在全部归档 results 里 **0 行**，预言的第四态从没出现。**修法方向已写死**：退路要**换问题**（`viaMidpoint`／改走 `walkToColumn`），**不加次数**（[[a-retry-that-changes-nothing]]）。**首现即照此执行** | 我 |
-| ❌ 判：不做 | J23 | `ElytraProcess:170`（`!p.isFallFlying()` 中途退出）不戳 `lastError`，而这一个出口同时是「落地了」和「翅膀在半空断了正在下坠」。代价已量：`ElytraProcess` 全工作区唯一消费者是 `wd.serverElytra`（`WorldDriverAvatarScenes:391`），journey 零调用、13–20 级不用鞘翅。**重开条件**：鞘翅进主线时再判 | 我 |
-| ❌ 判：不做（重开＝13–20 级开工第一步） | J24 | `JourneyShaft.supportUnder` 用 `rig.ctx().level()`，**latent**：所有调用点现在都在主世界。⚠️ 它和 `JourneyEndRungs.supportUnder` **方法体逐字相同而读的 level 不同**（后者用 `levelOf(rig)`＝身体所在世界，19 级之后不是 `ctx.level()`）——**合并会弄坏末地的级，别顺手合**。重开条件写死为「`JourneyShaft` 的任何方法第一次出现在下界／末地 rung 的调用图里」，那就是 13–20 级开工的第一步（先 grep 调用图），**不是 J33 之后**；详见「拍板」节。⚠️ **这一族不会自己报错**，重开条件必须由人在开工时执行 | janitor |
-| ✅ 已判**不是缺陷** | J44b | 12 级 `forge.carved = 66/67`。`carve.firstStuck = 2,62,17=dirt：距 8.5 格，canBreak=false，六邻实心 4/6`——那条走行腿挂 `NoBreak`，因为不挂时它会打穿自己刚挖的楼梯（实测 `forge.stairsBroken=4/11`）；禁掉挖掘的代价也量过：`forge.swung=64/67` 与 `forge.carved=64/67` **相等——走行腿开的格数是零**。⇒ 够不着的格变成 `carve.stuck` 是**明写的兑价**。**重开条件**：只有当某趟因为**这一格**而铸不成模腔时才重开 | 我 |
-| ✅ 已修（2026-08-25 核 HEAD；发作场合未再现，首现复读） | J38 | **走到了掉落那一格、站了 30 tick，东西没进包。** 修法已在 HEAD：捡拾空手行带 `walkerEnd`（`JourneyRig:2200`，「走完」和「烧完预算」分得开）且 `MAX_PICKUP_LEGS=3`（`:2214`），`JourneyStation.takeTableWhereItStands:106` 从 1 腿升到 `MAX_PICKUP_LEGS`（`c24608b0`）。只写「已修」不写「已验」。**首现条件**：哪一趟再出 `pickup.empty` 而**相距 < 1.5 格且有空槽**，J38 就有第二半，当场重开（背包满 vs 拾取延迟）；**仪器永久留着** | 我 |
-| ✅ 已修（`c24608b0`，队列行过期，2026-08-25 核 HEAD） | J37 | 工作台丢失分支改成 `onGround > 0` ⇒ `collectByHand(…, MAX_PICKUP_LEGS, "craftingTable.lost", …)` 并写 `craftingTable.lostThenFetched`。j47 起 8 级 `keptInBag=1` 走的是健康支，**`lostThenFetched` 零样本——首现即读** | 我 |
-| ❌ 判：不做（仪器常驻，复发即重开） | J35 | 一条 `Goal.XZ` 的回家腿为什么会净升 16？嫌疑是解卡塔按「当前高度+8」抬（16 ≈ 两轮）。J34 的关卡级守卫已验，`*.homeElevation` 无条件逐趟落行且 j34/j39/j47 读数 **−1／+0／+0**。**重开条件**：哪趟再读出 \|差\|≥8 当场重开去查解卡塔 | 我 |
-| ❌ 判：不做（前提已过期） | Q30 | 追猎全程零行日志。前提已不成立：`5d81dee5` 后有 `kill.swings`／`kill.kills`／`kill.preyVitals`／`kill.onGround`／`kill.combatError`。只剩死亡时刻 tick 戳没有，而 6 级此后连续 PASS。**重开条件**：等归因真卡在时刻上再补 | 我 |
-| ❌ 判：不做（重开＝`JourneyRig` ≥ 2900 行） | J42 | `JourneyRig` 的门面缝是真的且干净：`1856–2410` 这一带 27 个方法里 **20 个是纯查询**，不纯的 7 个还**连续**（收集那一族 `2024–2178`）。代价 **192 个调用点、13 个文件**，收益 **0**。重开条件从「逼近 3000」改成数字：`JourneyRig.java` 行数 **≥ 2900**。🔔 **2026-08-26 已触发：`14048fc7` 之后 2903 行**（本行先后写过 2606／2745／2876，都已过期）。到那一刻 `1856–2023` + `2179–2410` 这约 400 行就是现成的搬运单，而 `2024–2178` **必须留下**（它要 `settle`）。顺带记着 `JourneyRig:1297-1312` 那处孤儿 javadoc（写的是 `heartbeat`，挂在 `sinceHeartbeat` 上），切缝那一笔顺手改 | janitor 查，topology 决定 |
-| ✅ 已落（队列行过期，2026-08-25 核 HEAD） | Q8 | V2 不低头：瞄准从此**经过** `LookController`（`ClientPlayerAvatar.aimAtBlock:52` → `BotInteract.aimAtBlockSnap:365` → `LookController.requestSnap:47`，`apply()` 是 tick 末唯一的回拉写者）。**未兑现的那一半**：V2 那个 **90° 俯角分布没人复量过**，拟真复量归 parity | 我 |
-| 🔴 判：做（先设计） | J49 | rule 12 的加宽扫描还盖不到 `bot/movement/**`：现有守卫断言「宽形参集合为空」，那里合法非空（`Walker` 四处），照搬即在健康树报红。要判**实参**类型，需要 dataflow | janitor 查，topology 决定 |
+`AutoSwim.nearestShore` tests `isHazard` on the block below a candidate foot cell only, while
+`WorldView.canStandAt` tests all three cells. Lava is passable and is not water, so a lava foot
+cell over stone satisfies every clause the scan checks. The fix is to reject a hazardous foot or
+head cell as well; the caller's null branch already holds the jump key to keep rising, so the
+degradation is benign. Needs a scene that fails without the added clause.
 
-**放行规则**：janitor 的产出**单独编译、单独跑一趟读数**，不要和真梯的变量混在同一趟里。
+### One documented settings range is not enforced
 
----
+`SettingsDocs` declares a range for `lowHealthCareful` and nothing rejects a value outside it.
+`fleeDangerBoost` has a rejection branch in `SettingsCommand`, and that file's own javadoc records
+that this is the only documented range on the surface with no check. Any scene added for this must
+fail while the check is absent, rather than asserting a value that cannot be out of range.
 
-## 🔧 队列表之外还开着的条目
+### `PlaceNearby` and its test-side twin disagree about what counts as support
 
-这些在旧版里只有正文小节、没有队列行。**它们和上表一样是开着的活**，别因为表里没有就当它们结了。
+The engine copy accepts any support block that is neither air nor replaceable. The test side asks
+whether the face is sturdy facing up. The engine copy therefore still clicks at a lily pad. The two
+must change together, and the change wants its own check on both loaders rather than riding along
+with a ladder run.
 
-### 🟡 J127：平地长边上行走器每 tick 一次脚下重搜，`planId` 采用的路线第 1 tick 就被它覆盖
+### `isSolid()` as a support rule is copied three times
 
-`WalkerTickStallDetect.offPath` 量的是到追踪节点的距离；`adoptPath` 把平直段拉成一条长边后，
-起点离远端 >3 格就算「被撞离」，安全重搜每 tick 一次直到最后三格（同一条边搜回来，走照走）。
-改成量到边能消掉这些搜索，但 Fabric 闸上 `wd.entityLeash*` 与 `wd.pillarLedger*` 四条随即红——
-它们依赖这个节奏。理由与证据在 `offPath` 的 javadoc 和 `CHANGELOG.md` 2026-09-06；
-`wd.clientRoutePreviewAdopted` 的检查 E 现在只记不判。**重开条件**：先把拴绳和岸边接管从这个节奏上解开。
+`BuildProcess`, `BackfillProcess` and `BboxFillProcess` each carry it. `BuildProcess`'s javadoc
+records that this rule is narrower than the one the repository settled on, rejecting leaves and
+dirt paths. Separately, the build and backfill paths choose a stance with no reach test;
+`BboxFillProcess` annotates that difference without fixing it. This is a loosening change, so it
+needs its own check.
 
-### 🟡 J129：实验室世界 `lab.parkour` 的 25 个标记在两趟 run 之间全部消失，原因未定位
+### `BotUtil.canStandHereStatic` has no hazard clause and `WorldView.canStandAt` does
 
-2026-09-11 第一趟 `run lab.parkour` 正常（找到锚点、PASS），几趟别的场景之后再 run 时锚点已是空气，
-其余 24 个标记同样不在；重建后单趟 run 前后标记数都是 25。run 现在记 `[scene.run] … lifted/restored N markers`
-两行日志，下次再丢先对这两行。
+Magma blocks and lava foot cells are legal to the selector and refused by the pathfinder, so a cell
+the search will never expand is handed to the walker as a goal. `GoalResolver`'s javadoc already
+names the helper as hazard-blind. Tightening this changes the result of `goto block:` and of two
+fill verbs. Hold until the walker census names which cells the walker is actually refusing, so the
+two effects do not become one attribution problem.
 
-### 🔴 J63：崩溃这一族比 J61 宽得多，而 K1 看不见其余的成员
+### A continuation search is discarded and re-issued, and the loop does not terminate
 
-CME 是从 `ClientLevel.playSound` 掀起来的，而 `BlockItem.place` 不是唯一会放声音的客户端调用。
-`ClientPlayerAvatar` 逐行读过，**从服务端线程调过来就会写客户端状态**的方法：
+`WalkerTickStallDetect` hand-copies half of `SegmentCommit.reset()`: it clears the active search and
+the search-from-end flag and leaves the committed end and the best-effort path, which is exactly the
+state the repath phase re-triggers on. Calling `reset()` instead is not safe — it also clears the
+pending segment, so each field has to be decided separately. Judge a fix on a distribution (the
+largest repeat count for one start-and-goal pair, and the `goto` completion rate), not on whether a
+single ladder run passes.
 
-| 方法 | 落到哪 | 状态 |
-|---|---|---|
-| `placeOn` / `useBlock` | `clientUseItemOn` | ✅ **J61 已修**（同一个咽喉） |
-| **`useItemInHand`** | `mc.gameMode.useItem(p, MAIN_HAND)` | 🔴 **没守**，而且**这就是桶那条路** |
-| `continueDestroy` | `mc.gameMode.continueDestroyBlock` | 🔴 没守；挖方块一样出声音和粒子 |
-| `holdItem` / `holdPlaceable` / `holdPillarBlock` / `holdThrowawayPlaceable` | `ensureHolding*` | 🟡 见 J62 |
-| `setSelectedSlot` | 直写 `inv.selected` + 发包 | 🟡 没守 |
-| `containerClick` / `placeRecipe` | `handleInventoryMouseClick` / `handlePlaceRecipe` | 🟡 没守 |
-| `attackEntityUnchecked` | `mc.gameMode.attack` | 🟡 没守 |
-| `closeContainer` / `startFallFlying` / `breakHold` / `aimAtBlock` / `selectTool` | 各自写客户端态 | 🟡 待分类 |
+### The futile-search governor cannot fire against a moving target
 
-⚠️⚠️ **它不能照抄 J61 的「投递完就返回」，原因已经查实。** 绝大多数调用点只把结果写进
-`rig.evidence(tag + ".result", …)`（只记不判，随便延后）；`ElytraProcess:306/337` 在客户端线程上走内联支；
-**`JourneyFill:786-789` 是例外，而它正是取水那条路**：
+`Walker.setGoal` clears the governor, and the first search after a reset is seeded rather than
+judged, so it never enters the consecutive count. A combat process re-issues the goal each time the
+target moves, so half of every search population is seeding and the streak never reaches its
+threshold. The criterion and the situation it guards against are mutually exclusive. Candidates, in
+order of blast radius: keep the governor when the goal has only moved and the pursuit is the same;
+count over a time window instead of a number of searches, without clearing on reset; throttle
+re-targeting in the combat process. Grep every writer of the governor field before choosing.
 
-```java
-int before = rig.carrying("minecraft:lava_bucket");
-var result = rig.avatar().useItemInHand();
-int after  = rig.carrying("minecraft:lava_bucket");
-if (after <= before) { …「第 N 桶没装上」… }
-```
+### The futile-search gate has two measured blind spots
 
-它**不判 `result`，判的是紧接着一行读出来的存量差**。一旦这一 use 被延后到客户端线程，
-`after` 还没变 ⇒ 恒等于「没装上」。⇒ **J63 的修法必须连调用点一起改**：要么像 ramp 那样引入一次
-settle 再读存量，要么让这一步也进入 `Stop.PENDING` 那套。**所以它绝不能和 J61 捆在一起。**
+A search that reached the goal but could not be walked is never counted, and the counter clears
+whenever the foot moves more than two blocks, so a five-block oscillation resets it every time.
+Widen the existing gate rather than adding a second governor — the search phase's own comment says
+two governors on one loop race — and reuse the existing cap rather than adding a config knob. Replay
+the recorded corpus offline first: a new counting rule has to catch the two known cases without
+firing on an ordinary detour around a tree.
 
-### 🟡 J62（已核实，**本轮不修**）：`holdItem` 是同一族，只是还没轮到它炸
+### The lava reflex hands control back while the body is still burning
 
-`ClientPlayerAvatar.holdItem` → `BotInteract.ensureHolding`，写的是客户端状态（`inv.selected = s` 裸字段写，
-以及 `swapFromMainInv` 里的 `mc.gameMode.handleInventoryMouseClick(...)`）。场景在**服务端线程**上调它
-（`JourneyRamp:500,504`、`JourneyHands:282`）。
+`LavaProximityEscape` decides it is clear from the environment alone — a nearby threat or being in
+lava — and never asks `isOnFire()` or `getRemainingFireTicks()`. Leaving lava does not put a body
+out, so the reflex releases control with the body still alight. Adding the fire test to that
+condition is not by itself the fix: the reflex's action is to walk away from lava, and a burning
+body with no lava left near it does not benefit from walking further.
 
-**不能照抄 J61**：`holdItem` 的返回值是**承重的**——`boolean held = av.holdItem(…)` 决定后面垫不垫，
-`ctx.expect(...holdItem(...))` 直接拿它当断言。fire-and-forget 会把它变成谎话，而阻塞等待是被否掉的那条路。
-要么改调用方的契约，要么让**拿和用坐同一次投递**。
+### Every reflex is off on the body that drives the survival run
 
-⚠️ 危害等级低于 J61：写裸 int 字段不会像 `HashMap.put` 那样掀 CME，最坏是读到旧值。
-**重开条件**：等它有了自己的场合再动——现在动就是没有测量的改动。
+`autoRetreat`, `autoFight`, `autoDodge`, `autoHeal`, `autoShield` and `autoEquip` are all false by
+default. That default is deliberate and is documented beside the field: a quiet bot stays quiet so a
+scripted scenario is not overridden. The survival run is the case that wants them on. The shape is
+decided — arm them for that body only, healing before retreat, because retreat preempts the walker
+and healing only contends for the use key — but it is blocked on a health-loss distribution, because
+arming them is a change that touches every rung at once.
 
-### 🟠 J61 的等级：旧版留下两条互相矛盾的记录，下一趟当场定级
+### `commandForward` is a strictly weaker channel than `commandMove`
 
-同一份文件里有两句都自称终局的话：一句说 **N3 已验 ⇒ J61 从「已编译」升到「已回测」**
-（`journey-n2.log`：`placeEnqueue` 35 行、发起线程全是 `Server thread`、服务端线程上 `[place]` **0** 行），
-另一句说 **j57 之后「J61 的等级仍是『已编译』，不是『已回测』」**（j57 的投递 **0** 行 ⇒ 那条分支一次都没被走到）。
-[[two-ones-that-disagree]]：两句各自为真比一句假话更难被质疑。
+`AvatarInput.tick` lets the commanded move win over the raw commanded move, and the walker issues a
+commanded move every tick, so a same-tick stop from a fallback is silently dropped and
+`BotInput.stop`'s documented contract is false whenever the walker is active. Promoting the channel
+changes how fallbacks and processes arbitrate, on every topology.
 
-**别去考据，用判据当场定**——下一趟走到 12 级垒台阶时读三态：
+### Four routes reach the same `AvatarInput`
 
-- **K1**：全日志里 `[place]` 行**没有任何一行**来自 `[Server thread]`。⚠️ **三态，不是两态**：
-  观测到违例＝**证伪**（与场合无关）；`[placeEnqueue]` 也是 0 行＝**未触发**，不是已验。
-- **K2**：每一行 `[placeEnqueue]`（点击格,面）都能在其后配到一行 `[place]`（点击格,面），**未配对数 = 0**，
-  且 `[placeEnqueue]` > 0。
-- **K1／K2 要等 12 级才有场合**（跑到 7 级时实测：Render 122 行、Server 0 行、投递 0 行）。
+The `Body` interface, the retired `BotInput`, a copy inside `AutoSwim`, and the two surviving uses
+of the vanilla key mappings. Only `Body` can drive a server-side body. Moving the other three onto
+it is an architecture decision, not a tidying pass.
 
-⚠️ **K1 干净只证明「放置那条路换了线程」，不证明整族关掉了**——桶装水不打 `[place]` 行、挖方块也不打，
-那些成员在 J63 名下。
+### A process's `attach()` does not clear the previous run's terminal fields
 
-### 🔴 J60-B：座位按「会开火的那只眼」判——**已落地又被撤回，撤回保留**
+`goalReached`, `endReason` and `finalDist` are kept deliberately by `reset()` and should be cleared
+by `attach()`; only one file under `bot/process/` clears `goalReached` at all. `mc.bot.status`
+therefore reports the previous run's verdict against a run that is still going. Collect this into a
+single `beginRun()`; it changes an observable surface, so it needs a check.
 
-`d2f261f2`（`JourneyFill.eyesFor` / `eyeBlocked`：身体已经站着的那一格问**真眼**，要走过去的格要求
-**四角＋中心全都看得见**，外套严格→回退）曾落地，随后在一次 A/B 里被判为看门狗死因而撤回（`db6ecbce`）。
-后来那个 A/B 结论**自己也被撤回**（对照臂不等价于绿参照，差分没有解释力，真机制是 J65），
-但原文写死：**`db6ecbce` 的撤回照旧保留**（撤回一个没验证过的改动不需要理由）。
+### Fourteen flags default off and no real run has ever turned one on
 
-⇒ **现状：座位判据仍是格心眼**，而缺陷本身是实测过的：真眼 `(-3.60, 63.62, 55.70)` 被 `(-5,62,55)` 挡住
-（进入 t=0.5536，**面=up，距离 1.04 格**），格心眼 `(-3.50, 63.62, 55.50)` **视线通畅**；日志实测
-`空桶线 -5, 62, 55 minecraft:grass_block 面=up（1.04 格）`——**格、面、距离三个数全中**。
-仪器那半（`waterFill.reseat.eye`，j57 读到 `水平差 0.22 格`，预测值 ≤ hypot(0.2,0.2)=0.283）还在。
+`allowParkour4` is one of them, which means the movement members behind it have never taken a step
+in real navigation. Each of them needs either a scene that exercises it or deletion. Leaving them as
+features awaiting activation is the outcome to avoid.
 
-⚠️ 最小版**不需要预算闸**：`J60-C`（`f1802c47`）已经证明这一族可以「**换原点，不是加射线**」——
-射线条数不变，只把原点换成真眼，四个同形调用点（`JourneyFill:352`／`:1017`、`JourneyPortalRung:253`、
-`JourneyPour:472`）共用一个取眼助手。`JourneySight:158` **不属于这一族**（它带 `x`／`lift` 参数，
-是**故意**的偏移采样器）。
+### The head-cell hazard test covers three parkour moves out of nine
 
-### 🔴 J58（仪器缺陷）：`gained N/N` 可以在身体悬空、且不在指定柱上时为真
+The ascending, descending and diagonally ascending moves test `isHazard` two cells above the origin.
+The longer leaps, their diagonal variants and the placing variant test passability only, and hazard
+and passability are not exclusive — fire, berry bushes and powder snow are all passable. This
+changes the edge set the pathfinder may expand, so it needs its own check and its own attribution.
 
-```
-cast8#10.gained  = 6/6 block(s)      ← 读起来像「垒成了」
-cast8#10.endedIn = -7,22（起塔柱是 3,20 —— 不是同一柱）
-cast8#10.endedOn = 脚格=Block{minecraft:air}，脚下=Block{minecraft:air}
-```
+### Only one of three run-up rules is the strict one
 
-`gained` 量的是**高度差**，不是「站到了指定柱上」。⇒ **`gained` 永远不许单独当成功判据**；
-判成功必须同时要求 `endedIn == 指定柱` 且 `endedOn` 脚下是固体。
-**下一步**：让 `climb` 的收尾自己把这三者合成一个判词，而不是留给读者去交叉比对。
+The two `Move.hasRunway` overloads require zero or two clear cells behind the jump; an inlined copy
+inside the ascending move requires one. The four longest leaps all use the zero-cell version. Same
+check as the hazard test above.
 
-### 🟠 K4 的仪器缺陷（等 j57 跑完的那个编译窗口）
+### The smelt wait does not verify the body is present
 
-`standToFill` 是两趟：
+It reads the furnace block every tick and never reads distance, and a collect has succeeded from
+sixty blocks away. Beyond interaction range it should record an error or fail.
 
-```java
-FillSpot nearSide = standToFill(…, new LinkedHashMap<>(), true);   // 948：丢掉的 map
-if (nearSide != null) return nearSide;                              // 949
-return standToFill(…, why, false);                                  // 950：真 map
-```
+### A step-up still jumps in place in water deeper than 0.4
 
-而 `avoidCrossing` **全文件只用在一处**（第 1013 行）且被 `&& lava` 挡着 ⇒ **对「水」来说两趟逐字节等价**，
-只要存在任何落脚点第 949 行就返回，**真 `why` 永远是空的**。而 12 级的失败形态恰恰是
-「找到了，就是脚下这一格」——属于找到了。
-⇒ **修法**：让第一趟也用一张真 map，谁答的就把谁的并进 `why`，并在证据里点名**是哪一趟答的**；
-改完 `standToFill`（932-935 行）那段 javadoc 的警告就不用留了。
+Vanilla swims and rises by bumping into the bank. Two client scenes measure the behaviour. Fixing it
+requires `WorldView` to carry fluid height.
 
-### ⬜ J73：烈焰人露天轮的坠落长尾
+### The retired water model's predicates and costs are still in the tree
 
-**状态**：调研✅ 策略✅ 实现✅ 评估✅ **回测⬜（Fabric 闸补跑） 认证⬜**
+The floating-water family and the water-cell, submerged, climb-out and descend surcharges are mostly
+unreachable once the surface-water-nodes flag is on. Run both models side by side for a while, then
+delete one; the design note is in the water-model document.
 
-守卫已落并单跑验过（`j73-fall.log`，`-Pstagewright.scenes=wd.serverBlazeFightStopsWhenTheBodyFallsOut`，
-7 ticks / 1017 ms）：A `fellAt=245`、B 收轮 **恰好 60 次**迭代、C 单个 pump **89.7 ms**（无界版单次迭代 2600–3060 ms）。
-**欠的是一趟 Fabric 全量闸**——上一趟正是被这条长尾在第 176/325 幕掐断的。
-⚠️ **闸补跑只为收 Fabric 的 ① 状态，对修法本身零证明力**（守卫在健康趟永远不触发）。
-⚠️ `fell.postFallGate` 那份就地普查（bucket 9 = 0）**不能拿去佐证 J74**：取证段跑在翻成真预算（6 ms 分片）之后，
-采样的是另一个 regime。
+### A body that climbs out of a trench walks back into it
 
-### ⬜ J74：追一个会动的目标时，徒劳搜索闸**结构性地不可能开火**（bucket 9）
+After reaching the top, the search routes around the trench end with a two-dimensional parkour move,
+lands short and falls back in, then climbs again. The parkour landing rule takes no account of the
+pillar the body has just placed or of the trench mouth. **Unverified.**
 
-**状态**：调研✅ **策略⬜ 实现⬜ 评估⬜ 回测⬜ 认证⬜** ——**engine 侧，按 engine-last 排队**
+### Digging a bank block by hand while afloat costs about 370 ticks
 
-`Walker.setGoal` 抹掉 `searchGov`，抹掉之后的第一次搜索走 bucket 9「复位后播种(不判)」——不判就不进连续计数。
-目标每移动一格 `CombatProcess` 就重下一次目标，于是 240 次搜索里恰好一半是播种，连续计数**永远攒不到 5**。
-⇒ 闸的判据（连续 5 次无进展）与它要防的那个场景**互斥**，这不是「闸没调好」，是**判据本身在这一族上是恒假式**。
+Bobbing resets the destroy progress repeatedly, so one riser is dug in many separate stretches. Same
+family as the one-high and two-high bank dig-outs. **Unverified.**
 
-答卷（`gate-j69e-neoforge`，`wd.serverFutileGateUnderACreepingGoal`，唯一自变量是有没有走 `Walker.setGoal`）：
+### A straightened edge longer than three blocks on dry land re-plans every tick
 
-| 臂 | 下目标次数 | 搜索数 | 计入 | 复位后播种(不判) | 终局 |
-|---|---|---|---|---|---|
-| `still` | 1 | 9 | 2 | 1 | 无 |
-| `creepRetarget`（重定向，不走 setGoal） | 120 | 6 | 5 | 1 | **t=89 开火**：`no route progress after 5 consecutive searches — goal unreachable from here (best dist=1530)` |
-| `creepSetGoal`（每次都走 setGoal） | 120 | **240** | 120 | **120** | **全程没有终局**，收在 `WALKING` |
+The stall detector measures three-dimensional distance to the far end of a straightened edge, so the
+moment a flat run is pulled into one long edge the body counts as knocked off it and re-searches
+every tick until the last few cells. Water already limits the span; dry land still takes the full
+storm. Measuring to the edge rather than to its end removes the searches, but four scenes covering
+leashes and shore takeover depend on the current cadence and turn red. Decouple those first.
 
-**策略候选（先不实现）**：① `setGoal` 在目标只挪动、语义未变时保留 `searchGov`（要一个「同一个追击」的身份判据）；
-② 连续计数改成按**时间窗**而非按搜索次数，复位不清零；③ 在 `CombatProcess` 侧节流重下目标的频率——
-**这条是 testmod 之外的行为改动，最不该先做**。选型之前先把 `searchGov` 的**所有写者** grep 全。
+### The deep-water drift brake disables sprint on a two-block shore margin
 
-⚠️ **别做的事**：不要因为 J73 的守卫落地、闸不再红，就把这一条当成已解决。J73 治的是「烈焰人场景会不会
-砍掉整趟闸」，J74 治的是「闸本身是不是恒假」——两件事。
-⚠️ **J74 的证据只认 `wd.serverFutileGateUnderACreepingGoal`**，不认 J73 那份就地普查。
+It now decides half the price difference between walking the shore and swimming across.
+**Unverified.**
 
-### 🟡 J68c（只登记，不追）：「不用修楼梯」这条捷径只比了 y，没比柱
+### Two tools disagree about the day-phase vocabulary and its boundaries
 
-```
-water8.lift=2, 64, 23 → 3, 60, 20（走不到选定的落脚格，修一段楼梯上到和 4, 61, 20 同高）
-water8.lift.flightSkipped=2, 64, 23 已经到了落点那一排或更高（落点 3, 60, 20，exactRow=false）—— 不用修楼梯
-water8.liftedY=64/60
-```
+`mc.observe.player`'s time phase and `mc.client.scene.dayPhase` contradict each other in two
+windows. Deliberately deferred; the reasoning is in `WorldModel.dayPhase`'s javadoc. Reopen when
+the dusk-securing chain's firing window changes.
 
-身体在 `2,64,23`——**比落点高 4 排，且根本不在那一柱**。`buildTo` 的提前返回只问
-`here.getY() >= landing.getY()`；它的 javadoc 明写这个 `>=` 是**故意**的，但那句话对**同一柱**成立，
-对「高 4 排且隔着 3 格」不成立。
-**重开条件**：身体之所以在 `2,64,23`，是 J68b 那次失败的 goto 把它送上了地表；**J68b 修好之后
-再看这个场合还在不在**，别现在同时改两处。
+### Three line samplers share one piece of arithmetic
 
-### ⚠️ 额度与两条「别顺手清理」
+`losWalkable`, `straightLineBias` and `isOpenWaterLine` each compute the same step count and
+interpolation. Extract only the per-step cell computation, not an iterator returning a list: almost
+all sliced pathfinding sits inside a single tick's budget, and allocation is expensive by count.
 
-- ✅ `JourneyPortalRung.java` **2990 → 2138**（`821d811e`，janitor 拆出 `JourneyStairwell.java` 912 行，
-  余量 10 → **862**）。机械搬运：七个调用计数搬前搬后相等（`rig.evidence(` 91→91、`ctx.fail(` 24→24），
-  **证据键一个字没动**。我跑过 `./gradlew build` → BUILD SUCCESSFUL，源预算闸 OK。
-- 🔴 **新头条：`common/src/main/.../bot/BotConfig.java` 2993/3000，余 7 行**——比拆之前的
-  `JourneyPortalRung` 还紧，而且是**产品代码**，要 gate 槽。
-  janitor 指的切口（`:2645` 往后自成一体的反射持久化层）方向对，但**它不知道下面这条**：
+### `activeProcessDetail` is null while the dusk-securing chain owns the bunker
 
-  ⚠️ **拆它的第一步不是动字段，是先让 `BotConfig.persistableFields()` 走父类链。**
-  这个文件里有两个枚举器，各自的 javadoc 都写着「**the ONE enumeration**」，**各自为真**：
-  `SettingsRegistry.reflectivePrimitiveFields()` 用 `getFields()`（**跟**父类），
-  `BotConfig.persistableFields()` 用 `getDeclaredFields()`（**不跟**）。
-  于是拆法决定病征：**兄弟类拆会当场抛 `IllegalStateException`（响的，安全）；
-  父类链拆是静默的**——被搬走的字段仍在 settings 快照里（读起来一切正常），
-  却掉出持久化、掉出 `snapshotAll()`，`applyGameTestBaseline()` 的 OFF 基线泄进活着的 bot，
-  **只泄被搬走的那几个 flag**，病征长得像「某几级莫名其妙退化」。
-  ⇒ 先让 `persistableFields()` 走父类链：**今天做这一步是可证明的 no-op**（父类是 `Object`），
-  于是两步各自可验，第一步闸必须仍绿，第二步才动字段（[[two-ones-that-disagree]]）。
-- **后面依次撞线**（janitor 量的）：`Walker.java` 2960、`JourneyNetherRungs.java` 2927、
-  `JourneyEndRungs.java` 2844、`WorldDriverJourneyScenes.java` 2819、`JourneyRig.java` 2801。
-  ⚠️ **到时候不要刮注释换额度**（[[a-file-pinned-at-its-budget]]）。
-- **`BuildProcess` / `BackfillProcess` 的私有 `canStand` 不许并进 `BotUtil.canStandHereStatic`。**
-  两个私有拷贝彼此逐字相同，但**比共享版更严**——少了两条 water 子句，含水格在共享版**可站**、
-  在它们这里**被拒**。合并＝把两条放置路径**放松**。要动先测量。
-- **「Java 侧零调用者」不等于死代码。** `ScriptClassFilter` 是**默认关闭的 deny-list**，
-  且**不 deny `net.magicterra.worlddriver.*`** ⇒ 任何 public 成员原则上都能被运行时 JS 按名字调到；
-  另有 `SettingsRegistry` / `SettingsCommand` / `BotConfig` 三处**按字段名反射** `BotConfig`。
-  死代码侦察给的「确定级」条目**采用前每一项都要按这两条重验**。
-- **janitor 2026-08-26 那轮的余项**（都已核实，等编译窗口）：
-  - **10 处死代码**，全部排除了 `-D` 属性与 `JourneyRehearsal` 布线可达：
-    `JourneyRig` 的 `drivesRealPlayer()`／`diedOf()`／`drivingWhenLost()`（三个零调用者的访问器，
-    后两个的**字段**是活的）、`JourneyLedger.startedAtTick()`、`JourneyStage.chapter()`
-    （删访问器后字段变只写）、`JourneyRoute` 的 `spawnBiome`／`firstCoal`／`ruinedPortal`
-    （后两个看着有引用，其实是 `out.put("firstCoal", …)` 的**字符串 key**，字段读取数 0）、
-    `JourneyWorkableSpotScenes.SHORE_NEAR`（兄弟 `SHORE_FAR` 活着，所以是真孤儿）、
-    `JourneyRoute.surveyNetherFortress(SceneContext, BlockPos)`。
-    ⚠️ 最后那个 janitor 亲自核过：**不是「坐标转换被绕过」的缺陷**——唯一活着的调用点
-    （`JourneyNetherRungs:753`）的身体本来就站在下界，`…From` 的 javadoc 说的正是这种调用者。
-    它只是没人用的重载入口，三处 `{@link}` 撑着它。
-  - **`DescendProcess.done()` 与 `EscapeProcess.done()` 在同一个 slot 上收尾方式不同**：
-    Escape 走 `s.reset()` 并在失败时打 `dbg("BAIL: …")`，Descend 只写 `s.active = false`。
-    ⇒ 一趟 descend 结束后 `mc.bot.state` 的 escape 槽仍报着 `goal="descend to y=…"`、旧 `target`、
-    旧 `startedAtMs`，且 **descend 的失败一行日志都不写**（零行日志有两种解释——
-    [[an-instrument-behind-a-flag-is-not-an-instrument]] 同族）。
-    共享 slot 本身是文档化的设计（`DescendProcess:36-37`），**不是缺陷**；对齐 `done()` 会改
-    `mc.bot.state` 的可观测面 ⇒ **行为改动，要 gate 槽**。
-  - `isFalling(Level, BlockPos)` 三份逐字相同的私有拷贝（`BunkerProcess:85`／`DescendProcess:268`／
-    `EscapeProcess:379`）。⚠️ **不能合进 `WorldView.isFallingBlock`**——那条走 view，
-    可能是另一个维度的读数（`placeInto` 的前科）。合成共享静态方法安全但价值低（3 行 × 3）。
-  - `CraftProcess:414` / `SmeltProcess:512` 的 `fail(...)` 各有一个从没被用的 `BotState s` 形参。
-  - `JourneyRig.java:1070` 注释里的 `(JourneyRig:1409)` 引用已腐——1409 行现在是 walker trace 调试文案，
-    与 `BotConfig.allowBreak` 无关。janitor 点名交还（那是 topology 产权）。
-  - janitor **确认过不是问题、下轮别重查的**：`walkToColumn` 的 5 个重载是干净的「4 委托 + 1 实现」链
-    （且再加 `List` 形参会**擦除冲突**）；`JourneyFill:325` 的 rim/NoBreak 不对称有措辞写明的理由；
-    `DescendProcess.kind()` 返回 `"escape"` 是文档化的共享槽；**不做 NoBreak 工厂**
-    （工厂拦不住新调用点漏写，真要防得写断言约束的场景，接住它的地方是 `JourneyStairs.faults`）；
-    ~150 个「零调用」是假阳性，它们靠**方法引用**注册（`WorldDriverJourneyScenes::wood`），
-    任何只数 `name(` 的扫描都会误报（[[a-verification-tool-needs-verifying-too]]）。
-- **更早报出、都需要编译器的余项**：`prelude.js` 的 `\| 0` 取整与 `Params.toInt`／`SchemaValidator`
-  分叉（脚本通道吞 `2.7`／`"8"`／回绕，MCP/RPC 会拒——**行为变更，必须配闸**，排在 ROADMAP §6.5 序 17）。
+The bot API reads only the foreground user task's status detail, so a driver has to infer the
+bunker's state from the active chain plus sky exposure. **Unverified.**
+
+### Single-shot actions on the client avatar are issued from the server thread
+
+The correct shape is to issue from the client tick chain and let the scene observe the outcome
+through the world. Only `wd.actuatorSplitThroughTheClientAvatar` can judge this seam, and the
+survival run's topology cannot reach it.
+
+### Client state is written from the server thread beyond the one path already guarded
+
+The concurrent-modification crash came out of `ClientLevel.playSound`, and block placement was only
+one caller of it. `useItemInHand` (the bucket path) and `continueDestroy` are unguarded; holding an
+item, setting the selected slot, container clicks, recipe placement and unchecked attacks also write
+client state from scene threads.
+
+The guarded path's shape — hand the work off and return — cannot be copied. `JourneyFill` reads the
+bucket count immediately after the call and judges on the difference, so deferring the use makes it
+always read as a failed fill; any fix has to change those call sites too, either by settling once
+before reading the stock or by moving them onto the pending-stop mechanism. The hold-item family is
+the same defect with a smaller blast radius (a bare int field rather than a map, so the worst case
+is a stale read), but its return value is load-bearing — callers assert on it — so fire-and-forget
+would turn it into a lie. Either the callers' contract changes or holding and using share one
+handoff.
+
+### The farm process's break timeout is a private constant
+
+Sixty ticks, hard-coded, not wired to the configured break timeout.
+
+### Descend and escape end differently on a shared state slot
+
+Escape resets the slot and logs a bail on failure; descend only clears the active flag. After a
+descend, the escape slot still reports the old goal, target and start time, and a failed descend
+logs nothing at all. The shared slot itself is documented design and is not the defect. Aligning the
+two changes what `mc.bot.state` reports, so it needs a check.
+
+### `isFalling(Level, BlockPos)` exists three times, verbatim
+
+In the bunker, descend and escape processes. Do not merge it into the world view's falling-block
+check: that one reads through a view which may belong to another dimension. A shared static helper
+is safe but buys three lines each.
+
+### Two `fail(...)` helpers take a state parameter they never use
+
+In the craft and smelt processes.
+
+### The descend process's action counter is not cleared across phases
+
+### There are four different reach distances
+
+4.0, 4.3, 4.3 and 4.4. **Unverified.**
+
+### The lava reflex prints a cell with an integer cast
+
+Truncation toward zero, so at negative coordinates it prints a cell the body is not standing in.
+Three places repository-wide. **Unverified.**
+
+### Configuration is a global singleton holding per-body, per-tick state
+
+The fields are `public static volatile`, so scenes cannot safely run in parallel. Same file and the
+same split as the size-budget work below.
+
+### The freeze window family is not even measured yet
+
+Fluid flags are frozen while the driver is not registered. Roughly thirty scenes and around a
+hundred read points share the symptom, and no measurement has landed. **Unverified.**
+
+### The script prelude and the typed parameter reader coerce differently
+
+The prelude's truncation accepts a fractional number, a numeric string and a wrapped value that the
+typed getters and the schema validator reject, so the script channel is more permissive than the
+other two transports. This is a behaviour change and needs a check.
+
+### A game verb lives in the script transport
+
+The prelude's tunnel function is a whole verb — it clears a corridor of a given width and height in
+a direction — and only the in-process engine can reach it: there is no router entry and no catalog
+schema, so Model Context Protocol and remote-procedure-call clients cannot call it at all. It cannot
+simply be deleted, because a validation script exercises it.
+
+Promote it to a real route, in this order: add the catalog schema, add the router entry with the
+implementation moved under `bot/`, then reduce the prelude function to a thin forward so the
+validation script needs no change, then run both loaders' checks and the script validation suite.
+Delegate direction handling to `GoalResolver.applyDirection`, which is the only one of the three
+direction vocabularies that is a superset and the only one that normalises. Keep `distance`
+mandatory — the prelude's own comment explains why defaulting it silently turns a missing distance
+into a one-cell dig. Do not fold the unification of the two backward direction words into this
+change; it is a separate piece of work and mixing them makes a failure unattributable.
+
+### The script sandbox assertions guard a filter that is switched off
+
+`ScriptClassFilter` is disabled unless `-Dworlddriver.sandbox=on` is set, and nothing in the build
+sets it, so the class filter refuses no name during any check. The seven assertions in the sandbox
+validation script are green throughout, and they are named in `AGENTS.md` as the guard against the
+sandbox being widened — which they cannot be, since they would not go red when it is.
+
+Do not add assertions yet; two exact coverage totals would move. The reading needed first is what
+`java` and `java.io.File` resolve to inside the script context. If they are undefined, the seven
+assertions are vacuous — the denials are catching a type error rather than the filter — and that can
+be established without enabling the filter at all. Only if they do resolve is a run with the filter
+enabled worth taking. Two of the seven cannot distinguish anything in principle: the host has no
+such executable and a connection to a closed port always throws.
 
 ---
 
-## 🧹 从散落处收拢进来的待办（2026-09-04）
+## Body equivalence
 
-2026-09-04 普查：开着的活散在旁边三份 `TODO-*.md`、`ROADMAP.md` §4、几份 docs 的正文、
-`AGENTS.md` 与 javadoc 里。**这里只收「还开着什么」**，每条的推理留在原处并给出指针。
-三份旁文件同日删除，全文在删除提交的父提交里：
-`git log --diff-filter=D --format=%H -- TODO-janitor-2026-08-22.md`（另两份同法）。
-括号里的 K／F 代号是那份文件里的小节号，只为回溯，不再新分配。
+These belong to the body-equivalence role and are bounded by the parity document.
 
-### 引擎侧（`src/main`）
+### The selected-slot section has three residues
 
-- **起跳头顶格的 hazard 闸只有三个成员带**（janitor K3）：`ParkourAscend`／`ParkourDescend`／`DiagonalAscend`
-  查 `isHazard(from.offset(0,2,0))`，`Parkour2`／`Parkour2Diagonal`／`Parkour3`／`Parkour3Diagonal`／`Parkour4`／
-  `ParkourPlace` 只查 passable。`isHazard` 与 `isPassable` 不互斥（火、浆果丛、细雪都可通行）。
-  改的是 A* 可行边集合，要闸、单独归因。
-- **助跑三种算法，只有 `Parkour3` 用严格版**（janitor F9）：`Move.hasRunway` 两个重载要身后 0／2 格，
-  `ParkourAscend` 内联一份要 1 格；四个最长的 leap 全用 0 格版。与 K3 同一趟闸。
-- **`commandForward` 是比 `commandMove` 严格弱的通道**（janitor F1，要拍板）：`AvatarInput.tick` 写死
-  `moveCommanded` 压过 `rawMoveCommanded`，walker 每 tick 下 `commandMove`，于是同 tick 的 `BotInput.stop`
-  一类后备被静默丢弃，其 javadoc「Stop horizontal movement this tick」在 walker 活跃时是假的。
-  升级通道会改后备与进程的仲裁语义，所有拓扑都受影响。
-- **到同一个 `AvatarInput` 有四条路**（janitor F3）：`Body` 接口、`BotInput`（已退役）、`AutoSwim:86` 自抄的一份、
-  `mc.options.key*`（只剩 `keyAttack`／`keyUse`）。只有 `Body` 能驱动服务端身体；把四个反射搬上
-  `Body` 是架构决定，不是清理。
-- **进程的 `attach()` 不清上一趟的终局字段**（janitor F14）：`goalReached`／`endReason`／`finalDist` 由
-  `reset()` 故意保留、该由 `attach()` 清，`bot/process/` 下只有 1 个文件写 `goalReached = false`。
-  `mc.bot.status` 于是把上一趟的判词挂在活着的运行上。收成一个 `beginRun()`，要闸。
-- **从没被真运行翻开过的默认 OFF flag**（janitor F10，数出 14 个）：`allowParkour4` 关着，其后的移动成员
-  从没在真导航里跑过一步。判词：要么给它一条能跑的场景，要么删掉；别当「待启用的功能」。
-- **两个 MCP 工具对昼夜给出不同词表和边界**（janitor F13）：`mc.observe.player.time.phase` 与
-  `mc.client.scene.dayPhase` 在 `[13000,13800)` 与 `[22200,23000)` 互相矛盾。**判：暂不做**，理由在
-  `WorldModel.dayPhase` 的 javadoc；重开条件＝动 `DuskSecureChain` 开火窗口的那一笔。
-- **线段采样器三份**（janitor）：`losWalkable`／`straightLineBias`／`isOpenWaterLine` 共用同一段
-  「steps = max(|dx|,|dz|) + 四舍五入插值」。只抽 `lineCell(a,b,s,steps)` 这一层算术，不抽成返回
-  `List<BlockPos>` 的迭代器：实测 98% 的切片寻路压在单 tick 预算里，多分配贵在次数。
-- **`SmeltProcess.smeltWait` 不验身体在场**（rung10 配套一）：每 tick 读 `furnacePos` 的方块却不读距离，
-  60 格外 `COLLECT` 照样成功过。超出交互距离写 `lastError` 或 fail。
-- **`activeProcessDetail` 对 DuskSecure 托管的 bunker 为 null**（原在 `ROADMAP.md` §4）：`BotApiImpl` 只读
-  前台用户任务的 `statusDetail()`；DuskSecure 托管时 agent 只能由 `activeChain:duskSecure` + `skyExposed`
-  推断 SEALED／DIG_DOWN。
-- **`clientAvatar()` 的单发动作从服务端线程发起**（`AGENTS.md` actuator-split 段、`BotApi.clientAvatar()`
-  javadoc）：正确形状是从客户端 tick 链发起、场景经世界观察结局，**尚未做**。判这条缝只能用
-  `wd.actuatorSplitThroughTheClientAvatar`，真梯拓扑够不着它。
-- **`StepUp` 仍从水位 > 0.4 的一格深水原地起跳**（vanilla 只会游，靠撞岸 +0.3 上浮出去）：
-  `wd.clientShallowPoolStepOut` 两条量着它；要改得让 `WorldView` 拿到流体高度。
-- **旧水模型的判据与税还在**（`isFloatingWater` 族四个、`waterCell`／`submerged`／`climbOut`／`descend` 税）：
-  `pathfinderSurfaceWaterNodes` 开着时大半成死码，两个模型并跑一段再删，见 `docs/water-model.md`。
-- **沟上岸后又掉回去**：`wd.clientFlowingTrenchPlaceOut` 到顶后 A* 绕沟端走 `parkour2d`，落短掉回沟里再爬一次
-  （腿 454 tick，其中上岸 234）。跑酷落点与刚放的柱子／沟口的关系没进落点规则。
-- **浮着徒手挖岸一块土 370 tick**：bob 让 `continueDestroy` 的进度反复清零（同一 riser 连挖 8 段）。属水中挖掘家族，
-  与 `wd.clientOneHighBankDigOut`／`TwoHighBankDigOut` 的 250～320 tick 同源。
-- **干地上超过 3 格的拉直边每 tick 触发 `offPath` 重规划**：`WalkerTickStallDetect` 的 3 格三维判距对着拉直边的远端量，
-  水上已用 `WATER_PULL_SPAN` 限到 2 格、巡航改判横向，干地的长拉直边还在吃这个风暴。
-- **`walkerDeepWaterDriftBrake` 在 2 格宽的岸沿上把冲刺关掉**：`wd.clientOpenWaterCross` 早期贴岸绕行的那几趟量到，
-  沿岸走 vs 游过去的价差现在由它决定一半。
+The client twin of stopping an item use, a one-round-trip window, and a one-tick content lag between
+the bag and the hand. The parity document's own note says not to fold the next piece of work into
+the same change. **Unverified.**
 
-### 身体等价性（`bot/sim/**`，归 wd-parity）
+### A furnace menu sixty blocks away is never closed
 
-- **`Inventory.selected` 一节的三条残留**（`docs/fake-player-parity.md` §6.9「残留」）：`stopUsingItem` 的
-  客户端孪生半边、一个来回的窗口、背包→手「内容晚一 tick」的逐位不一致。那一节写明别把 T4 顺手塞进同一笔。
-- **60 格外的熔炉菜单没被 `stillValid` 关掉**（rung10 公开问题）：真玩家的 `Player.tick()` 会关容器，
-  `JoinedBody` 漂了 60 格菜单一直开着。只观察到现象，原因未验。
+A real player's tick closes containers; the joined body drifted that far with the menu still open.
+The symptom is observed and the cause is not. **Unverified.**
 
-### 账本与仪器（testmod 侧）
+### Aiming is still split between the two sides
 
-- **坠落自报只记进程名，不记动作**（rung20 下一步）：`JourneyRig` 的离场报告写「离场时在跑的进程」，
-  没有 walker 当时执行的边（move 名）和 `jumpTag`。「满脚底走下桥头」那一族四个坐标查了五轮仍在猜，
-  因为读数只有地点没有动作。
-- **水平漂移是残留输入还是水流**（rung10 公开问题）：心跳里没有 `getDeltaMovement()`、输入标志、
-  `getFluidState().getFlow()` 任何一项，第 9 级那 61 格漂移因此判不了。
-- **`check_stacked_javadoc.py` 抓不到更坏的那种形态**（脚本第 31 行自带的 TODO）：被抛弃的 javadoc 落在
-  没有文档的成员上时被 javac 静默收养。缺的读数是块与所附声明的失配（`@param` 点名不存在的形参、
-  `void` 上的 `@return`），不需要自然语言。
+The twin has not landed. **Unverified.**
 
-### 真梯第 14 级
+### `selected` is written by four methods across five lines
 
-- **客户端在第 14 级中途断连**（`CHANGELOG.md` 2026-08-29）：ladder-22 走廊第一腿四分钟后
-  `suite over (finished=false, connected=false)`。与 J125 是两条缺陷；J125 修好之前，断连那半连一行 FAIL 都不会留。
-- **走廊里的火是谁点的**（同上）：`inFire` 只说 `BlockTags.FIRE`，恶魂与火沿地狱岩蔓延两条都没排除。
-  J124a 的重规划触发不依赖这个答案。
+The earlier count of three places was wrong. **Unverified.**
 
-### 工程债
+### Digging fidelity on the server-side avatar
 
-- **代码注释引用的编号已没有定义**：`WorldDriverWaterBankScenes` 的 J31（4 处）与 J24b、`JourneyRamp:908` 的 J50，
-  定义全在 08-26 重写前的 `fb94af03…:TODO.md`；`WorldDriverScenes.java:1410` 写「TODO.md line 79」，
-  那一行现在是 J46。改法是把编号换成它指的那件事。
-  ⚠️ `C28-J1`／`live J5`／`live J8` 一类是 AgentDriver 时期的现场案号，不是这套编号，别改。
+Bare-handed obsidian breaks, silk touch does not apply, and tools take no durability.
+**Unverified.**
 
-### 只是线索（未对 HEAD 核）
+### The joined body's tick is an empty implementation
 
-- `pack.measuresItsOwnTickCost` 一场每 tick 一条 `invalid dist DEDICATED_SERVER`（NeoForge，点的是 `Minecraft`）：
-  `docs/drown-escape-design.md` §5.5 说「在 TODO.md 单独立条」，从未立过。
-- `docs/drown-escape-design.md` §1.5.3：出路 A 被哪个常量关掉没判定，`SURFACE_SCAN_UP=4` 与
-  `LATERAL_SCAN_R=5` 两个嫌疑并存。
-- 进度键 `progress.*` 加单位、旧 `pathLen` 留一轮（janitor J9 后续）。
+The second half of the join work is to drive it by writing inputs rather than by copying a player's
+tick. **Unverified.**
 
-### 指针（不复制）
+### Five smaller parity gaps
 
-- **文档债**在 `docs/DOCMAP.md`「还缺什么」：沙箱假陈述六处还剩五处（`README.md`／`README-zh_CN.md`／
-  `CONTRIBUTING.md`／`AGENTS.md`／`methods.md`）、`AGENTS.md` 场景数仍写 222、`CLAUDE.md` 末句「kept in sync」、
-  `coverage-exemptions.md` 标题带编号、`agent-driver-channel.mcp.json.example` 旧名。台账归文档角色。
-- **工作区根的 `TODO.md`／`SURVIVAL_TEST_GAPS.md`**（不在任何 git 仓库里，2026-08-02 后没动过）：25 个方框
-  与 7 条「待修」全是 AgentDriver 时期的账，没有一条对 HEAD 复核过。要捡先 grep 它自己会写的那一行。
-- janitor 两轮「**确认过不是问题、别再查**」的清单在被删的 `TODO-janitor-2026-08-22.md` 第 3 节。
-- `docs/replay-corpus-regression.md` 里的三处 TODO（gate 增强、`walkerDigAimPriority` 待验、判定未决）
-  引用的 GameTest 通道已退役，**不算待办**。
+Pitch has two owners, so the driver does not look down while mining; there is no hand swing and it
+needs a probe of its own; best-weapon selection is called only on the Nether rung; a workbench is
+neither reclaimed nor are dropped items picked up; and the first moments of a run read as night
+until a spawn-time row is added. **Unverified.**
 
 ---
 
-## ⚖️ 拍板（2026-08-25 夜；2026-08-26 补判一批，见各条的日期）
-
-这一节把所有还开着的判断收成判词。每条四样：**判词**（做／不做／先补测量／排到 X 之后）、
-**凭什么**（行号、证据键、量出来的数）、**重开条件**（可证伪，写死到证据键）、**代价**（判错了以什么形式暴露）。
+## Test harness, ledger and instrumentation
 
-**执行顺序不在这里** —— 见 [`ROADMAP.md` §6](ROADMAP.md)（窗口 0–4）。
+### A scene failure does not reach the ledger
 
-### 🅶 仓库瘦身
+`ctx.fail` does not flow into the ledger's failure field, so the ledger never records why a rung
+failed. **Unverified.**
 
-✅ **已做：`git repack -adf --window=250 --depth=250` → 342 MB → 17 MB**（11.8 秒）。
-松散对象 4471→57（305.57 MiB→1.14 MiB）。无损：ref 12/12、提交 2184/2184、HEAD 不变、
-`fsck` 退出 0。备份 `../worlddriver-before-repack.bundle`（15.8 MB）。
-**没删历史、没改哈希，105 个提交引用一个都不用动。**
+### The fall self-report names the process, not the action
 
-⛔ 病根不是历史脏，是**高频往一个大文本文件提交** + git 的 auto-gc 阈值（6700 个松散对象）没到。
-`TODO.md` 12 小时内 102 次提交 ⇒ 每次一个新 blob，攒到 4471 个。
-**更要紧的是别再往 TODO 里写判读日志。**
+The leaving report says which process was running, and not which movement edge the walker was
+executing or which jump tag was in play. One family of falls has been guessed at across several
+rounds for want of an action to go with the location.
 
-🟠 **判：做 —— 定期手动 `git repack -adf`，不调 `gc.auto`**（原文只列了这两个选项，没选）。
-**凭什么**：`git config --get gc.auto` 无值 ⇒ 默认 6700 仍不会触发；repack 之后一天，
-松散对象已回到 **647 个 / 6.66 MiB**（`git count-objects -vH`，而 pack 才 9.48 MiB）。
-**重开条件**：`git count-objects -v` 的 `count:` ≥ 3000 而无人 repack ⇒ 改判调低 `gc.auto`。
-**代价**：判错＝下次膨胀再花一条 11.8 秒的无损命令收，不会静默。
+### The heartbeat cannot attribute horizontal drift
 
-❌ **判：不做（前提已过期）—— 剩下的 `filter-repo`。**
-**凭什么**：原文说清 `config/`／`__pycache__`／`*/bin/`「只多省约 3 MB」；实测
-`git rev-list --objects --all --reflog` 的 **27278** 个对象里这三类路径 **0 命中**
-（`git ls-files` 同样 0，五个兄弟仓库也全是 0）⇒ 可省 **0 字节**，收益侧根本不存在。
-**重开条件**：`git rev-list --objects --all --reflog | grep -cE '__pycache__|/bin/|config/'` 不再是 0。
-**代价**：判错＝.git 里多留最多 3 MB（今 20 MB）。
+It carries no delta movement, no input flags and no fluid flow, so a long lateral drift cannot be
+assigned to residual input or to a current. **Unverified.**
 
-### 🅱️ 甲之二（`JourneyPortalRung:906/942` 的早退采样）
+### The stacked-javadoc checker cannot see the worse form of the defect
 
-**判词：不做**（维持缓做）。
+An abandoned documentation block that lands above an undocumented member is not discarded — javac
+silently adopts it, and that member now ships someone else's contract. The missing reading is a
+mismatch between a block and the declaration it is attached to: a `@param` naming a parameter that
+does not exist, a `@return` on a void member. It does not need natural language. The script records
+this in its own header.
 
-**凭什么**：`ascendByTowering` 是递归循环，穿一个中止谓词要动 **9 个调用点**
-（`:245/:475/:603/:618/:636/:726/:780/:816/:820/:871`）；乙 已经把预算杀手（塔在被喂的水里重试 8 次）掐掉，
-`.washedOff` 重试行归零；甲之一 移除了本死链里唯一被观察到的触发（`returnedY=58`）。
-此后跑过的每一趟都判过它，**四次全部不命中**（17257 / 16191 / 12324 / 18011 tick 四趟）。
+### Evidence keys in the climb and exit families carry no tag and overwrite each other
 
-**重开条件**（原样保留，不放宽）：任何一趟里 `returnStuck` 开火，**且**同一时刻有
-`climb.*.driftOntoTheFlight` 行、或一条 y≤57 的 `climb.*.drift` 行。
-命中就按写死的形状做（`climbPinned`/`climbName` 那族 climb 级静态字段，在 `climbFrom` 里复位，
-**且场景两臂断言必须取不同值**，[[a-scene-that-owns-a-global]]）。
+**Unverified.**
 
-**代价**：判错的症状＝一趟里 `returnStuck` 多次开火而 `climb.*` 的 y 一直在 57 附近打转、
-预算被两个恢复周期吃光——那正是重开条件描述的那一行，所以判错会自己暴露。
-另一半代价是**额度**：9 个签名穿谓词现在物理上也放不下。
+### Mob cap, chunk loading and terrain change have no reading at all
 
-### 🅲 丙（`JourneyStairs.java:386` 点名的「reclaim it」——水源的存活窗口）
+**Unverified.**
 
-**判词：先补测量。**
+### Two of the late rungs have no stock evidence rows
 
-**这条修法是什么形状**（读 `JourneyStairs:250` ＋ `JourneyPortalRung.castOpenedCell` 得出的读法，**不是已定稿的设计**）：
-`castOpenedCell`（`JourneyPortalRung:1272`）在 `:1303` 先 `placeFluid(…WATER_BUCKET…)` 把水放进 `wet`，
-`:1388-1400` 才判「包里有没有岩浆」——没有就上楼取、再下楼、然后 `:1333` 才浇岩浆
-⇒ **水在整趟往返里一直是活的**。所谓「回收顺序」＝把水源的存活窗口从**几千 tick 的往返**
-缩到**浇筑那几十 tick**（取到岩浆之后再放水）。
-✅ **原文点名「动手前必须先查」的那个坑已查：不存在。** `loadBuckets`（`JourneyFill:725`）
-留着 `BUCKETS_KEPT_EMPTY_FOR_WATER = 1`（`:741`），且 `topUpBuckets` 数的是
-`rig.carrying("minecraft:bucket")`——**空桶**；装了水的是 `minecraft:water_bucket`，不在这个计数里。
+Three recipe tables are waiting on them. **Unverified.**
 
-**凭什么改判**：`304373fc` 那趟（两道禁挖闸都关掉之后，18011 tick FAIL）把水直接读成了死因：
+### The coverage line's executed count excludes scenes that ran and failed
 
-```
-stairsBroken 自检 38 次，报坏 0 次（20 次「11 级都完好」，18 次「一格不缺但泡着水」）
-cast8.stairFoot         = ⚠ 楼梯底积水：2,56,20=water …… 只能等它退
-cast8.raiseOffTheFlight = 只有楼梯那一柱 2,20 验得过射线，别无选择 —— 抬升多半会被冲下来
-cast8.raiseTo.arrivedY  = 57（起 57，净升 0），脚下=water[level=8]
-cast8.liftedY           = 67/59        ← 要 59，垒到了 67（解卡塔按「当前高度 +8」把身体甩上地表）
-```
+A failure counts as neither executed nor skipped. The coverage column also still needs the skip
+count beside it.
 
-但命中的是「**淹**」不是「丙 是解」：**回收顺序错**与**径流没人管**都解释得通而修法相反。
+### An advancement says not earned while the bag holds the item
 
-⚠️ **窗口 0 的那一步已经跑过一次，两个候选故事一起被否掉了**——把 18011 tick 那趟按趟排开：
-
-```
-forge 干 / lava0 0 泡水
-cast0…cast7  ⚠积水 1 泡水  →  drain.0…drain.6 全部「干」
-lava8 0 泡水
-cast8  ⚠积水 **2 泡水**  →  （没有 drain.8，本级死在这里）
-```
-
-**排水 8/8 全成**：每一趟浇筑都会把楼梯底泡上，每一趟排水都清干净，下一趟 `lava*` 自检读回 0 泡水。
-⇒ 「回收顺序错」（原 丙）和「径流没人管」**同时作废**。
-
-**cast8 到底哪里不一样：两件各自正常的事撞在一起。** ① 水多了一格——前八趟只泡 `2,56,20`（`流 level=7`），
-cast8 泡的是 `2,56,20` **和** `2,57,20`，两格都是 `流 level=8`（满流）；② 可选柱子只剩那一根
-（`cast8.raiseOffTheFlight`）。塔必须垒在唯一验得过的柱子上，而那一柱这一趟恰好泡进了第二格。
-
-**⇒ 还欠的那一个量（零行为改动，归 ROADMAP §6.2 仪器批，2026-08-27 补上排期行）**：
-**cast8 的水为什么比前八趟深一格**——是它的目标格更高、径流更远，还是 `drain.7` 留了底。
-2026-08-27 重核 HEAD：`JourneyDrain:140-141` 只写「壁龛已排干」或「等了 200 tick 仍有流体：<格>」
-（`DRAIN_LEGS=5 × DRAIN_TICKS=40`，`:74-75`），**不写清掉了几格、花了多少 tick**。补这一行。
-
-**重开／收案条件**：
-
-| 读到什么 | 判什么 |
-|---|---|
-| `lava{i}` 干、`cast{i}` 湿 | **源在整趟往返里活着** ⇒ 丙（回收顺序）就是解，提到队首 |
-| `lava{i+1}` 仍湿（即 `recover{i}`＋`drain.{i}` 之后还湿） | 收水没收干净／上游另有来源 ⇒ **径流那一族**，丙 不是解 |
-| 泡水行 `其中源块 = 0`（全是流水） | 活源不在这一带 ⇒ 先读 `drain.*.upstream`（`DRAIN_UPSTREAM=8`，`JourneyDrain:103`）再判 |
-| 泡水行有 `(源)` 且落在壁龛里 | 有活源，接着问它是 `water{i}` 自浇的还是上一趟残留的 |
-
-⚠️ 它出结果之前，丙 的修法形状（把 `placeFluid(WATER_BUCKET)` 挪到取到岩浆之后）**不许动手**。
-
-**代价**：选错族就会去改一段与积水无关的代码，而下一趟仍然 `raiseTo.arrivedY 净升 0`、
-`liftedY` 把身体甩上地表。那个签名很响，不会静默。
-
-### 🆕 J75：末影人有些仗**根本不结束**（NeoForge，`wd.serverEarnsAnEnderPearl`）
-
-**判词：先补测量**，落在**工程窗口的仪器批**里，**不占排练/真梯的槽**——它不在 12 级路径上。
-
-**凭什么**（全是量出来的，四趟 24 场）：
-
-- **掉率是确定性的**：`perFight` 在 Fabric 闸和 NeoForge 单跑 3 上**逐字相同** `0,0,1,1,1,1`
-  ——**按击杀序**：前两次击杀掉 0，之后每次掉 1，五个样本全部吻合。⇒ `pearls = killed − 2`，
-  判据 `pearls ≥ 1` 已**等价于「六场至少打死三场」**。
-- **唯一的自由变量是 `fights.slow`**：取值 4 / 2 / 2 / 0（NeoForge），Fabric 唯一样本 0。
-- **形状是二值的**：每场要么 66–150 tick 打完，要么**恰好烧满 4000**，24 场里中间值**一个都没有**
-  ⇒ 这不是「打得慢」，是**卡死**。45 倍的差不是噪声。
-- 与浇筑那一批**无关**：执行次序在前（NeoForge 日志第 25812 行 vs 三个新场景 38851/38908/39064），
-  且这一批改动全在 `src/testmod`；同一份代码单跑 3 拿到 6/6。
-
-**要补的读数：一行判两个相位，不用先挑。** 每一场**烧满上限**的仗落一行 `enderman.stall.<场次>`，带四个字段——
-**目标实体还活着吗、身体到它多远、这一场里目标位置的最大跳变（瞬移的签名）、这一场里
-`[pathfinder] search-begin owner=combat` 的条数**。第四项**不需要新引擎钩子**。
-判法：目标死了/不在了 ⇒ 目标丢失族；目标活着且近而搜索条数暴涨 ⇒ 重搜族；两者都不是 ⇒ 第三族。
-
-**判据不准再动。** 历史上判据被从 4 杀降到 2 杀（`CHANGELOG.md:390`）——那降的是**症状的阈值**，不是病。
-现在它已经等价于「六场至少打死三场」，**这是它能容忍的下限**，再降就是把仪器关掉。
-
-**重开／收案条件**：`enderman.stall.*` 出现第一行即判读，按上面三族分派。
-若**连跑五趟 NeoForge 单场都拿到 `fights.slow=0`**（即一行 `enderman.stall.*` 也产不出），
-则「4000 是卡死」这个前提被证伪，回头重读 24 场那张表是不是混了拓扑。
-
-**代价**：判错的暴露形式是——NeoForge 全量闸继续以约 **1/4** 的概率红在这一条必需项上。
-这是可承受的税，但它是税不是零。反方向判错（现在就动战斗代码）要改 `src/main`、要双 loader 闸，
-而且零样本上改重试逻辑没有判据可言。
-
-### 🔒 模腔内五条还没带 `NoBreak` 的腿
-
-**判词：不做（等证据），五条一条不加。**
-
-**凭什么**：今天已给两条腿定罪加闸，两条都有**日志级三重证据**（`JourneyPortalRung:1603`，
-证据写在它上面 `:1590-1601` 的注释里；另一条的 `JourneyPour:120` **重定位失败**，该文件今天
-`NoBreak` 只在 `:238`／`:261`，两处都不带这套三重证据 —— 引用待考，别拿它当锚）。
-**这五条一条证据都没有**，而处置办法在那笔定罪时就写下了：
-「其余按『哪条腿的死因再指向楼梯就给哪条加闸』处理，不做无证据的批量加固」。
-
-三条不加的理由：① **无证据**——全包 65 条 `new Intent(`、53 条没闸，绝大多数在地表/下界/末地行军，那里挖是**正当的**；
-② **加闸有实测代价面**（2422 那笔预登记留了**态 E**：浇筑数下降／`tries` 用光／`fromHere` 变多 ⇒ 加价让路贵到走不完。
-它这次读到的是态 D（零代价），但那是**那一条腿**的读数，尤其 `:1007` 是**从坑里往外爬的恢复腿**，
-禁挖可能让它根本没有路）；③ **额度**。
-
-**逐条的定罪签名**（下一次读日志时按这张表对，对上就当场加闸）：
-
-| 腿 | 目标形状 | settle 预算 → 心跳分母（框架 +100） | 会不会碰楼梯 | 今判 |
-|---|---|---|---|---|
-| `JourneyStairwell:670` `digStairsDown` 迈进刚切开的那一级 | `Goal.Block(foot)` | 300 → **400** | **会**：目标就是梯级本身，而它同时是唯一一条身体正站在梯上的腿 | 等证据（最可疑，但一格远的腿挖出捷径的机会最小） |
-| `JourneyStairwell:883` `returnStuck` 后走回楼梯口 | `Goal.Block(stairTop)` | 2000 → **2100** | **会**：起点在坑里、终点在梯顶 | 等证据（**加闸风险最高**，见理由 ②） |
-| `JourneyPortalRung:2197` `strike` 走向火塘点火 | `Goal.Near(hearth, 3)` | 1500 → **1600** | 会，但**代价近似为零**（十格全浇成之后跑，点着门就结束） | 不做 |
-| `JourneyFill:1180` `scoopWater` 的进近 | `reseats == SCOOP_RESEATS` 时 `Goal.Near(water,2)`；重座时 `Goal.Block(身体自己那一格)` | 2000 → **2100** | 重座那一支**几何上不可能挖** | 不做（重座支已被几何排除；首进近支等证据） |
-| `JourneyFill:1239` `waterFill.reseat` 走去新座位 | `Goal.Block(seat)` | 2000 → **2100** | 会，座位是水边落脚点 | 等证据 |
-
-⚠️ `JourneyStairwell:883`／`JourneyFill:1180`／`JourneyFill:1239` 三条心跳分母都是 **2100**，光看预算分不开，
-**必须配 `goal=` 那一段和证据键前缀**（`cast*.backToMouth` / `waterFill.*` / `recover*`）才算三重对上。
-
-**重开条件**（可证伪）：任何一趟里同时读到——① `*.stairsBroken` 报出至少一级 `脚下=air` 的 fault；
-② 日志里有 `[dig] cell=` 落在梯级支撑那条对角线上；③ 那些 `[dig]` 所属段的 `search-begin owner=` ＋
-心跳分母 ＋ `goal=` 与上表某一行对上。**三条齐了就给那一条加 `NoBreak`，只加对上的那一条。**
-
-**代价**：判错（其实该现在全加）的暴露形式就是重开条件里那三行，而这一族已连续两趟被这套签名当场抓到
-（`stairsBroken` 自 `:307` 起**无条件**写，健康趟也说话，所以「没有行」不再等于「没检查」）。
-反方向判错（不该加而批量加了）**不会有任何一行说出来**——恢复腿走不到只会表现成超时，判词会指向别处。
-这条不对称正是「等证据」的理由。
-
-### 🅹 J47（浮体走不上齐平岸／指针推进）＋ J39 挂账
-
-**判词：写死步骤那一半——不做**（2026-08-26 改判，原判「做」作废）。
-**ashore 翻绿：排到引擎侧那半之后。J39 随之。**
-
-**凭什么**：布景把几何写死了。`JourneyLandingScenes:210` 从 `GROUND=20`／`SUBMERGED=2` 下水，
-实测 `dryLand` y=**221** 而 `arrivedY`=**220**、`脚下=water` ⇒ `at.below()`=**219**：
-垫上去脚仍在 220，**仍低岸一排**；要够到 221 得垫身体自己那一格，`vanilla 的 isUnobstructed` 拒。
-下游两条腿也都在 `end=path-consumed` 的下游——`JourneyCast.stepOntoTheBank:137-154` 的 LAST_STEP、
-`bankRow:157-165` 记完一笔就 `ashore(rig)` 往下走，加腿改不了走行器只交到差一格处。
-
-**这一改判正好兑现了原判自己写下的代价**：垫一块会退掉引擎缺陷的最后一个常驻证人
-（唇场景在 J47c 之后已不作证）。不做 ⇒ ashore 常驻红**就是**那个证人。
-
-**验收（不放宽）**：只认 `wd.journeyGetsAshoreBeforePouring` 从 `fail(optional)` 翻绿，且**归引擎批**。
-**不认唇场景**——它已被 J47c 的绕行（开腿前 `aimBoth` 转身）修成 PASS，现在验证的是**那个绕行**，
-`within` 的垂直闸与指针推进**原样未动**，拿它的绿给 J47 结案是假结案（[[a-verdict-has-upstream-verdicts]]）。
-
-**重开条件**：某趟 ashore 的 `lava.lastStep.gotoEnd.1` 的 `end=` **不是** `path-consumed`
-（走行器真把身体交到 221 那一柱）**且**该趟仍红（`subject.endedAt` 仍写 `脚下=water`）
-⇒ 写死步骤重新有对象，重开。⛔ 只写前半会在引擎侧修好、场景通过的那一刻误开火。
-
-**代价**：判错＝ashore 多红一个引擎批的周期，症状是 C 断言 `subject.endedAt … 脚下=water` 照旧。
-
-**引擎侧那半 —— 判：可排**（引擎批，双 loader 闸；原先挡在前面的两套视图定价已合并进 `CellRules`）。⚠️ **前提已过期：不是垂直闸。**
-**凭什么**（两 loader **逐字相同**，就在 ashore 那条 FAIL 的前一行：
-`fabric/run-dogfood/logs/latest.log:35254`、`neoforge/run-dogfood/logs/latest.log:35678`）——
-末节点 `w=244891,221,100000` 被 `因=within` 吃掉时 `cur2=0.372`（闸 `REACH_DIST_SQ=0.45`，
-`WalkerConstants:223`）、`|w.y-p.y|=0.619`（闸 1.2，**远不吃紧**）、`脚底实心=0.0000`
-（`FOOTING_MIN=0.18`，`:287`）、`nx=无(末节点)` ⇒ **开火的是水平项**，原文那句「1.2 垂直闸」
-没有读数支持。且现成出口守卫 `WalkerTickProgress.airborneClimbConsume` 的落脚谓词此刻**为真
-却够不着**：它 scoped `nx != null`（只管中途节点），而 `!p.isInWater()` 是**量出来的**排除
-（`WalkerTickProgress:120-123`：去掉它水族「would never advance again」）⇒ 照搬守卫这条近路被堵死。
-⚠️ 同一段读数里 testmod 侧**另有一层**把它叫成到达：`lava.lastStep.gotoEnd.1=end=path-consumed
-…（判为到达：距 1 格，**容差 5**）`——两层各判一次，别只算一层的账。
-**重开条件**：ashore 仍红，而末节点那行的 `因=` **不是** `within`，或该行 `脚底实心` ≥ 0.18
-⇒ 归因换族，本条作废重查。（⛔ 别写成「`因=within` 而 `cur2 ≥ 0.45`」——`within` 印出来就蕴含
-`cur2 < 0.45`，那是个恒假式，永远重开不了。）
-**代价**：判错＝引擎批去改一个没病的子句，而 ashore 仍红在 `lava.exit.ashore=没上岸`。
-
-**⇒ 原来那条「写死步骤不管用就把引擎侧提到队首」已提前兑现**——几何算得出来，不用先跑一趟。
-排期见 [`ROADMAP.md` §6](ROADMAP.md)。
-
-**J47c 的边界（别再拿它的绿去解释客户端那边的红）**：客户端排练实测三次尝试，开腿前 yaw 已经是
-**−91.1° / −90.3° / −90.6°**，而末路点方位角**就是 −90°**，`aimBoth` 只改了 1.5°／0.3°／0.6°
-⇒ **J47c 在客户端身体上是 no-op**。假玩家那边开腿前 yaw 是 `0.0°`（偏 90°），修法在那里成立且验过两次。
-**同一个症状，两具身体两套机制；一份绿不能迁移，一份修法也不能。**
-
-### 🅿️ 布景阶段那 9 条 `[place] 拒绝` @ `-17,63,13`
-
-**判词：不做。**
-
-**凭什么**：① **发生在布景阶段，不在计分区**（排练把身体抬到起始位姿的那一段，判词、证据键、级别结局都不经过它）；
-② **它没买走任何东西**——拒绝不消耗物品、不写方块（Q27 已量：0.66 拒绝/成功，只在个别格上成簇）；
-③ **塔照样垒起来了**——同一段里身体 y 从 **65.024 升到 66.166**，而被拒那一格的邻格 `-17,64,13`
-**已经是自己刚放的圆石** ⇒ 放置这件事**成了**，被拒的只是一个**过期的点击格**。代价＝9 tick。
-
-⚠️ **这条是在没有决定性证据的情况下拍的那一半**：**没有**一行读数说这 9 条拒绝让布景多花了多少 tick，
-也没有一行说它在计分区复现过。
-
-**重开条件**（可证伪）：任一趟里出现 **同格 ≥5 条同秒 `[place] 拒绝`**，**且**同一段落写出
-`没垒成` / `walkerFallback=true` / `climb.*.afloat` 之一——即拒绝簇第一次与一个失败结局同段。
-那时修法方向已经写好：**点击格随身体重算**，而不是沿用开腿时那一格。
-
-**代价**：判错的暴露形式是布景阶段本身超时或把身体摆在错位姿上，症状是 `staged.*` 那一族前提断言红
-（而不是级别判词红）——**红在布景不红在被测对象**，不会被误读成产码缺陷。
-
-### 🆕 落地判据的新尺子只在**一具身体**上认证过（`finishTheFlight` 族在集成拓扑全跳过）
-
-**判词：先补测量。** 缺的读数＝**一趟修法后的 `runRehearsalIntegratedServer`**（真 `LocalPlayer`）里的
-`flightLastStepSettled`／`flightLastStepEnd`。⛔ 零代码，但**必须是 integrated 那一种**排练。
-
-**凭什么**：`5c1e1639` 改的是**下坠物理**（判据从格号改成身体离地板的高度 `SETTLED_SLACK`），
-而这条判据的四条场景（`wd.journeyJudgesTheLastStepAfterTheDropLands`、
-`wd.journeyWalksOffTheLipOntoTheDryStep`、`wd.crossingWaitsOutASurvivableDrop`、
-`wd.bridgeDescendPlaceLip`）在集成闸上**四条全跳过**（`COVERAGE: 103 executed, 223 skipped`），
-只在专用服闸上执行（`298 executed, 25 skipped`）⇒ 两趟闸都 GREEN **只等于服务端 avatar 那一具身体上认证过**。
-而真 `LocalPlayer` 那一侧：`5c1e1639` 是 **2026-08-26T19:23Z**，
-`run-rehearsal-integrated` 最新工件是 **07:19Z** ⇒ **修法后零样本**
-（那三趟兑现的排练写的是 `run-rehearsal`，即 `runRehearsalServer` 的假玩家，`fabric/build.gradle:526/582`）。
-⛔ 「身体种类是自变量」在同一段代码上量到过：`returnedY=57`×3 假玩家全落地 对 `58`×2 真客户端骑唇。
-
-**跳过本身不是缺陷，也不用查**：`SceneBody:212` 明写这条规则（集成服有真客户端就不许再造无头身体），
-它的对账条款是「每一条因此跳过的场景都在专用服闸上执行」——上面两个数**逐条兑现**了这个对账。
-
-**重开条件**：那一趟 integrated 排练读到的 `flightLastStepSettled`／`flightLastStepEnd`
-与专用服闸上同名读数**不是同一族**（例如真客户端仍在下坠途中判到达）⇒ 修法只对一具身体成立，当场开工单。
-
-**代价**：判错＝`SETTLED_SLACK` 在真客户端上没生效而全绿掩着，症状是 12 级又出
-`浇不到指定格` 而 `finishTheFlight` 一族的场景一条都不红。
-
-### ❌ 「跳过的场景在结果文件里写 PASS」——判：不做
-
-**凭什么**：判官**已经把两者分开**，不是没分——`Verdict:287-290` 的 `skipped(rec)` 双信号
-（`skipped` 字段 OR `reason` 前缀），`:235-241` 把跳过印成 `skip:` 而不是 `pass:`、
-不计进 `executed`（`:243`）、并汇进 `COVERAGE:` 行（`:254`）。实测行也带得全：
-四条跳过的记录都是 `outcome=PASS` + **`skipped:true`** + `ticks:0`。
-⛔ 而 `outcome` **不能改**：`Verdict:231` 用 `!"PASS".equals(outcome)` 判失败，
-写成 `SKIP` 会让**每一个跳过当场变成 required FAIL**。
-⇒ 要修的不是结果文件，是读它的协议——已写进上面「真梯」那节的读法。
-
-**重开条件**：某趟的 `COVERAGE:` 行与 `stagewright-results.jsonl` 里 `skipped:true` 的条数**对不上**
-⇒ 那才是判官真的把跳过算成了执行，重开。
-**代价**：判错＝又一次「绿的套件报告了它从未执行的科目」（[[skip-is-not-coverage]]），
-症状是某条场景在**每一个**拓扑上都跳过而没人发现——那一条归 `Coverage.java` 管，不归本条。
-
-### 📋 队列里剩下的 📌／📐 行，一并拍板
-
-**J24（`JourneyShaft.supportUnder` 读 `rig.ctx().level()`，latent）：不做（现在）。** 见队列表 J24 行。
-代价：判错的症状＝身体在下界踩空而 `supportUnder` 说得通——**这一族不会自己报错**，
-所以重开条件必须由人在开工时执行，写在这里就是那份提醒。
-
-**J41 尾（除头条外的 12 个爬升入口）：不做。** 见队列表 J41 行。
-代价：判错时死因链会缺一环，症状是判词只能说「爬完了然后就死了」——与 J41 头条今天的形状一模一样，可识别。
-
-**J42（`JourneyRig` 的门面缝）：不做。** 见队列表 J42 行。
-代价：判错＝某天这个文件撞上 3000 行预算闸而没有现成搬运单，症状是 `check_source_budget.py` 直接判红
-——**硬闸，不会静默**。
-
-**Q16e（6 级间歇失败，3 趟里 1 趟）：不做（仪器已武装，首现即判读）。** 见队列表 Q16e 行。
-代价：判错＝这一级继续以约 1/3 的概率吃掉一趟真梯（约 40 分钟）；这笔税已量过，
-而它的替代方案是在没有发作样本的情况下改近战，那更贵。
-
-**Q12b（新增「真世界」拓扑）：不做（维持推迟）。** 见队列表 Q12b 行。
-代价：判错＝出厂配置下的刷怪相关缺陷推迟到 13 级以后才暴露，症状是下界/末地某级首跑就死于敌对生物
-——那时它会被误记成那一级的新缺陷。
-
-### 🔧 J55 的做法（等编译器空出来就照着做，**顺序不能反**）
-
-1. `ToolCatalog` / `BotTools` 加 `mc.bot.tunnel` 的 schema：`direction`（enum 用 `applyDirection` 的全集，
-   **含 `up`/`down`**）、`distance` **1..64 必填**、`width` 1..8 默认 1、`height` 1..8 默认 2、`fill` 可选方块 id。
-   ⚠️ **`distance` 必填这一点不能丢**——`prelude.js:198` 有一整段注释解释为什么不能靠 `Math.max(1,…)` 兜底
-   （会把缺失的距离悄悄变成挖一格）。
-2. `DriverApi.route` 加 `mc.bot.tunnel`，实现搬进 `bot/` 侧，走廊 bbox 用 `applyDirection` 算方向，
-   **yaw 取实时的 `p.getYRot()`**，不要再读 `mc.observe.player` 的快照（那是滞后一 tick 的根源）。
-3. `prelude.js` 的 `tunnel` 改成**薄转发**：`Driver.invoke('mc.bot.tunnel', opts)`。
-   保留函数名和返回形状，`validation/25_phase_d3.js` 才不用改。
-4. 跑双 loader 闸 + 脚本验证套件。**判据**：`25_phase_d3.js` 那两条（缺 `distance` 报错、未知方向报错）
-   必须仍然过，而且现在要**多一条**：MCP/RPC 侧调得到 `mc.bot.tunnel`。
-
-⚠️ **不要顺手统一 `back`/`backward` 那两个 enum。** 那是独立一件事，需要「一个 enum＋一个接受集＋
-一条验证脚本」，混进这一笔会让闸出问题时分不清是哪半边。
-（三套方向词表的接受集对照：`applyDirection`（`GoalResolver:93`）是唯一全集且唯一做归一化；
-`resolveCardinalDirection`（`:177`）少 `up`/`down`／`backward`／`ahead`；`prelude.js` 少 `backward`／`ahead`。）
-
-### 🔧 J72 的三笔（照定稿次序）与判据
-
-1. **给静默的 `null` 分支补一行。** `aimThatLandsIn`（`JourneyPour:879`）的五个 `continue`
-   一行不写（`JourneyPour:885`／`:887`／`:891`／`:892`／`:893`），
-   于是「重问了、被拒了、照旧开火」在日志里**没有痕迹**。先让它出声。
-2. **让失败判词说真话。** tries=1 的 `ctx.fail` 现在写的是几何（「浇线上是…」），
-   而真相是「**身体不在它自己选的落脚格上**」。判词错族会把下一个读者送去挖 k=0。
-3. **让重试真的改变些什么**（唯一的行为改动）：记下**身体走不到的那些落脚格**，
-   重试时把它们从 `standToPour` 的候选里排除。现在 tries=2 和 tries=1 逐字节相同，
-   正是因为 `standToPour` 在同一个世界里必然给出同一个答案，而它不知道身体到不了那格。
-   **集合按每一趟（cast）清零。**
-
-| 态 | 读到什么 | 判作 |
-|---|---|---|
-| ① | 重试的 `stand.2` 与 `stand.1` **不再相同**，且至少一次 `picks` 的身体格与 `stand` 一致 | 第 3 笔成立 |
-| ② | 候选被排除到一个不剩 ⇒ `模腔里没有能浇到 … 的落脚点` | **这是正确的失败**，不是回归：它说的是「够得着的格都试过了」，比现在这条准 |
-| ③ | 三笔都落地后 `cast2` 仍拒绝，且 `.picks` 仍点 `4,58,18` | **几何本身无解**——目标上方那一柱挡着，这时才轮到「让 `blockersOnTheLine` 从 k=0 起扫」或换背板，且必须先量 `4,58,18` 是不是壁龛内 |
-
-**不做的事**：不把 `blockersOnTheLine` 直接改成从 `k=0` 起扫。k=0 是目标自己那一柱，挖它就是挖模腔的框。
-要动它必须先有 ③ 的证据。
-
-⚠️ **归因判别式按 `.picks` 行，不按 `浇线上`。** `pourLine(lvl, target, away)` 是从目标**往身体方向倒扫**
-`k=1..POUR_LINE`（`JourneyPortalRung:1939`），**恒不包含目标自己那一柱（k=0）**；
-`JourneySight.blockersOnTheLine` 也从 `k=1` 起扫（`JourneySight:277`）。
-拒绝时唯一有判别力的是 `.picks.N` 里 `face=` 前面那个坐标：= 目标那一柱（k=0）⇒ J72；
-在 `k≥1` 且是壁龛内实心 ⇒ 才轮到 clear／淹水那条线。
-
-⚠️ **这个判别式漏了一支，而第 12 级正好落在那一支上。** ladder-17 的 `cast8.picks.1/3`
-点的是 `1,60,20`，**k=3 且壁龛外** ⇒ 上面两条都不是。缺的那一支是
-「**身体根本没站到它自己选的落脚格上**」——正是第 2 笔要让判词说出来的那句话。
-⇒ 第 2 笔的收益已经**在我身上兑现了一次**：现行判词写「浇线上是…」，
-把我送去查 `1,60,20` 那三格土是谁放的（答案：原生剖面，`TODO.md` 里早查过），
-整整一轮。**它预言的误导发生了。**
-
-⚠️ **`stand.1`≠`stand.3` 不是第 3 笔的痕迹。** ladder-17 里 `cast8.stand.1 = 3,59,20`
-而 `stand.3 = 3,56,21`，看着像「重试换了落脚格」；但 HEAD 三笔都没落（本节抬头那行），
-而同一组读数里「脚下不实心」也在 36/38/37 之间抖 ⇒ **变的是世界，不是候选表**。
+The blaze-rod advancement. Measure whether the inventory-changed trigger fires for a joined body
+before believing either side of it. **Unverified.**
 
 ---
 
-## 📌 还没落地的预登记（判据写在读结果之前）
-
-**这些读数还没写。删了就没有判据可对。**
-
-### 两个全量闸（`stagewrightDedicatedServerFabric` / `…Neoforge`）
-
-**该是什么颜色（先算，再去对）**：
-
-- **本批没有改任何 `expected-scenes-*.txt` ⇒ 不应该出现 `UNDECLARED:`。** 出现了就是别处漏登记。
-- 两条常驻 `fail(optional)`：`wd.vineOverWaterClimb`（−711 藤蔓传感器，`pocketTicks=81`）、
-  `wd.serverEscapeSealedShelter`（`y=221.0`，carve 超时）。**第三条
-  `wd.journeyGetsAshoreBeforePouring` 仍在 optional 名单里**（`JourneyLandingScenes.java:55`
-  的 `.withRequired(false)`，而它的翻绿已排到**引擎批**（ROADMAP 13b）⇒ **常驻就是三条**，都不单独翻红。
-  ⛔ 别再等「写死步骤落地」——那条已判不做，等它就是等一个不会来的落地。
-- **Fabric ⇒ GREEN。**
-- **NeoForge ⇒ GREEN，或者只红在 `wd.serverEarnsAnEnderPearl`**（已量到的 1/4 翻红率，工单 J75，**判据不下调**）。
-- 新增风险面只有一个：`walkToColumn` 的**硬约束参数转发**（22 个调用点的共享助手）。
-  **红的形状本身就是判据**：单条红 ⇒ 与本批无关；**多 rung 行军同时红 ⇒ 就是这笔转发**。
-
-**读法**：`grep -cE '^\[stagewright:[^]]+\] VERDICT:'` **先数行**，再从 `VERDICT:` **往上**读
-`UNDECLARED:`／`COVERAGE:`／canary 三条——它们各自都能单独把一趟染红。**全程不许 `tail`**。
-⚠️ 数失败要**大小写不敏感**：必需失败印大写 `FAIL: '`，可选失败印 `fail(optional): '`。
-⚠️ `VERDICT:` 可能有 2 行，其中一行是场景自己的证据行 `[wd.vineClingFidelityProbe] VERDICT:`，
-**只有带拓扑前缀、不带时间戳那条是闸在说话**。
-⚠️ **失败（required 与 optional 同）既不进 `executed` 也不进 `skipped`**；`executed + skipped` 两边都恰好 318。
-
-| 态 | 读到什么 | 含义与下一步 |
-|---|---|---|
-| ① | GREEN，`UNDECLARED:` 空 | 清单对账通过 ⇒ 去排练/真梯 |
-| ② | RED 且 `UNDECLARED:` 点名某个场景 | 清单里的名字与注册名不一致 ⇒ **只改清单，别改场景** |
-| ③ | RED 而**没有任何必需项失败** | 从 `VERDICT:` **向上**读 `COVERAGE:` 与 canary 三行，别回头重读失败行 |
-| ④ | 某个场景在全量里红（过滤跑却绿） | **跑序/共享世界**问题：竞技场与别人重叠，或某个 climb 级静态被上一个场景留脏 ⇒ 查 `climbSeq`／`JourneyStairs` 一类的跨场景状态 |
-| ⑤ | 基线之外出现新的 optional 失败 | 记账，不阻塞——但要与上一次绿闸做差，别默认是这一批造成的 |
-| ⑥ | 跑不出 `VERDICT:` 行（`grep -c` 为 0） | **不是红，是根本没起来** ⇒ 读日志中段，别看退出码 |
-
-**先 Fabric 后 NeoForge，串行**，两者共享工作树，且期间不排练、不编译。
-
-### 真梯 `:fabric:runJourneyIntegratedServer`
-
-**只有这一个任务算真梯证据**：`fabric/build.gradle:773`，且 `:323` 写明它 **ADOPTS the client's real player**
-（`LocalPlayer` 拓扑）。`runJourneyServer` 是无头的，`rehearsalServer` 按 `:532` **跑在 fake player 上**。
-
-⚠️ **真梯任务不打 `VERDICT:` 行**（实测 0 行）——「数 VERDICT 行」这条协议在这里的正确读法是
-「**0 行 = 符合预期**」，不是「死在半路」。跑完的证据是 `wd.journey99Verdict` 出了行。
-⚠️ 结果文件叫 **`stagewright-results.jsonl`**（不是 `results.jsonl`），按**插入序**读，字段是 **`outcome`** 不是 `status`
-（按 `status` 读会整列拿到 `None`，看起来像「一级都没跑」）。
-⚠️ **只读 `outcome` 会把跳过读成通过**：跳过的场景写的是 `outcome=PASS` + `skipped=true` + `ticks=0`。
-**每次都要连 `skipped` 一起读**（判官自己就是这么读的，`Verdict.skipped`）——
-「`skipped:true` 的 PASS ＝ 没跑」。
-⚠️ 起跑前三件事：按**命令行**确认没有游戏 JVM（`architectury.main.class=`，**不能用 `jps`**）、
-`git status`、**先删掉 `fabric/run-journey-integrated/stagewright-results.jsonl`**
-（残留的结果文件照样能回答问题）。⚠️ **删之前先 `ls` 出这个任务上次写了哪个文件**，别凭记忆写文件名。
-
-**预登记**：
-
-- ~~上限是 **11/20**，12 级三趟排练都 FAIL，所以**押 12 级仍然不过**。~~
-  **这一条本身就是错的**：真梯上限是 **14（BLAZE_ROD）**，12 级此前 **2/2**（见下面第 2 趟读数里的
-  主源引文）。「11」来自一份过期摘要，我照抄了没去核。
-  另外，**排练三趟全 FAIL 没有预测到真梯会过**——两者不是同一具身体的同一段历史，
-  排练的前 11 级是布景摆的。**排练结果不许当真梯的预测用。**
-  **下一趟按上限 14 押，判据落在「14 级怎么死的」而不是「爬到第几级」。**
-  🆕 **第 3 趟（2026-08-26 10:07 收，此前没人归档，结果文件当残留躺在 runDir 里）又改了一次**：
-  `wd.journey12PortalLit` **FAIL**（13915 tick），13–20 全是 **0 tick 假绿** ⇒ 成绩 **11/20**。
-  ⇒ 12 级在真梯上是 **3 过 1 败**，不是「2/2 常过」。它跑在今天两笔 12 级修法**之前**，
-  所以它是修法前的真梯基线。死因与排练**同族**：
-  `浇不到指定格：想浇 4,61,20（瞄 5,61,20），射线会把流体放进 4,64,20，身体在 2,65,20`，
-  浇线上全是 `grass_block(壁龛外)` / `dirt(壁龛外)` ⇒ **身体站在地表，射线被土挡住**。
-  原始结果已备份到 scratchpad `ladder3-results-1007.jsonl`（runDir 那份会被下一趟覆盖）。
-  ⇒ **下一趟的判据同时覆盖 12 与 14**：12 过则看 14 怎么死；12 仍败则看是不是同一族。
-- 排练与真梯不是同一具身体的同一段历史（排练的前 11 级是布景摆的，真梯是爬上来的），
-  所以真梯的 12 级可能死在**排练里根本不会出现的地方**。
-- **要读的第一件事仍是族**：`stairsBroken` 有没有报坏（两道禁挖闸在真梯上是否同样闭合）。
-- **J61 的 K1／K2 三态**（见上文「J61 的等级」）。
-- **跑时会远超 40 分钟的习惯值——不许按时长判死，不许杀进程。** 活性看日志行数在不在涨（`wc -l`），不看挂钟。
-- **「12 PASS + 14 级 FAIL」= J69 收口 + 新工单，不是 J69 失败。** 12 级一旦通过，
-  **13 级往上在这轮回归期里是第一次真跑**（下界、烈焰棒、要塞……），总结局会由 13+ 的某个新前沿决定。
-- **⑥ 选路时干 ≠ 到达时干。** `lowestDryStep` 在 `walkTheFlight` 开头算（`:320`），而走完整段楼梯要几百 tick。
-  **签名**：`flightLastStepMissed` 且其中的 cellStory 写着终点 `身处 water` ⇒ **水更深了，修法照常生效，不许回退**。
-  顺带：`flightEnd` 也可能出现在 `lava*.`（上行段）。**按 tag 族分开数**：`cast*.flightEnd` 九行是下限，
-  总行数超九不是失控。
-
-#### ✅ 闸的读数（2026-08-26 01:28 / 01:34）：**两个都 GREEN，闸债还清**
-
-```
-Fabric   : 298 执行 / 25 跳过   VERDICT: GREEN
-NeoForge : 299 执行 / 24 跳过   VERDICT: GREEN
-UNDECLARED: 两边都没有        canary: 两边三条全对（FAIL / TIMEOUT / 正确省略）
-```
-
-（数了 `VERDICT:` 行：各 2 行，其中一行是 `wd.vineClingFidelityProbe` 自己的证据行，不是闸判词——
-这正是「先数 VERDICT 行」协议要防的那种误读。）
-
-**这一批要验的是 `walkToColumn`**：核心重载加了硬约束参数，22 个调用点靠转发传 `List.of()`。
-预登记写死了**红的形状**才是判据——转发若错，会让多个 rung 的行军场景同时红。一条都没红。
-另有一条**代码级**的等价性证明：`Intent.java:31` 的两参构造器就是
-`this(target, bias, CapabilityProfile.ALL, List.of(), null)`，与我传的四参**逐字相同**。
-NeoForge 的末影人（J75）这趟没翻，是 3/4 的那一面。
-
-#### 📖 真梯第 1 趟的读数（2026-08-26 01:41→01:57，16 分钟）：**8/20，摔死在 9 级**
-
-⚠️ **10–20 级全是假绿**：印的是 `PASS (0 ticks) — skipped: BLOCKED: 上游阶段…未达成`。
-真实成绩是 9 级（IRON）**身体死了**：
-
-```
-[Minecraft] Player657 fell from a high place
-[journey] 身体死了：Player657 died（IRON 级，位置 84, 51, 76，本段第 30 tick，驱动器 goto）
-心跳 IRON builder 本段第4/300 tick 身体=83,60,75      ← 六秒前还在 y=60 垒东西
-```
-
-**这一趟对 12 级什么也没说**：`stairsBroken` 在整份日志里 **0 行**——两道禁挖闸
-**一次都没被执行到**，上面预登记里「要读的第一件事」没有数据。**该预登记仍然开着。**
-
-死因不是本批改动：唯一能碰到 9 级的是 `walkToColumn`，而它的转发已由上面那条构造器
-等价性证明排除；两闸全绿是同一结论的另一面。9 级此前过过很多次（上限曾到 11），
-所以按族判这是方差；**一个样本定不了因**（[[one-sample-cannot-name-a-cause]]），
-已开第 2 趟取第二个样本。
-
-🆕 **新线索（等第二个样本再判，不要现在修）**：9 级 `builder` 段结束、切回 `goto` 的那一瞬间
-从 y≈60 掉到 y=51 摔死。形状上像「一段可以继承一场下坠」／「补救留下的东西」那一族，
-但只有一个样本。**判据**：第 2 趟若同样死在 9 级且同样是 `fell from a high place`
-⇒ 开工单；若不复现 ⇒ 记账不修，等它第三次出现。
-→ **第 2 趟 9 级 PASS（6262 tick），不复现。** 按上面写死的判据：**记账不修**，等它第三次出现。
-
-#### 📖 真梯第 2 趟（2026-08-26 02:0x→02:46）：**13/20，零布景——不是新纪录，比历史最好低一级**
-
-⛔ **这一节最初写的是「13/20 新纪录，12 级首次在真梯上通过」。两句都是假的，已改。**
-主源是重写前的 `TODO.md`（`fb94af03`，第 21318–21321 行）：
-
-```
-## ⬜ 上一轮的接手点 —— 真 ladder 爬到 14 级（BLAZE_ROD）；12 级 2/2，13/14 级第一次执行
-**新高：journey.height = BLAZE_ROD（第 14 级），journey.stagingCalls = 0。**
-在此之前真 ladder 最高只到 12 级。两趟都跑完全程，没有中途收手。
-```
-
-⇒ 真梯上限是 **14（BLAZE_ROD）**，12 级 **2/2** 早就过过。今天这趟 `height = NETHER`（13），
-**低一级**。
+## The survival ladder
 
-**我是怎么写错的，值得记**：三个来源给了三个上限——继承的会话摘要说 11、
-记忆 `the-dragon-died` 说「真梯至今没爬到 12 级以上」、记忆 `the-portal-was-lit` 说到过 14。
-我挑了手边最顺的那个（11），于是 13 看起来像跃升。
-**记忆和摘要都是时点快照，不是裁判**；判「新纪录」这种话之前必须去查运行记录本身，
-而它一条 `git show <重写前提交>:TODO.md | grep journey.height` 就能拿到
-（[[two-ones-that-disagree]]、[[the-wrong-version-is-always-prettier]]——错的那版更漂亮，
-所以更容易被选中）。
+The end-to-end survival run. The three standing optional failures in the scene suite
+(`wd.vineOverWaterClimb`, `wd.serverEscapeSealedShelter`, `wd.journeyGetsAshoreBeforePouring`) are
+tracked here rather than as suite defects.
 
-**这一趟真正的价值不在名次，在下面那一节**：本批两道禁挖闸第一次在真梯上被执行到并闭合。
-
-```
-wd.journey09Iron      -> PASS ( 6262 tick)      ← 上一趟摔死的那一级
-wd.journey11Obsidian  -> PASS (10120)
-wd.journey12PortalLit -> PASS (17295)           ← 第 3 次在真梯上通过（此前 2/2）
-wd.journey13Nether    -> PASS (  186)
-wd.journey14BlazeRod  -> FAIL ( 1179)           ← 新前沿
-15–20                 -> 0 tick（BLOCKED 跳过，不是通过）
-```
-
-```
-PORTAL_LIT REACHED — 在 y=57 就地浇出十块黑曜石并点亮 6 格传送门（自带一桶水下井，浇完水还在桶里）
-NETHER   REACHED — 从自己点亮的门走进下界，落在 6, 41, 3（地表门在 2, 57, 20，按 8:1 应在 0,2）
-99Verdict PASS   — journey 爬到 NETHER(进入下界)，地板 PORTAL_KIT，峰顶 DRAGON，**布景调用 0 次**
-```
-
-⚡ **上面那条预登记逐字命中**：它写着「**『12 PASS + 14 级 FAIL』＝ J69 收口 + 新工单，
-不是 J69 失败**」，并预告「12 级一旦通过，13 级往上在这轮回归期里是第一次真跑」。
-结局正是这一支——先把该判的判了，再去看死在哪，省掉了「一个解释得通的失败掩掉另一个」
-（[[a-verdict-has-upstream-verdicts]]）。
-
-##### ✅ 两道禁挖闸在**真实历史**上被观察到闭合
-
-上一趟死得太早（9 级），这个量没有数据；这一趟有了：
-
-```
-stairsBroken 自检 …… 21 次，报坏 **0** 次（11 次「11 级都完好」，10 次「一格不缺但泡着水」）
-梯级支撑对角线上的 [dig] …… **0** 行
-```
-
-排练三趟的曲线（3/11 → 1/11 → 0/11）在真梯上收在 0，而且真梯的前 11 级是**爬上来的**
-不是布景摆的。**这是本批修法的终检，通过。**
-
-##### 🆕 新前沿：14 级在下界**烧死**
-
-```
-[Minecraft] Player514 went up in flames
-[journey] 身体死了：Player514 died（BLAZE_ROD 级，位置 71, 43, 69，本段第 49 tick，驱动器 goto）
-```
-
-死在 `@minecraft:the_nether`，`goto` 段第 49 tick，离下界落点 `6,41,3` 已经走了一段。
-
-##### ✅ 归档日志直接把族定了，**不用再跑一趟**
-
-原本写着「要分两支：走进岩浆/火 vs 被烈焰人点着，缺分族读数」。**读数其实已经在日志里**
-（[[the-portal-was-lit]] 那条老账：一份归档常常够回答「走的是哪条分支」）：
-
-```
-02:46:03 [contactEscape] inFire damage (hp=1.0) at 71, 43, 69 → stepping out of contact
-02:46:03 [lavaEscape]  flow front adjacent 69, 42, 71 at 70, 43, 70 (hp=1.0) → walking away
-02:46:04 [lavaEscape]  handing back (clear), 14 ticks
-02:46:05 死
-```
-
-- **不是烈焰人**：整个 14 级窗口一次 blaze 都没出现。是**地形的火与岩浆**。
-- **守卫不是缺失，它们跑了**——差点又假设成缺失（[[a-guard-i-assumed-absent-was-running]]）。
-  全程 `lavaEscape` 触发 **36 次**、`contactEscape` **4 次**。
-- **而 `lavaEscape` 判了 `clear` 交还控制权，20 tick 后身体烧死。**
-
-###### 🔴 缺陷一（代码级可证，不依赖样本数）：`clear` 说的是环境干净，不是身体不烧了
-
-`LavaProximityEscape.tick`（`common/.../bot/auto/LavaProximityEscape.java:59/78`）：
-
-```java
-boolean hot = threat != null || p.isInLava();      // 只问环境
-...
-if (hot) linger = LINGER_TICKS;
-else if (--linger <= 0) { reset("clear"); return false; }
-```
-
-`hot` **从不问 `p.isOnFire()` / `getRemainingFireTicks()`**。而在下界，**离开岩浆并不灭火**——
-实体身上的火会继续烧数秒。于是「走开了 ⇒ clear ⇒ 交还」这条链在身体仍在燃烧时成立，
-日志里那 20 tick 就是它的代价。
-
-⚠️ **但别急着把 `isOnFire()` 塞进 `hot`**：这个反射做的事是「远离岩浆」，
-而一具已经着火、且四周已无岩浆的身体，再走开也不会灭火。**让它继续激活并不等于救得回来。**
-真正该问的是下面这条。
-
-###### 🔴 缺陷二（更大的杠杆）：**整条反射链在真梯上是关着的**
-
-真梯自己的证据行，逐字：
-
-```
-反射链实测：一条都没武装（autoRetreat/autoFight/autoDodge/autoHeal/autoShield/autoEquip
-全 false，都是出厂默认；所以受到攻击不会有任何抢占）
-```
-
-配上血量曲线（全程 `hp=` 读数）：
-
-```
-hp=11.0 ×10   →   hp=10.0 ×7   →   hp=1.0 ×2   →   hp=0.0
-```
-
-身体从满血被一路磨到 1 血，**没有治疗、没有撤退、没有换装**，仅有的反应是那两条接触逃逸。
-到 `hp=1.0` 时无论哪条反射都救不回来了——**所以真正的失败发生在 hp 从 20 掉到 1 的那一段，
-不是最后那 20 tick。**
-
-**判：先补测量，不现在改。** 理由三条：
-1. 武装反射链是**影响全部 20 级**的行为改动，而窗口纪律是一次只放一笔
-   （[[one-sample-cannot-name-a-cause]]：两笔一起动，下一趟就归不了因）。
-2. **反射链默认关着可能是有意的**——它会抢占 walker 的按键，而这套梯子的
-   前 13 级正是在「没有抢占」下调通的。动它之前必须先知道它是不是护栏。
-   **先 grep 出是谁把它设成默认关、有没有写理由。**
-3. 缺的读数很具体：**血量是怎么掉下去的**（每次掉几点、间隔多久、掉的时候身体在哪一格）。
-   现在只有 4 个采样点，而且是 `lavaEscape` 顺手打的，不是按 tick 记的。
-   这正是窗口 1 里 **J40②** 要补的东西——它从「锦上添花」变成**前沿的必需项**。
-   ✅ **血量那一半已经落地并实测出行**（`JourneyRig.noteHurt`，无 flag、无节流、只记掉血、
-   带脚下方块与着火 tick，排练日志里写出 `hp.trace`）⇒ **这条推进条件不再挡路**。
-
-**重开/推进条件**：J40② 落地后跑一趟真梯，读血量曲线；若曲线显示
-「单次掉 ≥6 点」⇒ 是掉进岩浆那一类，修路径代价；若「每 0.5 秒掉 1 点、持续十几秒」
-⇒ 是身上着火烧完全程，那时再谈灭火/治疗，且届时已有分布可判。
-
-###### ✅ 反射链默认关的**理由已 grep 出来，与真梯无关**
-
-`BotConfig.java:232-237` 逐字：
-
-```java
-/** … Off by default so a quiet bot stays quiet (a scripted scenario that wants
- *  the bot to hold ground isn't overridden). */
-public static volatile boolean autoRetreat = false;
-```
-
-⇒ 这是给模组普通用户的**产品默认**，不是这套梯子的护栏。真梯恰恰是想要它开着的那种场合。
-所以修法形状定了：**只给真梯这具身体武装**（写死步骤，不是补引擎能力），
-且 **`autoHeal` 先于 `autoRetreat`**——后者会抢占 walker，爆炸半径覆盖已经在跑的 13 级；
-前者只争用 use 键，但**那也不是免费的**：12 级几乎全是桶的活，`shield > heal > eat` 的仲裁
-可能在浇筑那一刻抢走 use 键。**所以仍然不改，等曲线。**
-
-⚠️ 判词不因为「又多知道一件事」就改漂亮：一小时前判的「先补测量」在新事实下依然成立，
-新事实只是把**修法的形状**定了，没有把**缺的读数**补上（[[the-wrong-version-is-always-prettier]]）。
-
-###### 📌 预登记：`hp.trace` 这把新尺子自己的校准（写在跑之前）
-
-仪器已落（`JourneyRig.noteHurt`，逐 tick、无闸、只记掉血、回血只计数、上限 60 行）。
-**新写的尺子不校准就不能拿它的读数下结论**（[[a-verification-tool-needs-verifying-too]]）。
-这一趟不另写场景，用**免费的交叉校准**：`lavaEscape`／`contactEscape` 会在自己的触发行上
-打 `hp=`，那是一条独立来源。
-
-| 态 | 读到什么 | 判什么 |
-|---|---|---|
-| A | 14 级有 `hp.trace`，且它列出的掉血点能覆盖 `lavaEscape` 那几行 `hp=` 的取值 | 尺子可用，**按上面的判据分族** |
-| B | 有 `hp.trace` 但与 `hp=` 行**矛盾**（例如 trace 说没掉过血而 `hp=1.0` 出现过） | **尺子坏了**，先修尺子，别碰被测对象 |
-| C | 身体明明死了而 `hp.trace` 一行没有 | 装在了错的地方——`await` 不是每 tick 都过，或 `player()` 在客户端拓扑上返回的不是那具身体 |
-| D | 这趟没死在 14 级 | 那就读它死在哪；`hp.trace` 仍应在**每一级**出现（有掉血的级） |
-
-#### 真梯第 3 趟（03:52）：11/20，12 级浇不到格（不是死）
-
-`hp.trace` 校准通过（预登记 D 态），可以用。**还开着的**：
-
-- ❌ **判：不做**（给 `hp.trace` 加 food／伤害源两个字段）。
-  **凭什么**：那 11 次已经被现有字段分开了——`ladder3-results-1007.jsonl` 的
-  `wd.journey12PortalLit.hp.trace` 是 `t228 / t308 / … / t948`，**9 个间隔恒为 80 tick**、
-  每次恒 −1.0、`脚下=stone`、y=56~58。**周期性本身就排除摔落**（80 tick 也正是 vanilla 饥饿伤害的间隔）。
-  food 那一半也已有仪器，只是在另一个键上：`JourneyRig:1815-1818` 的 `body.vitals` 逐级印
-  `饱食 N/20` ＋「饱食 <18，自然回血不会发生」，当前归档读 `wd.journey12PortalLit … 饱食 2/20`。
-  **重开条件**：某一族 `hp.trace` 行**间隔不规则**且 `脚下`／`身处`／`着火`／`泡岩浆` 四个字段
-  与同级 `body.vitals` 合起来仍指不出族 ⇒ 那时才补 `DamageSource`。
-  **代价**：判错＝某趟死因停在「掉了 N 点，不知道谁打的」，症状是判词只能写族不能写因。
-- 🟠 **判：先补测量**（修法已在 HEAD，欠的是修法后的读数）。
-  **凭什么**：那趟 `drain.7`/`drain.8` 印的「等了 200 tick」**是假的**——`JourneyDrain:179` 当时每腿只
-  hold `DRAIN_TICKS / 2`，实际只等了 100 tick。`f985dd17`（2026-08-26T19:23Z 那一批）改回整腿，
-  而第 3 趟收在 **07:19Z**，早 12 小时 ⇒ 「200 tick 不够」这个前提**从没在 200 tick 上量过**。
-  **缺的读数**：修法后任一趟的 `drain.*` ＋ 同 tag 的 `drain.*.upstream`（零代码）。
-  **重开条件**：修法后仍读到「等了 200 tick 仍有流体」**且** `upstream` 仍是「没有水源块」
-  ⇒ 才轮到动 `DRAIN_LEGS`／`DRAIN_TICKS`（`JourneyDrain:74-75`）。
-  **代价**：判错＝下一趟又在 `drain.*` 上烧 200 tick 然后照样湿；症状是 `cast{i+1}` 的 `stairFoot` 仍报积水。
-
-##### 12 级真因：浇筑落在验过的排之上（修法已落 `36130011`，理由见 `JourneyPour.POUR_ROW_SLACK` 的 javadoc）
-
-修法已落 `36130011`（`POUR_ROW_SLACK=1` / `RAISE_ROW_TRIES=1`，排不对就走回模腔重来）。
-完整因果链和「为什么是加上界而不是翻 `exactRow`」在 `JourneyPour.POUR_ROW_SLACK` 的 javadoc 里。
-
-📌 **排检查：`raiseRowTooHigh`／`raiseRowRetry` 已由 ladder9 检验（各 1 次），
-`raiseRowGaveUp` 仍 0 次。** 实测行：`raiseRowTooHigh=2,64,22 比要站的排 y=58 高 6 排（容许 1）
-… 走回模腔重来一次（第 1/1 次）`，之后没有 `GaveUp`——即「重来一次就成了」这条路走通了，
-而「重来仍不行」那条分支**从没跑过**。
-⇒ 构造场景的目标缩到 `raiseRowGaveUp`：要让重来之后仍然高出容许排（模腔本身就在高处）。
-⚠️ 新场景必须**同批**加进 `expected-scenes-*.txt`，否则 `UNDECLARED` 判红。
-⚠️ 场景要把身体摆在**柱外**——`JourneyPour:110` 有个「已在柱上就不走」的短路会绕过这道检查。
-
-🟢 **第 12 级的界已确认生效**（`55fe4a42`，`runRehearsalIntegratedServer` 实测）：
-`water8.lift.flightNotSkipped` 开火，同 tag 下 `flightSkipped` 归零，而 `cell.7.ramp`／`cast7.ramp`
-两个不启用的调用方照旧 skip——界没漏到 dig 侧。
-🔴 **下游接手的那一段是新的死因：身体从没下到壁龛里。**
-```
-lift.flight     = 4 级：2,56,17 → 3,57,17 → 3,58,18 → 3,59,19（壁龛地板 y=56，身体 2,64,20）
-lift.stand      = 2,64,20 → 2,56,18（现在不在足迹上）
-lift.standShort = 没走到 2,56,18，停在 3,64,18          ← 全程没离开 y=64
-lift.laid       = 4/4 级垫好了（身体 3,64,18，停在 FINISHED）
-lift.rampedY    = 64/60（停在 4,64,19，要的落脚格 3,60,19）
-```
-✅ **`laid=4/4` 不是越距放置，那四级本来就在世界里。** `layWhereItStands` 自带 reach 闸
-（`JourneyRamp:548`，`MEND_REACH=5.0`），而 `.flight` 印的是 `supports(flight)`
-（`JourneyRamp:291`）不是落脚格——四格 support 到身体 `3,64,18` 是 5.10～8.12，
-只要有一格是空的就必返 `OUT_OF_REACH`；实测 `FINISHED` ⇒ 全部走 `:545` 的
-「已实心就跳过」，**一级没放**。谁填的 `3,59,19` 日志答不了（无带坐标的放置行）。
-🔴 **还开着的只剩一件：身体走不到施工位 `2,56,18`，而且不是「找不到路」。**
-寻路器给出 64 步的路，身体在 `2,64,19` 被水平碰撞钉死：
-```
-[walker] 恢复跳: 卡住=11 身体=2,64,19 精确=(2.300,64.000,19.381) 闸=true 起跳=true
-[expect]  MOVE-noMove: forward held 10t, displacement<0.3 at 2.3,64.0,19.4 hCol=true
-```
-同一起点同一目标搜了 10 次（[[a-retry-that-changes-nothing]]）。
-⛔ **不要归给水**：积水在 y=56/57（`cast1.stairFoot`），而碰撞在 **y=64**——高 8 格，
-撞的是实心墙，水解释不了。两条已排除：`builderStand:392` **验过** standability
-（脚下实心＋头脚皆空），所以施工位不是被填死的；`walkTo:418` 带 `NoBreak`，**身体不许挖**。
-❓ **那堵墙是什么，日志答不了**——`2,64,18` 全份零命中。唯一间接证据是物理推论：
-`ramp.rampedY` 说身体曾停在 `2,65,18`，站着就意味着 `2,64,18` 实心；而起塔本该在 `3,19` 柱
-（`raiseOffTheFlight` 避开了 `2,19`），`raisedY` 却说身体停在 `2,18`。
-🟠 **判：先补测量**（仪器已武装，等读数；⛔ 这一趟不动走法）。
-**凭什么**：`2,64,18` 在全份日志里**零命中**，撞哪一格没有读数；两笔仪器已落，
-⚠️ 第一笔（`988f88aa`，复用 `JourneyCorridorProbe`）**答不了这个问题**——`standY` 取 y 带里
-**最高**的可站面，身体在地表 63、壁龛在 56 ⇒ 目标柱印 `n`(=63)，底下七排整个被遮
-（机制判据全中而读数不可用，是两件事）。第二笔 `e1f582c2` 的 `.standShort.rows` 逐格印
-身体柱／目标柱实心＋水平四邻（脚、头分开），四态判据在 scratchpad 预登记里。
-**缺的读数**：下一趟排练的 `cast*.lift.standShort.rows`。✅ **已兑现**（剖面已到并点名，见下文
-「撞墙那条复现了 2 次」）——接手的判词写在那里，本块留作判据原文，别删。
-**重开条件**：读到 `.standShort.rows` 之后仍指不出撞的是哪一格 ⇒ 仪器仍不对，先修仪器别碰走法。
-**代价**：判错＝又一趟排练白跑在这一段上，症状是 `.standShort` 仍只写「没走到」而 `.rows` 零行。
-⚠️ 不是回归：ladder9 是 `65/60` 且**一级楼梯都没修**，`.ramp.*` 一行都没有。
-⚠️ 双闸零回归已验（`637eb4b8`，Fabric GREEN／COVERAGE 298/25／失败集逐条同基线）。
-
-🟡 **同趟另一条，独立**：`cast7.1.settled.aimForked.1` —— 线段 clip 预言瞄 `5,59,21` 落进
-`4,59,21`，存成角度后实际射线落进 `2,58,20`，于是换候选。换候选的机制在工作。
-🟠 **判：排到 J72 第 1 笔之后**（分母由那一笔顺带产出，不另立仪器）。
-**凭什么**：分子已量＝**28 次换候选／24 个瞄准场合**（cast 15、water 9，`rehearse-swing.log`）；
-分母＝进到 `fire()` 的候选数，而 `aimThatLandsIn`（今在 `JourneyPour:990`，⚠️ 别处写的 `:879` 已过期）
-只在分叉时写行（`:1048`）。`picks`(19)／`atUseGate`(15)／`fromHere`(11) 是三个不同的量，
-随手挑一个当分母就是编一个分叉率。
-**重开条件**：J72 第 1 笔落地后**分母仍不可数**——那五个 `continue`（`:1011/:1017/:1024/:1030/:1036`）
-出声了，而成功那支 `:1044` 的 `return aim` **仍一行不写** ⇒ 当场重开，给成功那支也补一行。
-⛔ 不写这条，这一项会在 J72 落地那天静默变成孤儿。
-**代价**：判错＝继续拿一个编出来的分叉率去判「换候选机制在不在工作」。
-死因是 `lift.flightSkipped=0,65,15 …（落点 3,60,20，exactRow=false）—— 不用修楼梯`：
-`liftSideways` 刚说完「这一柱验不过这一浇，平移到验得过的那一柱」，`buildTo` 只比排号就跳过，
-横移没发生，`liftedY=65/60` 还把没动的身体记成抬升完成。
-修法落在 `JourneyRamp.buildTo` 的新参数 `rowSlack`／`sameColumn`，只由 `JourneyPour:690`（`.lift`）
-启用；`JourneyPortalRung:975` 不启用——它跳过后紧接 `walkToStand` 走过去，加同柱会让它白修楼梯。
-⇒ 前半已答：`.lift.flightNotSkipped` 已开火（见上）。后半重新定位了——**要改的不是
-`JourneyPour:260` 的 `buildTo`，是 `:265` 的回调**：`if (getY() >= wantY) { done.run(); return; }`
-只比排，而唯一把身体钉回指定柱的 `climbOutInColumn` 排在它后面（`:254`，仅 `pin` 为真时）。
-实测 `water8.raisedY=65/60（停在 2,18，指定柱 3,19）`＝排够了、柱错着、塔没跑，
-**而 `2,18` 正是后来挡住下井腿的那一柱** ⇒ 这可能是撞墙那件事的上游。
-✅ `pin` 已验为 true，**不用加仪器也不用再跑一趟**：`pin` 就是 `verified != null`（`:148`／`:213`），
-而 `:140-141` 的「钉住这一柱」**只有这一个写者**，实测 `water8.raise=…钉住这一柱` 即证明
-（[[a-field-with-one-writer-is-a-proof]]）。⇒ `:265` 的注释「到了排就没塔什么事了」在 `pin=false` 时对、
-在 `pin=true` 时错。修法：那个 early-return 要在 `pin` 时并上同柱判断。
-⚠️ **但它救不了第 12 级，别排成下一笔**——⛔ 而且它是**一族两处，不是一处**：
-`JourneyShaft:246`（`ascendByTowering` 的回调）写着同一句
-`if (getY() >= surfaceY) { recordExit(…); return; }`，同样只判排。⇒ 只改 `:265` 会当场撞到它。
-（此前这里记的理由是「`rise=0` ⇒ 塔是 no-op」，**理由错、结论对**：`climbFrom` 在算 `rise`
-之前就设了 `BotConfig.allowPlace=true` 并打三行证据，`rise=0` 只让塔不垒，不让这条腿不发生；
-真正让身体不回柱的是 `:246` 第二次判排。）
-`:265` 的价值是**诚实和早期路由**，不是这一级的解药。
-
-🟠 **判：排到 J72 第 3 笔之后**（窗口 2，两处同一笔；排期见 [`ROADMAP.md` §6.3](ROADMAP.md)）。
-**凭什么**：`water8.raisedY=65/60（停在 2,18，指定柱 3,19）`＝排够了、柱错着；`pin` 已验为 true
-（`:140-141` 的「钉住这一柱」只有这一个写者，实测 `water8.raise=…钉住这一柱`），
-⇒ `:265` 那句「到了排就没塔什么事了」在 `pin=true` 时是错的。**一族两处**：`JourneyShaft:246`
-写着同一句 `if (getY() >= surfaceY) { recordExit(…); return; }`，只改 `:265` 会当场撞到它。
-排在 J72 第 3 笔之后而不是队首，因为 `2,18` 只是撞墙那件事的**候选**上游，不是已证的死因。
-**重开条件**：某趟 `cast*.lift.standShort.rows` 把撞的那一格点名为 `2,64,18`，**且**同趟
-`raisedY` 仍写「停在 2,18，指定柱 3,19」⇒ 上游被坐实，提到窗口 2 队首。
-**代价**：判错＝12 级继续死在下井腿撞墙上，症状是 `.standShort` 仍写「没走到」而 `raisedY`
-的柱号与指定柱不符。两处只改一处的暴露形式另有一个：`JourneyShaft:246` 当场接管，
-`recordExit` 照写而身体仍不回柱。
-📌 **这一族的判据本仓已有一份血验过的**：`JourneyPortalRung` 的 javadoc 小节
-「**A height is not a column**」（`:1467-1493`）——一个同形状的高度闸让 2026-08-16 的真梯
-死在第六格，定的规矩是「**高度不许再拿来回答关于视线／柱的问题**」。
-⚠️ 但别拿它给整族定罪：`getY() >=` 在这个包里有二十来处，判每一处**要读它的下游问的是什么**
-（下游问柱 ⇒ 缺陷；下游只问高度 ⇒ 题目）——[[a-malformed-input-may-be-the-subject]]。
-📌 **同段注释点了先例**（`JourneyShaft:222-225`）：塔会填掉身体起跳的那一格，
-「which is how rung 12 filled 0,58,19 and 1,58,19 and then could not walk back down past its own
-cobblestone」——**跟现在 `2,64,18` 挡住下井腿是同一个形状**。但这趟 `climbOutInColumn` 没跑
-（`.climb` 一行都没有），所以作者是别人，等探针点名。
-✅ **第 9 格那条已解决**（`bd4e41ae`：`standBehind` 在执行器尺之外也问判官尺）。
-下一趟实测：`.swingFromHere` 放行 18 次，每次紧跟 `opened.N=<格>=air`，格心距 2.24–3.61
-全部 >`DIG_ARRIVE=2`，而 `mineCell.4,60,19` **零次**。死因前移到浇筑。
-✅ **浇筑那条已解决**（`2f130e5d`，理由见 CHANGELOG 与 `JourneyPour:164` 旁注）：
-实测重来开火两次、两次都落低位（`cast7` 距目标 **1.00** 格，`cast8` 落 `1,57,19`），
-`raiseRowGaveUp` 与 `raiseStuck` 双双归零（各 1 → 0），cast 前沿 **7 → 8**。
-📌 **12 级现在死在这里**：`浇不到指定格：想浇 4,60,19（瞄 5,60,19），射线会把流体放进 3,69,15，
-身体在 3,70,16`——身体 **y=70**，`walkerFallback=true`。
-　塔那 40 个空转 course 已修（drift 的两次改写互为逆操作），**预测死因族不变**，验证在跑。
-　**别动浇筑闸**——它这趟判得对（从 `3,70,16` 瞄 `5,60,19` 确实落进 `3,69,15`）。
-❌ **判：不做**（「排干扫不到浇线」——前提是假的，与已撤回的 J80 同一条，别再开第三次）。
-**凭什么**：两处读的是**同一个集合**——`JourneyDrain:126` 扫的是
-`List.copyOf(JourneyPortalRung.forgeCorridor)`，而 `pourLine`（`JourneyPortalRung:1947`）的
-`(壁龛内)` 标签**就是** `forgeCorridor.contains(c)` ⇒ 一格既然印成 `壁龛内`，
-按构造就在排干的扫描集里。
-**重开条件**：某趟浇线积水行印的是 **`(壁龛外)`** 而同趟 `drain.i` 报「壁龛已排干」
-⇒ 那才是真的扫不到，重开。
-**代价**：判错＝去加宽一个本来就够宽的扫描；症状是加宽后 `drain.*` 读数一字不变。
-📌 **撞墙那条（`cast7.lift.standShort`）复现了 2 次，剖面已点名**：
-`身体柱 2,21=.#....... [63=grass_block]；目标柱 3,19=.#....... [63=grass_block]`
-⇒ 两柱 y62..56 全空，各自只有 y63 一层**天然地表**盖着；身体站在盖子上、目标在盖子下，
-而 `walkTo` 带 `NoBreak` 不许挖穿 ⇒ **要找开口，不是要挖**。
-　⛔ 此前这里写「四邻唯一的 `#` 在 west、目标在 east/south ⇒ 不是障碍」——**那是直线方向**，
-　而两柱都封顶时真实路线必然绕行（经楼梯口），撞哪一面得对着绕行方向判。
-　⇒ 开口是**现成的**：同趟 18 次就地挥全在 y=56-57 打出，`stairsBroken=11 级一格不缺`。
-　先查下行是不是死在 `stairFoot` 那格积水（[[water-is-not-a-floor]]），别先补「找开口」的新能力。
-　⛔ **更上游：身体在塔顶**。`cast7.lift.stand=1, 67, 22 → 3, 56, 19`——起点 **y=67**，
-　而地表只有 63-64 ⇒ 身体站在自己垒的塔上，要去 y=56 的壁龛，落差 **11 格**；
-　`standShort` 停在 `2,64,21` 是**已经下了 3 格之后**停的。
-　⇒ 先问「谁把它举到 67」，再问「怎么下去」（[[the-run-destroys-what-it-built]] 记过
-　「解卡塔按当前高度+8 越重试越远」）。开口是现成的（楼梯口 `-8,66,19`，绕行约 10 格），
-　所以这是**寻路预算／可达性**问题，不是「没有开口」。
-（浇线上 `1,60~63,20` 的 dirt 已排除是这一趟垒的：`clear3` 印的是 grass_block 压 dirt 的原生剖面，
-「壁龛外」是 `clearPourLine` 拒绝清的理由，不是放置记录。）
-
-🟠 **判：先补测量**（上一条「缺 `.rows`」已兑现，换的是一个新的缺读数；⛔ 这一趟仍不动走法）。
-**缺的读数＝一行带坐标的放置行**（归窗口 1 仪器批，见 [`ROADMAP.md` §6.2](ROADMAP.md)——
-⛔ 不排它，本条的重开条件就永远开不了火）：`2,64,18` 与 `3,59,19` 是谁填的，全份日志答不了
-（`2,64,18` 零命中；`3,59,19` 只有 `laid=4/4` 而那四级走的是 `JourneyRamp:545` 的「已实心就跳过」，
-一级没放）。同一行要能回答「谁把身体举到 y=67」——`cast7.lift.stand` 起点 `1,67,22` 而地表只有 63-64。
-**凭什么**：剖面已点名 `身体柱 2,21=.#....... [63=grass_block]；目标柱 3,19=.#....... [63=grass_block]`
-⇒ 两柱 y62..56 全空、只有 y63 一层天然地表盖着；开口是**现成的**（同趟 18 次就地挥全在 y=56-57 打出，
-`stairsBroken=11 级一格不缺`；楼梯口 `-8,66,19` 绕行约 10 格）⇒ 不是「没有开口」。撞墙复现 2 次。
-⇒ 病在「谁把它举上去」，而那一段**没有读数**，所以判不了修法。
-**重开条件**：放置行落地后仍**没有**任何一行点名那根塔的作者，而 `.stand` 起点仍 y≥67
-⇒ 仪器仍不对，先修仪器别碰走法；若放置行点名 `climbOutInColumn`／`ascendByTowering` 之一
-⇒ 归那一条腿，当场开工单。
-**代价**：判错＝又一趟排练白跑在这一段上，症状是 `.standShort` 仍只写「没走到」而放置行零行。
-反方向判错（现在就去改寻路预算／可达性）＝改的是「怎么下去」而病在「谁把它举上去」，
-症状是 `.stand` 的起点 y 一字不变。
-
-🔴 **同级上游：三次重走问的是同一个问题。** `water8.stand.1/2/3` 的否决计数逐项相同
-（`脚下不实心=51, 落脚格被占=74, 够不着 5,61,20=8` …）。楼梯没垒完是因：
-`water8.ramp.laid=3/4`、`wet.8.ramp.laid=0/4`，两次都卡在**身体压在自己要垫的那一格里**
-（`vanilla 的 isUnobstructed 会拒`）。⚠️ 这个形状自 `77b273c9` 起判 `BODY_IN_THE_WAY` 而非
-`REFUSED`（判据换成碰撞箱），下面那两个解释要在新读数上重问，别拿旧归档答。
-
-🟠 **判：先补测量**（⛔ 不许按「只问一次不够」去加次数——那个诊断读不出来）。
-**凭什么**：三行互斥地写，且都不带时序——`.aside` 只在 `to != null` 时写（`JourneyRamp:779`）、
-`.laid` 只在 `to == null` 时写（`:772`），而 `:768` 会把一次往返后的停因**一律重写成 `REFUSED`**，
-`stepAsideFor:727` 又只对 `BODY_IN_THE_WAY` 且 `!alreadyAside` 供货。归档实测两种形状并存：
-`wet.8` 有 `.aside` 且 `.laid=0/4 停在 REFUSED`，`water8` **没有 `.aside`** 而 `.laid=3/4 停在 REFUSED`。
-⇒ 「挪开后又问了一次还是不行」与「停因被改写成 `REFUSED` 所以根本没再问」**同样解释得通**，
-而 evidence map 在失败那一刻整个打印，排不出先后（[[a-lagging-reading-became-the-crime-scene]]）。
-**缺的读数**：给 `.aside`／`.step.N`／`.laid` 三行一个**共同的 pass 序号**（或 tick 戳），
-并让 `.laid` 印 `:768` **改写之前**的那个 `Stop`。
-**重开条件**：带序号之后读到同一 pass 里 `.aside` 在前、`.step.N` 在后且仍 `BODY_IN_THE_WAY`
-⇒ 那才是「次数不够」，届时按[[a-retry-that-changes-nothing]]**换问题不加次数**。
-**代价**：判错＝给一个从没被第二次问到的分支加重试，症状是加完 `.aside` 行数一条都不涨。
-
-❌ **判：不做**（`[expect] GEAR-degraded` 的判据——**修法已在 HEAD**，本项只剩预登记的验收）。
-**凭什么**：`WalkerExpectAlarms:219-225` 的 `PICKS` 现在列全六个材质档（木/石/铁/金/钻/下界合金），
-javadoc `:213-218` 自己记着这是 2026-08-26 从「只认 IRON/DIAMOND」改过来的、以及那样为什么
-把闸的门槛架在被测阶段之上；`missing`（`:234-241`）改判 `strandedSlot`＝**背包里有而快捷栏里没有**，
-并把槽位印进告警。⇒ 原判词点名的两处（材质表、归因）都已兑现。
-**重开条件**：下一趟带仪器的运行**拿到铁镐之前** `GEAR-degraded` 仍 ≥1 行 ⇒ 修法没生效，重开。
-**代价**：判错＝继续拿一个恒报的告警当信号，症状是它的行数与身体装备状态不相关。
-**验收（预登记，别删）**：下一趟带仪器的运行，拿到铁镐之前 `GEAR-degraded` 应为 **0 行**；
-之后出现的每一行都要能在 9–35 格找到它点名的那件东西——告警现在自带槽位就是为了让这条可查。
-ladder5 旧判据累计 108 行，其中拿到桶（第 10 级）之后只有 2 行，那 2 行大概率是真的。
-
-📌 **下一趟真梯的判读，先写在这**（`3ce54dd4` 把排上界限定到了浇筑侧）：
-1. `raiseRowTooHigh`／`raiseRowRetry`／`raiseRowGaveUp` 只许出现在浇筑 tag 下；收水 tag 下出现任何一次 = 限定没生效。
-2. `scoopRowHigh` 若出现，下游必须跟着 `buildTo` 的楼梯行——没跟上就是便宜修法仍然轮不到。
-3. 两个闸重跑排在真梯**之后**：收水侧恢复的是 `36130011` 之前长期绿过的原样。
-
-🔴 **同族第三处，而且这处有场景正红着**：`JourneyCast.java:100`
-
-```java
-WorldDriverJourneyScenes.walkToColumn(rig, "lava.ashore", dry.getX(), dry.getZ(), 1, 600, …);
-```
-
-要的是「上岸」（脚下固体），给的是 `Goal.XZ`（那一柱、任意 Y）⇒ 身体还泡在水里就被判到岸
-（`dryLand=244891,221,100000`，实际停 `244892,220,100000`，`arrivedY=220 脚下=water`）。
-`wd.journeyGetsAshoreBeforePouring` 因此一直红着——**不是回归**：2026-08-25 才加（`d76be87f`），
-且 `JourneyCast.java` 不经过 `36130011` 改的任何一处（grep 零命中）。
-⚠️ 踩的是 `JourneyPour:115-117` 注释**早就写明**的坑：`walkToColumn` 判到达用自己的
-`ARRIVED_WITHIN`（5 格），**不是调用方传的 `tolerance`**。
-⇒ **判词不在这里**：行为那一半已判「排到引擎侧那半之后」（下面第 1 条，与 🅹 同一笔），
-判到达那一半判「做——只做 a」（下面第 3 条）。⛔ 别在这里再开第三块，两处各说各的正是本节警告过的。
-
-📌 **还欠两件，都不是「补到岸检查」**（那件 `ccaf6861` 已落：`stepOntoTheBank` 重问 afloat + 容差 0 补一步）：
-1. ~~补一步之后仍浮着，`bankRow` 只记一笔就往下走，而那行键叫 `lava.exit.ashore`（上岸）在脚下是水时照打 ⇒ 判词撒谎。~~
-   ✅ 判词那一半已修（`ashore()` 现在自带 `noDryFooting` 判据，见其 javadoc）。
-   ❌ **行为那一半——判：排到引擎侧那半之后**（与 🅹 同一笔，不单独开）。
-   **凭什么**：`bankRow`（`JourneyCast:157-165`）和它上游的 LAST_STEP（`:137-154`）**都在
-   `end=path-consumed` 的下游**——走行器只交到差一格处，再加一条腿是同一个问题问两遍。
-   **重开条件**／**代价**：同 🅹 那条（`gotoEnd.1` 的 `end=` 不是 `path-consumed` 且该趟仍红）。
-2. ❌ **「脚下垫一块」这个写死步骤——判：不做，几何不成立。** 四样写在「拍板」节 🅹，
-   一句话是：岸 y=**221**、身体 y=**220**、`at.below()`=**219**，垫上去仍低岸一排；
-   要够到 221 得垫身体自己那一格，`vanilla 的 isUnobstructed` 拒。⛔ 别照 J47 那句原文再抄一次。
-3. 🔴 **`ccaf6861` 那个「容差 0」根本没生效——它管的是报告诚实性，不是这个场景的上游。**
-   （上游是 J47：2026-08-26 闸实测 `lava.lastStep.gotoEnd.1=end=path-consumed`，
-   路本身就只到差 1 格处，所以收紧判据只会把「假上岸」换成「走不到」，见本条末尾。
-   `JourneyLandingScenes:45-55` 的场景注释早写着这一点，两处别再各说各的。）
-   `WorldDriverJourneyScenes:778/795`：`tolerance` 只喂给 `Goal.XZ`，判到达写死 `away <= ARRIVED_WITHIN`。
-   2026-08-26 闸的证据：`lava.lastStep` 传 0，`gotoEnd.1` 照印「容差 5」、距 1 格判到达。
-   ⚠️ **别一刀把 795 改成 `away <= tolerance`。** 普查了 14 个调用点：传 **0** 的有 **8** 个
-   （`lava.lastStep`／`water`×2／`lava`×2／`raiseTo`／`shaft`／`gravel`），另有 1／2／3×4／6 各若干。
-   一刀收紧＝8 处同时从「5 格算到」变成「必须精确到柱」，一趟里冒出一堆红且互相掩盖，归不了因。
-   顺序改成：
-   a. 先只加证据行——`tolerance < away <= ARRIVED_WITHIN` 时打一条「按调用方容差本不算到达」，
-      跑一趟数出**谁在吃这个宽松**（零成本，不改判据，不会让任何场景变色）；
-   b. 再给 `lava.lastStep` 这类要精确的单开一条路径（重载或 exact 标志），只收紧它；
-   c. 其余调用点按 a 的读数逐个处理，别批量动。
-   ⚠️ 收紧之后 ashore 场景**不会立刻翻绿**：`end=path-consumed` 说明走行器自己也停在 244892，
-   795 只是第二道闸；届时死因应从「假上岸」变成「走不到那一柱」——那是对的红。
-
-   🟠 **判：做——只做 a**（纯仪器，归窗口 1 仪器批，见 [`ROADMAP.md` §6.2](ROADMAP.md)）；**b／c 等 a 的读数**。
-   **凭什么**：`WorldDriverJourneyScenes:778/795` 把判到达写死成 `away <= ARRIVED_WITHIN`（**5 格**），
-   `tolerance` 只喂给 `Goal.XZ`；实测 `lava.lastStep` 传 **0** 而 `gotoEnd.1` 照印「容差 5」、**距 1 格**判到达。
-   14 个调用点里传 0 的有 **8** 个 ⇒ 一刀收紧是 8 处同时变色、互相掩盖、归不了因。
-   a 不改判据、不会让任何场景变色，所以它可以与别的仪器同窗口。
-   **重开条件**：a 的证据行跑一趟之后**零行**（没有任何调用点落在 `tolerance < away <= ARRIVED_WITHIN` 区间）
-   ⇒ 「有人在吃这个宽松」的前提被证伪，b／c 整条作废，本条收案。
-   **代价**：判错＝多一行永不开火的证据行，一趟的噪声。反方向判错（现在就一刀改 795）＝8 处
-   同时从「5 格算到」变成「必须精确到柱」，症状是一趟里冒出一堆红且互相掩盖——那正是不许一刀切的理由。
-
-### 排练 `:fabric:runRehearsalIntegratedServer -Prehearse=PORTAL_LIT`
-
-拍板节好几条的判读样本就是它。⚠️ **必须是 `runRehearsalIntegratedServer`（真 `LocalPlayer`），不是
-`runRehearsalServer`**——同一段代码在两具身体上走出不同的亚格轨迹（`returnedY=57`×3 假玩家全落地
-对 `58`×2 真客户端骑唇），**身体种类是自变量，不是背景**。
-⚠️ **并发禁令**：排练在跑就不编译、不跑闸——共享同一棵工作树。
-⚠️ `PORTAL_LIT` 是**故意保持在 40 000 tick 上限**的现存回归闸；`-PrehearseBudget=120000` 是撞上中途超时才用的逃生口。
-⚠️ 这个排练的基线是 **1 绿 / 3 趟**，**一次 FAIL 判不了回归，一次 PASS 也判不了修法**。
-它同时是 **J71 那张 `forge.carved` × 结局表**的取样趟。
-
-### J34 那一趟真梯遗留的两条 📌 仪器（都已判「做」，等编译窗口）
-
-1. **`walkHome` 的 `strand` 支不经过 `settleOntoHomeGround`。** 2026-08-27 重核 HEAD：
-   `WorldDriverJourneyScenes:1327-1333`（⚠️ 原写 `:1286-1292` 已过期，**行号照核不照抄**）
-   仍只写 `strandedAt` 就 `then.run()`，而同一函数的 `arrived` 支（`:1323`）走的是 `settleOntoHomeGround`。
-   **走丢的身体恰恰是最需要这个读数的那一具** ⇒ 把 `strand` 也接进去。
-2. **`bed.towerRecovered` 只记了拆塔之后的圆石数**，没记拆塔**之前**的，所以「这一趟拆回来几块」量不到，
-   只能靠净损间接判。2026-08-27 重核 HEAD：`WorldDriverJourneyScenes:1420-1421`（⚠️ 原写 `:1378` 已过期）
-   仍只印 `落到 y=… ，圆石 <拆塔后存量>`。⇒ **补上前后两个数。**
-
-🟠 **判：做（维持），补上排期——归窗口 1 仪器批**（见 [`ROADMAP.md` §6.2](ROADMAP.md)）。
-**凭什么**：两条都是零行为改动的仪器，而 §6.2 的表里**原本没有它们的行**——判了做却没排期，
-正是 ROADMAP §6 末尾写死的那种代价（「先补测量」那几条有一条没赶上窗口 1，下一趟就白跑一次它要的分布）。
-两条的缺陷都在 2026-08-27 对 HEAD 重核过，且**两处行号都已漂移**（`:1286-1292`→`:1327-1333`、`:1378`→`:1420`）。
-**重开条件**：窗口 1 编译窗口关闭时这两行仍未落，而下一趟真梯又出现 `*.strandedAt`
-⇒ 那一趟的「上面每一级从哪出发」再次不可判，当场提到队首。
-**代价**：判错（继续不排期）＝下一趟真梯若走丢，`strandedAt` 那一行仍答不了身体最后落在哪种地面上，
-症状是上一级写了 `strandedAt` 而下一级的死因归不到它头上；拆塔那条的症状是 `towerRecovered`
-只有一个数，「拆回来几块」只能靠净损间接推。
-
-### 清渣读数（`mineCell.` **前缀族**，配合 `portal.doorway`）
-
-⚠️ **不能写死格号**：`4, 57, 19` 是上一趟浇筑动力学留下的渣位，不是布景摆的常量。
-⇒ 判据登记 **`mineCell.` 前缀族**，不是任何单个键。
-
-| 态 | 读到什么 | 判什么 |
-|---|---|---|
-| ① | 有行，`canBreak=false` + `有暴露面=true` | **走近失败**。修「浇筑收尾后身体停在哪」，不是挥空。⚠️ 动手前先查：`mineCellOrGiveUp` 的客户端腿是 `Goal.Near(target,2)` + **NoBreak**，若唯一路线需要破拆，600 tick 卡死是构造出来的。真是这形状就给清渣一个**脚本化站位格**，**不放宽 NoBreak** |
-| ② | 有行，`canBreak=false` + `有暴露面=false` | **格子是封死的**，跟距离无关。查是谁把它埋了 |
-| ③ | 有行，`canBreak=true` | **够得着而没开**：闸放行了，`destroyBlock` 之后方块还在。查挥空那一族 |
-| ④ | 零行，且 `portal.doorway` 说清干净了 | 死因往后搬，**算进展** |
-| ⑤ | 零行，且 `portal.doorway` 仍说堵着 | **仪器盲区**：那格根本没经过 `mineCellOrGiveUp`。停下读码，查 `clearNext` 的入参是怎么来的 |
-| ⑥ | 12 级 PASS | 上真梯 |
-
-**已收窄两条，不用等读数**：① `clearNext` 是**严格单遍**（`JourneyPortalRung:2767`，`i` 从 0 递增，
-给不动就往下走，**永不回头**）；② `Goal.Near.reached` 是 `p.distSqr(target) <= radius²`（`Goal.java:92`），
-radius=2 ⇒ 眼到格心最多约 **2.3**，而上限是 **5.00** ⇒ **真到了目标就一定 `canBreak=true`**，
-所以 ① 只能是**没到**，不可能是「到了还够不着」。
-⇒ 修法方向定死：**不是放大 `Near` 的半径**，是问那条腿为什么到不了；而「腿结束了」不等于「到了」
-（走行器给部分路径也报 ARRIVED，`journey.helm.endings` 里的 `→跑完` **不能**当成到达的证据）。
-**两条候选机制指向同一个修法**——清渣改成「**扫到没有进展为止**」，而不是碰 `NoBreak`、不是碰 `Near` 半径。
-**重开条件**：某趟读到 `mineCell.*` 有行且 `canBreak=true`（六态表的 ③）⇒ 「只能是没到」被证伪
-（那是够得着而没开），修法方向作废，改查挥空那一族。
-**代价**：判错＝去改单遍扫描而病在走不到，症状是改成多遍之后 `mineCell.*` 的行数涨了而
-`portal.doorway` 仍说堵着。
+### A run that did not finish reported success
+
+The client dropped out partway through the fourteenth rung, that rung wrote no results at all, and
+the build still exited zero. Two separate things: a run that did not finish must fail the build,
+and the disconnection needs a cause of its own. Nothing about the fourteenth rung can be verified
+until the first half is fixed, because the corridor has never been run end to end.
+
+### The fourteenth rung's fifth leg is the current wall
+
+The body retreats westward, falls repeatedly and dies of accumulated fall damage with food low and
+no regeneration. The destination is reachable — one search solved it — but the cost is the problem:
+three of four full-budget searches hit the node ceiling, and the one that solved used most of the
+budget. The fix is to shorten the hops by inserting intermediate waypoints, not to move the
+waypoint that cannot be reached; one cell on that stretch is already measured as standable and has
+been arrived at. Choosing the intermediate points needs the corridor terrain map below.
+
+### The corridor terrain map has never been written
+
+`JourneyCorridorProbe.record` is wired to the paths where a leg is abandoned, and not to the path
+where the body dies — and both corridor runs ended in death. Wire the death path too.
+
+### The full-budget search tier has no clock
+
+It runs effectively without a time bound, at several seconds per call. Two questions: whether that
+tier should have one at all, and why a thirteen-block leg over open lava takes tens of thousands of
+nodes, which says the heuristic is not converging there.
+
+### There is no eating anywhere on the fourteenth rung
+
+`JourneyFeed.eatIfLow` has exactly one call site in the whole project, on the gravel rung, and the
+raw beef is all eaten there. Two halves that are useless apart: cook the beef, placed after the iron
+smelt where a furnace is already down and the sequence has been exercised, and add one eat call in
+the corridor, between legs rather than mid-leg. Before writing the cooking half, check what the
+smelt process burns and where the fuel is drawn from when its third argument is null — iron and meat
+draw on the same pool.
+
+### The corridor audit's acceptance check has nowhere to run
+
+The audit runs at the corridor start, and a failure there cuts off the evidence the check needs. It
+wants an optional scene of its own after the thirteenth rung, registered together with its rows in
+both loaders' expected-scene manifests in one commit.
+
+### The corridor fire needs a replan trigger, not a surcharge
+
+Decided; not yet built. Pricing the cells next to fire is withdrawn and should not be picked up
+again, and so is the per-tick comparison of the body's cell against the path node, which existed
+only to take the surcharge approach apart.
+
+### Who lights the corridor fire is unknown
+
+The reading says only that the block is in the fire tag; ghasts and fire spreading over netherrack
+are both unexcluded. The replan trigger does not depend on the answer.
+
+### The quick-start pathfinder stub could be lengthened in the corridor
+
+It is a writable setting, currently a few hundred nodes, and raising it gives the body a longer stub
+to walk during the seconds a full search takes. Deliberately kept out of the corridor change set so
+that a run's outcome stays attributable.
+
+### A raise reports a height where the caller needs a column
+
+The verdict row already says the tower landed off the named column and that the cell beneath is not
+a floor, and the caller reads only the height. The upstream cause has been fixed, so this is now the
+second line of defence rather than the first, and the situation has stopped appearing because the
+lift tower is no longer being reached. Do not delete it: the terrain that forces the tower recurs.
+Reopen the moment a run uses the lift tower again.
+
+### When the tower stops, it says so only in the evidence
+
+It correctly detects that two successive rewrites undo each other and stops, which is the right
+behaviour, but that fact never reaches the return value — the caller sees only a height. Same
+occasion and same reopen condition as the entry above.
+
+### A "gained N of N" reading can be true with the body airborne and off the column
+
+It measures a height difference. It must never stand alone as a success criterion: success needs
+the ending cell to be the named column and the cell below it to be solid. The climb's closing step
+should combine the three into one verdict instead of leaving a reader to cross-check them.
+
+### Aiming happens while the body is still falling
+
+The settle judgement uses cell numbers and the aim uses exact coordinates, so a body most of a block
+above its cell fires a ray that clips the frame. The reading has landed — footing height and
+on-ground are printed beside each aim — and the fix has not. The draft criterion is to keep waiting
+while the body is airborne and to stop waiting once the foot drops below the starting row, and it is
+known not to hold for one case, which needs a second branch that re-picks the stance rather than
+aiming from where it is. Waiting longer is not the fix: a body in the air only falls further. After
+landing the aim must be recomputed, because what is stored is an angle and not a target.
+
+### The arrival leg answers a zero-block question with a five-block tolerance
+
+Both remedies it names fire, and both report success by their own criteria, while the body is still
+off the named column — because those criteria count how many steps were laid, not where the body
+ended.
+
+### The fill stance scan runs twice and the first pass discards its reason map
+
+The flag that makes the two passes differ applies only to lava, so for water they are equivalent and
+the first pass always answers — which means the reason map the caller reads is permanently empty,
+exactly in the failure shape where the answer is "the only stance found is the cell the body is
+already in". Give the first pass a real map, merge whichever pass answered, and name in the evidence
+which one it was.
+
+### Two bucket-fill implementations coexist
+
+The scene-side one and `JourneyFill`, and the eleventh rung still runs the scene-side one — which
+lacks the reach margin, the re-aim, the source change and the fill station, and discards the
+hold-for-use return value, so a missing bucket is charged to "did not fill". The first step is only
+the matching guard that names "could not hold the bucket". Merging the two waits for a round in
+which evidence keys are allowed to change.
+
+### Three changes to the pour aim, in this order
+
+First, the five silent `continue`s in the aim search write nothing, so "re-asked, refused, fired
+anyway" leaves no trace. Second, the failure verdict reports geometry when the truth is that the
+body is not standing on the stance it chose for itself, which sends the next reader to the wrong
+place. Third — the only behavioural change — record the stances the body could not reach and exclude
+them on retry, clearing the set per pour; today the retry is byte-for-byte identical to the first
+attempt because the stance chooser cannot know the body failed to get there. Do not widen the
+blocker scan to start at the target's own column: that column is the mould's frame.
+
+### The daylight height expression is hand-written nine times
+
+A helper already exists for it. Check each call site's declared level type before substituting; one
+of them wants a block position rather than an integer. Compilation is the only check needed, since
+no evidence key changes.
+
+### One ascent entry point records no exit
+
+It climbs a lava corridor and writes none of the six exit rows. The other twelve entry points stay
+as they are: fill one in only when a verdict blames a climb's outcome and that segment has none of
+the exit rows, and then fill in only that one.
+
+### A pit-rim surcharge is recomputed every run for no change
+
+The cell count does not move between runs, so the full scan each time is pure cost. Snapshot the
+outbound computation and reuse it; the surcharge itself should not change, since it is what bought
+a run with no lava deaths.
+
+### A shaft's exit climb is washed off the pillar repeatedly
+
+Both descent columns were ruined by fluid; the code diagnosed and decided correctly, and what ate
+the run was the exit climb being washed off each time it placed a block. What is needed first is
+provenance for each water cell encountered — natural, left by an earlier rung, or self-poured — in
+the same form the pour side already records. Neither leg should be changed before that has a
+distribution, and "tower started in flowing water" and "not enough column retries" must not be
+merged into one fix: they are two legs.
+
+### Water reaches the stairwell floor and the family is not yet named
+
+The upstream scan now reports no source blocks within range, so this is runoff rather than a live
+source being fed. The water-source-lifetime change — placing the water only once the lava is in hand,
+which shortens its life from a long round trip to the few dozen ticks of the pour — must not be
+started until the drain reading says which family this is.
+
+### The drain rows do not say how much was cleared or how long it took
+
+They say only that the alcove is drained, or that fluid remained after the wait. Add the cell count
+and the tick count.
+
+### A shaft column change moves to a column in the same water
+
+Requiring a dry column is not the answer: a measured sweep rejected every candidate around this
+seed's lake, because the water table is simply there. The real problem is that descending into water
+needs a technique — sealing the source, taking it, or a different digging order. Read the
+diggability helper's javadoc before reopening this.
+
+### Two message texts are wrong
+
+A stuck-step annotation attributes the refusal to one of the three booleans before it and omits the
+fourth conjunct it printed on the same line, sending the reader to look for a source that does not
+exist. A scene's top-level fallback reason contradicts what runs actually report. Change the text in
+both; do not add fields.
+
+### The cell-clearing pass is single-pass and the failures are arrivals that did not happen
+
+The pass advances monotonically and never returns to a cell it could not open. Separately, the
+arrival radius it uses is provably tighter than the interaction limit, so "arrived but out of range"
+cannot happen — which means a failure there is a leg that did not arrive. The fix direction is to
+sweep until no progress is made, not to widen the arrival radius and not to relax the no-break
+constraint on that leg.
+
+### An enderman fight sometimes never ends
+
+About one NeoForge run in four fails here. Every fight either finishes quickly or burns exactly the
+tick ceiling, with no value in between across two dozen fights, so this is a hang rather than
+slowness. Add one row per ceiling-burning fight carrying four fields: whether the target is still
+alive, how far the body is from it, the largest jump in the target's position during the fight, and
+how many combat searches ran. Those three families — target lost, re-search storm, neither —
+partition the answer. Do not lower the pass criterion: it is already equivalent to winning three
+fights out of six, which is the floor.
+
+### There is no reading for who wrote a cell
+
+A guard refused to mine a cell because it would release the water behind it, and the body later
+drowned standing in that water. Nothing can say who opened it — the walker's fallback pathing
+carries its own permission to break, and is the first candidate. What is needed is a
+who-wrote-this-cell attribution row, not another round of inference.
+
+### The pit-rim band is scanned above the lava only
+
+It does not protect a body already down in the pit. The leg-attribution reading has landed; collect
+samples before deciding whether to extend the band downward.
+
+### The stranded branch of the walk home does not settle onto ground
+
+The arrived branch does; the stranded branch records only where it stranded and moves on. The lost
+body is the one that most needs the reading.
+
+### The tower-reclaim row records only the count after dismantling
+
+Record the count before as well, so how much came back is measured rather than inferred from net
+loss.
+
+### Arrival is hard-coded at five blocks while callers pass a tolerance
+
+The shared walk-to-column helper feeds the caller's tolerance to the goal and then judges arrival
+against a hard-coded five-block radius. Eight of fourteen call sites pass zero, so tightening all of
+them at once turns eight legs red simultaneously and nothing is attributable. Do this in order: add
+an evidence row that fires when arrival fell between the caller's tolerance and the hard-coded
+radius, and run once to see who is relying on the slack; then give the callers that need precision
+their own path; then handle the rest one at a time. The first step changes no criterion and cannot
+change any scene's colour.
+
+### A floating body cannot walk onto a bank at its own level
+
+This is what keeps `wd.journeyGetsAshoreBeforePouring` failing, and that scene is the only standing
+witness to the engine-side defect. A scripted step that places a block under the body is
+geometrically impossible here — the bank is one row above the body and the cell below it is one row
+lower still, and placing into the body's own cell is refused by vanilla.
+
+The engine-side half: the walker's final node is accepted by the horizontal proximity clause with
+zero footing under the body, and the existing airborne-climb guard cannot be reused, because it is
+scoped to mid-path nodes and it excludes bodies in water for a measured reason. A second judgement
+sits above it on the test side, so two layers each call this an arrival; a fix has to account for
+both. Reopen the scripted step only if the walker starts delivering the body to the bank's column
+and the scene is still failing.
+
+### A retry in the ramp changes nothing, and the instrument cannot say why
+
+Three rows are written mutually exclusively and none carries timing, so "it stepped aside, asked
+again and was still refused" and "the stop reason was rewritten, so it never asked again" both fit
+the archive equally well. Give those three rows a shared pass number or tick stamp, and print the
+stop reason as it was before the rewrite. Do not add retries on the strength of the current reading:
+if the branch was never asked a second time, more attempts change nothing.
+
+### A ramp early-return compares rows and not columns
+
+It appears in two places with the same shape, so changing one immediately runs into the other.
+Reopen when a profile names the wall cell and the raise still reports a column other than the one it
+pinned.
+
+### Nothing records who lifted the body above the alcove
+
+A placement row carrying coordinates would answer both that and who filled the wall cell that blocks
+the descent leg. Without it the failure can be described but not attributed.
+
+### The seat for a fill is judged from the cell centre, not the eye that fires
+
+A change that asked the real eye landed and was then reverted, and the revert stands. The defect
+itself is measured: the real eye is blocked by a specific block face at a specific distance while
+the cell-centre eye has a clear line. The minimal form changes the ray's origin rather than adding
+rays, and four call sites of the same shape can share one eye helper. One nearby sampler takes
+offset parameters deliberately and is not part of this family.
+
+### The rehearsal task's switches are 115 lines of build-script flags
+
+They want to be a shared closure.
+
+### A scanner checks the owner class and should also check descriptor parameters
+
+A scheduler class can pass a client type without calling one, and the failure only appears when a
+dedicated server constructs it.
+
+### The ladder's progress keys need units
+
+And an older path-length key should survive one more round before it is removed.
+
+### Markers in the lab world vanished between runs
+
+Twenty-five placed, all gone a few scenes later, cause unlocated. The run now logs how many markers
+it lifted and restored; compare those two rows the next time it happens.
 
 ---
 
-## 🗄️ 归档里没结案的线索（2026-08-26 逐行普查，**未逐条对 HEAD 复核**）
+## Source-size budget
 
-删掉的 19 000 行不是没人看就扔的——重写前**整份文件按八个区段逐行读过一遍**，
-把每一条判成「开着 / 条件式待办 / 未落地预登记 / 已结历史」。下面是普查捞出来、
-**上面各节没有对应条目**的线索。
+`scripts/check_source_budget.py` fails the build for any Java file over 3000 lines. Several files
+sit within a few lines of it — the journey rig, the configuration class, the walker, the Nether
+rungs, the journey scenes and the End rungs, in that order. Run the script for the current numbers
+rather than trusting a number written here. The remedy is splitting; stripping comments to buy
+headroom trades readability for quota and is not one.
 
-⚠️⚠️ **这一节的每一条都只是线索，不是待办。** 三条理由：
+### Splitting the configuration class has a mandatory first step
 
-1. **旧版是倒序编年**（行号越大日期越早），普查是在**每个区段内部**判「有没有结案」的。
-   一条被判「还开着」只意味着**在它下方没找到结案**，而结案很可能写在上方更新的段落里
-   ——那些段落正是本文件保留下来的部分。
-2. 所以**动手之前先对 HEAD**：`grep` 它自己会写的那一行、读产码、量文件行数。
-   已经这样撞掉过一条：`WorldDriverJourneyScenes.java` 那条「超 3000 行硬闸」在归档里是 🔴，
-   今日一量是 **2819 行**，早就不超了。
-3. 行号一律相对 `git show fb94af03d59f4bc16639f102ab184ac5c037ac9f:TODO.md`，
-   **对当前文件无效**。
+Make its persistable-field enumeration walk the superclass chain before moving any field. Two
+enumerators in this codebase each document themselves as the one enumeration and each is right about
+itself: the settings registry uses `getFields()` and follows superclasses, the configuration class's
+own persistence uses `getDeclaredFields()` and does not. That difference decides how a split fails.
+A sibling-class split throws immediately, which is safe. A superclass split is silent — the moved
+fields stay in the settings snapshot and read normally, while falling out of persistence and out of
+the snapshot-all path, so a test baseline leaks into a live bot for exactly those fields and the
+symptom looks like a few rungs quietly regressing. Making the enumeration follow the superclass
+chain is provably a no-op today, because the superclass is `Object`; that makes the two steps
+separately verifiable.
 
-### 引擎/产品侧（`src/main`）
+### Two things in this area that must not be tidied
 
-- **`BotConfig` 装着每个个体每 tick 的运行时状态**（`BotConfig.java:882`、`WalkerTickPrelude.java:83`）
-  ——原文写着「修好之前并行跑场景不安全」。今日复核：那些字段仍是 `public static volatile`，
-  即**全局单例态**。与 J7 同一族（同一个文件，同一次拆分）。[23266–23316]
-- **`FarmProcess.BREAK_TIMEOUT_TICKS = 60`** 没接 `BotConfig.breakTimeoutTicks`
-  ——**今日复核仍是 `FarmProcess.java:34` 的 `private static final`**，确认还活着。[14423–14452]
-- `DescendProcess.java:239-264` 的 `actTicks` **跨相位不清零**。[14423–14452]
-- **四把「够不够得着」的尺各自为政**：4.0 / 4.3 / 4.3 / 4.4。[14423–14452]
-- `ServerPlayerAvatar.holdPlaceable:203` 会把身体**唯一的熔炉**当垫脚花掉（两遍扫描的处方已写好，归 wd-parity）。[15765–15795]
-- `LavaProximityEscape.java:66` 用 `(int)` **向零截断**印格号，负坐标下印的不是身体所在格；同族**全仓 3 处**。[8724–8747]＋[10409–10422]
-- 两个 Escape 的 `reset()` **收尾约定不一致**（Q23c）。[8776–8782]
-- **岩浆自救根本不存在**，而且泡进岩浆之后会把这一段**剩下的预算全部走完**。[21836–21840]
-- **parkour 起跳闸**：剩余水平 < 1 格时不许起跳。致命 `0.64 / 0.75`，存活 `2.29 / 2.90 / 3.08`
-  ——**五点完全分离、区间不重叠**，谓词已具体到阈值，修法没落。
-  硬要求：`wd.parkourVoid{Short,Long}Runway` **两条必须一起绿**。[16349–16451]
-- `WalkerTickClimb.java` 两条水中守卫**够不到「完全没入水」的那一格**。[11932–11947]
-- **约 65 处在 tick 里驱动全局键位**；「窗口未聚焦 ⇒ 每 tick `stopDestroyBlock()`」这条链**尚未实测**。[13867–13897]
-- `allowPlace` / `allowBreak` **一个概念两套执法**。[9484–9490]
-- 「**执行器离开自己的计划，然后再也回不去**」这一族。[21268 / 21412–21413 / 21690–21691 / 21742–21746]
-- **「冻结窗口」整族未修**：驱动器不注册期间流体旗标是冻的，同病判据约 **31 条约 120 个读点**，
-  **连测量都还没落**。[17641–17663]
+The private stance checks in the build and backfill processes are byte-identical to each other but
+stricter than the shared helper — they lack two water clauses, so a waterlogged cell is standable to
+the shared version and refused by them. Merging would loosen two placement paths, and wants a
+measurement first.
 
-### 身体等价性（`bot/sim/**`，归 wd-parity）
-
-- 瞄准两侧分裂的孪生未落 [12067–12073]。（`stopUsingItem` 那半已按 parity 文档 §6.9 收进上方「🧹」节。）
-- 写 `selected` 的是**四个方法五行**，不是三处。[11801–11809]
-- V2 向下挖不低头（pitch 有两个主人）／V3 不挥手（要一次专门探针）／V4 `holdBestWeapon` **只在下界级被调**／
-  V5 工作台不回收·掉落物不捡／V7 一开始像晚上（加一行 `spawn.dayTime`）。[13622–13693]
-- 服务端 avatar 的**挖掘保真度洞**：赤手挖黑曜石 / 无精准采集 / 工具不掉耐久。[24050–24055]
-- `JoinedBody.tick()` **空实现**＝上线的下半场（驱动改成写输入）。[24176–24180]
-
-### 账本与仪器（testmod 侧）
-
-- **`ctx.fail` 没有流进 `JourneyLedger.failed`** ⇒ 账本收不到失败原因。[15912–15914]
-- **跳过的级 `outcome=PASS`**；且 7 级从来没写过。[15633–15636 · 15915–15917 · 16520–16521]
-- `advancement.obtain_blaze_rod = not-earned` 而**包里有棒**——⚠️ 原文自带处方：
-  先量 `CriteriaTriggers.INVENTORY_CHANGED` 有没有对 `JoinedBody` 触发，**别先信判词**。[15607–15609 · 15919–15920]
-- `climb.*` / `exit.*` 证据键**不带 tag，互相覆盖**。[22209–22215]
-- **mob cap / 区块加载 / 地形改动没有任何一行读数在记。**[15866–15869]
-- **17/19 级还没有 `stock.*` 证据行**，三处配方表都在等它。[18912 / 18915 / 18999 / 19001]
-- `COVERAGE:` 那行的 `executed` **不含「跑了但失败的」**；覆盖率那一栏还得写 skip 数。[6764–6777]＋[9230–9232]
-
-### 13–20 级（真梯停在 12 级，这些是往上走会先踢到的石头）
-
-- **17–20 级仍然没有布景配方。**[23181–23193]
-- **「从已知状态续跑」** —— 三轮点名的第一优先，仍未做；排练布景只覆盖「机制验证」那一半，**没覆盖真梯**。[23909–23925]
-- **9 级多买两个桶：代码那半已落地，缺的是铁那半**（13 锭 vs 三矿脉上限 9 ⇒ `RAW_IRON_TO_MINE` 要 14）。[22630–22666]
-- 14/15 级：`walker()` 出口是下一步；`expanded=1` **被封死没人挖出去**。[23083–23135]
-- 15 级：**走不到扭曲森林**（身体泡在岩浆里）。[23137–23180]
-- **岩浆湖是个洞穴湖，顶只有一格厚**——两条修法都还没试。[23029–23048]
-- `JourneyEndRungs.march`（17 级去要塞）**第三处「拿位移当进展」**。[20963–20975]
-- **壁龛排不干**：成因找到一半，仍未修（已从卡点降为代价）。[22873–22889]
-- 第 11 级**第三种死法：挖过头 12 格**。[23768–23788]
-- **真梯在「和平模式」里通关** —— 三选一，需要用户拍板。[13529–13559]
-
-### 工程/构建
-
-- `rehearsalIntegratedServer` 的 **115 行 `-P` 开关**必须抽成共享闭包。[15076–15083]
-- `SchedulerClientCallSurfaceTest` 的扫描要**从 owner 扩到描述符形参**
-  （＝[[a-scheduler-class-may-pass-a-client-type-not-call-one]]）。[10603–10604]
-
-### 三条已经确认作废的，别再捡回来（也是这一节为什么只能当线索的三个活证）
-
-- `WorldDriverJourneyScenes.java` 「超 3000 行硬闸」（归档里是 🔴）：**今日复核 2819 行，不超了。**
-- **J26**（写在 `ctx.cleanup` 里的自检行哪儿都不出现，[9119–9128]，＝[[a-confluence-point-is-not-a-deadline]]）
-  和 **J27**（竞技场基线 38 个 pin 的普查，[9425–9499]）在归档段里都没结案，
-  但**旧队列表上它们分别是 `✅ 已落（2026-08-24 核 HEAD）`（`42ae16b5`）和 `✅ 已普查`**
-  ——结案就写在归档**上方**、本文件保留下来的那一侧。这正是第 1 条注意事项说的那种误判。
-- **归档 24001–25670 整段作废**（2026-06-16 → 2026-08-10）。那是 `gap#` / `task#` 那套旧账本，
-  写在 Python 编排器退役（2026-08-05）与 StageWright 分仓之前，条目的载体本身已经不存在
-  （Xvfb `:99`、t1 gate、插件 v2、merge 策略、`instrument` 那一族……）。
-  ⚠️ 顺带一条**普查发现的排序反常**：这一段**不是全程倒序**——24007→约 25100 倒序，
-  约 25101→25670 反过来是顺序。真要去翻，按「代号 + 日期」双向查证，**不要按位置判**。
+"No Java callers" does not mean dead here. The script class filter is a denylist that is off by
+default and does not deny this project's own packages, so any public member is in principle callable
+by name from a script at runtime; and the settings registry, the settings command and the
+configuration class all reflect on configuration fields by name. Every candidate from a dead-code
+sweep has to be re-checked against both of those before it is removed.
 
 ---
 
-## 📎 读判词时反复咬人的几条（留着，代价已经付过）
+## Decided against, with the condition that would reopen it
 
-- **一个 `killed` 通知既不证明停了，也不证明会继续。** 串联任务要分两问：「前一段还在跑吗」（看产物）
-  和「后一段还有没有人触发」（看脚本活没活）。已经吃过一次：gradle 变孤儿继续跑到底，
-  而 `if`／`rm`／第二个 `./gradlew` 随 shell 一起没了，**下一趟不会自己开始且不会有任何报错**。
-- **场景名是完成时才打的**，所以「最后一条」永远不是肇事者。一天之内踩过三次。
-- **残留的结果文件照样能回答问题**，而且答得流畅、格式正确——只是答的是上一趟。
-  守望产物之前先确认**这一趟的产物已经存在**（等旧文件被删掉才开始计数）。
-- **`expected-scenes-*.txt` 是判官的一部分，不是源码。** 「运行中可以改 `.java`、不能编译」这条规矩
-  **只覆盖 `.java`**；manifest 是**判定时才从磁盘读**的运行期数据，闸跑着的时候改它等于中途换裁判名单。
-  **登记一条场景和它的 manifest 行必须在同一个提交里。**
-- **在给一段代码补守卫之前，先在日志里搜它自己会写的那一行**；**而 grep 落空还要再读产码**——
-  静默的 `null` 分支不写任何东西，所以 grep 落空并不能证明守卫不在。
-- **`ctx.check(x)` 的参数必须是要断言的那个东西本身，不是关于它的布尔表达式。**
-  `ctx.check(settled != null).isNotNull()` 只能通过；同一族已经改掉四条，而重构会**原样搬运**它们。
+These are settled. Each line is the decision and the observation that would overturn it. Do not
+reopen one without that observation.
+
+- **Unifying the arrival radius across five call sites.** No measured divergence has ever been
+  charged to it, and the baseline those radii are measured from is itself still moving. Reopen once
+  the ray-casting family settles.
+- **Promoting the contact-damage and lava-proximity escapes to a different movement channel.** The
+  first five occurrences of the reflex all succeeded; the failure was forty ticks inside a source
+  block with less than a block of movement available, which no driver changes. Reopen if a death
+  reading ever charges an escape failure to steering or to driver latency.
+- **A global arbitrator for the attack key's five users.** A diagnostic table replaced it and the
+  affected rung has passed consistently since. Reopen if that rung fails again with an unclear
+  attribution.
+- **Widening the retry budget on the in-place lift.** All three approaches are byte-identical
+  because the gate compares heights and what fails is the column. The three split readings have
+  never produced a row. Judge on the first one that does.
+- **Re-picking a blocked pour target more times.** The predicted fourth state has never appeared in
+  any archived result. When it first does, the direction is already fixed: change the question (via
+  a midpoint, or walk to the column) rather than raising the count.
+- **Checking the target cell is empty before placing.** Refusals consume nothing and write nothing;
+  the measured ratio is well under one refusal per success, clustered on individual cells. Reopen
+  when a run's failure or exhausted budget is charged to repeated refusals.
+- **Reporting a mid-flight elytra exit through the error field.** That exit is the only consumer's
+  sole path and the late rungs do not use elytra at all. Reopen if elytra enters the main line.
+- **The shaft support helper reading the context's level rather than the body's.** Latent — every
+  caller is currently in the overworld. Its twin in the End rungs has a byte-identical body and
+  reads a different level, so merging the two would break the late rungs. This family raises no
+  error of its own, so the reopen condition has to be executed by a person: the first time any of
+  the shaft's methods appears in a Nether or End rung's call graph, which is the first step of
+  starting work on those rungs.
+- **Splitting the journey rig behind a facade.** The seam is real and clean, but it costs nearly two
+  hundred call sites across a dozen files for no behavioural gain. It is now up against the size
+  budget above, which is where it will be decided.
+- **Taking material for towers and unsticking from downstream demand.** The measured net cost is
+  zero. Reopen when a verdict charges a failure to material supply.
+- **Reconciling the two break-cost multipliers.** The motivation is gone: the local exemption that
+  replaced it is verified with the shipped configuration. The multipliers' remaining global effect
+  belongs to the two-world-views pricing item, not here.
+- **Recording a skipped scene as something other than a pass.** The judge already separates the two
+  — it prints skips distinctly, excludes them from the executed count and folds them into the
+  coverage line — and the outcome field cannot change, because failure is judged by inequality with
+  pass, so writing anything else would turn every skip into a required failure. What needs stating
+  is the protocol for reading the results file. Reopen if a coverage line ever disagrees with the
+  number of skipped records in the results file.
+- **Adding a fifth remedial leg to the portal rung**, and **changing the raise-in-column or ramp
+  logic on the strength of an off-column reading**: those readings appear byte-identical in passing
+  runs, so they are necessary-but-insufficient at best.
+- **The nine placement refusals during staging.** They occur outside the scored region, consume
+  nothing, and the tower they belong to was built anyway. Reopen when at least five refusals on one
+  cell coincide with a failing outcome in the same segment; the fix direction is then to recompute
+  the clicked cell from the body's current position rather than reusing the one chosen when the leg
+  began.
+- **Adding no-break constraints to the five remaining legs inside the mould.** Two legs were given
+  one each on three-way evidence; these five have none, and adding the constraint has a measured
+  cost — one of the five is the recovery leg that climbs out of the pit, which may have no route at
+  all if it cannot dig. Add one only when a run shows a broken stair step, a dig on the staircase's
+  supporting diagonal, and a segment whose search owner and goal match that specific leg.
+- **Extending the drain scan to the pour line.** The two scans read the same set by construction —
+  the "inside the alcove" label is membership in the corridor the drain scans. Reopen if a pour-line
+  water row is ever labelled outside the alcove while the drain reports the alcove clear.
+
+---
+
+## Leads not yet checked against the current tree
+
+A line-by-line sweep of the retired working log produced these. **None of them has been checked
+against the current tree**, and several have already turned out to be closed — a file recorded here
+as over the size budget was comfortably under it when measured. Before acting on one, grep for the
+line the code itself would write, read the production code, and measure the file.
+
+- Escape and descend disagree on their reset conventions.
+- There is no lava self-rescue at all, and a body that falls in burns the remainder of the segment's
+  budget walking.
+- A parkour take-off gate: refuse the jump when less than one block of horizontal room remains. The
+  fatal and surviving samples separate cleanly with no overlap, so the predicate is already known to
+  the threshold; the change has not been made. Two void-parkour scenes must go green together.
+- Two of the climb guards cannot reach a cell that is fully submerged.
+- Roughly sixty-five places drive global key bindings inside a tick, and the chain that stops
+  destroying a block every tick while the window is unfocused has never been measured.
+- Place and break permissions are one concept with two enforcement paths.
+- An executor leaves its own plan and cannot get back to it — a family, not one case.
+- The seventeenth-rung march treats displacement as progress, which is the third instance of that
+  shape.
+- The alcove does not drain fully; the cause is half known and the behaviour is now a cost rather
+  than a blocker.
+- A third way of dying on the eleventh rung: over-digging by a dozen blocks.
+- Two more buckets are needed on the ninth rung; the code half has landed and the iron half has not,
+  because the amount mined is below what the bill requires.
+- The fifteenth rung cannot reach the warped forest, with the body sitting in lava.
+- The lava lake is a cave lake with a one-block-thick ceiling; two candidate fixes, neither tried.
+- On the fourteenth and fifteenth rungs, the walker's exit is the next step, and one expansion
+  is walled in with nobody digging it out.
+- The survival run completes in peaceful mode: three options, and the choice is a user's to make.
+
+### Two pointers rather than copies
+
+Documentation debt is tracked in the documentation map's own outstanding list, and belongs to the
+documentation role rather than here.
+
+The workspace-root working log and gap list are not in any repository and have not been touched
+since the split. Every item in them predates this project's current shape and none has been checked
+against the current tree. Treat them the same way as the leads above.
