@@ -128,16 +128,22 @@ sourceSets {
 }
 
 processResources {
-    inputs.property 'version', project.version
+    // One map for both roles on purpose. A value that expands without also being a declared
+    // input leaves the task up-to-date across a gradle.properties edit, so the jar keeps
+    // shipping the previous metadata — how a license change once stopped at the toml.
+    def expansions = [
+            version                : project.version,
+            minecraft_version_range: rootProject.minecraft_version_range,
+            neoforge_version_range : rootProject.neoforge_version_range,
+            loader_version_range   : rootProject.loader_version_range,
+            mod_license            : rootProject.mod_license,
+            mod_authors            : rootProject.mod_authors,
+            mod_description        : rootProject.mod_description,
+    ]
+    expansions.each { key, value -> inputs.property key, value }
 
     filesMatching('META-INF/neoforge.mods.toml') {
-        expand version: project.version,
-               minecraft_version_range: rootProject.minecraft_version_range,
-               neoforge_version_range: rootProject.neoforge_version_range,
-               loader_version_range: rootProject.loader_version_range,
-               mod_license: rootProject.mod_license,
-               mod_authors: rootProject.mod_authors,
-               mod_description: rootProject.mod_description
+        expand expansions
     }
 }
 
