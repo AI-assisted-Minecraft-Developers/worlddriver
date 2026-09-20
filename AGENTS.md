@@ -1,513 +1,436 @@
 # Agent instructions
 
-This file is read by AI coding agents (Claude Code, Cursor, Continue, Codex,
-etc.) working in this project. Keep it short and authoritative.
+This file is read by AI coding agents working in this repository. It is prescriptive: its
+reader is about to modify the code. Everything here is a constraint the code already
+depends on, not a style preference.
 
-## Project at a glance
+## The project at a glance
 
-- **Stack**: Minecraft 1.21.1, Architectury (Fabric + NeoForge), JDK 21,
-  Gradle wrapper. Rhino is the embedded JS engine.
-- **Source of truth**: `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`.
-  Every transport (MCP HTTP, WebSocket RPC, in-JVM Rhino) routes through
-  `DriverApi.route(method, params)`. Do **not** add game-affecting behavior
-  in a transport — add it in DriverApi, expose it through all three.
-- **Tests**: the StageWright gates are Gradle tasks in this build (the legacy `@GameTest`
-  suite and its GameTestServer machinery were retired in P4-final; the Python orchestrators
-  that replaced them are gone too, as of 2026-08-05):
-  - `./gradlew stagewright<Topology><Loader>` — provision a clean run directory, run the
-    game, judge the results against the orchestration contract. `Topology` is
-    `DedicatedServer` (headless, the wd.* scene suite), `IntegratedServer` (a client that
-    opens its own world, so the same scenes run under an integrated server) or
-    `DedicatedServerWithClient` (a headless server with a real client joined to it);
-    `Loader` is `Fabric` or `Neoforge`.
-
-    **These names live at the ROOT, and the per-loader `:fabric:runStagewright…` /
-    `:fabric:runJourney…` tasks beside them are NOT the same thing.** The root name is the
-    gate: it depends on a `…Provision` task that deletes the run directory's `world/` first,
-    then judges the results. The `:<loader>:run…` task is only the bare JavaExec. Reaching for
-    it because the root name did not tab-complete gives you a run over the PREVIOUS run's
-    world — blocks a former run bridged are still standing, shafts it dug are still open — and
-    scenes then fail in ways that read exactly like real bot defects. Which scenes fail varies
-    per run, which reads exactly like flakiness. It isn't. If a root name looks missing, run
-    `./gradlew tasks --all | grep -i stagewright` rather than substituting the loader task.
-  - `./gradlew stagewright<Topology><Loader>Hold` — the same topology, standing still, with
-    a `TESTKIT_ENDPOINT` descriptor published into its run directory once the game is in a
-    world. Ends on Ctrl-C. Everything that asserts from OUTSIDE the game attaches to one of
-    these — the 26-check instrument contract and the UI tests both live in
-    `:stagewright-junit` and are gated by which face the hold has. Commands below.
-
-  What stays in this repo is consumer data: the per-loader `expected-scenes-*.txt` manifests
-  under `scripts/stagewright/`, named by the topology declarations in `build.gradle`.
-  StageWright itself is expected as a sibling checkout (`../stagewright`) and consumed as
-  published artifacts from `mavenLocal`.
-
-- **StageWright is a dependency, not a subproject.** It is consumed only as published
-  artifacts (`stagewright_version` / `stagewright_plugin_version` in `gradle.properties`):
-  `mc_stagewright-api:dev` on the testmod compile classpath, `mc_stagewright-<loader>` as
-  `modLocalRuntime` for dev runs, and the `net.magicterra.stagewright` gradle plugin. None
-  of it is published or bundled by this repo, and both shipped jars contain **zero**
-  StageWright entries. Until the artifacts reach a real remote they come from `mavenLocal`,
-  which means a fresh clone must bootstrap in the order documented at the top of
-  `../stagewright/build.gradle` — publish `worlddriver-common` first, then StageWright, then
-  build here. Skipping step 1 fails with an unresolved `worlddriver-common:<ver>:dev`.
-
-  Verdict = each gate task exits 0 (GREEN). The scenes live in `:common`'s testmod source
-  set and are delivered into dev runs via the testmod bridge.
-
-  For code that needs **no running game** — the transports, the codec, pure
-  helpers — there is now a JUnit 5 source set at `common/src/test`, run by
-  `./gradlew :common:test` and wired into `build`. Prefer it: a scene costs a
-  full dogfood boot and can only observe what the game exposes, and the RPC
-  framing bugs fixed in `RpcFramingTest` survived every gate precisely because
-  the transport was never exercised outside one. Anything that touches world
-  state still belongs in `testmod` as a scene.
-
-  It also holds the checks that are **properties of the source rather than of a
-  run** — `WalkerTickDataflowTest` (the WalkerTick* phase handoff order),
-  `DriverEventWireTest#noEmitterPreEncodesItsPayload`. Booting a game to discover a
-  fact that a parser can read off the code is the slow way to learn it, and these
-  fail with the offending file and line instead of a scene verdict. Note the test
-  JVM's working directory is the module dir, which is what makes `Path.of(
-  "src/main/java")` resolve — don't add a `workingDir` to the task.
-- **`net.magicterra.worlddriver.test` is script API, not a test framework** — it
-  ships in the production jar on purpose. `ScriptTest` is bound into the Rhino
-  scope by `ScriptManager`, so every in-game script asserts with
-  `ScriptTest.run(...)` / `TestContext`; it is as much part of the script surface
-  as `Driver.invoke` is. The package *name* invites the opposite conclusion, which
-  is why this is written down: it has been proposed for extraction once (2026-08-02,
-  alongside the StageWright split) and deliberately kept. If you are hunting for
-  test machinery that does not belong in the jar, `test/yaml` was the real instance
-  and it is already gone.
+- **Stack.** Minecraft 1.21.1, Architectury (one source tree, Fabric and NeoForge),
+  JDK 21, the Gradle wrapper. Rhino is the embedded JavaScript engine.
+- **Source of truth.** `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`.
+  Every transport — the MCP HTTP server, the WebSocket RPC server, the in-process script
+  bridge — routes through `DriverApi.route(method, params)`. A new method goes in
+  `DriverApi` and is exposed through all three.
+- **StageWright is a dependency, not a subproject.** The in-game test framework lives in a
+  sibling checkout at `../stagewright` and is consumed only as published Maven artifacts,
+  versioned by `stagewright_version` and `stagewright_plugin_version` in
+  `gradle.properties`: its API on the testmod compile classpath, its loader modules as
+  local runtime for development runs, and its Gradle plugin at the root. Nothing of it is
+  published or bundled by this repository, and neither shipped jar contains a StageWright
+  class. Because the two repositories compile against each other in opposite directions, a
+  clean pair of checkouts bootstraps in the order documented at the top of
+  `../stagewright/build.gradle` — and that order starts inside StageWright, because this
+  repository's root build applies its plugin and cannot configure without it.
+- **Three test layers.** Plain JVM tests in `common/src/test`, run by `./gradlew :common:test`
+  and wired into `build`; scenes in `common/src/testmod`, run by the six StageWright tasks;
+  and out-of-process suites in StageWright's `:stagewright-junit`, which attach to a held
+  run. Prefer the first wherever the subject allows it — a scene costs a full game boot and
+  can only observe what the game exposes. The JVM layer also holds the checks that are
+  properties of the source rather than of a run; they read the compiled bytecode and fail
+  with a file and a line instead of a scene verdict. The test JVM's working directory is the
+  module directory, which is what makes a relative `src/main/java` resolve; do not add a
+  `workingDir` to the task.
+- **`net.magicterra.worlddriver.test` is script API, not test machinery.** It ships in the
+  production jar deliberately: `ScriptTest` is bound into the Rhino scope by `ScriptManager`,
+  so every in-game script asserts through it, and it is as much part of the script surface as
+  `Driver.invoke`. The package name invites the opposite conclusion, which is why this is
+  written down.
 
 ## Hard rules
 
-1. **Never put behavior in a transport handler.** New methods go in DriverApi.
-   MCP, RPC and the script bridge each only translate parameters and call
-   `DriverApi.route(...)`. If the three diverge, the regression is yours to fix.
+1. **Never put behaviour in a transport handler.** New methods go in `DriverApi`. The MCP
+   server, the RPC server and the script bridge each translate parameters and call
+   `DriverApi.route(...)`.
 
-   ⚠️ **The suite does not prove this — it samples it.** `06_rpc_parity.js` and
-   `07_mcp_parity.js` compare `mc.query` and `mc.system.version` only, canonicalise
-   both sides with a key-sorted `jsonStable()`, and `delete` time-varying fields
-   (`uptimeMs`) before comparing. That is two verbs out of the whole surface. This
-   line used to read「the validation suite asserts the three return byte-identical
-   results」, which is the kind of promise that gets a green gate trusted for a
-   question it never asked. Rule #1 is a rule because it is not checked, not because
-   it is.
-2. **All write paths bounce through `server.execute()`.** Reads that touch the
-   level hop through the same `DriverApi.onServerThread` as writes; never reach
-   for `Level` directly off-thread.
+   The validation suite does not prove this; it samples it. `06_rpc_parity.js` and
+   `07_mcp_parity.js` compare two methods, canonicalise both sides with a key-sorted
+   serialisation, and delete the time-varying fields before comparing. The rule is a rule
+   because the property is not checked, not because it is.
 
-   ⚠️ This used to say reads「use the snapshot helpers in `DriverApi`」. There is no
-   such helper family — the name survived whatever once carried it, and a reader
-   looking for it finds route names like `mc.world.snapshot` instead. The classes
-   that make no hop at all are the ones that genuinely never touch `Level`.
-3. **Don't widen the Rhino sandbox** without adding a matching negative test
-   in `common/src/main/resources/data/worlddriver/scripts/validation/08_sandbox.js`.
-4. **MCP spec citations are load-bearing.** When changing `McpServer.java`,
-   keep the `// spec: 2025-06-18 §…` comments accurate. The spec lives at
+2. **Writes, and reads that touch the level, go through the server thread.** Both use
+   `DriverApi.onServerThread`. Never reach for `Level` directly from a transport thread.
+   There is no separate family of snapshot helpers; classes that make no hop at all are the
+   ones that genuinely never touch `Level`.
+
+3. **Widening what a script can reach is a decision, not a refactor — and there is no filter
+   standing in your way.** `ScriptClassFilter` denies process spawning, reflection, raw file
+   and socket access and the JDK internals, but its first line is `if (DISABLED) return true`
+   and `DISABLED` is true unless the JVM was started with `-Dworlddriver.sandbox=on`, which
+   nothing in the build passes. Scripting is a first-party capability: restricting what a
+   script may call restricts the driver's own capability, and anything that can reach the RPC
+   or MCP endpoint already owns the process. Do not propose flipping the default; it is a
+   standing decision.
+
+   What follows for you: the filter is not a gate your change has to pass, so do not describe
+   it as one. If you change what scripts can reach, say so explicitly and update
+   `common/src/main/resources/data/worlddriver/scripts/validation/08_sandbox.js`, which
+   records the intended boundary. That file's own header documents which of its checks can
+   discriminate and which cannot — read it before treating a green there as evidence.
+
+4. **MCP specification citations are load-bearing.** When changing `McpServer.java`, keep the
+   inline `// spec: 2025-06-18 …` comments accurate. The specification is at
    <https://modelcontextprotocol.io/specification/2025-06-18>.
-5. **Don't commit runtime output.** No `*-run.log`, no `smoke-shots/`, no
-   `latest.log`. See "Log locations" below.
-6. **Prefer extending an existing tool over adding a new one.** Each tool
-   ships its schema + description in every prompt to every LLM client — pure
-   token tax. Before adding `mc.foo.bar`, check whether `mc.foo.baz` already
-   covers the case with an optional param (e.g. `useItem` does both mid-air
-   and pos-mode; `setting` absorbs pause/resume; `query` handles both blocks
-   and entities). Merge first; add only when the surface truly needs a new
-   verb. The same goes for tool descriptions — keep them tight; the schema
-   already documents types.
-7. **No fully-qualified names when there's no conflict.** Add a normal `import`
-   and use the simple name. Inline FQNs like
-   `net.magicterra.worlddriver.bot.util.BlockMatch.of(...)` or
-   `java.util.function.Predicate<…>` are only allowed to disambiguate a genuine
-   name collision in that file.
-8. **No Java source file over 3000 lines.** Gate:
-   `python3 scripts/check_source_budget.py`. When a file approaches the cap,
-   split it (the `WalkerTick*` per-tick phase classes are the reference
-   pattern for carving up a big sequential method without semantic drift).
-9. **No new reflection on a Mojang-mapped Minecraft member.** Gate:
-   `python3 scripts/check_remap_safety.py` (needs `./gradlew :fabric:build`
-   first — it reads the remapped jar). The build maps to Mojang names, but
-   `remapJar` rewrites the **shipped fabric** artifact into `intermediary` and
-   tiny-remapper does not rewrite string constants: `MouseHandler.class
-   .getDeclaredField("xpos")` becomes `class_312.class.getDeclaredField("xpos")`
-   and throws. NeoForge is unaffected (its runtime namespace is already Mojang-
-   mapped), and **no gate we run ever loads a remapped jar** — which is exactly
-   why the existing sites went unnoticed.
 
-   To open a member, add it to **both** files and use it directly:
+5. **Never commit runtime output.** No run logs, no screenshots, no `latest.log`. See
+   "Where runtime output goes" below.
 
-   - `common/src/main/resources/worlddriver.accesswidener` — fabric + compile
-   - `neoforge/src/main/resources/META-INF/accesstransformer.cfg` — neoforge
+6. **Prefer extending an existing method over adding one.** Every method ships its schema and
+   description in every prompt to every model that connects, which makes a new verb a
+   permanent cost. Before adding `mc.foo.bar`, check whether `mc.foo.baz` already covers the
+   case with an optional parameter — `useItem` handles both mid-air and against-a-block,
+   `setting` absorbs pause and resume, `query` handles both blocks and entities. Keep
+   descriptions tight; the schema already documents the types.
 
-   They are separate because architectury-loom 1.11 has no AW→AT conversion for
-   NeoForge (`convertAccessWideners` is Forge-only). The gate's
-   `check_widener_sync()` asserts the two stay identical — nothing in the build
-   does, and a member opened on one loader only is a runtime `IllegalAccessError`
-   on the other. Remaining reflection sites are baselined in the script with a
-   per-site reason; shrink that list, never grow it. If you must add one, make
-   the degradation loud (log once) and say so in the entry.
-10. **Don't change a `[walker]` / `[expect]` log format without its consumers.**
-    Gate: `python3 scripts/check_log_contract.py` (after a dedicated-server gate run — it reads that
-    run's `latest.log`). Five dev tools recover bot state by regexing those
-    lines, and a regex that stops matching does not raise: it returns nothing,
-    and the tool reports "no ticks" as though the bot never moved. The emitters
-    are `WalkerTickClimb` (`[walker] t=`) and `WalkerTickDrive` (`walk-keys`);
-    the consumers are `scripts/forensic.py`, `scripts/pmcs/telemetry.py`,
-    `scripts/pmcs/run_case.py`, `scripts/accept_cycle.py`. The gate imports the
-    consumers' own patterns rather than copying them, so it cannot pass while
-    the tool it protects is broken.
+7. **No fully-qualified names where there is no conflict.** Add an import and use the simple
+   name. An inline fully-qualified name is only justified to disambiguate a genuine collision
+   within that file.
 
-11. **A scene's terrain must fit its force-loaded arena.** Gate:
-    `python3 scripts/check_scene_arena.py` (source-only — no build, no run).
-    `StageWrightHarness` force-loads a (2r+1)² chunk window around the scene origin,
-    where r is `Scene.withChunkRadius(r)` (default 1), so the usable offsets are
-    `dx, dz ∈ [-16r, 16r+15]`. Build terrain outside it and nothing fails: the
-    write succeeds by loading the chunk on demand, but PREP's `allChunksLoaded()`
-    never waited for it, so the scene passes most of the time and fails when it
-    doesn't — which reads as a bot bug, not an arena bug. Until this gate the
-    relation was maintained entirely by hand, in javadoc (`WorldDriverWaterCross
-    Scenes`' class comment is the model: it derives every span and the radius it
-    needs). Prefer `ctx.setBlock(dx, dy, dz, block)` for new terrain — it states
-    the footprint as arguments, so the gate reads it directly instead of
-    interval-evaluating a `cx + dx` expression to recover it.
+8. **No Java source file over 3000 lines, and no method over 200 unless it is on the
+   grandfather list.** Check with `python3 scripts/check_source_budget.py`. When a file
+   approaches the cap, split it; the per-tick phase classes under `bot/movement` are the
+   reference pattern for carving up a long sequential method without semantic drift.
 
-    **The gate only sees offsets a scene writes itself.** A scene that builds through a
-    helper at an ABSOLUTE position — `DriverApi.seedTestArea()` at `0,200,0` is the one that
-    exists — is outside every arena window and the gate reports it fine. Blocks still work
-    there (the write loads the chunk), entities do not (`Level#getEntities` sees loaded
-    sections only), so the scene fails as "the entity query returned nothing" somewhere far
-    from the cause. That helper now takes its own region ticket; if you add another, it needs
-    one too — the gate will not tell you.
+9. **No new reflection on a Mojang-mapped Minecraft member.** Check with
+   `python3 scripts/check_remap_safety.py`, which reads the remapped jar and therefore needs
+   `./gradlew :fabric:build` first. The build maps to Mojang names, but remapping rewrites the
+   shipped Fabric artifact into the intermediary namespace and does not rewrite string
+   constants, so a reflective lookup by field name throws at runtime in the shipped jar.
+   NeoForge is unaffected, its runtime namespace already being Mojang-mapped, and no gate task
+   ever loads a remapped jar — which is why the existing sites went unnoticed.
+
+   To open a member, add it to **both** of these and call it directly:
+
+   - `common/src/main/resources/worlddriver.accesswidener` — Fabric and compile
+   - `neoforge/src/main/resources/META-INF/accesstransformer.cfg` — NeoForge
+
+   They are separate because the loom version in use has no access-widener-to-transformer
+   conversion for NeoForge. The check asserts the two stay in step; nothing in the build does,
+   and a member opened on one loader only is a runtime `IllegalAccessError` on the other.
+   Remaining reflection sites are baselined in the script with a per-site reason. Shrink that
+   list, never grow it; if you must add one, make the degradation loud and say so in the entry.
+
+10. **Do not change a `[walker]` or `[expect]` log format without its consumers.** Check with
+    `python3 scripts/check_log_contract.py`, which reads a dedicated-server run's log and so
+    needs that gate task to have been run. Several analysis tools recover bot state by matching
+    those lines, and a pattern that stops matching does not raise — it returns nothing, and the
+    tool reports no ticks as though the bot never moved. The emitters are `WalkerTickClimb` and
+    `WalkerTickDrive`; the consumers are `scripts/forensic.py`, `scripts/pmcs/telemetry.py`,
+    `scripts/pmcs/run_case.py` and `scripts/accept_cycle.py`. The check imports the consumers'
+    own patterns rather than copying them, so it cannot pass while the tool it protects is
+    broken.
+
+11. **A scene's terrain must fit its force-loaded arena.** Check with
+    `python3 scripts/check_scene_arena.py`, which reads the source and needs neither a build
+    nor a run. The harness force-loads a square chunk window around the scene origin whose
+    radius comes from `Scene.withChunkRadius(r)`, default 1, so the usable offsets are
+    `dx, dz ∈ [-16r, 16r+15]`. Build terrain outside it and nothing fails loudly: the write
+    succeeds by loading the chunk on demand, but the preparation phase never waited for that
+    chunk, so the scene passes most of the time and fails when it does not — which reads as a
+    bot defect rather than an arena defect. Prefer `ctx.setBlock(dx, dy, dz, block)` for new
+    terrain, because it states the footprint as arguments and the check reads it directly.
+
+    The check only sees offsets a scene writes itself. A scene that builds through a helper at
+    an absolute position is outside every arena window and the check reports it fine. Blocks
+    still work there, because the write loads the chunk; entities do not, because entity
+    queries see loaded sections only, so the scene fails as an empty entity query somewhere far
+    from the cause. The one such helper that exists takes its own region ticket. If you add
+    another, it needs one too, and the check will not tell you.
 
 12. **Never hand a client type to a wider parameter from a class a dedicated server loads.**
-    Gate: `stagewrightDedicatedServerFabric` **and** `stagewrightDedicatedServerNeoforge` —
-    two different mechanisms (Fabric's Knot classloader checks the environment type;
-    NeoForge's `RuntimeDistCleaner` checks the dist), so one loader passing proves nothing
-    about the other. The failure is at **class-load time**, so the scene dies at `0 ticks`
-    with `unexpected RuntimeException: Cannot load class net.minecraft.client.player
-    .LocalPlayer in environment type SERVER` — which names *what* failed to load and never
-    *who asked for it*.
+    The check is running both `stagewrightDedicatedServerFabric` and
+    `stagewrightDedicatedServerNeoforge`: the two loaders use different mechanisms — Fabric's
+    class loader checks the environment type, NeoForge's runtime cleaner checks the dist — so
+    one loader passing proves nothing about the other. The failure is at class-load time, so
+    the scene dies at zero ticks with a message naming the class that failed to load and never
+    the call site that asked for it.
 
-    Holding a `LocalPlayer` in a local and calling its own methods is fine and always was.
-    What is not fine is passing it to a parameter declared `Player`/`Entity`: that
-    **widening** makes the verifier load `LocalPlayer` to prove the subtype relation.
-    "It calls into a client type" is NOT the rule — the last green build called
-    `KeyMapping.setDown`, `ClientLevel.getBlockState` and `Minecraft.getInstance`.
+    Holding a `LocalPlayer` in a local variable and calling its own methods is fine and always
+    was. What is not fine is passing it to a parameter declared `Player` or `Entity`: that
+    widening makes the verifier load `LocalPlayer` to prove the subtype relation. "It calls
+    into a client type" is not the rule.
 
-    The shape that survives: put the widening inside a **client-only** class and reach it
-    with `invokestatic` (`BotInteract.riseBlockedCell` / `continueDestroy` are the models).
-    `invokestatic` resolves its owner, not its owner's dependencies, and a chain whose
-    `tick` opens with `if (mc == null) return` never loads that owner on a server.
-    Verify by measurement, not by reading the source — and for `bot/scheduler/**` the
-    measurement is already written. `SchedulerClientCallSurfaceTest` parses the compiled
-    constant pool and fails on any call site in that package whose descriptor takes
-    `Player`/`LivingEntity`/`Entity`; it carries its own positive controls, so its green
-    means it looked rather than that it found nothing anywhere. `./gradlew :common:test`
-    runs it and needs no game — **run it before landing any change that alters the SHAPE of
-    a call**: folding a duplicated expression into a shared helper, extracting a method,
-    adding a parameter. Those read as pure tidy-ups, which is exactly the disguise this rule
-    keeps being broken in.
+    The shape that survives is to put the widening inside a client-only class and reach it with
+    `invokestatic`, which resolves its owner and not its owner's dependencies; a chain whose
+    tick method opens by returning when the client is absent never loads that owner on a
+    server. Verify by measurement rather than by reading. For `bot/scheduler/**` the measurement
+    is already written: `SchedulerClientCallSurfaceTest` parses the compiled constant pool and
+    fails on any call site in that package whose descriptor takes `Player`, `LivingEntity` or
+    `Entity`. It carries its own positive controls, so a green result means it looked rather
+    than that it found nothing. `./gradlew :common:test` runs it and needs no game. **Run it
+    before landing any change that alters the shape of a call** — folding a duplicated
+    expression into a shared helper, extracting a method, adding a parameter. Those read as
+    tidy-ups, which is the disguise this rule keeps being broken in.
 
-    ⚠️ It is still a Gradle task, so it recompiles `:common` from whatever is on disk and
-    needs the tree to itself. **Take the slot from main exactly as you would for a gate** —
-    a live `runJourney*` / `runDogfood*` loads classes lazily out of `build/classes`, and
-    recompiling under one turns a single run into a mixture of two builds.
+    That test guards one package and its scope cannot simply be widened: it asserts the
+    wide-parameter set is empty, which is only true in `bot/scheduler/**`. `Walker` is loaded on
+    both sides and legitimately makes such calls, so pointing the same assertion at
+    `bot/movement/**` fails a healthy tree. Outside that package, disassemble the class and
+    count the calls taking a `Player` parameter by hand.
 
-    ⚠️ **That test guards one package**, and its scope cannot simply be widened: it asserts
-    the wide-parameter set is EMPTY, which is only true in `bot/scheduler/**`. `Walker` is
-    dual-loaded (`ServerWorldDriver` ticks one) and legitimately makes four such calls, so
-    pointing the same assertion at `bot/movement/**` reddens a healthy tree. Everywhere
-    outside that one package, `javap -c` the class and count calls taking a `Player`
-    parameter by hand. Full account: `docs/drown-escape-design.md` §5.
-
-13. **A scene that writes `BotConfig` must hold a pin.** Nothing resets config between
-    scenes — `applyGameTestBaseline()` runs once at server start — so whatever a scene
-    leaves changed is what the NEXT scene starts with, and scene order then decides a
-    reading. Two lines at the top of the body, and they beat an assignment at the end
-    because `cleanup` also runs when the scene FAILS, which is the path that leaks:
+13. **A scene that writes `BotConfig` must hold a pin.** Nothing resets the configuration
+    between scenes — the baseline is applied once at server start — so whatever a scene leaves
+    changed is what the next scene starts with, and scene order then decides a reading. Two
+    lines at the top of the body, which beat an assignment at the end because cleanup also runs
+    when the scene fails, and failing is the path that leaks:
 
     ```java
     var pin = BotConfig.pinnedBaseline();
     ctx.cleanup(pin::close);
     ```
 
-    Gate: `ConfigPinDisciplineTest` (no game) reads the compiled testmod bytecode and names
-    any method that writes a `BotConfig` static with no `pinnedBaseline()` on every path
-    into it — counting a pin taken by a helper it calls, which is how a rung inherits one
-    from `rig.generousPathfinding()`. **Run it before landing a scene that touches config.**
-    Same slot discipline as #12: it recompiles `:common`, so take the tree from main rather
-    than starting it under a live run.
+    `ConfigPinDisciplineTest` reads the compiled testmod bytecode and names any method that
+    writes a `BotConfig` static without a `pinnedBaseline()` on every path into it, counting a
+    pin taken by a helper it calls. Run `./gradlew :common:test` before landing a scene that
+    touches configuration.
 
-    ```bash
-    ./gradlew :common:test
-    ```
+    Restoring by hand is legal, but only on a path a failure also takes — a `try`/`finally`, or
+    `ctx.cleanup`. Restoring at the end of the body is not; that is exactly the line a failing
+    scene skips. Methods that restore by hand are listed in the test's accounted-for set beside
+    the still-open ones, and the test also fails when an entry there stops being needed, so the
+    list cannot rot into a record of problems already fixed.
 
-    ⚠️ **This used to need `--rerun-tasks`, and why is worth keeping.** The bytecode the test
-    reads is not on the test classpath, so gradle did not know it was an input: measured
-    2026-08-26, deleting a pin recompiled `:common:testmodClasses`, called `:common:test`
-    UP-TO-DATE, and printed `BUILD SUCCESSFUL` over a results file two minutes old. A gate
-    that answers a question you did not ask is worse than one that fails — nothing in the
-    output says it is stale. `common/build.gradle` now declares
-    `sourceSets.testmod.output.classesDirs` as an input and depends on `testmodClasses`, so a
-    scene edit invalidates the test the way a source edit always did, and the flag is no
-    longer needed. **If you see `:common:test UP-TO-DATE` right after editing a scene, that
-    wiring is gone** — restore it rather than reaching for the flag again.
+    Both of the Gradle-task checks above recompile `:common` from whatever is on disk, so they
+    need the tree to themselves. Take the slot exactly as you would for a gate task: a live
+    game run loads classes lazily out of `build/classes`, and recompiling underneath one turns
+    a single run into a mixture of two builds.
 
-    ⚠️ Its javadoc carries two named edits that MUST turn it red — one deleting a direct
-    pin, one deleting a delegated pin — each measured against the compiled tree before the
-    test was written. The second is the load-bearing one: counting delegated pins is the
-    loose direction, and without a sample proving that cut was earned, a green here would
-    only mean the reachability swallowed everything. Re-run both if you touch it.
+## Where runtime output goes
 
-    Both were run on 2026-08-26 and both went red: deleting `WorldDriverTerrainScenes#summit`'s
-    own pin, and deleting `JourneyRig#generousPathfinding`'s (18 methods named, among them
-    `JourneyEndRungs#digToTheRoom` and `JourneyPortalRung#descendToTheForge`, none of which
-    takes a pin of its own). ⚠️ Sample one first went red for the WRONG reason: `summit` was
-    also the positive control, so deleting its pin tripped the reachability self-check and the
-    unprotected-set assertion never ran — and a red for that reason reads exactly like a red
-    for the right one. The control now names `WorldDriverAvatarScenes#serverCapabilityScene`,
-    which neither sample touches, so sample one again exercises what it was written for. A
-    third sample is not needed: the one direction no pin-deletion can probe — a reachability
-    that answers true for everything — is caught by the `ACCOUNTED_FOR` staleness check, which
-    reddens on all eight entries at once. One probe per direction, not one per edit.
+Runtime output belongs in the run directory of whatever produced it, and never at the
+repository root.
 
-    ⚠️ Restoring by hand is legal, but only on a path a FAILURE also takes (`try/finally`,
-    or `ctx.cleanup`). Restoring at the end of the body is not — that is exactly the line a
-    failing scene skips. Methods that restore by hand are listed in the test's
-    `ACCOUNTED_FOR` beside the still-open ones, and the test also fails when an entry there
-    stops being needed, so the list cannot rot into a record of problems already fixed.
-
-## Log locations
-
-Runtime output is local-only and must never appear at the project root:
-
-| Output | Path |
+| What produced it | Where it lands |
 |---|---|
-| Fabric client / server logs            | `fabric/run/logs/` |
-| NeoForge client logs                   | `neoforge/run/logs/` |
-| Dogfood (T0) server logs               | `<loader>/run-dogfood/logs/` |
-| StageWright T0 server run results          | `stagewright/<loader>/run-stagewright/` |
-| Instrument contract server run          | `<loader>/run-contract/` |
-| Smoke-test screenshots, traces, logs   | `fabric/run/smoke/` |
-| Gradle compile output                  | `<platform>/build/` |
+| `runClient` / `runServer` | `<loader>/run/` |
+| The dedicated-server scene task | `<loader>/run-dogfood/` |
+| The integrated-server scene task | `<loader>/run-stagewright-integrated/` |
+| The dedicated-server-with-client scene task | `<loader>/run-stagewright-with-client/`, and `<loader>/run-stagewright-joining-client/` for its client half |
+| The instrument-contract server | `<loader>/run-contract/` |
+| The playthrough ladder | `fabric/run-journey`, `run-journey-integrated`, `run-journey-with-client`, `run-journey-joining-client` |
+| One-rung rehearsals | `fabric/run-rehearsal`, `fabric/run-rehearsal-integrated` |
+| Smoke-driver screenshots and traces | `fabric/run/smoke/` |
+| Compiler output | `<module>/build/` |
 
-If you find a `*-run.log` or screenshot at the project root or any other
-unexpected location, treat it as a leftover and delete it — do not commit it.
+A log or a screenshot at the repository root is a leftover. Delete it; do not commit it.
 
 ## Common commands
 
 ```bash
-# Build everything
+# Build both loaders and run the JVM tests
 ./gradlew build
 
-# Integration tests (use as CI). Six topologies — three shapes on two loaders — and stagewrightCoverage
-# below needs ALL of them run, because it reconciles them against each other.
-./gradlew stagewrightDedicatedServerFabric                    # the wd.* scene suite, headless
-./gradlew stagewrightDedicatedServerNeoforge                  # ditto on the other loader
-./gradlew stagewrightIntegratedServerFabric                   # integrated-server parity
-./gradlew stagewrightIntegratedServerNeoforge                 # ditto
-./gradlew stagewrightDedicatedServerWithClientFabric          # production topology, both halves
-./gradlew stagewrightDedicatedServerWithClientNeoforge        # ditto
+# The six scene tasks: three process topologies on two loaders. Note the lowercase f in
+# Neoforge — the task names spell it that way.
+./gradlew stagewrightDedicatedServerFabric
+./gradlew stagewrightDedicatedServerNeoforge
+./gradlew stagewrightIntegratedServerFabric
+./gradlew stagewrightIntegratedServerNeoforge
+./gradlew stagewrightDedicatedServerWithClientFabric
+./gradlew stagewrightDedicatedServerWithClientNeoforge
 
-# The NeoForge production topology joined this list on 2026-08-08, when it went green for the first
-# time. It is worth its five minutes precisely because the two loaders' dev launchers differ in what
-# they hand a child process: the bug it was RED on made the driver ABSENT from a JVM that listed it
-# in the mod list, and the Fabric twin was green throughout on identical code.
-#
-# The manifest is 222 scenes (171 wd.* + 38 cap.* + 13 pack.*); a run registers 232 with the
-# framework's built-ins and canaries. Both production topologies also judge a SECOND results file,
-# the one their client half writes in its own run directory — that is what `companionResultsFile`
-# in build.gradle points at, and without it a client that never joined would still read GREEN.
-
-# Redirect, never pipe to `tail`: the verdict is at the end, so tailing looks sufficient right up
-# until a run dies before producing one and the error was in the part you discarded.
+# Redirect; never pipe a run through `tail`. The verdict is at the end, which makes tailing
+# look sufficient right up until a run dies before producing one and the error was in the
+# part you discarded.
 ./gradlew stagewrightDedicatedServerNeoforge > run.log 2>&1
 
-# Cross-run coverage. Every scene any topology registers must have EXECUTED in at least one of them,
-# and no single verdict can be asked that: a scene needing a player skips on a dedicated server, a
-# skip records PASS, and a suite whose player scenes skip EVERYWHERE is green over subjects it has
-# never once run. Needs all six topologies to have been run first — it reads their results, it does
-# not run them, deliberately: a RED topology aborts the build and this is exactly when it has the
-# most to say.
+# Cross-run reconciliation. Every scene any topology registers must have EXECUTED in at least
+# one of them, and no single run can be asked that: a scene needing a player skips on a
+# dedicated server, a skip records a pass, and a suite whose player scenes skip everywhere is
+# green over subjects it has never once run. Needs all six to have been run first; it reads
+# their results and deliberately does not run them, because a failing topology aborts the
+# build and that is exactly when this has the most to say.
 ./gradlew stagewrightCoverage
 
-# Out-of-process tests. Two terminals: the hold publishes an endpoint, the tests attach to it.
-# WHICH hold decides which half runs — the suite is face-gated and the other half skips with a
-# reason. With TESTKIT_ENDPOINT unset BOTH halves skip, so a green run without it is not coverage.
-./gradlew stagewrightDedicatedServerFabricHold                # server face: 26 instrument checks
+# Out-of-process suites. Two shells: the hold publishes an endpoint, the suite attaches to it.
+# Which hold you start decides which half runs; the other half skips with a reason, and with
+# TESTKIT_ENDPOINT unset both halves skip, so a green run without it is not coverage.
+./gradlew stagewrightDedicatedServerFabricHold          # the server face
 TESTKIT_ENDPOINT=$PWD/fabric/run-dogfood/stagewright-endpoint.json \
   ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
 
-./gradlew stagewrightIntegratedServerFabricHold               # client face: 6 UI tests
+./gradlew stagewrightIntegratedServerFabricHold         # the client face
 TESTKIT_ENDPOINT=$PWD/fabric/run-stagewright-integrated/stagewright-endpoint.json \
   ../stagewright/gradlew -p ../stagewright :stagewright-junit:test --rerun-tasks
 
-# Interactive client (pin ports so .mcp.json keeps working)
-JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
-  ./gradlew :fabric:runClient
+# Interactive client. The development run already pins the MCP and RPC ports, so an external
+# client configuration keeps working; override with -PagentMcpPort= / -PagentRpcPort=.
+./gradlew :fabric:runClient
 
-# Smoke driving — ReAct loop over the client RPC (start a client yourself first,
-# on whatever display this host actually has; the driver never touches the OS input layer)
+# Smoke driving: a loop over the client RPC. Start a client yourself first; the driver never
+# touches the operating system's input layer.
 uv run scripts/react_smoke.py
 ```
 
-## The playthrough ladder, and its three topologies
+**Always run the task above the run task, never the bare `:<loader>:run…` underneath it.**
+The task above depends on a provisioning step that deletes the run directory's world first.
+The run task does not, so reaching for it gives you a run over the previous run's world —
+blocks a former run bridged are still standing, shafts it dug are still open — and scenes then
+fail in ways that read exactly like bot defects, varying per run, which reads exactly like
+flakiness. It is not. If a task name looks missing, run `./gradlew tasks --all | grep -i stagewright`
+rather than substituting the run task.
 
-`wd.journey*` is one body climbing twenty rungs from an empty inventory at world spawn to a dead
-ender dragon. It is **not** a gate — a climb is 25–40 minutes where the gates are five — so it arms
-behind its own property, filters to its own family, and is never part of `build`. Since a filtered
-run skips expected-scenes reconciliation, no `wd.journey*` rung appears in
-`scripts/stagewright/expected-scenes-*.txt`; only `wd.journeyArmed`, which registers in every run,
-is listed there.
+**The manifests are part of the judge.** `scripts/stagewright/expected-scenes-fabric.txt` and
+`scripts/stagewright/expected-scenes-neoforge.txt` list the scenes a run is judged against, and
+a scene that registers without being listed fails the run. The two are identical by
+construction, because the scenes are registered for both loaders from the same module: a scene
+added to one manifest must be added to the other in the same commit. Never take a scene count
+from prose — count the manifest. Editing a manifest while judging a run is changing the judge
+mid-run.
 
-Fabric only, and three topologies of it. Each has its own run directory, because the ladder **plays**
-its world — it fells trees, digs shafts and pours lava — so two ladders sharing a directory would
-each measure the other's leftovers:
+A run can fail with no failed scene at all. Three judgements print above the verdict line and
+each can fail a run on its own: an undeclared scene, the coverage reconciliation, and the
+framework's canaries. Work out what result the known baseline implies before you read the
+output, and if the actual result disagrees, read upward from the verdict rather than re-reading
+the failure rows.
+
+**Do not compile under a live run.** Development runs load classes lazily from
+`build/classes`, so recompiling while one is running produces a single run that is a mixture of
+two builds.
+
+## The playthrough ladder
+
+`wd.journey*` is one body climbing from an empty inventory at world spawn to a dead ender
+dragon. It is not one of the gate tasks: a climb takes far longer than a gate, so it arms
+behind its own property, filters to its own scene family, and is never part of `build`. Because
+a filtered run skips manifest reconciliation, no rung appears in the expected-scenes manifests;
+only `wd.journeyArmed`, which registers in every run, is listed.
+
+It is Fabric-only, in three topologies. Each has its own run directory, because the ladder plays
+its world — it fells trees, digs shafts and pours lava — so two ladders sharing a directory
+would each measure the other's leftovers:
 
 ```bash
-./gradlew :fabric:runJourneyServer                      # headless. No client exists at all.
-./gradlew :fabric:runJourneyIntegratedServer            # a real client hosts the world (one JVM)
-./gradlew :fabric:runJourneyDedicatedServerWithClient    # a real client JOINS over a socket (two JVMs)
+./gradlew :fabric:runJourneyServer                    # headless; no client exists at all
+./gradlew :fabric:runJourneyIntegratedServer          # a real client hosts the world, one JVM
+./gradlew :fabric:runJourneyDedicatedServerWithClient # a real client joins over a socket, two JVMs
 ```
 
-The third starts its companion client for you, from the same build service the gate twin uses, so
-Gradle kills it on every exit path. Its log is `fabric/run-journey-with-client/companion-client.log`
-— **read it first when a run seems to hang**: the server holds its suite back until a player joins
-(`stagewright.awaitPlayer`) and nothing times that out, so a companion that died in architectury's
-transformer leaves the server waiting forever with an empty, healthy-looking log of its own. Its
-port is **25701**, deliberately not the gate companion's 25601: a ladder on that number would be
-joined by, or would refuse to start beside, somebody else's gate run.
+The third starts its companion client for you from the same build service the gate task uses,
+so Gradle kills it on every exit path. Read `fabric/run-journey-with-client/companion-client.log`
+first when a run seems to hang: the server holds its suite back until a player joins and nothing
+times that out, so a companion that died during class transformation leaves the server waiting
+forever with a healthy-looking log of its own. Its port is deliberately not the gate companion's,
+so a ladder is never joined by, and never refuses to start beside, somebody else's gate run.
 
-**The integrated topology climbs on the client's REAL player.** 集成服上验证本就需要真实玩家来执行
-— a rung that spawned an invulnerable fake body beside a real player would be testing the wrong one.
-So on `runJourneyIntegratedServer`, `JourneyRig.spawnBody()` **adopts** the player that is already
-there (forcing survival, an empty inventory and world spawn — irreversibly; never point it at a save
-you care about) and the ladder drives it. That body takes fall damage, starves, drowns, dies,
-respawns and earns advancements, because it is a player who joined.
+**The integrated topology climbs on the client's real player**, because verifying on an
+integrated server needs a real player to be the subject — a rung that spawned an invulnerable
+fake body beside a real player would be testing the wrong one. `JourneyRig.spawnBody()` therefore
+adopts the player already present, forcing survival mode, an empty inventory and world spawn,
+irreversibly; never point it at a save you care about. That body takes fall damage, starves,
+drowns, dies, respawns and earns advancements, because it is a player who joined. The other two
+topologies keep the fake body, and the joining one does so by construction rather than by
+omission: its client bot lives in the other process, and the object that seam passes cannot
+cross a socket.
 
-The other two keep the fake body, and the joining one does so **by construction, not by omission**:
-its client bot lives in the other PROCESS, and the object this seam passes cannot cross a socket.
+*How one rung drives either.* A process has one tick method taking a `Body`; the client tick
+chain hands it a client body and the server tick a server body, so one process object drives a
+`LocalPlayer` on the client tick and a joined `ServerPlayer` on the server tick. A rung builds
+the process and hands it to `rig.drive`; only the helm changes. Every path that starts a leg
+goes through `JourneyRig.startLeg`, and that is load-bearing: registering an adopted driver with
+the server-side avatar manager would have the server tick a body its own client is moving, which
+the client then contradicts with a movement packet every tick. The server body refuses such a
+body, so that mistake throws in the server tick instead of drifting.
 
-*How the same rung code drives either.* A process has one method, `tick(Body,…)`; the client
-tick chain hands it a `ClientPlayerBody` and the server tick a `ServerPlayerBody`, so one
-process object drives a `LocalPlayer` on the client tick and a joined `ServerPlayer` on the
-server tick. A rung still builds a `TowerProcess` and hands it
-to `rig.drive`; only the **helm** changes — `ServerAvatarManager` headless, `BotApi.runProcess` (the
-client's own user-task chain) integrated. Every path that starts a leg goes through
-`JourneyRig.startLeg`, and that is load-bearing: registering the adopted driver with
-`ServerAvatarManager` would have the server tick a body its own client is moving, which the client
-then contradicts with its own movement packet every tick. `ServerPlayerBody.step()` refuses such a
-body, so that mistake now throws in the server tick instead.
+*The helm has two halves and both must be routed.* The paragraph above is about the per-tick
+legs. Single-shot actions — hold an item, aim, right-click, place — are a second population of
+call sites, and routing them is a separate decision. They go through `JourneyRig.avatar()`, which
+picks the client avatar under the real-player helm, mirroring `startLeg`. **A new rung must use
+`rig.avatar()`, never `rig.body().avatar()`**; the second writes the server's copy of quantities
+vanilla lets only the client own, which produces two unrelated values rather than a race.
 
-*The helm has two halves, and both must be routed.* The paragraph above is about the per-tick LEGS.
-Single-shot actions — hold an item, aim, right-click, place — are a second population of 36 call
-sites, and they were NOT routed for the first day this topology existed: they went through a
-`ServerPlayerBody` wrapped around the adopted player, i.e. they wrote the SERVER's copy of
-quantities vanilla lets only the client own. Measured on this topology by
-`wd.actuatorSplitOnAnAdoptedBody`: server slot 4 against client 0, server aim (-55.32, 29.55)
-against client (283.23, 0.00), unchanged ten ticks later — not a race, two unrelated values. They
-now go through `JourneyRig.avatar()`, which picks `BotApi.clientAvatar()` under the real-player
-helm, mirroring `startLeg`. **A new rung must use `rig.avatar()`, never `rig.body().avatar()`.**
+A small number of sites deliberately stay on the server side, and reading them as oversights
+would break things. The client's break hold only presses a keybind, so a helper whose contract is
+that a specific cell opened within the call has to stay server-side or become a silent no-op. The
+client's "can break" predicate is unconditionally true, so routing it produces an always-true
+check, worse than deleting it. The place tally is not on the `Body` interface at all.
 
-*Ten sites deliberately did NOT move, and reading them as oversights would break things.* The
-client's `breakHold` only presses a keybind, so `breakItWhereItStands` — whose contract is「did this
-cell open within this call」, verified against the world — stays server-side or becomes a silent
-no-op. `canBreak` is `default -> true` on the client, so routing it produces an always-true
-predicate, worse than deleting the check. `placeTally` is not on the `Body` interface at all. Two
-sites that mixed aiming with breaking now hold one avatar of each kind.
+*The ladder cannot judge this seam.* The headless topology has no client, so the whole question
+is unreachable there and every rung passes regardless. Judge changes to the seam with the scenes
+written for it instead, and note what they do not prove: they run entirely on the server thread,
+so passing means the mechanism is right, not that the threading is safe. Originating single-shot
+actions from the client tick chain is the coherent fix and is not built; the client-avatar accessor
+carries the open-defect note.
 
-*The ladder cannot judge any of this.* `runJourneyServer` is headless — no client, `realPlayerHelm`
-false, both halves the server — so the defect above is unreachable there and rungs 1-13 were green
-throughout. Judge changes to this seam with `wd.actuatorSplitThroughTheClientAvatar` instead, and
-note what it does not prove: both its `thread.*` rows read `Server thread`, so a pass means the
-mechanism is right, not that the threading is safe. Originating single-shot actions from the client
-tick chain is the coherent fix and is **not built**; `BotApi.clientAvatar()` carries the open-defect
-note.
+*What the server thread must never do here is wait.* `DriverApi`'s `awaitMs` and the client-hop
+helper both block the caller until the client answers, and the caller is the server thread the
+client is ticking against. Starts are fire-and-forget; completion is polled from the scene's own
+predicate.
 
-*One honest compromise.* (`breakItWhereItStands` used to be listed here as a second; it is now
-stated above as a mechanism-driven decision rather than a concession — the client's `breakHold`
-cannot satisfy its contract, so server-side is the correct side, not a lesser one.) Under the
-real-player helm the rung's process runs inside the full client scheduler, so panic / dodge /
-combat / bunker chains can preempt it — the reflexes the fake body never had. That is the
-topology's purpose rather than a regression, and `journey.helm.endings` names every leg a reflex
-took.
+Because a topology varies more than one thing, every rung records three keys on every exit path,
+including a skip, and those are what make two result rows comparable:
 
-*What the server thread must never do here is wait.* `DriverApi`'s `awaitMs` and `BotUtil.onClient`
-both block the caller until the client answers, and the caller is the server thread the client is
-ticking against. Starts are fire-and-forget (`mc.execute`); completion is polled from the scene's
-own await predicate.
-
-Because a topology now varies more than one thing, **every rung records three keys, on every exit
-path including a BLOCKED skip**, and they are what makes two results rows comparable:
-
-| Key | Says |
+| Key | What it says |
 |---|---|
-| `journey.topology` | which of the three, **read off the running game** (`isDedicatedServer`, `BotHooks.isAvailable`, the non-driver players and their dimensions) rather than echoed from a `-D` — a launch that did not do what it promised cannot make this row lie |
-| `journey.body` | which body is climbing: real-vs-joined-vs-fake, its class, whether it is in the player list, whether it is invulnerable, its game mode. `journey.body.spawned` on rung 2 is the body SPAWN actually created |
-| `journey.steer` | which helm advanced the LEGS: `serverTick/ServerAvatarManager` or `clientUserTask/ClientPlayerAvatar`. It does **not** cover the single-shot actuations — those follow `JourneyRig.avatar()`, and for one day they diverged from this row while it kept reading correctly, so do not take it as a statement about the whole body. **Separate from `journey.body` on purpose** — the integrated run swaps both at once, so a row carrying only the topology would let a divergence be explained equally well by「假人的 gap」or by「客户端链和服务端链本来就不同」, and two arms are only readable when they differ in one variable. The fourth arm that would actually separate them (a dedicated server driving a real body, or an integrated one driving a fake) does not exist yet |
+| `journey.topology` | Which of the three, read off the running game rather than echoed from a system property, so a launch that did not do what it promised cannot make the row lie |
+| `journey.body` | Which body is climbing: real, joined or fake; its class, whether it is in the player list, whether it is invulnerable, its game mode |
+| `journey.steer` | Which helm advanced the legs. It does not cover the single-shot actuations, which follow `JourneyRig.avatar()`, so do not read it as a statement about the whole body. It is separate from `journey.body` on purpose: the integrated run swaps both at once, and two arms are only readable when they differ in one variable |
 
-`journey.helm.endings` is written only under the real-player helm and only as legs end: it lists each
-leg's ending as `kind→跑完` or `kind→被结束：<reason>`. Read it before blaming a rung — the chain
-nulls its process for three different reasons and the busy flag goes false for all three alike.
+`journey.helm.endings` is written only under the real-player helm and only as legs end. Read it
+before blaming a rung: the chain clears its process for several different reasons and the busy
+flag goes false for all of them alike.
 
-**The minted body being in the player list is load-bearing, on the client topologies too.** Every
-server body joins through `PlayerList.placeNewPlayer`. `ServerLevel.players()` is per level and the
-human client never leaves the overworld: rungs 14–15 ask the **nether's** list
-(`BaseSpawner.isNearPlayer`, for a fortress spawner) and 19–20 ask the **end's**
-(`EndDragonFight.tick`). A client standing at world spawn contributes to neither.
+**The minted body being in the player list is load-bearing, on the client topologies too.**
+Every server body joins through `PlayerList.placeNewPlayer`. The player list is per level and a
+human client never leaves the overworld, while the later rungs ask the nether's list for spawner
+activation and the end's for the dragon fight. A client standing at world spawn contributes to
+neither.
 
-One rung at a time, with its preconditions staged by hand, is `wd.rehearse*` — a different family in
-a fourth directory, deliberately unable to be read as a climb. See `JourneyRehearsal`.
+One rung at a time, with its preconditions staged by hand, is `wd.rehearse*` — a separate family,
+deliberately unable to be read as a climb. It runs under `:fabric:runRehearsalServer` and
+`:fabric:runRehearsalIntegratedServer` and takes Gradle properties to select the rung and its
+conditions.
 
-## When you add a new MCP tool
+## When you add a method to the API surface
 
-0. **First**, re-read Hard Rule #6 — can you extend an existing tool instead?
-1. Add the underlying behavior to `DriverApi.route(...)`.
-2. Register the tool schema in `common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java`.
-3. Add a corresponding validation script under `validation/` that
-   exercises it through all three transports and asserts byte-identical
-   results (see `06_rpc_parity.js` / `07_mcp_parity.js` for the pattern).
-4. Re-run the gates (`./gradlew stagewrightDedicatedServer<Loader>`, plus the instrument
-   contract over a hold) — they must stay green.
+0. Re-read hard rule 6 first. Can you extend an existing method instead?
+1. Add the behaviour to `DriverApi.route(...)`.
+2. Register the schema under `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`.
+   Every route must have a schema; the boot invariant refuses a route without one.
+3. Add a validation script under `validation/` that exercises it through all three transports.
+   `06_rpc_parity.js` and `07_mcp_parity.js` are the pattern.
+4. Re-run the relevant gate tasks, and the instrument contract over a hold if the change could
+   affect what an external observer sees.
 
-## When you remove or merge a tool
+## When you remove or merge a method
 
-1. Drop the route in `DriverApi` and the catalog entry in `ToolCatalog`.
-2. Keep a JS-level helper in `prelude.js` AND the inlined prelude inside
-   `ScriptManager.java` so existing scripts keep working — both prelude
-   sources have to stay in sync.
-3. Update validation scripts that called the old name.
-4. Delete now-dead methods from the `ClientDriverApi` / `BotApi` interfaces
-   and their impls so future agents don't think the method still exists.
-5. Note the consolidation in `CHANGELOG.md` `[Unreleased]`.
+1. Drop the route in `DriverApi` and the catalog entry.
+2. Keep a JavaScript-level helper in `prelude.js` and in the inlined prelude inside
+   `ScriptManager.java` so existing scripts keep working. Both prelude sources must stay in
+   step.
+3. Update the validation scripts that called the old name.
+4. Delete the now-dead methods from the `ClientDriverApi` and `BotApi` interfaces and their
+   implementations, so a later reader does not conclude the method still exists.
+5. Record the consolidation in `CHANGELOG.md`.
 
 ## Sharing input with the human at the keyboard
 
-The bot drives the player through the SAME objects a human does — `mc.options.keyXXX`
-and `MouseHandler` are global singletons, not per-actor. Three different mechanisms
-keep them from fighting, and which one applies depends on the input:
+The bot drives the player through the same objects a human does: the key mappings and the mouse
+handler are global singletons, not per-actor. Three mechanisms keep them from fighting, and which
+one applies depends on the input.
 
 | Input | Mechanism | Rule |
 |---|---|---|
-| `keyUp/Down/Left/Right/Jump/Sprint/Shift` | `InputReleaseGate` → `BotInteract.releaseKeys()` | The bot pressing any of them marks the set dirty; the idle path clears them **once per drive burst**. A human playing with no agent never gets their keys touched — the per-tick clobber this replaced left manually-held WASD dead within ~50 ms. |
-| dig (`keyAttack` until 2026-09-14) | `ClientIntents.holdDig` / `assertDig` + `MinecraftMixin` | **The bot never presses the attack key.** Every destroy drive asserts a dig; vanilla's next two `continueAttack` passes stand aside (no `stopDestroyBlock`, no crosshair retarget), so the drive is the whole dig, one skipped drive costs nothing, and a human's held button is read by nobody but vanilla. The latch (`breakHold`) is bookkeeping, cleared by `releaseKeys()`. |
-| use (`keyUse` until 2026-09-14) | `ClientIntents.holdUse` + `MinecraftMixin`, hand-rolled arbitration in `BotApiImpl.clientTick` | **The bot never presses the use key.** The mixin widens vanilla's two `keyUse.isDown()` reads in `handleKeybinds` to `down || bot holds use`, so start/hold/release are vanilla's own code. Deliberately **excluded** from `releaseKeys()` — the idle release runs after the shield/heal/eat reflexes set it. shield > heal > eat, one holder per tick, losers release; a builder-kind process suppresses all three so their use-action cannot double up with its direct `gameMode.useItemOn`. Pinned by `UseKeyOwnershipTest`. |
-| cursor / camera | `MouseYieldGate` + `MouseYield` | While the bot drives, the cursor is released to the OS so the human's mouse moves a desktop pointer instead of the crosshair. Sticky (vanilla re-grabs on any click); double-tap ESC reclaims it for the rest of the burst. |
+| Movement and sprint keys | `InputReleaseGate` and `BotInteract.releaseKeys()` | The bot actuating any of them marks the set dirty; the idle path clears them once per drive burst. A human playing with no agent connected never has their keys touched. The per-tick clear this replaced left a manually held key dead within about fifty milliseconds. |
+| Digging | `ClientIntents.holdDig` and the client mixin | The bot never presses the attack key. Every destroy drive asserts a dig and vanilla's next two attack passes stand aside, so the drive is the whole dig, one skipped drive costs nothing, and a human's held button is read by nobody but vanilla. The latch is bookkeeping and is cleared by `releaseKeys()`. |
+| Item use | `ClientIntents.holdUse` and the client mixin | The bot never presses the use key. The mixin widens vanilla's own keybind reads to "pressed, or the bot holds use", so starting, holding and releasing remain vanilla's code. Deliberately excluded from `releaseKeys()`, because the idle release runs after the shield, heal and eat reflexes have set it. One holder per tick in that precedence, losers release; a builder-kind process suppresses all three so their use action cannot double up with its own direct interaction. Pinned by `UseKeyOwnershipTest`. |
+| Cursor and camera | `MouseYieldGate` and `MouseYield` | While the bot drives, the cursor is released to the operating system so the human's mouse moves a desktop pointer rather than the crosshair. It is sticky, since vanilla re-grabs on any click; a double tap of escape reclaims it for the rest of the burst. |
 
-Two consequences worth knowing before touching this area:
-
-- **`Hands.breakHeld()` reads the bot's own latch**, not a keybind. A human's click is no
-  longer visible through it — the two inputs are separate objects now, which is the point —
-  so `breakingEdge` requires the current path edge to have blocks to break on its own.
-- **A new writer of any of these globals is a design decision, not a refactor.** The
-  failure is silent in both directions: clobbered (the action never happens) or leaked
-  (the bot walks around holding the key). `SharedKeybindQuarantineTest` refuses any
-  `keyAttack`/`keyUse` write outside the mixin, so a new one has to be argued there.
+Two consequences are worth knowing before touching this area. The bot's break-held query reads
+its own latch and not a keybind, so a human's click is no longer visible through it — the two
+inputs are separate objects now, which is the point. And a new writer of any of these globals is a
+design decision, not a refactor: the failure is silent in both directions, either clobbered so the
+action never happens or leaked so the bot walks around holding a key.
+`SharedKeybindQuarantineTest` refuses any attack-key or use-key write outside the mixin, so a new
+one has to be argued there.
 
 ## Pointers
 
-- **Connecting clients**: `docs/mcp-clients.md`
-- **License**: `COPYING.LESSER` + `COPYING` (LGPL-3.0-only)
+- **Architecture, the seams, the threading discipline**: `docs/dev/architecture.md`
+- **The autonomous layer**: `docs/dev/bot-layering.md`
+- **The gate tasks, scenes and manifests**: `docs/dev/testing.md`
+- **Debugging a live run**: `docs/dev/debugging.md`
+- **Why the live code is shaped as it is**: `docs/design/`
 - **Contributor guide**: `CONTRIBUTING.md`
 - **Release history**: `CHANGELOG.md`
+- **Licence**: `COPYING.LESSER` and `COPYING` (LGPL-3.0-only)

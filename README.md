@@ -1,20 +1,21 @@
 # WorldDriver
 
-A Minecraft mod that exposes the running game as a programmable, AI-drivable
-surface. It speaks three transports over the **same single DriverApi**:
+A Minecraft mod that exposes the running game as one programmable API surface, reachable
+three ways:
 
-- **In-JVM Rhino scripting** — bundled JS engine, sandboxed, runs alongside the game
-- **WebSocket RPC** — JSON-NDJSON over `ws://127.0.0.1:<port>/rpc`
-- **MCP Streamable HTTP** — Model Context Protocol over `http://127.0.0.1:<port>/mcp`
+- **In-process JavaScript** — a bundled Rhino engine that runs alongside the game
+- **WebSocket JSON-RPC** — newline-delimited JSON over `ws://127.0.0.1:<port>/rpc`
+- **Model Context Protocol** — Streamable HTTP over `http://127.0.0.1:<port>/mcp`
 
-The three paths are validated to return byte-identical results so external
-agents see exactly what in-game scripts see.
+All three translate their parameters and call the same router, so an external agent sees
+exactly what an in-game script sees.
 
-- Minecraft **1.21.1**, Architectury (Fabric + NeoForge)
-- **Architectury API 13.0.8** installed alongside on either loader (a required mod, like Fabric API on Fabric)
+- Minecraft **1.21.1**, Architectury (Fabric and NeoForge from one source tree)
+- **Architectury API 13.0.8** must be installed alongside on either loader, the way
+  Fabric API must be on Fabric
 - JDK **21**
-- Rhino fork: `dev.latvian.mods:rhino:2101.2.7-build.81` (KubeJS-Mods)
-- License: [LGPL-3.0-only](COPYING.LESSER) (the GPL-3.0 text it builds on is `COPYING`)
+- Rhino fork `dev.latvian.mods:rhino:2101.2.7-build.81` (the KubeJS build)
+- Licence: [LGPL-3.0-only](COPYING.LESSER); the GPL-3.0 text it builds on is [`COPYING`](COPYING)
 
 ---
 
@@ -34,109 +35,122 @@ external MCP client            in-game JS script              external WS client
                           live ServerLevel + ClientHooks
 ```
 
-**MCP tools**, grouped by concern (full schema in
-[`common/src/main/java/.../mcp/ToolCatalog.java`](common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java)):
+Something over seventy methods are grouped by concern. The table below is an orientation map;
+the method-by-method surface, with parameters and return shapes, is in
+[`docs/guide/capabilities.md`](docs/guide/capabilities.md), and the schemas themselves are
+generated from `common/src/main/java/net/magicterra/worlddriver/mcp/catalog/`.
 
-**72 tools**, and every one is advertised: the catalog's hidden-tool list is empty, so `tools/list`
-is the whole surface. (Hiding exists only to save prompt tokens — a hidden verb is still callable by
-name on every transport.)
+| Group | What it is for |
+|---|---|
+| `mc.system.*`    | Probe the running build, fetch the test-arena origin most spatial tools centre on, and wait a fixed number of ticks. |
+| `mc.script.eval` | Run a JavaScript snippet in-process. Preferred whenever a task would otherwise cost three or more round trips. |
+| `mc.skill`       | A persistent skill library: save, list, run and delete reusable scripts. |
+| `mc.events`      | The driver-to-agent event channel, including rising-edge watchers that poll a route and emit when a predicate flips. |
+| `mc.observe.*`   | Read-only sensing: the player, hostiles and incoming projectiles, bosses, the hazard scene, an ASCII spatial map, container contents, and the event backlog. |
+| `mc.query`       | Filtered scans of blocks or entities in a cube, with field projection. |
+| `mc.action.*`    | Mutate the world within one server tick: box fill, batched placement, and operator-level vanilla commands. |
+| `mc.world.*`     | Single-cell inspection, plus snapshot and restore of a region including block-entity NBT — the undo a risky build or a destructive test wants. |
+| `mc.recipe.*`    | Read the game's own recipe table, vanilla plus any loaded mod, and expand a request into an ordered craft plan. |
+| `mc.plan.acquire`| Goal-directed acquisition: route every missing ingredient to mining, farming, smelting or crafting and emit the steps in executable order. |
+| `mc.wait.*`      | Long-poll primitives: the next event, world load, an arbitrary truthy condition, and the result of a wait started in the background. |
+| `mc.client.*`    | Client-authoritative observation and synthetic GUI input: screen probes, the widget tree, mouse, slot, key and text input, chat, and screenshots. |
+| `mc.bot.*`       | The autonomous layer. See below. |
 
-| Group | Tools | When to reach for it |
-|---|---|---|
-| `mc.system.*`   | `version`, `testOrigin`, `waitTicks` | Liveness, arena origin, fixed-duration waits |
-| `mc.script.eval`| run a JS snippet | Compound multi-step tasks (saves dozens of round-trips) |
-| `mc.observe.*`  | `player`, `cursor`, `container`, `eventsSince`, `map`, `scene`, `threats`, `boss` | "Who is here, what just happened, what's in this chest?" `map` is a server-side ASCII spatial map — a glanceable substitute for parsing a block scan; `scene` is a hazard read around a center; `threats` scores hostiles and incoming projectiles; `boss` is boss-fight sensing. The last two are client-only and absent on a dedicated server. (Raw block/entity scans → `mc.query`) |
-| `mc.query`      | `q='blocks' \| 'entities'` | Filtered DSL queries with `select` projection; client-MCP fallback scans ClientLevel when no server attached (entity rows include numeric `id` for `mc.bot.attackEntity`) |
-| `mc.action.*`   | `fill`, `placeMany`, `runCommand` | Mutate the world (box fill / heterogeneous list — single = placeMany with one entry / vanilla command) |
-| `mc.world.*`    | `snapshot`, `restore`, `block` | `snapshot` captures a box of block states **and block-entity NBT** into a handle and `restore` puts it back verbatim — the undo a risky build or a destructive test wants. `block` is read-only single-cell inspection: type, state, light levels |
-| `mc.recipe.*`   | `lookup`, `resolve` | Read the game's own recipe table — vanilla plus any loaded mod — rather than hardcoding recipes an agent then gets wrong in a modpack |
-| `mc.wait.*`     | `event`, `worldReady`, `condition`, `result` | Long-poll primitives (next event / world loaded / arbitrary truthy condition). `result` fetches what a wait started with `background:true` produced |
-| `mc.events`     | the server-side event channel | Driver→agent push: threats, chat and the rest, as a stream rather than a poll |
-| `mc.plan.acquire`| goal-directed acquisition planner | "Get me N of X" — plans the chain rather than being told it |
-| `mc.skill`      | persistent skill library | Write a reusable JS skill once, call it by name afterwards (Voyager-style) |
-| `mc.client.*`   | `screen.info / .tree / .close`, `input.click / .slotClick / .mouseMove / .setHotbarSlot / .typeText / .replaceText / .slider / .key`, `chat.send / .history`, `screenshot`, `player`, `blocks`, `scene`, `overlays` | Client-only — UI inspection + input synthesis. To open inventory / pause use `input.key{key:'E'/'ESCAPE'}`. `input.slotClick` does Menu.clicked with explicit ClickType (shift-click / Q-drop / swap / clone); `replaceText` sets an EditBox atomically; `slider` reads/sets an `AbstractSliderButton`. `player` / `blocks` / `scene` are the client-**authoritative** reads (LocalPlayer + ClientLevel), which is what you want when the question is what the client believes rather than what the server holds. `overlays` dismisses HUD overlays that do not belong to the world |
-| `mc.bot.*`      | `goto`, `mine`, `build`, `clearArea`, `farm`, `sleep`, `construct`, `follow`, `explore`, `runAway`, `escape`, `lookAt`, `useItem`, `holdItem`, `equip`, `attackEntity`, `combat`, `craft`, `smelt`, `elytraFly`, `bunker`, `playbook`, `waypoint`, `cancel`, `status`, `setting` | Client-side autonomous actions, Baritone-aligned. Long-running ones are async — poll `status` or pass `awaitMs`; pause/resume via `setting{paused:bool}`. See below |
+On a dedicated server the `mc.client.*` methods return an error rather than a value, and
+the two client-only sensing methods — `mc.observe.threats` and `mc.observe.boss` — return
+an empty reading, because the state they read (the client entity render set, creeper swell,
+projectile velocity, the dragon's phase manager) only exists on a client.
 
-The `screenshot` tool emits a real MCP `image` content block (not a base64
-string in text), so multimodal models receive the framebuffer as vision input.
+`mc.client.screenshot` returns a real MCP `image` content block alongside the metadata text
+block, so a multimodal model receives the framebuffer as vision input rather than as a large
+base64 string inside text.
 
-**`mc.bot.*` in more detail.** `goto` accepts pos/xz/y/block/entity/entityId/direction+distance/
-waypoint/axis selectors, plus modifiers `goalMode:"in"/"two"/"adjacent"` (GoalBlock/GoalTwoBlocks/
-GoalGetToBlock), `direction+strict` (GoalStrictDirection) and `invert` (GoalInverted) — full Baritone
-goal-surface parity. `waypoint` saves/lists/deletes named positions (used as `goto{waypoint:"name"}`).
-`farm` harvests and replants wheat/carrots/potatoes/beetroots in a 2D bbox. `sleep` finds the nearest
-bed and right-clicks it (vanilla owns night/safety gating). `construct` folds Baritone's pillar and
-bridge into one verb: `mode:"tower"` pillars to height/targetY, `mode:"bridge"` sneak-walks forward
-placing blocks. `escape` is the inverse — it carves a staircase *up* the dry walls of a pit or well
-and climbs out without placing anything. `craft` resolves a full sub-recipe tree from the inventory;
-`smelt` drives a furnace by slot simulation; `equip` fits the best armour on every slot and the best
-weapon in hand; `holdItem` selects a specific item into the main hand. `combat` actively fights
-hostiles and `playbook` runs a hot-reloadable multi-phase boss script.
-
-`setting` toggles `autoEat`/`autoRespawn`/`autoSwim`/`autoTool`/`allowParkour4`/`allowBreak`/
-`allowPlace`/`smoothLook` and tunes `pathfinder.maxNodes`/`maxMs`/`axisHeight`/`smoothLookDegPerTick`.
-`allowBreak`/`allowPlace` (Baritone parity, both **off** by default) let A\* mine through walls, dig
-down and bridge one-block gaps as part of a route, so the bot reaches goals with no pre-existing
-walkable path; off keeps `goto`/`follow` non-destructive. `smoothLook` pans the camera over ticks
-during pathfinding and `lookAt` (snaps when off) for stream/demo capture; functional aim
-(attack/place/break) always snaps. `useItem` with `pos` places/uses on a block face, without it uses
-mid-air; `attackEntity` is one left-click.
+**The autonomous layer.** `mc.bot.*` is a client-side agent with its own A\* pathfinder,
+aligned with Baritone's goal surface. It can travel to a position, a block type, an entity,
+a saved waypoint or a bearing; mine, farm, build, clear an area, tower, bridge and sleep;
+craft a full sub-recipe tree from what is in the inventory, drive a furnace, and fit the best
+armour and weapon it owns; follow, explore, flee, fight, fly with an elytra, dig itself an
+emergency shelter, and cut a staircase out of a pit. Long-running verbs are asynchronous:
+poll `mc.bot.status` or pass `awaitMs`. `mc.bot.setting` tunes the whole subsystem — a few
+hundred keys, generated from the settings registry rather than hand-listed, so the
+`inputSchema` of that one method is the authoritative list. Two of those keys decide whether
+the pathfinder may modify the world: `allowBreak` lets it mine through an obstruction and
+`allowPlace` lets it bridge a one-block gap, and **both are on by default**, which means
+`goto` and `follow` will change terrain unless you turn them off. The scene suite pins both
+off, so a route that works there is not evidence about a default client. The layering behind
+all of this is described in [`docs/dev/bot-layering.md`](docs/dev/bot-layering.md).
 
 ---
 
 ## Quick start
 
-### 1. Build & run the integration suite (no client needed)
+### 1. Build, and run the scene suite
+
+StageWright, the in-game test framework the suite runs on, lives in its own repository and is
+consumed here as published Maven artifacts. The two repositories compile against each other in
+opposite directions — StageWright's modules compile against WorldDriver's `common`, and
+WorldDriver's test sources compile against StageWright's API — so a clean checkout has exactly
+one working bootstrap order. It is documented at the top of `../stagewright/build.gradle`, and
+it starts inside StageWright, because WorldDriver's root build applies StageWright's Gradle
+plugin and cannot configure until that plugin is resolvable:
+
+```bash
+cd ../stagewright
+./gradlew -p engine publishToMavenLocal
+./gradlew -p gradle-plugin publishToMavenLocal
+./gradlew :stagewright-api:publishToMavenLocal :stagewright-attached:publishToMavenLocal
+
+cd ../worlddriver
+./gradlew -PworlddriverBootstrap :common:publishToMavenLocal
+
+cd ../stagewright
+./gradlew publishToMavenLocal
+
+cd ../worlddriver
+./gradlew build
+```
+
+`-PworlddriverBootstrap` drops the loaders' runtime dependency on StageWright, which Gradle
+resolves at configuration time; without it a machine that has never published StageWright
+cannot get past this step. This is not a real dependency cycle: WorldDriver's shipped sources
+have never depended on StageWright, and neither shipped jar contains a single StageWright class.
+
+With that done, one command runs the scene suite against a headless dedicated server:
 
 ```bash
 ./gradlew stagewrightDedicatedServerNeoforge
-# → VERDICT: GREEN (exits non-zero on any failed scene)
 ```
 
-This dogfoods a dedicated server with the stagewright harness, autoruns the wd.*
-scenes (`common/src/testmod/.../scene/`) plus the `*.js` validation suite, and
-verifies the results stream against the expect-file. The `./gradlew
-stagewright<Topology><Loader>` tasks are the CI gates, one per topology and loader; the
-`Hold` variants of the same tasks publish an endpoint for the out-of-process suites in
-`:stagewright-junit`. The legacy `@GameTest`/GameTestServer path was retired in P4-final and
-the Python orchestrators that replaced it were deleted on 2026-08-05 — StageWright is a
-sibling checkout (`../stagewright`) consumed as published artifacts, and what remains in this
-repo is the per-loader `expected-scenes-*.txt` manifests.
+The task provisions a clean run directory, launches the game, runs the scenes and the
+JavaScript validation suite, and exits zero only if every required scene passed. There are six
+such tasks, one per combination of process topology and loader, described in
+[`docs/dev/testing.md`](docs/dev/testing.md).
 
-StageWright is consumed as **published artifacts**, not as a subproject, and the two repos
-depend on each other in opposite directions — so a fresh clone bootstraps in this order:
+### 2. Run a client and connect an MCP client
 
 ```bash
-(cd ../worlddriver  && ./gradlew :common:publishToMavenLocal)   # 1. what StageWright compiles against
-(cd ../stagewright  && ./gradlew publishToMavenLocal \
-                    && ./gradlew -p gradle-plugin publishToMavenLocal)   # 2. the framework + its plugin
-./gradlew build                                                  # 3. testmod + dev runs resolve it
+./gradlew :fabric:runClient
 ```
 
-Not a real cycle: this repo's **main** source set has never depended on StageWright, and
-StageWright's api module depends on nothing. Full reasoning at the top of
-`../stagewright/build.gradle`.
+The development run pins the MCP endpoint to port 39800 and the RPC endpoint to 39801, so the
+configuration below keeps working across restarts. Override them with `-PagentMcpPort=` and
+`-PagentRpcPort=` when two clients have to coexist. In an ordinary installation the ports are
+chosen by the operating system and written to `worlddriver-mcp.port` and `worlddriver-rpc.port`
+in the game directory.
 
-### 2. Run the client and connect an MCP client
+Both endpoints open at client initialisation, so you can connect at the title screen before any
+world is loaded. Methods that need a world return an error until a save is open; `mc.client.*`
+and `mc.script.eval` work immediately.
 
-```bash
-# Optional: pin ports (otherwise random ones get written to fabric/run/worlddriver-{mcp,rpc}.port)
-JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
-  ./gradlew :fabric:runClient
-```
+Both bind to `127.0.0.1`. Set `-Dworlddriver.rpcHost=` or `-Dworlddriver.mcpHost=` to a wildcard
+(`0.0.0.0`, or `::` for IPv6) or to a specific interface address to accept connections from other
+hosts. Read the note on scripting under "Design" before you do: an endpoint that can run scripts
+can run arbitrary Java, so moving either bind address off loopback puts the whole JVM on the
+network. A wildcard bind still logs a loopback URL, because `0.0.0.0` and `::` are not
+connectable targets.
 
-Both RPC **and** MCP come up at client init — you can connect at the title
-screen, before any world is loaded. World-dependent tools return `isError`
-until a save is open; `mc.client.*` and `mc.script.eval` work immediately.
-
-The RPC server binds to `127.0.0.1` by default. Set `-Dworlddriver.rpcHost=0.0.0.0`
-(or an IPv6 `::`, or a specific interface address) to accept connections from
-other hosts. A wildcard bind still logs a loopback URL since `0.0.0.0` / `::`
-are not connectable targets.
-
-Drop the following `.mcp.json` into the directory you launch your MCP client
-from, and any spec-conformant client (Claude Code, Cursor, Continue, Codex,
-MCP Inspector) will discover the server automatically:
+Drop this `.mcp.json` into the directory you launch your MCP client from, and any
+spec-conformant client discovers the server automatically:
 
 ```json
 {
@@ -150,11 +164,9 @@ MCP Inspector) will discover the server automatically:
 }
 ```
 
-The URL must match the `-Dworlddriver.mcpPort` value the runClient was launched
-with. For Claude Desktop and other stdio-only clients, see
-[`docs/mcp-clients.md`](docs/mcp-clients.md).
+Clients that speak only stdio need a bridge; see [`docs/guide/mcp-clients.md`](docs/guide/mcp-clients.md).
 
-### 3. Smoke-test from the shell
+### 3. Check it from the shell
 
 ```bash
 PORT=$(cat fabric/run/worlddriver-mcp.port)
@@ -168,18 +180,18 @@ curl -s http://127.0.0.1:$PORT/mcp \
 
 ## In-game commands
 
-Registered as Brigadier subcommands of `/worlddriver` (the root is the mod id in full so it
-cannot collide with another mod's command):
+Brigadier subcommands of `/worlddriver`. The root is the full mod id so that it cannot
+collide with another mod's command in a large pack.
 
 | Command | Effect |
 |---|---|
-| `/worlddriver test`        | Run all validation scripts in a worker thread; reports PASS/FAIL counts |
+| `/worlddriver test`        | Run every validation script on a worker thread and report the pass and fail counts |
 | `/worlddriver test list`   | List the validation script names |
 | `/worlddriver test result` | Print the per-test result of the last run |
-| `/worlddriver port`        | Print the RPC port (`ws://127.0.0.1:<port>/rpc`) |
-| `/worlddriver mcp`         | Print the MCP endpoint (`http://127.0.0.1:<port>/mcp`) |
-| `/worlddriver reload`      | Re-load user scripts from `config/worlddriver/scripts/` |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body (permission level 2) |
+| `/worlddriver port`        | Print the RPC endpoint |
+| `/worlddriver mcp`         | Print the MCP endpoint |
+| `/worlddriver reload`      | Reload user scripts from `config/worlddriver/scripts/` |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body; requires permission level 2 |
 
 ---
 
@@ -187,88 +199,89 @@ cannot collide with another mod's command):
 
 ```
 worlddriver/
-├── common/                Architectury shared sources (the DriverApi, MCP/RPC servers, Rhino glue)
-│   ├── src/main/
-│   │   ├── java/net/magicterra/worlddriver/
-│   │   │   ├── api/               DriverApi router + System/Observe/Action/Wait handlers (single source of truth)
-│   │   │   ├── bot/               Client-side bot subsystem (pathfinder, goto/mine/build/follow processes)
-│   │   │   ├── mcp/               McpServer + ToolCatalog (+ catalog/ — the per-group tool schemas)
-│   │   │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
-│   │   │   ├── script/            Rhino integration, sandbox, ScriptEvaluator
-│   │   │   ├── model/             Wire/DTO types shared by the transports
-│   │   │   └── client/            ClientHooks broker (impl lives in fabric/neoforge)
-│   │   └── resources/data/worlddriver/scripts/validation/  *.js suite
-│   ├── src/testmod/       The wd.* / cap.* / pack.* scenes run by the StageWright gates
-│   └── src/test/          Plain JVM unit tests (no game)
-├── fabric/                Fabric loader entrypoint + client-side impl
-├── neoforge/              NeoForge entrypoint + client-side impl
-├── stagewright-scenes/    .js scenes installed into a run's config/stagewright/scenes/
-├── docs/                  Connection guides (see docs/mcp-clients.md)
-└── scripts/               Expected-scene manifests, the source-budget gate, the MCP bridge
+├── common/              Architectury shared sources: the router, the transports, the Rhino glue
+│   ├── src/main/java/net/magicterra/worlddriver/
+│   │   ├── api/            DriverApi — the router and its handlers
+│   │   ├── bot/            The client-side autonomous layer: pathfinder, walker, processes
+│   │   ├── mcp/            The MCP HTTP server and the tool catalog
+│   │   ├── rpc/            The Netty WebSocket server and the JSON codec
+│   │   ├── script/         Rhino integration, the evaluator, the optional class filter
+│   │   ├── model/          Wire types shared by the transports
+│   │   └── client/         The broker for client-only calls; implementations live per loader
+│   ├── src/main/resources/data/worlddriver/scripts/validation/   the JavaScript suite
+│   ├── src/testmod/     The scenes the StageWright tasks run
+│   └── src/test/        Plain JVM tests that need no game
+├── fabric/              Fabric entry point and client-side implementation
+├── neoforge/            NeoForge entry point and client-side implementation
+├── stagewright-scenes/  Scene scripts installed into a run's config directory
+├── path-replay/         Offline analysis of recorded pathfinding runs
+├── docs/                Documentation; start at docs/README.md
+└── scripts/             The scene manifests, the source checks, and the MCP bridge
 ```
 
 ---
 
-## Design highlights
+## Design
 
-- **One source of truth.** `DriverApi.route(method, params)` is the only function
-  that runs game logic. MCP, WebSocket and in-JVM scripts all call into it the
-  same way — and the validation suite asserts they return byte-identical results.
-- **Server-thread discipline.** All write paths bounce through `server.execute()`;
-  scripts run off the server thread so they can `future.get()` without deadlocking.
-- **Spec-conformant MCP.** Protocol-version negotiation in `initialize`, Origin
-  header validation (loopback allowlist) for DNS-rebinding defense, `image`
-  content blocks for screenshots, `text+image` envelope for multimodal vision.
-  See `McpServer.java` for the spec-cite comments.
-- **Sandboxed Rhino.** `ScriptClassFilter` blocks `Runtime`, `ProcessBuilder`,
-  `Thread`, `File`, `Socket`, reflection, JDK internals. Validated by
-  `08_sandbox.js`. `mc.script.eval` adds a wall-clock deadline enforced via
-  Rhino's instruction-count observer.
-- **Cross-platform parity.** Same `common/` sources ship on Fabric and NeoForge
-  via Architectury, with platform-specific entrypoints only for `ServerLifecycleEvents`
-  hookup and the client-side impl of `mc.client.*`.
+- **One router.** `DriverApi.route(method, params)` is the only function that runs game
+  logic. The MCP server, the WebSocket server and the script bridge each translate
+  parameters and call it; none of them may hold behaviour of its own. The validation suite
+  compares the three transports on a sample of methods, so the guarantee comes from the
+  single router rather than from an exhaustive comparison.
+- **Server-thread discipline.** Writes, and reads that touch the level, are dispatched onto
+  the server thread. Scripts run off it, so they may block on a result without deadlocking.
+- **Spec-conformant MCP.** Protocol-version negotiation in `initialize`, `Origin` header
+  validation against a loopback allowlist as a defence against DNS rebinding, and `image`
+  content blocks for screenshots. `McpServer.java` carries the spec citations inline.
+- **Scripting is a first-party capability, and it is not sandboxed by default.** A class
+  filter exists — `ScriptClassFilter` denies process spawning, reflection, raw file and
+  socket access and the JDK internals — but it is **disabled unless the JVM is started with
+  `-Dworlddriver.sandbox=on`**, and nothing in the build passes that. This is deliberate:
+  restricting what a script may call restricts the driver's own capability, and anything
+  that can reach the RPC or MCP endpoint already owns the process, so the trust boundary is
+  the endpoint and not the interpreter. Treat both endpoints as you would a shell on the
+  machine. `mc.script.eval` additionally enforces a wall-clock deadline through Rhino's
+  instruction-count observer, which is a liveness guard, not a security one.
+- **One source tree, two loaders.** The same `common/` sources ship on Fabric and NeoForge
+  through Architectury. The loader-specific modules carry only the entry point and the
+  implementation of the client-only calls.
+
+The architecture in full, including the seams and the threading rules, is in
+[`docs/dev/architecture.md`](docs/dev/architecture.md).
 
 ---
 
 ## Status
 
-**Phase 1 (perceive + act + minimal client driving) is complete and verified end-to-end:**
+The mod is usable and under active development; the version number is pre-1.0 and the method
+surface still moves.
 
-- Every MCP tool reachable from Claude Code via `.mcp.json` with no extra wiring
-- Title-screen → world-load → tree-discovery loop demonstrated entirely through MCP
-  (TitleScreen click → SelectWorldScreen click → world loads → `mc.query q='blocks'`
-  finds 17 trees, identifies the spawn tree at `(0, 67, 1)` → `mc.client.screenshot`
-  delivers the framebuffer as a vision content block)
-- Client-side bot subsystem (`mc.bot.goto/mine/build/follow/explore/runAway/...`)
-  with an in-mod A* pathfinder, exposed as async processes pollable through
-  `mc.bot.status` + `mc.wait.condition`
+The scene suite covers three process topologies on both loaders: a headless dedicated server,
+a client hosting its own integrated server, and a dedicated server with a real client joined
+to it over a socket. The third of those is the shape a production install has, and it is the
+only one in which an assertion can be made about the process boundary, which is why its
+client half writes its own results file that the task also judges. A separate reconciliation
+task compares all six runs against each other, because a scene that skips everywhere records
+a pass over a subject nothing tested.
 
-The verb surface has since grown well past that slice — `combat`, `craft`, `smelt`, `equip`,
-`elytraFly`, `escape`, `bunker` and `playbook` on the bot, plus `mc.plan.acquire`, `mc.skill`,
-`mc.observe.boss/threats/map` and the `mc.world.snapshot/restore` pair. The table above is the
-current surface; [`CHANGELOG.md`](CHANGELOG.md) has the per-milestone record and
-[`ROADMAP.md`](ROADMAP.md) the ladder still open.
+The number of scenes is in the per-loader manifests under `scripts/stagewright/`, which are
+also what a run is judged against — a scene that registers without being listed there fails
+the run. Do not take a count from prose, here or anywhere else.
 
-**Gate status (2026-08-08): all six topologies GREEN**, on both loaders and all three shapes —
-`stagewrightDedicatedServer`, `stagewrightIntegratedServer` and `stagewrightDedicatedServerWithClient`
-× {Fabric, Neoforge}. The manifest is the per-loader `scripts/stagewright/expected-scenes-*.txt` —
-**read that file for the count, not this line** (today: 322 = 271 `wd.*` + 38 `cap.*` + 13 `pack.*`,
-and the two loaders' manifests are identical by construction). A run registers those plus
-StageWright's 10 built-ins and canaries. The two production topologies also
-judge the results file their *client* half writes, which is the only place assertions about the
-process boundary can live. `./gradlew stagewrightCoverage` reconciles all six against each other:
-every scene any run registers must have executed in at least one of them, because a scene that skips
-everywhere is green over a subject nothing tested.
+A handful of scenes are declared as optional failures: they record a known gap without
+failing the run. [`CHANGELOG.md`](CHANGELOG.md) records what each release changed and
+[`ROADMAP.md`](ROADMAP.md) what is still ahead.
 
 ---
 
 ## Pointers
 
-- **Contributor guide**: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- **Changelog**: [`CHANGELOG.md`](CHANGELOG.md)
-- **Agent conventions** (for AI coding agents working in this repo): [`AGENTS.md`](AGENTS.md)
-- **Connecting different MCP clients**: [`docs/mcp-clients.md`](docs/mcp-clients.md)
-- **Claude Desktop config example**: [`docs/claude_desktop_config.example.json`](docs/claude_desktop_config.example.json)
-- **MCP spec**: <https://modelcontextprotocol.io/specification/2025-06-18>
+- **Documentation index**: [`docs/README.md`](docs/README.md)
+- **Getting started**: [`docs/guide/getting-started.md`](docs/guide/getting-started.md)
+- **The three transports, their wire formats and their security**: [`docs/guide/transports.md`](docs/guide/transports.md)
+- **Connecting a particular MCP client**: [`docs/guide/mcp-clients.md`](docs/guide/mcp-clients.md)
+- **Contributing**: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- **Conventions for AI coding agents working in this repository**: [`AGENTS.md`](AGENTS.md)
+- **MCP specification**: <https://modelcontextprotocol.io/specification/2025-06-18>
 
 中文版本请见 [README-zh_CN.md](README-zh_CN.md)。

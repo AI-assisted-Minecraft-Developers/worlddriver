@@ -1,127 +1,204 @@
 # Contributing to WorldDriver
 
-Thanks for picking this up. This document covers everything a new contributor
-needs to build, test, and ship a change.
+Thanks for picking this up. This document covers what you need to build the project, check
+a change, and get it merged. The architectural constraints a change has to respect are in
+[`docs/dev/architecture.md`](docs/dev/architecture.md) rather than restated here.
 
 ## Prerequisites
 
-- **JDK 21** — Loom and the Minecraft 1.21.1 toolchain will not work on JDK 17
-  or 22+. Set `JAVA_HOME` accordingly.
-- **Gradle wrapper** — use `./gradlew`. Do not install Gradle globally; the
-  wrapper pins the right version.
-- A Linux/macOS/WSL shell. The smoke scripts under `scripts/` assume bash and
-  `xdotool` / `Xvfb` / `matchbox-window-manager` for the headless client driver
-  path; you only need these if you intend to run the GUI smoke tests.
+- **JDK 21.** The Minecraft 1.21.1 toolchain does not work on 17 or on 22 and later. Set
+  `JAVA_HOME` accordingly. The build pins Java 21 bytecode explicitly and declares no
+  toolchain, so it compiles with whatever JVM Gradle itself runs on.
+- **The Gradle wrapper.** Use `./gradlew`, or `gradlew.bat` on Windows. Do not install
+  Gradle globally; the wrapper pins the version the build expects.
+- **A checkout of StageWright next to this one**, at `../stagewright`. It is the in-game
+  test framework and is consumed as published Maven artifacts, not as a subproject.
 
-## Build
+## First build
+
+StageWright compiles against this repository's `common` module and this repository's test
+sources compile against StageWright's API, so a clean pair of checkouts bootstraps in one
+specific order. It is documented at the top of `../stagewright/build.gradle`; the short
+form is:
 
 ```bash
-./gradlew build            # compile + test + assemble all jars
-./gradlew :fabric:build    # just the Fabric jar
-./gradlew :neoforge:build  # just the NeoForge jar
+cd ../stagewright
+./gradlew -p engine publishToMavenLocal
+./gradlew -p gradle-plugin publishToMavenLocal
+./gradlew :stagewright-api:publishToMavenLocal :stagewright-attached:publishToMavenLocal
+
+cd ../worlddriver
+./gradlew -PworlddriverBootstrap :common:publishToMavenLocal
+
+cd ../stagewright
+./gradlew publishToMavenLocal
+
+cd ../worlddriver
+./gradlew build
 ```
 
-Artifacts land under `<platform>/build/libs/`.
+The StageWright half comes first because this repository's root build applies StageWright's
+Gradle plugin and cannot even configure until that plugin resolves. `-PworlddriverBootstrap`
+drops the loaders' runtime dependency on StageWright, which Gradle resolves at configuration
+time and which does not exist yet at that point.
 
-## Test
-
-The validation suite is the source of truth — JS scripts under
-`common/src/main/resources/data/worlddriver/scripts/validation/` that
-exercise the DriverApi across all three transports (in-JVM, RPC, MCP). They are
-driven end-to-end by the `./gradlew stagewright<Topology><Loader>` gate tasks — the Python
-orchestrators that used to live in `scripts/stagewright/` were deleted on 2026-08-05, and all
-that remains in that directory is the per-loader `expected-scenes-*.txt` manifests. The gates
-dogfood a dedicated server with the harness and autorun the wd.* scenes + JS
-suite (the legacy `@GameTest`/GameTestServer path was retired in P4-final):
+Afterwards, ordinary builds are ordinary:
 
 ```bash
+./gradlew build            # compile both loaders, assemble the jars, run the JVM tests
+./gradlew :fabric:build    # the Fabric jar only
+./gradlew :neoforge:build  # the NeoForge jar only
+```
+
+Artifacts land under `<loader>/build/libs/`.
+
+## Checking a change
+
+There are three layers, and which one a change needs depends on what it touches.
+
+**Plain JVM tests**, in `common/src/test`, need no game and run as part of `./gradlew build`
+or on their own with `./gradlew :common:test`. Prefer them wherever the subject allows it: a
+scene costs a full game boot and can only observe what the game exposes. Several of these
+tests are properties of the source rather than of a run — they read the compiled bytecode and
+fail with a file and a line instead of a scene verdict.
+
+**Scenes** live in `common/src/testmod` and run under the StageWright tasks. There are six,
+one per combination of process topology and loader:
+
+```bash
+./gradlew stagewrightDedicatedServerFabric
 ./gradlew stagewrightDedicatedServerNeoforge
-# → VERDICT: GREEN (exits non-zero on any failed scene)
+./gradlew stagewrightIntegratedServerFabric
+./gradlew stagewrightIntegratedServerNeoforge
+./gradlew stagewrightDedicatedServerWithClientFabric
+./gradlew stagewrightDedicatedServerWithClientNeoforge
 ```
 
-That gate, plus the instrument contract in `:stagewright-junit` run against a
-`stagewrightDedicatedServer<Loader>Hold`, are what need to pass before a PR is mergeable. Any
-new behavior should add a corresponding `*.js` validation script and an assertion in the
-existing tests.
+Each provisions a clean run directory, launches the game, runs the scenes and the JavaScript
+validation suite, judges the results against the per-loader manifest in
+`scripts/stagewright/`, and exits zero only if every required scene passed. Always run the
+task above and not the bare `:<loader>:run…` task underneath it: the task above deletes the
+previous run's world first, and reusing a dirty world produces failures that look like real
+defects but are leftovers.
 
-## Run a client (interactive)
+Redirect the output to a file rather than piping it through `tail`. The verdict is at the
+end, which makes tailing look sufficient right up until a run dies before producing one and
+the error was in the part you discarded.
+
+`./gradlew stagewrightCoverage` reconciles all six runs against each other and needs them all
+to have been run first. It exists because a scene that skips on every topology records a pass
+over a subject nothing ever tested.
+
+**Tests that assert from outside the game** attach to a held run. `stagewright<Topology><Loader>Hold`
+launches the same topology, publishes an endpoint descriptor into its run directory once the
+game is in a world, and waits. The suites live in StageWright's `:stagewright-junit` module
+and are gated on which face the hold presents, so with no endpoint configured both halves skip
+and a green result means nothing. The details are in [`docs/dev/testing.md`](docs/dev/testing.md).
+
+**Source checks** under `scripts/` are run by hand; nothing in the build invokes them and
+there is no CI configuration in this repository.
 
 ```bash
-# Pin ports so .mcp.json keeps working; otherwise random ports get written
-# to fabric/run/worlddriver-{mcp,rpc}.port
-JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
-  ./gradlew :fabric:runClient
+python3 scripts/check_source_budget.py   # no Java source file over 3000 lines
+python3 scripts/check_scene_arena.py     # a scene's terrain fits its force-loaded arena
+python3 scripts/check_remap_safety.py    # no new reflection on a Mojang-mapped member
+python3 scripts/check_log_contract.py    # the log formats the analysis tools parse still match
 ```
 
-For NeoForge: `./gradlew :neoforge:runClient`.
+`check_remap_safety.py` reads the remapped jar, so run `./gradlew :fabric:build` first.
+`check_log_contract.py` reads a dedicated-server run's log, so run that gate first.
 
-## Smoke tests
+## Running a client interactively
 
-Start a client yourself, then `uv run scripts/react_smoke.py` drives it through
-TitleScreen → CreateWorld → in-world over the WebSocket RPC — no OS-level input,
-so it works on whatever display the host has. Outputs (PNGs, traces) land in
-`fabric/run/smoke/`.
-
-## Code layout
-
-```
-common/   Architectury shared sources — DriverApi, MCP/RPC servers, Rhino glue
-fabric/   Fabric loader entry point + client-side impl of mc.client.*
-neoforge/ NeoForge entry point + client-side impl of mc.client.*
-docs/     Client connection guides
-scripts/  Smoke tests + harness helpers
+```bash
+./gradlew :fabric:runClient      # or :neoforge:runClient
 ```
 
-The single source of truth is `common/src/main/java/net/magicterra/worlddriver/api/DriverApi.java`.
-Every transport (MCP, WebSocket RPC, in-JVM script) routes through
-`DriverApi.route(method, params)`. **Do not add behavior in a transport without
-going through DriverApi** — the validation suite asserts that all three return
-byte-identical results.
+The development run pins the MCP endpoint to 39800 and the RPC endpoint to 39801 so an
+external client configuration keeps working across restarts; override with `-PagentMcpPort=`
+and `-PagentRpcPort=`.
 
-## Conventions
+`uv run scripts/react_smoke.py` then drives that client from the title screen into a world
+over the WebSocket RPC. It synthesises no operating-system input at all, so it works on
+whatever display the host has, or none. Its screenshots and traces land in `fabric/run/smoke/`.
 
-- **JDK 21 baseline.** Use modern language features (records, sealed types,
-  pattern matching) where they actually simplify code.
-- **Server-thread discipline.** All write paths must bounce through
-  `server.execute()`. Scripts run off the server thread and may `future.get()`.
-  Reads from `ServerLevel` outside the server thread must use the snapshot
-  helpers; do not call `Level` directly from RPC/MCP handler threads.
-- **No transport-specific game state.** If MCP needs something, it goes in
-  DriverApi. Same for RPC. Same for scripts.
-- **Spec compliance.** The MCP server is annotated with spec citations (e.g.
-  `// spec: 2025-06-18 §5.3 Origin validation`). Keep those up to date when
-  touching `McpServer.java`.
-- **Sandbox safety.** Any new Rhino-exposed surface must pass through
-  `ScriptClassFilter`. Add a corresponding negative test in `08_sandbox.js`.
+## What a change has to respect
 
-## Where logs live
+Four rules cause most of the review comments, and all four are consequences of the same
+design. The reasoning is in [`docs/dev/architecture.md`](docs/dev/architecture.md).
 
-Runtime logs are written under the platform's `run/` directory and are
-never committed:
+- **Behaviour goes in `DriverApi`, never in a transport handler.** The MCP server, the
+  WebSocket server and the script bridge translate parameters and call the router. If the
+  three diverge, the divergence is a bug in whichever one grew the behaviour.
+- **Writes, and reads that touch the level, are dispatched onto the server thread.** Never
+  reach for `Level` directly from a transport thread.
+- **Prefer extending an existing method over adding a new one.** Every method ships its
+  schema and its description in every prompt to every model that connects, which makes a new
+  verb a permanent cost. Check first whether an optional parameter on an existing method
+  covers the case.
+- **Widening what scripts can reach is a decision, not a refactor.** Scripting is a
+  first-party capability and the class filter in `ScriptClassFilter` is off unless the JVM
+  was started with `-Dworlddriver.sandbox=on`, which nothing in the build does. So the filter
+  is not a gate your change has to pass — it is an opt-in hardening mode for deployments that
+  want it. What the negative tests in
+  `common/src/main/resources/data/worlddriver/scripts/validation/08_sandbox.js` record is the
+  intended boundary, and if you change what a script can reach, say so and argue for it, and
+  update that file so the record stays honest about where the line is meant to be.
 
-| What | Where |
+## Where runtime output goes
+
+Runtime output belongs in the run directory of whatever produced it and is never committed.
+Nothing should ever be written to the repository root.
+
+| What produced it | Where it lands |
 |---|---|
-| Fabric client / server logs        | `fabric/run/logs/` |
-| NeoForge client logs               | `neoforge/run/logs/` |
-| Dogfood server logs                | `<loader>/run-dogfood/logs/` |
-| Smoke-test screenshots + traces    | `fabric/run/smoke/` |
-| Gradle build output                | `<platform>/build/` |
+| `runClient` / `runServer` | `<loader>/run/` |
+| The dedicated-server scene task | `<loader>/run-dogfood/` |
+| The integrated-server scene task | `<loader>/run-stagewright-integrated/` |
+| The dedicated-server-with-client scene task | `<loader>/run-stagewright-with-client/`, and `<loader>/run-stagewright-joining-client/` for its client half |
+| The instrument-contract server | `<loader>/run-contract/` |
+| Smoke-driver screenshots and traces | `fabric/run/smoke/` |
+| Compiler output | `<module>/build/` |
 
-Never write logs to the project root or to a top-level `logs/` directory.
+If you find a log or a screenshot at the repository root, it is a leftover. Delete it.
+
+## Commit messages
+
+One line, no body, [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+type(scope): what changed, in the imperative
+```
+
+The type is one of `feat`, `fix`, `refactor`, `docs`, `test`, `perf`, `build`, `ci`, `chore`,
+`revert`, and it is decided from the files rather than from the wording — a commit touching
+only Markdown is `docs` even when it documents a bug, and one touching only Gradle scripts is
+`build`.
+
+The scope is the subsystem a reader would search for: `walker`, `pathfinder`, `bot`, `sim`,
+`api`, `mcp`, `rpc`, `script`, `scenes`, `testkit`, `fabric`, `neoforge`, `build`. A change
+that spans subsystems takes no scope at all — `refactor: …` is correct and an invented scope
+is not. A scope is never an issue number.
+
+Keep the text after the colon under a hundred characters, and say which change this is rather
+than restating the diff, which the diff already says. Reasoning belongs where it stays
+attached to what it explains: next to the code for why the code is shaped that way, in
+`CHANGELOG.md` for why a behaviour changed, in `ROADMAP.md` for what is still ahead. Do not
+cite a commit hash — a history rewrite invalidates it.
 
 ## Submitting a change
 
 1. Branch from `main`.
-2. Make the change. Add or update a validation script if behavior changed.
-3. The gates (`./gradlew stagewrightDedicatedServer<Loader>`, plus the instrument contract
-   over a hold) must be green.
-4. Open a PR with:
-   - A one-line summary of *what* and *why*.
-   - The validation script(s) that prove it.
-   - Any spec section you're following or amending (link the URL).
+2. Make the change. Add a scene or a JVM test for new behaviour, and a validation script if
+   the change adds or alters a method on the API surface.
+3. Run the checks the change needs: `./gradlew :common:test` always, the relevant gate tasks
+   for anything the game executes, and both loaders for anything that could load differently
+   on a dedicated server.
+4. Open a pull request saying what changed and why, naming the tests that demonstrate it, and
+   linking any specification section you are following or amending.
 
-## License
+## Licence
 
-Contributions are licensed under the [GNU Lesser General Public License v3.0
-only](COPYING.LESSER), same as the rest of the project. By submitting a change
-you agree to release it under that license.
+Contributions are licensed under the [GNU Lesser General Public License v3.0 only](COPYING.LESSER),
+the same as the rest of the project. By submitting a change you agree to release it under that
+licence.

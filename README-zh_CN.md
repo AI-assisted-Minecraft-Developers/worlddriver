@@ -1,117 +1,138 @@
 # WorldDriver
 
-一个把运行中的 Minecraft 暴露成"可编程、AI 可驱动"接口的模组。**同一个 DriverApi**
-对外开三条传输：
+一个把运行中的 Minecraft 暴露为单一可编程 API 面的模组，共有三条接入途径：
 
-- **进程内 Rhino 脚本** —— 内置 JS 引擎，带沙箱，随游戏一起跑
-- **WebSocket RPC** —— JSON-NDJSON over `ws://127.0.0.1:<port>/rpc`
-- **MCP Streamable HTTP** —— Model Context Protocol over `http://127.0.0.1:<port>/mcp`
+- **进程内 JavaScript** —— 内置 Rhino 引擎，与游戏一同运行
+- **WebSocket JSON-RPC** —— 以换行分隔的 JSON，`ws://127.0.0.1:<port>/rpc`
+- **Model Context Protocol** —— Streamable HTTP，`http://127.0.0.1:<port>/mcp`
 
-三条路径都经过断言：返回字节完全一致。外部 agent 看到的世界与游戏内脚本看到的世界，
-是同一个。
+三者都只负责翻译参数，然后调用同一个路由器，因此外部 agent 看到的东西与游戏内脚本看到的
+完全一致。
 
-- Minecraft **1.21.1**，Architectury（Fabric + NeoForge）
+- Minecraft **1.21.1**，Architectury（同一套源码同时供 Fabric 与 NeoForge）
+- 两个 loader 上都必须另行安装 **Architectury API 13.0.8**，就像 Fabric 上必须装 Fabric API 一样
 - JDK **21**
-- Rhino 分支：`dev.latvian.mods:rhino:2101.2.7-build.81`（KubeJS-Mods）
-- 协议：[LGPL-3.0-only](COPYING.LESSER)（它所附加的 GPL-3.0 正文在 `COPYING`）
+- Rhino 分支 `dev.latvian.mods:rhino:2101.2.7-build.81`（KubeJS 构建）
+- 许可证：[LGPL-3.0-only](COPYING.LESSER)；其所基于的 GPL-3.0 正文见 [`COPYING`](COPYING)
 
 ---
 
-## 能力速览
+## 它提供什么
 
 ```
-外部 MCP 客户端              进程内 JS 脚本                  外部 WS 客户端
+external MCP client            in-game JS script              external WS client
        │                              │                              │
        ▼                              ▼                              ▼
- HTTP /mcp (39800)            Driver.invoke(method,…)         WS  /rpc (39801)
+ HTTP /mcp (port 39800)        Driver.invoke(method,…)         WS  /rpc (port 39801)
        │                              │                              │
        └──────────────────────────────┴──────────────────────────────┘
                                       ▼
                                   DriverApi
-                       （单一可信源，调度到 server 线程）
+                       (single source of truth, on the server thread)
                                       ▼
                           live ServerLevel + ClientHooks
 ```
 
-**MCP 工具**，按职责分组（完整 schema 见
-[`common/src/main/java/.../mcp/ToolCatalog.java`](common/src/main/java/net/magicterra/worlddriver/mcp/ToolCatalog.java)）：
+七十余个方法按职责分组。下表用于建立总体印象；逐方法的完整接口，连同参数与返回结构，见
+[`docs/guide/capabilities.md`](docs/guide/capabilities.md)，而 schema 本身由
+`common/src/main/java/net/magicterra/worlddriver/mcp/catalog/` 生成。
 
-**共 72 个工具，且全部对外公开**：catalog 里的 hidden 列表是空的，所以 `tools/list` 就是全部surface。
-（隐藏机制只为省 prompt token 而存在——被隐藏的 verb 在任何 transport 上依然可以按名调用。）
+| 分组 | 用途 |
+|---|---|
+| `mc.system.*`    | 探查当前运行的构建、取得多数空间类方法默认以之为中心的测试场原点，以及等待固定 tick 数。 |
+| `mc.script.eval` | 在进程内运行一段 JavaScript。只要一件事本来需要三次以上往返，就应优先用它。 |
+| `mc.skill`       | 持久技能库：保存、列出、运行、删除可复用的脚本。 |
+| `mc.events`      | 驱动器到 agent 的事件通道，包含轮询某个路由、在谓词翻转时发出事件的上升沿监视器。 |
+| `mc.observe.*`   | 只读感知：玩家、敌对生物与来袭弹射物、Boss、危险场景读数、ASCII 空间地图、容器内容，以及事件积压。 |
+| `mc.query`       | 在一个立方体内带过滤地扫描方块或实体，并可投影字段。 |
+| `mc.action.*`    | 在一个服务端 tick 内改变世界：长方体填充、批量放置，以及操作员级别的原版命令。 |
+| `mc.world.*`     | 单格检查，以及连同 block-entity NBT 一起快照与还原某个区域 —— 这正是高风险建造或破坏性测试所需的撤销能力。 |
+| `mc.recipe.*`    | 读取游戏自己的配方表（原版加上任何已加载的模组），并把一次请求展开成有序的合成计划。 |
+| `mc.plan.acquire`| 目标导向的获取规划：把每一种缺失的原料分派给挖掘、种植、熔炼或合成，并按可执行顺序输出步骤。 |
+| `mc.wait.*`      | 长轮询原语：下一条事件、世界加载完成、任意为真的条件，以及取回以后台方式发起的等待的结果。 |
+| `mc.client.*`    | 以客户端为准的观察与合成 GUI 输入：界面探查、控件树、鼠标、槽位、按键与文本输入、聊天，以及截图。 |
+| `mc.bot.*`       | 自主层，详见下文。 |
 
-| 分组 | 工具 | 什么时候用 |
-|---|---|---|
-| `mc.system.*`    | `version` / `testOrigin` / `waitTicks` | 探活、测试场原点、固定时长等待 |
-| `mc.script.eval` | 跑一段 JS | 多步复合任务（省下几十次 round-trip） |
-| `mc.observe.*`   | `player` / `cursor` / `container` / `eventsSince` / `map` / `scene` / `threats` / `boss` | "刚才发生了什么、玩家在哪、箱子里装了啥？" `map` 是服务端 ASCII 空间地图——比解析扫块结果更适合一眼看懂；`scene` 是围绕某中心的危险读数；`threats` 给敌对生物和来袭弹射物打分；`boss` 是 Boss 战感知。后两个是仅客户端的，专用服务器上不存在。（原始扫块/扫实体走 `mc.query`） |
-| `mc.query`       | `q='blocks' \| 'entities'` | 带过滤的 DSL 查询；无服务器附着时客户端 fallback 扫 ClientLevel（实体行带 `id` 可喂给 `attackEntity`） |
-| `mc.action.*`    | `fill` / `placeMany` / `runCommand` | 改变世界（长方体填充、批量放块——单块用 placeMany 1 项、原版命令） |
-| `mc.world.*`     | `snapshot` / `restore` / `block` | `snapshot` 把一个长方体的方块状态**连同 block-entity NBT** 抓成一个句柄，`restore` 原样放回——这正是高风险建造或破坏性测试需要的 undo。`block` 是只读单格检查：类型、state、光照 |
-| `mc.recipe.*`    | `lookup` / `resolve` | 读游戏自己的配方表（原版 + 任何已加载的模组），而不是把配方硬编码进 agent —— 后者一进整合包就错 |
-| `mc.wait.*`      | `event` / `worldReady` / `condition` / `result` | 长轮询原语（等下一条事件 / 等世界加载完 / 等任意条件成立）。`result` 取回以 `background:true` 发起的等待的结果 |
-| `mc.events`      | 服务端事件通道 | Driver→agent 推送：威胁、聊天等，以流的形式而不是轮询 |
-| `mc.plan.acquire`| 目标导向的获取规划器 | "给我搞到 N 个 X" —— 由它规划链路，而不是你告诉它怎么做 |
-| `mc.skill`       | 持久技能库 | 写一次可复用的 JS 技能，之后按名字调用（Voyager 风格） |
-| `mc.client.*`    | `screen.info / .tree / .close`、`input.click / .slotClick / .mouseMove / .setHotbarSlot / .typeText / .replaceText / .slider / .key`、`chat.send / .history`、`screenshot`、`player`、`blocks`、`scene`、`overlays` | 仅客户端。开 inv/pause 用 `input.key{key:'E'/'ESCAPE'}`；`input.slotClick` 走 Menu.clicked 真 ClickType（shift-click / Q-drop / swap / clone）；`replaceText` 原子地整体覆盖输入框；`slider` 读写 `AbstractSliderButton`。`player` / `blocks` / `scene` 是**以客户端为准**的读取（LocalPlayer + ClientLevel）——当问题是"客户端认为如何"而不是"服务端持有什么"时要用它们。`overlays` 用来关掉不属于世界的 HUD 覆盖层 |
-| `mc.bot.*`       | `goto` / `mine` / `build` / `clearArea` / `farm` / `sleep` / `construct` / `follow` / `explore` / `runAway` / `escape` / `lookAt` / `useItem` / `holdItem` / `equip` / `attackEntity` / `combat` / `craft` / `smelt` / `elytraFly` / `bunker` / `playbook` / `waypoint` / `cancel` / `status` / `setting` | 客户端自主行动，对齐 Baritone。长任务异步——通过 `status` 轮询或传 `awaitMs`；暂停/继续走 `setting{paused:bool}`。详见下文 |
+在专用服务器上，`mc.client.*` 的各方法返回错误而不是数值；两个仅客户端的感知方法
+`mc.observe.threats` 与 `mc.observe.boss` 返回空读数，因为它们读取的状态（客户端实体渲染集合、
+苦力怕膨胀、弹射物速度、末影龙的阶段管理器）只存在于客户端。
 
-`screenshot` 工具发回的是真正的 MCP `image` content block（不是塞进 text 里的 base64
-字符串），多模态模型能直接把帧缓冲当作视觉输入。
+`mc.client.screenshot` 除元数据文本块之外，还返回一个真正的 MCP `image` 内容块，因此多模态模型
+拿到的是作为视觉输入的帧缓冲，而不是塞在文本里的一大段 base64。
 
-**`mc.bot.*` 细节。** `useItem` 带 `pos` = 对方块面右键放置/使用，不带 = 空中使用（吃/喝/拉弓/丢雪球）；
-`attackEntity` = 对实体左键一下。`farm` = 在二维矩形里收熟麦/胡萝卜/土豆/甜菜并补种。`sleep` = 找最近的
-床走过去右键（夜晚/安全条件由原版自己判）。`construct{mode:"tower"|"bridge"}` = Baritone 立柱/搭桥合一：
-tower 朝上摞到 height/targetY，bridge 沿方向潜行搭桥 distance 格。`escape` 则相反——沿着枯井/深坑的**干燥**
-墙面向上凿出楼梯爬出来，全程不放任何方块。`craft` 会从背包出发解析整棵子配方树；`smelt` 用槽位模拟驱动
-熔炉；`equip` 给每个部位穿上最好的护甲、手上拿最好的武器；`holdItem` 把指定物品选进主手。`combat` 主动
-与敌对生物作战，`playbook` 跑可热重载的多阶段 Boss 脚本。`waypoint` 存名字位置给 `goto{waypoint:'name'}` 用。
-
-`goto` 接受 pos/xz/y/block/entity/entityId/direction+distance/waypoint/axis 选择器，外加
-`goalMode:"in"/"two"/"adjacent"`（GoalBlock/GoalTwoBlocks/GoalGetToBlock）、`direction+strict`
-（GoalStrictDirection）、`invert`（GoalInverted）等修饰——与 Baritone 的 goal 面完全对齐。
-`setting` 可切换 `autoEat`/`autoRespawn`/`autoSwim`/`autoTool`/`allowParkour4`/`allowBreak`/`allowPlace`/
-`smoothLook`，并可调 `pathfinder.maxNodes`/`maxMs`/`axisHeight`/`smoothLookDegPerTick`。
-`allowBreak`/`allowPlace`（Baritone 对齐，**默认都关**）让 A\* 可以挖穿墙、向下挖、搭一格桥作为路线的一
-部分，于是在没有现成可走路径时 bot 也能抵达目标；关掉则保证 `goto`/`follow` 非破坏性。
+**自主层。** `mc.bot.*` 是一个客户端侧 agent，自带 A\* 寻路，目标接口与 Baritone 对齐。它可以
+前往某个坐标、某种方块、某个实体、某个已保存的路径点或某个方位；可以挖掘、耕种、建造、清理
+区域、立柱、搭桥与睡觉；可以从背包出发解析整棵子配方树、驱动熔炉、给每个部位配上自己拥有的
+最好护甲与武器；可以跟随、探索、逃离、战斗、用鞘翅飞行、给自己挖出应急掩体，以及在坑里凿出
+楼梯爬上来。长任务是异步的：轮询 `mc.bot.status`，或者传 `awaitMs`。`mc.bot.setting` 调节整个
+子系统 —— 键有数百个，且由设置注册表生成而非手工罗列，所以该方法的 `inputSchema` 才是权威清
+单。其中两个键决定寻路器是否可以改变世界：`allowBreak` 允许它挖穿障碍，`allowPlace` 允许它
+搭出一格桥，**两者默认都是开启的**，也就是说除非你关掉它们，否则 `goto` 与 `follow` 会改变地
+形。场景套件把两者都钉成关闭，因此在那里跑通的路线不能作为默认客户端上的证据。这一层背后的
+分层设计见 [`docs/dev/bot-layering.md`](docs/dev/bot-layering.md)。
 
 ---
 
 ## 快速上手
 
-### 1. 跑集成测试（不需要客户端）
+### 1. 构建，并跑场景套件
+
+场景套件所依托的游戏内测试框架 StageWright 有自己的仓库，在这里以发布到 Maven 的产物形式被
+消费。两个仓库以相反的方向互相编译 —— StageWright 的模块针对 WorldDriver 的 `common` 编译，
+而 WorldDriver 的测试源码针对 StageWright 的 API 编译 —— 所以一份干净的 checkout 只有唯一一条
+可行的引导顺序。它写在 `../stagewright/build.gradle` 顶部，并且起点在 StageWright 一侧，因为
+WorldDriver 的根构建会应用 StageWright 的 Gradle 插件，在该插件可解析之前根本无法完成配置：
+
+```bash
+cd ../stagewright
+./gradlew -p engine publishToMavenLocal
+./gradlew -p gradle-plugin publishToMavenLocal
+./gradlew :stagewright-api:publishToMavenLocal :stagewright-attached:publishToMavenLocal
+
+cd ../worlddriver
+./gradlew -PworlddriverBootstrap :common:publishToMavenLocal
+
+cd ../stagewright
+./gradlew publishToMavenLocal
+
+cd ../worlddriver
+./gradlew build
+```
+
+`-PworlddriverBootstrap` 会去掉两个 loader 对 StageWright 的运行期依赖，而 Gradle 在配置期就要
+解析它；没有这个属性，一台从未发布过 StageWright 的机器过不了这一步。这并不是真正的依赖环：
+WorldDriver 出厂的源码从来没有依赖过 StageWright，两个发布 jar 里也没有任何一个 StageWright 类。
+
+做完之后，一条命令就能让场景套件在无头专用服务器上跑起来：
 
 ```bash
 ./gradlew stagewrightDedicatedServerNeoforge
-# → VERDICT: GREEN（任何一个场景挂掉就非零退出）
 ```
 
-这会用 stagewright harness dogfood 一个 dedicated server，autorun wd.* 场景
-（`common/src/testmod/.../scene/`）加上 `*.js` 校验套件，并把结果流对照 expect-file
-校验。CI 正门就是 `./gradlew stagewright<Topology><Loader>` 任务，每个拓扑 × 每个 loader
-一个；同名的 `Hold` 变体把端点发布出来，供 `:stagewright-junit` 里的进程外套件 attach。旧的
-`@GameTest`/GameTestServer 路径已在 P4-final 退役，接替它的那批 Python 编排器也已于
-2026-08-05 删除 —— StageWright 是同级 checkout（`../stagewright`），以发布产物形式消费，本仓
-留下的只有各 loader 的 `expected-scenes-*.txt` 清单。
+该任务会准备一个干净的运行目录、启动游戏、运行场景与 JavaScript 校验套件，只有在每一个必需
+场景都通过时才以零退出。这样的任务共有六个，按进程拓扑与 loader 组合而成，说明见
+[`docs/dev/testing.md`](docs/dev/testing.md)。
 
-### 2. 跑客户端，接 MCP 客户端
+### 2. 跑客户端并接入 MCP 客户端
 
 ```bash
-# 可选：固定端口（不然会随机分配，写到 fabric/run/worlddriver-{mcp,rpc}.port）
-JAVA_TOOL_OPTIONS="-Dworlddriver.mcpPort=39800 -Dworlddriver.rpcPort=39801" \
-  ./gradlew :fabric:runClient
+./gradlew :fabric:runClient
 ```
 
-RPC 和 MCP **都**在 client init 阶段就起来了 —— 你在 TitleScreen 就能连上，
-没进世界也行。需要世界的工具会返回 `isError`，但 `mc.client.*` 和
-`mc.script.eval` 立刻可用。
+开发运行已经把 MCP 端点固定在 39800、RPC 端点固定在 39801，所以下面这份配置在重启之后依然
+有效。需要让两个客户端共存时，用 `-PagentMcpPort=` 与 `-PagentRpcPort=` 覆盖。在普通安装环境
+中端口由操作系统分配，并写入游戏目录下的 `worlddriver-mcp.port` 与 `worlddriver-rpc.port`。
 
-RPC 和 MCP 默认都绑定到 `127.0.0.1`。需要让其它主机连入时，设置
-`-Dworlddriver.rpcHost=0.0.0.0` / `-Dworlddriver.mcpHost=0.0.0.0`（也可用 IPv6 的 `::`
-或某个具体网卡地址）。绑定通配地址时日志仍打印 loopback URL，因为
-`0.0.0.0` / `::` 本身不是可连接的目标地址。
+两个端点都在客户端初始化阶段开启，因此你可以在标题界面、尚未加载任何世界时就连上。需要世界
+的方法在存档打开之前返回错误；`mc.client.*` 与 `mc.script.eval` 立即可用。
 
-把下面这段 `.mcp.json` 放到你启动 MCP 客户端的目录下，任何 spec-compliant
-客户端（Claude Code、Cursor、Continue、Codex、MCP Inspector）都会自动发现：
+两者都绑定到 `127.0.0.1`。把 `-Dworlddriver.rpcHost=` 或 `-Dworlddriver.mcpHost=` 设为通配地址
+（`0.0.0.0`，IPv6 则是 `::`）或某个具体网卡地址，即可接受来自其它主机的连接。这样做之前请先读
+下文「设计」一节里关于脚本的那一条：能运行脚本的端点就能运行任意 Java，所以把任何一个绑定地址
+移出回环，等于把整个 JVM 放到了网络上。绑定通配地址时日志仍然打印回环 URL，因为 `0.0.0.0` 与
+`::` 本身不是可连接的目标。
+
+把下面这段 `.mcp.json` 放进你启动 MCP 客户端的目录，任何符合规范的客户端都会自动发现这个服务：
 
 ```json
 {
@@ -125,11 +146,9 @@ RPC 和 MCP 默认都绑定到 `127.0.0.1`。需要让其它主机连入时，�
 }
 ```
 
-URL 里的端口要和 runClient 启动时的 `-Dworlddriver.mcpPort` 一致。Claude Desktop 等只
-能走 stdio 的客户端，参考 [`docs/mcp-clients.md`](docs/mcp-clients.md) 用
-`mcp-remote` 桥接。
+只会说 stdio 的客户端需要一个桥接，见 [`docs/guide/mcp-clients.md`](docs/guide/mcp-clients.md)。
 
-### 3. 用 shell 烟雾测试一下
+### 3. 从 shell 验证一下
 
 ```bash
 PORT=$(cat fabric/run/worlddriver-mcp.port)
@@ -143,17 +162,18 @@ curl -s http://127.0.0.1:$PORT/mcp \
 
 ## 游戏内命令
 
-挂在 `/worlddriver` 下的 Brigadier 子命令（命令根用 mod id 全名，避免和别的 mod 撞名）：
+挂在 `/worlddriver` 下的 Brigadier 子命令。命令根用的是完整的 mod id，以免在大型整合包里与别的
+模组的命令撞名。
 
 | 命令 | 作用 |
 |---|---|
-| `/worlddriver test`        | 在工作线程跑全套校验脚本，输出 PASS/FAIL 数 |
-| `/worlddriver test list`   | 列出校验脚本名 |
-| `/worlddriver test result` | 打印最近一次跑分的每条测试结果 |
-| `/worlddriver port`        | 打印 RPC 端口（`ws://127.0.0.1:<port>/rpc`） |
-| `/worlddriver mcp`         | 打印 MCP 端点（`http://127.0.0.1:<port>/mcp`） |
+| `/worlddriver test`        | 在工作线程上运行全部校验脚本，并报告通过与失败的条数 |
+| `/worlddriver test list`   | 列出校验脚本的名字 |
+| `/worlddriver test result` | 打印上一次运行中每一条测试的结果 |
+| `/worlddriver port`        | 打印 RPC 端点 |
+| `/worlddriver mcp`         | 打印 MCP 端点 |
 | `/worlddriver reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | 生成并驱动一具服务器端身体（权限等级 2） |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | 生成并驱动一具服务器端身体；需要权限等级 2 |
 
 ---
 
@@ -161,83 +181,78 @@ curl -s http://127.0.0.1:$PORT/mcp \
 
 ```
 worlddriver/
-├── common/                Architectury 共享代码（DriverApi、MCP/RPC server、Rhino 胶水）
-│   ├── src/main/
-│   │   ├── java/net/magicterra/worlddriver/
-│   │   │   ├── api/               DriverApi 路由 + System/Observe/Action/Wait 处理器（单一可信源）
-│   │   │   ├── bot/               客户端 bot 子系统（pathfinder、goto/mine/build/follow 等进程）
-│   │   │   ├── mcp/               McpServer + ToolCatalog（含 catalog/ —— 各分组的工具 schema）
-│   │   │   ├── rpc/               RpcServer (Netty WebSocket) + JsonCodec
-│   │   │   ├── script/            Rhino 接入、沙箱、ScriptEvaluator
-│   │   │   ├── model/             各 transport 共用的 wire/DTO 类型
-│   │   │   └── client/            ClientHooks 中介（impl 在 fabric/neoforge 下）
-│   │   └── resources/data/worlddriver/scripts/validation/  *.js 校验套件
-│   ├── src/testmod/       StageWright 正门跑的 wd.* / cap.* / pack.* 场景
-│   └── src/test/          纯 JVM 单元测试（不开游戏）
-├── fabric/                Fabric 入口 + 客户端实现
-├── neoforge/              NeoForge 入口 + 客户端实现
-├── stagewright-scenes/    会被装进运行目录 config/stagewright/scenes/ 的 .js 场景
-├── docs/                  各客户端接入指南（重点看 docs/mcp-clients.md）
-└── scripts/               expected-scene 清单、源码行数闸门、MCP bridge
+├── common/              Architectury 共享源码：路由器、各传输层、Rhino 胶水
+│   ├── src/main/java/net/magicterra/worlddriver/
+│   │   ├── api/            DriverApi —— 路由器及其处理器
+│   │   ├── bot/            客户端侧自主层：寻路器、walker、各进程
+│   │   ├── mcp/            MCP HTTP 服务器与工具目录
+│   │   ├── rpc/            Netty WebSocket 服务器与 JSON 编解码
+│   │   ├── script/         Rhino 接入、求值器、可选的类过滤器
+│   │   ├── model/          各传输层共用的 wire 类型
+│   │   └── client/         仅客户端调用的中介；实现按 loader 分别提供
+│   ├── src/main/resources/data/worlddriver/scripts/validation/   JavaScript 套件
+│   ├── src/testmod/     StageWright 任务所运行的场景
+│   └── src/test/        不需要游戏的纯 JVM 测试
+├── fabric/              Fabric 入口与客户端侧实现
+├── neoforge/            NeoForge 入口与客户端侧实现
+├── stagewright-scenes/  会被装进运行目录 config 下的场景脚本
+├── path-replay/         对录制下来的寻路运行做离线分析
+├── docs/                文档；从 docs/README.md 开始读
+└── scripts/             场景清单、源码检查，以及 MCP 桥接
 ```
 
 ---
 
-## 设计要点
+## 设计
 
-- **单一可信源**：`DriverApi.route(method, params)` 是唯一一处真正运行游戏逻辑的
-  地方。MCP、WebSocket、进程内脚本都通过同一个入口调用 —— 校验套件断言三者结果
-  字节一致。
-- **server 线程纪律**：所有写路径都经 `server.execute()` 派发；脚本跑在非 server
-  线程上，可以放心 `future.get()` 不会自锁。
-- **MCP spec 合规**：`initialize` 协商协议版本，Origin 头校验（loopback allowlist）
-  防 DNS rebinding，截图发真正的 `image` content block，多模态走 `text+image`
-  双块返回。具体 spec 引用见 `McpServer.java` 注释。
-- **Rhino 沙箱**：`ScriptClassFilter` 屏蔽 `Runtime`、`ProcessBuilder`、`Thread`、
-  `File`、`Socket`、反射、JDK 内部包。`08_sandbox.js` 持续验证。`mc.script.eval`
-  在沙箱基础上额外加了 wall-clock 超时（通过 Rhino 的 instruction-count
-  observer 强制执行）。
-- **跨平台对等**：`common/` 同一份源码同时出 Fabric 和 NeoForge，平台代码只负责
-  挂 `ServerLifecycleEvents` 钩子和 `mc.client.*` 的客户端实现。
+- **唯一路由器。** `DriverApi.route(method, params)` 是唯一一处真正运行游戏逻辑的函数。MCP
+  服务器、WebSocket 服务器与脚本桥各自只翻译参数并调用它，谁都不许自己持有行为。校验套件在
+  一部分方法上比对三条传输的结果，所以这项保证来自唯一的路由器，而不是来自穷举比对。
+- **server 线程纪律。** 写操作，以及任何触及 level 的读操作，都派发到 server 线程上执行。脚本
+  运行在它之外，因此可以安心阻塞等待结果而不会自锁。
+- **符合规范的 MCP。** `initialize` 阶段协商协议版本，按回环白名单校验 `Origin` 头以防御 DNS
+  重绑定，截图走 `image` 内容块。`McpServer.java` 在代码内联了对应的规范引用。
+- **脚本是第一方能力，默认不做沙箱。** 类过滤器是存在的 —— `ScriptClassFilter` 拒绝进程创建、
+  反射、裸文件与套接字访问以及 JDK 内部包 —— 但**除非 JVM 以 `-Dworlddriver.sandbox=on` 启动，
+  否则它是关闭的**，而构建中没有任何一处传这个参数。这是刻意的：限制脚本能调用什么，就等于
+  限制驱动器自身的能力，而任何能够连上 RPC 或 MCP 端点的一方本来就已经掌握了这个进程，所以
+  信任边界在端点上，不在解释器上。请把这两个端点当作这台机器上的一个 shell 来对待。
+  `mc.script.eval` 额外通过 Rhino 的指令计数观察器施加一个挂钟超时，那是活性保护，不是安全措施。
+- **一套源码，两个 loader。** 同一份 `common/` 源码通过 Architectury 同时出 Fabric 与 NeoForge。
+  loader 专有的模块只承载入口点和仅客户端调用的实现。
+
+完整的架构，包括各处接缝与线程规则，见
+[`docs/dev/architecture.md`](docs/dev/architecture.md)。
 
 ---
 
 ## 当前状态
 
-**Phase 1（感知 + 行动 + 最小客户端驱动）已端到端跑通：**
+这个模组可用，并且在持续开发中；版本号尚未到 1.0，方法面仍在变动。
 
-- 全部 MCP 工具，Claude Code 走 `.mcp.json` 就能接通，无需额外配置
-- 完整闭环演示：TitleScreen 点击 → SelectWorldScreen 点击 → 世界加载 →
-  `mc.query q='blocks'` 扫到 17 棵树 → 锁定出生点旁那棵 `(0, 67, 1)` 的橡木 →
-  `mc.client.screenshot` 把帧缓冲作为视觉块送回 LLM
-- 客户端 bot 子系统（`mc.bot.goto/mine/build/follow/explore/runAway/...`）
-  自带 A* 寻路，所有任务以异步进程形式暴露，通过 `mc.bot.status` +
-  `mc.wait.condition` 轮询完成
+场景套件在两个 loader 上覆盖三种进程拓扑：无头的专用服务器，自行开启集成服务器的客户端，以及
+一台专用服务器加上一个通过 socket 加入其中的真实客户端。第三种正是生产环境安装时的形态，也是
+唯一能够对进程边界下断言的形态 —— 所以它的客户端那一半会写出自己的结果文件，任务同样会裁决
+那份文件。另有一个对账任务把六次运行相互比对，因为一个在所有拓扑上都被跳过的场景，只是在一个
+从未被测过的主题上记下了通过。
 
-此后 verb 面已经远远超出那一个切片——bot 上多了 `combat`、`craft`、`smelt`、`equip`、`elytraFly`、
-`escape`、`bunker`、`playbook`，另有 `mc.plan.acquire`、`mc.skill`、`mc.observe.boss/threats/map`
-以及 `mc.world.snapshot/restore` 这一对。上面的表格就是当前的完整面；逐里程碑的记录见
-[`CHANGELOG.md`](CHANGELOG.md)，尚未走完的阶梯见 [`ROADMAP.md`](ROADMAP.md)。
+场景的数目在 `scripts/stagewright/` 下按 loader 各一份的清单里，那些清单同时也是运行的裁判依据
+—— 一个注册了却没有列在清单里的场景会让整趟运行失败。不要从散文里取这个数目，无论是这里还是
+别处。
 
-**正门状态（2026-08-08）：六个 topology 全绿** —— 两个 loader × 三种形态：
-`stagewrightDedicatedServer`、`stagewrightIntegratedServer`、`stagewrightDedicatedServerWithClient`
-× {Fabric, Neoforge}。清单是每个 loader 各一份的 `scripts/stagewright/expected-scenes-*.txt` ——
-**数目请读那个文件，不要读这一行**（当前：322 = 271 个 `wd.*` + 38 个 `cap.*` + 13 个 `pack.*`，
-两个 loader 的清单按构造完全一致）。一次运行在此之上再注册 StageWright 自带的 10 个内置场景与 canary。
-两个 production topology 还会额外裁决其**客户端**那一半
-写出的结果文件——那是唯一能对进程边界下断言的地方。`./gradlew stagewrightCoverage` 让六者互相对账：
-任何一次运行注册过的场景，必须至少在其中一次里真正**执行**过，因为一个到处都 skip 的场景，
-只是在一个没人测过的主题上显示绿色。
+有少数场景被声明为可选失败：它们记录一个已知缺口，但不会让整趟运行失败。
+[`CHANGELOG.md`](CHANGELOG.md) 记录每次发布改了什么，[`ROADMAP.md`](ROADMAP.md) 记录还剩下什么。
 
 ---
 
 ## 索引
 
+- **文档索引**：[`docs/README.md`](docs/README.md)
+- **上手指南**：[`docs/guide/getting-started.md`](docs/guide/getting-started.md)
+- **三条传输、它们的线上格式与安全性**：[`docs/guide/transports.md`](docs/guide/transports.md)
+- **接入某一种具体的 MCP 客户端**：[`docs/guide/mcp-clients.md`](docs/guide/mcp-clients.md)
 - **贡献指南**：[`CONTRIBUTING.md`](CONTRIBUTING.md)
-- **变更日志**：[`CHANGELOG.md`](CHANGELOG.md)
-- **AI agent 工作约定**（给 Claude Code / Cursor 等用）：[`AGENTS.md`](AGENTS.md)
-- **接各种 MCP 客户端**：[`docs/mcp-clients.md`](docs/mcp-clients.md)
-- **Claude Desktop 配置示例**：[`docs/claude_desktop_config.example.json`](docs/claude_desktop_config.example.json)
+- **在本仓库工作的 AI 编码 agent 的约定**：[`AGENTS.md`](AGENTS.md)
 - **MCP 规范**：<https://modelcontextprotocol.io/specification/2025-06-18>
 
 English version: see [README.md](README.md).
