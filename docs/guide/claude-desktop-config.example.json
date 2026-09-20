@@ -1,0 +1,17 @@
+{
+  "_comment": "Claude Desktop configuration for WorldDriver. Copy this into your Claude Desktop config file: ~/Library/Application Support/Claude/claude_desktop_config.json (macOS), %APPDATA%\\Claude\\claude_desktop_config.json (Windows), or ~/.config/Claude/claude_desktop_config.json (Linux). Claude Desktop's local-server schema is stdio-based, so mcp-remote bridges it to the mod's HTTP endpoint.",
+  "_port": "39800 is what the Fabric development runs pin the MCP port to. The NeoForge runs do not pin it; there, launch with -Dworlddriver.mcpPort=39800 or read the port from <loader>/run/worlddriver-mcp.port and edit the URL below to match. A configuration file cannot read a port file, so pin the port before relying on this.",
+  "_usage": "Start the game with ./gradlew :fabric:runClient, then restart Claude Desktop. See docs/guide/mcp-clients.md.",
+  "mcpServers": {
+    "worlddriver": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://127.0.0.1:39800/mcp",
+        "--transport",
+        "http-only"
+      ]
+    }
+  }
+}
