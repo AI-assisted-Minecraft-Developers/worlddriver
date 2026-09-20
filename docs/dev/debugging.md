@@ -1,124 +1,154 @@
-# 给运行中的游戏 JVM 挂调试器
+# Attaching a debugger to a running game
 
-这份文档回答三件事：怎么让 worlddriver 起的任何一个游戏 JVM 带上 JDWP、把游戏停下来要付什么代价、
-两个调试前端（JDK 自带的 jdb 与 MCP 服务器 jdwp-inspector）各自的实测边界。
-除了明确标出的一行，所有内容都在 2026-09-04 于本机跑过。
+This covers three things: how to make any game JVM this build starts speak JDWP, what
+stopping the game costs, and the parts of Minecraft and of this repository that make
+breakpoints behave differently from a plain Java application.
 
-## 1. 让游戏 JVM 带上 JDWP
+## Opening a debug port
 
-JDWP agent 只能在 JVM **启动时**装进去。JDK 21 的 `libjdwp.so` 里还留着 `onjcmd=y` 加
-`jcmd <pid> VM.start_java_debugging` 这条事后启动的隐藏路，JDK-8336401 已排定删除，别依赖它。
-所以先决定要调哪一趟，再起它。
+A JDWP agent is installed when the JVM starts, so decide which run you want to debug
+before you start it.
 
-### 任何 loom 运行任务，以及所有 StageWright 闸
+### Any Loom run task, and every gate
 
-`build.gradle` 末尾的 Debugger hook 读项目属性 `worlddriverJdwp`，有值就给每个 `loom.runs` 条目加
-`-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:<值>`：
+The end of `build.gradle` has a hook that reads the Gradle property `worlddriverJdwp`.
+When it is set, every entry in `loom.runs` gets
+`-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=127.0.0.1:<value>`:
 
 ```bash
-ORG_GRADLE_PROJECT_worlddriverJdwp=5005 ./gradlew :fabric:runClient
-./gradlew -PworlddriverJdwp=5005 :fabric:runClient      # 等价写法
+./gradlew -PworlddriverJdwp=5005 :fabric:runClient
+ORG_GRADLE_PROJECT_worlddriverJdwp=5005 ./gradlew :fabric:runClient   # the same thing
 ```
 
-- **不设就没有。** 默认构建、默认闸完全不受影响。
-- `suspend=n`：游戏照常启动，调试器随时 attach、随时 detach；没连调试器时运行不受影响。
-- **闸也吃到同一个开关。** StageWright 的 `SideProcesses.jvmArgs(spec)`（`gradle-plugin` 模块）把 loom
-  `JavaExec` spec 里的 `jvmArguments` 抄给闸起的游戏进程，所以 `stagewrightDedicatedServerFabric`、
-  `journey*`、`rehearsal*` 都能这样带上 agent。
-- **双进程拓扑**（`dedicatedServerWithClient*`）两个 JVM 会抢同一个端口。传 `worlddriverJdwp=0`
-  让系统分配，然后从各自游戏日志开头读 `Listening for transport dt_socket at address: N`。
+- **Nothing changes unless you set it.** A default build and a default gate are unaffected.
+- `suspend=n` means the game starts normally and a debugger may attach and detach at any
+  time. With nothing attached, the run behaves as it always did.
+- **The gates get the same switch.** StageWright's Gradle plugin copies the `jvmArguments`
+  off the Loom `JavaExec` specification onto the game processes it starts, so the scene
+  gates and the playthrough tasks all pick the agent up.
+- **A two-process topology needs a port each.** The `dedicatedServerWithClient` topologies
+  start two JVMs, and both would bind the same port. Pass `worlddriverJdwp=0` to let the
+  operating system assign one, then read the chosen port from the beginning of each game's
+  own log: `Listening for transport dt_socket at address: N`.
 
-### 为什么是 Gradle 属性，不是 `JAVA_TOOL_OPTIONS`
+There is a second property alongside it, `worlddriverVmArgs`, which appends arbitrary
+whitespace-separated JVM flags to every Loom run. The gates inherit those too.
 
-`JAVA_TOOL_OPTIONS` 对进程树上每个 JVM 生效：gradle daemon 自己也会去监听那个端口，第二个 JVM 就
-`Address already in use`；而一个已经在跑的 daemon 派生游戏 JVM 时**不会**继承你这次 shell 里的环境变量。
-coverage hook 2026-07-19 就是这样量出一片 0%。`ORG_GRADLE_PROJECT_*` 走 gradle 客户端到构建的属性通道，
-不管 daemon 新旧都到得了。
+### Why a Gradle property rather than `JAVA_TOOL_OPTIONS`
+
+`JAVA_TOOL_OPTIONS` applies to every JVM in the process tree. The Gradle daemon picks it
+up and binds the port itself, so the second JVM fails with `Address already in use`. Worse,
+a daemon that is already running does **not** inherit the environment of the shell you
+type into, so the flag may silently reach nothing at all — which is how an instrumentation
+agent once measured zero coverage across the board. `ORG_GRADLE_PROJECT_*` travels the
+Gradle client-to-build property channel and arrives regardless of the daemon's age.
 
 ### `--debug-jvm`
 
-Gradle 对所有 `JavaExec` 任务内建 `--debug-jvm`（`suspend=y`、端口 5005、JVM 停在 `main` 之前等调试器）。
-loom 的 `RunGameTask` 继承 `JavaExec`，所以 `./gradlew :fabric:runClient --debug-jvm` 理论上可用。
-**这一条没在本机跑过**（2026-09-04 离线解析不了 loom 1.11-SNAPSHOT），用之前自己验一次。
+Gradle has a built-in `--debug-jvm` for every `JavaExec` task, which suspends the JVM
+before `main` and listens on port 5005. Loom's run task extends `JavaExec`, so it should
+apply. This has not been verified against the Loom version this build uses; check it once
+before relying on it.
 
-### 认清是谁的 JVM
+### Identifying the right JVM
 
 ```bash
 ps -C java -o pid,args
 ```
 
-按命令行认：游戏进程带 `TransformerRuntime` / `DevLaunchInjector`；`gradle-worker`、`GradleDaemon` 都不是。
-`jps` 看到的 `BootstrapLauncher` 可能是用户 IDE 里另一个项目。本机禁用 `pkill` / `pgrep`。
+Recognise the game by its command line: a game process carries the loader's launcher and
+transformer classes. A Gradle worker or the Gradle daemon is not a game, and a JVM listed
+by `jps` may belong to an entirely different project on the same machine.
 
-## 2. 停下来的代价
+## What stopping costs
 
-游戏是实时循环，挂起不是免费的。
+The game is a real-time loop, so suspending it is never free.
 
-| 目标 | 停下来会怎样 |
+| Target | What happens when it stops |
 |---|---|
-| 专用服（`dogfoodServer`、所有 `stagewrightDedicatedServer*`） | **watchdog 会自杀。** `server.properties` 的 `max-tick-time` 默认 60000 ms，一个 tick 超过它服务器就退出。断点前在 `<loader>/run-*/server.properties` 加 `max-tick-time=-1`。**没有任何构建脚本替你写这一行**：`fabric/build.gradle` 的 `provisionRun` 只写 seed、online-mode、port |
-| 集成服 / 客户端（`runClient`、`journey*`、`rehearsal*`） | 没有 watchdog，窗口冻住，恢复后正常 |
-| 所有拓扑 | RPC 客户端（`rpc.py`、Journeyman、MCP 的 `mc.*` 工具）在挂起期间都超时。这是预期，不是新缺陷 |
-| StageWright 全量闸 | 场景的 tick 预算随游戏一起停，但编排层的挂钟（`within()`）不停，停久了场景按超时判红。**别在全量闸里下会停的断点**；要调闸里的场景，用 `runClient` 或排练任务复现 |
+| A dedicated server, including every `stagewrightDedicatedServer*` topology | **The hang watchdog kills it.** `server.properties` defaults `max-tick-time` to 60000 ms, and a tick that exceeds it terminates the server. Add `max-tick-time=-1` to that run directory's `server.properties` before setting a breakpoint. **No build script writes that line for you**: the provisioning steps only force the seed, offline mode, the port and chunk-write behaviour. |
+| A client, or an integrated server inside one | No hang watchdog. The window freezes while suspended and resumes normally. |
+| Any topology | Every client of the driver — a script over the socket, an MCP tool call, anything polling `mc.*` — times out while the game is suspended. That is expected, not a new defect. |
+| A full scene gate | A scene's tick budget stops with the game, but the orchestration layer's wall clock does not. Suspend for long enough and scenes are failed on timeout. **Do not set a suspending breakpoint inside a full gate run.** To debug a scene, reproduce it under an interactive client or a narrowed run instead. |
 
-因此顺序是：**能 logpoint 就别 breakpoint**（不停机，只记读数）；**要停就只停一个线程**
-（JDWP 的 `SUSPEND_EVENT_THREAD`）；只有真的要盯住一格世界状态才挂起整个 VM。
+The order of preference follows from that table. Prefer a logpoint, which records a value
+without stopping. If you must stop, stop one thread rather than the whole VM — JDWP's
+per-event thread suspension policy. Suspend the entire VM only when you genuinely need to
+inspect a frozen slice of world state.
 
-不停机的替代品：
+Two alternatives that never stop the game:
 
-- `mc.script.eval`：游戏内 Rhino REPL，能读改任何 public 状态，不需要 agent
-  （`.agents/skills/worlddriver-rpc`）。
-- `jstack <pid>`：只看线程此刻在哪，不需要 agent。栈顶散在同一个环里就是循环，不是阻塞。
-- Arthas 这类字节码注入型工具能不停机 watch 方法出入参，**未在本仓库验证**。
+- `mc.script.eval` is an in-game JavaScript console that can read and modify any public
+  state, and needs no agent at all.
+- `jstack <pid>` shows where each thread is right now, and needs no agent either. Stack
+  tops scattered around the same loop mean a busy loop, not a block.
 
-## 3. Minecraft 与本仓库特有
+## Minecraft and this repository in particular
 
-- **类名按 named mappings 写。** dev 运行时的 Minecraft 类名与 `genSources` 出来的源码一致
-  （`net.minecraft.world.entity.player.Player`），不是 intermediary。mod 自己的类写全限定名。
-- **Mixin handler 挂在目标类上**，方法名带 `handler$…` 前缀，行号来自 mixin 源文件。
-  断点先用目标类名加 mixin 源行号试；找不到就列目标类的方法（jdb `methods <类>`）。
-- **Minecraft 本体没有局部变量表。** vanilla 帧只有栈和行号，`locals` 报 not available；
-  行断点、`where`、字段读取照常。mod 代码由 Gradle 默认带 `-g` 编译，locals 齐全。
-- **线程名**：客户端 `Render thread`，集成服 `Server thread`，专用服只有 `Server thread`。
-- **仪器写的是采样时刻，断点处的 locals 才是「此刻」。** `hp.trace`、evidence map 各有自己的写入时刻，
-  判一个动作用紧挨它的读数。
+- **Class names follow the Mojang mappings.** A development run sees the same names the
+  decompiled sources use, such as `net.minecraft.world.entity.player.Player` — not the
+  intermediary names in a published Fabric jar. Refer to this mod's own classes by their
+  fully qualified names.
+- **Mixin handlers live on the target class.** Their method names carry a generated
+  prefix, and their line numbers come from the mixin source file. Set the breakpoint using
+  the target class name with the mixin source's line number; if that fails, list the
+  target class's methods and find the handler by name.
+- **Vanilla Minecraft classes have no local variable table.** A vanilla frame gives you
+  the stack and the line number; asking for locals reports them as unavailable. Line
+  breakpoints, backtraces and field reads all work normally. This mod's own code is
+  compiled with debug information, so its locals are complete.
+- **Thread names.** A client has a `Render thread`; a client hosting an integrated server
+  has both that and a `Server thread`; a dedicated server has only `Server thread`.
+- **An instrument records the moment it sampled; the locals at a breakpoint are now.**
+  The walker's telemetry lines and the evidence a scene collects each have their own write
+  times. To judge one action, read the value recorded closest to it.
 
-## 4. 两个前端
+## Front-ends
 
-### jdb（JDK 自带）
+### `jdb`, which ships with the JDK
 
 ```bash
-jdb -J-Duser.language=en -J-Duser.country=US -sourcepath common/src/main/java -attach 127.0.0.1:5005
+jdb -J-Duser.language=en -J-Duser.country=US \
+    -sourcepath common/src/main/java -attach 127.0.0.1:5005
 ```
 
-- `-J` 把选项给 jdb 自己的 JVM。**必须强制英文**：zh_CN 的机器上 jdb 输出「正在初始化jdb...」「VM 已启动」，
-  任何按英文 grep 的自动化都会等到超时。
-- 没有条件断点；命中时挂起整个 VM；一次一个目标。
-- 它是 REPL，非交互 shell 不能直接用。工作区的 `.claude/skills/java-breakpoint-debug/scripts/jdbctl.sh`
-  把它放进 tmux，并把「等一个事件」做成阻塞调用。那是工作区本地文件，不随本仓库走。
+`-J` passes an option to jdb's own JVM. **Force English.** On a machine with a non-English
+locale, jdb translates its own status messages, and any automation matching them in
+English waits until it times out.
+
+jdb has no conditional breakpoints, suspends the whole VM on a hit, and handles one target
+at a time. It is a REPL, so it cannot be driven directly from a non-interactive shell
+without something in between to hold the session open.
 
 | gdb | jdb |
 |---|---|
 | `break Class::m` / `break file:N` | `stop in pkg.Class.m(int)` / `stop at pkg.Class:N` |
-| `bt` / `info locals` / `p x` | `where` / `locals` / `print x`、`eval x + 1`、`dump obj` |
+| `bt` / `info locals` / `p x` | `where` / `locals` / `print x`, `eval x + 1`, `dump obj` |
 | `next` / `step` / `finish` | `next` / `step` / `step up` |
 | `set var x=1` | `set x = 1` |
-| `watch field` | `watch pkg.Class.field`（修改时停）、`watch access …` |
+| `watch field` | `watch pkg.Class.field` (stops on write), `watch access …` |
 | `info threads` / `thread N` | `threads` / `thread N` |
-| `delete` / `detach` | `clear pkg.Class.m(int)` / `quit`（目标继续跑） |
+| `delete` / `detach` | `clear pkg.Class.m(int)` / `quit` (the target keeps running) |
 
-### mcp-jdwp-java（`jdwp-inspector`）
+### Anything else that speaks JDWP
 
-FgForrest 的 MCP 服务器，v2.10.1，47 个 `jdwp_*` 工具：条件断点、logpoint、按线程挂起、表达式求值、
-改局部变量与字段、字段 watchpoint、异常断点。工作区 `.mcp.json` 把它注册为 `jdwp`。实测边界：
+An IDE, or a tool that drives the protocol directly, attaches to the same port and offers
+what jdb does not: conditional breakpoints, logpoints that do not suspend, per-thread
+suspension, expression evaluation and field watchpoints. Four properties of the protocol
+matter whichever client you use.
 
-- **目标端点只认 `-DJVM_JDWP_HOST` / `-DJVM_JDWP_PORT` 系统属性。** README 写的同名环境变量不生效
-  （设了 5006 仍连 5005）。换端口用 `jdwp_wait_for_attach {host, port}` 覆盖，不改配置。
-- `jdwp_evaluate_expression`、`jdwp_set_local`、`jdwp_step_*` **必须带 `threadId`**。漏了报
-  `primitiveConversion … is null` 的 NPE，是参数缺失，不是服务器坏了。
-- **表达式在服务器侧用 Eclipse JDT 编译成类再注入目标。** 类按目标 JVM 的 classpath 解析（必须是绝对路径，loom 是）；
-  默认包的类解析不了；只能直接引用 **public** 成员，非 public 字段走 `jdwp_get_fields`。第一次连真游戏先用 `1 + 1` 验。
-- 条件编译失败**不会静默跳过**：断点照停，事件里标 `CONDITION_ERROR`。停下来先读这一段再信这次停顿。
-- `jdwp_clear` 的 `types` 是逗号分隔字符串或 `"all"`，不是数组。
-- 字段 watchpoint 每次读写都触发，挂在每 tick 都碰的字段上会把游戏拖到爬。短用，或 `jdwp_set_field_logpoint` 加条件。
-- `jdwp_disconnect` 清空全部断点和对象缓存；游戏重启后接回去用 `jdwp_reconnect`。一个服务器实例同时只连一个目标。
+- **Expressions are evaluated inside the target JVM.** The client compiles the expression
+  against the target's classpath and injects it, so only classes that classpath can
+  resolve are usable, and only public members are directly reachable. Verify a fresh
+  connection with something trivial before trusting a complicated expression.
+- **A breakpoint whose condition fails to compile still stops.** It does not silently pass
+  over. Read the event's error before believing a stop means the condition held.
+- **A field watchpoint fires on every access.** Attached to a field touched every tick, it
+  slows the game to a crawl. Use it briefly, or add a condition.
+- **Disconnecting clears the session.** Breakpoints and any object references the client
+  had cached go with it, and they have to be re-established after the game restarts.
+
+One caution that is not about the protocol: before trusting a session, confirm which
+endpoint the client actually connected to. A tool whose documentation offers several ways
+to configure the target may honour only some of them, and a client silently attached to
+the wrong port reports a perfectly coherent session about the wrong process.
