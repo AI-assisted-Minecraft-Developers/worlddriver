@@ -1,7 +1,20 @@
 # Feedback — GUI layout regression needs an entity-interact tool
 
-**Historical — dated 2026-07-10, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
-report as it was filed, not a description of the driver as it stands today.**
+> **Archived report, filed 2026-07-10.** The reporter was checking a screenshot
+> regression in another mod's container interface: open the interface, read the widget
+> geometry, screenshot it, fix the layout code, and confirm the fix. Every step of that
+> loop worked except the first, because the interface opens on right-clicking an entity
+> and the driver had no way to right-click an entity at all.
+>
+> Unlike the other three reports, this one carries its own resolution: the author
+> appended a disposition section the same day, recording what was fixed, what was
+> declined, and why. The entity-interact gap was closed by extending `mc.bot.useItem`
+> with an `entityId` parameter rather than by adding a verb. The unhelpful
+> wrong-argument error named in the fourth item was closed structurally, by validating
+> every call against the same schema the tool catalogue advertises.
+>
+> The text below is the report as filed, including that disposition section, and has not
+> been updated since.
 
 > Date: 2026-07-10 · Consumer: `touhou_little_citizen` (NeoForge ModDevGradle mod, MC 1.21.1)
 > Goal: visually verify a modded button's layout inside another mod's container GUI

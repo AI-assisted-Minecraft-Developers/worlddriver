@@ -1,7 +1,21 @@
 # Feedback — first external consumer (winefoxs_spellbooks)
 
-**Historical — dated 2026-06-04, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
-report as it was filed, not a description of the driver as it stands today.**
+> **Archived report, filed 2026-06-04.** The reporter was the first person outside this
+> project to consume WorldDriver from a separate mod: they published the NeoForge jar to
+> a local Maven repository, pulled it into an unrelated ModDevGradle mod, booted a
+> forty-six-mod dedicated server, and drove and asserted that mod's own gameplay over the
+> Model Context Protocol endpoint.
+>
+> The integration worked end to end on the first attempt. The report is a list of the
+> rough edges met along the way. Most of them were fixed in the weeks that followed —
+> stray absolute paths in the published jar, a Maven POM that leaked bundled
+> dependencies, projections on `mc.query`, reading mob effects, and the port-conflict
+> behaviour on startup. `CHANGELOG.md` records which change closed which item, and
+> several of the fixes carry a comment naming this report. The radius-query omission
+> described at the end was never pinned down to a single cause.
+>
+> The text below is the report as filed and has not been updated. Read it as evidence of
+> what an outside consumer hit in June 2026, not as a description of the driver today.
 
 > Date: 2026-06-04 · Consumer: `winefoxs_spellbooks` (NeoForge ModDevGradle mod, MC 1.21.1)
 > Goal: use WorldDriver as an automated-test harness to drive + assert another mod's

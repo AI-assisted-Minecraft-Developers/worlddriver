@@ -1,7 +1,16 @@
 # Feedback — `mc.query q:"blocks"` silently omits stair blocks
 
-**Historical — dated 2026-06-07, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
-report as it was filed, not a description of the driver as it stands today.**
+> **Archived report, filed 2026-06-07.** The reporter was driving the mod over the
+> WebSocket JSON-RPC endpoint to build a structure in a live world and then verify it by
+> reading the result back. Placement worked; the read-back did not. Stair blocks were
+> physically present in the world but absent from every `mc.query q:"blocks"` result,
+> so the agent concluded its own correct build had failed.
+>
+> The blind spot was fixed, and the regression guard that keeps it fixed is
+> `common/src/main/resources/data/worlddriver/scripts/validation/60_stairs_query_guard.js`,
+> which names this report in its first line.
+>
+> The text below is the report as filed and has not been updated.
 
 > Date: 2026-06-07 · Consumer: `magic-server-modpack` (pakku modpack, MC 1.21.1 / NeoForge)
 > Goal: drive WorldDriver over the RPC websocket to **build a structure live** (a round

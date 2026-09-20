@@ -1,7 +1,22 @@
 # Feedback — no first-class way to read a command result or a blockstate
 
-**Historical — dated 2026-06-08, superseded by [`CHANGELOG.md`](../../CHANGELOG.md): this is the
-report as it was filed, not a description of the driver as it stands today.**
+> **Archived report, filed 2026-06-08.** The reporter was building a structure over the
+> WebSocket JSON-RPC endpoint and needed to verify it, which meant reading a block's state
+> properties and the text a diagnostic command prints. Neither was possible: every read
+> path dropped exactly the part the reporter wanted, so verifying an edit meant writing to
+> a scratch cell and querying that instead.
+>
+> This is the report that produced the verify half of the build-and-verify loop.
+> `mc.world.block` exists because of it, `mc.query` gained blockstate and light
+> projections, and command results carry their output. Several methods in `DriverApi` and
+> `WorldApi` carry comments naming this report, and the regression guards are
+> `validation/58_command_result_query_type.js`, `validation/59_query_projections.js` and
+> `validation/61_world_block.js`.
+>
+> The text below is the report as filed and has not been updated. One line of it quotes a
+> Chinese chat message verbatim: it is the broadcast the reporter's server happened to be
+> sending, quoted as evidence of which packet `awaitReplyMs` returned, and the reporter
+> glosses it in place. It stays as filed, like the rest of the report.
 
 > Date: 2026-06-08 · Consumer: `magic-server-modpack` (pakku modpack, MC 1.21.1 / NeoForge)
 > Goal: build a structure live over the RPC, then **verify** it — including reading a

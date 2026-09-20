@@ -1,4 +1,33 @@
-# StageWright migration log — migrate-then-delete drift record
+# Retiring the legacy test suite — audit record
+
+> **Archived audit trail. Kept verbatim; not documentation of current behaviour.**
+>
+> This file records how WorldDriver's integration tests moved off Minecraft's built-in
+> `@GameTest` mechanism and onto StageWright scenes. The two suites ran side by side
+> while the move was under way, and a legacy test was deleted only once the scene that
+> replaced it had been proven to produce byte-identical results across repeated runs on
+> both mod loaders. Each deletion is recorded below, one row per retired test method, so
+> that a shrinking legacy test count is never silent and every retirement can be traced
+> back to the scene that replaced it.
+>
+> What replaced it: scenes now live in the `testmod` source set of the `common` module
+> and run under StageWright's Gradle tasks, one per process topology. StageWright is its
+> own repository and is consumed here as published Maven artifacts. The legacy
+> `@GameTest` path and its `runGameTestServer` entry point no longer exist, so no command
+> in this file can be run today, and none of the file paths under
+> `neoforge/src/testmod/` that it names are still present.
+>
+> The value of this record is that it is verbatim. It has not been rewritten into a
+> narrative, translated, or brought up to date, and it should not be. Internal
+> identifiers, counts, commit references and phase names appear throughout in the words
+> of the person who wrote them at the time. Read it as an audit trail, not as a guide.
+>
+> For how tests are written and run now, see `docs/dev/testing.md` and StageWright's own
+> documentation.
+
+---
+
+**Original heading: StageWright migration log — migrate-then-delete drift record**
 
 **Spec §10 drift-log.** This file is the permanent, auditable record of the
 stagewright *migrate-then-delete* policy: as legacy `@GameTest` arenas are
@@ -103,8 +132,9 @@ the manifest or log. **Milestone:** the five required stable-core lottery-family
 failures were exactly the deleted twins, so the *required* legacy suite is now
 fully green for the first time. (A first launch hit the documented intermittent
 `ChunkMap.processUnloads` livelock in the untouched, re-entrant-`level.tick`
-`serverForbidDigWallArena` — recovered by explicit-PID kill + world wipe + rerun;
-full evidence and thread dump in `.superpowers/sdd/task-4-report.md` §3b.)
+`serverForbidDigWallArena` — recovered by explicit-PID kill + world wipe + rerun.
+The full evidence and the thread dump were written up in a working report that is
+not part of this repository, so what is summarised here is all of it that survives.)
 
 ## Wave 2 (P4b Task 1) — the Terrain family: 12 migrated + deleted, 1 retired-without-scene (controller-adjudicated)
 
@@ -609,7 +639,7 @@ all in the Process wave, P4c Task 4).
 | `serverCraftTableReclaimArena` | AgentGameTestServer | `wd.serverCraftTableReclaim` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap #276 placed-table reclaimed / borrowed-table spared; sub-rig B relocated +40/+40 → +16 X, internal geometry unchanged) |
 | `serverObservePlayerInventoryArena` | AgentGameTestServer | `wd.serverObservePlayerInventory` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap #41 full 36-slot snapshot + #42 tool wear + namespaced `items` as `have`) |
 | `serverPlanHaveDefaultsToBagArena` | AgentGameTestServer | `wd.serverPlanHaveDefaultsToBag` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap #44 omitted `have`→bag / explicit `{}`→hypothesis / verbatim / null-safe) |
-| `serverSmeltCliffArena` | AgentGameTestServer | `wd.serverSmeltCliff` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (SmeltProcess capability-cliff graceful degrade, "熔炉" error) |
+| `serverSmeltCliffArena` | AgentGameTestServer | `wd.serverSmeltCliff` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (SmeltProcess capability-cliff graceful degrade, "needs a furnace" error) |
 | `serverCraftTableHoleRimArena` | AgentGameTestServer | `wd.serverCraftTableHoleRim` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#61 placeTable searches hole rim dy=+1; craftReclaimTable pinned OFF) |
 | `serverSmeltFurnaceHoleRimArena` | AgentGameTestServer | `wd.serverSmeltFurnaceHoleRim` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#62 placeFurnace shares placeTable's candidate scan) |
 | `smeltFuelPolicyArena` | AgentGameTestServer | `wd.smeltFuelPolicy` | this commit (P4c wave 6) | this commit | identical — PASS both loaders ×2 (gap#64 ①coal-not-table / ②reload / ③take back all 3 slots; #64 manual containerMenu + injected result) |
@@ -816,7 +846,7 @@ confirmed by all five passing byte-identically ×4 neoforge + ×2 fabric with no
 | deleted legacy test method | legacy class | wd.* scene | matrix rows (legacy = scene) | migration commit | this deletion | notes (first-run A/B verdict) |
 |---|---|---|---|---|---|---|
 | `serverEscapeArena` | AgentGameTestServer | `wd.serverEscape` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (real EscapeProcess climbs out of a 1-wide stone pit) |
-| `serverBunkerArena` | AgentGameTestServer | `wd.serverBunker` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (real BunkerProcess seals a 挖三填一 shaft) |
+| `serverBunkerArena` | AgentGameTestServer | `wd.serverBunker` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (real BunkerProcess seals a dig-three-plug-one shaft) |
 | `serverBunkerAnchorRatchetArena` | AgentGameTestServer | `wd.serverBunkerAnchorRatchet` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (PURE BunkerAnchor state machine, gap#29 anti-ratchet, no world) |
 | `serverEscapeSealedShelterArena` | AgentGameTestServer | `wd.serverEscapeSealedShelter` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (EscapeProcess carves out of a sealed 1×2 pocket, no STEP_UP ping-pong) |
 | `serverLowHpEdgePinArena` | AgentGameTestServer | `wd.serverLowHpEdgePin` | — | this commit (P4c wave 8) | this commit | identical — PASS both loaders (2-HP RunAwayProcess lethal-edge discipline, DEATH #3; lowHealthCareful=6.0) |
@@ -1072,7 +1102,8 @@ the change (result set byte-identical to baseline).
 
 ### P4c Task-5 acceptance (five gates)
 
-Recorded in full in `.superpowers/sdd/task-5-report.md`. Summary: ① dogfood both loaders ×2 —
+Recorded in full in a working report that is not part of this repository; what follows is the
+surviving summary. ① dogfood both loaders ×2 —
 all GREEN, `(name, outcome)` set byte-identical within each loader and cross-loader (neoforge == fabric);
 the 3 optional-FAIL sensors (`wd.vineOverWaterClimb`, `wd.riverSheerBank`, + optional-PASS
 `wd.vineClingFidelityProbe`) reproduce exactly; ② `instrument.py` 23/23 both loaders + `t1.py` GREEN
@@ -1112,7 +1143,8 @@ verbs `TestResetVerb` / `TestRunVerb` and the `StageWrightVerbHook` service entr
 provenance** in scene javadocs / this log / expect-files, and the vanilla `GameTestServer` class is
 still named in a couple of behavioral javadocs — none is run machinery.
 
-**Task-2 acceptance (four gates, `.superpowers/sdd/task-2-report.md`):** ① dogfood ×1 per loader
+**Task-2 acceptance (four gates; the full report was kept outside this repository and is not
+available here, so the summary below is the whole surviving record):** ① dogfood ×1 per loader
 (with Task-1's ×1 = ×2 each) — both GREEN, `(name,outcome)` byte-identical within & cross-loader
 (md5 `5b0e44f4350f69502ee8253bd24174b3`, 134 rows), 3 optional sensors + `wd.entityLeash` PASS (no
 flake, threshold untouched); ② production-jar byte gates both loaders + `publishToMavenLocal`
