@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-20
+
+- **Relicensed from MIT to LGPL-3.0-only.** What this changes for a consumer: a mod that
+  calls `DriverApi`, or drives the game over MCP / WebSocket RPC / a Rhino script, is a user
+  of the library and not a derived work of it — it keeps whatever license it likes. A
+  modified copy of the driver's own sources is a derived work and ships under the same terms.
+  The text is `COPYING.LESSER` (the additional permissions) over `COPYING` (the GPL-3.0 text
+  they modify), the two-file layout the LGPL itself prescribes. `mod_license` follows in
+  `gradle.properties`, so both loaders' jar metadata declares it.
+- **A `gradle.properties` edit can no longer stop at the toml.** NeoForge's
+  `processResources` expanded six root properties into `neoforge.mods.toml` while declaring
+  only `version` as a task input, so Gradle called the task up-to-date across a change to any
+  of the other five and the jar kept shipping the previous metadata. Found by the relicense
+  above: the fabric jar said LGPL, the neoforge one still said MIT.
+
 ## 2026-09-18
 
 - **`mc.system.version` can now tell two builds apart.** Its `version` field is pinned in
