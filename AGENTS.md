@@ -508,6 +508,6 @@ Two consequences worth knowing before touching this area:
 ## Pointers
 
 - **Connecting clients**: `docs/mcp-clients.md`
-- **License**: `LICENSE` (MIT)
+- **License**: `LICENSE` (LGPL-3.0-only)
 - **Contributor guide**: `CONTRIBUTING.md`
 - **Release history**: `CHANGELOG.md`

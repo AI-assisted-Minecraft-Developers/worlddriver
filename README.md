@@ -14,7 +14,7 @@ agents see exactly what in-game scripts see.
 - **Architectury API 13.0.8** installed alongside on either loader (a required mod, like Fabric API on Fabric)
 - JDK **21**
 - Rhino fork: `dev.latvian.mods:rhino:2101.2.7-build.81` (KubeJS-Mods)
-- License: [MIT](LICENSE)
+- License: [LGPL-3.0-only](LICENSE)
 
 ---
 
