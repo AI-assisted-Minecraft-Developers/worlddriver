@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only `version` as a task input, so Gradle called the task up-to-date across a change to any
   of the other five and the jar kept shipping the previous metadata. Found by the relicense
   above: the fabric jar said LGPL, the neoforge one still said MIT.
+- **The documentation no longer says that scripting runs sandboxed, because it does not.**
+  `ScriptClassFilter` still exists, but it has been opt-in since scripting was settled as a
+  first-party capability — an endpoint able to evaluate a script already owns the process — and
+  nothing in the build passes `-Dworlddriver.sandbox=on`. The README, its Chinese translation,
+  the contributor guide, the agent conventions and the `mc.script.eval` tool description had all
+  gone on describing the filter as an unconditional barrier. No behaviour changed here. The
+  correction matters because that false statement was the basis on which a reader would decide
+  whether it is safe to move the RPC bind address off loopback; the honest answer is that it is
+  not, unless the filter is switched on deliberately.
+- **The documentation is reorganised by audience.** `docs/guide/` for someone driving an
+  installed mod, `docs/dev/` for someone working in this repository, `docs/design/` for why the
+  live code is shaped as it is, and `docs/archive/` for records that describe the past and say
+  so. The one-off implementation plans are deleted; the design documents that still explain live
+  code were rewritten and renamed for the decision they explain rather than the date they were
+  written. Every document is in English, with `README-zh_CN.md` as the only translation.
 
 ## 2026-09-18
 
@@ -186,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   player by pricing every break as impossible and counting no placeable blocks. Five `wd.npc*`
   terrain scenes walk it down stairs, over a gap, across open water, out onto a flush bank and up a
   ladder. On a dedicated server a server player body then walks the same course. Both arrive on all
-  five courses, on both loaders; the tick differences are recorded in `docs/fake-player-parity.md` §12.
+  five courses, on both loaders; the tick differences are recorded in `docs/dev/fake-player-parity.md` §12.
 - **Every process that needs hands refuses a handless body with `no_hands`.** Tower, mine, combat,
   craft and smelt read `asPlayer()` before they asked for hands, so a body that is not a player was
   told `player vanished` (tower, mine) or dropped without a word (combat). Craft and smelt did refuse
@@ -388,7 +403,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   topology whose provisioning wipes `saves/` on launch, so a hand-built scene lived exactly one
   session. `labClient` is a plain loom run (testmod on, ports pinned to 39800/39801, `run-lab`,
   gitignored) that only asks the client director to open a world named `Lab`; nothing
-  provisions it, so the world keeps its scenes. `docs/user/human-verification.md` says how to
+  provisions it, so the world keeps its scenes. `docs/guide/human-verification.md` says how to
   turn it superflat.
 
 ## 2026-09-06
@@ -673,7 +688,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bee-line runs before the quick start. On the planner side `pathfinderDeepWaterPriced` (default
   ON) stops `HazardField` charging deep water its lethal penalty, and `waterDangerPenalty` drops
   from 12 to 3 to match the cruise. `wd.clientOpenWaterCross` (a 52-block lake) lands in 348
-  ticks against 550 before; `docs/water-model.md` has the mechanism and the failure ladder.
+  ticks against 550 before; `docs/design/water-and-swimming.md` has the mechanism and the failure ladder.
 
 - **Only the surface water cell is a lateral path node.** `canStandAt` used to accept water at
   any depth as a floor, so every submerged cell was a node A* could walk between, and four
@@ -687,7 +702,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opted into `DIVE` keeps the legacy model, since its purpose is to swim the body through with its
   head under. The executor is unchanged. Four dedicated-server scenes had staged the legacy
   fiction as their premise (a block-less swim up a +2 bank, a craft on a pool floor, a submerged
-  crossing as the bug to reproduce) and were restaged. `docs/water-model.md` has the rules and
+  crossing as the bug to reproduce) and were restaged. `docs/design/water-and-swimming.md` has the rules and
   the before/after table.
 
 - **A body circling its node on dry land now turns onto it.** Under tangent drive the body
@@ -710,7 +725,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sand, mud, farmland, dirt path, honey and bottom slabs are floors on both sides while fences,
   walls and stairs are floors on neither; pressure plates and closed bottom trapdoors are
   passable on both. The dedicated-server suite therefore validates routes the shipped client
-  would plan. `docs/world-view-parity.md` has the rules and the measurement.
+  would plan. `docs/design/world-view-parity.md` has the rules and the measurement.
 
 - **A floating body holding a block places its foothold before it digs the bank.** The water
   climb-out used to send a body over deep water to the bank dig first, on the belief that a
@@ -805,7 +820,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The occasion was a client that never opened its window on a Wayland desktop: LWJGL's bundled
   GLFW spins forever in `waitForVisibilityNotify` under Xwayland, and the fix is a patched
   `libglfw.so` selected with `-Dorg.lwjgl.glfw.libname=…` — a flag the run configurations had no
-  way to take. Written up in `docs/dev/client-on-wayland.md`.
+  way to take. Written up in `docs/dev/running-the-client.md`.
 
 - **Every loom game JVM can be started with a JDWP agent, StageWright gates included.**
   Setting the project property `worlddriverJdwp` (`-PworlddriverJdwp=5005`, or the env var
@@ -1078,7 +1093,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   piglin took the last four.
 
   The hunger half of that is not a missing call. Rung six hunted one cow for five raw beef, and
-  rung ten ate all five to clear the gravel (`gravel.feed.bite0` … `bite4`, 饱食 7→20, the last
+  rung ten ate all five to clear the gravel (`gravel.feed.bite0` … `bite4`, `饱食 7→20`, the last
   trace ending `手里=minecraft:air`). Nothing between there and the Nether restocks, so by rung
   thirteen the body is already reading `饱食 9/20 ⚠️ <18，自然回血不会发生` with an empty larder —
   the ladder spends its whole food supply four rungs before the one that needs it.
@@ -1138,7 +1153,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `.miss.*` prints the target cell's source flag and fluid level **as the use packet goes out**
   beside the one three ticks later. The pair is the point: a fill that WORKED also removes the
   source it took, so the old「现在是 …」reading gave success and failure the same answer. The row
-  says 发包 rather than 开火 because that is when it is sampled — the server runs `BucketItem.use`
+  says `发包` ("packet sent") rather than `开火` ("fired") because that is when it is sampled — the
+  server runs `BucketItem.use`
   a round trip later and water re-ticks every five, and a row that named a moment nobody sampled
   would invite arithmetic on it.
   The gate is `wd.journeyScoopPrintsTheHandItFiredWith`, and it drives the production entry
@@ -1155,7 +1171,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   order. The corridor arrives as `Set.copyOf(...)`, whose `SetN` iteration order is salted once per
   JVM: the same code, the same world and the same staged body gave a different answer per run.
   `wd.rampSeesABodyOnlyPartlyInTheCell` measured it as a coin flip — nine archived runs, five red,
-  with `staged=` and 要垫的是 byte-identical in all nine.
+  with `staged=` and `要垫的是` (the support cell it meant to lay) byte-identical in all nine.
 
   Two halves, because「set iteration order decides behaviour」is one defect: the body's cell is now
   struck out of the search rather than vetoed after it wins, and ties are broken by `compareTo`
@@ -1449,9 +1465,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `WIGGLE_EVENTS` went 4 → 16. The budget is per Walker INSTANCE (an instance field, no reset,
   one `new Walker(…)` per process), and a single stall episode burns it: that run spent all four
-  inside thirteen seconds and printed 序=5+/4 for the hops between the last logged position and
+  inside thirteen seconds and printed `序=5+/4` for the hops between the last logged position and
   the corpse. Measured on the very next rehearsal: one stall printed sixteen consecutive suppressed
-  hops and still hit 序=17+/16 — the old cap would have shown a quarter of it.
+  hops and still hit `序=17+/16` — the old cap would have shown a quarter of it.
 
 - **The raise search prints its own vetoes.** `raiseColumn` built a reason map for every candidate
   column it rejected and threw it away, so the only rows a reader had were the winner and the
@@ -2357,7 +2373,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A negative control instead of a ritual that would have rotted.** The aim criterion is only
   evidence if it can fail, and on a healthy tree it never does. Rather than hand-reverting a live
   call site once to watch it go red, the ruler evaluates the twin's *shared* predicate against the
-  server path's own reading on every run and records whether it came out false — 有效 on both runs
+  server path's own reading on every run and records whether it came out false — `有效` ("valid")
+  on both runs
   so far. It is `ctx.record`, not `ctx.check`: the ruler has no verdict by design, and asserting
   there would amount to requiring that the defect continue to exist.
 - **A chooser must record its input, not just its choice.** The aim cell depends on the body's
@@ -2394,7 +2411,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-08-20
 
-- **The integrated ladder climbs on the client's real player.** 集成服上验证本就需要真实玩家来执行,
+- **The integrated ladder climbs on the client's real player.** Validating on an integrated server
+  is only meaningful if a real player is the one carrying the run out,
   and until now all three topologies spawned an invulnerable fake body beside the real player and
   drove that instead — so the whole validation set this comparison exists to reveal (`fallDistance`
   pinned at 0, `isInvulnerableTo` refusing every source, a death that is a no-op, an advancement
@@ -2836,8 +2854,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   | arm | ticks | moved | minY | holds | on the doorstep |
   |---|---|---|---|---|---|
-  | control (hold OFF) | 60 | **0.00 格** | 211.00 — never descended | 0 | no |
-  | subject (hold ON) | 19 | 0.30 格 | 210.92 | 3 | **yes** |
+  | control (hold OFF) | 60 | **0.00 blocks** | 211.00 — never descended | 0 | no |
+  | subject (hold ON) | 19 | 0.30 blocks | 210.92 | 3 | **yes** |
 
   Under `step == 1` the subject arm read `60 tick，走了 0.00 格` and went red — that run is the proof
   the criterion can fail. Both descent arenas also now record the plan tick by tick and the last
@@ -2917,8 +2935,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   | arm | ticks | moved | minY | end | holds | on the doorstep |
   |---|---|---|---|---|---|---|
-  | control (hold OFF = the ladder's build) | 60 | **0.00 格** | 212.00 — never descended | `path-consumed` | 0 | no |
-  | subject (hold ON) | 4 | 0.76 格 | 211.92 | — | 3 | **yes** |
+  | control (hold OFF = the ladder's build) | 60 | **0.00 blocks** | 212.00 — never descended | `path-consumed` | 0 | no |
+  | subject (hold ON) | 4 | 0.76 blocks | 211.92 | — | 3 | **yes** |
 
   The control's row is the ladder's two legs byte for byte. The rig hard-fails if the control walks
   in, if the two arms' hold counts are not `0 → >0`, or if the stance drifts off `脚底实心 0.2168`;
@@ -3022,10 +3040,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the body at the ladder's exact stance (`+0.092, +0.700` off the cell corner — that offset IS the
   0.125 sole), and drives it twice with `walkerDescentNodeHold` as the only difference:
 
-  | arm | 无计划 | moved | minY | holds |
+  | arm | ticks with no plan | moved | minY | holds |
   |---|---|---|---|---|
-  | control (hold OFF) | **260/260 tick** | 0.89 格 | 213 — never descended | 0 |
-  | subject (hold ON) | 10/260 tick | 7.98 格 | 211 | 20 |
+  | control (hold OFF) | **260/260 tick** | 0.89 blocks | 213 — never descended | 0 |
+  | subject (hold ON) | 10/260 tick | 7.98 blocks | 211 | 20 |
 
   The control's 100% and the subject's 3.8% bracket the ladder's own two populations — its wedged
   hops ran 94–100% and its healthy ones 0.2–2.8%. The rig hard-fails if the control walks out.
@@ -3437,7 +3455,8 @@ below it in the same class has always swapped up from the bag. Two arms of `wd.s
 by exactly one variable and nothing else: 64 cobblestone in slot 0 → the footing remedy spends a
 block and the sole one tick later goes **0.168 → 0.360**; the same stack in slot 20 → **zero** blocks
 spent, sole 0.168 → 0.184, body off the ledge. With the bag in scope the backpack arm reads
-identically to the hotbar arm. This is why rung 20 logged five footing pins and not one 垫脚: the
+identically to the hotbar arm. This is why rung 20 logged five footing pins and not one `垫脚`
+(a footing block actually placed): the
 body walks its End legs with the haul wherever picking it up put it. No other scene changed colour.
 
 
@@ -3675,7 +3694,8 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   real-ray short-circuit, `cast7.fromHere.3 = -9, 56, 32 就地瞄 -11, 59, 35，流体会落进 -11, 59, 34（不走了）`
   → `CONSUME`. The order was the defect and the stricter grade is what made it bite:
   `placeFluid` → `mendBacking` → `standLevelWith` (predict where the body COULD stand) → and only then
-  `aimThatLandsIn` (fire the real ray from where the body IS). 权威的测试跑在它本该决定的那个决定之后。
+  `aimThatLandsIn` (fire the real ray from where the body IS). The authoritative test ran after the
+  decision it was supposed to make.
   `standLevelWith` now asks the real ray first, so a raise is conditional on the pour being impossible
   from here rather than on any prediction about elsewhere. Checked against the archive before it was
   run: the old `cast7` has a `fromHere` row, so it stops raising; the old `cast8` has none at all and
@@ -4110,7 +4130,8 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   hop of memory is blind to it. The record is not lowered by a hop that gains less than the bar, so
   small gains accumulate instead of each being re-owed; only walking backwards earns nothing. Two
   readings the shuttle was invisible without now ride on every hop line (`纪录`, `净进`) and on the
-  crossing summary (`全程最近`), and the give-up message no longer says "一格没挪" about a body that
+  crossing summary (`全程最近`), and the give-up message no longer says `一格没挪` ("did not move a
+  single cell") about a body that
   may have walked 200 blocks.
 - **A driven body now tells the `ChunkMap` it moved, so the level will spawn mobs where it is.**
   A real player's movement arrives as a packet, and `ServerGamePacketListenerImpl.handleMovePlayer`
@@ -4179,7 +4200,8 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
 
 ### Fixed
 - **The nether census named the wrong bound for its own blind spot.** It claimed the 128-block count
-  was limited by the rung's 4-chunk pin ("= 64 格"). That pin is a FLOOR, not a limit: a body that
+  was limited by the rung's 4-chunk pin (`= 64 格`, sixty-four blocks). That pin is a FLOOR, not a
+  limit: a body that
   joined the server also holds its view-distance tickets, and the same run whose census quoted a
   64-block horizon counted 106 monsters inside 128. A reader who believed the row would have gone
   looking for a truncated count instead of a full one. It now asks whether the chunk on the census's
@@ -5545,7 +5567,8 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   first time it took real work to earn. IRON had been green before and failed on the same code the
   next run, so it was deliberately left below the floor on the rule the number exists to enforce —
   *the floor claims a rung works, not that it once worked*. Promoted on three consecutive green runs
-  of the same code (铁锭 ×4 / ×6 / ×6, `stagingCalls=0`). PORTAL_KIT stays frontier: green on one of
+  of the same code (`铁锭 ×4 / ×6 / ×6` iron ingots, `stagingCalls=0`). PORTAL_KIT stays frontier:
+  green on one of
   those three, and both failures have since been fixed but not yet re-measured.
 - **`firstLava` is surveyed.** It had been UNSURVEYED because the survey asked the surface question,
   and a swamp surface truthfully has no lava; that is a correct answer to a question nobody wanted
@@ -5629,7 +5652,7 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   those greens were not on one code base, and one of the reds was real. The kit costs four ingots,
   the vein loop was written to work three veins, and only two were ever baked. A rung that passes
   because the terrain was generous is not a rung that works — what made it promotable was finding
-  that, not running more runs. Four consecutive greens, 铁锭 ×6 / ×6 / ×11 / ×6.
+  that, not running more runs. Four consecutive greens, `铁锭 ×6 / ×6 / ×11 / ×6` iron ingots.
 
   One bound rides along and is not hidden: every green row on this track carries
   `body.invulnerable=true`. The ladder proves what the driver can DO, never that a body survives it.
@@ -7023,7 +7046,7 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   hand 31 fields to each other through a per-tick struct, in an order only
   `Walker#tickInner` knows; the rule "a phase writes its own product group and
   reads only what earlier phases produced" lived in a javadoc and a hand-derived
-  census in `docs/walker-tick-architecture.md`. `WalkerTickDataflowTest` re-derives
+  census in `docs/dev/movement-tick-phases.md`. `WalkerTickDataflowTest` re-derives
   that census from source on every test run — reading the phase order out of
   `tickInner` rather than hardcoding it — and fails on a read-before-write, on a
   ctx field with no producer or no later consumer, and on the phase files and the
@@ -7066,17 +7089,17 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   light:{block,sky}, blockEntity?}`: blockstate property map (`lit`/`facing`/`half`
   as `/setblock`-style strings), light levels (previously unreadable through any
   surface), and opt-in block-entity SNBT. The verify half of a build→verify loop
-  (docs/feedback/2026-06-08 asked for exactly this; every verification used to be
+  (docs/archive/feedback/2026-06-08 asked for exactly this; every verification used to be
   an `execute if block … run setblock <scratch>` hack). Also exposed to scripts as
   `Agent.world.block/snapshot/restore`.
 - **`mc.query` entities rows gain `uuid`, `id`, and `effects`**
   (`[{id, amplifier, durationTicks}]`, living entities only) — the MobEffect-read
   gap external consumers ranked as their single biggest blocker for testing
-  effect-based mechanics (docs/feedback/2026-06-04 #4); `filter.is_living`
+  effect-based mechanics (docs/archive/feedback/2026-06-04 #4); `filter.is_living`
   drops item/XP-orb rows that polluted health-delta assertions (#6).
 - **`mc.query` blocks rows gain `state`** — the blockstate property map, omitted
   for property-less states; the client-MCP fallback rows carry it too
-  (docs/feedback/2026-06-08 #2).
+  (docs/archive/feedback/2026-06-08 #2).
 - **Server-side `mc.observe.player` now returns `effects`** — the client snapshot
   grew it first, but headless dedicated servers (the main external-consumer
   scenario) read the player through the server path, which still lacked it.
@@ -7103,7 +7126,7 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
 - **`mc.bot.lookAt` and `mc.observe.player` lag documentation** — lookAt updates
   reach the SERVER entity one tick after the call returns; observe.player().look
   reads pre-lookAt angles until the next tick. Tool descriptions now document this
-  timing and recommend `waitTicks(1)` before asserting (docs/feedback/2026-07-10 §3).
+  timing and recommend `waitTicks(1)` before asserting (docs/archive/feedback/2026-07-10 §3).
 
 ### Fixed
 - **descentYawArena "flakiness" convicted and cured — it was a rig defect, not a
@@ -7138,7 +7161,7 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
 - **`mc.client.overlays` TutorialSteps reflection is now robust** — the lookup used
   a bare class name (`Class.forName("TutorialSteps")`) and threw in every runtime,
   not just mojmap dev. Replaced with a direct import + field write so both vanilla
-  and intermediary runtimes succeed (docs/feedback/2026-07-10 §2).
+  and intermediary runtimes succeed (docs/archive/feedback/2026-07-10 §2).
 - **`DriverApi.route()` validates params against the MCP schema — single source of
   truth** — wrong-argument errors now name missing required fields and unexpected
   keys instead of silently consuming them or returning a generic message. `{command:…}`
@@ -7146,10 +7169,10 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   missing required 'cmd' (string); unexpected key 'command'` on every transport
   (RPC, MCP, in-JVM scripts). `SchemaValidator` unmarshals JSON against the same
   `ToolSchema` the catalog advertises, so advertisement and enforcement cannot
-  drift (docs/feedback/2026-07-10 §4).
+  drift (docs/archive/feedback/2026-07-10 §4).
 - **chat readback is now usable: `mc.client.chat.history` / `chat.send awaitReplyMs`
   read a packet-level buffer (`ClientChatLog`) instead of reflecting on the GUI's
-  `ChatComponent.allMessages`** (docs/feedback/2026-06-08 "chat is not a usable
+  `ChatComponent.allMessages`** (docs/archive/feedback/2026-06-08 "chat is not a usable
   readback channel"). The GUI list is newest-first, hard-capped at 100 and
   re-indexes on every arrival, so the old code returned the *oldest* buffered
   line as the "reply" (on a busy server: some other mod's broadcast), went
@@ -7253,7 +7276,7 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   0.05, water uses new `STUCK_PROGRESS_EPS_WATER=0.02`.
 - **`mc.query` select rejects unknown keys** (`isError` naming the bad key and the
   allowed set) instead of silently dropping them — callers were misled into
-  "field not supported" detours (docs/feedback/2026-06-04 #3).
+  "field not supported" detours (docs/archive/feedback/2026-06-04 #3).
 - **`mc.action.runCommand` setblock fast-path no longer throws "invalid block id"
   on `[state]`/`{nbt}` syntax or trailing keep|destroy|replace modes** — those
   now fall through to Brigadier (caught by the new guard scripts: the fast-path
@@ -7261,10 +7284,10 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
 - **Pinned RPC/MCP ports fall back to an ephemeral port when already bound**
   (WARN + `run/agent-{rpc,mcp}.port` records the real port) instead of dying with
   a mid-log BindException — two instances now coexist by default
-  (docs/feedback/2026-06-04 port-conflict UX).
+  (docs/archive/feedback/2026-06-04 port-conflict UX).
 - **Published POM/metadata no longer leak the Jar-in-Jar'd Rhino as a consumable
   dependency** (naive consumers got a second Rhino on the classpath —
-  docs/feedback/2026-06-04 #2; module metadata is disabled so the cleaned POM is
+  docs/archive/feedback/2026-06-04 #2; module metadata is disabled so the cleaned POM is
   the single source of truth).
 - **`agentRpcSmoke` runs in its own GameTest batch** — sharing a batch with
   wall-clock-hungry walker/pathfinder arenas starved its 8s `onServerThread`
@@ -7277,15 +7300,15 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   suppressing it. `ok:true, success:false` = dispatched but the command failed
   (e.g. selector matched nothing). Unblocks headless assertion of entity NBT /
   MobEffects that `mc.query` can't project.
-- **`mc.bot.goto` gains `hugShore` (shoreline-affinity bias) — 沿着河岸走 = goto far
-  point + hugShore + forbidWater.**
+- **`mc.bot.goto` gains `hugShore` (shoreline-affinity bias) — walking along the shoreline is a
+  far goto point plus `hugShore` plus `forbidWater`.**
 - **Bias-aware string-pull**: the path smoother no longer straightens a bow the
   per-intent bias paid for — protects ALL bias citizens (hugShore, avoid, preferY,
   leash), found via a ShorelineHug bank-hug collapsed straight across the taxed dry
   interior (the dangerCost-smoother lesson, replayed for the intent layer's bias
   channel and fixed the same way).
 - **`mc.bot.goto` leash/leashHard accept `entity:'name-or-type'` — a DYNAMIC anchor
-  re-solved as the entity moves (带路 scenarios); `mc.bot.follow` accepts the goto
+  re-solved as the entity moves (lead-the-way scenarios); `mc.bot.follow` accepts the goto
   bias/constraint args (compose "follow A but forbidWater/avoid zones").** The hard
   leash gains rejoin semantics: if the bot falls outside the tether (e.g. the anchor
   teleports away), it is no longer fully pruned — only edges that strictly approach
@@ -7353,8 +7376,8 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   (incl. the parity harness) get nothing extra. The `/mcp` POST request/response path
   is unchanged. Event sources: the existing block/death/chat
   hooks now push; new `command.result` (every Brigadier `mc.action.runCommand`),
-  and client-tick detectors for `threat.appeared` (敌袭), `player.hurt` (受伤),
-  `player.death` (死亡). New `mc.events` route — `op:emit` injects a custom event;
+  and client-tick detectors for `threat.appeared` (a hostile coming into range),
+  `player.hurt` and `player.death`. New `mc.events` route — `op:emit` injects a custom event;
   `op:watch`/`unwatch`/`list` register rising-edge condition watchers (poll a route,
   emit `emitAs` the first tick a predicate flips false→true, e.g. health `below` 6).
   Prelude `Agent.events.{emit,watch,unwatch,list}`; catalog tool `mc.events`.
@@ -8262,7 +8285,7 @@ recorded as removing a known-bad read rather than as a fix. No other scene chang
   delivery to LLM clients.
 - Smoke-test artifacts now land in `fabric/run/smoke/` instead of a top-level
   `smoke-shots/` directory.
-- README, `README-zh_CN.md`, and `docs/mcp-clients.md` updated to reflect the
+- README, `README-zh_CN.md`, and `docs/guide/mcp-clients.md` updated to reflect the
   consolidated 40-tool catalog and the fact that RPC + MCP come up at client
   init (TitleScreen-connectable), not only at `onServerStarting`.
 
@@ -8304,8 +8327,8 @@ end-to-end.
   NeoForge (1.21.1) via Architectury.
 - **Project-local `.mcp.json`** at the workspace root for zero-config wiring
   into Claude Code, Cursor, Continue, Codex, MCP Inspector.
-- **Docs**: `docs/mcp-clients.md` (per-client connection guide),
-  `docs/claude_desktop_config.example.json`.
+- **Docs**: `docs/guide/mcp-clients.md` (per-client connection guide),
+  `docs/guide/claude-desktop-config.example.json`.
 
 [Unreleased]: https://github.com/AI-assisted-Minecraft-Developers/worlddriver/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/AI-assisted-Minecraft-Developers/worlddriver/releases/tag/v0.1.0
