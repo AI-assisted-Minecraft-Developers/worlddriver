@@ -10,6 +10,7 @@ import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 import net.magicterra.worlddriver.rpc.OriginPolicy;
+import net.magicterra.worlddriver.rpc.ServerBusyException;
 import net.magicterra.worlddriver.rpc.TransportLimits;
 
 import java.io.Closeable;
@@ -261,10 +262,13 @@ public final class McpServer implements Closeable {
                         Object result = api.route(toolName, args);
                         sendJson(ex, 200, jsonRpcResult(id, toolResultContent(result)));
                     } catch (Throwable t) {
-                        // A hop that gave up is a server error, not the tool's: the code is the
-                        // only thing that tells "safe to retry" from "may still apply".
+                        // A hop that gave up, or a full cap, is a server error, not the tool's: the
+                        // code is the only thing that tells "safe to retry" from "may still apply".
                         ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(t);
+                        ServerBusyException busy = ServerBusyException.find(t);
                         if (hop != null) sendJson(ex, 200, jsonRpcError(id, hop.code(), hop.getMessage()));
+                        else if (busy != null) sendJson(ex, 200,
+                                jsonRpcError(id, TransportLimits.RPC_CODE_SERVER_BUSY, busy.getMessage()));
                         else sendJson(ex, 200, jsonRpcResult(id, toolError(t.getMessage())));
                     }
                 }

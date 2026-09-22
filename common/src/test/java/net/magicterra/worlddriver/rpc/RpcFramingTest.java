@@ -206,6 +206,22 @@ class RpcFramingTest {
     }
 
     @Test
+    void aRouteRefusedAtACapIsBusyNotAnInternalFault() throws Exception {
+        // The background-wait cap refuses inside a route, past the transport's own cap check;
+        // it must reach the client with the same busy code the transport cap answers with.
+        DriverApi api = new DriverApi();
+        api.addRoute("mc.test.busy", p -> {
+            throw new ServerBusyException("busy: all background waits are running");
+        });
+        try (RpcServer server = new RpcServer(api, 0);
+             WsTestClient raw = new WsTestClient(server.port())) {
+            Map<?, ?> r = raw.roundTrip("{\"id\":23,\"method\":\"mc.test.busy\",\"params\":{}}");
+            assertEquals(String.valueOf(TransportLimits.RPC_CODE_SERVER_BUSY), String.valueOf(r.get("code")),
+                    "reply: " + r);
+        }
+    }
+
+    @Test
     void aLargeRequestIsAcceptedLikeTheMcpTransportAcceptsIt() throws Exception {
         // McpServer caps a POST body at agent.mcp.maxBodyBytes (8 MiB default). The
         // WebSocket side inherited Netty's 64 KiB default frame size, so the same

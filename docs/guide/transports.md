@@ -128,7 +128,7 @@ and never becomes a socket.
 | `-32603` | The route threw something else. |
 | `-32001` | The server thread did not start the task within the hop timeout. The task was withdrawn and will never run, so retrying is safe. |
 | `-32002` | The server thread started the task but it did not finish within the hop timeout. It is still running and may yet apply: observe the world before you retry. |
-| `-32005` | Refused without running: the connection already has 16 requests running, or all 64 RPC workers are busy. Nothing happened; retry once an earlier call returns. |
+| `-32005` | Refused without running: the connection already has 16 requests running, all 64 RPC workers are busy, or all 32 background waits are running. Nothing happened; retry once an earlier call returns. |
 
 `-32001` and `-32002` exist because a verb that timed out is not necessarily a verb that did not
 happen. Most verbs marshal onto the server tick and wait at most `worlddriver.serverThreadTimeoutMs`;
@@ -328,7 +328,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | Block scan | `in_radius` 15, a 31³ cube inside the 32,768-cell budget of `mc.action.fill` and `mc.world.snapshot` | `mc.query` with `q: 'blocks'`. A larger radius is rejected rather than clamped, and a cube reaching into an unloaded chunk is rejected rather than loading it. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. Running out is error `-32001` or `-32002`, above. |
 | Concurrent RPC requests | 16 per connection, 64 across the server | Past either, a request is refused at once with `-32005` rather than queued. |
-| Background waits | 32 running at once | `background: true` on any `mc.wait.*`; one more is refused with a "busy" error. |
+| Background waits | 32 running at once | `background: true` on any `mc.wait.*`; one more is refused with `-32005` on either transport. |
 | Concurrent MCP work | 32 `POST` requests, 8 event streams | Past either, 503; a refused `POST` carries a `-32005` error. |
 | WebSocket liveness | Ping after 30 s quiet; close after 4 minutes with nothing received | Every RPC connection. |
 

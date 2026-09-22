@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
+import net.magicterra.worlddriver.rpc.ServerBusyException;
 import net.magicterra.worlddriver.rpc.TransportLimits;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
@@ -91,7 +92,7 @@ public final class WaitApi {
             startInBackground(waitId, kind, body);
         } catch (RejectedExecutionException full) {
             IN_FLIGHT.remove(waitId);
-            throw new IllegalStateException("busy: " + TransportLimits.WAIT_MAX_BACKGROUND
+            throw new ServerBusyException("busy: " + TransportLimits.WAIT_MAX_BACKGROUND
                     + " background waits are already running; wait for one to finish (mc.wait.result "
                     + "or the wait.done event) before starting another");
         }

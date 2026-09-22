@@ -418,6 +418,7 @@ public final class RpcServer implements Closeable {
         private static int codeFor(Throwable ex) {
             ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(ex);
             if (hop != null) return hop.code();
+            if (ServerBusyException.find(ex) != null) return TransportLimits.RPC_CODE_SERVER_BUSY;
             if (ex instanceof UnknownMethodException u)
                 return u.method() == null ? CODE_INVALID_REQUEST : CODE_METHOD_NOT_FOUND;
             if (ex instanceof IllegalArgumentException)

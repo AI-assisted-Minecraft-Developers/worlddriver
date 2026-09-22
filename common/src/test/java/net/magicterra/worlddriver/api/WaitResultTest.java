@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.api;
 
+import net.magicterra.worlddriver.rpc.ServerBusyException;
 import net.magicterra.worlddriver.rpc.TransportLimits;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -74,7 +75,7 @@ class WaitResultTest {
                         "params", Map.of("op", "list"), "field", "nope",
                         "timeoutMs", 1500, "pollMs", 100, "background", true)).get("waitId"));
             }
-            IllegalStateException e = assertThrows(IllegalStateException.class,
+            ServerBusyException e = assertThrows(ServerBusyException.class,
                     () -> api.wait.condition(Map.of("invoke", "mc.events", "params", Map.of("op", "list"),
                             "background", true)));
             assertTrue(e.getMessage().contains("busy"), e.getMessage());
