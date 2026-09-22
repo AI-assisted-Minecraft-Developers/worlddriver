@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-22
+
+- **`/worlddriver test` is no longer in the published jar.** Any player could run it: it seeded
+  the arena at the test origin, which clears blocks and discards every non-player entity within
+  twenty blocks, then ran sixty scripts that summon mobs and issue commands at operator level.
+  The command, its `list` and `result` children, the `-Dworlddriver.runValidation` startup hook
+  and the scripts themselves now ship with the testmod, where the command requires permission
+  level 2 and refuses a second run while one is in flight.
+- **`/worlddriver port`, `mcp` and `reload` require permission level 2.** The first two told any
+  player where the unauthenticated control endpoints listen, and `reload` let one re-run the
+  operator's scripts. The gate sits on each subcommand rather than on the `worlddriver` root,
+  because Brigadier keeps the requirement of whichever same-named literal registered first. On a
+  single-player world they now need cheats allowed; the port files still name the endpoints.
+
 ## 2026-09-20
 
 - **Relicensed from MIT to LGPL-3.0-only.** What this changes for a consumer: a mod that

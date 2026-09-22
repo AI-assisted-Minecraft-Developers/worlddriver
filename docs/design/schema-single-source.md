@@ -74,5 +74,5 @@ unusable parameter documentation to every model client.
   extension-registered verbs.
 
 The behaviour is asserted by the schema-validation scripts in
-`common/src/main/resources/data/worlddriver/scripts/validation/`, which run on every transport and
+`common/src/testmod/resources/data/worlddriver/scripts/validation/`, which run on every transport and
 compare the results.

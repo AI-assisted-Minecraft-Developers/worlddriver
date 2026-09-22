@@ -18,7 +18,7 @@ worlddriver-rpc.port   # the WebSocket RPC port
 ```
 
 For a development run that directory is `fabric/run/` or `neoforge/run/`. You can also read
-the endpoint in the game with `/worlddriver mcp`.
+the endpoint in the game with `/worlddriver mcp`, which requires permission level 2.
 
 The Fabric development runs pin the MCP port to **39800** and the RPC port to **39801**
 already, so the examples below use those numbers. The NeoForge runs do not pin anything;

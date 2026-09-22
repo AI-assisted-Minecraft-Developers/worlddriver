@@ -30,7 +30,8 @@ cat fabric/run/worlddriver-mcp.port
 cat neoforge/run/worlddriver-mcp.port
 ```
 
-In the game, `/worlddriver mcp` and `/worlddriver port` print the live endpoints. If the
+In the game, `/worlddriver mcp` and `/worlddriver port` print the live endpoints to an
+operator (permission level 2; on a single-player world, one with cheats allowed). If the
 port file and your client agree and the connection is still refused, search the game log for
 the fallback warning, which names both the port that was requested and the reason it was
 unavailable.

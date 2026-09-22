@@ -39,6 +39,7 @@ import net.magicterra.worlddriver.client.internal.ClientChatLog;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.test.ScriptTest;
+import net.magicterra.worlddriver.testcontent.ValidationSuite;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
 import net.magicterra.stagewright.scene.SceneProvider;
@@ -73,12 +74,12 @@ import net.minecraft.world.phys.Vec3;
  * <p><b>Faithful async-poll translation (P1c rule — no {@code Thread.sleep} in a scene body).</b>
  * Three tests polled a background daemon in the legacy body:
  * <ul>
- *   <li>{@code agentRpcSmoke} kicked {@code runValidation()} onto a worker thread and polled the
+ *   <li>{@code agentRpcSmoke} kicked {@code ValidationSuite.run()} onto a worker thread and polled the
  *       result via {@code helper.startSequence().thenWaitUntil}. The scene reproduces this EXACTLY
  *       with {@link SceneContext#await} — the harness ticks the server between {@code advance()}
  *       calls, so {@code server.execute()} drains each tick and the RPC/MCP round-trips inside the
  *       validation suite complete just as they did under the GameTest tick loop. (The dogfood
- *       server starts the RPC server unconditionally on a random port, so {@code runValidation}'s
+ *       server starts the RPC server unconditionally on a random port, so {@code ValidationSuite.run}'s
  *       {@code RpcBridge}/{@code McpBridge} have a live endpoint. See task-4-report.md §"agentRpcSmoke"
  *       for the count/placement reasoning — the wave brief's "agentRpcSmoke in Server" note is
  *       reconciled there against the explicit "WorldDriverCoreScenes.java (main class 12)" spec.)</li>
@@ -195,7 +196,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTest#agentRpcSmoke}: wraps the JS validation suite
-     *  ({@link WorldDriverCommon#runValidation}) as a dogfood scene. Kicks validation onto a worker
+     *  ({@link ValidationSuite#run}) as a dogfood scene. Kicks validation onto a worker
      *  thread and polls completion from the tick path via {@link SceneContext#await} — the faithful
      *  analogue of the legacy {@code startSequence().thenWaitUntil} (which is the only surface with
      *  proper retry semantics; a bare poll would treat the first "still running" as a hard failure).
@@ -233,8 +234,17 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             ctx.fail("agentRpcSmoke: DriverApi not initialized — was the mod loaded?");
             return;
         }
-        WorldDriverCommon.api().seedTestArea();
-        standOnTestArea(ctx);
+        if (!ValidationSuite.tryClaim()) {
+            ctx.fail("agentRpcSmoke: another validation run (/worlddriver test) holds the suite");
+            return;
+        }
+        try {
+            WorldDriverCommon.api().seedTestArea();
+            standOnTestArea(ctx);
+        } catch (RuntimeException | Error e) {
+            ValidationSuite.release();
+            throw e;
+        }
         // The suite starts real processes on the client and most of its scripts never cancel them,
         // so the scene used to hand the next client scene a busy scheduler: the user chain held its
         // bid of 50 from here until the drown scenes minutes later. AutoSwim's in-process backstop
@@ -249,8 +259,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
         AtomicReference<Integer> result = new AtomicReference<>();
         AtomicReference<Throwable> crash = new AtomicReference<>();
         Thread worker = new Thread(() -> {
-            try { result.set(WorldDriverCommon.runValidation()); }
+            try { result.set(ValidationSuite.run()); }
             catch (Throwable e) { crash.set(e); }
+            finally { ValidationSuite.release(); }
         }, "WorldDriver-DogfoodScene");
         worker.setDaemon(true);
         worker.start();
@@ -262,7 +273,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             if (v == null) { ctx.fail("agentRpcSmoke: validation still running"); return; } // cond guarantees non-null
 
             // Read the per-check results the worker just recorded (single source:
-            // ScriptTest's static snapshot, set by runValidation()). Assert the full
+            // ScriptTest's static snapshot, set by ValidationSuite.run()). Assert the full
             // suite ran with the expected coverage, zero failures, and only NAMED
             // task#92 topology-skips — on WHICHEVER topology this scene is running.
             List<ScriptTest.Result> results = ScriptTest.snapshot();

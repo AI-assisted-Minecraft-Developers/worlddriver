@@ -187,6 +187,33 @@ The legacy `@GameTest` path was retired when the scenes moved to StageWright. Do
 elsewhere in this repository that quotes a GameTest pass count is historical and is not a
 command to run.
 
+## The JavaScript validation suite
+
+The scripts under `common/src/testmod/resources/data/worlddriver/scripts/validation/` drive
+the driver through the same `Driver.*` surface a user script sees, on every transport. They
+ship with the testmod, not with the published jar: a run seeds the arena at the test origin
+(it clears the blocks and discards every non-player entity nearby) and the scripts summon
+mobs and run commands at operator level, which is not something a server should get by
+installing the mod.
+
+A gate runs the suite as the `wd.agentRpcSmoke` scene. In a development run that carries the
+testmod, there are two more ways to start it:
+
+| Command | Effect |
+|---|---|
+| `/worlddriver test`        | Seed the arena and run every validation script on a worker thread, then report the pass and fail counts |
+| `/worlddriver test list`   | List the validation script names |
+| `/worlddriver test result` | Print the per-test result of the last run |
+
+These require permission level 2. Only one run holds the suite at a time: a second
+`/worlddriver test`, or the scene, is refused while one is in flight rather than sharing its
+result list and reseeding its arena.
+
+`-PagentRunValidation=true` passes `-Dworlddriver.runValidation=true` to the runs that carry
+the testmod (`:neoforge:runDogfoodServer`, `:fabric:runLabClient`); the suite then runs once the
+server has started and the JVM exits non-zero if any check failed. `runClient` and `runServer`
+do not carry the testmod and ignore the flag.
+
 ## The out-of-process JUnit suite
 
 Some things cannot be scenes, because a scene body runs inside the very runtime under

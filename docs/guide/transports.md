@@ -69,7 +69,8 @@ Whatever port each server actually received is written to `worlddriver-mcp.port`
 A wildcard bind (`0.0.0.0`, or `::`) still logs a loopback URL, because a wildcard address
 is not a connectable target.
 
-In the game, `/worlddriver port` and `/worlddriver mcp` print the live endpoints.
+In the game, `/worlddriver port` and `/worlddriver mcp` print the live endpoints to an
+operator.
 
 ## WebSocket JSON-RPC
 
@@ -370,17 +371,17 @@ that simply connects.
 
 Brigadier subcommands of `/worlddriver`. The root is the mod id in full so that no other
 mod's command can claim it; several parts of the mod register the same literal and
-Brigadier merges the children under one root.
+Brigadier merges the children under one root. That merge keeps the permission requirement of
+whichever literal registered first, so each subcommand carries its own: every one requires
+permission level 2 (an operator, or on a single-player world, one with cheats allowed).
 
 | Command | Effect |
 |---|---|
 | `/worlddriver port` | Print the RPC port |
 | `/worlddriver mcp` | Print the MCP endpoint |
 | `/worlddriver reload` | Re-load user scripts from the scripts directory and report the count |
-| `/worlddriver test` | Run the bundled validation scripts on a worker thread and report pass and fail counts |
-| `/worlddriver test list` | List the validation script names |
-| `/worlddriver test result` | Print the per-script result of the last run |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body; requires permission level 2 |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body |
 
 The test framework adds more subcommands when it is loaded — see
-[Human verification](human-verification.md) — and the published jar has none of them.
+[Human verification](human-verification.md), and `/worlddriver test` in
+[Testing](../dev/testing.md) — and the published jar has none of them.

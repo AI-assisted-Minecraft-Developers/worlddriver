@@ -113,7 +113,8 @@ launch**: the server logs a warning and falls back to an ephemeral port. Your
 `-Dworlddriver.rpcPort=39801` is a request; the port file is the answer. The usual cause is
 a second game instance still holding it.
 
-In the game, `/worlddriver mcp` and `/worlddriver port` print the live endpoints.
+In the game, `/worlddriver mcp` and `/worlddriver port` print the live endpoints; they require
+permission level 2, which on a single-player world means one with cheats allowed.
 
 ## Confirm it works
 
