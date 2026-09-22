@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`autoTotem` no longer hides an offhand shield from `autoShield`.** It swapped the first totem it
+  found, backpack before hotbar, into the offhand, and the swap drops the offhand's item into the
+  totem's old slot. `autoShield` only looks at the offhand and the hotbar, so with both reflexes on a
+  shield could land in the backpack and the bot stopped blocking for the rest of the session. A
+  hotbar totem is now taken first, and with a shield in the offhand a backpack totem is parked on the
+  hotbar for one tick so the shield lands there instead.
 - **`mc.bot.follow` gives up on a target it cannot reach.** It replaced the walker's goal each time
   the target changed block and every 30 ticks anyway, which threw away the path and zeroed the
   futile-search counter, so a follow toward an entity across water or up a pillar ran a full search
