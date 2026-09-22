@@ -254,7 +254,7 @@ truthiness. `once: true` cancels the watcher after it fires.
   the client's request when it recognises it and otherwise returning its latest.
 - The `Origin` header is validated against a loopback allowlist. A request with no `Origin`
   passes, which covers curl, `mcp-remote` and the Inspector; a browser page on a
-  non-loopback origin is rejected with 403.
+  non-loopback origin, or one sending the literal `Origin: null`, is rejected with 403.
 - A failing tool comes back as a result with `isError: true` and a text content block. Only
   transport-level failures become JSON-RPC error envelopes.
 - `mc.client.screenshot` returns two content blocks over MCP, a text block of metadata and

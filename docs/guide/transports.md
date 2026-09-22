@@ -101,6 +101,10 @@ Four rules a client has to get right:
    the frame never assembles, so there is no request to answer and no `id` to answer it
    with. The only inbound payload that comes near 8 MiB is a script body.
 
+The upgrade request is subject to the same Origin validation as an MCP `POST` (see
+[MCP over HTTP](#mcp-over-http)): a handshake from a foreign origin, or from the literal `null`, is answered with 403
+and never becomes a socket.
+
 ### Error codes
 
 | Code | Meaning |
@@ -178,11 +182,14 @@ answer may disconnect. `initialize` also advertises `tools` with `listChanged: f
 catalog is fixed by the time any external client connects — and `logging`, which is how the
 event push is announced.
 
-**Origin validation.** The `Origin` header is checked against a loopback allowlist
-(`localhost`, `127.0.0.1`, `::1`) as a defence against DNS rebinding, which the
-specification requires. A request with no `Origin`, or the literal `null`, passes; that
-covers curl and essentially every non-browser client. Only a browser-initiated request from
-a non-loopback origin is rejected, with 403.
+**Origin validation.** The `Origin` header is checked against a loopback allowlist as a
+defence against DNS rebinding, which the specification requires. The same policy guards the
+WebSocket handshake:
+
+- No `Origin` header passes. That covers curl and essentially every non-browser client.
+- An `http` or `https` origin whose host is `localhost`, `127.0.0.1` or `::1` passes.
+- Everything else is rejected with 403, including the literal `null`. That value is what a
+  sandboxed iframe or a `data:` page sends, so accepting it would let any web page through.
 
 **Request and response shapes.** `POST` with a JSON-RPC request returns 200 and
 `application/json`. `POST` with a notification, meaning no `id`, returns 202 with an empty
@@ -314,7 +321,7 @@ rather than relying on the class filter, and treat `-Dworlddriver.sandbox=on` as
 that you add on top, not as the thing that makes the exposure safe. A class filter is not
 an authentication mechanism.
 
-The same reasoning applies to the MCP `Origin` check: it defends a browser on your own
+The same reasoning applies to the `Origin` check on both network transports: it defends a browser on your own
 machine against being used to reach the endpoint, and it does nothing at all about a client
 that simply connects.
 

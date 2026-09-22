@@ -1,8 +1,11 @@
 package net.magicterra.worlddriver.rpc;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -11,8 +14,15 @@ import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.util.AttributeKey;
@@ -22,6 +32,7 @@ import net.magicterra.worlddriver.model.DriverEvent;
 
 import java.io.Closeable;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -42,6 +53,9 @@ import java.util.concurrent.ThreadFactory;
  *
  * Same {@code DriverApi.route(method, params)} is invoked here AND from in-JVM Rhino
  * calls, guaranteeing structural parity between paths.
+ *
+ * The upgrade request is refused with 403 when its {@code Origin} fails
+ * {@link OriginPolicy}, the same check the MCP transport applies to a POST.
  *
  * <h2>Event push channel (driver→agent)</h2>
  * This WebSocket is JSON-RPC over a custom transport (the spec permits custom
@@ -104,6 +118,7 @@ public final class RpcServer implements Closeable {
                  ch.pipeline()
                    .addLast(new HttpServerCodec())
                    .addLast(new HttpObjectAggregator(1 << 20))
+                   .addLast(new OriginGate())
                    .addLast(new WebSocketServerProtocolHandler("/rpc", null, true,
                            TransportLimits.MAX_REQUEST_BYTES))
                    .addLast(new FrameHandler(api, routeExec, subs));
@@ -165,6 +180,29 @@ public final class RpcServer implements Closeable {
             t.setDaemon(true);
             return t;
         };
+    }
+
+    /** Refuses the upgrade request of a browser page from a foreign origin. WebSockets are
+     *  outside CORS, so without this any page the user opens can drive the socket. */
+    private static final class OriginGate extends ChannelInboundHandlerAdapter {
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            if (msg instanceof FullHttpRequest req) {
+                String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+                if (!OriginPolicy.isAllowed(origin)) {
+                    req.release();
+                    FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.FORBIDDEN,
+                            Unpooled.copiedBuffer("forbidden origin: " + origin, StandardCharsets.UTF_8));
+                    res.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=utf-8");
+                    res.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, res.content().readableBytes());
+                    res.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+                    ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+                    return;
+                }
+            }
+            ctx.fireChannelRead(msg);
+        }
     }
 
     private static final class FrameHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {

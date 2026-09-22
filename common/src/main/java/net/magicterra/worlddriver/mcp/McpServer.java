@@ -8,13 +8,13 @@ import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.rpc.OriginPolicy;
 import net.magicterra.worlddriver.rpc.TransportLimits;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,7 +43,8 @@ import java.util.concurrent.TimeUnit;
  *    application/json — no SSE needed for stateless tool calls).
  *  - POST with a JSON-RPC notification (no id) → 202 Accepted with empty body.
  *  - {@code Origin} header is validated to defend against DNS rebinding
- *    (spec MUST). Same-origin / curl requests with no Origin pass through.
+ *    (spec MUST) by {@link OriginPolicy}: absent or loopback passes, the literal
+ *    {@code null} and everything else get 403.
  *  - Bound to 127.0.0.1 only.
  *  - Protocol version is negotiated in {@code initialize}: we echo the
  *    client's requested version if we know it, otherwise return our latest.
@@ -408,33 +409,18 @@ public final class McpServer implements Closeable {
     }
 
     /**
-     * DNS-rebinding defense (spec MUST). Browser-originated requests carry an
-     * {@code Origin} header reflecting the page that initiated them; we only
-     * accept loopback. Non-browser clients (curl, Claude Desktop, MCP Inspector)
-     * typically send no Origin — those pass through.
+     * DNS-rebinding defense (spec: 2025-06-18 §Transports, Security Warning — servers
+     * MUST validate the Origin header). The policy is {@link OriginPolicy}, shared with
+     * the WebSocket handshake.
      *
      * Returns true when the request should be processed, false when a 403 has
      * already been written and the caller should bail.
      */
     private static boolean checkOrigin(HttpExchange ex) throws IOException {
         String origin = ex.getRequestHeaders().getFirst("Origin");
-        if (isAllowedOrigin(origin)) return true;
+        if (OriginPolicy.isAllowed(origin)) return true;
         send(ex, 403, "forbidden origin: " + origin);
         return false;
-    }
-
-    private static boolean isAllowedOrigin(String origin) {
-        if (origin == null || origin.isEmpty() || "null".equals(origin)) return true;
-        try {
-            String host = URI.create(origin).getHost();
-            if (host == null) return false;
-            return "localhost".equals(host)
-                    || "127.0.0.1".equals(host)
-                    || "::1".equals(host)
-                    || "[::1]".equals(host);
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
     }
 
     private static Map<String, Object> toolError(String message) {
