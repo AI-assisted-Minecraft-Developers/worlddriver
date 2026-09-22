@@ -738,8 +738,11 @@ public final class DriverApi {
      *  so the calling thread (server tick / client tick / watcher) never blocks on a
      *  socket write. Returns the assigned sequence number. */
     long emit(String type, BlockPos pos, Object data) {
-        DriverEvent e = new DriverEvent(eventSeq.incrementAndGet(), type, pos, data);
+        DriverEvent e;
+        // The seq is taken under the lock: readers advance their cursor to the last seq they
+        // saw, so an event appended behind a higher seq would never be returned to them.
         synchronized (eventsLock) {
+            e = new DriverEvent(eventSeq.incrementAndGet(), type, pos, data);
             if (events.size() >= EVENT_BUFFER_CAP) events.pollFirst();
             events.addLast(e);
         }
