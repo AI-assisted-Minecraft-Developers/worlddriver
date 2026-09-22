@@ -328,13 +328,21 @@ public final class WorldDriverCommon {
      * id in full so it cannot collide with another mod's command in a large pack; other parts of the
      * driver (the server-avatar command, the testmod's scene and validation commands) register their
      * own `worlddriver` literal and Brigadier merges the children under the one root.
+     *
+     * <p>Each child carries its own permission gate. A gate on the root would not hold: the merge
+     * keeps the requirement of whichever `worlddriver` literal registered first.
      */
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(MOD_ID)
-                .then(Commands.literal("port").executes(WorldDriverCommon::cmdPort))
-                .then(Commands.literal("mcp").executes(WorldDriverCommon::cmdMcp))
-                .then(Commands.literal("reload").executes(WorldDriverCommon::cmdReload));
+                .then(Commands.literal("port").requires(WorldDriverCommon::isOperator).executes(WorldDriverCommon::cmdPort))
+                .then(Commands.literal("mcp").requires(WorldDriverCommon::isOperator).executes(WorldDriverCommon::cmdMcp))
+                .then(Commands.literal("reload").requires(WorldDriverCommon::isOperator).executes(WorldDriverCommon::cmdReload));
         dispatcher.register(root);
+    }
+
+    /** The endpoints locate an unauthenticated control socket, and reload re-runs the operator's scripts. */
+    private static boolean isOperator(CommandSourceStack source) {
+        return source.hasPermission(2);
     }
 
     private static int cmdPort(CommandContext<CommandSourceStack> ctx) {

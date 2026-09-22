@@ -163,14 +163,15 @@ curl -s http://127.0.0.1:$PORT/mcp \
 ## 游戏内命令
 
 挂在 `/worlddriver` 下的 Brigadier 子命令。命令根用的是完整的 mod id，以免在大型整合包里与别的
-模组的命令撞名。
+模组的命令撞名。每个子命令都需要权限等级 2：即管理员，单人世界中则须开启作弊。没有这一权限时，
+端点仍可从 `worlddriver-mcp.port` 与 `worlddriver-rpc.port` 读到。
 
 | 命令 | 作用 |
 |---|---|
 | `/worlddriver port`        | 打印 RPC 端点 |
 | `/worlddriver mcp`         | 打印 MCP 端点 |
 | `/worlddriver reload`      | 重新加载 `config/worlddriver/scripts/` 下的用户脚本 |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | 生成并驱动一具服务器端身体；需要权限等级 2 |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | 生成并驱动一具服务器端身体 |
 
 校验套件的 `/worlddriver test` 随 testmod 提供，只存在于开发运行中；见
 [`docs/dev/testing.md`](docs/dev/testing.md)。

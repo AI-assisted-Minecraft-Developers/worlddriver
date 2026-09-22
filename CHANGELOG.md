@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The command, its `list` and `result` children, the `-Dworlddriver.runValidation` startup hook
   and the scripts themselves now ship with the testmod, where the command requires permission
   level 2 and refuses a second run while one is in flight.
+- **`/worlddriver port`, `mcp` and `reload` require permission level 2.** The first two told any
+  player where the unauthenticated control endpoints listen, and `reload` let one re-run the
+  operator's scripts. The gate sits on each subcommand rather than on the `worlddriver` root,
+  because Brigadier keeps the requirement of whichever same-named literal registered first. On a
+  single-player world they now need cheats allowed; the port files still name the endpoints.
 
 ## 2026-09-20
 
