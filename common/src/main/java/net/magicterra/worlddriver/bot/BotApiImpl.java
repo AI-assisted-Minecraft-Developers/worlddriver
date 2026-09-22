@@ -998,12 +998,12 @@ public final class BotApiImpl implements BotApi {
         // below — see the note there. (Running it here was a no-op for an idle
         // bot: the idle releaseKeys() clobbered the jump key every tick, so a
         // submerged idle bot never surfaced and drowned with autoSwim "on".)
-        // autoTool only fires when no process owns hotbar selection — MineProcess
-        // / BboxFillProcess / BuildProcess / FarmProcess all manage hotbar
-        // themselves and would fight us. So this is essentially "swap to best
-        // tool when the player is manually mining" (or scripted-attack via
+        // autoTool only fires when nothing owns hotbar selection — MineProcess
+        // / BboxFillProcess / BuildProcess / FarmProcess and the reflex chains all
+        // manage hotbar themselves and would fight us. So this is essentially "swap
+        // to best tool when the player is manually mining" (or scripted-attack via
         // input.click), the same scope as Baritone's autoTool.
-        if (BotConfig.autoTool && c == null) {
+        if (BotConfig.autoTool && AutoTool.mayRun(c, scheduler)) {
             AutoTool.tick(mc, mc.player);
         }
         // Record foot position for autoBackfill — runs every tick the setting

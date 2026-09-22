@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   process (nothing to backfill, no bed in range) never drove the body, yet its ending, the handover
   to idle after it, and the idle release on the next tick each cleared the seven movement keybinds
   the human shares with the bot. Only a process that has run across a tick boundary releases them.
+- **`autoTool` stands aside while any chain drives, not only while the user task is empty.** The
+  bunker reflex, and the processes dusk shelter and retreat drive, pick their own hotbar slots with
+  the user slot empty, and the picker swapped away from them.
 
 ## 2026-09-20
 
