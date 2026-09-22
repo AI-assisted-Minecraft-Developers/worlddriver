@@ -24,7 +24,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -86,6 +87,9 @@ public final class McpServer implements Closeable {
 
     private final DriverApi api;
     private final HttpServer http;
+    private final ThreadPoolExecutor executor;
+    private final Semaphore postSlots = new Semaphore(TransportLimits.MCP_MAX_IN_FLIGHT);
+    private final Semaphore streamSlots = new Semaphore(TransportLimits.MCP_MAX_EVENT_STREAMS);
     /** Open server→client SSE streams (clients that issued {@code GET /mcp}).
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
@@ -99,11 +103,18 @@ public final class McpServer implements Closeable {
         this.http = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
         this.http.createContext("/mcp", this::handle);
         this.http.createContext("/", this::handleRoot);
-        this.http.setExecutor(Executors.newCachedThreadPool(r -> {
+        // More threads than both caps together, so a request past a cap still gets a
+        // thread to be told it is busy. Only a burst past threads + queue is dropped
+        // without an answer, which is the HTTP server's own behaviour on rejection.
+        int threads = TransportLimits.MCP_MAX_IN_FLIGHT + TransportLimits.MCP_MAX_EVENT_STREAMS + 8;
+        this.executor = new ThreadPoolExecutor(threads, threads, 60L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(64), r -> {
             Thread t = new Thread(r, "agent-mcp-worker");
             t.setDaemon(true);
             return t;
-        }));
+        });
+        this.executor.allowCoreThreadTimeOut(true);
+        this.http.setExecutor(executor);
         this.http.start();
         api.addEventListener(this::onEvent);
     }
@@ -183,6 +194,11 @@ public final class McpServer implements Closeable {
         // here, and an id-less tools/call would run a verb whose result nobody can read.
         if (id == null) { sendNoBody(ex, 202); return; }
 
+        if (!postSlots.tryAcquire()) {
+            sendJson(ex, 503, jsonRpcError(id, TransportLimits.RPC_CODE_SERVER_BUSY, "server busy: "
+                    + TransportLimits.MCP_MAX_IN_FLIGHT + " requests already running; retry later"));
+            return;
+        }
         try {
             switch (method) {
                 case "initialize" -> {
@@ -249,6 +265,8 @@ public final class McpServer implements Closeable {
             }
         } catch (Throwable t) {
             sendJson(ex, 200, jsonRpcError(id, -32603, "internal: " + t.getMessage()));
+        } finally {
+            postSlots.release();
         }
     }
 
@@ -260,6 +278,19 @@ public final class McpServer implements Closeable {
      * every 15 s so a silently-dropped peer is detected.
      */
     private void handleSse(HttpExchange ex) throws IOException {
+        if (!streamSlots.tryAcquire()) {
+            send(ex, 503, "server busy: " + TransportLimits.MCP_MAX_EVENT_STREAMS
+                    + " event streams already open; close one first");
+            return;
+        }
+        try {
+            streamUntilClosed(ex);
+        } finally {
+            streamSlots.release();
+        }
+    }
+
+    private void streamUntilClosed(HttpExchange ex) throws IOException {
         ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
         ex.getResponseHeaders().set("Cache-Control", "no-cache");
         ex.getResponseHeaders().set("Connection", "keep-alive");
@@ -507,5 +538,6 @@ public final class McpServer implements Closeable {
         for (SseSubscriber sub : sse) sub.die();
         sse.clear();
         http.stop(0);
+        executor.shutdown();
     }
 }

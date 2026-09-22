@@ -65,6 +65,13 @@ public final class TransportLimits {
     /** Worker threads the WebSocket server runs requests on, across all connections. */
     public static final int RPC_MAX_WORKERS = 64;
 
+    /** POSTs the MCP server runs at once; past it a request gets 503 with
+     *  {@link #RPC_CODE_SERVER_BUSY}, for the same reason as the WebSocket cap. */
+    public static final int MCP_MAX_IN_FLIGHT = 32;
+
+    /** Open MCP event streams ({@code GET /mcp}); each parks a worker for its lifetime. */
+    public static final int MCP_MAX_EVENT_STREAMS = 8;
+
     /** JSON-RPC error code, from the implementation-defined server-error range, for a
      *  request refused because a concurrency cap is full. Retrying later can succeed. */
     public static final int RPC_CODE_SERVER_BUSY = -32005;

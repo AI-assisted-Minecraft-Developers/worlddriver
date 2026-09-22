@@ -225,6 +225,10 @@ heartbeat every 15 seconds so a silently dropped peer is noticed. A `GET` withou
 `Accept` header gets 405, which the specification permits. Events fan out to every open
 stream rather than being correlated to a session.
 
+At most 8 event streams may be open at once; a further `GET` gets 503. Likewise at most 32
+`POST` requests run at once, and one past that gets 503 with a JSON-RPC error of code
+`-32005` and nothing is run.
+
 If a consumer falls more than 256 frames behind, its stream is closed rather than having
 frames dropped, on the reasoning that a consumer which silently misses events cannot tell
 that it did. Reconnect and replay from your cursor with `mc.observe.eventsSince`.
@@ -312,6 +316,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | Event-stream backlog | 256 frames per MCP stream; 16 MiB queued per WebSocket connection | Overflow closes that stream or connection. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. |
 | Concurrent RPC requests | 16 per connection, 64 across the server | Past either, a request is refused at once with `-32005` rather than queued. |
+| Concurrent MCP work | 32 `POST` requests, 8 event streams | Past either, 503; a refused `POST` carries a `-32005` error. |
 | WebSocket liveness | Ping after 30 s quiet; close after 4 minutes with nothing received | Every RPC connection. |
 
 ## Security
