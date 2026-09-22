@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`mc.bot.setting` rejects a number outside the key's documented range.** The ranges were written
+  twice, once in the schema text and once in the write path, and the two had drifted: the goal-field,
+  depth, descend, bridge and thin-obstacle keys clamped to a lower bound and took anything above
+  it, `lowHealthCareful` took 999, and all of them reported `applied`. The range is now read from
+  the key's row in `SettingsDocs`, which is also its schema description, and a value outside it lands
+  in `rejected` as `<key> out of range [min,max]` and changes nothing. The sixteen ranged keys that
+  had no row got one, the goal-field and depth keys got the ranges `methods.md` already listed, and
+  an aliased field's own name (`walkerRepathEveryTicks`) is held to its alias's range.
 - **`autoTotem` no longer hides an offhand shield from `autoShield`.** It swapped the first totem it
   found, backpack before hotbar, into the offhand, and the swap drops the offhand's item into the
   totem's old slot. `autoShield` only looks at the offhand and the hotbar, so with both reflexes on a

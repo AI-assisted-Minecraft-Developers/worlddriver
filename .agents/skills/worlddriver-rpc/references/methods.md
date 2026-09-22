@@ -245,7 +245,10 @@ names, some with a `dotted.name` ⇄ `botConfigField` remap like
 `walker.repathEveryTicks`→`walkerRepathEveryTicks`) **plus a reflective pass that
 auto-includes every `public static volatile` primitive/String field of
 `BotConfig`.** So the *field is the schema*: adding a settable `BotConfig` field
-makes it a valid key with no second edit. Ranges live in `BotConfig`'s apply logic.
+makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**: a
+key's row opens with `[min,max]`, that row is the key's schema description, and the
+write path rejects any number outside it (an aliased field's own name, e.g.
+`walkerRepathEveryTicks`, is held to its alias's range).
 The set is large — **on the order of 200 keys** (currently ~120 boolean, ~70
 numeric, plus a handful of list/string keys); the great majority are `walker*` /
 `pathfinder*` movement-research toggles.
@@ -294,10 +297,10 @@ rangedAvoidRadius[4,48], autoBackfillRadius[1,16], maxWaterBucketFall[4,256],
 walker.repathEveryTicks[20,10000], walker.totalTickBudget[200,36000],
 mine.searchVerticalRadius[1,32], breakTimeoutTicks[20,2000],
 pathfinder.maxNodes[1000,1000000], pathfinder.maxMs[100,30000],
-pathfinder.sliceMs[1,50], pathfinder.idleSliceMs, pathfinder.ledgeDangerMinDrop[1,64],
+pathfinder.sliceMs[1,50], pathfinder.idleSliceMs[1,50], pathfinder.ledgeDangerMinDrop[1,64],
 pathfinder.axisHeight[-64,320], goalFieldCellSize[1,16], goalFieldRadius[8,192],
-goalFieldVerticalRadius[4,128], pathfinderDepthSlack[0,64], pathfinderHorizonBlocks,
-pathfinderMaxDryFall, pathfinderSoftCommitNodes, pathfinderQuickNodes,
+goalFieldVerticalRadius[4,128], pathfinderDepthSlack[0,64], pathfinderHorizonBlocks[0,512],
+pathfinderMaxDryFall[3,5], pathfinderSoftCommitNodes[0,1000000], pathfinderQuickNodes[0,10000],
 pathDebugMaxNodes[100,200000], pathDebugMaxSamples[100,200000]`.
 
 **Numbers (double, [min,max])** — survival/combat: `retreatHpThreshold[0,20],

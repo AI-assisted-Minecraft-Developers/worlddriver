@@ -287,12 +287,17 @@ public final class SettingsRegistry {
     private static final Map<String, Field> CONFIG_FIELDS = new HashMap<>();
     private static final LinkedHashSet<String> HAND_KEYS = new LinkedHashSet<>();
     private static final LinkedHashMap<String, Type> SCHEMA_PROPS = new LinkedHashMap<>();
+    private static final Map<String, Hand> HAND_BY_KEY = new HashMap<>();
+    private static final Map<String, String> ALIAS_OF_FIELD = new HashMap<>();
+    private static final Map<String, Field> PRIMITIVE_FIELDS = new HashMap<>();
 
     static {
         for (Hand h : HAND) {
             if (!HAND_KEYS.add(h.key())) {
                 throw new IllegalStateException("SettingsRegistry: duplicate hand key '" + h.key() + "'");
             }
+            HAND_BY_KEY.put(h.key(), h);
+            if (h.field() != null && !h.field().equals(h.key())) ALIAS_OF_FIELD.put(h.field(), h.key());
             if (h.read() == Read.CONFIG_FIELD) {
                 try {
                     CONFIG_FIELDS.put(h.field(), BotConfig.class.getField(h.field()));
@@ -307,6 +312,7 @@ public final class SettingsRegistry {
         for (Field f : reflectivePrimitiveFields()) {
             if (HAND_KEYS.contains(f.getName())) continue;   // shadowed by a hand key (matches build)
             SCHEMA_PROPS.putIfAbsent(f.getName(), typeOf(f.getType()));
+            PRIMITIVE_FIELDS.put(f.getName(), f);
         }
         SCHEMA_PROPS.putAll(APPLY_ONLY);
         assertDocsResolve();   // LAST: needs the finished key set
@@ -346,6 +352,28 @@ public final class SettingsRegistry {
 
     /** Cached BotConfig field for a {@code CONFIG_FIELD} hand key's backing field name (or null). */
     static Field configField(String fieldName) { return CONFIG_FIELDS.get(fieldName); }
+
+    /**
+     * The primitive field a write to {@code key} lands in, or null: the backing field of a hand key
+     * ({@code walker.repathEveryTicks} → {@code walkerRepathEveryTicks}), else the field of that name.
+     */
+    static Field primitiveField(String key) {
+        Hand h = HAND_BY_KEY.get(key);
+        Field f = h == null ? PRIMITIVE_FIELDS.get(key)
+                : h.read() == Read.CONFIG_FIELD ? CONFIG_FIELDS.get(h.field()) : null;
+        return f != null && f.getType().isPrimitive() ? f : null;
+    }
+
+    /**
+     * The documented range of {@code key}. An aliased field answers to its own name as well as the
+     * alias, so the field name is held to the range written on the alias.
+     */
+    static SettingsDocs.Range documentedRange(String key) {
+        SettingsDocs.Range r = SettingsDocs.range(key);
+        if (r != null) return r;
+        String alias = ALIAS_OF_FIELD.get(key);
+        return alias == null ? null : SettingsDocs.range(alias);
+    }
 
     /** The hand-listed keys, in snapshot order. */
     static List<Hand> handEntries() { return HAND; }
