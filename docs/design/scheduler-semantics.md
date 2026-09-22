@@ -61,7 +61,10 @@ chain gave up on is no longer the question.
 
 The bunker reflex bails for 200 ticks when it will not dig the column it stands on (water, a hazard,
 a floor that does not break): it is cornered by definition, so without the bail its 300 starved the
-retreat reflex below it for the whole siege.
+retreat reflex below it for the whole siege. Dusk shelter bails for 600 ticks when its bunker process
+ends without enclosing the bot, and restarts its start debounce: an unsafe site fails on the first
+tick and changes nothing, so it would otherwise restart the dig on every tick of the night at 90,
+above the user task.
 
 A chain reaches the scheduler through `Chain.registeredWith`, called once by `register`. A chain built
 standalone, as the matrix scenes build them, has no scheduler and its bail is only its own reset.

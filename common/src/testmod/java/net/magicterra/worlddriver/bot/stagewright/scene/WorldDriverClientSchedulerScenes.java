@@ -11,6 +11,7 @@ import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotConfig;
 import net.magicterra.worlddriver.bot.process.SleepProcess;
 import net.magicterra.worlddriver.bot.stagewright.ClientHelm;
+import net.magicterra.worlddriver.bot.stagewright.journey.HoldStill;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerPlayer;
@@ -34,7 +35,9 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.clientSleepCancelEndsGoto", 600, WorldDriverClientSchedulerScenes::sleepCancelEndsGoto),
                 Scene.of("wd.clientBunkerBailHandsToRetreat", 600,
-                        WorldDriverClientSchedulerScenes::bunkerBailHandsToRetreat));
+                        WorldDriverClientSchedulerScenes::bunkerBailHandsToRetreat),
+                Scene.of("wd.clientDuskSecureBeachDoesNotRestart", 800,
+                        WorldDriverClientSchedulerScenes::duskSecureBeachDoesNotRestart));
     }
 
     private static final int GROUND = 20;
@@ -120,6 +123,55 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         Object r = WorldDriverCommon.api().route(method, params);
         ctx.record(tag, String.valueOf(r));
         return r instanceof Map<?, ?> m ? m : Map.of();
+    }
+
+    /**
+     * Exposed at night on a beach with {@code autoSecureAtDusk}: the sand beside the bot is wet, so
+     * even a one-deep niche floods and the bunker process ends with {@code unsafe-site} on its first
+     * tick, changing nothing. Dusk shelter must then sit out its cooldown and let the user task run,
+     * instead of bidding 90 above it and restarting the dig every tick for the whole night.
+     */
+    private static void duskSecureBeachDoesNotRestart(SceneContext ctx) {
+        for (int dx = -8; dx <= 8; dx++)
+            for (int dz = -6; dz <= 6; dz++) {
+                ctx.setBlock(dx, GROUND - 1, dz, Blocks.STONE);
+                // The pool stops short of the slab's edge on every side, so none of it runs off.
+                ctx.setBlock(dx, GROUND, dz, dx >= 1 && dx <= 4 && Math.abs(dz) <= 4 ? Blocks.WATER : Blocks.SAND);
+                for (int dy = 1; dy <= 5; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
+            }
+        BlockPos start = ctx.rel(0, GROUND + 1, 0);
+        final long dayTimeWas = ctx.level().getDayTime();
+        ctx.cleanup(() -> ctx.level().setDayTime(dayTimeWas));
+        ctx.level().setDayTime(15_000);
+        ctx.record("布景", "沙滩，身体站在 " + start.toShortString() + "，东边紧挨着水 x∈[1,4]；时间 15000（夜）");
+
+        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
+        BotConfig.autoSecureAtDusk = true;
+        BotConfig.duskUrgent = true;
+        BotConfig.duskUrgentDryRun = false;
+        // Time packets reach the client once a second; wait for the night to be the client's too.
+        helm.sync(40, () -> {
+            helm.bot().runProcess(new HoldStill(1_000));
+            final int window = 300;
+            final int[] t = { 0 }, duskTicks = { 0 }, userTicks = { 0 };
+            final Object[] bail = { null }, endReason = { null };
+            ctx.await(() -> {
+                Sample s = sample(helm);
+                if ("duskSecure".equals(s.chain())) duskTicks[0]++;
+                if ("user".equals(s.chain())) userTicks[0]++;
+                if (bail[0] == null) bail[0] = bailOf(s, "duskSecure");
+                if (endReason[0] == null) endReason[0] = helm.slot("bunker").get("endReason");
+                return ++t[0] >= window;
+            }).within(window + 100).then(() -> {
+                ctx.record("观测", "duskSecure 持有通道 " + duskTicks[0] + " tick，user " + userTicks[0]
+                        + " tick（共 " + window + "），bunker.endReason=" + endReason[0] + "，bail=" + bail[0]);
+                ctx.check("unsafe-site".equals(endReason[0]))
+                        .as("布景：沙滩上的 bunker 以 unsafe-site 结束：" + endReason[0]).isTrue();
+                ctx.check(duskTicks[0] <= 3).as("A 失败后不每 tick 重启：duskSecure 持有 " + duskTicks[0] + " tick").isTrue();
+                ctx.check(userTicks[0] >= window - 40).as("B 用户任务拿回通道：user 持有 " + userTicks[0] + " tick").isTrue();
+                ctx.check(bail[0] instanceof Map<?, ?>).as("C status 里看得到 duskSecure 的 bail：" + bail[0]).isTrue();
+            });
+        });
     }
 
     /**

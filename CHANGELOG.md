@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a hazard, or over a floor it cannot break, `autoBunker` gave up and then re-bid 300 on the next
   tick, so retreat and combat never ran and the bot stood still in front of the mobs. It now bails
   out of the bid for 200 ticks (`BunkerChain.BAIL_COOLDOWN_TICKS`).
+- **Dusk shelter no longer restarts a failed dig every tick.** With `autoSecureAtDusk` on, a bot
+  exposed at night beside water had its bunker process end `unsafe-site` on the first tick, and the
+  chain bid 90 again on the next, above the user task, emitting `duskSecure.triggered` every tick
+  all night. A shelter that ends without enclosing the bot now bails for 600 ticks
+  (`DuskSecureChain.BAIL_COOLDOWN_TICKS`) and starts its debounce over.
 
 ## 2026-09-20
 
