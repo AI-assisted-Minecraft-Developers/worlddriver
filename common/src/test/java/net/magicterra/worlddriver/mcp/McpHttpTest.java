@@ -11,6 +11,7 @@ import java.net.http.HttpResponse;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The MCP Streamable HTTP endpoint's request contract, over a real socket. */
 @Timeout(30)
@@ -72,6 +73,16 @@ class McpHttpTest {
             post(server.port(), "application/json",
                     "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
             assertEquals(1, calls.get(), "the same call with an id runs");
+        }
+    }
+
+    @Test
+    void aNonStringMethodIsAnInvalidRequest() throws Exception {
+        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+            HttpResponse<String> r = post(server.port(), "application/json",
+                    "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":42}");
+            assertEquals(400, r.statusCode(), r.body());
+            assertTrue(r.body().contains("-32600"), r.body());
         }
     }
 

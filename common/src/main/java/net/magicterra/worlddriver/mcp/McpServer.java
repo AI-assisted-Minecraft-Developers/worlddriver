@@ -183,11 +183,13 @@ public final class McpServer implements Closeable {
             return;
         }
         Object id = req.get("id");
-        String method = (String) req.get("method");
+        // A cast here threw out of the handler, and the HTTP server answers that by dropping
+        // the connection without a response.
+        String method = (req.get("method") instanceof String s) ? s : null;
         Map<String, Object> params = (req.get("params") instanceof Map<?, ?> mp)
                 ? (Map<String, Object>) mp : Map.of();
 
-        if (method == null) { sendJson(ex, 400, jsonRpcError(id, -32600, "missing method")); return; }
+        if (method == null) { sendJson(ex, 400, jsonRpcError(id, -32600, "missing or non-string method")); return; }
 
         // spec: 2025-06-18 §Transports — an accepted notification gets 202 with no body.
         // Nothing is dispatched: every client→server notification MCP defines is advisory
