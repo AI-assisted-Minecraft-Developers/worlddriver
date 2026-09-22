@@ -191,7 +191,10 @@ WebSocket handshake:
 - Everything else is rejected with 403, including the literal `null`. That value is what a
   sandboxed iframe or a `data:` page sends, so accepting it would let any web page through.
 
-**Request and response shapes.** `POST` with a JSON-RPC request returns 200 and
+**Request and response shapes.** A `POST` must carry `Content-Type: application/json`
+(parameters such as `charset` are fine); any other type, or none, returns 415. That also
+closes the browser path the Origin check cannot see: a page may send `text/plain` without a
+preflight, but not `application/json`. `POST` with a JSON-RPC request returns 200 and
 `application/json`. `POST` with a notification, meaning no `id`, returns 202 with an empty
 body. A body over `worlddriver.maxRequestBytes` returns 413, checked against
 `Content-Length` first and then enforced by a bounded read when that header is missing.

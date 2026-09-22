@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
  *    (the spec allows either application/json or text/event-stream; we pick
  *    application/json — no SSE needed for stateless tool calls).
  *  - POST with a JSON-RPC notification (no id) → 202 Accepted with empty body.
+ *  - POST whose Content-Type is not {@code application/json} → 415.
  *  - {@code Origin} header is validated to defend against DNS rebinding
  *    (spec MUST) by {@link OriginPolicy}: absent or loopback passes, the literal
  *    {@code null} and everything else get 403.
@@ -136,6 +137,13 @@ public final class McpServer implements Closeable {
             return;
         }
         if (!"POST".equals(ex.getRequestMethod())) { send(ex, 405, "method not allowed"); return; }
+        // Not a spec requirement: a no-cors browser fetch may only send the CORS "simple"
+        // types, which skip the preflight, so demanding application/json keeps web pages
+        // out of tools/call even when the Origin check cannot see them.
+        if (!isJsonContentType(ex.getRequestHeaders().getFirst("Content-Type"))) {
+            send(ex, 415, "unsupported media type: POST requires Content-Type: application/json");
+            return;
+        }
 
         // Pre-flight Content-Length check (cheap path). When the header is
         // missing, fall back to a bounded read that aborts past MAX_BODY_BYTES.
@@ -421,6 +429,14 @@ public final class McpServer implements Closeable {
         if (OriginPolicy.isAllowed(origin)) return true;
         send(ex, 403, "forbidden origin: " + origin);
         return false;
+    }
+
+    /** {@code application/json}, with or without parameters such as {@code charset}. */
+    static boolean isJsonContentType(String contentType) {
+        if (contentType == null) return false;
+        int semi = contentType.indexOf(';');
+        String type = (semi < 0 ? contentType : contentType.substring(0, semi)).trim();
+        return type.equalsIgnoreCase("application/json");
     }
 
     private static Map<String, Object> toolError(String message) {

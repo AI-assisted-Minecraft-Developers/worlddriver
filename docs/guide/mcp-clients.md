@@ -246,8 +246,9 @@ truthiness. `once: true` cancels the watcher after it fires.
 
 ## Writing your own client
 
-- The endpoint is a single URL serving both `POST` and `GET`. `POST` carries requests and
-  returns `application/json`; `GET` with `Accept: text/event-stream` opens the notification
+- The endpoint is a single URL serving both `POST` and `GET`. `POST` carries requests, must
+  send `Content-Type: application/json` (anything else gets 415) and returns
+  `application/json`; `GET` with `Accept: text/event-stream` opens the notification
   stream.
 - A request without an `id` is a notification and gets 202 with an empty body.
 - The server negotiates `2025-06-18`, `2025-03-26` or `2024-11-05` in `initialize`, echoing
