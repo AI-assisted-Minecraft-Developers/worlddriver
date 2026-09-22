@@ -107,7 +107,7 @@ while it is loaded. Full per-method params + returns are in **`references/method
 | `mc.client.input.*` | `click`, `slotClick`, `mouseMove`, `typeText`, `replaceText`, `key`, `setHotbarSlot`, `slider` |
 | `mc.client.*` | `player`, `scene`, `blocks` (client-authoritative reads), `overlays`, `screenshot` |
 | `mc.bot.*` | `goto`, `mine`, `bunker`, `escape`, `craft`, `smelt`, `combat`, `equip`, `build`, `clearArea`, `farm`, `construct`, `sleep`, `follow`, `explore`, `runAway`, `lookAt`, `useItem`, `attackEntity`, `elytraFly`, `playbook`, `waypoint`, `status`, `cancel`, `setting` |
-| `mc.script.eval` / `mc.skill` | sandboxed JS snippet (one round-trip) + persistent skill library (`save`/`list`/`get`/`run`/`delete`) |
+| `mc.script.eval` / `mc.skill` | JS snippet (one round-trip; **not sandboxed** unless `-Dworlddriver.sandbox=on`) + persistent skill library (`save`/`list`/`get`/`run`/`delete`) |
 
 ## Live event stream → Monitor (game-event notifications)
 
@@ -179,10 +179,12 @@ Two related building blocks for conditions the raw event types don't cover:
 - **`mc.client.*` / `mc.bot.*` need a client.** On a dedicated server they error
   with "not available (client only …)". `mc.system/action/observe/query/wait`
   work server-side.
-- **`mc.script.eval` runs on the server thread** — its result for client-thread
-  state is unreliable and it can't set client-side fields; use it for chaining
-  *API calls* (observe→decide→act), not for poking the client. For setting
-  client-side bot config, use `mc.bot.setting`.
+- **`mc.script.eval` runs on a worker thread**, neither the server nor the client
+  thread. Every `Driver.invoke` hops onto the thread its route needs, so chaining
+  *API calls* (observe→decide→act, `mc.bot.setting`, `mc.client.*`) is safe; reaching
+  game objects directly through Java touches them off-thread, so don't. It is **not
+  sandboxed** by default (full JVM access; `-Dworlddriver.sandbox=on` opts into a class
+  filter) — never pass it source you would not run in a shell.
 - **Clear leftover placed blocks between pathfinder trials.** A successful
   place/bridge/parkour leaves a *real* block in the saved world; a follow-up
   "negative" test (feature off → expect no path) is contaminated if it's still
