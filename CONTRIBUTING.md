@@ -141,7 +141,7 @@ design. The reasoning is in [`docs/dev/architecture.md`](docs/dev/architecture.m
   was started with `-Dworlddriver.sandbox=on`, which nothing in the build does. So the filter
   is not a gate your change has to pass — it is an opt-in hardening mode for deployments that
   want it. What the negative tests in
-  `common/src/main/resources/data/worlddriver/scripts/validation/08_sandbox.js` record is the
+  `common/src/testmod/resources/data/worlddriver/scripts/validation/08_sandbox.js` record is the
   intended boundary, and if you change what a script can reach, say so and argue for it, and
   update that file so the record stays honest about where the line is meant to be.
 

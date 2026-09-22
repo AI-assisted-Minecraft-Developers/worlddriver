@@ -185,13 +185,13 @@ collide with another mod's command in a large pack.
 
 | Command | Effect |
 |---|---|
-| `/worlddriver test`        | Run every validation script on a worker thread and report the pass and fail counts |
-| `/worlddriver test list`   | List the validation script names |
-| `/worlddriver test result` | Print the per-test result of the last run |
 | `/worlddriver port`        | Print the RPC endpoint |
 | `/worlddriver mcp`         | Print the MCP endpoint |
 | `/worlddriver reload`      | Reload user scripts from `config/worlddriver/scripts/` |
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body; requires permission level 2 |
+
+The validation suite's `/worlddriver test` ships with the testmod and exists only in
+development runs; see [`docs/dev/testing.md`](docs/dev/testing.md).
 
 ---
 
@@ -208,8 +208,7 @@ worlddriver/
 │   │   ├── script/         Rhino integration, the evaluator, the optional class filter
 │   │   ├── model/          Wire types shared by the transports
 │   │   └── client/         The broker for client-only calls; implementations live per loader
-│   ├── src/main/resources/data/worlddriver/scripts/validation/   the JavaScript suite
-│   ├── src/testmod/     The scenes the StageWright tasks run
+│   ├── src/testmod/     The scenes the StageWright tasks run, and the JavaScript validation suite
 │   └── src/test/        Plain JVM tests that need no game
 ├── fabric/              Fabric entry point and client-side implementation
 ├── neoforge/            NeoForge entry point and client-side implementation

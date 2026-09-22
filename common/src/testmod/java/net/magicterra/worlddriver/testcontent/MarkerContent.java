@@ -83,5 +83,6 @@ public final class MarkerContent implements TestContent {
         // links MarkerContentClient.
         EnvExecutor.runInEnv(Env.CLIENT, () -> MarkerContentClient::init);
         SceneVerbs.install();
+        ValidationSuite.installStartupRun();
     }
 }

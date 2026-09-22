@@ -64,7 +64,7 @@ exists so a script can compare the two paths against each other.
 
 ### What the parity scripts actually prove
 
-Two scripts under `common/src/main/resources/data/worlddriver/scripts/validation/`
+Two scripts under `common/src/testmod/resources/data/worlddriver/scripts/validation/`
 compare transports:
 
 - `06_rpc_parity.js` compares `Driver.invoke` against `Driver.system.rpcRoundtrip`.

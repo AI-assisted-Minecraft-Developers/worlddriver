@@ -87,6 +87,6 @@ into the game.
   the harness glue they use.
 - `scripts/stagewright/expected-scenes-fabric.txt` and `expected-scenes-neoforge.txt` — the manifest
   that the reconciliation judges against.
-- `common/src/main/resources/data/worlddriver/scripts/validation/` — the cross-transport checks.
+- `common/src/testmod/resources/data/worlddriver/scripts/validation/` — the cross-transport checks.
 - `docs/dev/testing.md` — how to run any of it.
 - StageWright's own documentation — the topologies, the contracts and the Gradle plugin.

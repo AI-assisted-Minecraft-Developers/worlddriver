@@ -298,8 +298,10 @@ loom {
                 || it.name.startsWith('stagewrightIntegrated')
                 || it.name.startsWith('stagewrightDedicated')
                 || it.name.startsWith('stagewrightJoining')) return
-        property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
-        // Cap heap so the dogfood/testkit server runs don't trigger system OOM.
+        // The validation startup hook ships with the testmod, so only a run carrying it can honour the flag.
+        if (it.getSource(project) == sourceSets.testmod) {
+            property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
+        }        // Cap heap so the dogfood/testkit server runs don't trigger system OOM.
         vmArg '-Xmx2g'
     }
 }

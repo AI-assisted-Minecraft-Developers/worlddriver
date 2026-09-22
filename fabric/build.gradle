@@ -584,8 +584,10 @@ loom {
         if (it.name == 'contractServer' || it.name == 'dogfoodServer'
                 || it.name.startsWith('journey') || it.name.startsWith('rehearsal')
                 || it.name.startsWith('stagewright')) return
-        property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
-        // Pin the MCP / RPC ports so the external driver (Claude harness, docs
+        // The validation startup hook ships with the testmod, so only a run carrying it can honour the flag.
+        if (it.getSource(project) == sourceSets.testmod) {
+            property 'worlddriver.runValidation', project.findProperty('agentRunValidation') ?: 'false'
+        }        // Pin the MCP / RPC ports so the external driver (Claude harness, docs
         // example, rpc.py) always finds the mod at a known address. Default to
         // 39800/39801; WorldDriverCommon reads -Dworlddriver.mcpPort / -Dworlddriver.rpcPort
         // (0 = random). Override with -PagentMcpPort=… / -PagentRpcPort=… if two

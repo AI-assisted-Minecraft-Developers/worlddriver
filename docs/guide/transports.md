@@ -329,10 +329,8 @@ Brigadier merges the children under one root.
 | `/worlddriver port` | Print the RPC port |
 | `/worlddriver mcp` | Print the MCP endpoint |
 | `/worlddriver reload` | Re-load user scripts from the scripts directory and report the count |
-| `/worlddriver test` | Run the bundled validation scripts on a worker thread and report pass and fail counts |
-| `/worlddriver test list` | List the validation script names |
-| `/worlddriver test result` | Print the per-script result of the last run |
 | `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body; requires permission level 2 |
 
 The test framework adds more subcommands when it is loaded — see
-[Human verification](human-verification.md) — and the published jar has none of them.
+[Human verification](human-verification.md), and `/worlddriver test` in
+[Testing](../dev/testing.md) — and the published jar has none of them.

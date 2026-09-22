@@ -16,7 +16,6 @@ import net.magicterra.worlddriver.script.PlaybookRunner;
 import net.magicterra.worlddriver.script.RpcBridge;
 import net.magicterra.worlddriver.script.SkillLibrary;
 import net.magicterra.worlddriver.script.ScriptEvaluator;
-import net.magicterra.worlddriver.test.ScriptTest;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -25,14 +24,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
-import java.util.List;
 import java.util.ServiceLoader;
 
 /**
@@ -44,75 +40,11 @@ public final class WorldDriverCommon {
     public static final String MOD_ID = "worlddriver";
     public static final Logger LOG = LoggerFactory.getLogger("WorldDriver");
 
-    private static final List<String> VALIDATION_SCRIPTS = List.of(
-            "01_handshake.js",
-            "02_observe_area.js",
-            "03_events_since.js",
-            "04_action_place.js",
-            "05_query.js",
-            "06_rpc_parity.js",
-            "07_mcp_parity.js",
-            "08_sandbox.js",
-            "09_events.js",
-            "10_client.js",
-            "11_script_eval.js",
-            "12_use_item.js",
-            "13_set_hotbar_slot.js",
-            "14_type_text_and_key.js",
-            "15_input_slot_click.js",
-            "16_attack_entity.js",
-            "17_goto_selectors.js",
-            "18_waypoint.js",
-            "19_setting_survival.js",
-            "20_clearArea_modes.js",
-            "21_blocks_to_avoid.js",
-            "22_phase_c.js",
-            "23_phase_d.js",
-            "24_phase_d2.js",
-            "25_phase_d3.js",
-            "26_schematic_loader.js",
-            "27_sleep.js",
-            "28_construct.js",
-            "29_chat_history.js",
-            "30_backfill.js",
-            "31_goal_types.js",
-            "32_break_place.js",
-            "33_world_snapshot.js",
-            "40_scheduler.js",
-            "41_defense.js",
-            "42_combat.js",
-            "43_recipe.js",
-            "44_craft.js",
-            "45_equip.js",
-            "46_boss.js",
-            "47_plan.js",
-            "48_skill.js",
-            "49_events.js",
-            "50_scene_hazard.js",
-            "51_scene_facts.js",
-            "52_client_scene.js",
-            "53_flee_safety.js",
-            "54_scene_events.js",
-            "55_setting_perception.js",
-            "56_debug_pathchart.js",
-            "57_replay.js",
-            "58_command_result_query_type.js",
-            "59_query_projections.js",
-            "60_stairs_query_guard.js",
-            "61_world_block.js",
-            "62_query_in_radius.js",
-            "63_overlays_tutorial.js",
-            "64_schema_validation.js",
-            "65_schema_union.js",
-            "66_body_routes.js"
-    );
-
     private static DriverApi api;
     private static RpcServer rpcServer;
     private static McpServer mcpServer;
     private static int rpcPort = -1;
     private static int mcpPort = -1;
-    private static volatile List<ScriptTest.Result> lastResults = List.of();
 
     private WorldDriverCommon() {}
 
@@ -366,33 +298,12 @@ public final class WorldDriverCommon {
         return Path.of("config", MOD_ID, "scripts");
     }
 
-    /** Called when STARTED. Attaches the live server. If -Dworlddriver.runValidation=true,
-     *  runs the script suite on a worker thread (so server.execute() roundtrips
-     *  don't deadlock the server thread); the worker waits ~500ms first so spawn
-     *  chunks finish loading their persisted entities before seedTestArea scrubs them. */
+    /** Called when STARTED. Attaches the live server and loads the user scripts. */
     public static void onServerStarted(MinecraftServer server) {
         serverEverStarted = true;
         if (api == null) return;
         api.attachServer(server);
         loadUserScripts();
-        if (Boolean.getBoolean("worlddriver.runValidation")) {
-            LOG.info("[{}] -Dworlddriver.runValidation=true → running validation suite", MOD_ID);
-            Thread t = new Thread(() -> {
-                try { Thread.sleep(500); } catch (InterruptedException ignored) {}
-                api.seedTestArea();
-                int fail = runValidation();
-                System.setProperty("worlddriver.validationFailures", String.valueOf(fail));
-                server.execute(() -> server.halt(false));
-                // Safety net: MC's Util executor / dev-env loom agent sometimes
-                // keep non-daemon threads alive past halt(). Force JVM exit so
-                // headless CI never wedges.
-                try { Thread.sleep(15000); } catch (InterruptedException ignored) {}
-                LOG.warn("[{}] forcing JVM exit (validation failures={})", MOD_ID, fail);
-                Runtime.getRuntime().halt(fail == 0 ? 0 : 1);
-            }, "WorldDriver-Validation");
-            t.setDaemon(true);
-            t.start();
-        }
     }
 
     /**
@@ -413,46 +324,17 @@ public final class WorldDriverCommon {
     }
 
     /**
-     * Registers `/worlddriver test [list|result]`, `/worlddriver port`, `/worlddriver mcp`,
-     * `/worlddriver reload`. The root is the mod id in full so it cannot collide with another mod's
-     * command in a large pack; other parts of the driver (the NeoForge server-avatar command, the
-     * testmod's scene commands) register their own `worlddriver` literal and Brigadier merges the
-     * children under the one root.
+     * Registers `/worlddriver port`, `/worlddriver mcp`, `/worlddriver reload`. The root is the mod
+     * id in full so it cannot collide with another mod's command in a large pack; other parts of the
+     * driver (the server-avatar command, the testmod's scene and validation commands) register their
+     * own `worlddriver` literal and Brigadier merges the children under the one root.
      */
     public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(MOD_ID)
-                .then(Commands.literal("test")
-                        .executes(WorldDriverCommon::cmdTest)
-                        .then(Commands.literal("list").executes(WorldDriverCommon::cmdTestList))
-                        .then(Commands.literal("result").executes(WorldDriverCommon::cmdTestResult)))
                 .then(Commands.literal("port").executes(WorldDriverCommon::cmdPort))
                 .then(Commands.literal("mcp").executes(WorldDriverCommon::cmdMcp))
                 .then(Commands.literal("reload").executes(WorldDriverCommon::cmdReload));
         dispatcher.register(root);
-    }
-
-    private static int cmdTest(CommandContext<CommandSourceStack> ctx) {
-        if (api == null) {
-            ctx.getSource().sendFailure(Component.literal("Agent API not initialized"));
-            return 0;
-        }
-        // Validation MUST run off the server thread: 06_rpc_parity.js does a WebSocket
-        // roundtrip that calls server.execute()+future.get() — which deadlocks if
-        // we're hogging the server thread inside this command handler.
-        CommandSourceStack source = ctx.getSource();
-        MinecraftServer server = source.getServer();
-        source.sendSuccess(() -> Component.literal("Agent validation: started"), false);
-        Thread t = new Thread(() -> {
-            api.seedTestArea();
-            int fail = runValidation();
-            server.execute(() -> source.sendSuccess(
-                    () -> Component.literal("Agent validation: " +
-                            (fail == 0 ? "PASS (all)" : "FAIL (" + fail + " failures)")),
-                    false));
-        }, "WorldDriver-CmdTest");
-        t.setDaemon(true);
-        t.start();
-        return 1;
     }
 
     private static int cmdPort(CommandContext<CommandSourceStack> ctx) {
@@ -469,41 +351,6 @@ public final class WorldDriverCommon {
                 false
         );
         return 1;
-    }
-
-    private static int cmdTestList(CommandContext<CommandSourceStack> ctx) {
-        var src = ctx.getSource();
-        src.sendSuccess(() -> Component.literal("Validation scripts (" + VALIDATION_SCRIPTS.size() + "):"), false);
-        for (String s : VALIDATION_SCRIPTS) {
-            src.sendSuccess(() -> Component.literal("  " + s), false);
-        }
-        return VALIDATION_SCRIPTS.size();
-    }
-
-    private static int cmdTestResult(CommandContext<CommandSourceStack> ctx) {
-        var src = ctx.getSource();
-        var results = lastResults;
-        if (results.isEmpty()) {
-            src.sendSuccess(() -> Component.literal("No validation run on record. Try /worlddriver test first."), false);
-            return 0;
-        }
-        int pass = 0, fail = 0;
-        for (ScriptTest.Result r : results) {
-            if (r.passed) pass++; else fail++;
-        }
-        final int totalPass = pass, totalFail = fail;
-        src.sendSuccess(() -> Component.literal(
-                "Last run: PASS=" + totalPass + " FAIL=" + totalFail + " TOTAL=" + results.size()), false);
-        for (ScriptTest.Result r : results) {
-            String tag = r.passed ? "PASS" : "FAIL";
-            String line = "  [" + tag + "] " + r.name + "  (" + r.ms + " ms)";
-            src.sendSuccess(() -> Component.literal(line), false);
-            if (!r.passed && r.error != null) {
-                String err = "      " + r.error.getMessage();
-                src.sendFailure(Component.literal(err));
-            }
-        }
-        return totalFail == 0 ? 1 : 0;
     }
 
     private static int cmdReload(CommandContext<CommandSourceStack> ctx) {
@@ -542,59 +389,6 @@ public final class WorldDriverCommon {
         } catch (Exception e) {
             LOG.error("[{}] failed to load user scripts", MOD_ID, e);
             return -1;
-        }
-    }
-
-    public static int runValidation() {
-        if (api == null || rpcServer == null) {
-            LOG.error("[{}] RPC server not started", MOD_ID);
-            return -1;
-        }
-        Path tmp = null;
-        try {
-            tmp = Files.createTempDirectory("worlddriver-scripts");
-            for (String name : VALIDATION_SCRIPTS) {
-                String resourcePath = "/data/" + MOD_ID + "/scripts/validation/" + name;
-                try (InputStream in = WorldDriverCommon.class.getResourceAsStream(resourcePath)) {
-                    if (in == null) {
-                        LOG.error("[{}] missing script in jar: {}", MOD_ID, resourcePath);
-                        return -2;
-                    }
-                    Files.copy(in, tmp.resolve(name));
-                }
-            }
-            ScriptTest.clear();
-            RpcBridge bridge = new RpcBridge("127.0.0.1", rpcPort);
-            McpBridge mcpBridge = (mcpPort > 0) ? new McpBridge("127.0.0.1", mcpPort) : null;
-            ScriptManager mgr = new ScriptManager(api, tmp, bridge, mcpBridge);
-            int loaded = mgr.loadAll();
-            LOG.info("[{}] loaded {} validation script(s)", MOD_ID, loaded);
-
-            var results = ScriptTest.snapshot();
-            lastResults = results;
-            int pass = 0, fail = 0;
-            LOG.info("==================== Agent Validation ====================");
-            for (var r : results) {
-                String tag = r.passed ? "PASS" : "FAIL";
-                LOG.info(String.format("  [%s] %-50s %4d ms", tag, r.name, r.ms));
-                if (!r.passed && r.error != null) {
-                    LOG.error("        {}", r.error.getMessage());
-                }
-                if (r.passed) pass++; else fail++;
-            }
-            LOG.info("==========================================================");
-            LOG.info("TOTAL: {}   PASS: {}   FAIL: {}", results.size(), pass, fail);
-            return fail;
-        } catch (Exception e) {
-            LOG.error("[{}] validation crashed", MOD_ID, e);
-            return 999;
-        } finally {
-            if (tmp != null) {
-                try (var s = Files.walk(tmp)) {
-                    s.sorted(Comparator.reverseOrder())
-                     .forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} });
-                } catch (IOException ignored) {}
-            }
         }
     }
 }

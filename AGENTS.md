@@ -64,7 +64,7 @@ depends on, not a style preference.
 
    What follows for you: the filter is not a gate your change has to pass, so do not describe
    it as one. If you change what scripts can reach, say so explicitly and update
-   `common/src/main/resources/data/worlddriver/scripts/validation/08_sandbox.js`, which
+   `common/src/testmod/resources/data/worlddriver/scripts/validation/08_sandbox.js`, which
    records the intended boundary. That file's own header documents which of its checks can
    discriminate and which cannot — read it before treating a green there as evidence.
 

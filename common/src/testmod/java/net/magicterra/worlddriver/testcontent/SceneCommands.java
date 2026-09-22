@@ -32,7 +32,8 @@ import net.minecraft.world.phys.HitResult;
  * {@code /worlddriver mark <role> [label]} and {@code /worlddriver scene save|list|place|run|verdict|accept …}: each
  * one resolves what only a player in the world knows (the crosshair, the feet) and makes one
  * {@link DriverApi#route} call, so RPC, scripts and the chat bar all go through the same verb.
- * The {@code worlddriver} literal merges into the driver's own root under Brigadier.
+ * The {@code worlddriver} literal merges into the driver's own root under Brigadier, and also
+ * carries {@code /worlddriver test}, which {@link ValidationSuite} owns.
  */
 public final class SceneCommands {
     private SceneCommands() {}
@@ -83,7 +84,8 @@ public final class SceneCommands {
                 .then(Commands.literal("accept")
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .executes(SceneCommands::accept)));
-        dispatcher.register(Commands.literal(WorldDriverCommon.MOD_ID).then(mark).then(scene).then(anchorCommand()));
+        dispatcher.register(Commands.literal(WorldDriverCommon.MOD_ID).then(mark).then(scene).then(anchorCommand())
+                .then(ValidationSuite.command()));
     }
 
     /**
