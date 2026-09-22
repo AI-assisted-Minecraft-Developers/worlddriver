@@ -8,7 +8,10 @@ Run from the repo root (exit 1 on violation):
 
 Every check except `repos` reads BUILT artifacts, so assemble them first:
 
-    ./gradlew :common:assemble :fabric:assemble :neoforge:assemble
+    ./gradlew :common:assemble :fabric:assemble :neoforge:assemble \\
+        :common:generatePomFileForMavenJavaPublication \\
+        :fabric:generatePomFileForMavenJavaPublication \\
+        :neoforge:generatePomFileForMavenJavaPublication
 
 Never `publish` to get them: every worktree shares one ~/.m2.
 
@@ -21,11 +24,15 @@ licence Every published jar (the shipped one, `-sources` and `-dev`) of every mo
         META-INF/COPYING and META-INF/COPYING.LESSER, once each and byte-identical to the
         repository's. The LGPL (through the GPL sections it incorporates) requires its text
         to accompany the object code.
+pom     Every module's POM declares the licence (gradle.properties `mod_license`, with its
+        `mod_license_url`), the project url and the scm coordinates. Without them a
+        licence scanner reports the artifact as "unknown".
 """
 import os
 import re
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODULES = ("common", "fabric", "neoforge")
@@ -80,6 +87,37 @@ def check_licence():
     return problems
 
 
+def check_pom():
+    props = gradle_properties()
+    source = props.get("mod_source_url")
+    scm = props.get("mod_scm_url")
+    licence_url = props.get("mod_license_url")
+    if not (source and scm and licence_url):
+        return ["gradle.properties: mod_source_url, mod_scm_url and mod_license_url must all be set"]
+    want = {
+        "licenses/license/name": props["mod_license"],
+        "licenses/license/url": licence_url,
+        "url": source,
+        "scm/url": source,
+        "scm/connection": f"scm:git:{source}.git",
+        "scm/developerConnection": f"scm:git:{scm}",
+    }
+    ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+    problems = []
+    for module in MODULES:
+        path = os.path.join(ROOT, module, "build", "publications", "mavenJava", "pom-default.xml")
+        rel = os.path.relpath(path, ROOT)
+        if not os.path.isfile(path):
+            problems.append(f"{rel}: not generated (see this script's docstring)")
+            continue
+        project = ET.parse(path).getroot()
+        for key, value in want.items():
+            found = [e.text for e in project.findall("/".join("m:" + p for p in key.split("/")), ns)]
+            if found != [value]:
+                problems.append(f"{rel}: <{key}> is {found or 'absent'}, want {value!r}")
+    return problems
+
+
 def check_repos():
     problems = []
     for module in ("",) + MODULES:
@@ -111,6 +149,7 @@ def _braced(text, open_index):
 CHECKS = {
     "repos": check_repos,
     "licence": check_licence,
+    "pom": check_pom,
 }
 
 

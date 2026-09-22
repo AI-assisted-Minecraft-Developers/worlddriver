@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Every published jar carries the licence text.** The shipped, `-sources` and `-dev` jars of
   all three modules now hold `META-INF/COPYING` and `META-INF/COPYING.LESSER`. None did, and the
   LGPL, through the GPL sections it incorporates, requires the text to go with the object code.
+- **Every published POM declares the licence and where the source is.** Each module's POM now has
+  `<licenses>` (`LGPL-3.0-only`, with the text's URL), `<url>` and `<scm>` pointing at the GitHub
+  repository, plus a name and description. It had only coordinates, so licence scanners reported
+  the artifacts as unknown and nothing said where the Corresponding Source was.
 - **`/worlddriver test` is no longer in the published jar.** Any player could run it: it seeded
   the arena at the test origin, which clears blocks and discards every non-player entity within
   twenty blocks, then ran sixty scripts that summon mobs and issue commands at operator level.

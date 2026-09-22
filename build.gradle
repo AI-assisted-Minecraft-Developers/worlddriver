@@ -253,6 +253,25 @@ subprojects {
                 // `:dev` for compiling, plain for shipping — and no POM claims a dependency on it.
                 artifact(tasks.named('jar')) { classifier = 'dev' }
 
+                // Without a <licenses> entry a licence scanner reports the artifact as "unknown";
+                // url and scm are how a consumer finds the Corresponding Source the LGPL promises.
+                pom {
+                    name = "${rootProject.mod_name} (${project.name})"
+                    description = rootProject.mod_description
+                    url = rootProject.mod_source_url
+                    licenses {
+                        license {
+                            name = rootProject.mod_license
+                            url = rootProject.mod_license_url
+                        }
+                    }
+                    scm {
+                        url = rootProject.mod_source_url
+                        connection = "scm:git:${rootProject.mod_source_url}.git"
+                        developerConnection = "scm:git:${rootProject.mod_scm_url}"
+                    }
+                }
+
                 // Everything a consumer needs at runtime (Rhino, netty-codec-http)
                 // is nested in the jar via Jar-in-Jar, so the published
                 // POM must not re-declare them: a consumer that naively resolves
