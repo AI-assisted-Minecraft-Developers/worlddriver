@@ -53,15 +53,22 @@ the RPC-only verbs), `common/.../bot/SettingsRegistry.java` (the canonical order
 
 ## Envelope & errors
 Request: `{"id": N, "method": "mc.x.y", "params": {…}}` (omit/`{}` params for parameterless).
-Success: `{"id": N, "result": <any>}`. Error: `{"id": N, "error": "<string>"}` — a plain
-string, **not** a JSON-RPC 2.0 error object, and there is no `jsonrpc` version field.
-Common errors: `parse: …` (bad JSON), `unknown method: <name>`, or the handler's
-exception message. Many handlers don't throw — they return `{ok:false, error:…}` in
-the result instead, so check `ok`, not just transport success.
-A `code` field sits beside `error`. Two codes mean the server tick was too busy to answer in
-time (`-Dworlddriver.serverThreadTimeoutMs`, 8 s default): `-32001` = the task was withdrawn
-and never ran, retry freely; `-32002` = it started and may still apply, observe before
-retrying. MCP reports the same two as JSON-RPC error envelopes on `tools/call`.
+Success: `{"id": N, "result": <any>}`. Error: `{"id": N, "error": "<string>", "code": <int>}` —
+`error` is a plain string, **not** a JSON-RPC 2.0 error object, and there is no `jsonrpc`
+version field; `code` beside it is the JSON-RPC 2.0 classification, the same the MCP
+transport reports for the same failure. `id` is echoed, and is `null` only when the request
+carried none or was too malformed to read. Many handlers don't throw — they return
+`{ok:false, error:…}` in the result instead, so check `ok`, not just transport success.
+
+The code table and the rules behind it are in
+[`docs/guide/transports.md` § Error codes](../../../../docs/guide/transports.md#error-codes);
+in short: `-32700` bad JSON (`parse: …`) · `-32600` not a usable request (not an object,
+`method` missing or not a string) · `-32601` `unknown method: <name>` · `-32602` params
+rejected by the schema or the route · `-32603` anything else the route threw · `-32001` the
+server tick never started the task in time (`worlddriver.serverThreadTimeoutMs`, 8 s): withdrawn,
+retry freely · `-32002` it started and may still apply: observe before retrying · `-32005`
+refused without running (16 requests in flight on this connection, 64 RPC workers busy, or 32
+background waits running): retry once an earlier call returns.
 
 **Body preconditions.** Every `mc.bot.*` verb that drives the player (all but `status`,
 `cancel`, `setting`, `waypoint`, `playbook`) first checks that the body can act, on every
@@ -150,7 +157,7 @@ Server-side event channel: emit your own events and set up server-side **watcher
 | `mc.events` | `op:"emit"\|"watch"\|"unwatch"\|"list"` (req); emit: `type`,`data?`,`pos?`; watch: `invoke`,`params?`,`field?`,`emitAs?`,`everyMs?`,`once?`,`value?`/`above?`/`below?`; unwatch: `id` | `emit`→`{ok,seq,type}`; `watch`→`{ok,watching,id,emitAs,everyMs}` (an `invoke` that is not a registered method is a `-32602` error at watch time); `unwatch`→`{ok,removed}`; `list`→`{watchers:[…],count}`. |
 
 ## mc.wait.*
-Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000, max 120000; `pollMs`). Pass `background:true` to return a `{waitId}` immediately and fetch the result later with `mc.wait.result`. At most 32 background waits run at once; one more is refused with a `busy:` error, not queued.
+Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000, max 120000; `pollMs`). Pass `background:true` to return a `{waitId}` immediately and fetch the result later with `mc.wait.result`. At most 32 background waits run at once; one more is refused with code `-32005` (message `busy: …`), not queued.
 | method | params | returns / notes |
 |---|---|---|
 | `mc.wait.event` | `cursor` (req), `types?[]`, `limit?`, `timeoutMs?`, `pollMs?`, `background?` | returns as soon as ≥1 matching event arrives, else `{timedOut:true}`. `{events[], timedOut, cursor, ms}`; chain `cursor`. |

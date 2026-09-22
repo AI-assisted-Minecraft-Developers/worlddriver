@@ -47,7 +47,8 @@ way:
 
 Bundled next to this file. Wire format is a hand-rolled envelope (NOT JSON-RPC
 2.0): send `{"id":N,"method":"mc.x.y","params":{…}}`, receive
-`{"id":N,"result":…}` or `{"id":N,"error":"<string>"}`.
+`{"id":N,"result":…}` or `{"id":N,"error":"<string>","code":<int>}` (`code` is the
+JSON-RPC error code; the table is in `references/methods.md`).
 
 **Interpreter.** Needs `websockets`. On the Linux host that's `python3 rpc.py …`;
 on a Windows/Git Bash checkout there is no `python3` — use `python` (or the
