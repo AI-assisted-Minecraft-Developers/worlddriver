@@ -144,7 +144,7 @@ Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000
 | `mc.wait.event` | `cursor` (req), `types?[]`, `limit?`, `timeoutMs?`, `pollMs?`, `background?` | returns as soon as ≥1 matching event arrives, else `{timedOut:true}`. `{events[], timedOut, cursor, ms}`; chain `cursor`. |
 | `mc.wait.worldReady` | `timeoutMs?`, `pollMs?`, `background?` | block until client has player+world → `{ready, ms, info:{hasScreen,worldOpen,hasPlayer,…}}`. No server needed. `background:true` returns a `{waitId}` at once (fetch via `mc.wait.result`). |
 | `mc.wait.condition` | `invoke` (req), `params?`, `field?`, `value?`, `timeoutMs?`, `pollMs?`, `background?` | call `invoke(params)` every `pollMs`, walk dotted `field` (e.g. `slots.2.count`) into the result, succeed when truthy (or deep-equals `value`) → `{satisfied, value, ms}`. |
-| `mc.wait.result` | `waitId` (req), `consume?` (dflt true) | fetch the result of a `background:true` wait → `{pending:true}` while still running, else the full original result (`satisfied`/`timedOut`/`value`/`events`/`ms`/…). `consume:false` leaves it readable again. |
+| `mc.wait.result` | `waitId` (req), `consume?` (dflt true) | fetch the result of a `background:true` wait → `{pending:true}` while still running, else the full original result (`satisfied`/`timedOut`/`value`/`events`/`ms`/…). `consume:false` leaves it readable again. An unknown id (never issued, already consumed, or evicted past the 64 newest unread results) is a `-32602` error, not pending. |
 
 ## mc.recipe.* / mc.plan
 Crafting/acquisition planning off the live recipe table — `resolve` expands a craft tree to leaf items; `plan.acquire` goes further and routes each missing leaf to mine/farm/smelt/craft. Server-side.

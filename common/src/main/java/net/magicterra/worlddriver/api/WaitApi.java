@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -64,6 +65,9 @@ public final class WaitApi {
                     return size() > MAX_RESULTS;
                 }
             });
+    /** waitIds whose body is still running. Without it an id missing from RESULTS is
+     *  ambiguous — still running, or gone — and reading it as "pending" hung agents. */
+    private static final Set<String> IN_FLIGHT = ConcurrentHashMap.newKeySet();
 
     /**
      * Run a wait body either inline (blocking, default) or — when {@code background:true}
@@ -74,6 +78,7 @@ public final class WaitApi {
     private Map<String, Object> run(Params p, String kind, Supplier<Map<String, Object>> body) {
         if (!p.getBool("background", false)) return body.get();
         String waitId = kind + "-" + WAIT_SEQ.incrementAndGet();
+        IN_FLIGHT.add(waitId);
         BG.execute(() -> {
             Map<String, Object> result;
             try {
@@ -84,7 +89,12 @@ public final class WaitApi {
             }
             result.put("waitId", waitId);
             result.put("kind", kind);
-            RESULTS.put(waitId, result);  // self-bounding via removeEldestEntry
+            try {
+                RESULTS.put(waitId, result);  // self-bounding via removeEldestEntry
+            } finally {
+                // After the put, so a concurrent result() never sees the id in neither place.
+                IN_FLIGHT.remove(waitId);
+            }
             api.emit("wait.done", null, result);
         });
         Map<String, Object> ack = new LinkedHashMap<>();
@@ -95,22 +105,27 @@ public final class WaitApi {
     }
 
     /**
-     * Fetch the result of a background wait. Returns {@code {pending:true}} until
-     * the wait finishes, then the full result (and removes it unless
-     * {@code consume:false}).
+     * Fetch the result of a background wait. Returns {@code {pending:true}} while
+     * the wait is running, then the full result (and removes it unless
+     * {@code consume:false}). An id that is neither running nor stored — never
+     * issued, already consumed, or evicted by newer results — is an error.
      */
     public Map<String, Object> result(Map<String, Object> raw) {
         Params p = Params.of(raw);
         String waitId = p.getString("waitId");
         if (waitId == null || waitId.isBlank()) throw new IllegalArgumentException("waitId required");
-        Map<String, Object> r = RESULTS.get(waitId);
-        if (r == null) {
+        // In-flight first: the finisher stores the result before it clears the flag.
+        if (IN_FLIGHT.contains(waitId)) {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("pending", true);
             out.put("waitId", waitId);
             return out;
         }
-        if (p.getBool("consume", true)) RESULTS.remove(waitId);
+        Map<String, Object> r = p.getBool("consume", true) ? RESULTS.remove(waitId) : RESULTS.get(waitId);
+        if (r == null) {
+            throw new IllegalArgumentException("unknown waitId '" + waitId + "': never started, already "
+                    + "consumed, or evicted (only the " + MAX_RESULTS + " newest unread results are kept)");
+        }
         return r;
     }
 
