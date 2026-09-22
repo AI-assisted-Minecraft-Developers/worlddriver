@@ -220,45 +220,10 @@ public final class DriverApi {
         routes.put("mc.events",            p -> eventsApi.dispatch(p));
         routes.put("mc.query", p -> {
             // Client-MCP fallback — server-side query() asserts attached server.
-            // On a runClient JVM connected to a remote dedicated server, scan
-            // ClientLevel via the client impl. Result rows match the server
-            // schema. q='entities' includes numeric `id` for attackEntity.
             String q = (String) p.get("q");
             if (server == null && ("entities".equals(q) || "blocks".equals(q))) {
                 var c = clientOrNull();
-                if (c != null) {
-                    Object filter = p.get("filter");
-                    int r = "entities".equals(q) ? 16 : 4;
-                    Boolean wantHostile = null;
-                    String typeFilter = null;
-                    if (filter instanceof Map<?, ?> fm) {
-                        Object rad = fm.get("in_radius");
-                        if (rad instanceof Number rn) r = rn.intValue();
-                        Object h = fm.get("is_hostile");
-                        if (h instanceof Boolean hb) wantHostile = hb;
-                        Object tv = fm.get("type");
-                        if (tv instanceof String s && !s.isBlank()) typeFilter = s;
-                    }
-                    Double cx = null, cy = null, cz = null;
-                    Object center = p.get("center");
-                    if (center instanceof Map<?, ?> cm) {
-                        Object xo = cm.get("x"), yo = cm.get("y"), zo = cm.get("z");
-                        if (xo instanceof Number nx && yo instanceof Number ny && zo instanceof Number nz) {
-                            cx = nx.doubleValue(); cy = ny.doubleValue(); cz = nz.doubleValue();
-                        }
-                    }
-                    if ("entities".equals(q)) {
-                        return c.queryEntities(r, cx, cy, cz, wantHostile);
-                    } else {
-                        // q='blocks' — reuse observeArea client path; unwrap to
-                        // match the server's flat-array shape.
-                        Set<String> ids = (typeFilter == null) ? null
-                                : new LinkedHashSet<>(Set.of(typeFilter));
-                        Map<String, Object> wrapped = c.observeArea(r, cx, cy, cz, ids);
-                        Object blocks = wrapped.get("blocks");
-                        return (blocks instanceof List) ? blocks : List.of();
-                    }
-                }
+                if (c != null) return ClientQueryFallback.query(c, p);
             }
             return query(QueryParams.from(p));
         });
@@ -1029,7 +994,7 @@ public final class DriverApi {
     }
 
     /** Every key a q='entities' row can carry — {@link #checkSelect} validates against it. */
-    private static final Set<String> ENTITY_SELECT_KEYS =
+    static final Set<String> ENTITY_SELECT_KEYS =
             Set.of("pos", "type", "uuid", "id", "health", "effects");
     /** Every key a q='blocks' row can carry. */
     private static final Set<String> BLOCK_SELECT_KEYS = Set.of("pos", "type", "state");
@@ -1037,7 +1002,7 @@ public final class DriverApi {
     /** Unknown select keys used to be silently ignored, misleading callers into
      *  "field not supported" detours (docs/archive/feedback/2026-06-04, bug #3). Reject
      *  them instead; the transport layers surface the message as isError. */
-    private static void checkSelect(List<String> select, Set<String> allowed) {
+    static void checkSelect(List<String> select, Set<String> allowed) {
         if (select == null) return;
         for (String k : select) {
             if (!allowed.contains(k)) {
@@ -1047,7 +1012,7 @@ public final class DriverApi {
         }
     }
 
-    private Map<String, Object> project(Map<String, Object> row, List<String> select) {
+    static Map<String, Object> project(Map<String, Object> row, List<String> select) {
         if (select == null || select.isEmpty()) return row;
         Map<String, Object> out = new LinkedHashMap<>();
         for (String k : select) if (row.containsKey(k)) out.put(k, row.get(k));
