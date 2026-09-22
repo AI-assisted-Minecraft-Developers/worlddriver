@@ -103,6 +103,7 @@ python3 scripts/check_source_budget.py   # no Java source file over 3000 lines
 python3 scripts/check_scene_arena.py     # a scene's terrain fits its force-loaded arena
 python3 scripts/check_remap_safety.py    # no new reflection on a Mojang-mapped member
 python3 scripts/check_log_contract.py    # the log formats the analysis tools parse still match
+python3 scripts/check_packaging.py       # third-party repositories are fenced to their group
 ```
 
 `check_remap_safety.py` reads the remapped jar, so run `./gradlew :fabric:build` first.

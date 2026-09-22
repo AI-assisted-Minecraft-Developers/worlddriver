@@ -90,6 +90,9 @@ repositories {
     maven {
         name = 'latvian-releases'
         url = 'https://maven.latvian.dev/releases'
+        // Fenced because Gradle takes the first repository that answers: an expired domain's
+        // parking page answering 200 to every path would shadow every repository after it.
+        content { includeGroup 'dev.latvian.mods' }
     }
 }
 

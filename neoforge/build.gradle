@@ -30,6 +30,8 @@ repositories {
     maven {
         name = 'latvian-releases'
         url = 'https://maven.latvian.dev/releases'
+        // Fenced for the reason given in common/build.gradle.
+        content { includeGroup 'dev.latvian.mods' }
     }
 }
 
