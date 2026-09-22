@@ -110,6 +110,13 @@ Four rules a client has to get right:
 | `-32601` | No such method. |
 | `-32602` | The method exists but the parameters were rejected, either by the schema validator or by the route itself. |
 | `-32603` | The route threw something else. |
+| `-32001` | The server thread did not start the task within the hop timeout. The task was withdrawn and will never run, so retrying is safe. |
+| `-32002` | The server thread started the task but it did not finish within the hop timeout. It is still running and may yet apply: observe the world before you retry. |
+
+The last two exist because a verb that timed out is not necessarily a verb that did not happen.
+Most verbs marshal onto the server tick and wait at most `worlddriver.serverThreadTimeoutMs`;
+when the tick is busy, `-32001` means the call left no trace, while retrying a `-32002`
+`mc.action.runCommand` can run the command twice.
 
 Parameters are validated against the same typed schema the MCP catalog publishes, on every
 transport, before the route runs. A route with no declared schema refuses to dispatch at
@@ -204,7 +211,10 @@ that it did. Reconnect and replay from your cursor with `mc.observe.eventsSince`
 `tools/call` result with `isError: true` and a text content block holding the message. Only
 transport-level failures — a parse error, a missing `method`, an unknown MCP method —
 become JSON-RPC error envelopes. An unknown *tool* name is also an `isError` result rather
-than an error envelope.
+than an error envelope. The one exception is a server-thread hop that ran out of time: it is
+a server error rather than the tool's, and comes back as a JSON-RPC error envelope with code
+`-32001` (not executed, safe to retry) or `-32002` (outcome unknown), the same codes the
+WebSocket transport uses.
 
 `mc.client.screenshot` is the one verb whose result is special-cased: over MCP it returns
 two content blocks, a text block with the metadata and a real `image` block, so a
@@ -281,7 +291,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | `awaitMs` on an asynchronous verb | 1 ms to 10 minutes | Clamped, not rejected. |
 | Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. Leaving a world or reseeding the test area empties the buffer but never rewinds `seq`, which rises for the life of the process, so a cursor saved before a reload stays valid. |
 | Event-stream backlog | 256 frames per MCP stream | Overflow closes that stream. |
-| Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. |
+| Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. Running out is error `-32001` or `-32002`, above. |
 
 ## Security
 

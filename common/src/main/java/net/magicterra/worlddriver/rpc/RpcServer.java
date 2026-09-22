@@ -18,6 +18,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.UnknownMethodException;
 import net.magicterra.worlddriver.model.DriverEvent;
 
@@ -255,10 +256,13 @@ public final class RpcServer implements Closeable {
         }
 
         /** Mirrors McpServer's classification: a frame with no method is -32600, an
-         *  unroutable method -32601, a bad argument -32602, anything else the route threw
-         *  -32603. DriverApi.route signals the first two with UnknownMethodException, a
-         *  bad argument with IllegalArgumentException. */
+         *  unroutable method -32601, a bad argument -32602, a server-thread hop that gave up
+         *  its own code from ServerThreadHop, anything else the route threw -32603.
+         *  DriverApi.route signals the first two with UnknownMethodException, a bad argument
+         *  with IllegalArgumentException. */
         private static int codeFor(Throwable ex) {
+            ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(ex);
+            if (hop != null) return hop.code();
             if (ex instanceof UnknownMethodException u)
                 return u.method() == null ? CODE_INVALID_REQUEST : CODE_METHOD_NOT_FOUND;
             if (ex instanceof IllegalArgumentException)

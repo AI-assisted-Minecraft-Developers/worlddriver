@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer;
 import net.magicterra.worlddriver.BuildStamp;
 import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.rpc.JsonCodec;
@@ -228,7 +229,11 @@ public final class McpServer implements Closeable {
                         Object result = api.route(toolName, args);
                         sendJson(ex, 200, jsonRpcResult(id, toolResultContent(result)));
                     } catch (Throwable t) {
-                        sendJson(ex, 200, jsonRpcResult(id, toolError(t.getMessage())));
+                        // A hop that gave up is a server error, not the tool's: the code is the
+                        // only thing that tells "safe to retry" from "may still apply".
+                        ServerThreadHop.HopTimeoutException hop = ServerThreadHop.find(t);
+                        if (hop != null) sendJson(ex, 200, jsonRpcError(id, hop.code(), hop.getMessage()));
+                        else sendJson(ex, 200, jsonRpcResult(id, toolError(t.getMessage())));
                     }
                 }
                 default -> sendJson(ex, 200, jsonRpcError(id, -32601, "method not found: " + method));

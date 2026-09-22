@@ -22,12 +22,10 @@ import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.AABB;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -42,8 +40,6 @@ import net.magicterra.worlddriver.bot.BotApi;
 import java.util.Set;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 import net.magicterra.worlddriver.bot.BotHooks;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.ExecutionException;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever
@@ -794,25 +790,7 @@ public final class DriverApi {
     <T> T onServerThread(Supplier<T> task) {
         MinecraftServer s = server;
         if (s == null) throw new IllegalStateException("DriverApi not attached to a server");
-        if (s.isSameThread()) return task.get();
-        CompletableFuture<T> f = new CompletableFuture<>();
-        s.execute(() -> {
-            try { f.complete(task.get()); }
-            catch (Throwable e) { f.completeExceptionally(e); }
-        });
-        try {
-            return f.get(SERVER_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            throw new RuntimeException("server thread did not run task within "
-                    + SERVER_THREAD_TIMEOUT_MS + "ms (server busy or paused)");
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            if (cause instanceof RuntimeException re) throw re;
-            throw new RuntimeException(cause);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("interrupted while waiting on server thread");
-        }
+        return new ServerThreadHop(s, s::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(task);
     }
 
     private int num(Object o) { return Params.toInt(o, 0); }

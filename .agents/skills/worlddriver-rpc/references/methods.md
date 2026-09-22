@@ -51,6 +51,10 @@ string, **not** a JSON-RPC 2.0 error object, and there is no `jsonrpc` version f
 Common errors: `parse: …` (bad JSON), `unknown method: <name>`, or the handler's
 exception message. Many handlers don't throw — they return `{ok:false, error:…}` in
 the result instead, so check `ok`, not just transport success.
+A `code` field sits beside `error`. Two codes mean the server tick was too busy to answer in
+time (`-Dworlddriver.serverThreadTimeoutMs`, 8 s default): `-32001` = the task was withdrawn
+and never ran, retry freely; `-32002` = it started and may still apply, observe before
+retrying. MCP reports the same two as JSON-RPC error envelopes on `tools/call`.
 
 **Body preconditions.** Every `mc.bot.*` verb that drives the player (all but `status`,
 `cancel`, `setting`, `waypoint`, `playbook`) first checks that the body can act, on every
