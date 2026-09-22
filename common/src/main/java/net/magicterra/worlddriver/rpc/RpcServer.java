@@ -134,9 +134,13 @@ public final class RpcServer implements Closeable {
             Thread.currentThread().interrupt();
             shutdown();
             throw new RuntimeException("interrupted while binding RPC server", e);
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
+            // Throwable, not RuntimeException: sync() rethrows the checked BindException
+            // undeclared, and missing it here leaked both event loops on every taken port.
             shutdown();
-            throw e;
+            if (e instanceof RuntimeException || e instanceof Error) throw e;
+            throw new RuntimeException("could not bind RPC server to " + bindHost + ":" + requestedPort
+                    + ": " + e.getMessage(), e);
         }
         this.port = ((InetSocketAddress) serverChannel.localAddress()).getPort();
         api.addEventListener(this::onEvent);
