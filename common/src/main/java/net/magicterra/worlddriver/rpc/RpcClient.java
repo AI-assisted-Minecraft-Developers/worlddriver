@@ -15,6 +15,8 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.PongWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
@@ -209,8 +211,12 @@ public final class RpcClient implements Closeable {
                 inbox.offer(text.text());
             } else if (msg instanceof CloseWebSocketFrame) {
                 ch.close();
+            } else if (msg instanceof PingWebSocketFrame ping) {
+                // The server closes a peer that stays silent past its liveness window, and
+                // one call may block for longer than that.
+                ch.writeAndFlush(new PongWebSocketFrame(ping.content().retain()));
             } else if (msg instanceof WebSocketFrame) {
-                // Ignore Ping/Pong/Binary for this minimal client.
+                // Ignore Pong/Binary for this minimal client.
             }
         }
 

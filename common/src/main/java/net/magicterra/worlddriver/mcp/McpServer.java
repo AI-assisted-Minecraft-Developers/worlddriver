@@ -9,13 +9,13 @@ import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.rpc.EventNotifications;
 import net.magicterra.worlddriver.rpc.JsonCodec;
+import net.magicterra.worlddriver.rpc.OriginPolicy;
 import net.magicterra.worlddriver.rpc.TransportLimits;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,7 +25,8 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -42,9 +43,13 @@ import java.util.concurrent.TimeUnit;
  *  - POST with a JSON-RPC request → 200 with {@code application/json} body
  *    (the spec allows either application/json or text/event-stream; we pick
  *    application/json — no SSE needed for stateless tool calls).
- *  - POST with a JSON-RPC notification (no id) → 202 Accepted with empty body.
+ *  - POST with a JSON-RPC notification (no id, any method) → 202 Accepted with
+ *    empty body. It is acknowledged, not dispatched; {@code notifications/cancelled}
+ *    therefore does not interrupt the request it names.
+ *  - POST whose Content-Type is not {@code application/json} → 415.
  *  - {@code Origin} header is validated to defend against DNS rebinding
- *    (spec MUST). Same-origin / curl requests with no Origin pass through.
+ *    (spec MUST) by {@link OriginPolicy}: absent or loopback passes, the literal
+ *    {@code null} and everything else get 403.
  *  - Bound to 127.0.0.1 only.
  *  - Protocol version is negotiated in {@code initialize}: we echo the
  *    client's requested version if we know it, otherwise return our latest.
@@ -83,6 +88,9 @@ public final class McpServer implements Closeable {
 
     private final DriverApi api;
     private final HttpServer http;
+    private final ThreadPoolExecutor executor;
+    private final Semaphore postSlots = new Semaphore(TransportLimits.MCP_MAX_IN_FLIGHT);
+    private final Semaphore streamSlots = new Semaphore(TransportLimits.MCP_MAX_EVENT_STREAMS);
     /** Open server→client SSE streams (clients that issued {@code GET /mcp}).
      *  {@link #onEvent} fans each driver event out to all of them. */
     private final Set<SseSubscriber> sse = ConcurrentHashMap.newKeySet();
@@ -96,11 +104,18 @@ public final class McpServer implements Closeable {
         this.http = HttpServer.create(new InetSocketAddress(bindHost, port), 0);
         this.http.createContext("/mcp", this::handle);
         this.http.createContext("/", this::handleRoot);
-        this.http.setExecutor(Executors.newCachedThreadPool(r -> {
+        // More threads than both caps together, so a request past a cap still gets a
+        // thread to be told it is busy. Only a burst past threads + queue is dropped
+        // without an answer, which is the HTTP server's own behaviour on rejection.
+        int threads = TransportLimits.MCP_MAX_IN_FLIGHT + TransportLimits.MCP_MAX_EVENT_STREAMS + 8;
+        this.executor = new ThreadPoolExecutor(threads, threads, 60L, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(64), r -> {
             Thread t = new Thread(r, "agent-mcp-worker");
             t.setDaemon(true);
             return t;
-        }));
+        });
+        this.executor.allowCoreThreadTimeOut(true);
+        this.http.setExecutor(executor);
         this.http.start();
         api.addEventListener(this::onEvent);
     }
@@ -136,6 +151,13 @@ public final class McpServer implements Closeable {
             return;
         }
         if (!"POST".equals(ex.getRequestMethod())) { send(ex, 405, "method not allowed"); return; }
+        // Not a spec requirement: a no-cors browser fetch may only send the CORS "simple"
+        // types, which skip the preflight, so demanding application/json keeps web pages
+        // out of tools/call even when the Origin check cannot see them.
+        if (!isJsonContentType(ex.getRequestHeaders().getFirst("Content-Type"))) {
+            send(ex, 415, "unsupported media type: POST requires Content-Type: application/json");
+            return;
+        }
 
         // Pre-flight Content-Length check (cheap path). When the header is
         // missing, fall back to a bounded read that aborts past MAX_BODY_BYTES.
@@ -162,15 +184,24 @@ public final class McpServer implements Closeable {
             return;
         }
         Object id = req.get("id");
-        String method = (String) req.get("method");
+        // A cast here threw out of the handler, and the HTTP server answers that by dropping
+        // the connection without a response.
+        String method = (req.get("method") instanceof String s) ? s : null;
         Map<String, Object> params = (req.get("params") instanceof Map<?, ?> mp)
                 ? (Map<String, Object>) mp : Map.of();
 
-        if (method == null) { sendJson(ex, 400, jsonRpcError(id, -32600, "missing method")); return; }
+        if (method == null) { sendJson(ex, 400, jsonRpcError(id, -32600, "missing or non-string method")); return; }
 
-        // Notifications have no id -> respond 202 with empty body, do work fire-and-forget
-        boolean isNotification = (id == null);
+        // spec: 2025-06-18 §Transports — an accepted notification gets 202 with no body.
+        // Nothing is dispatched: every client→server notification MCP defines is advisory
+        // here, and an id-less tools/call would run a verb whose result nobody can read.
+        if (id == null) { sendNoBody(ex, 202); return; }
 
+        if (!postSlots.tryAcquire()) {
+            sendJson(ex, 503, jsonRpcError(id, TransportLimits.RPC_CODE_SERVER_BUSY, "server busy: "
+                    + TransportLimits.MCP_MAX_IN_FLIGHT + " requests already running; retry later"));
+            return;
+        }
         try {
             switch (method) {
                 case "initialize" -> {
@@ -198,8 +229,9 @@ public final class McpServer implements Closeable {
                     sendJson(ex, 200, jsonRpcResult(id, result));
                 }
                 case "notifications/initialized" -> {
-                    // Spec: client tells server initialization complete. No response required.
-                    sendNoBody(ex, isNotification ? 202 : 200);
+                    // Only reached when a client sent it WITH an id, which the spec does not
+                    // define; acknowledge rather than call it an unknown method.
+                    sendNoBody(ex, 200);
                 }
                 case "logging/setLevel" -> {
                     // spec: 2025-06-18 §Logging — accept and acknowledge. The level is
@@ -240,6 +272,8 @@ public final class McpServer implements Closeable {
             }
         } catch (Throwable t) {
             sendJson(ex, 200, jsonRpcError(id, -32603, "internal: " + t.getMessage()));
+        } finally {
+            postSlots.release();
         }
     }
 
@@ -251,6 +285,19 @@ public final class McpServer implements Closeable {
      * every 15 s so a silently-dropped peer is detected.
      */
     private void handleSse(HttpExchange ex) throws IOException {
+        if (!streamSlots.tryAcquire()) {
+            send(ex, 503, "server busy: " + TransportLimits.MCP_MAX_EVENT_STREAMS
+                    + " event streams already open; close one first");
+            return;
+        }
+        try {
+            streamUntilClosed(ex);
+        } finally {
+            streamSlots.release();
+        }
+    }
+
+    private void streamUntilClosed(HttpExchange ex) throws IOException {
         ex.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
         ex.getResponseHeaders().set("Cache-Control", "no-cache");
         ex.getResponseHeaders().set("Connection", "keep-alive");
@@ -317,8 +364,9 @@ public final class McpServer implements Closeable {
          * receive window had filled blocked that thread inside {@code os.write}, and
          * with it every other SSE subscriber, the WebSocket push channel, and the
          * dispatch queue, which is unbounded and would grow for as long as the stall
-         * lasted. The WebSocket side never had this problem: Netty's
-         * {@code writeAndFlush} is async. This closes that asymmetry.
+         * lasted. Netty's async {@code writeAndFlush} keeps the WebSocket side from
+         * blocking, but async is not bounded: that side closes a subscriber whose
+         * channel goes unwritable, which is the same policy as the outbox cap here.
          *
          * <p>Overflow closes the stream rather than dropping frames. A consumer that
          * silently misses events is the worse failure — it cannot tell that it did.
@@ -413,33 +461,26 @@ public final class McpServer implements Closeable {
     }
 
     /**
-     * DNS-rebinding defense (spec MUST). Browser-originated requests carry an
-     * {@code Origin} header reflecting the page that initiated them; we only
-     * accept loopback. Non-browser clients (curl, Claude Desktop, MCP Inspector)
-     * typically send no Origin — those pass through.
+     * DNS-rebinding defense (spec: 2025-06-18 §Transports, Security Warning — servers
+     * MUST validate the Origin header). The policy is {@link OriginPolicy}, shared with
+     * the WebSocket handshake.
      *
      * Returns true when the request should be processed, false when a 403 has
      * already been written and the caller should bail.
      */
     private static boolean checkOrigin(HttpExchange ex) throws IOException {
         String origin = ex.getRequestHeaders().getFirst("Origin");
-        if (isAllowedOrigin(origin)) return true;
+        if (OriginPolicy.isAllowed(origin)) return true;
         send(ex, 403, "forbidden origin: " + origin);
         return false;
     }
 
-    private static boolean isAllowedOrigin(String origin) {
-        if (origin == null || origin.isEmpty() || "null".equals(origin)) return true;
-        try {
-            String host = URI.create(origin).getHost();
-            if (host == null) return false;
-            return "localhost".equals(host)
-                    || "127.0.0.1".equals(host)
-                    || "::1".equals(host)
-                    || "[::1]".equals(host);
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+    /** {@code application/json}, with or without parameters such as {@code charset}. */
+    static boolean isJsonContentType(String contentType) {
+        if (contentType == null) return false;
+        int semi = contentType.indexOf(';');
+        String type = (semi < 0 ? contentType : contentType.substring(0, semi)).trim();
+        return type.equalsIgnoreCase("application/json");
     }
 
     private static Map<String, Object> toolError(String message) {
@@ -504,5 +545,6 @@ public final class McpServer implements Closeable {
         for (SseSubscriber sub : sse) sub.die();
         sse.clear();
         http.stop(0);
+        executor.shutdown();
     }
 }

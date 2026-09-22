@@ -64,9 +64,12 @@ public final class WaitTools {
                         "Run non-blocking: return {waitId} immediately; fetch via mc.wait.result."))),
 
             roTool("mc.wait.result",
-                "Fetch the result of a background wait (any wait.* started with background:true). " +
+                "Fetch the result of a background wait (any wait.* started with background:true; " +
+                "at most 32 run at once, one more is refused as busy). " +
                 "Returns {pending:true} until it finishes, then the full original result " +
                 "(satisfied/timedOut/value/events …). Consumes the result unless consume:false. " +
+                "An unknown waitId (never issued, already consumed, or evicted: only the 64 newest " +
+                "unread results are kept) is an error, not pending. " +
                 "Alternatively, watch the event stream for a wait.done event carrying {waitId, kind, …}.",
                 object()
                     .req("waitId", string().desc("The waitId returned by the background wait."))

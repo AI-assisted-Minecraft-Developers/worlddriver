@@ -1,36 +1,25 @@
 package net.magicterra.worlddriver.rpc;
 
-import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.http.DefaultHttpHeaders;
-import io.netty.handler.codec.http.FullHttpResponse;
-import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
-import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
-import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -125,7 +114,7 @@ class RpcFramingTest {
         // DriverApi's constructor only fills a route map with lambdas, so it needs no
         // running game as long as no route actually executes.
         try (RpcServer server = new RpcServer(new DriverApi(), 0);
-             RawClient raw = new RawClient(server.port())) {
+             WsTestClient raw = new WsTestClient(server.port())) {
 
             Map<?, ?> nonObject = raw.roundTrip("\"just a string\"");
             assertTrue(nonObject.containsKey("id"), "id key missing: " + nonObject);
@@ -149,14 +138,51 @@ class RpcFramingTest {
     }
 
     @Test
-    void aFrameWithNoMethodIsAnInvalidRequest() throws Exception {
-        // The MCP transport answers the same frame with -32600 "missing method".
+    void aFragmentedMessageIsReassembledBeforeParsing() throws Exception {
+        // java.net.http.WebSocket.sendText(part, false) and browsers under load both
+        // fragment. Parsing the first fragment alone answered -32700 for a valid request.
         try (RpcServer server = new RpcServer(new DriverApi(), 0);
-             RawClient raw = new RawClient(server.port())) {
+             WsTestClient raw = new WsTestClient(server.port())) {
+            Map<?, ?> r = raw.roundTrip(
+                    new TextWebSocketFrame(false, 0, "{\"id\":21,\"method\":\"mc.no"),
+                    new ContinuationWebSocketFrame(false, 0, "pe\",\"params\""),
+                    new ContinuationWebSocketFrame(true, 0, ":{}}"));
+            assertEquals("21", String.valueOf(r.get("id")), r.toString());
+            assertEquals("-32601", String.valueOf(r.get("code")), r.toString());
+        }
+    }
+
+    @Test
+    void aMissingMethodIsAnInvalidRequestNotAnInternalError() throws Exception {
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+             WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
             assertEquals("5", String.valueOf(r.get("id")));
-            assertEquals("-32600", String.valueOf(r.get("code")), "reply: " + r);
-            assertTrue(String.valueOf(r.get("error")).contains("no method"), "reply: " + r);
+            assertEquals("-32600", String.valueOf(r.get("code")), r.toString());
+            assertTrue(String.valueOf(r.get("error")).contains("method"), r.toString());
+        }
+    }
+
+    @Test
+    void aRequestWithoutAnIdIsAnsweredWithANullIdNotZero() throws Exception {
+        // 0 is a legal client id; answering an id-less request with it misroutes the
+        // reply to whichever call really used 0.
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+             WsTestClient raw = new WsTestClient(server.port())) {
+            Map<?, ?> err = raw.roundTrip("{\"method\":\"mc.nope\",\"params\":{}}");
+            assertTrue(err.containsKey("id"), "id key missing: " + err);
+            assertNull(err.get("id"), err.toString());
+            assertEquals("-32601", String.valueOf(err.get("code")));
+
+            Map<?, ?> ok = raw.roundTrip("{\"method\":\"mc.events.unsubscribe\"}");
+            assertTrue(ok.containsKey("id"), "id key missing: " + ok);
+            assertNull(ok.get("id"), ok.toString());
+            assertInstanceOf(Map.class, ok.get("result"));
+
+            Map<?, ?> badFilter = raw.roundTrip(
+                    "{\"method\":\"mc.events.subscribe\",\"params\":{\"types\":\"x\"}}");
+            assertTrue(badFilter.containsKey("id"));
+            assertNull(badFilter.get("id"), badFilter.toString());
         }
     }
 
@@ -171,7 +197,7 @@ class RpcFramingTest {
             throw new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running"));
         });
         try (RpcServer server = new RpcServer(api, 0);
-             RawClient raw = new RawClient(server.port())) {
+             WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> ne = raw.roundTrip("{\"id\":21,\"method\":\"mc.test.notExecuted\",\"params\":{}}");
             assertEquals("-32001", String.valueOf(ne.get("code")), "reply: " + ne);
             Map<?, ?> ou = raw.roundTrip("{\"id\":22,\"method\":\"mc.test.outcomeUnknown\",\"params\":{}}");
@@ -188,7 +214,7 @@ class RpcFramingTest {
         // carry one. 100 KiB is comfortably over the old limit and far under the new.
         String pad = "x".repeat(100 * 1024);
         try (RpcServer server = new RpcServer(new DriverApi(), 0);
-             RawClient raw = new RawClient(server.port())) {
+             WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip(
                     "{\"id\":11,\"method\":\"mc.nope\",\"params\":{\"pad\":\"" + pad + "\"}}");
             assertEquals("11", String.valueOf(r.get("id")),
@@ -206,7 +232,7 @@ class RpcFramingTest {
         // was subscribed to EVERY event while its ack said types:[] — which reads like
         // the opposite. Failing open on a filter is the worst direction to fail.
         try (RpcServer server = new RpcServer(new DriverApi(), 0);
-             RawClient raw = new RawClient(server.port())) {
+             WsTestClient raw = new WsTestClient(server.port())) {
 
             Map<?, ?> str = raw.roundTrip("{\"id\":1,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":\"chat.message\"}}");
@@ -227,7 +253,7 @@ class RpcFramingTest {
     @Test
     void subscribeAckSaysWhetherTheFilterIsUnrestricted() throws Exception {
         try (RpcServer server = new RpcServer(new DriverApi(), 0);
-             RawClient raw = new RawClient(server.port())) {
+             WsTestClient raw = new WsTestClient(server.port())) {
 
             Map<?, ?> filtered = result(raw.roundTrip("{\"id\":4,\"method\":\"mc.events.subscribe\","
                     + "\"params\":{\"types\":[\"chat.message\"]}}"));
@@ -260,7 +286,7 @@ class RpcFramingTest {
         // `error` as a string. `code` was added alongside it precisely so neither
         // has to change; if this ever becomes an object, both break silently.
         try (RpcServer server = new RpcServer(new DriverApi(), 0);
-             RawClient raw = new RawClient(server.port())) {
+             WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":1,\"method\":\"mc.nope\",\"params\":{}}");
             assertInstanceOf(String.class, r.get("error"));
         }
@@ -316,70 +342,6 @@ class RpcFramingTest {
             channel.close();
             boss.shutdownGracefully(0, 1, TimeUnit.SECONDS);
             work.shutdownGracefully(0, 1, TimeUnit.SECONDS);
-        }
-    }
-
-    /** Minimal WS client that hands back frames VERBATIM — the point of the server
-     *  tests is to inspect the bytes, which RpcClient (correctly) filters. */
-    private static final class RawClient implements AutoCloseable {
-        private final NioEventLoopGroup group = new NioEventLoopGroup(1);
-        private final BlockingQueue<String> inbox = new LinkedBlockingQueue<>();
-        private final Channel channel;
-
-        RawClient(int port) throws Exception {
-            WebSocketClientHandshaker hs = WebSocketClientHandshakerFactory.newHandshaker(
-                    URI.create("ws://127.0.0.1:" + port + "/rpc"), WebSocketVersion.V13,
-                    null, false, new DefaultHttpHeaders());
-            Handler handler = new Handler(hs, inbox);
-            Bootstrap b = new Bootstrap();
-            b.group(group).channel(NioSocketChannel.class)
-             .handler(new ChannelInitializer<SocketChannel>() {
-                 @Override protected void initChannel(SocketChannel c) {
-                     c.pipeline().addLast(new HttpClientCodec())
-                      .addLast(new HttpObjectAggregator(1 << 20))
-                      .addLast(handler);
-                 }
-             });
-            this.channel = b.connect("127.0.0.1", port).sync().channel();
-            if (!handler.ready.await(10, TimeUnit.SECONDS)) {
-                throw new IllegalStateException("ws handshake timeout");
-            }
-        }
-
-        private static final class Handler extends SimpleChannelInboundHandler<Object> {
-            private final WebSocketClientHandshaker hs;
-            private final BlockingQueue<String> inbox;
-            private ChannelPromise ready;
-
-            Handler(WebSocketClientHandshaker hs, BlockingQueue<String> inbox) {
-                this.hs = hs;
-                this.inbox = inbox;
-            }
-
-            @Override public void handlerAdded(ChannelHandlerContext c) { ready = c.newPromise(); }
-            @Override public void channelActive(ChannelHandlerContext c) { hs.handshake(c.channel()); }
-
-            @Override protected void channelRead0(ChannelHandlerContext c, Object msg) {
-                if (!hs.isHandshakeComplete()) {
-                    hs.finishHandshake(c.channel(), (FullHttpResponse) msg);
-                    ready.setSuccess();
-                    return;
-                }
-                if (msg instanceof TextWebSocketFrame t) inbox.offer(t.text());
-            }
-        }
-
-        Map<?, ?> roundTrip(String raw) throws Exception {
-            channel.writeAndFlush(new TextWebSocketFrame(raw));
-            String s = inbox.poll(10, TimeUnit.SECONDS);
-            if (s == null) throw new IllegalStateException("no response to: " + raw);
-            Object decoded = JsonCodec.decode(s);
-            return assertInstanceOf(Map.class, decoded, "non-object response: " + s);
-        }
-
-        @Override public void close() {
-            channel.close();
-            group.shutdownGracefully(0, 1, TimeUnit.SECONDS);
         }
     }
 }

@@ -22,8 +22,9 @@ public final class TransportLimits {
     private TransportLimits() {}
 
     /**
-     * Largest inbound request, in bytes: a POST body on MCP, a WebSocket frame on
-     * the RPC socket. Override with {@code -Dworlddriver.maxRequestBytes=N}.
+     * Largest inbound request, in bytes: a POST body on MCP, a WebSocket message on
+     * the RPC socket (each frame, and a fragmented message's fragments together).
+     * Override with {@code -Dworlddriver.maxRequestBytes=N}.
      *
      * <p>Replaces the MCP-only {@code agent.mcp.maxBodyBytes}. An {@code int}
      * because that is what Netty's frame-size parameter takes; the MCP side widens
@@ -31,4 +32,52 @@ public final class TransportLimits {
      */
     public static final int MAX_REQUEST_BYTES =
             Integer.getInteger("worlddriver.maxRequestBytes", 8 * 1024 * 1024);
+
+    /**
+     * Outbound bytes a WebSocket connection may have queued before it counts as unwritable,
+     * and the level it must drain to before it counts as writable again. An event pushed to
+     * an unwritable subscriber closes it; the client reconnects and replays from its cursor.
+     * High enough that one large response (a full-size screenshot) cannot trip it alone.
+     */
+    public static final int WS_WRITE_BUFFER_LOW_BYTES = 8 * 1024 * 1024;
+    public static final int WS_WRITE_BUFFER_HIGH_BYTES = 16 * 1024 * 1024;
+
+    /** How long a WebSocket connection may go without receiving anything before the server
+     *  pings it. Every client library answers a ping on its own. */
+    public static final long WS_PING_INTERVAL_MS = 30_000L;
+
+    /**
+     * How long a connection may go without receiving anything at all — no pong, no frame —
+     * before it is closed as half-open. Not a few missed pings: some client libraries answer
+     * a ping only from inside a read, and a client may legitimately sit a whole
+     * {@code mc.wait.*} budget (two minutes) between reads. Twice that budget.
+     */
+    public static final long WS_IDLE_CLOSE_MS = 240_000L;
+
+    /**
+     * Requests one WebSocket connection may have running at once. Past it a request is
+     * answered at once with {@link #RPC_CODE_SERVER_BUSY} instead of taking a thread: a
+     * long {@code mc.wait.*} holds its worker for up to two minutes, so an unbounded loop on
+     * one socket would otherwise exhaust the JVM's native threads and take the game down.
+     */
+    public static final int RPC_MAX_IN_FLIGHT_PER_CONNECTION = 16;
+
+    /** Worker threads the WebSocket server runs requests on, across all connections. */
+    public static final int RPC_MAX_WORKERS = 64;
+
+    /** POSTs the MCP server runs at once; past it a request gets 503 with
+     *  {@link #RPC_CODE_SERVER_BUSY}, for the same reason as the WebSocket cap. */
+    public static final int MCP_MAX_IN_FLIGHT = 32;
+
+    /** Open MCP event streams ({@code GET /mcp}); each parks a worker for its lifetime. */
+    public static final int MCP_MAX_EVENT_STREAMS = 8;
+
+    /** {@code background:true} waits running at once, across the JVM. Each holds a thread for
+     *  up to its whole budget, and starting one is a single cheap call, so a loop could
+     *  otherwise start them faster than they finish. */
+    public static final int WAIT_MAX_BACKGROUND = 32;
+
+    /** JSON-RPC error code, from the implementation-defined server-error range, for a
+     *  request refused because a concurrency cap is full. Retrying later can succeed. */
+    public static final int RPC_CODE_SERVER_BUSY = -32005;
 }

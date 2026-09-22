@@ -1,22 +1,40 @@
 package net.magicterra.worlddriver.rpc;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.api.UnknownMethodException;
@@ -24,26 +42,34 @@ import net.magicterra.worlddriver.model.DriverEvent;
 
 import java.io.Closeable;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WebSocket RPC server (Netty). Endpoint: ws://host:port/rpc
  * Request frame:  {"id": int, "method": "mc.observe.player", "params": {...}}
  * Response frame: {"id": int, "result": ...}
  *              or {"id": int|null, "error": "...", "code": int}
- * The {@code id} key is present on EVERY response, null only when the request was
- * too malformed to carry one; {@code code} is the JSON-RPC 2.0 reserved code, the
+ * The {@code id} key is present on EVERY response, null only when the request did
+ * not carry one (omitted, or too malformed to read); {@code code} is the JSON-RPC 2.0 reserved code, the
  * same value McpServer would report for the same failure.
  *
  * Same {@code DriverApi.route(method, params)} is invoked here AND from in-JVM Rhino
  * calls, guaranteeing structural parity between paths.
+ *
+ * The upgrade request is refused with 403 when its {@code Origin} fails
+ * {@link OriginPolicy}, the same check the MCP transport applies to a POST.
  *
  * <h2>Event push channel (driver→agent)</h2>
  * This WebSocket is JSON-RPC over a custom transport (the spec permits custom
@@ -71,8 +97,9 @@ import java.util.concurrent.ThreadFactory;
  * settable with {@code -Dworlddriver.serverThreadTimeoutMs=N}. This said 30s, which was
  * the budget before it was lowered; naming the constant instead of a number keeps the
  * two from drifting apart again.
- * which would deadlock the IO thread if we ran it inline. We hop to a cached worker
- * pool before calling route().
+ * which would deadlock the IO thread if we ran it inline. We hop to a bounded worker
+ * pool before calling route(); past the per-connection or pool cap in
+ * {@link TransportLimits} a request is answered with a busy error instead.
  *
  * Build note: MC ships only netty-codec/transport; netty-codec-http is added via
  * the {@code forgeRuntimeLibrary} configuration (NeoForge) / {@code implementation}
@@ -81,7 +108,10 @@ import java.util.concurrent.ThreadFactory;
 public final class RpcServer implements Closeable {
     private final EventLoopGroup boss = new NioEventLoopGroup(1, daemonFactory("agent-rpc-boss"));
     private final EventLoopGroup worker = new NioEventLoopGroup(0, daemonFactory("agent-rpc-io"));
-    private final ExecutorService routeExec = Executors.newCachedThreadPool(daemonFactory("agent-rpc-handler"));
+    /** No queue: a request either gets a thread now or is refused with a busy error, which
+     *  a client can act on; a queued one would just time out later. */
+    private final ExecutorService routeExec = new ThreadPoolExecutor(0, TransportLimits.RPC_MAX_WORKERS,
+            60L, TimeUnit.SECONDS, new SynchronousQueue<>(), daemonFactory("agent-rpc-handler"));
     private final Channel serverChannel;
     private final int port;
 
@@ -97,17 +127,32 @@ public final class RpcServer implements Closeable {
     }
 
     public RpcServer(DriverApi api, String bindHost, int requestedPort) {
+        this(api, bindHost, requestedPort, TransportLimits.WS_PING_INTERVAL_MS, TransportLimits.WS_IDLE_CLOSE_MS);
+    }
+
+    /** Liveness timings as parameters so a test can run them in seconds. */
+    RpcServer(DriverApi api, String bindHost, int requestedPort, long pingIntervalMs, long idleCloseMs) {
         ServerBootstrap b = new ServerBootstrap();
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
          .channel(NioServerSocketChannel.class)
+         .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(
+                 TransportLimits.WS_WRITE_BUFFER_LOW_BYTES, TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES))
          .childHandler(new ChannelInitializer<SocketChannel>() {
              @Override protected void initChannel(SocketChannel ch) {
                  ch.pipeline()
+                   // First, so any inbound byte counts, a pong included: the protocol
+                   // handler consumes pongs before any later handler could see them.
+                   .addLast(new IdleStateHandler(pingIntervalMs, 0, 0, TimeUnit.MILLISECONDS))
                    .addLast(new HttpServerCodec())
                    .addLast(new HttpObjectAggregator(1 << 20))
+                   .addLast(new OriginGate())
                    .addLast(new WebSocketServerProtocolHandler("/rpc", null, true,
                            TransportLimits.MAX_REQUEST_BYTES))
+                   // A fragmented message reaches FrameHandler as one frame; without this
+                   // the first fragment was parsed alone and the continuations dropped.
+                   .addLast(new WebSocketFrameAggregator(TransportLimits.MAX_REQUEST_BYTES))
+                   .addLast(new PeerLiveness(pingIntervalMs, idleCloseMs))
                    .addLast(new FrameHandler(api, routeExec, subs));
              }
          });
@@ -117,9 +162,13 @@ public final class RpcServer implements Closeable {
             Thread.currentThread().interrupt();
             shutdown();
             throw new RuntimeException("interrupted while binding RPC server", e);
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
+            // Throwable, not RuntimeException: sync() rethrows the checked BindException
+            // undeclared, and missing it here leaked both event loops on every taken port.
             shutdown();
-            throw e;
+            if (e instanceof RuntimeException || e instanceof Error) throw e;
+            throw new RuntimeException("could not bind RPC server to " + bindHost + ":" + requestedPort
+                    + ": " + e.getMessage(), e);
         }
         this.port = ((InetSocketAddress) serverChannel.localAddress()).getPort();
         api.addEventListener(this::onEvent);
@@ -140,6 +189,16 @@ public final class RpcServer implements Closeable {
             if (!ch.isActive()) continue;
             Set<String> filter = ch.attr(FILTER).get();
             if (filter != null && !filter.isEmpty() && !filter.contains(e.type)) continue;
+            // Async is not bounded: a peer that stops reading would keep every frame in
+            // the outbound buffer. Close instead of dropping, as the SSE side does, so the
+            // client can tell it missed events and replay them from its cursor.
+            if (!ch.isWritable()) {
+                WorldDriverCommon.LOG.warn("[rpc] event subscriber {} is not reading (over {} bytes queued) — "
+                        + "closing it; reconnect and replay with mc.observe.eventsSince{cursor}",
+                        ch.remoteAddress(), TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES);
+                ch.close();
+                continue;
+            }
             ch.writeAndFlush(new TextWebSocketFrame(frame));
         }
     }
@@ -169,6 +228,61 @@ public final class RpcServer implements Closeable {
         };
     }
 
+    /** Refuses the upgrade request of a browser page from a foreign origin. WebSockets are
+     *  outside CORS, so without this any page the user opens can drive the socket. */
+    private static final class OriginGate extends ChannelInboundHandlerAdapter {
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) {
+            if (msg instanceof FullHttpRequest req) {
+                String origin = req.headers().get(HttpHeaderNames.ORIGIN);
+                if (!OriginPolicy.isAllowed(origin)) {
+                    req.release();
+                    FullHttpResponse res = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                            HttpResponseStatus.FORBIDDEN,
+                            Unpooled.copiedBuffer("forbidden origin: " + origin, StandardCharsets.UTF_8));
+                    res.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=utf-8");
+                    res.headers().setInt(HttpHeaderNames.CONTENT_LENGTH, res.content().readableBytes());
+                    res.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+                    ctx.writeAndFlush(res).addListener(ChannelFutureListener.CLOSE);
+                    return;
+                }
+            }
+            ctx.fireChannelRead(msg);
+        }
+    }
+
+    /** Pings a quiet peer and closes one that has sent nothing, pong included, for the
+     *  whole window. A half-open peer never fails a write the kernel can still buffer, so
+     *  nothing else would ever reclaim its connection or its event subscription. */
+    private static final class PeerLiveness extends ChannelInboundHandlerAdapter {
+        private final long pingIntervalMs;
+        private final long idleCloseMs;
+        private boolean upgraded;
+        private long quietMs;
+
+        PeerLiveness(long pingIntervalMs, long idleCloseMs) {
+            this.pingIntervalMs = pingIntervalMs;
+            this.idleCloseMs = idleCloseMs;
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
+                upgraded = true;
+            } else if (evt instanceof IdleStateEvent idle && idle.state() == IdleState.READER_IDLE) {
+                // isFirst marks the first idle event since the last read, which resets the count.
+                quietMs = idle.isFirst() ? pingIntervalMs : quietMs + pingIntervalMs;
+                if (quietMs >= idleCloseMs) {
+                    ctx.close();
+                } else if (upgraded) {
+                    ctx.channel().writeAndFlush(new PingWebSocketFrame());
+                }
+                return;
+            }
+            super.userEventTriggered(ctx, evt);
+        }
+    }
+
     private static final class FrameHandler extends SimpleChannelInboundHandler<TextWebSocketFrame> {
         private final DriverApi api;
         private final ExecutorService routeExec;
@@ -180,14 +294,42 @@ public final class RpcServer implements Closeable {
             this.subscribers = subscribers;
         }
 
+        /** Requests of THIS connection that hold a worker; one handler per channel. */
+        private final AtomicInteger inFlight = new AtomicInteger();
+
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame msg) {
             String text = msg.text();
             Channel ch = ctx.channel();
-            routeExec.submit(() -> {
-                String response = handleRequest(text, ch);
-                ch.writeAndFlush(new TextWebSocketFrame(response));
-            });
+            if (inFlight.incrementAndGet() > TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION) {
+                inFlight.decrementAndGet();
+                ch.writeAndFlush(new TextWebSocketFrame(busyFrame(text, "this connection already has "
+                        + TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + " requests running")));
+                return;
+            }
+            try {
+                routeExec.execute(() -> {
+                    try {
+                        String response = handleRequest(text, ch);
+                        ch.writeAndFlush(new TextWebSocketFrame(response));
+                    } finally {
+                        inFlight.decrementAndGet();
+                    }
+                });
+            } catch (RejectedExecutionException full) {
+                inFlight.decrementAndGet();
+                ch.writeAndFlush(new TextWebSocketFrame(busyFrame(text, "all "
+                        + TransportLimits.RPC_MAX_WORKERS + " RPC workers are busy")));
+            }
+        }
+
+        /** A refusal that still carries the request's id, so the caller can correlate it. */
+        private static String busyFrame(String line, String why) {
+            Object id = null;
+            try {
+                if (JsonCodec.decode(line) instanceof Map<?, ?> req) id = req.get("id");
+            } catch (Throwable ignored) { /* unreadable: answer with a null id */ }
+            return errorFrame(id, TransportLimits.RPC_CODE_SERVER_BUSY, "server busy: " + why + "; retry later");
         }
 
         @SuppressWarnings("unchecked")
@@ -201,7 +343,11 @@ public final class RpcServer implements Closeable {
                     return errorFrame(null, CODE_INVALID_REQUEST, "request must be JSON object");
                 }
                 id = req.get("id");
-                String method = (String) req.get("method");
+                if (!(req.get("method") instanceof String method)) {
+                    return errorFrame(id, CODE_INVALID_REQUEST,
+                            "invalid request: 'method' must be a string, got "
+                            + JsonCodec.encode(req.get("method")));
+                }
                 Map<String, Object> params = (Map<String, Object>) req.get("params");
                 // Event-stream subscription is per-connection state, so it's handled
                 // at the transport layer (not an DriverApi route): it controls which
@@ -211,13 +357,13 @@ public final class RpcServer implements Closeable {
                 }
                 try {
                     Object result = api.route(method, params);
-                    return JsonCodec.encode(Map.of("id", id == null ? 0 : id, "result", result));
+                    return resultFrame(id, result);
                 } catch (Throwable ex) {
-                    return errorFrame(id == null ? 0 : id, codeFor(ex), String.valueOf(ex.getMessage()));
+                    return errorFrame(id, codeFor(ex), String.valueOf(ex.getMessage()));
                 }
             } catch (Throwable err) {
-                // Decode succeeded but the frame was still unusable (e.g. "method" was
-                // not a string) -> invalid request, not a parse error. The id may have
+                // Decode succeeded but the frame was still unusable (e.g. "params" was
+                // not an object) -> invalid request, not a parse error. The id may have
                 // been read before the failure; emit it when we have it.
                 return parsed
                         ? errorFrame(id, CODE_INVALID_REQUEST, "invalid request: " + err.getMessage())
@@ -255,6 +401,15 @@ public final class RpcServer implements Closeable {
             return JsonCodec.encode(m);
         }
 
+        /** A request that carried no id is answered with {@code id:null}, never a made-up
+         *  number: 0 is a legal client id and would misroute the reply. */
+        private static String resultFrame(Object id, Object result) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", id);
+            m.put("result", result);
+            return JsonCodec.encode(m);
+        }
+
         /** Mirrors McpServer's classification: a frame with no method is -32600, an
          *  unroutable method -32601, a bad argument -32602, a server-thread hop that gave up
          *  its own code from ServerThreadHop, anything else the route threw -32603.
@@ -282,14 +437,14 @@ public final class RpcServer implements Closeable {
                 // which was dropped without a word. Both are now refused.
                 if (rawTypes != null) {
                     if (!(rawTypes instanceof List<?> l)) {
-                        return errorFrame(id == null ? 0 : id, CODE_INVALID_PARAMS,
+                        return errorFrame(id, CODE_INVALID_PARAMS,
                                 "mc.events.subscribe: 'types' must be an array of strings, got "
                                 + rawTypes.getClass().getSimpleName()
                                 + " — omit 'types' entirely to receive every type");
                     }
                     for (Object o : l) {
                         if (!(o instanceof String s) || s.isBlank()) {
-                            return errorFrame(id == null ? 0 : id, CODE_INVALID_PARAMS,
+                            return errorFrame(id, CODE_INVALID_PARAMS,
                                     "mc.events.subscribe: every entry of 'types' must be a "
                                     + "non-blank string, got " + JsonCodec.encode(o));
                         }
@@ -315,7 +470,7 @@ public final class RpcServer implements Closeable {
                 result.put("ok", true);
                 result.put("subscribed", false);
             }
-            return JsonCodec.encode(Map.of("id", id == null ? 0 : id, "result", result));
+            return resultFrame(id, result);
         }
     }
 }

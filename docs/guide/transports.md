@@ -73,7 +73,9 @@ In the game, `/worlddriver port` and `/worlddriver mcp` print the live endpoints
 
 ## WebSocket JSON-RPC
 
-Endpoint: `ws://<host>:<port>/rpc`. One JSON object per text frame.
+Endpoint: `ws://<host>:<port>/rpc`. One JSON object per text message. A message may arrive
+fragmented across continuation frames; the server reassembles it before parsing, and the
+size limit applies to the whole message.
 
 A request:
 
@@ -90,8 +92,10 @@ A success response, then a failure response:
 
 Four rules a client has to get right:
 
-1. **`id` is always present on a response.** It is explicitly `null` only when the frame was
-   too malformed to carry one. That is what makes the next rule decidable.
+1. **`id` is always present on a response.** It is explicitly `null` only when the request
+   did not carry one, either because it omitted `id` or because the frame was too malformed
+   to read it. Use a non-null `id` on every call you want to correlate. This is what makes
+   the next rule decidable.
 2. **Demultiplex by shape.** A response has an `id`; a notification has a `method` and no
    `id`. Server pushes arrive interleaved with responses on the same socket.
 3. **`error` is a bare string, not an object.** `code` sits alongside it and carries the
@@ -100,6 +104,17 @@ Four rules a client has to get right:
 4. **An oversized frame is a disconnect, not an error.** Past `worlddriver.maxRequestBytes`
    the frame never assembles, so there is no request to answer and no `id` to answer it
    with. The only inbound payload that comes near 8 MiB is a script body.
+
+**Liveness.** A connection that has sent nothing for 30 seconds is sent a WebSocket ping, and
+one that has sent nothing at all — not even a pong — for 4 minutes is closed as half-open.
+Every WebSocket library answers pings on its own, so a client blocked on a long call stays
+connected as long as its library is reading. The window is twice the longest `mc.wait.*`
+budget so that a library which answers pings only from inside a read is not cut off
+mid-call.
+
+The upgrade request is subject to the same Origin validation as an MCP `POST` (see
+[MCP over HTTP](#mcp-over-http)): a handshake from a foreign origin, or from the literal `null`, is answered with 403
+and never becomes a socket.
 
 ### Error codes
 
@@ -112,9 +127,10 @@ Four rules a client has to get right:
 | `-32603` | The route threw something else. |
 | `-32001` | The server thread did not start the task within the hop timeout. The task was withdrawn and will never run, so retrying is safe. |
 | `-32002` | The server thread started the task but it did not finish within the hop timeout. It is still running and may yet apply: observe the world before you retry. |
+| `-32005` | Refused without running: the connection already has 16 requests running, or all 64 RPC workers are busy. Nothing happened; retry once an earlier call returns. |
 
-The last two exist because a verb that timed out is not necessarily a verb that did not happen.
-Most verbs marshal onto the server tick and wait at most `worlddriver.serverThreadTimeoutMs`;
+`-32001` and `-32002` exist because a verb that timed out is not necessarily a verb that did not
+happen. Most verbs marshal onto the server tick and wait at most `worlddriver.serverThreadTimeoutMs`;
 when the tick is busy, `-32001` means the call left no trace, while retrying a `-32002`
 `mc.action.runCommand` can run the command twice.
 
@@ -162,6 +178,11 @@ stops the stream. The single push filter is the per-type opt-out in the bot sett
 Subscription is transport state, not a game verb: it controls which frames this socket
 receives and is handled in the WebSocket layer rather than through the router.
 
+A subscriber that stops reading is disconnected rather than buffered without bound. Once
+more than 16 MiB is queued for a connection, the next event pushed to it closes it instead,
+the same policy as the MCP stream's frame cap. Reconnect, subscribe again, and replay what
+you missed with `mc.observe.eventsSince` from your last `seq`.
+
 ### A client you do not have to write
 
 `.agents/skills/worlddriver-rpc/` in this repository ships a working Python client
@@ -185,15 +206,23 @@ answer may disconnect. `initialize` also advertises `tools` with `listChanged: f
 catalog is fixed by the time any external client connects — and `logging`, which is how the
 event push is announced.
 
-**Origin validation.** The `Origin` header is checked against a loopback allowlist
-(`localhost`, `127.0.0.1`, `::1`) as a defence against DNS rebinding, which the
-specification requires. A request with no `Origin`, or the literal `null`, passes; that
-covers curl and essentially every non-browser client. Only a browser-initiated request from
-a non-loopback origin is rejected, with 403.
+**Origin validation.** The `Origin` header is checked against a loopback allowlist as a
+defence against DNS rebinding, which the specification requires. The same policy guards the
+WebSocket handshake:
 
-**Request and response shapes.** `POST` with a JSON-RPC request returns 200 and
-`application/json`. `POST` with a notification, meaning no `id`, returns 202 with an empty
-body. A body over `worlddriver.maxRequestBytes` returns 413, checked against
+- No `Origin` header passes. That covers curl and essentially every non-browser client.
+- An `http` or `https` origin whose host is `localhost`, `127.0.0.1` or `::1` passes.
+- Everything else is rejected with 403, including the literal `null`. That value is what a
+  sandboxed iframe or a `data:` page sends, so accepting it would let any web page through.
+
+**Request and response shapes.** A `POST` must carry `Content-Type: application/json`
+(parameters such as `charset` are fine); any other type, or none, returns 415. That also
+closes the browser path the Origin check cannot see: a page may send `text/plain` without a
+preflight, but not `application/json`. `POST` with a JSON-RPC request returns 200 and
+`application/json`. `POST` with a notification, meaning any message with no `id`, returns 202
+with an empty body. A notification is acknowledged and not acted on: `notifications/cancelled`
+does not interrupt the call it names, and a `tools/call` sent without an `id` does not run,
+since its result would have nowhere to go. A body over `worlddriver.maxRequestBytes` returns 413, checked against
 `Content-Length` first and then enforced by a bounded read when that header is missing.
 
 **`GET` opens the event stream.** `GET /mcp` with `Accept: text/event-stream` opens the
@@ -202,6 +231,10 @@ carrying the `notifications/message` frame shown above. The stream sends a comme
 heartbeat every 15 seconds so a silently dropped peer is noticed. A `GET` without that
 `Accept` header gets 405, which the specification permits. Events fan out to every open
 stream rather than being correlated to a session.
+
+At most 8 event streams may be open at once; a further `GET` gets 503. Likewise at most 32
+`POST` requests run at once, and one past that gets 503 with a JSON-RPC error of code
+`-32005` and nothing is run.
 
 If a consumer falls more than 256 frames behind, its stream is closed rather than having
 frames dropped, on the reasoning that a consumer which silently misses events cannot tell
@@ -284,15 +317,19 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 
 | Limit | Value | Applies to |
 |---|---|---|
-| Inbound request size | 8 MiB, from `worlddriver.maxRequestBytes` | A POST body on MCP, a WebSocket frame on RPC. Deliberately one number so the two cannot disagree. |
+| Inbound request size | 8 MiB, from `worlddriver.maxRequestBytes` | A POST body on MCP, a WebSocket message on RPC, fragments included. Deliberately one number so the two cannot disagree. |
 | Script source | 64 KiB | `mc.script.eval` and a saved skill's source. |
 | Script deadline | 3 s default, 30 s maximum | `mc.script.eval` and `mc.skill` runs. |
 | Playbook deadline | 20 minutes maximum | `mc.bot.playbook`. |
 | `awaitMs` on an asynchronous verb | 1 ms to 10 minutes | Clamped, not rejected. |
 | Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. Leaving a world or reseeding the test area empties the buffer but never rewinds `seq`, which rises for the life of the process, so a cursor saved before a reload stays valid. |
-| Event-stream backlog | 256 frames per MCP stream | Overflow closes that stream. |
+| Event-stream backlog | 256 frames per MCP stream; 16 MiB queued per WebSocket connection | Overflow closes that stream or connection. |
 | Block scan | `in_radius` 15, a 31³ cube inside the 32,768-cell budget of `mc.action.fill` and `mc.world.snapshot` | `mc.query` with `q: 'blocks'`. A larger radius is rejected rather than clamped, and a cube reaching into an unloaded chunk is rejected rather than loading it. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. Running out is error `-32001` or `-32002`, above. |
+| Concurrent RPC requests | 16 per connection, 64 across the server | Past either, a request is refused at once with `-32005` rather than queued. |
+| Background waits | 32 running at once | `background: true` on any `mc.wait.*`; one more is refused with a "busy" error. |
+| Concurrent MCP work | 32 `POST` requests, 8 event streams | Past either, 503; a refused `POST` carries a `-32005` error. |
+| WebSocket liveness | Ping after 30 s quiet; close after 4 minutes with nothing received | Every RPC connection. |
 
 ## Security
 
@@ -325,7 +362,7 @@ rather than relying on the class filter, and treat `-Dworlddriver.sandbox=on` as
 that you add on top, not as the thing that makes the exposure safe. A class filter is not
 an authentication mechanism.
 
-The same reasoning applies to the MCP `Origin` check: it defends a browser on your own
+The same reasoning applies to the `Origin` check on both network transports: it defends a browser on your own
 machine against being used to reach the endpoint, and it does nothing at all about a client
 that simply connects.
 

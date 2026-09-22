@@ -242,19 +242,25 @@ Two ops on the `mc.events` tool work from any transport:
 A watcher polls its route every `everyMs`, default 1000, and emits `emitAs`, default
 `condition.met`, the first time its predicate becomes true. The predicate is `value` for
 deep equality, `above` or `below` for a numeric comparison, and otherwise plain JavaScript
-truthiness. `once: true` cancels the watcher after it fires.
+truthiness. `once: true` cancels the watcher after it fires. An `invoke` that names no
+registered route is refused with an error when the watcher is registered; once registered,
+a poll that fails (a world-bound route while no world is loaded) counts as "not true" and
+the watcher keeps running.
 
 ## Writing your own client
 
-- The endpoint is a single URL serving both `POST` and `GET`. `POST` carries requests and
-  returns `application/json`; `GET` with `Accept: text/event-stream` opens the notification
+- The endpoint is a single URL serving both `POST` and `GET`. `POST` carries requests, must
+  send `Content-Type: application/json` (anything else gets 415) and returns
+  `application/json`; `GET` with `Accept: text/event-stream` opens the notification
   stream.
-- A request without an `id` is a notification and gets 202 with an empty body.
+- A message without an `id` is a notification and gets 202 with an empty body. It is not
+  acted on, so `notifications/cancelled` does not stop a running call and an id-less
+  `tools/call` does not run.
 - The server negotiates `2025-06-18`, `2025-03-26` or `2024-11-05` in `initialize`, echoing
   the client's request when it recognises it and otherwise returning its latest.
 - The `Origin` header is validated against a loopback allowlist. A request with no `Origin`
   passes, which covers curl, `mcp-remote` and the Inspector; a browser page on a
-  non-loopback origin is rejected with 403.
+  non-loopback origin, or one sending the literal `Origin: null`, is rejected with 403.
 - A failing tool comes back as a result with `isError: true` and a text content block. Only
   transport-level failures become JSON-RPC error envelopes.
 - `mc.client.screenshot` returns two content blocks over MCP, a text block of metadata and

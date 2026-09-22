@@ -106,12 +106,13 @@ only to plan a hypothesis; an explicit `{}` means "suppose I had nothing".
 | `mc.wait.event` | Long-polls for events newer than a cursor, optionally filtered by type. Returns as soon as one arrives. | `cursor`, `types`, `limit`, `timeoutMs` (default 5000, max 120000), `background` |
 | `mc.wait.worldReady` | Blocks until the client has finished loading into a world, player and world both ready. Does not need an attached server. | `timeoutMs` (default 30000), `background` |
 | `mc.wait.condition` | Polls any route until a dotted field in its result is truthy, or deep-equals a value you give. | `invoke`, `params`, `field`, `value`, `timeoutMs` (default 30000, max 120000), `pollMs`, `background` |
-| `mc.wait.result` | Fetches the result of a wait started with `background: true`. Returns `{pending: true}` until it finishes. | `waitId`, `consume` |
+| `mc.wait.result` | Fetches the result of a wait started with `background: true`. Returns `{pending: true}` until it finishes. An id that is not running and not stored — never issued, already consumed, or evicted because only the 64 newest unread results are kept — is an error. | `waitId`, `consume` |
 
 In live play, prefer `background: true` for any long wait. A blocking wait freezes the
 agent for the whole budget and blinds it to threat, damage and death events while it runs;
 a background wait returns a `waitId` immediately and the result arrives through
-`mc.wait.result` or a `wait.done` event.
+`mc.wait.result` or a `wait.done` event. At most 32 background waits run at once; starting
+another while that many are running is refused with a "busy" error rather than queued.
 
 ## Events
 

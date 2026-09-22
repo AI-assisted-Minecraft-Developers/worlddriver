@@ -139,16 +139,16 @@ In-memory block-box save/restore — the clean way to A/B a pathfinder/build tri
 Server-side event channel: emit your own events and set up server-side **watchers** that poll an arbitrary method on a rising-edge predicate and emit when it fires (a building block for `wait.condition`-style automation without a client long-poll).
 | method | params | returns / notes |
 |---|---|---|
-| `mc.events` | `op:"emit"\|"watch"\|"unwatch"\|"list"` (req); emit: `type`,`data?`,`pos?`; watch: `invoke`,`params?`,`field?`,`emitAs?`,`everyMs?`,`once?`,`value?`/`above?`/`below?`; unwatch: `id` | `emit`→`{ok,seq,type}`; `watch`→`{ok,watching,id,emitAs,everyMs}`; `unwatch`→`{ok,removed}`; `list`→`{watchers:[…],count}`. |
+| `mc.events` | `op:"emit"\|"watch"\|"unwatch"\|"list"` (req); emit: `type`,`data?`,`pos?`; watch: `invoke`,`params?`,`field?`,`emitAs?`,`everyMs?`,`once?`,`value?`/`above?`/`below?`; unwatch: `id` | `emit`→`{ok,seq,type}`; `watch`→`{ok,watching,id,emitAs,everyMs}` (an `invoke` that is not a registered method is a `-32602` error at watch time); `unwatch`→`{ok,removed}`; `list`→`{watchers:[…],count}`. |
 
 ## mc.wait.*
-Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000, max 120000; `pollMs`). Pass `background:true` to return a `{waitId}` immediately and fetch the result later with `mc.wait.result`.
+Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000, max 120000; `pollMs`). Pass `background:true` to return a `{waitId}` immediately and fetch the result later with `mc.wait.result`. At most 32 background waits run at once; one more is refused with a `busy:` error, not queued.
 | method | params | returns / notes |
 |---|---|---|
 | `mc.wait.event` | `cursor` (req), `types?[]`, `limit?`, `timeoutMs?`, `pollMs?`, `background?` | returns as soon as ≥1 matching event arrives, else `{timedOut:true}`. `{events[], timedOut, cursor, ms}`; chain `cursor`. |
 | `mc.wait.worldReady` | `timeoutMs?`, `pollMs?`, `background?` | block until client has player+world → `{ready, ms, info:{hasScreen,worldOpen,hasPlayer,…}}`. No server needed. `background:true` returns a `{waitId}` at once (fetch via `mc.wait.result`). |
 | `mc.wait.condition` | `invoke` (req), `params?`, `field?`, `value?`, `timeoutMs?`, `pollMs?`, `background?` | call `invoke(params)` every `pollMs`, walk dotted `field` (e.g. `slots.2.count`) into the result, succeed when truthy (or deep-equals `value`) → `{satisfied, value, ms}`. |
-| `mc.wait.result` | `waitId` (req), `consume?` (dflt true) | fetch the result of a `background:true` wait → `{pending:true}` while still running, else the full original result (`satisfied`/`timedOut`/`value`/`events`/`ms`/…). `consume:false` leaves it readable again. |
+| `mc.wait.result` | `waitId` (req), `consume?` (dflt true) | fetch the result of a `background:true` wait → `{pending:true}` while still running, else the full original result (`satisfied`/`timedOut`/`value`/`events`/`ms`/…). `consume:false` leaves it readable again. An unknown id (never issued, already consumed, or evicted past the 64 newest unread results) is a `-32602` error, not pending. |
 
 ## mc.recipe.* / mc.plan
 Crafting/acquisition planning off the live recipe table — `resolve` expands a craft tree to leaf items; `plan.acquire` goes further and routes each missing leaf to mine/farm/smelt/craft. Server-side.
