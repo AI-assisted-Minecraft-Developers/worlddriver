@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **A server-side body's cancelled `sleep` or replay no longer leaves `goto.active` stuck true.**
+  `ServerWorldDriver` and the testmod's NPC host still reset the slot named after the process's kind,
+  which misses the goto slot those two borrow, and on a superseded, finished or goto-replaced process
+  they reset nothing at all. Both now hold their process through `HeldProcess`, which releases the
+  slots the process switched on at attach, the same `SlotClaim` the client's user-task chain uses, at
+  every ending. `gotoGoal` now cancels a held process as `mine` already did, so it hears
+  `onCancelled`.
 - **`mc.bot.farm` caps the cells it scans, Y included.** Only the XZ area was capped at 4096, and the
   process rescans every cell of the box on the tick thread after each harvest, so a 64x64 field from
   y=-64 to y=320 meant 1.5 million block reads per crop, and a Y span of two billion never finished.

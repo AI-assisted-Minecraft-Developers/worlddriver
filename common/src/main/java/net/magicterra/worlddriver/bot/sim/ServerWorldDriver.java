@@ -4,6 +4,7 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.Goal;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.scheduler.HeldProcess;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -61,7 +62,8 @@ public class ServerWorldDriver implements BodyDriver {
      */
     private volatile boolean tasked;
     private volatile BlockPos mineTarget;   // non-null = mine task: navigate near, then break
-    private volatile BotProcess process;    // non-null = run a real (Body-migrated) BotProcess
+    /** Holds a real (Body-migrated) BotProcess when there is one, and the slots it switched on. */
+    private final HeldProcess held = new HeldProcess(botState);
 
     public ServerWorldDriver(ServerPlayerBody avatar) {
         this.avatar = avatar;
@@ -82,14 +84,14 @@ public class ServerWorldDriver implements BodyDriver {
     /**
      * Point the driver at a goal (re-arms a finished driver).
      *
-     * <p>Clearing {@link #process} is not tidiness — {@link #tick()} tests it FIRST, so a driver
+     * <p>Dropping the held process is not tidiness — {@link #tick()} tests it FIRST, so a driver
      * that has ever run a process would silently keep running it and this call would do nothing.
      * See {@link #mine} for how that was found.
      */
     public ServerWorldDriver gotoGoal(Goal goal) {
         walker.setGoal(goal);
         mineTarget = null;
-        process = null;
+        held.cancel("superseded by goto");
         finished = false;
         tasked = true;
         last = Walker.Step.WALKING;
@@ -100,8 +102,8 @@ public class ServerWorldDriver implements BodyDriver {
      * Mine task: navigate within reach of {@code target}, then break it. A real headless task beyond
      * movement — reuses the validated Walker + the {@link ServerPlayerBody} break actuator.
      *
-     * <p>⚠️ The {@code process = null} is the fix for a silent no-op. {@link #tick()} branches on
-     * {@code process} before it looks at {@code mineTarget}, and neither this method nor
+     * <p>⚠️ Dropping the held process is the fix for a silent no-op. {@link #tick()} branches on
+     * the process before it looks at {@code mineTarget}, and neither this method nor
      * {@link #gotoGoal} used to clear it — so on a driver that had run any {@link BotProcess},
      * every later {@code mine}/{@code gotoGoal} was ignored and the OLD process ran again. Nothing
      * reported an error: the stale process reached its already-satisfied goal, the driver finished,
@@ -114,39 +116,24 @@ public class ServerWorldDriver implements BodyDriver {
     public ServerWorldDriver mine(BlockPos target) {
         this.mineTarget = target.immutable();
         walker.setGoal(new Goal.Near(target, 2));
-        releaseProcess("superseded by mine");
+        held.cancel("superseded by mine");
         finished = false;
         tasked = true;
         last = Walker.Step.WALKING;
         return this;
     }
 
-    /**
-     * Let go of the held process through the same door the client uses.
-     *
-     * <p>Both entry points below used to drop the reference and nothing else, while the client's
-     * {@code UserTaskChain.setProcess} cancels the outgoing process first. That asymmetry is only
-     * invisible while no process owns anything outside itself — and one now does:
-     * {@code MineProcess} holds the trunk-tax waiver for the length of a log goal and releases it in
-     * {@code onCancelled}. A scene that hands this driver a new process while the old one is
-     * mid-trunk would otherwise leak that waiver into every scene after it, which is the quietest
-     * possible cross-scene contamination: nothing fails, prices merely change.
-     */
-    private void releaseProcess(String reason) {
-        BotProcess prev = process;
-        process = null;
-        if (prev != null) prev.onCancelled(reason);
-    }
-
     /** Run a real (Body-migrated) {@link BotProcess} headless on the server tick.
      *  This is the Phase-2b process-layer seam: the SAME process the client
      *  scheduler runs (e.g. {@link net.magicterra.worlddriver.bot.process.IntentProcess})
      *  drives the FakePlayer through its {@code tick(Body,...)} path — no
-     *  bespoke driver logic, no client {@code mc}. */
+     *  bespoke driver logic, no client {@code mc}.
+     *
+     *  <p>Every ending goes through {@link HeldProcess} as the client's goes through
+     *  {@code UserTaskChain}: the outgoing process hears {@code onCancelled} ({@code MineProcess}
+     *  releases its trunk-tax waiver there), and the slots it switched on go inactive. */
     public ServerWorldDriver runProcess(BotProcess p) {
-        releaseProcess("superseded");
-        p.attach(botState);
-        this.process = p;
+        held.start(p);
         this.mineTarget = null;
         finished = false;
         tasked = true;
@@ -161,22 +148,19 @@ public class ServerWorldDriver implements BodyDriver {
      */
     public String activeKind() {
         if (finished || !tasked) return null;
-        BotProcess p = process;
+        BotProcess p = held.process();
         return p != null ? p.kind() : mineTarget != null ? "mine" : "goto";
     }
 
     /**
      * Stop the task the way the client's {@code UserTaskChain.cancel} does: the process hears
-     * {@code onCancelled}, and its slot keeps {@code reason} as its error and goes inactive, so a
-     * status read tells a cancelled order from a running one. The manager drops the finished driver
-     * on its next tick. False when there was nothing to stop.
+     * {@code onCancelled}, and the slots it switched on keep {@code reason} as their error and go
+     * inactive, so a status read tells a cancelled order from a running one. The manager drops the
+     * finished driver on its next tick. False when there was nothing to stop.
      */
     public boolean cancel(String reason) {
         if (activeKind() == null) return false;
-        BotProcess prev = process;
-        releaseProcess(reason);
-        BotState.ProcessSlot slot = prev == null ? null : botState.slotFor(prev.kind());
-        if (slot != null) { slot.lastError = reason; slot.reset(); }
+        held.cancel(reason);
         mineTarget = null;
         finished = true;
         last = Walker.Step.FAILED;
@@ -204,10 +188,11 @@ public class ServerWorldDriver implements BodyDriver {
      *  the target (level.destroyBlock — no reach gate) and the task completes. */
     public Walker.Step tick() {
         if (finished) return last;
+        BotProcess process = held.process();
         if (process != null) {                       // real BotProcess over the avatar
             boolean done = process.tick(avatar, world(), botState);
             avatar.step();
-            if (done) { finished = true; last = Walker.Step.ARRIVED; }
+            if (done) { held.finished(); finished = true; last = Walker.Step.ARRIVED; }
             else last = Walker.Step.WALKING;
             return last;
         }

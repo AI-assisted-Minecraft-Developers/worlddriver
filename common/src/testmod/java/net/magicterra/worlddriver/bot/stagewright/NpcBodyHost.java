@@ -6,6 +6,7 @@ import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.movement.Walker;
 import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.scheduler.HeldProcess;
 import net.magicterra.worlddriver.bot.sim.BodyDriver;
 import net.magicterra.worlddriver.bot.sim.ServerAvatarManager;
 import net.magicterra.worlddriver.bot.world.LevelWorldView;
@@ -32,7 +33,7 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
     private final String id;
     private final LivingBody body;
     private final BotState botState = new BotState();
-    private volatile BotProcess process;
+    private final HeldProcess held = new HeldProcess(botState);
     private volatile boolean finished = true;
     private LevelWorldView view;
 
@@ -48,37 +49,35 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
     @Override public BotState botState() { return botState; }
 
     @Override public boolean busy() {
-        return !finished && process != null && ServerAvatarManager.isRegistered(this);
+        return !finished && held.process() != null && ServerAvatarManager.isRegistered(this);
     }
 
     @Override public void start(BotProcess p) {
-        release("superseded");
-        p.attach(botState);
-        process = p;
+        held.start(p);
         finished = false;
         ServerAvatarManager.register(this);
     }
 
-    /** The way {@code ServerWorldDriver.cancel} ends a task: the process hears it, its slot keeps the
-     *  reason and goes inactive. */
+    /** The way {@code ServerWorldDriver.cancel} ends a task: the process hears it, and the slots it
+     *  switched on keep the reason and go inactive. */
     @Override public String cancel(String which) {
-        BotProcess p = busy() ? process : null;
+        BotProcess p = busy() ? held.process() : null;
         if (p == null || !("all".equals(which) || p.kind().equals(which))) return null;
-        end(p, "user-cancel");
+        end("user-cancel");
         return p.kind();
     }
 
     @Override public Walker.Step tick() {
-        BotProcess p = process;
+        BotProcess p = held.process();
         if (finished || p == null) return Walker.Step.ARRIVED;
         Map<String, Object> gone = refusal();
         if (gone != null) {
-            end(p, String.valueOf(gone.get("reason")));
+            end(String.valueOf(gone.get("reason")));
             return Walker.Step.FAILED;
         }
         boolean done = p.tick(body, view(), botState);
         body.step();
-        if (done) finished = true;
+        if (done) { held.finished(); finished = true; }
         return done ? Walker.Step.ARRIVED : Walker.Step.WALKING;
     }
 
@@ -91,16 +90,8 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
         return view;
     }
 
-    private void end(BotProcess p, String reason) {
-        release(reason);
-        BotState.ProcessSlot slot = botState.slotFor(p.kind());
-        if (slot != null) { slot.lastError = reason; slot.reset(); }
+    private void end(String reason) {
+        held.cancel(reason);
         finished = true;
-    }
-
-    private void release(String reason) {
-        BotProcess prev = process;
-        process = null;
-        if (prev != null) prev.onCancelled(reason);
     }
 }
