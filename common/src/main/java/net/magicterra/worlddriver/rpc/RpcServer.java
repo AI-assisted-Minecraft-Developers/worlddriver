@@ -47,8 +47,8 @@ import java.util.concurrent.ThreadFactory;
  * Request frame:  {"id": int, "method": "mc.observe.player", "params": {...}}
  * Response frame: {"id": int, "result": ...}
  *              or {"id": int|null, "error": "...", "code": int}
- * The {@code id} key is present on EVERY response, null only when the request was
- * too malformed to carry one; {@code code} is the JSON-RPC 2.0 reserved code, the
+ * The {@code id} key is present on EVERY response, null only when the request did
+ * not carry one (omitted, or too malformed to read); {@code code} is the JSON-RPC 2.0 reserved code, the
  * same value McpServer would report for the same failure.
  *
  * Same {@code DriverApi.route(method, params)} is invoked here AND from in-JVM Rhino
@@ -237,7 +237,11 @@ public final class RpcServer implements Closeable {
                     return errorFrame(null, CODE_INVALID_REQUEST, "request must be JSON object");
                 }
                 id = req.get("id");
-                String method = (String) req.get("method");
+                if (!(req.get("method") instanceof String method)) {
+                    return errorFrame(id, CODE_INVALID_REQUEST,
+                            "invalid request: 'method' must be a string, got "
+                            + JsonCodec.encode(req.get("method")));
+                }
                 Map<String, Object> params = (Map<String, Object>) req.get("params");
                 // Event-stream subscription is per-connection state, so it's handled
                 // at the transport layer (not an DriverApi route): it controls which
@@ -247,13 +251,13 @@ public final class RpcServer implements Closeable {
                 }
                 try {
                     Object result = api.route(method, params);
-                    return JsonCodec.encode(Map.of("id", id == null ? 0 : id, "result", result));
+                    return resultFrame(id, result);
                 } catch (Throwable ex) {
-                    return errorFrame(id == null ? 0 : id, codeFor(ex), String.valueOf(ex.getMessage()));
+                    return errorFrame(id, codeFor(ex), String.valueOf(ex.getMessage()));
                 }
             } catch (Throwable err) {
-                // Decode succeeded but the frame was still unusable (e.g. "method" was
-                // not a string) -> invalid request, not a parse error. The id may have
+                // Decode succeeded but the frame was still unusable (e.g. "params" was
+                // not an object) -> invalid request, not a parse error. The id may have
                 // been read before the failure; emit it when we have it.
                 return parsed
                         ? errorFrame(id, CODE_INVALID_REQUEST, "invalid request: " + err.getMessage())
@@ -291,6 +295,15 @@ public final class RpcServer implements Closeable {
             return JsonCodec.encode(m);
         }
 
+        /** A request that carried no id is answered with {@code id:null}, never a made-up
+         *  number: 0 is a legal client id and would misroute the reply. */
+        private static String resultFrame(Object id, Object result) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", id);
+            m.put("result", result);
+            return JsonCodec.encode(m);
+        }
+
         /** Mirrors McpServer's classification: an unroutable method is -32601, a bad
          *  argument -32602, anything else the route threw -32603. DriverApi signals the
          *  first two with IllegalArgumentException, so the method-not-found case is
@@ -314,14 +327,14 @@ public final class RpcServer implements Closeable {
                 // which was dropped without a word. Both are now refused.
                 if (rawTypes != null) {
                     if (!(rawTypes instanceof List<?> l)) {
-                        return errorFrame(id == null ? 0 : id, CODE_INVALID_PARAMS,
+                        return errorFrame(id, CODE_INVALID_PARAMS,
                                 "mc.events.subscribe: 'types' must be an array of strings, got "
                                 + rawTypes.getClass().getSimpleName()
                                 + " — omit 'types' entirely to receive every type");
                     }
                     for (Object o : l) {
                         if (!(o instanceof String s) || s.isBlank()) {
-                            return errorFrame(id == null ? 0 : id, CODE_INVALID_PARAMS,
+                            return errorFrame(id, CODE_INVALID_PARAMS,
                                     "mc.events.subscribe: every entry of 'types' must be a "
                                     + "non-blank string, got " + JsonCodec.encode(o));
                         }
@@ -347,7 +360,7 @@ public final class RpcServer implements Closeable {
                 result.put("ok", true);
                 result.put("subscribed", false);
             }
-            return JsonCodec.encode(Map.of("id", id == null ? 0 : id, "result", result));
+            return resultFrame(id, result);
         }
     }
 }

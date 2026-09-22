@@ -148,6 +148,40 @@ class RpcFramingTest {
     }
 
     @Test
+    void aMissingMethodIsAnInvalidRequestNotAnInternalError() throws Exception {
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+             RawClient raw = new RawClient(server.port())) {
+            Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
+            assertEquals("5", String.valueOf(r.get("id")));
+            assertEquals("-32600", String.valueOf(r.get("code")), r.toString());
+            assertTrue(String.valueOf(r.get("error")).contains("method"), r.toString());
+        }
+    }
+
+    @Test
+    void aRequestWithoutAnIdIsAnsweredWithANullIdNotZero() throws Exception {
+        // 0 is a legal client id; answering an id-less request with it misroutes the
+        // reply to whichever call really used 0.
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+             RawClient raw = new RawClient(server.port())) {
+            Map<?, ?> err = raw.roundTrip("{\"method\":\"mc.nope\",\"params\":{}}");
+            assertTrue(err.containsKey("id"), "id key missing: " + err);
+            assertNull(err.get("id"), err.toString());
+            assertEquals("-32601", String.valueOf(err.get("code")));
+
+            Map<?, ?> ok = raw.roundTrip("{\"method\":\"mc.events.unsubscribe\"}");
+            assertTrue(ok.containsKey("id"), "id key missing: " + ok);
+            assertNull(ok.get("id"), ok.toString());
+            assertInstanceOf(Map.class, ok.get("result"));
+
+            Map<?, ?> badFilter = raw.roundTrip(
+                    "{\"method\":\"mc.events.subscribe\",\"params\":{\"types\":\"x\"}}");
+            assertTrue(badFilter.containsKey("id"));
+            assertNull(badFilter.get("id"), badFilter.toString());
+        }
+    }
+
+    @Test
     void aLargeRequestIsAcceptedLikeTheMcpTransportAcceptsIt() throws Exception {
         // McpServer caps a POST body at agent.mcp.maxBodyBytes (8 MiB default). The
         // WebSocket side inherited Netty's 64 KiB default frame size, so the same

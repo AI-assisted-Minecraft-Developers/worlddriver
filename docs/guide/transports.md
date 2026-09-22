@@ -90,8 +90,10 @@ A success response, then a failure response:
 
 Four rules a client has to get right:
 
-1. **`id` is always present on a response.** It is explicitly `null` only when the frame was
-   too malformed to carry one. That is what makes the next rule decidable.
+1. **`id` is always present on a response.** It is explicitly `null` only when the request
+   did not carry one, either because it omitted `id` or because the frame was too malformed
+   to read it. Use a non-null `id` on every call you want to correlate. This is what makes
+   the next rule decidable.
 2. **Demultiplex by shape.** A response has an `id`; a notification has a `method` and no
    `id`. Server pushes arrive interleaved with responses on the same socket.
 3. **`error` is a bare string, not an object.** `code` sits alongside it and carries the
@@ -110,7 +112,7 @@ and never becomes a socket.
 | Code | Meaning |
 |---|---|
 | `-32700` | The frame did not parse as JSON. |
-| `-32600` | The frame parsed but was not a usable request, for example `method` was not a string. |
+| `-32600` | The frame parsed but was not a usable request, for example `method` was missing or not a string. |
 | `-32601` | No such method. |
 | `-32602` | The method exists but the parameters were rejected, either by the schema validator or by the route itself. |
 | `-32603` | The route threw something else. |
