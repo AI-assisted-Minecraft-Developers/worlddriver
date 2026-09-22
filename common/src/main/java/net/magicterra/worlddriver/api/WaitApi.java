@@ -42,8 +42,9 @@ public final class WaitApi {
     WaitApi(DriverApi api) { this.api = api; }
 
     /** Maximum wall-clock budget any wait.* tool will accept, in ms. Keeps a
-     *  runaway script from squatting on a worker thread for hours. */
-    private static final long MAX_BUDGET_MS = 120_000L;
+     *  runaway script from squatting on a worker thread for hours. Public because the
+     *  WebSocket liveness window must outlast it. */
+    public static final long MAX_BUDGET_MS = 120_000L;
 
     // ---- background wait machinery (see class javadoc) -------------------------
     private static final ExecutorService BG = Executors.newCachedThreadPool(r -> {

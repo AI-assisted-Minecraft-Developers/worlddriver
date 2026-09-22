@@ -41,4 +41,16 @@ public final class TransportLimits {
      */
     public static final int WS_WRITE_BUFFER_LOW_BYTES = 8 * 1024 * 1024;
     public static final int WS_WRITE_BUFFER_HIGH_BYTES = 16 * 1024 * 1024;
+
+    /** How long a WebSocket connection may go without receiving anything before the server
+     *  pings it. Every client library answers a ping on its own. */
+    public static final long WS_PING_INTERVAL_MS = 30_000L;
+
+    /**
+     * How long a connection may go without receiving anything at all — no pong, no frame —
+     * before it is closed as half-open. Not a few missed pings: some client libraries answer
+     * a ping only from inside a read, and a client may legitimately sit a whole
+     * {@code mc.wait.*} budget (two minutes) between reads. Twice that budget.
+     */
+    public static final long WS_IDLE_CLOSE_MS = 240_000L;
 }

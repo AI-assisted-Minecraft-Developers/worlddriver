@@ -25,9 +25,13 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import net.magicterra.worlddriver.WorldDriverCommon;
@@ -45,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 /**
  * WebSocket RPC server (Netty). Endpoint: ws://host:port/rpc
@@ -113,6 +118,11 @@ public final class RpcServer implements Closeable {
     }
 
     public RpcServer(DriverApi api, String bindHost, int requestedPort) {
+        this(api, bindHost, requestedPort, TransportLimits.WS_PING_INTERVAL_MS, TransportLimits.WS_IDLE_CLOSE_MS);
+    }
+
+    /** Liveness timings as parameters so a test can run them in seconds. */
+    RpcServer(DriverApi api, String bindHost, int requestedPort, long pingIntervalMs, long idleCloseMs) {
         ServerBootstrap b = new ServerBootstrap();
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
@@ -122,6 +132,9 @@ public final class RpcServer implements Closeable {
          .childHandler(new ChannelInitializer<SocketChannel>() {
              @Override protected void initChannel(SocketChannel ch) {
                  ch.pipeline()
+                   // First, so any inbound byte counts, a pong included: the protocol
+                   // handler consumes pongs before any later handler could see them.
+                   .addLast(new IdleStateHandler(pingIntervalMs, 0, 0, TimeUnit.MILLISECONDS))
                    .addLast(new HttpServerCodec())
                    .addLast(new HttpObjectAggregator(1 << 20))
                    .addLast(new OriginGate())
@@ -130,6 +143,7 @@ public final class RpcServer implements Closeable {
                    // A fragmented message reaches FrameHandler as one frame; without this
                    // the first fragment was parsed alone and the continuations dropped.
                    .addLast(new WebSocketFrameAggregator(TransportLimits.MAX_REQUEST_BYTES))
+                   .addLast(new PeerLiveness(pingIntervalMs, idleCloseMs))
                    .addLast(new FrameHandler(api, routeExec, subs));
              }
          });
@@ -225,6 +239,38 @@ public final class RpcServer implements Closeable {
                 }
             }
             ctx.fireChannelRead(msg);
+        }
+    }
+
+    /** Pings a quiet peer and closes one that has sent nothing, pong included, for the
+     *  whole window. A half-open peer never fails a write the kernel can still buffer, so
+     *  nothing else would ever reclaim its connection or its event subscription. */
+    private static final class PeerLiveness extends ChannelInboundHandlerAdapter {
+        private final long pingIntervalMs;
+        private final long idleCloseMs;
+        private boolean upgraded;
+        private long quietMs;
+
+        PeerLiveness(long pingIntervalMs, long idleCloseMs) {
+            this.pingIntervalMs = pingIntervalMs;
+            this.idleCloseMs = idleCloseMs;
+        }
+
+        @Override
+        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+            if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
+                upgraded = true;
+            } else if (evt instanceof IdleStateEvent idle && idle.state() == IdleState.READER_IDLE) {
+                // isFirst marks the first idle event since the last read, which resets the count.
+                quietMs = idle.isFirst() ? pingIntervalMs : quietMs + pingIntervalMs;
+                if (quietMs >= idleCloseMs) {
+                    ctx.close();
+                } else if (upgraded) {
+                    ctx.channel().writeAndFlush(new PingWebSocketFrame());
+                }
+                return;
+            }
+            super.userEventTriggered(ctx, evt);
         }
     }
 

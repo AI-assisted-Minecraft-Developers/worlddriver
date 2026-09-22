@@ -105,6 +105,13 @@ Four rules a client has to get right:
    the frame never assembles, so there is no request to answer and no `id` to answer it
    with. The only inbound payload that comes near 8 MiB is a script body.
 
+**Liveness.** A connection that has sent nothing for 30 seconds is sent a WebSocket ping, and
+one that has sent nothing at all — not even a pong — for 4 minutes is closed as half-open.
+Every WebSocket library answers pings on its own, so a client blocked on a long call stays
+connected as long as its library is reading. The window is twice the longest `mc.wait.*`
+budget so that a library which answers pings only from inside a read is not cut off
+mid-call.
+
 The upgrade request is subject to the same Origin validation as an MCP `POST` (see
 [MCP over HTTP](#mcp-over-http)): a handshake from a foreign origin, or from the literal `null`, is answered with 403
 and never becomes a socket.
@@ -303,6 +310,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. |
 | Event-stream backlog | 256 frames per MCP stream; 16 MiB queued per WebSocket connection | Overflow closes that stream or connection. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. |
+| WebSocket liveness | Ping after 30 s quiet; close after 4 minutes with nothing received | Every RPC connection. |
 
 ## Security
 
