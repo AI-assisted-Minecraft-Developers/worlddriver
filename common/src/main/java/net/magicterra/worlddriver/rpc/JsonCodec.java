@@ -4,7 +4,11 @@ import net.magicterra.worlddriver.model.DriverEvent;
 import net.minecraft.core.BlockPos;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Hand-rolled JSON codec. Sufficient for our RPC use; no external dep. */
 public final class JsonCodec {
@@ -23,6 +27,19 @@ public final class JsonCodec {
         if (v instanceof String s) { writeStr(sb, s); return; }
         if (v instanceof Boolean b) { sb.append(b); return; }
         if (v instanceof Number n) {
+            // Integral types never go through double: its 53-bit mantissa rewrites the low
+            // bits of a 64-bit value such as a world seed.
+            if (n instanceof Long || n instanceof Integer || n instanceof Short || n instanceof Byte
+                    || n instanceof AtomicLong || n instanceof AtomicInteger) {
+                sb.append(n.longValue());
+                return;
+            }
+            if (n instanceof BigInteger bi) { sb.append(bi); return; }
+            if (n instanceof BigDecimal bd) {
+                BigDecimal s = bd.stripTrailingZeros();
+                sb.append(s.scale() <= 0 ? s.toPlainString() : s.toString());
+                return;
+            }
             double d = n.doubleValue();
             // JSON has no NaN/Infinity literal. Emit null (matches JS
             // JSON.stringify) so the wire stays valid JSON — otherwise a stray
