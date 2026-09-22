@@ -22,6 +22,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import net.magicterra.worlddriver.api.DriverApi;
+import net.magicterra.worlddriver.api.ServerThreadHop;
 import org.junit.jupiter.api.Test;
 
 import java.net.InetSocketAddress;
@@ -144,6 +145,37 @@ class RpcFramingTest {
             Map<?, ?> badMethod = raw.roundTrip("{\"id\":8,\"method\":42,\"params\":{}}");
             assertEquals("8", String.valueOf(badMethod.get("id")));
             assertEquals("-32600", String.valueOf(badMethod.get("code")));
+        }
+    }
+
+    @Test
+    void aFrameWithNoMethodIsAnInvalidRequest() throws Exception {
+        // The MCP transport answers the same frame with -32600 "missing method".
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+             RawClient raw = new RawClient(server.port())) {
+            Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
+            assertEquals("5", String.valueOf(r.get("id")));
+            assertEquals("-32600", String.valueOf(r.get("code")), "reply: " + r);
+            assertTrue(String.valueOf(r.get("error")).contains("no method"), "reply: " + r);
+        }
+    }
+
+    @Test
+    void aServerThreadTimeoutSaysWhetherTheTaskCanStillApply() throws Exception {
+        DriverApi api = new DriverApi();
+        api.addRoute("mc.test.notExecuted", p -> {
+            throw new ServerThreadHop.NotExecutedException("withdrawn");
+        });
+        // Routes may wrap what the hop threw; the classification must survive that.
+        api.addRoute("mc.test.outcomeUnknown", p -> {
+            throw new RuntimeException(new ServerThreadHop.OutcomeUnknownException("still running"));
+        });
+        try (RpcServer server = new RpcServer(api, 0);
+             RawClient raw = new RawClient(server.port())) {
+            Map<?, ?> ne = raw.roundTrip("{\"id\":21,\"method\":\"mc.test.notExecuted\",\"params\":{}}");
+            assertEquals("-32001", String.valueOf(ne.get("code")), "reply: " + ne);
+            Map<?, ?> ou = raw.roundTrip("{\"id\":22,\"method\":\"mc.test.outcomeUnknown\",\"params\":{}}");
+            assertEquals("-32002", String.valueOf(ou.get("code")), "reply: " + ou);
         }
     }
 

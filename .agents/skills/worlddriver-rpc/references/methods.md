@@ -51,6 +51,10 @@ string, **not** a JSON-RPC 2.0 error object, and there is no `jsonrpc` version f
 Common errors: `parse: …` (bad JSON), `unknown method: <name>`, or the handler's
 exception message. Many handlers don't throw — they return `{ok:false, error:…}` in
 the result instead, so check `ok`, not just transport success.
+A `code` field sits beside `error`. Two codes mean the server tick was too busy to answer in
+time (`-Dworlddriver.serverThreadTimeoutMs`, 8 s default): `-32001` = the task was withdrawn
+and never ran, retry freely; `-32002` = it started and may still apply, observe before
+retrying. MCP reports the same two as JSON-RPC error envelopes on `tools/call`.
 
 **Body preconditions.** Every `mc.bot.*` verb that drives the player (all but `status`,
 `cancel`, `setting`, `waypoint`, `playbook`) first checks that the body can act, on every
@@ -101,7 +105,7 @@ its result directly, no `awaitMs`); `mc.bot.playbook` runs on a **background thr
 ## mc.observe.*
 | method | params | returns / notes |
 |---|---|---|
-| `mc.observe.cursor` | — | latest event seq `<integer>`; save and feed to `eventsSince`/`wait.event`. |
+| `mc.observe.cursor` | — | latest event seq `<integer>`; save and feed to `eventsSince`/`wait.event`. The seq never rewinds, not even across a world reload, so a saved cursor stays valid. |
 | `mc.observe.eventsSince` | `cursor` (req), `types?[]`, `limit?` | events with `seq>cursor`; types: block.break/place/fill, entity.death, player.join/leave, chat.message, and the client's route events route.blocked / route.detour / route.exposed (see `mc.bot.goto`). limit default 256, max 4096. |
 | `mc.observe.player` | `name?` | `{present, name, uuid, dimension, pos, blockPos, look, onGround, health, maxHealth, food, xpLevel, effects[], time, gameMode, mainHand, offHand, hotbar[], selectedSlot, armor}`; client fallback adds `inventory, saturation, hit`. |
 | `mc.observe.threats` | `radius?` (1–64, dflt 24) | `{threats:[{id,type,pos,distance,hostile,canSeeMe,facingMe,charging,creeperSwell,threat}], incomingProjectiles:[{id,type,pos,vel,willHit,ticksToImpact}]}`. Client-backed (empty on dedicated server). `threat` is a 0–1 priority score. |
@@ -129,7 +133,7 @@ In-memory block-box save/restore — the clean way to A/B a pathfinder/build tri
 ## mc.query
 | method | params | returns / notes |
 |---|---|---|
-| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?, is_living?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; required for blocks, default 16 for entities). `filter.type` = one exact id for both blocks (`#tag` ok) and entities (bare path → `minecraft:`). Blocks → `[{pos,type,state?}]` (`state` = blockstate property map, omitted when property-less); entities → `[{pos,type,uuid,id,health?,effects?}]` (`effects` = `[{id,amplifier,durationTicks}]`, living only; `is_living` filters item/orb rows). `select` projects fields; unknown select keys are rejected with an error. Client fallback rows add `{hostile,maxHealth,distance}`. |
+| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?, is_living?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; required for blocks, default 16 for entities). Blocks: `in_radius` max 15 (31³ cells, inside the 32768-cell budget of `mc.action.fill`; larger → error), and only loaded chunks are read — a cube touching an unloaded chunk is an error naming it, never a chunk load. `filter.type` = one exact id for both blocks (`#tag` ok) and entities (bare path → `minecraft:`). Blocks → `[{pos,type,state?}]` (`state` = blockstate property map, omitted when property-less); entities → `[{pos,type,uuid,id,health?,effects?}]` (`effects` = `[{id,amplifier,durationTicks}]`, living only; `is_living` filters item/orb rows). `select` projects fields; unknown select keys are rejected with an error. Client fallback (no server attached) returns the same flat array and honours the same `filter`/`select`; its entity rows add `{hostile,maxHealth,distance}`, which `select` may also name. |
 
 ## mc.events
 Server-side event channel: emit your own events and set up server-side **watchers** that poll an arbitrary method on a rising-edge predicate and emit when it fires (a building block for `wait.condition`-style automation without a client long-poll).

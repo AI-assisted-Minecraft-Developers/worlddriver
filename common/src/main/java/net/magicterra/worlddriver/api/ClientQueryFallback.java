@@ -1,0 +1,85 @@
+package net.magicterra.worlddriver.api;
+
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import net.magicterra.worlddriver.client.ClientDriverApi;
+
+/**
+ * {@code mc.query} on a client JVM with no server attached (connected to a remote dedicated
+ * server): scans ClientLevel through the client impl instead of the server level.
+ */
+final class ClientQueryFallback {
+    private ClientQueryFallback() {}
+
+    @SuppressWarnings("unchecked")
+    static Object query(ClientDriverApi c, Map<String, Object> p) {
+        String q = (String) p.get("q");
+        Object filter = p.get("filter");
+        int r = "entities".equals(q) ? 16 : 4;
+        Boolean wantHostile = null;
+        String typeFilter = null;
+        if (filter instanceof Map<?, ?> fm) {
+            Object rad = fm.get("in_radius");
+            if (rad instanceof Number rn) r = rn.intValue();
+            Object h = fm.get("is_hostile");
+            if (h instanceof Boolean hb) wantHostile = hb;
+            Object tv = fm.get("type");
+            if (tv instanceof String s && !s.isBlank()) typeFilter = s;
+        }
+        Double cx = null, cy = null, cz = null;
+        Object center = p.get("center");
+        if (center instanceof Map<?, ?> cm) {
+            Object xo = cm.get("x"), yo = cm.get("y"), zo = cm.get("z");
+            if (xo instanceof Number nx && yo instanceof Number ny && zo instanceof Number nz) {
+                cx = nx.doubleValue(); cy = ny.doubleValue(); cz = nz.doubleValue();
+            }
+        }
+        if ("entities".equals(q)) {
+            List<String> select = p.get("select") instanceof List<?> l ? (List<String>) l : null;
+            DriverApi.checkSelect(select, CLIENT_ENTITY_SELECT_KEYS);
+            Boolean wantLiving = filter instanceof Map<?, ?> fm && fm.get("is_living") instanceof Boolean b ? b : null;
+            return entities(c.queryEntities(r, cx, cy, cz, wantHostile), typeFilter, wantLiving, select);
+        }
+        // q='blocks' — reuse observeArea client path; unwrap to
+        // match the server's flat-array shape.
+        Set<String> ids = (typeFilter == null) ? null
+                : new LinkedHashSet<>(Set.of(typeFilter));
+        Map<String, Object> wrapped = c.observeArea(r, cx, cy, cz, ids);
+        Object blocks = wrapped.get("blocks");
+        return (blocks instanceof List) ? blocks : List.of();
+    }
+
+    /** The server's row keys plus the three only the client scan computes. */
+    private static final Set<String> CLIENT_ENTITY_SELECT_KEYS = union(DriverApi.ENTITY_SELECT_KEYS,
+            Set.of("hostile", "maxHealth", "distance"));
+
+    /** Unwraps the client scan's {@code {entities, radius}} into the server's flat array and applies
+     *  the filters the scan itself does not take. */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> entities(Map<String, Object> scan, String type,
+                                                      Boolean wantLiving, List<String> select) {
+        if (!(scan.get("entities") instanceof List<?> rows)) {
+            throw new IllegalStateException("mc.query client fallback: " + scan.getOrDefault("error", "no entity scan"));
+        }
+        String wantType = type == null ? null : type.contains(":") ? type : "minecraft:" + type;
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object o : rows) {
+            Map<String, Object> row = (Map<String, Object>) o;
+            if (wantType != null && !wantType.equals(row.get("type"))) continue;
+            // The client scan puts health on exactly the LivingEntity rows.
+            if (wantLiving != null && wantLiving != row.containsKey("health")) continue;
+            out.add(DriverApi.project(row, select));
+        }
+        return out;
+    }
+
+    private static Set<String> union(Set<String> a, Set<String> b) {
+        Set<String> s = new LinkedHashSet<>(a);
+        s.addAll(b);
+        return Set.copyOf(s);
+    }
+}

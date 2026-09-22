@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -30,6 +29,7 @@ import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.architectury.event.events.common.LifecycleEvent;
 import dev.architectury.event.events.common.TickEvent;
 import net.magicterra.worlddriver.WorldDriverCommon;
+import net.magicterra.worlddriver.api.ServerThreadHop;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
 import net.magicterra.worlddriver.mcp.schema.ToolSchema;
 import net.magicterra.worlddriver.model.Params;
@@ -498,23 +498,6 @@ public final class SceneVerbs {
     static <T> T onServerThread(Supplier<T> task) {
         MinecraftServer s = server;
         if (s == null) throw new IllegalStateException("no server is running");
-        if (s.isSameThread()) return task.get();
-        CompletableFuture<T> f = new CompletableFuture<>();
-        s.execute(() -> {
-            try { f.complete(task.get()); }
-            catch (Throwable e) { f.completeExceptionally(e); }
-        });
-        try {
-            return f.get(SERVER_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            throw new RuntimeException("server thread did not run task within " + SERVER_THREAD_TIMEOUT_MS + "ms");
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            if (cause instanceof RuntimeException re) throw re;
-            throw new RuntimeException(cause);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("interrupted while waiting on server thread");
-        }
+        return new ServerThreadHop(s, s::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(task);
     }
 }

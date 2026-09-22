@@ -143,11 +143,18 @@ Game state may only be touched on the server thread. The hop is
 1. if already on the server thread (`server.isSameThread()`), run inline;
 2. otherwise `server.execute(...)` and block on the resulting future.
 
+The mechanics live in `ServerThreadHop`, which takes the executor, the same-thread check and
+the timeout, so it is unit-tested without a game.
+
 The budget is `SERVER_THREAD_TIMEOUT_MS`, a `Long.getLong("worlddriver.serverThreadTimeoutMs", 8_000L)`
-in `DriverApi` — eight seconds unless overridden with that system property. On expiry the
-caller gets `server thread did not run task within …ms (server busy or paused)`, which
-usually means a paused client or a wedged tick rather than a defect in the verb that was
-called.
+in `DriverApi` — eight seconds unless overridden with that system property. Expiry usually
+means a paused client or a wedged tick rather than a defect in the verb that was called, and
+it has two outcomes, because a queued task outlives the wait that gave up on it. Each call
+races the server thread with a compare-and-set on its own state: the server thread moves it
+from queued to running before it runs, the waiter moves it from queued to abandoned when time
+runs out, and a task found abandoned is skipped. The waiter that wins throws
+`NotExecutedException` (code `-32001`: never ran, safe to retry); the one that loses throws
+`OutcomeUnknownException` (code `-32002`: running, may still apply).
 
 **Reads hop as well as writes.** There is no family of snapshot helpers that lets another
 thread read the level directly; anything touching live level state goes through

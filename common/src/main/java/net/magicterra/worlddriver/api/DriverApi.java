@@ -18,23 +18,18 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.AABB;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.magicterra.worlddriver.bot.VerbOrders;
-import java.util.function.Predicate;
-import net.magicterra.worlddriver.bot.util.BlockMatch;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.client.ClientDriverApi;
@@ -42,8 +37,6 @@ import net.magicterra.worlddriver.bot.BotApi;
 import java.util.Set;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 import net.magicterra.worlddriver.bot.BotHooks;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.ExecutionException;
 
 /* Ring buffer cap keeps memory bounded for long-running servers. Old events
  * roll off; eventsSince(cursor) on an out-of-window cursor returns whatever
@@ -224,45 +217,10 @@ public final class DriverApi {
         routes.put("mc.events",            p -> eventsApi.dispatch(p));
         routes.put("mc.query", p -> {
             // Client-MCP fallback — server-side query() asserts attached server.
-            // On a runClient JVM connected to a remote dedicated server, scan
-            // ClientLevel via the client impl. Result rows match the server
-            // schema. q='entities' includes numeric `id` for attackEntity.
             String q = (String) p.get("q");
             if (server == null && ("entities".equals(q) || "blocks".equals(q))) {
                 var c = clientOrNull();
-                if (c != null) {
-                    Object filter = p.get("filter");
-                    int r = "entities".equals(q) ? 16 : 4;
-                    Boolean wantHostile = null;
-                    String typeFilter = null;
-                    if (filter instanceof Map<?, ?> fm) {
-                        Object rad = fm.get("in_radius");
-                        if (rad instanceof Number rn) r = rn.intValue();
-                        Object h = fm.get("is_hostile");
-                        if (h instanceof Boolean hb) wantHostile = hb;
-                        Object tv = fm.get("type");
-                        if (tv instanceof String s && !s.isBlank()) typeFilter = s;
-                    }
-                    Double cx = null, cy = null, cz = null;
-                    Object center = p.get("center");
-                    if (center instanceof Map<?, ?> cm) {
-                        Object xo = cm.get("x"), yo = cm.get("y"), zo = cm.get("z");
-                        if (xo instanceof Number nx && yo instanceof Number ny && zo instanceof Number nz) {
-                            cx = nx.doubleValue(); cy = ny.doubleValue(); cz = nz.doubleValue();
-                        }
-                    }
-                    if ("entities".equals(q)) {
-                        return c.queryEntities(r, cx, cy, cz, wantHostile);
-                    } else {
-                        // q='blocks' — reuse observeArea client path; unwrap to
-                        // match the server's flat-array shape.
-                        Set<String> ids = (typeFilter == null) ? null
-                                : new LinkedHashSet<>(Set.of(typeFilter));
-                        Map<String, Object> wrapped = c.observeArea(r, cx, cy, cz, ids);
-                        Object blocks = wrapped.get("blocks");
-                        return (blocks instanceof List) ? blocks : List.of();
-                    }
-                }
+                if (c != null) return ClientQueryFallback.query(c, p);
             }
             return query(QueryParams.from(p));
         });
@@ -492,16 +450,23 @@ public final class DriverApi {
     public void detachServer() {
         this.server = null;
         eventsApi.clear(); // stop condition watchers — their routes need the server
-        synchronized (eventsLock) {
-            events.clear();
-            eventSeq.set(0);
-        }
+        clearEvents();
         world.clearSnapshots();
     }
 
+    /** Drop the buffered events but never rewind the seq: the transports outlive a world, and a
+     *  client still holding cursor N would see nothing until the counter climbed back past N. */
+    void clearEvents() {
+        synchronized (eventsLock) {
+            events.clear();
+        }
+    }
+
     public Object route(String method, Map<String, Object> params) {
-        Function<Map<String, Object>, Object> fn = routes.get(method);
-        if (fn == null) throw new IllegalArgumentException("unknown method: " + method);
+        // ConcurrentHashMap.get(null) throws a bare NPE, which every transport would report as
+        // an internal fault instead of a request that named no method.
+        Function<Map<String, Object>, Object> fn = method == null ? null : routes.get(method);
+        if (fn == null) throw new UnknownMethodException(method);
         Map<String, Object> p = (params == null) ? Map.of() : params;
         ParamsValidator v = paramsValidator;
         if (v != null) v.validate(method, p);
@@ -715,10 +680,7 @@ public final class DriverApi {
                         + " but not for entities, so every entity check downstream would report an"
                         + " empty world instead of this");
             }
-            synchronized (eventsLock) {
-                events.clear();
-                eventSeq.set(0);
-            }
+            clearEvents();
             return null;
         });
     }
@@ -736,8 +698,11 @@ public final class DriverApi {
      *  so the calling thread (server tick / client tick / watcher) never blocks on a
      *  socket write. Returns the assigned sequence number. */
     long emit(String type, BlockPos pos, Object data) {
-        DriverEvent e = new DriverEvent(eventSeq.incrementAndGet(), type, pos, data);
+        DriverEvent e;
+        // The seq is taken under the lock: readers advance their cursor to the last seq they
+        // saw, so an event appended behind a higher seq would never be returned to them.
         synchronized (eventsLock) {
+            e = new DriverEvent(eventSeq.incrementAndGet(), type, pos, data);
             if (events.size() >= EVENT_BUFFER_CAP) events.pollFirst();
             events.addLast(e);
         }
@@ -787,25 +752,7 @@ public final class DriverApi {
     <T> T onServerThread(Supplier<T> task) {
         MinecraftServer s = server;
         if (s == null) throw new IllegalStateException("DriverApi not attached to a server");
-        if (s.isSameThread()) return task.get();
-        CompletableFuture<T> f = new CompletableFuture<>();
-        s.execute(() -> {
-            try { f.complete(task.get()); }
-            catch (Throwable e) { f.completeExceptionally(e); }
-        });
-        try {
-            return f.get(SERVER_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            throw new RuntimeException("server thread did not run task within "
-                    + SERVER_THREAD_TIMEOUT_MS + "ms (server busy or paused)");
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            if (cause instanceof RuntimeException re) throw re;
-            throw new RuntimeException(cause);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("interrupted while waiting on server thread");
-        }
+        return new ServerThreadHop(s, s::isSameThread, SERVER_THREAD_TIMEOUT_MS).call(task);
     }
 
     private int num(Object o) { return Params.toInt(o, 0); }
@@ -944,49 +891,14 @@ public final class DriverApi {
 
     // ---------------- Query DSL ----------------
     public Object query(QueryParams p) {
-        ServerLevel level = level();
         BlockPos centerPos = (p.center != null) ? p.center : ORIGIN;
         if ("blocks".equals(p.q)) {
-            int r = Math.max(0, Math.min(64, num(p.filter.get("in_radius"))));
-            // filter.type lets callers restrict to one block id (absorbed from
-            // the former mc.observe.area). Server reads the block, then skips
-            // anything that doesn't match.
-            Object typeFilter = p.filter.get("type");
-            String typeFilterId = (typeFilter instanceof String s && !s.isBlank()) ? s : null;
-            // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs).
-            Predicate<BlockState> match =
-                    (typeFilterId == null) ? null : BlockMatch.of(typeFilterId);
-            checkSelect(p.select, BLOCK_SELECT_KEYS);
-            return onServerThread(() -> {
-                List<Map<String, Object>> out = new ArrayList<>();
-                BlockPos center = centerPos;
-                for (int dx = -r; dx <= r; dx++)
-                    for (int dy = -r; dy <= r; dy++)
-                        for (int dz = -r; dz <= r; dz++) {
-                            BlockPos bp = center.offset(dx, dy, dz);
-                            BlockState st = level.getBlockState(bp);
-                            if (st.isAir()) continue;
-                            if (match != null && !match.test(st)) continue;
-                            String id = ApiSupport.blockId(st);
-                            Map<String, Object> row = new LinkedHashMap<>();
-                            row.put("pos", new BlockPos(bp.getX(), bp.getY(), bp.getZ()));
-                            row.put("type", id);
-                            // Blockstate properties (lit/facing/half/…) so callers can
-                            // verify more than the block id (docs/archive/feedback/2026-06-08,
-                            // fix #2). Omitted for property-less states (stone etc.)
-                            // to keep large scans lean.
-                            if (!st.getProperties().isEmpty()) {
-                                Map<String, Object> stateMap = new LinkedHashMap<>();
-                                for (var prop : st.getProperties()) {
-                                    stateMap.put(prop.getName(), stringifyProperty(st, prop));
-                                }
-                                row.put("state", stateMap);
-                            }
-                            out.add(project(row, p.select));
-                        }
-                return (Object) out;
-            });
-        } else if ("entities".equals(p.q)) {
+            BlockQuery blocks = BlockQuery.of(p);
+            ServerLevel level = level();
+            return onServerThread(() -> (Object) blocks.scan(level, centerPos));
+        }
+        ServerLevel level = level();
+        if ("entities".equals(p.q)) {
             int r = Math.max(0, Math.min(128, num(p.filter.getOrDefault("in_radius", 16))));
             Boolean wantHostile = (p.filter.get("is_hostile") instanceof Boolean b) ? b : null;
             // filter.is_living drops non-living rows (dropped items, XP orbs) so
@@ -1038,21 +950,14 @@ public final class DriverApi {
         return List.of();
     }
 
-    /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
-    private static <T extends Comparable<T>> String stringifyProperty(BlockState st, Property<T> prop) {
-        return prop.getName(st.getValue(prop));
-    }
-
     /** Every key a q='entities' row can carry — {@link #checkSelect} validates against it. */
-    private static final Set<String> ENTITY_SELECT_KEYS =
+    static final Set<String> ENTITY_SELECT_KEYS =
             Set.of("pos", "type", "uuid", "id", "health", "effects");
-    /** Every key a q='blocks' row can carry. */
-    private static final Set<String> BLOCK_SELECT_KEYS = Set.of("pos", "type", "state");
 
     /** Unknown select keys used to be silently ignored, misleading callers into
      *  "field not supported" detours (docs/archive/feedback/2026-06-04, bug #3). Reject
      *  them instead; the transport layers surface the message as isError. */
-    private static void checkSelect(List<String> select, Set<String> allowed) {
+    static void checkSelect(List<String> select, Set<String> allowed) {
         if (select == null) return;
         for (String k : select) {
             if (!allowed.contains(k)) {
@@ -1062,7 +967,7 @@ public final class DriverApi {
         }
     }
 
-    private Map<String, Object> project(Map<String, Object> row, List<String> select) {
+    static Map<String, Object> project(Map<String, Object> row, List<String> select) {
         if (select == null || select.isEmpty()) return row;
         Map<String, Object> out = new LinkedHashMap<>();
         for (String k : select) if (row.containsKey(k)) out.put(k, row.get(k));
