@@ -2,7 +2,7 @@
 name: worlddriver-rpc
 description: >-
   Live-control the worlddriver Minecraft mod over its JSON-RPC websocket
-  (port 39801) with the bundled rpc.py client and a complete 73-method reference.
+  (port 39801) with the bundled rpc.py client and a complete method reference.
   CONSULT THIS SKILL before doing anything with the worlddriver mod's runtime
   API: any mc.bot.* / mc.action.* / mc.observe.* / mc.world.* / mc.client.* /
   mc.query / mc.events / mc.wait.* / mc.recipe.* / mc.plan.acquire /
@@ -86,11 +86,13 @@ a local bot you never need `--host` — loopback is included in a wildcard bind.
 
 ## Method surface (overview)
 
-73 methods across 13 namespaces, all carrying a visible `ToolSchema` — the driver
+The core routes (the `DriverApi` route table, present wherever the mod runs) plus the
+client-only `mc.debug.*` verbs, all carrying a visible `ToolSchema` — the driver
 layer owns no hidden verb since `mc.test.yaml` retired with the YAML harness. The
-only RPC-route-only verbs left belong to the StageWright runtime and exist only
-while it is loaded. Full per-method params + returns are in **`references/methods.md`**
-— read it before composing an unfamiliar call.
+only RPC-route-only verbs left belong to the testmod (`worlddriver.*`) and the
+StageWright runtime (`mc.test.*`) and exist only while those are loaded. No total is
+given here because it depends on what is loaded. Full per-method params + returns
+are in **`references/methods.md`** — read it before composing an unfamiliar call.
 
 | namespace | what's there |
 |---|---|
@@ -104,9 +106,10 @@ while it is loaded. Full per-method params + returns are in **`references/method
 | `mc.recipe.*` / `mc.plan.acquire` | recipe `lookup`/`resolve`, full mine/farm/smelt/craft acquisition plan |
 | `mc.client.screen.*` | `info`, `tree`, `close` (GUI introspection) |
 | `mc.client.chat.*` | `send`, `history` |
-| `mc.client.input.*` | `click`, `slotClick`, `mouseMove`, `typeText`, `replaceText`, `key`, `setHotbarSlot`, `slider` |
+| `mc.client.input.*` | `click`, `slotClick`, `mouseMove`, `typeText`, `replaceText`, `keybind`, `key`, `setHotbarSlot`, `slider` |
 | `mc.client.*` | `player`, `scene`, `blocks` (client-authoritative reads), `overlays`, `screenshot` |
-| `mc.bot.*` | `goto`, `mine`, `bunker`, `escape`, `craft`, `smelt`, `combat`, `equip`, `build`, `clearArea`, `farm`, `construct`, `sleep`, `follow`, `explore`, `runAway`, `lookAt`, `useItem`, `attackEntity`, `elytraFly`, `playbook`, `waypoint`, `status`, `cancel`, `setting` |
+| `mc.bot.*` | `goto`, `mine`, `bunker`, `escape`, `craft`, `smelt`, `combat`, `equip`, `build`, `clearArea`, `farm`, `construct`, `sleep`, `follow`, `explore`, `runAway`, `lookAt`, `holdItem`, `useItem`, `attackEntity`, `elytraFly`, `playbook`, `waypoint`, `status`, `cancel`, `setting` |
+| `mc.debug.*` | `pathChart`, `plan`, `replay` (client only: path-debug chart, read-only A* probe, archive replay) |
 | `mc.script.eval` / `mc.skill` | JS snippet (one round-trip; **not sandboxed** unless `-Dworlddriver.sandbox=on`) + persistent skill library (`save`/`list`/`get`/`run`/`delete`) |
 
 ## Live event stream → Monitor (game-event notifications)
