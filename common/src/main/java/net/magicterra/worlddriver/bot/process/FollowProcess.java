@@ -19,7 +19,6 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
 
 public final class FollowProcess implements BotProcess {
-    private static final int REPLAN_TICKS = 30;
     /** Consecutive Walker.FAILED replans before we give up. Each represents one full pathfinder attempt. */
     private static final int MAX_CONSECUTIVE_FAILS = 5;
     private final String entityType;
@@ -27,10 +26,10 @@ public final class FollowProcess implements BotProcess {
     private final int radius;
     private final int maxIdleTicks;
     private final Walker walker = new Walker("follow");
-    private int ticksSinceReplan;
     private int idleTicks;
     private int consecutiveFails;
     private BlockPos lastTargetBlock;
+    private int lastTargetId = -1;
 
     public FollowProcess(String entityType, String name, int radius, int maxIdleTicks) {
         this(entityType, name, radius, maxIdleTicks, SearchProfile.NONE);
@@ -82,12 +81,7 @@ public final class FollowProcess implements BotProcess {
             (int) Math.floor(target.getX()),
             (int) Math.floor(target.getY()),
             (int) Math.floor(target.getZ()));
-        if (lastTargetBlock == null || !lastTargetBlock.equals(tBlock) || ticksSinceReplan > REPLAN_TICKS) {
-            walker.setGoal(new Goal.Near(tBlock, radius));
-            lastTargetBlock = tBlock;
-            ticksSinceReplan = 0;
-        }
-        ticksSinceReplan++;
+        regoal(target.getId(), tBlock);
         st.follow.target = tBlock;
         Walker.Step s = walker.tick(a, w);
         st.follow.pathLen = walker.pathLen();
@@ -116,6 +110,23 @@ public final class FollowProcess implements BotProcess {
         }
         return false; // follow runs until cancelled or unreachable
     }
+
+    /**
+     * Aim the walker at the target's cell. The same entity in a new cell is the same pursuit, so it
+     * gets {@link Walker#retargetGoal}: {@code setGoal} zeroes the futile-search counter, and a target
+     * that keeps moving would then never let an unreachable follow trip the cap. Only a different
+     * entity starts over.
+     */
+    void regoal(int targetId, BlockPos tBlock) {
+        boolean newTarget = lastTargetId != targetId;
+        if (!newTarget && tBlock.equals(lastTargetBlock)) return;
+        Goal g = new Goal.Near(tBlock, radius);
+        if (newTarget) walker.setGoal(g); else walker.retargetGoal(g);
+        lastTargetBlock = tBlock;
+        lastTargetId = targetId;
+    }
+
+    Walker walker() { return walker; }
 
     /** Point head+body yaw and pitch at the entity's mid-height, via
      *  {@link #smoothAngle} so it honors the smoothLook toggle. */

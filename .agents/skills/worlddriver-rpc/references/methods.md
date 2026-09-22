@@ -226,7 +226,7 @@ client's click is silently ignored, `useItem` on an entity answers `menu` instea
 | `mc.bot.farm` | `from,to` (req), `crops?:[id]`, `replant?`, `awaitMs?`, `body?` | harvest+replant wheat/carrot/potato/beetroot over a field (cap 4096 XZ). |
 | `mc.bot.construct` | `mode:"tower"\|"bridge"` (req); tower: `height?` or `targetY?`; bridge: `direction?`,`distance?`; `block?`, `awaitMs?`, `body?` | pillar up / sneak-bridge forward. |
 | `mc.bot.sleep` | `pos?`, `radius?`, `awaitMs?`, `body?` | find+enter nearest bed (vanilla night/safety gates). |
-| `mc.bot.follow` | `entityType?` or `name?` (≥1 req), `radius?` (1–16), `maxIdleTicks?`, `awaitMs?`, `body?`; `route?` = the same object as `mc.bot.goto` minus `via`, and with `mode:["fly"]` / `leash.entity` rejected (a follow already tracks its entity) | follow an entity; recomputes ~1.5s. |
+| `mc.bot.follow` | `entityType?` or `name?` (≥1 req), `radius?` (1–16), `maxIdleTicks?`, `awaitMs?`, `body?`; `route?` = the same object as `mc.bot.goto` minus `via`, and with `mode:["fly"]` / `leash.entity` rejected (a follow already tracks its entity) | follow an entity; re-aims whenever it changes block, ends `unreachable` after 5 failed replans in a row. |
 | `mc.bot.explore` | `centerX,centerZ` (req), `maxChunks?` (1–64), `awaitMs?`, `body?` | spiral to unvisited chunk centers. |
 | `mc.bot.runAway` | `from?`, `minDist?` (4–64), `awaitMs?`, `body?` | flee to a point ≥minDist from `from`/player (hazard-aware). |
 | `mc.bot.lookAt` | `pos?` or (`yaw`+`pitch`), `body?` | aim view; instant, or a 'look' process if `smoothLook` is on → `{ok, yaw, pitch}`. |

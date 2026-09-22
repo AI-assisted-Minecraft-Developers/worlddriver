@@ -188,7 +188,7 @@ that need them answer `no_hands`.
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.bot.goto` | **Asynchronous.** Pathfinds and walks to a goal. Implicitly cancels any previous `goto`. | See the selectors and route conditions below |
-| `mc.bot.follow` | **Asynchronous.** Follows an entity, recomputing the goal about every 1.5 seconds. | `entityType` or `name`, `radius` (1–16, default 3), `maxIdleTicks`, `route` |
+| `mc.bot.follow` | **Asynchronous.** Follows an entity, re-aiming whenever it moves to another block. Ends with `unreachable` after five failed replans in a row. | `entityType` or `name`, `radius` (1–16, default 3), `maxIdleTicks`, `route` |
 | `mc.bot.explore` | **Asynchronous.** Wanders to unvisited chunk centres in a spiral, to reveal terrain. | `centerX`, `centerZ`, `maxChunks` (1–64, default 16) |
 | `mc.bot.runAway` | **Asynchronous.** Walks to any reachable point at least `minDist` blocks from a position. | `from`, `minDist` (4–64, default 16) |
 | `mc.bot.escape` | **Asynchronous, and not awaitable.** Carves a staircase up the driest wall and climbs out of a pit or well the pathfinder cannot solve. Needs block breaking on and a solid, non-falling wall. Poll `mc.bot.status`. | `targetY` |

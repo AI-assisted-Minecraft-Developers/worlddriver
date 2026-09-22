@@ -294,7 +294,8 @@ public final class BotTools {
                 ),
 
             wrTool("mc.bot.follow",
-                "Follow an entity; goal recomputes ~1.5s. Pass `entityType` (registry id) or " +
+                "Follow an entity; re-aims whenever it changes block, ends `unreachable` after 5 failed replans in a row. " +
+                "Pass `entityType` (registry id) or " +
                 "`name` (case-sensitive GameProfile). " +
                 "radius: standoff 1-16 (default 3). maxIdleTicks>0 stops gracefully when no " +
                 "match seen for N ticks (~20=1s); 0 = forever. " +

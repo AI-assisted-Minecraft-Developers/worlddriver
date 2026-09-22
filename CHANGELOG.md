@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`mc.bot.follow` gives up on a target it cannot reach.** It replaced the walker's goal each time
+  the target changed block and every 30 ticks anyway, which threw away the path and zeroed the
+  futile-search counter, so a follow toward an entity across water or up a pillar ran a full search
+  every tick and never ended. The same entity in a new cell now re-aims the pursuit and keeps the
+  counter; only a different entity starts over, and the follow ends `unreachable` after five failed
+  replans.
 - **`/worlddriver test` is no longer in the published jar.** Any player could run it: it seeded
   the arena at the test origin, which clears blocks and discards every non-player entity within
   twenty blocks, then ran sixty scripts that summon mobs and issue commands at operator level.
