@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`DriverApi.seedTestArea` is no longer in the published jar.** It clears blocks and discards
+  every non-player entity within twenty blocks of the test origin, and since the validation suite
+  moved to the testmod nothing in the shipped jar called it; any in-JVM caller, a script included,
+  still could. It is now `TestArena.seed(api, server)` in the testmod, which is why
+  `DriverApi.clearEvents()` is public: the seed empties the event buffer when it is done.
 - **Every published jar carries the licence text.** The shipped, `-sources` and `-dev` jars of
   all three modules now hold `META-INF/COPYING` and `META-INF/COPYING.LESSER`. None did, and the
   LGPL, through the GPL sections it incorporates, requires the text to go with the object code.

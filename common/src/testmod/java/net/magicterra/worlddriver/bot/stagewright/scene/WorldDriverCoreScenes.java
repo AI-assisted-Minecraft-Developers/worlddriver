@@ -39,6 +39,7 @@ import net.magicterra.worlddriver.client.internal.ClientChatLog;
 import net.magicterra.worlddriver.mcp.ToolCatalog;
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.test.ScriptTest;
+import net.magicterra.worlddriver.testcontent.TestArena;
 import net.magicterra.worlddriver.testcontent.ValidationSuite;
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -137,9 +138,9 @@ public final class WorldDriverCoreScenes implements SceneProvider {
     // ==================================================================================
 
     /**
-     * Put the player on the pad {@code seedTestArea()} just built.
+     * Put the player on the pad {@link TestArena#seed} just built.
      *
-     * <p>{@code seedTestArea} clears and floors a 5×5 at the driver's test origin, and until now
+     * <p>{@code TestArena.seed} clears and floors a 5×5 at the driver's test origin, and until now
      * nothing ever went there. The suite's client-side checks — {@code mc.bot.craft} and friends —
      * act at the PLAYER, so on a client topology they ran wherever the auto-driven client had
      * wandered in a generated world. Observed: one run placed its crafting table fine, the next
@@ -171,7 +172,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
                     + ", not a BlockPos — cannot stand the player on the seeded pad");
             return;
         }
-        // Offset by one on both axes rather than landing on the origin cell: seedTestArea puts an
+        // Offset by one on both axes rather than landing on the origin cell: the seed puts an
         // oak log at origin+(0,1,0) for the checks that mine one, and a player standing in it has
         // no free cell at their feet — which surfaces as "需要工作台（脚边没有可放置的空位）",
         // the very terrain-shaped failure this move exists to remove. One block diagonal keeps the
@@ -239,7 +240,7 @@ public final class WorldDriverCoreScenes implements SceneProvider {
             return;
         }
         try {
-            WorldDriverCommon.api().seedTestArea();
+            TestArena.seed(WorldDriverCommon.api(), ctx.level().getServer());
             standOnTestArea(ctx);
         } catch (RuntimeException | Error e) {
             ValidationSuite.release();
