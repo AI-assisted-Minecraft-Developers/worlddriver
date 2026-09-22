@@ -24,6 +24,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
@@ -121,6 +122,9 @@ public final class RpcServer implements Closeable {
                    .addLast(new OriginGate())
                    .addLast(new WebSocketServerProtocolHandler("/rpc", null, true,
                            TransportLimits.MAX_REQUEST_BYTES))
+                   // A fragmented message reaches FrameHandler as one frame; without this
+                   // the first fragment was parsed alone and the continuations dropped.
+                   .addLast(new WebSocketFrameAggregator(TransportLimits.MAX_REQUEST_BYTES))
                    .addLast(new FrameHandler(api, routeExec, subs));
              }
          });

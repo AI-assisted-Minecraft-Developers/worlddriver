@@ -73,7 +73,9 @@ In the game, `/worlddriver port` and `/worlddriver mcp` print the live endpoints
 
 ## WebSocket JSON-RPC
 
-Endpoint: `ws://<host>:<port>/rpc`. One JSON object per text frame.
+Endpoint: `ws://<host>:<port>/rpc`. One JSON object per text message. A message may arrive
+fragmented across continuation frames; the server reassembles it before parsing, and the
+size limit applies to the whole message.
 
 A request:
 
@@ -288,7 +290,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 
 | Limit | Value | Applies to |
 |---|---|---|
-| Inbound request size | 8 MiB, from `worlddriver.maxRequestBytes` | A POST body on MCP, a WebSocket frame on RPC. Deliberately one number so the two cannot disagree. |
+| Inbound request size | 8 MiB, from `worlddriver.maxRequestBytes` | A POST body on MCP, a WebSocket message on RPC, fragments included. Deliberately one number so the two cannot disagree. |
 | Script source | 64 KiB | `mc.script.eval` and a saved skill's source. |
 | Script deadline | 3 s default, 30 s maximum | `mc.script.eval` and `mc.skill` runs. |
 | Playbook deadline | 20 minutes maximum | `mc.bot.playbook`. |

@@ -22,8 +22,9 @@ public final class TransportLimits {
     private TransportLimits() {}
 
     /**
-     * Largest inbound request, in bytes: a POST body on MCP, a WebSocket frame on
-     * the RPC socket. Override with {@code -Dworlddriver.maxRequestBytes=N}.
+     * Largest inbound request, in bytes: a POST body on MCP, a WebSocket message on
+     * the RPC socket (each frame, and a fragmented message's fragments together).
+     * Override with {@code -Dworlddriver.maxRequestBytes=N}.
      *
      * <p>Replaces the MCP-only {@code agent.mcp.maxBodyBytes}. An {@code int}
      * because that is what Netty's frame-size parameter takes; the MCP side widens

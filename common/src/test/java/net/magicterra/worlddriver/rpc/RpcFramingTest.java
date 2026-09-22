@@ -16,9 +16,11 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http.websocketx.ContinuationWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshaker;
 import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
+import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 import net.magicterra.worlddriver.api.DriverApi;
@@ -144,6 +146,21 @@ class RpcFramingTest {
             Map<?, ?> badMethod = raw.roundTrip("{\"id\":8,\"method\":42,\"params\":{}}");
             assertEquals("8", String.valueOf(badMethod.get("id")));
             assertEquals("-32600", String.valueOf(badMethod.get("code")));
+        }
+    }
+
+    @Test
+    void aFragmentedMessageIsReassembledBeforeParsing() throws Exception {
+        // java.net.http.WebSocket.sendText(part, false) and browsers under load both
+        // fragment. Parsing the first fragment alone answered -32700 for a valid request.
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+             RawClient raw = new RawClient(server.port())) {
+            Map<?, ?> r = raw.roundTrip(
+                    new TextWebSocketFrame(false, 0, "{\"id\":21,\"method\":\"mc.no"),
+                    new ContinuationWebSocketFrame(false, 0, "pe\",\"params\""),
+                    new ContinuationWebSocketFrame(true, 0, ":{}}"));
+            assertEquals("21", String.valueOf(r.get("id")), r.toString());
+            assertEquals("-32601", String.valueOf(r.get("code")), r.toString());
         }
     }
 
@@ -372,7 +389,14 @@ class RpcFramingTest {
         }
 
         Map<?, ?> roundTrip(String raw) throws Exception {
-            channel.writeAndFlush(new TextWebSocketFrame(raw));
+            return roundTrip(new TextWebSocketFrame(raw));
+        }
+
+        /** Sends every frame, then waits for one response; used for fragmented messages. */
+        Map<?, ?> roundTrip(WebSocketFrame... frames) throws Exception {
+            for (WebSocketFrame f : frames) channel.write(f);
+            channel.flush();
+            String raw = frames.length + " frame(s)";
             String s = inbox.poll(10, TimeUnit.SECONDS);
             if (s == null) throw new IllegalStateException("no response to: " + raw);
             Object decoded = JsonCodec.decode(s);
