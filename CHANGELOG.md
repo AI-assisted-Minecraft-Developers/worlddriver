@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `[13.0.8,14)` on both loaders (was open-ended, `[13.0.8,)` and `>=13.0.8`), derived from
   `architectury_api_version` so a bump raises the floor a pack must meet instead of leaving it to a
   `NoSuchMethodError`; Fabric Loader is `>=0.16.14`, the pinned `fabric_loader_version`, not `>=0.16`.
+- **Both loaders' mod metadata links to the source repository.** `fabric.mod.json` has
+  `contact.homepage` and `contact.sources`, and `neoforge.mods.toml` has `displayURL`, all expanded
+  from `mod_source_url`. Neither jar said where its source was, and the mod list is where a player
+  looks for that.
 - **The Fabric and NeoForge `-sources` jars hold `:common`'s sources.** Each loader's binary jar
   bundles `:common`, which is nearly all of the driver, but its sources jar held only the two
   loader entry classes, so it was not the source of the jar published beside it. The Fabric one is

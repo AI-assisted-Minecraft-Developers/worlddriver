@@ -29,7 +29,7 @@ pom     Every module's POM declares the licence (gradle.properties `mod_license`
         licence scanner reports the artifact as "unknown".
 metadata
         The mod metadata inside the shipped loader jars says what gradle.properties says:
-        licence, description and authors, and dependency ranges derived from the pinned
+        licence, description, authors, a link to the source, and dependency ranges derived from the pinned
         versions (Architectury from its pin up to the next major, the Fabric loader from
         its pin, Minecraft from `minecraft_version_range` in each loader's syntax). A value
         hardcoded in one loader's file drifts from the other's on the next edit.
@@ -156,10 +156,10 @@ def check_metadata():
     # the next edit, so the templates themselves must name every value they carry.
     templates = {
         "fabric/src/main/resources/fabric.mod.json": (
-            "mod_license", "mod_description", "mod_authors",
+            "mod_license", "mod_description", "mod_authors", "mod_source_url",
             "minecraft_range", "architectury_range", "fabric_loader_range"),
         "neoforge/src/main/resources/META-INF/neoforge.mods.toml": (
-            "mod_license", "mod_description", "mod_authors", "loader_version_range",
+            "mod_license", "mod_description", "mod_authors", "mod_source_url", "loader_version_range",
             "minecraft_version_range", "neoforge_version_range", "architectury_version_range"),
     }
     for path, keys in templates.items():
@@ -181,6 +181,8 @@ def check_metadata():
             ("license", meta.get("license"), props["mod_license"]),
             ("description", meta.get("description"), props["mod_description"]),
             ("authors", meta.get("authors"), authors),
+            ("contact.homepage", meta.get("contact", {}).get("homepage"), props["mod_source_url"]),
+            ("contact.sources", meta.get("contact", {}).get("sources"), props["mod_source_url"]),
             ("depends.minecraft", depends.get("minecraft"), fabric_range(props["minecraft_version_range"])),
             ("depends.architectury", depends.get("architectury"), f">={arch} <{arch_next}"),
             ("depends.fabricloader", depends.get("fabricloader"), f">={props['fabric_loader_version']}"),
@@ -202,6 +204,7 @@ def check_metadata():
             ("loaderVersion", meta.get("loaderVersion"), props["loader_version_range"]),
             ("description", mod.get("description", "").strip(), props["mod_description"]),
             ("authors", mod.get("authors"), ", ".join(authors)),
+            ("displayURL", mod.get("displayURL"), props["mod_source_url"]),
             ("minecraft range", ranges.get("minecraft"), props["minecraft_version_range"]),
             ("neoforge range", ranges.get("neoforge"), props["neoforge_version_range"]),
             ("architectury range", ranges.get("architectury"), f"[{arch},{arch_next})"),

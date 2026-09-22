@@ -10,6 +10,7 @@ modId="worlddriver"
 version="${version}"
 displayName="WorldDriver"
 authors="${mod_authors}"
+displayURL="${mod_source_url}"
 description='''${mod_description}'''
 
 [[dependencies.worlddriver]]

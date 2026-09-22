@@ -142,6 +142,7 @@ processResources {
             mod_license            : rootProject.mod_license,
             mod_authors            : rootProject.mod_authors,
             mod_description        : rootProject.mod_description,
+            mod_source_url         : rootProject.mod_source_url,
     ]
     expansions.each { key, value -> inputs.property key, value }
 

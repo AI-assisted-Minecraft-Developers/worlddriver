@@ -130,6 +130,7 @@ processResources {
             version            : project.version,
             mod_license        : jsonText(rootProject.mod_license),
             mod_description    : jsonText(rootProject.mod_description),
+            mod_source_url     : jsonText(rootProject.mod_source_url),
             // Joined with `", "` so the template's ["${mod_authors}"] becomes one string per author.
             mod_authors        : rootProject.mod_authors.split(',').collect { jsonText(it.trim()) }.join('", "'),
             minecraft_range    : fabricRange(rootProject.minecraft_version_range),
