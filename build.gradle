@@ -13,6 +13,12 @@ architectury {
     minecraft = project.minecraft_version
 }
 
+// Architectury's range in both loaders' metadata: from the version this build compiles against up
+// to the next major, each major being one Minecraft line. Derived from the pin so a bump moves the
+// declared floor too, instead of letting a pack install an older one and fail with NoSuchMethodError.
+ext.architectury_version_range =
+        "[${architectury_api_version},${(architectury_api_version.tokenize('.')[0] as int) + 1})".toString()
+
 // Dogfood consumer configuration for the stagewright gradle plugin.
 //
 // One task per (gate, loader) pair rather than one task plus a `-Pstagewright.loader` switch. The

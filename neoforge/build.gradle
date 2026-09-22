@@ -138,6 +138,7 @@ processResources {
             minecraft_version_range: rootProject.minecraft_version_range,
             neoforge_version_range : rootProject.neoforge_version_range,
             loader_version_range   : rootProject.loader_version_range,
+            architectury_version_range: rootProject.architectury_version_range,
             mod_license            : rootProject.mod_license,
             mod_authors            : rootProject.mod_authors,
             mod_description        : rootProject.mod_description,

@@ -27,10 +27,18 @@ licence Every published jar (the shipped one, `-sources` and `-dev`) of every mo
 pom     Every module's POM declares the licence (gradle.properties `mod_license`, with its
         `mod_license_url`), the project url and the scm coordinates. Without them a
         licence scanner reports the artifact as "unknown".
+metadata
+        The mod metadata inside the shipped loader jars says what gradle.properties says:
+        licence, description and authors, and dependency ranges derived from the pinned
+        versions (Architectury from its pin up to the next major, the Fabric loader from
+        its pin, Minecraft from `minecraft_version_range` in each loader's syntax). A value
+        hardcoded in one loader's file drifts from the other's on the next edit.
 """
+import json
 import os
 import re
 import sys
+import tomllib
 import zipfile
 import xml.etree.ElementTree as ET
 
@@ -118,6 +126,88 @@ def check_pom():
     return problems
 
 
+def fabric_range(maven):
+    """A single Maven interval such as `[1.21.1,1.22)` in Fabric's space-joined predicate form."""
+    m = re.fullmatch(r"([\[(])([^,\])]*)(?:,([^\])]*))?([\])])", maven.strip())
+    if not m:
+        raise ValueError(f"not a single Maven interval: {maven!r}")
+    lo_open, lo, hi, hi_close = m.groups()
+    if hi is None:
+        return lo
+    parts = []
+    if lo:
+        parts.append((">=" if lo_open == "[" else ">") + lo)
+    if hi:
+        parts.append(("<=" if hi_close == "]" else "<") + hi)
+    return " ".join(parts)
+
+
+def check_metadata():
+    props = gradle_properties()
+    arch = props["architectury_api_version"]
+    arch_next = int(arch.split(".")[0]) + 1
+    authors = [a.strip() for a in props["mod_authors"].split(",")]
+    problems = []
+
+    # A literal that happens to equal today's property passes the jar checks below and drifts on
+    # the next edit, so the templates themselves must name every value they carry.
+    templates = {
+        "fabric/src/main/resources/fabric.mod.json": (
+            "mod_license", "mod_description", "mod_authors",
+            "minecraft_range", "architectury_range", "fabric_loader_range"),
+        "neoforge/src/main/resources/META-INF/neoforge.mods.toml": (
+            "mod_license", "mod_description", "mod_authors", "loader_version_range",
+            "minecraft_version_range", "neoforge_version_range", "architectury_version_range"),
+    }
+    for path, keys in templates.items():
+        with open(os.path.join(ROOT, path), encoding="utf-8") as f:
+            text = f.read()
+        for key in keys:
+            if "${" + key + "}" not in text:
+                problems.append(f"{path}: does not expand ${{{key}}}")
+
+    jar = dict(published_jars("fabric"))["jar"]
+    rel = os.path.relpath(jar, ROOT)
+    if not os.path.isfile(jar):
+        problems.append(f"{rel}: not built (see this script's docstring)")
+    else:
+        with zipfile.ZipFile(jar) as z:
+            meta = json.loads(z.read("fabric.mod.json"))
+        depends = meta.get("depends", {})
+        for key, got, want in [
+            ("license", meta.get("license"), props["mod_license"]),
+            ("description", meta.get("description"), props["mod_description"]),
+            ("authors", meta.get("authors"), authors),
+            ("depends.minecraft", depends.get("minecraft"), fabric_range(props["minecraft_version_range"])),
+            ("depends.architectury", depends.get("architectury"), f">={arch} <{arch_next}"),
+            ("depends.fabricloader", depends.get("fabricloader"), f">={props['fabric_loader_version']}"),
+        ]:
+            if got != want:
+                problems.append(f"{rel}!fabric.mod.json: {key} is {got!r}, want {want!r}")
+
+    jar = dict(published_jars("neoforge"))["jar"]
+    rel = os.path.relpath(jar, ROOT)
+    if not os.path.isfile(jar):
+        problems.append(f"{rel}: not built (see this script's docstring)")
+    else:
+        with zipfile.ZipFile(jar) as z:
+            meta = tomllib.loads(z.read("META-INF/neoforge.mods.toml").decode("utf-8"))
+        mod = meta["mods"][0]
+        ranges = {d["modId"]: d.get("versionRange") for d in meta["dependencies"][props["mod_id"]]}
+        for key, got, want in [
+            ("license", meta.get("license"), props["mod_license"]),
+            ("loaderVersion", meta.get("loaderVersion"), props["loader_version_range"]),
+            ("description", mod.get("description", "").strip(), props["mod_description"]),
+            ("authors", mod.get("authors"), ", ".join(authors)),
+            ("minecraft range", ranges.get("minecraft"), props["minecraft_version_range"]),
+            ("neoforge range", ranges.get("neoforge"), props["neoforge_version_range"]),
+            ("architectury range", ranges.get("architectury"), f"[{arch},{arch_next})"),
+        ]:
+            if got != want:
+                problems.append(f"{rel}!META-INF/neoforge.mods.toml: {key} is {got!r}, want {want!r}")
+    return problems
+
+
 def check_repos():
     problems = []
     for module in ("",) + MODULES:
@@ -150,6 +240,7 @@ CHECKS = {
     "repos": check_repos,
     "licence": check_licence,
     "pom": check_pom,
+    "metadata": check_metadata,
 }
 
 

@@ -3,11 +3,11 @@
   "id": "worlddriver",
   "version": "${version}",
   "name": "WorldDriver",
-  "description": "AI agent driver: Minecraft observation, action and Rhino scripting over an in-game RPC channel.",
+  "description": "${mod_description}",
   "authors": [
-    "AI-assisted-Minecraft-Developers"
+    "${mod_authors}"
   ],
-  "license": "LGPL-3.0-only",
+  "license": "${mod_license}",
   "environment": "*",
   "accessWidener": "worlddriver.accesswidener",
   "mixins": [
@@ -22,10 +22,10 @@
     ]
   },
   "depends": {
-    "fabricloader": ">=0.16",
+    "fabricloader": "${fabric_loader_range}",
     "fabric-api": "*",
-    "architectury": ">=13.0.8",
-    "minecraft": ">=1.21",
+    "architectury": "${architectury_range}",
+    "minecraft": "${minecraft_range}",
     "java": ">=21"
   }
 }

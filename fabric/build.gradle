@@ -1,3 +1,5 @@
+import groovy.json.JsonOutput
+
 plugins {
     id 'com.gradleup.shadow'
 }
@@ -106,11 +108,38 @@ sourceSets {
     }
 }
 
+// Fabric writes a range as space-joined predicates, not a Maven interval: `[1.21.1,1.22)` is
+// `>=1.21.1 <1.22`. A single interval only; anything else fails the build rather than widening.
+def fabricRange = { String maven ->
+    def m = maven.trim() =~ /^([\[(])([^,\])]*)(?:,([^\])]*))?([\])])$/
+    if (!m.matches()) throw new GradleException("not a single Maven interval: ${maven}")
+    String lowBracket = m.group(1), low = m.group(2), high = m.group(3), highBracket = m.group(4)
+    if (high == null) return low
+    def parts = []
+    if (low) parts << (lowBracket == '[' ? '>=' : '>') + low
+    if (high) parts << (highBracket == ']' ? '<=' : '<') + high
+    return parts.join(' ')
+}
+// The inside of a JSON string literal, so the template stays valid JSON for loom to read.
+def jsonText = { String s -> JsonOutput.toJson(s)[1..-2] }
+
 processResources {
-    inputs.property 'version', project.version
+    // The same values neoforge.mods.toml expands, and one map for expand and inputs, for the reason
+    // given there.
+    def expansions = [
+            version            : project.version,
+            mod_license        : jsonText(rootProject.mod_license),
+            mod_description    : jsonText(rootProject.mod_description),
+            // Joined with `", "` so the template's ["${mod_authors}"] becomes one string per author.
+            mod_authors        : rootProject.mod_authors.split(',').collect { jsonText(it.trim()) }.join('", "'),
+            minecraft_range    : fabricRange(rootProject.minecraft_version_range),
+            architectury_range : fabricRange(rootProject.architectury_version_range),
+            fabric_loader_range: ">=${rootProject.fabric_loader_version}".toString(),
+    ]
+    expansions.each { key, value -> inputs.property key, value }
 
     filesMatching('fabric.mod.json') {
-        expand version: project.version
+        expand expansions
     }
 }
 
