@@ -195,8 +195,10 @@ WebSocket handshake:
 (parameters such as `charset` are fine); any other type, or none, returns 415. That also
 closes the browser path the Origin check cannot see: a page may send `text/plain` without a
 preflight, but not `application/json`. `POST` with a JSON-RPC request returns 200 and
-`application/json`. `POST` with a notification, meaning no `id`, returns 202 with an empty
-body. A body over `worlddriver.maxRequestBytes` returns 413, checked against
+`application/json`. `POST` with a notification, meaning any message with no `id`, returns 202
+with an empty body. A notification is acknowledged and not acted on: `notifications/cancelled`
+does not interrupt the call it names, and a `tools/call` sent without an `id` does not run,
+since its result would have nowhere to go. A body over `worlddriver.maxRequestBytes` returns 413, checked against
 `Content-Length` first and then enforced by a bounded read when that header is missing.
 
 **`GET` opens the event stream.** `GET /mcp` with `Accept: text/event-stream` opens the

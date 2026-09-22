@@ -41,7 +41,9 @@ import java.util.concurrent.TimeUnit;
  *  - POST with a JSON-RPC request → 200 with {@code application/json} body
  *    (the spec allows either application/json or text/event-stream; we pick
  *    application/json — no SSE needed for stateless tool calls).
- *  - POST with a JSON-RPC notification (no id) → 202 Accepted with empty body.
+ *  - POST with a JSON-RPC notification (no id, any method) → 202 Accepted with
+ *    empty body. It is acknowledged, not dispatched; {@code notifications/cancelled}
+ *    therefore does not interrupt the request it names.
  *  - POST whose Content-Type is not {@code application/json} → 415.
  *  - {@code Origin} header is validated to defend against DNS rebinding
  *    (spec MUST) by {@link OriginPolicy}: absent or loopback passes, the literal
@@ -176,8 +178,10 @@ public final class McpServer implements Closeable {
 
         if (method == null) { sendJson(ex, 400, jsonRpcError(id, -32600, "missing method")); return; }
 
-        // Notifications have no id -> respond 202 with empty body, do work fire-and-forget
-        boolean isNotification = (id == null);
+        // spec: 2025-06-18 §Transports — an accepted notification gets 202 with no body.
+        // Nothing is dispatched: every client→server notification MCP defines is advisory
+        // here, and an id-less tools/call would run a verb whose result nobody can read.
+        if (id == null) { sendNoBody(ex, 202); return; }
 
         try {
             switch (method) {
@@ -206,8 +210,9 @@ public final class McpServer implements Closeable {
                     sendJson(ex, 200, jsonRpcResult(id, result));
                 }
                 case "notifications/initialized" -> {
-                    // Spec: client tells server initialization complete. No response required.
-                    sendNoBody(ex, isNotification ? 202 : 200);
+                    // Only reached when a client sent it WITH an id, which the spec does not
+                    // define; acknowledge rather than call it an unknown method.
+                    sendNoBody(ex, 200);
                 }
                 case "logging/setLevel" -> {
                     // spec: 2025-06-18 §Logging — accept and acknowledge. The level is

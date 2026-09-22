@@ -250,7 +250,9 @@ truthiness. `once: true` cancels the watcher after it fires.
   send `Content-Type: application/json` (anything else gets 415) and returns
   `application/json`; `GET` with `Accept: text/event-stream` opens the notification
   stream.
-- A request without an `id` is a notification and gets 202 with an empty body.
+- A message without an `id` is a notification and gets 202 with an empty body. It is not
+  acted on, so `notifications/cancelled` does not stop a running call and an id-less
+  `tools/call` does not run.
 - The server negotiates `2025-06-18`, `2025-03-26` or `2024-11-05` in `initialize`, echoing
   the client's request when it recognises it and otherwise returning its latest.
 - The `Origin` header is validated against a loopback allowlist. A request with no `Origin`

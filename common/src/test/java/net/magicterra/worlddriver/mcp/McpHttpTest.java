@@ -8,6 +8,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -38,6 +39,39 @@ class McpHttpTest {
         try (McpServer server = new McpServer(new DriverApi(), 0)) {
             assertEquals(200, post(server.port(), "application/json", PING).statusCode());
             assertEquals(200, post(server.port(), "Application/JSON; charset=utf-8", PING).statusCode());
+        }
+    }
+
+    @Test
+    void everyIdLessMessageIsANotificationAnswered202WithNoBody() throws Exception {
+        // spec: 2025-06-18 §Transports — an accepted notification MUST get 202 and no body.
+        try (McpServer server = new McpServer(new DriverApi(), 0)) {
+            for (String body : new String[] {
+                    "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}",
+                    "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":3}}",
+                    "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/roots/list_changed\"}",
+                    "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"mc.nope\"}}"}) {
+                HttpResponse<String> r = post(server.port(), "application/json", body);
+                assertEquals(202, r.statusCode(), body + " -> " + r.body());
+                assertEquals("", r.body(), body);
+            }
+        }
+    }
+
+    @Test
+    void anIdLessToolCallIsAcknowledgedButNotRun() throws Exception {
+        DriverApi api = new DriverApi();
+        AtomicInteger calls = new AtomicInteger();
+        api.addRoute("test.probe", p -> calls.incrementAndGet());
+        try (McpServer server = new McpServer(api, 0)) {
+            HttpResponse<String> r = post(server.port(), "application/json",
+                    "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
+            assertEquals(202, r.statusCode());
+            assertEquals(0, calls.get(), "a tool whose result nobody can receive must not run");
+
+            post(server.port(), "application/json",
+                    "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"test.probe\"}}");
+            assertEquals(1, calls.get(), "the same call with an id runs");
         }
     }
 
