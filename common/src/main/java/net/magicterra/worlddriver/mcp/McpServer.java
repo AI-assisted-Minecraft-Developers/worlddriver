@@ -326,8 +326,9 @@ public final class McpServer implements Closeable {
          * receive window had filled blocked that thread inside {@code os.write}, and
          * with it every other SSE subscriber, the WebSocket push channel, and the
          * dispatch queue, which is unbounded and would grow for as long as the stall
-         * lasted. The WebSocket side never had this problem: Netty's
-         * {@code writeAndFlush} is async. This closes that asymmetry.
+         * lasted. Netty's async {@code writeAndFlush} keeps the WebSocket side from
+         * blocking, but async is not bounded: that side closes a subscriber whose
+         * channel goes unwritable, which is the same policy as the outbox cap here.
          *
          * <p>Overflow closes the stream rather than dropping frames. A consumer that
          * silently misses events is the worse failure — it cannot tell that it did.

@@ -21,8 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * every listener shares — the WebSocket transport included. It used to write the SSE
  * socket inline, so one client whose TCP receive window had filled blocked that thread
  * inside {@code os.write} and with it every other subscriber, the WebSocket push
- * channel, and the (unbounded) dispatch queue. Netty made the WebSocket side immune to
- * this by writing asynchronously; the MCP side had no equivalent.
+ * channel, and the (unbounded) dispatch queue. Netty's asynchronous writes keep the
+ * WebSocket side from blocking (its own growth bound is {@code RpcBackpressureTest}); the
+ * MCP side had no equivalent.
  *
  * <p>These tests wedge the stream directly rather than trying to fill a real receive
  * window, which is why {@code SseSubscriber} is package-private.

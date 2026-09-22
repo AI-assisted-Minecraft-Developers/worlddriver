@@ -163,6 +163,11 @@ stops the stream. The single push filter is the per-type opt-out in the bot sett
 Subscription is transport state, not a game verb: it controls which frames this socket
 receives and is handled in the WebSocket layer rather than through the router.
 
+A subscriber that stops reading is disconnected rather than buffered without bound. Once
+more than 16 MiB is queued for a connection, the next event pushed to it closes it instead,
+the same policy as the MCP stream's frame cap. Reconnect, subscribe again, and replay what
+you missed with `mc.observe.eventsSince` from your last `seq`.
+
 ### A client you do not have to write
 
 `.agents/skills/worlddriver-rpc/` in this repository ships a working Python client
@@ -296,7 +301,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | Playbook deadline | 20 minutes maximum | `mc.bot.playbook`. |
 | `awaitMs` on an asynchronous verb | 1 ms to 10 minutes | Clamped, not rejected. |
 | Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. |
-| Event-stream backlog | 256 frames per MCP stream | Overflow closes that stream. |
+| Event-stream backlog | 256 frames per MCP stream; 16 MiB queued per WebSocket connection | Overflow closes that stream or connection. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. |
 
 ## Security

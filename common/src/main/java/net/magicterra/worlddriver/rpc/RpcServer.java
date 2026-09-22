@@ -7,8 +7,10 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.WriteBufferWaterMark;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -28,6 +30,7 @@ import io.netty.handler.codec.http.websocketx.WebSocketFrameAggregator;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.GlobalEventExecutor;
+import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.api.DriverApi;
 import net.magicterra.worlddriver.model.DriverEvent;
 
@@ -114,6 +117,8 @@ public final class RpcServer implements Closeable {
         final ChannelGroup subs = this.subscribers;
         b.group(boss, worker)
          .channel(NioServerSocketChannel.class)
+         .childOption(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(
+                 TransportLimits.WS_WRITE_BUFFER_LOW_BYTES, TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES))
          .childHandler(new ChannelInitializer<SocketChannel>() {
              @Override protected void initChannel(SocketChannel ch) {
                  ch.pipeline()
@@ -161,6 +166,16 @@ public final class RpcServer implements Closeable {
             if (!ch.isActive()) continue;
             Set<String> filter = ch.attr(FILTER).get();
             if (filter != null && !filter.isEmpty() && !filter.contains(e.type)) continue;
+            // Async is not bounded: a peer that stops reading would keep every frame in
+            // the outbound buffer. Close instead of dropping, as the SSE side does, so the
+            // client can tell it missed events and replay them from its cursor.
+            if (!ch.isWritable()) {
+                WorldDriverCommon.LOG.warn("[rpc] event subscriber {} is not reading (over {} bytes queued) — "
+                        + "closing it; reconnect and replay with mc.observe.eventsSince{cursor}",
+                        ch.remoteAddress(), TransportLimits.WS_WRITE_BUFFER_HIGH_BYTES);
+                ch.close();
+                continue;
+            }
             ch.writeAndFlush(new TextWebSocketFrame(frame));
         }
     }

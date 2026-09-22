@@ -32,4 +32,13 @@ public final class TransportLimits {
      */
     public static final int MAX_REQUEST_BYTES =
             Integer.getInteger("worlddriver.maxRequestBytes", 8 * 1024 * 1024);
+
+    /**
+     * Outbound bytes a WebSocket connection may have queued before it counts as unwritable,
+     * and the level it must drain to before it counts as writable again. An event pushed to
+     * an unwritable subscriber closes it; the client reconnects and replays from its cursor.
+     * High enough that one large response (a full-size screenshot) cannot trip it alone.
+     */
+    public static final int WS_WRITE_BUFFER_LOW_BYTES = 8 * 1024 * 1024;
+    public static final int WS_WRITE_BUFFER_HIGH_BYTES = 16 * 1024 * 1024;
 }
