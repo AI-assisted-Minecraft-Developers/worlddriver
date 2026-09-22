@@ -18,7 +18,6 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.phys.AABB;
 
 import java.util.*;
@@ -31,8 +30,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import net.magicterra.worlddriver.bot.VerbOrders;
-import java.util.function.Predicate;
-import net.magicterra.worlddriver.bot.util.BlockMatch;
 import java.util.function.Supplier;
 import net.magicterra.worlddriver.client.ClientHooks;
 import net.magicterra.worlddriver.client.ClientDriverApi;
@@ -894,49 +891,14 @@ public final class DriverApi {
 
     // ---------------- Query DSL ----------------
     public Object query(QueryParams p) {
-        ServerLevel level = level();
         BlockPos centerPos = (p.center != null) ? p.center : ORIGIN;
         if ("blocks".equals(p.q)) {
-            int r = Math.max(0, Math.min(64, num(p.filter.get("in_radius"))));
-            // filter.type lets callers restrict to one block id (absorbed from
-            // the former mc.observe.area). Server reads the block, then skips
-            // anything that doesn't match.
-            Object typeFilter = p.filter.get("type");
-            String typeFilterId = (typeFilter instanceof String s && !s.isBlank()) ? s : null;
-            // Supports exact ids and '#tag' selectors (e.g. #minecraft:logs).
-            Predicate<BlockState> match =
-                    (typeFilterId == null) ? null : BlockMatch.of(typeFilterId);
-            checkSelect(p.select, BLOCK_SELECT_KEYS);
-            return onServerThread(() -> {
-                List<Map<String, Object>> out = new ArrayList<>();
-                BlockPos center = centerPos;
-                for (int dx = -r; dx <= r; dx++)
-                    for (int dy = -r; dy <= r; dy++)
-                        for (int dz = -r; dz <= r; dz++) {
-                            BlockPos bp = center.offset(dx, dy, dz);
-                            BlockState st = level.getBlockState(bp);
-                            if (st.isAir()) continue;
-                            if (match != null && !match.test(st)) continue;
-                            String id = ApiSupport.blockId(st);
-                            Map<String, Object> row = new LinkedHashMap<>();
-                            row.put("pos", new BlockPos(bp.getX(), bp.getY(), bp.getZ()));
-                            row.put("type", id);
-                            // Blockstate properties (lit/facing/half/…) so callers can
-                            // verify more than the block id (docs/archive/feedback/2026-06-08,
-                            // fix #2). Omitted for property-less states (stone etc.)
-                            // to keep large scans lean.
-                            if (!st.getProperties().isEmpty()) {
-                                Map<String, Object> stateMap = new LinkedHashMap<>();
-                                for (var prop : st.getProperties()) {
-                                    stateMap.put(prop.getName(), stringifyProperty(st, prop));
-                                }
-                                row.put("state", stateMap);
-                            }
-                            out.add(project(row, p.select));
-                        }
-                return (Object) out;
-            });
-        } else if ("entities".equals(p.q)) {
+            BlockQuery blocks = BlockQuery.of(p);
+            ServerLevel level = level();
+            return onServerThread(() -> (Object) blocks.scan(level, centerPos));
+        }
+        ServerLevel level = level();
+        if ("entities".equals(p.q)) {
             int r = Math.max(0, Math.min(128, num(p.filter.getOrDefault("in_radius", 16))));
             Boolean wantHostile = (p.filter.get("is_hostile") instanceof Boolean b) ? b : null;
             // filter.is_living drops non-living rows (dropped items, XP orbs) so
@@ -988,16 +950,9 @@ public final class DriverApi {
         return List.of();
     }
 
-    /** Property value as the string a /setblock predicate would use ("true", "north", "3"). */
-    private static <T extends Comparable<T>> String stringifyProperty(BlockState st, Property<T> prop) {
-        return prop.getName(st.getValue(prop));
-    }
-
     /** Every key a q='entities' row can carry — {@link #checkSelect} validates against it. */
     static final Set<String> ENTITY_SELECT_KEYS =
             Set.of("pos", "type", "uuid", "id", "health", "effects");
-    /** Every key a q='blocks' row can carry. */
-    private static final Set<String> BLOCK_SELECT_KEYS = Set.of("pos", "type", "state");
 
     /** Unknown select keys used to be silently ignored, misleading callers into
      *  "field not supported" detours (docs/archive/feedback/2026-06-04, bug #3). Reject

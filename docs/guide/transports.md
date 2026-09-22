@@ -235,7 +235,7 @@ deadlock it, and it gets a fresh scope per call, so nothing leaks between calls.
 ```js
 var p = Driver.observe.player();
 var trees = Driver.query({q: 'blocks', center: p.pos,
-                          filter: {in_radius: 32, type: 'minecraft:oak_log'}});
+                          filter: {in_radius: 12, type: 'minecraft:oak_log'}});
 console.log('found ' + trees.length);
 trees.length ? Driver.bot.goto({pos: trees[0].pos}) : 'nothing nearby'
 ```
@@ -291,6 +291,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | `awaitMs` on an asynchronous verb | 1 ms to 10 minutes | Clamped, not rejected. |
 | Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. Leaving a world or reseeding the test area empties the buffer but never rewinds `seq`, which rises for the life of the process, so a cursor saved before a reload stays valid. |
 | Event-stream backlog | 256 frames per MCP stream | Overflow closes that stream. |
+| Block scan | `in_radius` 15, a 31³ cube inside the 32,768-cell budget of `mc.action.fill` and `mc.world.snapshot` | `mc.query` with `q: 'blocks'`. A larger radius is rejected rather than clamped, and a cube reaching into an unloaded chunk is rejected rather than loading it. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. Running out is error `-32001` or `-32002`, above. |
 
 ## Security
