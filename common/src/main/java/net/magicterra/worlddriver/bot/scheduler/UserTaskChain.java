@@ -46,8 +46,14 @@ public final class UserTaskChain implements Chain {
     public void setProcess(BotProcess next) {
         cancel("superseded");
         claim = SlotClaim.attach(next, state);
+        drove = false;
         process = next;
     }
+
+    /** Whether the held process has been left running across a tick boundary, i.e. has driven the
+     *  body. One that ends on its first tick never did, and the keybinds it would release are the
+     *  human's. */
+    private boolean drove;
 
     /** Cancel the held process (if any) with a reason recorded on its slot.
      *  Mirrors the old {@code BotApiImpl.cancelCurrent}. */
@@ -112,8 +118,10 @@ public final class UserTaskChain implements Chain {
             if (c.tick(body, w, st)) {
                 endClaim(null);
                 recordEnd(c.kind(), null);   // ran to completion: kind with error == null
-                keyRelease.run();
+                if (drove) keyRelease.run();
                 process = null;
+            } else {
+                drove = true;
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -136,9 +144,10 @@ public final class UserTaskChain implements Chain {
     private boolean interrupted;
 
     /** Preempted by a higher-priority chain: stop in place, keep the process so
-     *  it can resume. */
+     *  it can resume. With no process held this is the handover to idle after an ending, which
+     *  already settled the keys. */
     @Override public void onInterrupt(Chain by) {
-        keyRelease.run();
+        if (process != null) keyRelease.run();
         interrupted = true;
     }
 

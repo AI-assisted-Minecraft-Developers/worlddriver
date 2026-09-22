@@ -1032,8 +1032,11 @@ public final class BotApiImpl implements BotApi {
         BotConfig.walkerCruiseActive = false;   // likewise: the Walker re-sets it below while its surface cruise holds the eyes under
         // Capture BEFORE the tick: a chain that runs this tick presses movement
         // keys even if it finishes mid-tick (current() then nulls) — its trailing
-        // presses still need the one-shot cleanup below.
-        boolean schedulerDroveThisTick = scheduler.current() != null;
+        // presses still need the one-shot cleanup below. A user chain holding nothing
+        // ended its process last tick and settled that process's keys itself (released
+        // them, or never took them), so it leaves nothing to clean up.
+        Chain driving = scheduler.current();
+        boolean schedulerDroveThisTick = driving != null && (driving != userTask || userTask.process() != null);
         // The scheduler talks bodies; this tick chain is the client's, so the body is the local
         // player's. Built fresh per tick, like every other ClientPlayerBody (see clientAvatar()).
         scheduler.tick(new net.magicterra.worlddriver.bot.body.ClientPlayerBody(mc), world, state);

@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   current foot cell every tick, so the tracker was never empty, and the auto-start gated on its
   size started a backfill on every idle tick that found only the foot cell, which it always skips,
   and ended at once. The gate now runs the process's own candidate scan.
+- **A user task that ends on its first tick no longer clears the human's movement keys.** Such a
+  process (nothing to backfill, no bed in range) never drove the body, yet its ending, the handover
+  to idle after it, and the idle release on the next tick each cleared the seven movement keybinds
+  the human shares with the bot. Only a process that has run across a tick boundary releases them.
 
 ## 2026-09-20
 
