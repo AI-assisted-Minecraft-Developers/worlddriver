@@ -59,6 +59,10 @@ and while it stands `mc.bot.status` shows it under `chains.<name>.bail` as `{rea
 Cancelling every episode, on `mc.bot.cancel{all}` or on death, lifts every bail, because the site the
 chain gave up on is no longer the question.
 
+The bunker reflex bails for 200 ticks when it will not dig the column it stands on (water, a hazard,
+a floor that does not break): it is cornered by definition, so without the bail its 300 starved the
+retreat reflex below it for the whole siege.
+
 A chain reaches the scheduler through `Chain.registeredWith`, called once by `register`. A chain built
 standalone, as the matrix scenes build them, has no scheduler and its bail is only its own reset.
 

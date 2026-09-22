@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   none, and reset nothing. It now switches off the slots a process switched on at attach, at every
   ending. Until some later goto reused the slot, status had reported the bot as walking, the mouse
   and focus takeover stayed engaged, and the screen watchdog closed any container the player opened.
+- **The bunker reflex hands the body to retreat when it will not dig.** Cornered at a shoreline, over
+  a hazard, or over a floor it cannot break, `autoBunker` gave up and then re-bid 300 on the next
+  tick, so retreat and combat never ran and the bot stood still in front of the mobs. It now bails
+  out of the bid for 200 ticks (`BunkerChain.BAIL_COOLDOWN_TICKS`).
 
 ## 2026-09-20
 
