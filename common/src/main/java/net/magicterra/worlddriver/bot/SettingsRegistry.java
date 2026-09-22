@@ -335,9 +335,9 @@ public final class SettingsRegistry {
     }
 
     /**
-     * Public static volatile PRIMITIVE {@link BotConfig} fields in {@code Class.getFields()} order.
-     * The ONE enumerator shared by this registry and {@link SettingsSnapshot#build}'s completion
-     * pass — a new flag surfaces in both or neither.
+     * Public static volatile PRIMITIVE {@link BotConfig} fields in {@code Class.getFields()} order,
+     * less the {@link RuntimeState} ones. The ONE enumerator shared by this registry and
+     * {@link SettingsSnapshot#build}'s completion pass — a new flag surfaces in both or neither.
      */
     static List<Field> reflectivePrimitiveFields() {
         List<Field> out = new ArrayList<>();
@@ -345,6 +345,7 @@ public final class SettingsRegistry {
             int mods = f.getModifiers();
             if (!Modifier.isStatic(mods) || !Modifier.isVolatile(mods)) continue;
             if (!f.getType().isPrimitive()) continue;
+            if (f.isAnnotationPresent(RuntimeState.class)) continue;
             out.add(f);
         }
         return out;

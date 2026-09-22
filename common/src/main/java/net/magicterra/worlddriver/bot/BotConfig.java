@@ -913,7 +913,7 @@ public final class BotConfig {
      *  and raises the depth penalty to find a climb-OVER route instead of re-committing a
      *  cheap shallow/cave segment. Off by default → all searches behave exactly as before.
      *  PURE RUNTIME STATE — must NOT be persisted (not in any config save/load list). */
-    public static volatile boolean pathfinderBoxedEscalate = false;
+    @RuntimeState public static volatile boolean pathfinderBoxedEscalate = false;
     public static int    pfHorizonBlocks()   { return pathfinderBoxedEscalate ? 0 : pathfinderHorizonBlocks; }
     public static int    pfSoftCommitNodes() { return pathfinderBoxedEscalate ? Math.max(pathfinderSoftCommitNodes, 35000) : pathfinderSoftCommitNodes; }
     public static double pfDepthPenalty()    { return pathfinderBoxedEscalate ? Math.max(pathfinderDepthPenalty, 25) : pathfinderDepthPenalty; }
@@ -1357,9 +1357,9 @@ public final class BotConfig {
     /** Default {@code route.mobs.rangedRadius}: the wider berth of a mob that shoots (skeleton/witch), AltoClef's ranged split. */
     public static volatile int rangedAvoidRadius = 16;
     public static volatile double fleeDangerBoost = 8;   // during an active flee, water/ledge danger ×this so the flee won't dive into water or off a cliff (F2)
-    public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
-    public static volatile boolean walkerCruiseActive = false; // RUNTIME: the Walker's surface sprint-swim cruise holds the eyes under on purpose this frame; NOT persisted. AutoSwim's drowning backstop yields to it while air is healthy, as it does to a dig.
-    public static volatile boolean walkerDigActive = false; // RUNTIME dig-context flag (the Walker held a block-break this frame); NOT persisted, NOT in MCP schema. Read by AutoSwim so the in-process drowning backstop yields to an active dig while air is healthy (2026-07-21 live: deep-ascent had NO air gate and fought every underwater dig from full lungs, resetting destroyProgress each bob).
+    @RuntimeState public static volatile boolean fleeActive = false;   // RUNTIME flee-context flag (a RunAwayProcess ticked this frame); NOT persisted, NOT in MCP schema
+    @RuntimeState public static volatile boolean walkerCruiseActive = false; // RUNTIME: the Walker's surface sprint-swim cruise holds the eyes under on purpose this frame; NOT persisted. AutoSwim's drowning backstop yields to it while air is healthy, as it does to a dig.
+    @RuntimeState public static volatile boolean walkerDigActive = false; // RUNTIME dig-context flag (the Walker held a block-break this frame); NOT persisted, NOT in MCP schema. Read by AutoSwim so the in-process drowning backstop yields to an active dig while air is healthy (2026-07-21 live: deep-ascent had NO air gate and fought every underwater dig from full lungs, resetting destroyProgress each bob).
 
     /** Walker sneak-brake guard: while walking, if a LETHAL drop (fall deeper than
      *  the bot can survive at its current HP) is one step ahead in the heading, hold
@@ -2698,8 +2698,7 @@ public final class BotConfig {
      *  writes it as the {@code <key>.default} line, and {@link #load()} re-saves a
      *  file whose stored snapshot no longer matches the current compiled default.
      *  Assigned in a static block at the very END of the class so every field it
-     *  reads (all the volatiles above, and {@link #NON_PERSISTED} which
-     *  {@link #persistable} consults) is already class-initialized. */
+     *  reads (all the volatiles above) is already class-initialized. */
     private static final Map<String, String> COMPILED_DEFAULTS;
 
     private static Map<String, String> captureCompiledDefaults() {
@@ -2833,20 +2832,14 @@ public final class BotConfig {
         }
     }
 
-    /** Fields excluded from persistence even though their type is persistable:
-     *  pure RUNTIME state that must NOT survive a restart. {@code fleeActive} is
-     *  a per-frame flee-context flag (set true by RunAwayProcess.tick, reset each
-     *  clientTick) — if saved it would reload {@code true} and wrongly boost every
-     *  goto's terrain cost. Keep this in sync with any other transient scalar. */
-    private static final Set<String> NON_PERSISTED = Set.of("fleeActive", "walkerDigActive", "walkerCruiseActive", "pathfinderBoxedEscalate");
-
     /** A static, non-final field of a scalar type (or the hazard-block Set) — the
-     *  set we round-trip. Arrays (avoidZones), runtime-only flags ({@link
-     *  #NON_PERSISTED}), and anything else are excluded. */
+     *  set we round-trip. Arrays (avoidZones), {@link RuntimeState} fields (a saved
+     *  {@code fleeActive=true} would reload and boost every goto's terrain cost), and
+     *  anything else are excluded. */
     private static boolean persistable(Field f) {
         int m = f.getModifiers();
         if (!Modifier.isStatic(m) || Modifier.isFinal(m)) return false;
-        if (NON_PERSISTED.contains(f.getName())) return false;
+        if (f.isAnnotationPresent(RuntimeState.class)) return false;
         Class<?> t = f.getType();
         return t == boolean.class || t == int.class || t == long.class
                 || t == double.class || t == float.class
@@ -2992,7 +2985,7 @@ public final class BotConfig {
         pathfinderLogBreakTax = 1.0;
     }
 
-    // Capture the compiled-in defaults LAST — after every persistable volatile and
-    // NON_PERSISTED are initialized, and (being class init) before load() runs.
+    // Capture the compiled-in defaults LAST — after every persistable volatile is
+    // initialized, and (being class init) before load() runs.
     static { COMPILED_DEFAULTS = captureCompiledDefaults(); }
 }

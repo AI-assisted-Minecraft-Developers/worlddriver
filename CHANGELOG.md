@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`mc.bot.setting` no longer offers the four per-tick flags as settings.** `fleeActive`,
+  `walkerDigActive`, `walkerCruiseActive` and `pathfinderBoxedEscalate` are state the bot rewrites
+  every tick, but the reflective scan put them in the schema and the snapshot and accepted writes to
+  them as `applied`, for a value gone a tick later. Fields marked `@RuntimeState` are now off the
+  surface, so a write to one is refused as an unknown key, and the same mark is what keeps them out
+  of the saved config, replacing a hand-kept name list.
 - **`mc.bot.setting` rejects a number outside the key's documented range.** The ranges were written
   twice, once in the schema text and once in the write path, and the two had drifted: the goal-field,
   depth, descend, bridge and thin-obstacle keys clamped to a lower bound and took anything above
