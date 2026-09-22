@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **A timed-out client-thread call says whether it can still happen, as a server-thread one does.**
+  The client bot's verbs hop onto the client thread, and a hop that waited past
+  `worlddriver.clientThreadTimeoutMs` reported a failure while the task stayed queued and ran once
+  the client caught up, so a retried order ran twice. The hop now uses the server hop's state
+  machine: a task the client had not started is withdrawn and reported as `-32001`, one already
+  running as `-32002`.
 - **A server-side body's cancelled `sleep` or replay no longer leaves `goto.active` stuck true.**
   `ServerWorldDriver` and the testmod's NPC host still reset the slot named after the process's kind,
   which misses the goto slot those two borrow, and on a superseded, finished or goto-replaced process

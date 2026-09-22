@@ -11,7 +11,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
- * Runs a task on the server thread and waits a bounded time for it.
+ * Runs a task on the server thread and waits a bounded time for it. The client-thread hop
+ * ({@code ClientHop}) is the same state machine over the client's executor.
  *
  * <p>A wait that runs out cannot simply report failure: the task is still queued, and a caller
  * told "failed" who retries would have it applied twice once the tick frees up. So each call
@@ -32,11 +33,18 @@ public final class ServerThreadHop {
     private final Executor executor;
     private final BooleanSupplier onTargetThread;
     private final long timeoutMs;
+    private final String threadName;
 
     public ServerThreadHop(Executor executor, BooleanSupplier onTargetThread, long timeoutMs) {
+        this(executor, onTargetThread, timeoutMs, "server thread");
+    }
+
+    /** A hop onto another game thread; {@code threadName} ("client thread") is what the errors call it. */
+    public ServerThreadHop(Executor executor, BooleanSupplier onTargetThread, long timeoutMs, String threadName) {
         this.executor = executor;
         this.onTargetThread = onTargetThread;
         this.timeoutMs = timeoutMs;
+        this.threadName = threadName;
     }
 
     public <T> T call(Supplier<T> task) {
@@ -50,13 +58,13 @@ public final class ServerThreadHop {
                 catch (Throwable e) { f.completeExceptionally(e); }
             });
         } catch (RejectedExecutionException e) {
-            throw new NotExecutedException("server thread refused the task (" + e.getMessage()
+            throw new NotExecutedException(threadName + " refused the task (" + e.getMessage()
                     + "); it will not run and is safe to retry");
         }
         try {
             return f.get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
-            return giveUp(state, f, "within " + timeoutMs + "ms (server busy or paused)");
+            return giveUp(state, f, "within " + timeoutMs + "ms (busy, loading or paused)");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return giveUp(state, f, "before the waiting thread was interrupted");
@@ -65,9 +73,9 @@ public final class ServerThreadHop {
         }
     }
 
-    private static <T> T giveUp(AtomicInteger state, CompletableFuture<T> f, String when) {
+    private <T> T giveUp(AtomicInteger state, CompletableFuture<T> f, String when) {
         if (state.compareAndSet(QUEUED, ABANDONED)) {
-            throw new NotExecutedException("server thread did not start the task " + when
+            throw new NotExecutedException(threadName + " did not start the task " + when
                     + "; it was withdrawn and will not run, so it is safe to retry");
         }
         // Lost the race: the task started, and may have finished since the wait ran out.
@@ -76,7 +84,7 @@ public final class ServerThreadHop {
             catch (ExecutionException e) { throw unwrap(e); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
-        throw new OutcomeUnknownException("server thread started the task but it did not finish "
+        throw new OutcomeUnknownException(threadName + " started the task but it did not finish "
                 + when + "; it is still running and may yet apply, so observe the world before retrying");
     }
 
