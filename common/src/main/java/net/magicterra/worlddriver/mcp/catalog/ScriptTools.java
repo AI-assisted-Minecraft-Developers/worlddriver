@@ -87,7 +87,8 @@ public final class ScriptTools {
                             + "as-is (object/array/number/boolean), passes a string through raw. Optional."))
                     .prop("pos", pos()
                         .desc("Optional position attached to the emitted event (for emit)."))
-                    .prop("invoke", string().desc("Route name to poll (for watch)."))
+                    .prop("invoke", string().desc("Route name to poll (for watch); an unknown route is "
+                        + "refused when the watcher is registered."))
                     .prop("params", object().additionalProperties(true)
                         .desc("Params object passed through to the polled route (for watch); "
                             + "validated against that route's own schema on every poll."))

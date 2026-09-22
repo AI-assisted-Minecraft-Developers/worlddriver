@@ -135,7 +135,7 @@ In-memory block-box save/restore — the clean way to A/B a pathfinder/build tri
 Server-side event channel: emit your own events and set up server-side **watchers** that poll an arbitrary method on a rising-edge predicate and emit when it fires (a building block for `wait.condition`-style automation without a client long-poll).
 | method | params | returns / notes |
 |---|---|---|
-| `mc.events` | `op:"emit"\|"watch"\|"unwatch"\|"list"` (req); emit: `type`,`data?`,`pos?`; watch: `invoke`,`params?`,`field?`,`emitAs?`,`everyMs?`,`once?`,`value?`/`above?`/`below?`; unwatch: `id` | `emit`→`{ok,seq,type}`; `watch`→`{ok,watching,id,emitAs,everyMs}`; `unwatch`→`{ok,removed}`; `list`→`{watchers:[…],count}`. |
+| `mc.events` | `op:"emit"\|"watch"\|"unwatch"\|"list"` (req); emit: `type`,`data?`,`pos?`; watch: `invoke`,`params?`,`field?`,`emitAs?`,`everyMs?`,`once?`,`value?`/`above?`/`below?`; unwatch: `id` | `emit`→`{ok,seq,type}`; `watch`→`{ok,watching,id,emitAs,everyMs}` (an `invoke` that is not a registered method is a `-32602` error at watch time); `unwatch`→`{ok,removed}`; `list`→`{watchers:[…],count}`. |
 
 ## mc.wait.*
 Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000, max 120000; `pollMs`). Pass `background:true` to return a `{waitId}` immediately and fetch the result later with `mc.wait.result`.

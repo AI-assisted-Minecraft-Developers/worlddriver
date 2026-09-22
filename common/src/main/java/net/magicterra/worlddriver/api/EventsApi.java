@@ -94,6 +94,11 @@ public final class EventsApi {
     private Map<String, Object> watch(Params p) {
         String invoke = p.getString("invoke");
         if (invoke == null || invoke.isBlank()) throw new IllegalArgumentException("watch: invoke route name required");
+        // Checked here because tick() must swallow poll failures (a world detach is not
+        // fatal), which would otherwise turn a misspelled route into a silent no-op.
+        if (!api.methods().contains(invoke)) {
+            throw new IllegalArgumentException("watch: unknown method: " + invoke);
+        }
         Map<String, Object> params = p.getMap("params");
         String field = p.getString("field");
         String emitAs = p.getString("emitAs", "condition.met");

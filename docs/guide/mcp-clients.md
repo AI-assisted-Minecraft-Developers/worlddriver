@@ -242,7 +242,10 @@ Two ops on the `mc.events` tool work from any transport:
 A watcher polls its route every `everyMs`, default 1000, and emits `emitAs`, default
 `condition.met`, the first time its predicate becomes true. The predicate is `value` for
 deep equality, `above` or `below` for a numeric comparison, and otherwise plain JavaScript
-truthiness. `once: true` cancels the watcher after it fires.
+truthiness. `once: true` cancels the watcher after it fires. An `invoke` that names no
+registered route is refused with an error when the watcher is registered; once registered,
+a poll that fails (a world-bound route while no world is loaded) counts as "not true" and
+the watcher keeps running.
 
 ## Writing your own client
 
