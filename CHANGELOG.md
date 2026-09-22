@@ -48,6 +48,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`autoTool` stands aside while any chain drives, not only while the user task is empty.** The
   bunker reflex, and the processes dusk shelter and retreat drive, pick their own hotbar slots with
   the user slot empty, and the picker swapped away from them.
+- **A web page can no longer drive the game through either transport.** The WebSocket handshake
+  checked no `Origin` at all, and WebSockets are outside CORS, so any page the user opened could
+  connect to `/rpc` and call `mc.script.eval`. The MCP check let the literal `Origin: null` through,
+  which is what a sandboxed iframe sends, and accepted a `text/plain` POST, which a browser sends
+  without a preflight. Both transports now share one policy: no `Origin` or a loopback `http(s)`
+  origin passes, everything else is 403, and an MCP POST that is not `application/json` is 415.
+- **A timed-out server-thread call says whether it can still happen.** A verb whose task waited
+  past `worlddriver.serverThreadTimeoutMs` reported a failure while the task stayed queued and ran
+  later, so a caller that retried a `give` got it twice. A task the server thread had not started
+  is now withdrawn and reported as `-32001` (never ran, safe to retry); one already running is
+  `-32002` (may still apply, observe before retrying).
+- **Every transport bounds its connections.** Requests ran on unbounded thread pools and event
+  pushes queued without limit behind a reader that stopped. RPC now allows 16 requests per
+  connection and 64 overall, MCP 32 requests and 8 event streams, and 32 background waits run at
+  once; past a cap a request is refused with `-32005`. A WebSocket subscriber whose queue passes
+  16 MiB is closed so it can replay from its cursor, and a peer silent for four minutes, pongs
+  included, is closed as half-open. The in-JVM `RpcClient` now answers pings.
+- **RPC framing and errors match the MCP side.** A missing or non-string `method` is `-32600`
+  instead of an internal `-32603`, a request without an `id` is answered with `id: null` instead of
+  `0`, fragmented messages are reassembled before parsing, and a failed bind no longer leaks its
+  event-loop threads. On MCP, every message without an `id` is acknowledged with 202 and not run.
+- **Integers cross the wire exactly.** Every number was encoded through `double`, so a `long` above
+  2^53, a world seed for one, lost its low bits on all three transports.
+- **`mc.wait.result` and `mc.events watch` fail loudly.** An unknown, consumed or evicted `waitId`
+  answered `pending: true` forever; it is now an error. A watcher naming a route that does not exist
+  was accepted and then failed silently every second; it is now refused when it is registered.
+- **The event `seq` never goes backwards.** It was assigned outside the ring's lock, so two emitters
+  could append out of order and a reader that advanced its cursor missed the earlier event for good;
+  and leaving a world or reseeding the test area reset it to 0, which blinded every saved cursor.
+- **`mc.query` block scans are bounded and never load chunks.** `in_radius` was clamped at 64, a
+  2.1-million-cell scan in one server tick that loaded or generated every chunk it touched. It is
+  now at most 15, the 32,768-cell budget `mc.action.fill` uses; a larger radius is rejected, and so
+  is a cube reaching into an unloaded chunk. The client-side fallback for `q: 'entities'` returns
+  the same flat array as the server and honours `type`, `is_living` and `select`.
 
 ## 2026-09-20
 
