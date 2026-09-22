@@ -163,6 +163,16 @@ remapJar {
     inputFile.set shadowJar.archiveFile
 }
 
+// The binary bundles :common, so its sources ship here too, or this jar would not be the source of
+// the one published beside it. The manifest and licence texts are this jar's own.
+sourcesJar {
+    def commonSources = project(':common').tasks.named('sourcesJar', Jar)
+    dependsOn commonSources
+    from(commonSources.flatMap { it.archiveFile }.map { zipTree(it) }) {
+        exclude 'META-INF/MANIFEST.MF', 'META-INF/COPYING', 'META-INF/COPYING.LESSER'
+    }
+}
+
 loom {
     // NeoForge uses access transformers, and architectury-loom 1.11 does NOT convert
     // access wideners for it (ForgeExtensionAPI has convertAccessWideners /

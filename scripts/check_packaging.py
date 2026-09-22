@@ -33,6 +33,9 @@ metadata
         versions (Architectury from its pin up to the next major, the Fabric loader from
         its pin, Minecraft from `minecraft_version_range` in each loader's syntax). A value
         hardcoded in one loader's file drifts from the other's on the next edit.
+sources Each loader's `-sources` jar holds every source file of :common's, because the
+        loader's binary jar bundles :common. A sources jar that covers only the loader's
+        entry points does not match the binary it is published beside.
 """
 import json
 import os
@@ -208,6 +211,27 @@ def check_metadata():
     return problems
 
 
+def check_sources():
+    common = dict(published_jars("common"))["sources"]
+    if not os.path.isfile(common):
+        return [f"{os.path.relpath(common, ROOT)}: not built (see this script's docstring)"]
+    with zipfile.ZipFile(common) as z:
+        wanted = {n for n in z.namelist() if n.endswith(".java")}
+    problems = []
+    for module in ("fabric", "neoforge"):
+        path = dict(published_jars(module))["sources"]
+        rel = os.path.relpath(path, ROOT)
+        if not os.path.isfile(path):
+            problems.append(f"{rel}: not built (see this script's docstring)")
+            continue
+        with zipfile.ZipFile(path) as z:
+            missing = sorted(wanted - set(z.namelist()))
+        if missing:
+            problems.append(f"{rel}: lacks {len(missing)} of :common's {len(wanted)} source files,"
+                            f" e.g. {missing[0]}")
+    return problems
+
+
 def check_repos():
     problems = []
     for module in ("",) + MODULES:
@@ -241,6 +265,7 @@ CHECKS = {
     "licence": check_licence,
     "pom": check_pom,
     "metadata": check_metadata,
+    "sources": check_sources,
 }
 
 

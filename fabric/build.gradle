@@ -156,6 +156,16 @@ remapJar {
     inputFile.set shadowJar.archiveFile
 }
 
+// The binary bundles :common, so its sources ship here too, or this jar would not be the source of
+// the one published beside it. The manifest and licence texts are this jar's own.
+sourcesJar {
+    def commonSources = project(':common').tasks.named('sourcesJar', Jar)
+    dependsOn commonSources
+    from(commonSources.flatMap { it.archiveFile }.map { zipTree(it) }) {
+        exclude 'META-INF/MANIFEST.MF', 'META-INF/COPYING', 'META-INF/COPYING.LESSER'
+    }
+}
+
 loom {
     // Share :common's access widener rather than declaring a second one, so the two
     // loaders can never widen different sets of members. Loom remaps the file into the
