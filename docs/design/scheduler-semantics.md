@@ -46,6 +46,40 @@ idle time.
 A challenger must beat the incumbent by `Priorities.HYSTERESIS` (5) rather than merely exceed it,
 so two chains with near-equal bids do not trade the body every tick.
 
+### A chain that gives up sits out for a cooldown it names
+
+Because a bid is a function of the situation, giving up does not lower it: the situation that made
+the chain bid is still there on the next tick, so the chain bids the same band again, runs, gives up
+again, and nothing below it ever gets the body. A chain that gives up therefore calls
+`ProcessScheduler.bail(chain, reason, cooldownTicks)`. For the next `cooldownTicks` ticks the
+scheduler records that chain's bid as 0 and does not ask it for a priority at all, so a debounce
+inside the chain starts over instead of running on while it sits out. The scheduler owns the clock;
+the chain only names the length. The bail is logged on the `[scheduler]` line beside the handovers,
+and while it stands `mc.bot.status` shows it under `chains.<name>.bail` as `{reason, ticksLeft}`.
+Cancelling every episode, on `mc.bot.cancel{all}` or on death, lifts every bail, because the site the
+chain gave up on is no longer the question.
+
+The bunker reflex bails for 200 ticks when it will not dig the column it stands on (water, a hazard,
+a floor that does not break): it is cornered by definition, so without the bail its 300 starved the
+retreat reflex below it for the whole siege. Dusk shelter bails for 600 ticks when its bunker process
+ends without enclosing the bot, and restarts its start debounce: an unsafe site fails on the first
+tick and changes nothing, so it would otherwise restart the dig on every tick of the night at 90,
+above the user task.
+
+A chain reaches the scheduler through `Chain.registeredWith`, called once by `register`. A chain built
+standalone, as the matrix scenes build them, has no scheduler and its bail is only its own reset.
+
+### A process's status slot is the one its attach switched on
+
+The user-task chain records which `BotState` slots a process switched from off to on during its
+`attach`, and switches exactly those off whenever the process ends: completion, cancel, supersede,
+an exception, and the cancel that death runs. It does not look the slot up from the process's kind,
+because a kind does not name a slot: sleep and replay report into the goto slot, and a lookup by kind
+left `goto.active` true after cancelling either one, so status said the bot was walking and the
+screen watchdog kept closing containers the player opened. A slot that was already on before the
+attach belongs to another owner and is left to that owner. Chains that hold their own process pass
+their slot to `ChainProcessLifecycle.drop` explicitly.
+
 ## Five things that had to change once the model was real
 
 Running this for a while produced fourteen deaths and several deadlocks, and they reduced to five
@@ -96,7 +130,8 @@ with a setting, not cancelled, because they have no episode to cancel.
 
 ## Where to look
 
-- `bot/scheduler/ProcessScheduler.java` — the bid, the hysteresis, and the interrupt and resume calls.
+- `bot/scheduler/ProcessScheduler.java` — the bid, the hysteresis, the bail cooldown, and the interrupt
+  and resume calls. Its JVM test, `ProcessSchedulerTest`, drives it with fake chains.
 - `bot/scheduler/Priorities.java` — the bands, each with the reason for its position.
 - `bot/scheduler/Chain.java` — the interface, including the episode-cancellation seam.
 - `bot/scheduler/CancelRouting.java` — where a cancel is turned into the right chain's clear.

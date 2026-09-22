@@ -35,13 +35,21 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.walkerPlace;
  * (fleeing into the swarm is worse) but sits below the creeper/projectile
  * reflexes. Once committed it finishes digging+sealing even if the threat count
  * momentarily dips, then holds the pocket until the surface clears, at which
- * point it releases the channel so the user/other chains can dig back out.
+ * point it releases the channel so the user/other chains can dig back out. A site it
+ * cannot dig (water, a hazard, an unbreakable floor) is given up with a scheduler bail,
+ * so the chains below it get the body for {@link #BAIL_COOLDOWN_TICKS}.
  * Gated on {@link BotConfig#autoBunker} (off by default — it modifies the world).
  */
 public final class BunkerChain implements Chain {
 
+    /** How long a bail keeps this chain out of the bid: ten seconds, enough for the retreat reflex
+     *  to carry the body off the failed site (re-bidding sooner preempts the flee, which drops its
+     *  path), and short enough that a bot still cornered on dry ground can dig in there. */
+    static final int BAIL_COOLDOWN_TICKS = 200;
+
     /** Per-siege anchor + descent-bounding state (single source; see {@link BunkerAnchor}). */
     private final BunkerAnchor a = new BunkerAnchor();
+    private ProcessScheduler scheduler;
 
     @Override public String name() { return "bunker"; }
 
@@ -130,10 +138,9 @@ public final class BunkerChain implements Chain {
             // Don't open a shaft into water/lava/another hazard, and don't bunker
             // while standing in water (that just drowns us). Bail to let retreat/
             // combat take over instead.
-            if (w.isWater(foot) || w.isWater(foot.offset(0, 1, 0))
-                    || w.isWater(below) || w.isHazard(below) || w.isHazard(foot.offset(0, 1, 0))) {
-                ClientIntents.holdDig(false);
-                a.reset();
+            String unsafe = unsafeDigSite(w, foot);
+            if (unsafe != null) {
+                giveUp(unsafe);
                 return;
             }
             if (!w.isSolid(below)) { return; }        // already open (still falling) — settle a tick
@@ -145,10 +152,7 @@ public final class BunkerChain implements Chain {
             // the gate's matrix scenes. See BotInteract#continueDestroy — the drive is what breaks
             // the block, and it also makes vanilla's attack pass stand aside (ClientIntents).
             continueDestroy(mc, p, below);
-            if (++a.digTicks > BotConfig.breakTimeoutTicks) {   // unbreakable (bedrock) — give up
-                ClientIntents.holdDig(false);
-                a.reset();
-            }
+            if (++a.digTicks > BotConfig.breakTimeoutTicks) giveUp("unbreakable");   // bedrock and the like
             return;
         }
 
@@ -166,6 +170,26 @@ public final class BunkerChain implements Chain {
             releaseKeys();
         }
     }
+
+    /** Why the column under {@code foot} cannot be dug, or null when it can: standing in water,
+     *  water or a hazard below, or a hazard at head height. */
+    static String unsafeDigSite(WorldView w, BlockPos foot) {
+        BlockPos below = foot.below(), head = foot.offset(0, 1, 0);
+        if (w.isWater(foot) || w.isWater(head) || w.isWater(below)) return "water";
+        if (w.isHazard(below) || w.isHazard(head)) return "hazard";
+        return null;
+    }
+
+    /** Give the site up and leave the bid. {@link #priority} reads only health and hostiles, which
+     *  a bad site does not change, so without the bail it re-bids 300 next tick and retreat (100)
+     *  and combat (60) never get the body. */
+    void giveUp(String reason) {
+        ClientIntents.holdDig(false);
+        a.reset();
+        if (scheduler != null) scheduler.bail(this, reason, BAIL_COOLDOWN_TICKS);
+    }
+
+    @Override public void registeredWith(ProcessScheduler s) { scheduler = s; }
 
     @Override public void onInterrupt(Chain by) {
         // Release the movement channel but PRESERVE the episode (startY + sealed). The

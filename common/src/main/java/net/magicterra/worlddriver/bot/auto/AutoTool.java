@@ -1,6 +1,8 @@
 package net.magicterra.worlddriver.bot.auto;
 
 import net.magicterra.worlddriver.bot.BotConfig;
+import net.magicterra.worlddriver.bot.process.BotProcess;
+import net.magicterra.worlddriver.bot.scheduler.ProcessScheduler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Inventory;
@@ -12,8 +14,8 @@ import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 /**
  * Baritone autoTool — when the crosshair points at a breakable block, swap the
  * selected hotbar slot to the item with the best destroy speed for that block
- * (preferring correct-tool-for-drops). Skipped when any bot process is active
- * (they manage hotbar themselves; the host gates the call). Extracted from
+ * (preferring correct-tool-for-drops). Skipped while any process or chain drives the
+ * body (they manage hotbar themselves; the host gates the call on {@link #mayRun}). Extracted from
  * {@code BotApiImpl}; minimal cross-tick state for the manual-selection grace
  * (gap#68-⑪) — otherwise stateless.
  */
@@ -25,6 +27,13 @@ public final class AutoTool {
      *  period instead of clobbering it next tick (gap#68-⑪). */
     private static int lastAutoSelected = -1;
     private static int graceLeft;
+
+    /** Whether the host may run the picker this tick: no user task, and no chain held the channel
+     *  last tick. The user slot alone is not enough — the bunker reflex picks its own tool and seal
+     *  block, and dusk shelter and retreat drive processes that do, all with the user slot empty. */
+    public static boolean mayRun(BotProcess userProcess, ProcessScheduler scheduler) {
+        return userProcess == null && scheduler.current() == null;
+    }
 
     /** Pure yield policy (matrix-testable). */
     public static boolean shouldYield(int selectedNow, int lastAuto, int grace) {

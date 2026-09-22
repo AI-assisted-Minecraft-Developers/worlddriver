@@ -579,6 +579,10 @@ wd.clientRoutePreviewDoesNotInterrupt
 wd.clientRouteBlockedEventFires
 wd.clientRouteOldFieldRejected
 wd.clientBodyRefusedWhileDead
+# The scheduler's contract on the client's real player (WorldDriverClientSchedulerScenes).
+wd.clientSleepCancelEndsGoto
+wd.clientBunkerBailHandsToRetreat
+wd.clientDuskSecureBeachDoesNotRestart
 # Human verification — the testmod's marker block (docs/design/human-in-the-loop-verification.md)
 wd.markerBlockNeverBlocksMotion
 # The NPC body (a driven piglin) on five terrains, with the server player body on the same course

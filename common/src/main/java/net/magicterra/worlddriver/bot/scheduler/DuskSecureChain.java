@@ -34,9 +34,14 @@ public final class DuskSecureChain implements Chain {
     private static final int IDLE_DEBOUNCE_TICKS = 20; // ~1s at 20 tps (spec §3.4)
     private static final double THREAT_RADIUS = 12.0;
     private static final int DRY_RUN_EMIT_COOLDOWN_TICKS = 200;
+    /** How long a failed shelter keeps this chain out of the bid: thirty seconds, so the user task
+     *  gets a real stretch of travel off the failed site before the next try, and a night still
+     *  holds some twenty tries for when it has found diggable ground. */
+    static final int BAIL_COOLDOWN_TICKS = 600;
     private final BotState state;
     private final WorldModel worldModel;
     private BunkerProcess process;
+    private ProcessScheduler scheduler;
     private int idleTicks;
     private float lastBidTier = Priorities.IDLE_SECURE;
     private int dryRunCooldown;
@@ -158,16 +163,25 @@ public final class DuskSecureChain implements Chain {
             process.attach(st);
             announceAutoTrigger(mc, rearmPending);
         }
-        if (process.tick(body, w, st)) {
-            process = null; // sheltered/done -> priority will drop next tick
-            lastBidTier = Priorities.IDLE_SECURE;
-            // gap#75-b: the process issued its OWN terminal verdict (a bail — SEALED
-            // holds forever and never returns true). Consume any pending re-arm: only
-            // an external preemption re-arms; re-running a bail would loop, each retry
-            // re-anchoring lower (the gap#29 ratchet shape).
-            rearmPending = false;
+        if (process.tick(body, w, st)) processEnded();
+    }
+
+    /** The held process issued its own terminal verdict (SEALED holds and never returns true, so
+     *  this is a bail or a finished dig). A failed one leaves the site as it was, so the bot is
+     *  still exposed and, with the debounce already spent, would bid 90 and restart it next tick. */
+    void processEnded() {
+        process = null; // sheltered/done -> priority will drop next tick
+        lastBidTier = Priorities.IDLE_SECURE;
+        // gap#75-b: consume any pending re-arm: only an external preemption re-arms;
+        // re-running a bail would loop, each retry re-anchoring lower (the gap#29 ratchet shape).
+        rearmPending = false;
+        if (!Boolean.TRUE.equals(state.bunker.goalReached)) {
+            idleTicks = 0;
+            if (scheduler != null) scheduler.bail(this, "bunker " + state.bunker.endReason, BAIL_COOLDOWN_TICKS);
         }
     }
+
+    @Override public void registeredWith(ProcessScheduler s) { scheduler = s; }
 
     /** Push a warning-level {@code duskSecure.triggered} event the instant this reflex
      *  starts an UNATTENDED dig, so an auto-trigger is never a silent surprise: the Agent
@@ -259,4 +273,7 @@ public final class DuskSecureChain implements Chain {
 
     /** Test seam (gap#75-b): is a post-preemption re-arm pending? */
     public boolean rearmPendingForTest() { return rearmPending; }
+
+    /** Test seam: ticks of the start debounce counted so far. */
+    int idleTicksForTest() { return idleTicks; }
 }

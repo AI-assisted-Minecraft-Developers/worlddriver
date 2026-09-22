@@ -65,7 +65,7 @@ public final class BackfillProcess implements BotProcess {
 
         switch (phase) {
             case NEXT -> {
-                BlockPos pick = pickCandidate(lvl, playerFoot);
+                BlockPos pick = pickCandidate(tracker, playerFoot, BotConfig.autoBackfillRadius, failed, cells(lvl));
                 if (pick == null) {
                     st.builder.lastError = "backfill done";
                     st.builder.reset();
@@ -148,9 +148,34 @@ public final class BackfillProcess implements BotProcess {
         return false;
     }
 
+    /** What the candidate scan reads of the world, so the auto-start gate and the process ask the
+     *  same question of it. */
+    interface Cells {
+        boolean isAir(BlockPos p);
+        boolean isSolid(BlockPos p);
+    }
+
+    private static Cells cells(Level lvl) {
+        return new Cells() {
+            @Override public boolean isAir(BlockPos p) { return lvl.getBlockState(p).isAir(); }
+            @Override public boolean isSolid(BlockPos p) { return lvl.getBlockState(p).isSolid(); }
+        };
+    }
+
+    /** Whether the idle auto-start should hand the tracker to a new process. Not the tracker's
+     *  size: the tick records the current foot every tick, so it is never empty, and the foot and
+     *  head cells are the two the scan always skips — a process started on size ends at once. */
+    public static boolean autoStartWanted(BackfillTracker tracker, BlockPos playerFoot, Level lvl) {
+        return autoStartWanted(tracker, playerFoot, BotConfig.autoBackfillRadius, cells(lvl));
+    }
+
+    static boolean autoStartWanted(BackfillTracker tracker, BlockPos playerFoot, int radius, Cells cells) {
+        return pickCandidate(tracker, playerFoot, radius, Set.of(), cells) != null;
+    }
+
     /** Pick the nearest tracked air cell with a solid neighbor and a viable stand cell. */
-    private BlockPos pickCandidate(Level lvl, BlockPos playerFoot) {
-        int radius = BotConfig.autoBackfillRadius;
+    static BlockPos pickCandidate(BackfillTracker tracker, BlockPos playerFoot, int radius,
+                                  Set<BlockPos> failed, Cells cells) {
         BlockPos best = null;
         int bestD2 = Integer.MAX_VALUE;
         for (BlockPos cand : tracker.snapshot()) {
@@ -159,23 +184,21 @@ public final class BackfillProcess implements BotProcess {
             int dy = cand.getY() - playerFoot.getY();
             int dz = cand.getZ() - playerFoot.getZ();
             if (Math.abs(dx) > radius || Math.abs(dy) > radius || Math.abs(dz) > radius) continue;
-            BlockState bs = lvl.getBlockState(cand);
-            if (!bs.isAir()) {
+            if (!cells.isAir(cand)) {
                 tracker.remove(cand);
                 continue;
             }
             if (cand.equals(playerFoot) || cand.equals(playerFoot.offset(0, 1, 0))) continue;
-            if (!hasSolidNeighbor(lvl, cand)) continue;
+            if (!hasSolidNeighbor(cells, cand)) continue;
             int d2 = dx * dx + dy * dy + dz * dz;
             if (d2 < bestD2) { bestD2 = d2; best = cand; }
         }
         return best;
     }
 
-    private boolean hasSolidNeighbor(Level lvl, BlockPos pos) {
+    private static boolean hasSolidNeighbor(Cells cells, BlockPos pos) {
         for (Direction d : Direction.values()) {
-            BlockState ns = lvl.getBlockState(pos.offset(d.getStepX(), d.getStepY(), d.getStepZ()));
-            if (ns.isSolid()) return true;
+            if (cells.isSolid(pos.offset(d.getStepX(), d.getStepY(), d.getStepZ()))) return true;
         }
         return false;
     }

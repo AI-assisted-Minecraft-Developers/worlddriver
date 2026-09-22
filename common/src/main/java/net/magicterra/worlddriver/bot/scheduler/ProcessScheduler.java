@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
+import net.magicterra.worlddriver.WorldDriverCommon;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.magicterra.worlddriver.bot.body.Body;
@@ -8,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Owns the <em>movement channel</em>: a set of {@link Chain}s that each tick bid
@@ -19,10 +21,21 @@ import java.util.Map;
  *
  * <p>Registration order is irrelevant; selection is purely by priority. Driven
  * from the client tick thread only — no synchronization needed on {@link #current}.
+ *
+ * <p>A chain that gives up calls {@link #bail}: its bid is forced to 0 for the cooldown it
+ * names, so the next chain down the ladder gets the body. Without it a chain whose priority
+ * is a function of the situation re-bids the same band on the very next tick, because giving
+ * up did not change the situation.
  */
 public final class ProcessScheduler {
     private final List<Chain> chains = new ArrayList<>();
     private Chain current;
+    /** Ticks this scheduler has run: the clock {@link #bail} cooldowns are measured on. */
+    private volatile long ticks;
+    /** Chains sitting out after a {@link #bail}, with the last tick their bid is still forced to 0.
+     *  Concurrent because {@link #bailOf} answers status reads off the tick thread. */
+    private final Map<Chain, Hold> held = new ConcurrentHashMap<>();
+    private record Hold(String reason, long untilTick) {}
     /** Name of {@link #current}, published volatile each tick so status reporting
      *  (which may run on an RPC handler thread) sees it without racing. */
     private volatile String currentName;
@@ -35,6 +48,38 @@ public final class ProcessScheduler {
     /** Register a chain. Order does not matter; the highest priority each tick wins. */
     public void register(Chain c) {
         chains.add(c);
+        c.registeredWith(this);
+    }
+
+    /** A chain's standing bail: why it gave up, and how many more ticks its bid stays at 0. */
+    public record Bail(String reason, long ticksLeft) {}
+
+    /**
+     * {@code chain} gives up: its bid is forced to 0 for the next {@code cooldownTicks} ticks and
+     * its {@link Chain#priority} is not consulted meanwhile, so a debounce inside it starts over
+     * rather than running on while it sits out. A later bail replaces an earlier one.
+     */
+    public void bail(Chain chain, String reason, int cooldownTicks) {
+        int n = Math.max(0, cooldownTicks);
+        held.put(chain, new Hold(reason, ticks + n));
+        WorldDriverCommon.LOG.info("[scheduler] chain {} bailed ({}), out of the bid for {} ticks",
+                chain.name(), reason, n);
+    }
+
+    /** {@code chain}'s standing bail, or null when it is free to bid. Safe off the tick thread. */
+    public Bail bailOf(Chain chain) {
+        Hold h = held.get(chain);
+        if (h == null) return null;
+        long left = h.untilTick() - ticks;
+        return left > 0 ? new Bail(h.reason(), left) : null;
+    }
+
+    private boolean sittingOut(Chain c) {
+        Hold h = held.get(c);
+        if (h == null) return false;
+        if (ticks <= h.untilTick()) return true;
+        held.remove(c);
+        return false;
     }
 
     /** The chain currently holding the movement channel, or null if all sat out. */
@@ -61,12 +106,13 @@ public final class ProcessScheduler {
     }
 
     public void tick(Body body, WorldView w, BotState st) {
+        ticks++;
         Chain best = null;
         float bestP = 0f;
         float currentP = 0f;        // the incumbent's priority THIS tick
         Map<String, Float> prios = new LinkedHashMap<>();
         for (Chain c : chains) {
-            float p = c.priority(body, w, st);
+            float p = sittingOut(c) ? 0f : c.priority(body, w, st);
             prios.put(c.name(), p);
             if (c == current) currentP = p;
             if (p > bestP) {
@@ -90,7 +136,7 @@ public final class ProcessScheduler {
             // body is THE thing post-mortems need (iron ep-018/019: a user smelt
             // froze for minutes with zero telemetry naming the chain that held
             // the channel). Cheap: only on transitions, never per tick.
-            net.magicterra.worlddriver.WorldDriverCommon.LOG.info(
+            WorldDriverCommon.LOG.info(
                     "[scheduler] chain {} -> {} (bids: {})",
                     current == null ? "idle" : current.name(),
                     best == null ? "idle" : best.name(), prios);
@@ -106,9 +152,12 @@ public final class ProcessScheduler {
 
     /** Cancel every chain's internal episode (reflex anchors, latches, held processes).
      *  The structural fix for "cancel can't reach a process-less reflex chain" (gap#68-⑦):
-     *  mc.bot.cancel{all} and the player-death hook both call this. Idempotent. */
+     *  mc.bot.cancel{all} and the player-death hook both call this. Idempotent. Bails are
+     *  lifted too: a bail describes the site the chain gave up on, and after a respawn or an
+     *  explicit stand-down that site is no longer the question. */
     public void cancelAllEpisodes(String reason) {
         for (Chain c : chains) c.cancelEpisode(reason);
+        held.clear();
     }
 
     /** Find a chain by its name() (for targeted mc.bot.cancel{process:<chainName>}). */

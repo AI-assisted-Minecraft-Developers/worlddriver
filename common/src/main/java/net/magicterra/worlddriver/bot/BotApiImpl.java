@@ -511,9 +511,8 @@ public final class BotApiImpl implements BotApi {
         // with no sub-state.
         snap.put("activeProcessDetail", c == null ? null : c.statusDetail());
         // Why the PREVIOUS process stopped: {kind, error} (error null = ran to
-        // completion). The per-verb slots already carry this for the kinds that own
-        // one, but `sleep` and `replay` have no slot, so their failure used to leave
-        // no trace at all once activeProcess went back to null.
+        // completion). The per-verb slots carry this too, but a process that switched
+        // no slot on would otherwise leave no trace once activeProcess went back to null.
         snap.put("lastProcessEnd", userTask.lastEnd());
         snap.put("activeChain", scheduler.currentName());
         snap.put("userTaskSuspended", c != null && scheduler.current() != userTask);
@@ -545,6 +544,8 @@ public final class BotApiImpl implements BotApi {
             one.put("priority", pr == null ? 0f : pr);
             String ep = ch.episodePhase();
             if (ep != null) one.put("episode", ep);
+            ProcessScheduler.Bail bail = scheduler.bailOf(ch);
+            if (bail != null) one.put("bail", Map.of("reason", bail.reason(), "ticksLeft", bail.ticksLeft()));
             chains.put(ch.name(), one);
         }
         snap.put("chains", chains);
@@ -997,31 +998,27 @@ public final class BotApiImpl implements BotApi {
         // below — see the note there. (Running it here was a no-op for an idle
         // bot: the idle releaseKeys() clobbered the jump key every tick, so a
         // submerged idle bot never surfaced and drowned with autoSwim "on".)
-        // autoTool only fires when no process owns hotbar selection — MineProcess
-        // / BboxFillProcess / BuildProcess / FarmProcess all manage hotbar
-        // themselves and would fight us. So this is essentially "swap to best
-        // tool when the player is manually mining" (or scripted-attack via
+        // autoTool only fires when nothing owns hotbar selection — MineProcess
+        // / BboxFillProcess / BuildProcess / FarmProcess and the reflex chains all
+        // manage hotbar themselves and would fight us. So this is essentially "swap
+        // to best tool when the player is manually mining" (or scripted-attack via
         // input.click), the same scope as Baritone's autoTool.
-        if (BotConfig.autoTool && c == null) {
+        if (BotConfig.autoTool && AutoTool.mayRun(c, scheduler)) {
             AutoTool.tick(mc, mc.player);
         }
         // Record foot position for autoBackfill — runs every tick the setting
         // is on, regardless of current process, so that cells passed through
         // during mining/walking are candidates once the bot idles. The
         // tracker itself dedupes and caps storage.
-        if (BotConfig.autoBackfill && mc.player != null) {
-            BlockPos foot = new BlockPos(
-                    (int) Math.floor(mc.player.getX()),
-                    (int) Math.floor(mc.player.getY()),
-                    (int) Math.floor(mc.player.getZ()));
-            backfillTracker.record(foot);
-        }
-        // Auto-start BackfillProcess when idle + setting on + queue non-empty.
+        BlockPos foot = mc.player.blockPosition();
+        if (BotConfig.autoBackfill) backfillTracker.record(foot);
+        // Auto-start BackfillProcess when idle + setting on + a cell is waiting.
         // Matches Baritone's BackfillProcess.isActive() trigger pattern: it
         // only runs when no higher-priority process wants the slot. The
         // process self-terminates once its work is done.
         if (respawnGraceLeft > 0) respawnGraceLeft--;
-        if (c == null && respawnGraceLeft == 0 && BotConfig.autoBackfill && backfillTracker.size() > 0) {
+        if (c == null && respawnGraceLeft == 0 && BotConfig.autoBackfill
+                && BackfillProcess.autoStartWanted(backfillTracker, foot, mc.level)) {
             startProcess(new BackfillProcess(backfillTracker));
         }
         // Movement channel: run the highest-priority chain (user task, or a
@@ -1035,8 +1032,11 @@ public final class BotApiImpl implements BotApi {
         BotConfig.walkerCruiseActive = false;   // likewise: the Walker re-sets it below while its surface cruise holds the eyes under
         // Capture BEFORE the tick: a chain that runs this tick presses movement
         // keys even if it finishes mid-tick (current() then nulls) — its trailing
-        // presses still need the one-shot cleanup below.
-        boolean schedulerDroveThisTick = scheduler.current() != null;
+        // presses still need the one-shot cleanup below. A user chain holding nothing
+        // ended its process last tick and settled that process's keys itself (released
+        // them, or never took them), so it leaves nothing to clean up.
+        Chain driving = scheduler.current();
+        boolean schedulerDroveThisTick = driving != null && (driving != userTask || userTask.process() != null);
         // The scheduler talks bodies; this tick chain is the client's, so the body is the local
         // player's. Built fresh per tick, like every other ClientPlayerBody (see clientAvatar()).
         scheduler.tick(new net.magicterra.worlddriver.bot.body.ClientPlayerBody(mc), world, state);

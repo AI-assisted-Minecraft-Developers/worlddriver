@@ -18,6 +18,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   operator's scripts. The gate sits on each subcommand rather than on the `worlddriver` root,
   because Brigadier keeps the requirement of whichever same-named literal registered first. On a
   single-player world they now need cheats allowed; the port files still name the endpoints.
+- **A chain that gives up can now leave the bid for a while.** `ProcessScheduler.bail(chain,
+  reason, cooldownTicks)` forces that chain's bid to 0 for the cooldown, so the next chain down the
+  ladder gets the body instead of the same chain re-bidding its band next tick. A standing bail is
+  logged on the `[scheduler]` line and shown in `mc.bot.status` as `chains.<name>.bail`
+  (`{reason, ticksLeft}`); cancelling every episode, or dying, lifts all of them.
+- **Cancelling `mc.bot.sleep` or a replay no longer leaves `goto.active` stuck true.** Both report
+  into the goto slot under their own kinds, and the user-task chain looked the slot up by kind, found
+  none, and reset nothing. It now switches off the slots a process switched on at attach, at every
+  ending. Until some later goto reused the slot, status had reported the bot as walking, the mouse
+  and focus takeover stayed engaged, and the screen watchdog closed any container the player opened.
+- **The bunker reflex hands the body to retreat when it will not dig.** Cornered at a shoreline, over
+  a hazard, or over a floor it cannot break, `autoBunker` gave up and then re-bid 300 on the next
+  tick, so retreat and combat never ran and the bot stood still in front of the mobs. It now bails
+  out of the bid for 200 ticks (`BunkerChain.BAIL_COOLDOWN_TICKS`).
+- **Dusk shelter no longer restarts a failed dig every tick.** With `autoSecureAtDusk` on, a bot
+  exposed at night beside water had its bunker process end `unsafe-site` on the first tick, and the
+  chain bid 90 again on the next, above the user task, emitting `duskSecure.triggered` every tick
+  all night. A shelter that ends without enclosing the bot now bails for 600 ticks
+  (`DuskSecureChain.BAIL_COOLDOWN_TICKS`) and starts its debounce over.
+- **`autoBackfill` starts a process only when there is a cell to fill.** The tick records the
+  current foot cell every tick, so the tracker was never empty, and the auto-start gated on its
+  size started a backfill on every idle tick that found only the foot cell, which it always skips,
+  and ended at once. The gate now runs the process's own candidate scan.
+- **A user task that ends on its first tick no longer clears the human's movement keys.** Such a
+  process (nothing to backfill, no bed in range) never drove the body, yet its ending, the handover
+  to idle after it, and the idle release on the next tick each cleared the seven movement keybinds
+  the human shares with the bot. Only a process that has run across a tick boundary releases them.
+- **`autoTool` stands aside while any chain drives, not only while the user task is empty.** The
+  bunker reflex, and the processes dusk shelter and retreat drive, pick their own hotbar slots with
+  the user slot empty, and the picker swapped away from them.
 
 ## 2026-09-20
 

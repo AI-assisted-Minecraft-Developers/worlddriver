@@ -1037,7 +1037,7 @@ public final class BotConfig {
 
     /** Baritone {@code autoTool} analogue — when on, the bot swaps to the
      *  best hotbar tool whenever the player crosshair points at a breakable
-     *  block (and no process owns hotbar selection). Default off so
+     *  block (and no process or chain drives the body). Default off so
      *  scripted hotbar layouts aren't fighting the bot for the selected
      *  slot. Read every clientTick via maybeAutoTool. */
     public static volatile boolean autoTool = false;
