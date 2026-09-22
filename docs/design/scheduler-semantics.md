@@ -46,6 +46,22 @@ idle time.
 A challenger must beat the incumbent by `Priorities.HYSTERESIS` (5) rather than merely exceed it,
 so two chains with near-equal bids do not trade the body every tick.
 
+### A chain that gives up sits out for a cooldown it names
+
+Because a bid is a function of the situation, giving up does not lower it: the situation that made
+the chain bid is still there on the next tick, so the chain bids the same band again, runs, gives up
+again, and nothing below it ever gets the body. A chain that gives up therefore calls
+`ProcessScheduler.bail(chain, reason, cooldownTicks)`. For the next `cooldownTicks` ticks the
+scheduler records that chain's bid as 0 and does not ask it for a priority at all, so a debounce
+inside the chain starts over instead of running on while it sits out. The scheduler owns the clock;
+the chain only names the length. The bail is logged on the `[scheduler]` line beside the handovers,
+and while it stands `mc.bot.status` shows it under `chains.<name>.bail` as `{reason, ticksLeft}`.
+Cancelling every episode, on `mc.bot.cancel{all}` or on death, lifts every bail, because the site the
+chain gave up on is no longer the question.
+
+A chain reaches the scheduler through `Chain.registeredWith`, called once by `register`. A chain built
+standalone, as the matrix scenes build them, has no scheduler and its bail is only its own reset.
+
 ## Five things that had to change once the model was real
 
 Running this for a while produced fourteen deaths and several deadlocks, and they reduced to five
@@ -96,7 +112,8 @@ with a setting, not cancelled, because they have no episode to cancel.
 
 ## Where to look
 
-- `bot/scheduler/ProcessScheduler.java` — the bid, the hysteresis, and the interrupt and resume calls.
+- `bot/scheduler/ProcessScheduler.java` — the bid, the hysteresis, the bail cooldown, and the interrupt
+  and resume calls. Its JVM test, `ProcessSchedulerTest`, drives it with fake chains.
 - `bot/scheduler/Priorities.java` — the bands, each with the reason for its position.
 - `bot/scheduler/Chain.java` — the interface, including the episode-cancellation seam.
 - `bot/scheduler/CancelRouting.java` — where a cancel is turned into the right chain's clear.

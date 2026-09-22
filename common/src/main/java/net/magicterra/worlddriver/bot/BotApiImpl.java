@@ -545,6 +545,8 @@ public final class BotApiImpl implements BotApi {
             one.put("priority", pr == null ? 0f : pr);
             String ep = ch.episodePhase();
             if (ep != null) one.put("episode", ep);
+            ProcessScheduler.Bail bail = scheduler.bailOf(ch);
+            if (bail != null) one.put("bail", Map.of("reason", bail.reason(), "ticksLeft", bail.ticksLeft()));
             chains.put(ch.name(), one);
         }
         snap.put("chains", chains);

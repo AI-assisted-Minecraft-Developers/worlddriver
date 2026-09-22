@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-22
+
+- **A chain that gives up can now leave the bid for a while.** `ProcessScheduler.bail(chain,
+  reason, cooldownTicks)` forces that chain's bid to 0 for the cooldown, so the next chain down the
+  ladder gets the body instead of the same chain re-bidding its band next tick. A standing bail is
+  logged on the `[scheduler]` line and shown in `mc.bot.status` as `chains.<name>.bail`
+  (`{reason, ticksLeft}`); cancelling every episode, or dying, lifts all of them.
+
 ## 2026-09-20
 
 - **Relicensed from MIT to LGPL-3.0-only.** What this changes for a consumer: a mod that

@@ -58,6 +58,11 @@ public interface Chain {
     /** Called when this chain regains the channel after being suspended. */
     default void onResume() {}
 
+    /** Called once by {@link ProcessScheduler#register}. A chain that can give up keeps the
+     *  scheduler so it can {@link ProcessScheduler#bail} out of the bid; standalone (matrix
+     *  scenes) it is never called, and such a chain must treat a missing scheduler as "no bail". */
+    default void registeredWith(ProcessScheduler scheduler) {}
+
     /**
      * The chain's internal, cross-tick episode state, if any — {@code null} means
      * "idle, no residual state" (the common case for stateless chains). A non-null
