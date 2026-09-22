@@ -106,7 +106,7 @@ Four rules a client has to get right:
 | Code | Meaning |
 |---|---|
 | `-32700` | The frame did not parse as JSON. |
-| `-32600` | The frame parsed but was not a usable request, for example `method` was not a string. |
+| `-32600` | The frame parsed but was not a usable request, for example `method` was missing or not a string. |
 | `-32601` | No such method. |
 | `-32602` | The method exists but the parameters were rejected, either by the schema validator or by the route itself. |
 | `-32603` | The route threw something else. |

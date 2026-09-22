@@ -500,8 +500,10 @@ public final class DriverApi {
     }
 
     public Object route(String method, Map<String, Object> params) {
-        Function<Map<String, Object>, Object> fn = routes.get(method);
-        if (fn == null) throw new IllegalArgumentException("unknown method: " + method);
+        // ConcurrentHashMap.get(null) throws a bare NPE, which every transport would report as
+        // an internal fault instead of a request that named no method.
+        Function<Map<String, Object>, Object> fn = method == null ? null : routes.get(method);
+        if (fn == null) throw new UnknownMethodException(method);
         Map<String, Object> p = (params == null) ? Map.of() : params;
         ParamsValidator v = paramsValidator;
         if (v != null) v.validate(method, p);

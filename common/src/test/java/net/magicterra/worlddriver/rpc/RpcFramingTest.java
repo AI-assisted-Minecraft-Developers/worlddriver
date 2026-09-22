@@ -148,6 +148,18 @@ class RpcFramingTest {
     }
 
     @Test
+    void aFrameWithNoMethodIsAnInvalidRequest() throws Exception {
+        // The MCP transport answers the same frame with -32600 "missing method".
+        try (RpcServer server = new RpcServer(new DriverApi(), 0);
+             RawClient raw = new RawClient(server.port())) {
+            Map<?, ?> r = raw.roundTrip("{\"id\":5,\"params\":{}}");
+            assertEquals("5", String.valueOf(r.get("id")));
+            assertEquals("-32600", String.valueOf(r.get("code")), "reply: " + r);
+            assertTrue(String.valueOf(r.get("error")).contains("no method"), "reply: " + r);
+        }
+    }
+
+    @Test
     void aLargeRequestIsAcceptedLikeTheMcpTransportAcceptsIt() throws Exception {
         // McpServer caps a POST body at agent.mcp.maxBodyBytes (8 MiB default). The
         // WebSocket side inherited Netty's 64 KiB default frame size, so the same
