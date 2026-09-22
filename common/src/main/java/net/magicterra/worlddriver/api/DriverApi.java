@@ -492,11 +492,16 @@ public final class DriverApi {
     public void detachServer() {
         this.server = null;
         eventsApi.clear(); // stop condition watchers — their routes need the server
+        clearEvents();
+        world.clearSnapshots();
+    }
+
+    /** Drop the buffered events but never rewind the seq: the transports outlive a world, and a
+     *  client still holding cursor N would see nothing until the counter climbed back past N. */
+    void clearEvents() {
         synchronized (eventsLock) {
             events.clear();
-            eventSeq.set(0);
         }
-        world.clearSnapshots();
     }
 
     public Object route(String method, Map<String, Object> params) {
@@ -717,10 +722,7 @@ public final class DriverApi {
                         + " but not for entities, so every entity check downstream would report an"
                         + " empty world instead of this");
             }
-            synchronized (eventsLock) {
-                events.clear();
-                eventSeq.set(0);
-            }
+            clearEvents();
             return null;
         });
     }

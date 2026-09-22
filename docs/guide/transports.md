@@ -279,7 +279,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | Script deadline | 3 s default, 30 s maximum | `mc.script.eval` and `mc.skill` runs. |
 | Playbook deadline | 20 minutes maximum | `mc.bot.playbook`. |
 | `awaitMs` on an asynchronous verb | 1 ms to 10 minutes | Clamped, not rejected. |
-| Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. |
+| Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. Leaving a world or reseeding the test area empties the buffer but never rewinds `seq`, which rises for the life of the process, so a cursor saved before a reload stays valid. |
 | Event-stream backlog | 256 frames per MCP stream | Overflow closes that stream. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. |
 
