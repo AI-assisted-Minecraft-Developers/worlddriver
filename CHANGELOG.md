@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ladder gets the body instead of the same chain re-bidding its band next tick. A standing bail is
   logged on the `[scheduler]` line and shown in `mc.bot.status` as `chains.<name>.bail`
   (`{reason, ticksLeft}`); cancelling every episode, or dying, lifts all of them.
+- **Cancelling `mc.bot.sleep` or a replay no longer leaves `goto.active` stuck true.** Both report
+  into the goto slot under their own kinds, and the user-task chain looked the slot up by kind, found
+  none, and reset nothing. It now switches off the slots a process switched on at attach, at every
+  ending. Until some later goto reused the slot, status had reported the bot as walking, the mouse
+  and focus takeover stayed engaged, and the screen watchdog closed any container the player opened.
 
 ## 2026-09-20
 

@@ -26,16 +26,26 @@ public final class UserTaskChain implements Chain {
     /** Volatile: written on the client tick thread, read by status() which may
      *  run on an RPC handler thread (mirrors the old volatile {@code current}). */
     private volatile BotProcess process;
+    /** The slots {@link #process} switched on when it attached; switched off at every ending. */
+    private SlotClaim claim = SlotClaim.NONE;
+
+    /** Clears the movement keybinds; a seam so the chain runs in a JVM test with no client. */
+    private final Runnable keyRelease;
 
     public UserTaskChain(BotState state) {
+        this(state, () -> releaseKeys());
+    }
+
+    UserTaskChain(BotState state, Runnable keyRelease) {
         this.state = state;
+        this.keyRelease = keyRelease;
     }
 
     /** Start a process, superseding any current one. Mirrors the old
      *  {@code BotApiImpl.startProcess}. */
     public void setProcess(BotProcess next) {
         cancel("superseded");
-        next.attach(state);
+        claim = SlotClaim.attach(next, state);
         process = next;
     }
 
@@ -45,24 +55,17 @@ public final class UserTaskChain implements Chain {
         BotProcess c = process;
         if (c == null) return;
         c.onCancelled(reason);   // let the process finalize per-session observers (e.g. flush a path archive)
-        BotState.ProcessSlot slot = slotFor(c.kind());
-        if (slot != null) {
-            slot.lastError = reason;
-            slot.reset();
-        }
+        endClaim(reason);
         recordEnd(c.kind(), reason);
-        releaseKeys();
+        keyRelease.run();
         process = null;
     }
 
-    // === Last ending, for kinds with no BotState slot ========================
-    // `sleep` and `replay` have no ProcessSlot (see slotFor), so their error had
-    // nowhere to go: cancel()/tick() computed `reason`/`err`, found slot == null,
-    // and dropped it. The process then vanished (process = null) with activeProcess
-    // back to null and no lastError anywhere — exactly the failure BotState's own
-    // javadoc calls out as "ended with active:false and NO lastError —
-    // indistinguishable from success". Recorded for EVERY kind, not just the
-    // slot-less ones, so a reader never has to know which kinds own a slot.
+    // === Last ending, whatever slot the process reported into ================
+    // A process whose attach switched no slot on has nowhere else to leave its
+    // error, and without this it would end with active:false and no lastError,
+    // which reads as success. Recorded for EVERY kind, so a reader never has to
+    // know which slot, if any, a kind reports into.
     private volatile String endKind;
     private volatile String endError;
 
@@ -107,20 +110,17 @@ public final class UserTaskChain implements Chain {
         if (c == null) return;
         try {
             if (c.tick(body, w, st)) {
+                endClaim(null);
                 recordEnd(c.kind(), null);   // ran to completion: kind with error == null
-                releaseKeys();
+                keyRelease.run();
                 process = null;
             }
         } catch (RuntimeException e) {
             String err = e.getClass().getSimpleName() + ": " + e.getMessage();
             try { c.onCancelled(err); } catch (RuntimeException ignored) { /* finalize must not mask the original */ }
-            BotState.ProcessSlot slot = slotFor(c.kind());
-            if (slot != null) {
-                slot.lastError = err;
-                slot.reset();
-            }
+            endClaim(err);
             recordEnd(c.kind(), err);
-            releaseKeys();
+            keyRelease.run();
             process = null;
         }
     }
@@ -138,7 +138,7 @@ public final class UserTaskChain implements Chain {
     /** Preempted by a higher-priority chain: stop in place, keep the process so
      *  it can resume. */
     @Override public void onInterrupt(Chain by) {
-        releaseKeys();
+        keyRelease.run();
         interrupted = true;
     }
 
@@ -154,7 +154,8 @@ public final class UserTaskChain implements Chain {
 
     @Override public void cancelEpisode(String reason) { cancel(reason); }
 
-    private BotState.ProcessSlot slotFor(String kind) {
-        return state.slotFor(kind);
+    private void endClaim(String error) {
+        claim.release(error);
+        claim = SlotClaim.NONE;
     }
 }

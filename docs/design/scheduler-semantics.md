@@ -62,6 +62,17 @@ chain gave up on is no longer the question.
 A chain reaches the scheduler through `Chain.registeredWith`, called once by `register`. A chain built
 standalone, as the matrix scenes build them, has no scheduler and its bail is only its own reset.
 
+### A process's status slot is the one its attach switched on
+
+The user-task chain records which `BotState` slots a process switched from off to on during its
+`attach`, and switches exactly those off whenever the process ends: completion, cancel, supersede,
+an exception, and the cancel that death runs. It does not look the slot up from the process's kind,
+because a kind does not name a slot: sleep and replay report into the goto slot, and a lookup by kind
+left `goto.active` true after cancelling either one, so status said the bot was walking and the
+screen watchdog kept closing containers the player opened. A slot that was already on before the
+attach belongs to another owner and is left to that owner. Chains that hold their own process pass
+their slot to `ChainProcessLifecycle.drop` explicitly.
+
 ## Five things that had to change once the model was real
 
 Running this for a while produced fourteen deaths and several deadlocks, and they reduced to five

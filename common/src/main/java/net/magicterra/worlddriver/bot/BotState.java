@@ -120,6 +120,12 @@ public final class BotState {
     /** True when any process slot is running. See {@link #activeName()}. */
     public boolean anyActive() { return activeName() != null; }
 
+    /** Every process slot, for a caller that has to find out which ones something switched on. */
+    public ProcessSlot[] processSlots() {
+        return new ProcessSlot[] {mc_goto, mine, builder, follow, explore, runAway, retreat, look,
+                elytra, craft, smelt, combat, escape, bunker, plan};
+    }
+
     /**
      * The slot a process of {@code kind} reports into, or null. Here rather than in
      * {@code UserTaskChain} so a server-side driver can end a slot without loading a client class.
