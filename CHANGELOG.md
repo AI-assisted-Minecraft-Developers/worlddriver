@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`mc.bot.farm` caps the cells it scans, Y included.** Only the XZ area was capped at 4096, and the
+  process rescans every cell of the box on the tick thread after each harvest, so a 64x64 field from
+  y=-64 to y=320 meant 1.5 million block reads per crop, and a Y span of two billion never finished.
+  The box's volume now shares `clearArea`'s 4096 cap, and a bigger box, or a Y outside the world's
+  build height, is an invalid-params error (`-32602` over RPC) instead of an `ok:false` reply. The
+  reply adds `volume`.
 - **`mc.bot.setting` no longer offers the four per-tick flags as settings.** `fleeActive`,
   `walkerDigActive`, `walkerCruiseActive` and `pathfinderBoxedEscalate` are state the bot rewrites
   every tick, but the reflective scan put them in the schema and the snapshot and accepted writes to
