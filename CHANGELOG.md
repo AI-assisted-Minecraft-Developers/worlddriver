@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chain bid 90 again on the next, above the user task, emitting `duskSecure.triggered` every tick
   all night. A shelter that ends without enclosing the bot now bails for 600 ticks
   (`DuskSecureChain.BAIL_COOLDOWN_TICKS`) and starts its debounce over.
+- **`autoBackfill` starts a process only when there is a cell to fill.** The tick records the
+  current foot cell every tick, so the tracker was never empty, and the auto-start gated on its
+  size started a backfill on every idle tick that found only the foot cell, which it always skips,
+  and ended at once. The gate now runs the process's own candidate scan.
 
 ## 2026-09-20
 

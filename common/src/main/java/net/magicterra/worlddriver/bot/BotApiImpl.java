@@ -1010,19 +1010,15 @@ public final class BotApiImpl implements BotApi {
         // is on, regardless of current process, so that cells passed through
         // during mining/walking are candidates once the bot idles. The
         // tracker itself dedupes and caps storage.
-        if (BotConfig.autoBackfill && mc.player != null) {
-            BlockPos foot = new BlockPos(
-                    (int) Math.floor(mc.player.getX()),
-                    (int) Math.floor(mc.player.getY()),
-                    (int) Math.floor(mc.player.getZ()));
-            backfillTracker.record(foot);
-        }
-        // Auto-start BackfillProcess when idle + setting on + queue non-empty.
+        BlockPos foot = mc.player.blockPosition();
+        if (BotConfig.autoBackfill) backfillTracker.record(foot);
+        // Auto-start BackfillProcess when idle + setting on + a cell is waiting.
         // Matches Baritone's BackfillProcess.isActive() trigger pattern: it
         // only runs when no higher-priority process wants the slot. The
         // process self-terminates once its work is done.
         if (respawnGraceLeft > 0) respawnGraceLeft--;
-        if (c == null && respawnGraceLeft == 0 && BotConfig.autoBackfill && backfillTracker.size() > 0) {
+        if (c == null && respawnGraceLeft == 0 && BotConfig.autoBackfill
+                && BackfillProcess.autoStartWanted(backfillTracker, foot, mc.level)) {
             startProcess(new BackfillProcess(backfillTracker));
         }
         // Movement channel: run the highest-priority chain (user task, or a
