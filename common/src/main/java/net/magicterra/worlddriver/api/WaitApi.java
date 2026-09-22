@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.model.DriverEvent;
 import net.magicterra.worlddriver.model.Params;
+import net.magicterra.worlddriver.rpc.TransportLimits;
 
 import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,7 +16,10 @@ import java.util.Set;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -47,7 +51,10 @@ public final class WaitApi {
     public static final long MAX_BUDGET_MS = 120_000L;
 
     // ---- background wait machinery (see class javadoc) -------------------------
-    private static final ExecutorService BG = Executors.newCachedThreadPool(r -> {
+    /** Bounded with no queue: a queued wait would silently eat its own budget before it
+     *  started, so past the cap the caller is told at once instead. */
+    private static final ExecutorService BG = new ThreadPoolExecutor(0, TransportLimits.WAIT_MAX_BACKGROUND,
+            60L, TimeUnit.SECONDS, new SynchronousQueue<>(), r -> {
         Thread t = new Thread(r, "agent-wait-bg");
         t.setDaemon(true);
         return t;
@@ -80,6 +87,22 @@ public final class WaitApi {
         if (!p.getBool("background", false)) return body.get();
         String waitId = kind + "-" + WAIT_SEQ.incrementAndGet();
         IN_FLIGHT.add(waitId);
+        try {
+            startInBackground(waitId, kind, body);
+        } catch (RejectedExecutionException full) {
+            IN_FLIGHT.remove(waitId);
+            throw new IllegalStateException("busy: " + TransportLimits.WAIT_MAX_BACKGROUND
+                    + " background waits are already running; wait for one to finish (mc.wait.result "
+                    + "or the wait.done event) before starting another");
+        }
+        Map<String, Object> ack = new LinkedHashMap<>();
+        ack.put("waitId", waitId);
+        ack.put("background", true);
+        ack.put("started", true);
+        return ack;
+    }
+
+    private void startInBackground(String waitId, String kind, Supplier<Map<String, Object>> body) {
         BG.execute(() -> {
             Map<String, Object> result;
             try {
@@ -98,11 +121,6 @@ public final class WaitApi {
             }
             api.emit("wait.done", null, result);
         });
-        Map<String, Object> ack = new LinkedHashMap<>();
-        ack.put("waitId", waitId);
-        ack.put("background", true);
-        ack.put("started", true);
-        return ack;
     }
 
     /**

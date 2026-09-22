@@ -316,6 +316,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | Event-stream backlog | 256 frames per MCP stream; 16 MiB queued per WebSocket connection | Overflow closes that stream or connection. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. |
 | Concurrent RPC requests | 16 per connection, 64 across the server | Past either, a request is refused at once with `-32005` rather than queued. |
+| Background waits | 32 running at once | `background: true` on any `mc.wait.*`; one more is refused with a "busy" error. |
 | Concurrent MCP work | 32 `POST` requests, 8 event streams | Past either, 503; a refused `POST` carries a `-32005` error. |
 | WebSocket liveness | Ping after 30 s quiet; close after 4 minutes with nothing received | Every RPC connection. |
 

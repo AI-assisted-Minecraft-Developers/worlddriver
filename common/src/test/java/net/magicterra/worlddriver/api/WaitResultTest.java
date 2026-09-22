@@ -1,8 +1,11 @@
 package net.magicterra.worlddriver.api;
 
+import net.magicterra.worlddriver.rpc.TransportLimits;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -59,6 +62,26 @@ class WaitResultTest {
         awaitFinished(api, id);
         assertEquals(Boolean.TRUE, api.wait.result(Map.of("waitId", id)).get("satisfied"));
         assertThrows(IllegalArgumentException.class, () -> api.wait.result(Map.of("waitId", id)));
+    }
+
+    @Test
+    void backgroundWaitsPastTheCapAreRefusedInsteadOfEachTakingAThread() throws Exception {
+        DriverApi api = new DriverApi();
+        List<String> started = new ArrayList<>();
+        try {
+            for (int i = 0; i < TransportLimits.WAIT_MAX_BACKGROUND; i++) {
+                started.add((String) api.wait.condition(Map.of("invoke", "mc.events",
+                        "params", Map.of("op", "list"), "field", "nope",
+                        "timeoutMs", 1500, "pollMs", 100, "background", true)).get("waitId"));
+            }
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> api.wait.condition(Map.of("invoke", "mc.events", "params", Map.of("op", "list"),
+                            "background", true)));
+            assertTrue(e.getMessage().contains("busy"), e.getMessage());
+        } finally {
+            // The pool is shared by the whole JVM; leave it empty for whatever runs next.
+            for (String id : started) awaitFinished(api, id);
+        }
     }
 
     @Test

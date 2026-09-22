@@ -72,6 +72,11 @@ public final class TransportLimits {
     /** Open MCP event streams ({@code GET /mcp}); each parks a worker for its lifetime. */
     public static final int MCP_MAX_EVENT_STREAMS = 8;
 
+    /** {@code background:true} waits running at once, across the JVM. Each holds a thread for
+     *  up to its whole budget, and starting one is a single cheap call, so a loop could
+     *  otherwise start them faster than they finish. */
+    public static final int WAIT_MAX_BACKGROUND = 32;
+
     /** JSON-RPC error code, from the implementation-defined server-error range, for a
      *  request refused because a concurrency cap is full. Retrying later can succeed. */
     public static final int RPC_CODE_SERVER_BUSY = -32005;

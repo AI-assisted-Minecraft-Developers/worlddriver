@@ -111,7 +111,8 @@ only to plan a hypothesis; an explicit `{}` means "suppose I had nothing".
 In live play, prefer `background: true` for any long wait. A blocking wait freezes the
 agent for the whole budget and blinds it to threat, damage and death events while it runs;
 a background wait returns a `waitId` immediately and the result arrives through
-`mc.wait.result` or a `wait.done` event.
+`mc.wait.result` or a `wait.done` event. At most 32 background waits run at once; starting
+another while that many are running is refused with a "busy" error rather than queued.
 
 ## Events
 
