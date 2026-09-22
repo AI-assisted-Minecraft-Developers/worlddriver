@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **Every published jar carries the licence text.** The shipped, `-sources` and `-dev` jars of
+  all three modules now hold `META-INF/COPYING` and `META-INF/COPYING.LESSER`. None did, and the
+  LGPL, through the GPL sections it incorporates, requires the text to go with the object code.
 - **`/worlddriver test` is no longer in the published jar.** Any player could run it: it seeded
   the arena at the test origin, which clears blocks and discards every non-player entity within
   twenty blocks, then ran sixty scripts that summon mobs and issue commands at operator level.

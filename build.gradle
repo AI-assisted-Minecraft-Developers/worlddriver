@@ -220,6 +220,14 @@ subprojects {
         it.options.release = 21
     }
 
+    // The LGPL, through the GPL sections it incorporates, must travel with the object code. Only the
+    // jars the build writes itself: loom's remap tasks copy these, and a loader's shadowJar gets
+    // :common's copy from the bundle, so adding it again there would put each file in twice.
+    // META-INF rather than the jar root, which on Fabric is one classpath shared by every mod.
+    tasks.matching { it.name in ['jar', 'sourcesJar'] }.configureEach {
+        from(rootProject.files('COPYING', 'COPYING.LESSER')) { into 'META-INF' }
+    }
+
     // Configure Maven publishing.
     publishing {
         publications {
