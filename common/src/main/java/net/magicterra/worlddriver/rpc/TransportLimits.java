@@ -53,4 +53,19 @@ public final class TransportLimits {
      * {@code mc.wait.*} budget (two minutes) between reads. Twice that budget.
      */
     public static final long WS_IDLE_CLOSE_MS = 240_000L;
+
+    /**
+     * Requests one WebSocket connection may have running at once. Past it a request is
+     * answered at once with {@link #RPC_CODE_SERVER_BUSY} instead of taking a thread: a
+     * long {@code mc.wait.*} holds its worker for up to two minutes, so an unbounded loop on
+     * one socket would otherwise exhaust the JVM's native threads and take the game down.
+     */
+    public static final int RPC_MAX_IN_FLIGHT_PER_CONNECTION = 16;
+
+    /** Worker threads the WebSocket server runs requests on, across all connections. */
+    public static final int RPC_MAX_WORKERS = 64;
+
+    /** JSON-RPC error code, from the implementation-defined server-error range, for a
+     *  request refused because a concurrency cap is full. Retrying later can succeed. */
+    public static final int RPC_CODE_SERVER_BUSY = -32005;
 }

@@ -125,6 +125,7 @@ and never becomes a socket.
 | `-32601` | No such method. |
 | `-32602` | The method exists but the parameters were rejected, either by the schema validator or by the route itself. |
 | `-32603` | The route threw something else. |
+| `-32005` | Refused without running: the connection already has 16 requests running, or all 64 RPC workers are busy. Nothing happened; retry once an earlier call returns. |
 
 Parameters are validated against the same typed schema the MCP catalog publishes, on every
 transport, before the route runs. A route with no declared schema refuses to dispatch at
@@ -310,6 +311,7 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
 | Event ring buffer | 4096 events | `mc.observe.eventsSince` on an older cursor returns what is still retained. |
 | Event-stream backlog | 256 frames per MCP stream; 16 MiB queued per WebSocket connection | Overflow closes that stream or connection. |
 | Server-thread hop | 8 s default, from `worlddriver.serverThreadTimeoutMs` | Any route that marshals work onto the server tick. |
+| Concurrent RPC requests | 16 per connection, 64 across the server | Past either, a request is refused at once with `-32005` rather than queued. |
 | WebSocket liveness | Ping after 30 s quiet; close after 4 minutes with nothing received | Every RPC connection. |
 
 ## Security

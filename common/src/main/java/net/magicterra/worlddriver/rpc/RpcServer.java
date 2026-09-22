@@ -47,9 +47,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * WebSocket RPC server (Netty). Endpoint: ws://host:port/rpc
@@ -92,8 +95,9 @@ import java.util.concurrent.TimeUnit;
  * settable with {@code -Dworlddriver.serverThreadTimeoutMs=N}. This said 30s, which was
  * the budget before it was lowered; naming the constant instead of a number keeps the
  * two from drifting apart again.
- * which would deadlock the IO thread if we ran it inline. We hop to a cached worker
- * pool before calling route().
+ * which would deadlock the IO thread if we ran it inline. We hop to a bounded worker
+ * pool before calling route(); past the per-connection or pool cap in
+ * {@link TransportLimits} a request is answered with a busy error instead.
  *
  * Build note: MC ships only netty-codec/transport; netty-codec-http is added via
  * the {@code forgeRuntimeLibrary} configuration (NeoForge) / {@code implementation}
@@ -102,7 +106,10 @@ import java.util.concurrent.TimeUnit;
 public final class RpcServer implements Closeable {
     private final EventLoopGroup boss = new NioEventLoopGroup(1, daemonFactory("agent-rpc-boss"));
     private final EventLoopGroup worker = new NioEventLoopGroup(0, daemonFactory("agent-rpc-io"));
-    private final ExecutorService routeExec = Executors.newCachedThreadPool(daemonFactory("agent-rpc-handler"));
+    /** No queue: a request either gets a thread now or is refused with a busy error, which
+     *  a client can act on; a queued one would just time out later. */
+    private final ExecutorService routeExec = new ThreadPoolExecutor(0, TransportLimits.RPC_MAX_WORKERS,
+            60L, TimeUnit.SECONDS, new SynchronousQueue<>(), daemonFactory("agent-rpc-handler"));
     private final Channel serverChannel;
     private final int port;
 
@@ -285,14 +292,42 @@ public final class RpcServer implements Closeable {
             this.subscribers = subscribers;
         }
 
+        /** Requests of THIS connection that hold a worker; one handler per channel. */
+        private final AtomicInteger inFlight = new AtomicInteger();
+
         @Override
         protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame msg) {
             String text = msg.text();
             Channel ch = ctx.channel();
-            routeExec.submit(() -> {
-                String response = handleRequest(text, ch);
-                ch.writeAndFlush(new TextWebSocketFrame(response));
-            });
+            if (inFlight.incrementAndGet() > TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION) {
+                inFlight.decrementAndGet();
+                ch.writeAndFlush(new TextWebSocketFrame(busyFrame(text, "this connection already has "
+                        + TransportLimits.RPC_MAX_IN_FLIGHT_PER_CONNECTION + " requests running")));
+                return;
+            }
+            try {
+                routeExec.execute(() -> {
+                    try {
+                        String response = handleRequest(text, ch);
+                        ch.writeAndFlush(new TextWebSocketFrame(response));
+                    } finally {
+                        inFlight.decrementAndGet();
+                    }
+                });
+            } catch (RejectedExecutionException full) {
+                inFlight.decrementAndGet();
+                ch.writeAndFlush(new TextWebSocketFrame(busyFrame(text, "all "
+                        + TransportLimits.RPC_MAX_WORKERS + " RPC workers are busy")));
+            }
+        }
+
+        /** A refusal that still carries the request's id, so the caller can correlate it. */
+        private static String busyFrame(String line, String why) {
+            Object id = null;
+            try {
+                if (JsonCodec.decode(line) instanceof Map<?, ?> req) id = req.get("id");
+            } catch (Throwable ignored) { /* unreadable: answer with a null id */ }
+            return errorFrame(id, TransportLimits.RPC_CODE_SERVER_BUSY, "server busy: " + why + "; retry later");
         }
 
         @SuppressWarnings("unchecked")
