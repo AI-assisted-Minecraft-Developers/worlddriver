@@ -85,7 +85,10 @@ public final class WaitApi {
      * still fails fast rather than being acked and failing on the background thread.
      */
     private Map<String, Object> run(Params p, String kind, Supplier<Map<String, Object>> body) {
-        if (!p.getBool("background", false)) return body.get();
+        if (!p.getBool("background", false)) {
+            ServerThreadGuard.refuseBlocking("mc.wait." + kind + " without background:true");
+            return body.get();
+        }
         String waitId = kind + "-" + WAIT_SEQ.incrementAndGet();
         IN_FLIGHT.add(waitId);
         try {

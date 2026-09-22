@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **A call that would wait on the server thread fails at once when made from it.** User scripts
+  and `ScriptEvents` callbacks run on the server thread, and `Driver.invokeRpc`, `Driver.invokeMcp`,
+  `awaitMs` and a foreground `mc.wait.*` all wait for work only that thread can do, so the game
+  froze for the 8 s hop timeout per call (or the whole wait budget) and the error named the timeout.
+  They now throw an `IllegalStateException` naming the call and the server thread before anything
+  starts; `mc.system.waitTicks` shares the same check, and `background: true` waits are unaffected.
 - **A timed-out client-thread call says whether it can still happen, as a server-thread one does.**
   The client bot's verbs hop onto the client thread, and a hop that waited past
   `worlddriver.clientThreadTimeoutMs` reported a failure while the task stayed queued and ran once

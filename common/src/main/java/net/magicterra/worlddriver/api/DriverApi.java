@@ -431,6 +431,7 @@ public final class DriverApi {
 
     public void attachServer(MinecraftServer s) {
         this.server = s;
+        ServerThreadGuard.install(s::isSameThread);
     }
 
     /**
@@ -449,6 +450,7 @@ public final class DriverApi {
 
     public void detachServer() {
         this.server = null;
+        ServerThreadGuard.uninstall();
         eventsApi.clear(); // stop condition watchers — their routes need the server
         clearEvents();
         world.clearSnapshots();
@@ -800,6 +802,7 @@ public final class DriverApi {
         if (!(awaitObj instanceof Number)) {
             return impl.apply(params);
         }
+        ServerThreadGuard.refuseBlocking("awaitMs");
         long budgetMs = ApiSupport.clamp(((Number) awaitObj).longValue(), 1L, 600_000L);
         Map<String, Object> innerParams = new LinkedHashMap<>(params);
         innerParams.remove("awaitMs");

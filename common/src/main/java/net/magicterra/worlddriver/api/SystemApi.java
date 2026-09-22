@@ -2,7 +2,6 @@ package net.magicterra.worlddriver.api;
 
 import net.magicterra.worlddriver.BuildStamp;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.MinecraftServer;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,10 +41,7 @@ public final class SystemApi {
      */
     public Map<String, Object> waitTicks(int ticks) {
         if (ticks <= 0) return Map.of("waited", 0);
-        MinecraftServer s = api.server;
-        if (s != null && s.isSameThread()) {
-            throw new IllegalStateException("waitTicks cannot block the server thread");
-        }
+        ServerThreadGuard.refuseBlocking("waitTicks");
         long t0 = System.nanoTime();
         try {
             Thread.sleep(ticks * 50L);

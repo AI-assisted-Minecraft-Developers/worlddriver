@@ -315,6 +315,11 @@ This scope is the `mc.script.eval` prelude plus extras that only make sense on d
   `Driver.invoke`.
 - `console.log` here prints to the server log rather than into an in-scope buffer.
 
+Loading, `attach` and `tick` all run on the server thread, so nothing here may wait on it.
+`Driver.invokeRpc`, `Driver.invokeMcp`, `awaitMs`, a `mc.wait.*` without `background: true`
+and `mc.system.waitTicks` throw at once when called from there, naming the call, rather than
+stalling the game until a hop timeout. Start the work and poll it from a later tick instead.
+
 ## Transport limits
 
 | Limit | Value | Applies to |
