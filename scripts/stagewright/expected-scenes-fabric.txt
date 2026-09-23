@@ -561,6 +561,7 @@ wd.clientParkourOverChasm
 wd.clientPillarOutOfShaft
 wd.clientTunnelsThroughStone
 wd.clientTunnelsFarThroughStone
+wd.clientBackfillRefillsOwnDigs
 wd.clientFlowingTrenchPlaceOut
 wd.clientWorldViewParity
 wd.clientShallowPoolStepOut
