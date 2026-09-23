@@ -151,7 +151,7 @@ public final class ValidationSuite {
             try { Thread.sleep(500); } catch (InterruptedException ignored) {}
             int fail;
             try {
-                api.seedTestArea();
+                TestArena.seed(api, server);
                 fail = run();
             } finally {
                 release();
@@ -186,7 +186,7 @@ public final class ValidationSuite {
         Thread t = new Thread(() -> {
             int fail;
             try {
-                api.seedTestArea();
+                TestArena.seed(api, server);
                 fail = run();
             } finally {
                 release();

@@ -17,6 +17,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   agent told to read the reference first never learned they existed. The reference and `SKILL.md`
   also disagreed on the total (72 against 73); both now say what is registered where instead of a
   number that goes stale.
+- **`DriverApi.seedTestArea` is no longer in the published jar.** It clears blocks and discards
+  every non-player entity within twenty blocks of the test origin, and since the validation suite
+  moved to the testmod nothing in the shipped jar called it; any in-JVM caller, a script included,
+  still could. It is now `TestArena.seed(api, server)` in the testmod, which is why
+  `DriverApi.clearEvents()` is public: the seed empties the event buffer when it is done.
+- **Every published jar carries the licence text.** The shipped, `-sources` and `-dev` jars of
+  all three modules now hold `META-INF/COPYING` and `META-INF/COPYING.LESSER`. None did, and the
+  LGPL, through the GPL sections it incorporates, requires the text to go with the object code.
+- **Every published POM declares the licence and where the source is.** Each module's POM now has
+  `<licenses>` (`LGPL-3.0-only`, with the text's URL), `<url>` and `<scm>` pointing at the GitHub
+  repository, plus a name and description. It had only coordinates, so licence scanners reported
+  the artifacts as unknown and nothing said where the Corresponding Source was.
+- **The Fabric jar's metadata comes from `gradle.properties`, and both loaders bound their
+  dependencies by the pinned versions.** `fabric.mod.json` hardcoded its licence, authors and a
+  description that had already drifted from the NeoForge jar's; all three are now expanded from
+  the same properties `neoforge.mods.toml` uses. Fabric declared Minecraft `>=1.21`, which admits
+  1.21.0, and now declares `minecraft_version_range` translated to `>=1.21.1 <1.22`. Architectury is
+  `[13.0.8,14)` on both loaders (was open-ended, `[13.0.8,)` and `>=13.0.8`), derived from
+  `architectury_api_version` so a bump raises the floor a pack must meet instead of leaving it to a
+  `NoSuchMethodError`; Fabric Loader is `>=0.16.14`, the pinned `fabric_loader_version`, not `>=0.16`.
+- **Both loaders' mod metadata links to the source repository.** `fabric.mod.json` has
+  `contact.homepage` and `contact.sources`, and `neoforge.mods.toml` has `displayURL`, all expanded
+  from `mod_source_url`. Neither jar said where its source was, and the mod list is where a player
+  looks for that.
+- **The Fabric and NeoForge `-sources` jars hold `:common`'s sources.** Each loader's binary jar
+  bundles `:common`, which is nearly all of the driver, but its sources jar held only the two
+  loader entry classes, so it was not the source of the jar published beside it. The Fabric one is
+  remapped to intermediary names, like its binary.
 - **`/worlddriver test` is no longer in the published jar.** Any player could run it: it seeded
   the arena at the test origin, which clears blocks and discards every non-player entity within
   twenty blocks, then ran sixty scripts that summon mobs and issue commands at operator level.
