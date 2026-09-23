@@ -26,7 +26,33 @@ public final class WorldDriverQueryScenes implements SceneProvider {
     @Override
     public List<Scene> scenes() {
         return List.of(Scene.of("wd.queryBlocksStaysInLoadedChunks", 100,
-                WorldDriverQueryScenes::blocksStayInLoadedChunks));
+                        WorldDriverQueryScenes::blocksStayInLoadedChunks),
+                Scene.of("wd.clientBlocksNamesUnloadedChunks", 100,
+                        WorldDriverQueryScenes::clientBlocksNameUnloadedChunks));
+    }
+
+    /**
+     * The client half of the refusal: ClientLevel reads a chunk it never received as air, so
+     * {@code mc.client.blocks} must name it in {@code unloaded} for the {@code mc.query} client
+     * fallback to refuse the scan rather than answer "nothing here".
+     */
+    private static void clientBlocksNameUnloadedChunks(SceneContext ctx) {
+        if (ctx.server().isDedicatedServer())
+            ctx.skip("mc.client.blocks is client-only — only an integrated server has its handler here");
+        DriverApi api = WorldDriverCommon.api();
+        if (api == null) ctx.fail("DriverApi not initialized — was the mod loaded?");
+
+        Object near = api.route("mc.client.blocks", Map.of("filter", Map.of("in_radius", 1)));
+        ctx.check(near instanceof Map<?, ?> m && m.get("blocks") instanceof List<?> && !m.containsKey("unloaded"))
+                .as("A a scan around the player reports no unloaded chunk (" + near + ")").isTrue();
+
+        BlockPos far = new BlockPos(ctx.originX() + 1_000_000, 80, ctx.originZ() + 1_000_000);
+        int fcx = far.getX() >> 4, fcz = far.getZ() >> 4;
+        Object distant = api.route("mc.client.blocks", Map.of("center", pos(far), "filter", Map.of("in_radius", 1)));
+        ctx.record("farScan", String.valueOf(distant));
+        ctx.check(distant instanceof Map<?, ?> m && m.get("unloaded") instanceof List<?> l
+                        && l.contains(Map.of("x", fcx, "z", fcz)))
+                .as("B a scan far from the player names chunk [" + fcx + ", " + fcz + "] as unloaded").isTrue();
     }
 
     private static void blocksStayInLoadedChunks(SceneContext ctx) {

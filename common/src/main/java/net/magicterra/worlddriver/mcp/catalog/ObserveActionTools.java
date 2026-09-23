@@ -235,7 +235,8 @@ public final class ObserveActionTools {
 
             roTool("mc.query",
                 "Scan blocks or entities in a cube. center defaults to mc.system.testOrigin. " +
-                "filter.in_radius is the Chebyshev radius (required for blocks, default 16 for entities). " +
+                "filter.in_radius is the Chebyshev radius (blocks default 0, the centre cell alone; " +
+                "entities default 16). " +
                 "Blocks: in_radius at most 15 (a 31^3 cube, inside the 32768-cell budget mc.action.fill " +
                 "uses; larger is rejected), and only loaded chunks are read — a cube touching an unloaded " +
                 "chunk is an error naming it, never a load. " +
@@ -247,15 +248,16 @@ public final class ObserveActionTools {
                 "entities only; effects entries are {id, amplifier, durationTicks}; " +
                 "id feeds mc.bot.attackEntity.\n" +
                 "Client-MCP fallback (no server attached): scans ClientLevel. center defaults to " +
-                "local player; radius capped at 32 (entities) / 16 (blocks). Same flat array and " +
-                "filters as the server path; q='entities' adds {hostile, maxHealth, distance} per row, " +
-                "which select may also name.",
+                "local player; entity radius capped at 32. Same flat array and filters as the server " +
+                "path; q='blocks' keeps the server's radius limit, select keys and unloaded-chunk " +
+                "refusal (judged by the chunks the client has loaded); q='entities' adds " +
+                "{hostile, maxHealth, distance} per row, which select may also name.",
                 object()
                     .req("q", stringEnum("blocks", "entities"))
                     .prop("center", pos())
                     .prop("filter", object()
                         .prop("in_radius", integer(0, 128)
-                            .desc("Blocks: max 15. Entities: max 128."))
+                            .desc("Blocks: default 0 (the centre cell), max 15. Entities: default 16, max 128."))
                         .prop("type", string()
                             .desc("Restrict to one id. Blocks also accept a '#tag' "
                                 + "selector to match any block in that tag (e.g. '#minecraft:logs' "

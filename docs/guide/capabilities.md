@@ -61,7 +61,7 @@ read the client, which is how you detect a desynchronisation between the two.
 | `mc.observe.threats` | Scored hostiles and incoming projectiles: distance, line of sight, whether a creeper is swelling, and a 0-to-1 danger score. **Client-only**; returns empty lists rather than an error on a dedicated server. | `radius` (1–64, default 24) |
 | `mc.observe.boss` | Boss sensing: the nearest ender dragon or wither, its phase and health, and the End-crystal list. **Client-only**; returns `present: false` on a dedicated server. | `radius` (1–256, default 64) |
 | `mc.client.player` | The client-authoritative player snapshot. Everything `mc.observe.player` has, plus what only the client knows: pose, eye position, `inWall`, `inWater`, and the block ids at the eye and feet cells. **Client-only.** | none |
-| `mc.client.blocks` | A client-authoritative block scan of `ClientLevel`. **Client-only.** Use it to confirm a few specific cells or to diff client against server, not to read terrain shape — it dumps every cell as JSON. For shape, use `mc.observe.map`. | `center`, `filter.in_radius` (max 16), `filter.type` |
+| `mc.client.blocks` | A client-authoritative block scan of `ClientLevel`. **Client-only.** Use it to confirm a few specific cells or to diff client against server, not to read terrain shape — it dumps every non-air cell as JSON. For shape, use `mc.observe.map`. | `center`, `filter.in_radius` (max 16), `filter.type` |
 | `mc.client.scene` | The derived-facts snapshot the bot's own per-tick world model keeps: day phase, sky exposure, cornered, lethal-cell count, hazard grid. **Client-only.** | none |
 
 `mc.query` replaced a separate area-observation verb; call it with `q: 'blocks'` for that.

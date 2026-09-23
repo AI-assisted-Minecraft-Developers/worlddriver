@@ -7,10 +7,12 @@ import java.util.Map;
 import java.util.Set;
 
 import net.magicterra.worlddriver.client.ClientDriverApi;
+import net.minecraft.world.level.ChunkPos;
 
 /**
  * {@code mc.query} on a client JVM with no server attached (connected to a remote dedicated
- * server): scans ClientLevel through the client impl instead of the server level.
+ * server): scans ClientLevel through the client impl instead of the server level, under the
+ * server path's contract.
  */
 final class ClientQueryFallback {
     private ClientQueryFallback() {}
@@ -19,7 +21,7 @@ final class ClientQueryFallback {
     static Object query(ClientDriverApi c, Map<String, Object> p) {
         String q = (String) p.get("q");
         Object filter = p.get("filter");
-        int r = "entities".equals(q) ? 16 : 4;
+        int r = 16; // entity radius; a block scan takes BlockQuery's validated one
         Boolean wantHostile = null;
         String typeFilter = null;
         if (filter instanceof Map<?, ?> fm) {
@@ -44,13 +46,32 @@ final class ClientQueryFallback {
             Boolean wantLiving = filter instanceof Map<?, ?> fm && fm.get("is_living") instanceof Boolean b ? b : null;
             return entities(c.queryEntities(r, cx, cy, cz, wantHostile), typeFilter, wantLiving, select);
         }
-        // q='blocks' — reuse observeArea client path; unwrap to
-        // match the server's flat-array shape.
+        // Validated by the server's own rules before the client is touched, so both paths refuse
+        // the same radius and select keys with the same error.
+        BlockQuery rules = BlockQuery.of(QueryParams.from(p));
         Set<String> ids = (typeFilter == null) ? null
                 : new LinkedHashSet<>(Set.of(typeFilter));
-        Map<String, Object> wrapped = c.observeArea(r, cx, cy, cz, ids);
-        Object blocks = wrapped.get("blocks");
-        return (blocks instanceof List) ? blocks : List.of();
+        return blocks(c.observeArea(rules.radius(), cx, cy, cz, ids), rules);
+    }
+
+    /** Unwraps the client scan's {@code {blocks, center, radius, unloaded?}} into the server's flat
+     *  array, refusing an unloaded area as the server does: ClientLevel reads those cells as air. */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> blocks(Map<String, Object> scan, BlockQuery rules) {
+        if (!(scan.get("blocks") instanceof List<?> rows)) {
+            throw new IllegalStateException("mc.query client fallback: " + scan.getOrDefault("error", "no block scan"));
+        }
+        if (scan.get("unloaded") instanceof List<?> missing && !missing.isEmpty()) {
+            List<ChunkPos> chunks = new ArrayList<>();
+            for (Object o : missing) {
+                Map<?, ?> m = (Map<?, ?>) o;
+                chunks.add(new ChunkPos(((Number) m.get("x")).intValue(), ((Number) m.get("z")).intValue()));
+            }
+            throw new UnloadedAreaException(ApiSupport.readPos(scan.get("center")), rules.radius(), chunks);
+        }
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Object o : rows) out.add(rules.project((Map<String, Object>) o));
+        return out;
     }
 
     /** The server's row keys plus the three only the client scan computes. */
