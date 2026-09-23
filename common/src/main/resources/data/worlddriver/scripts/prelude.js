@@ -287,8 +287,9 @@ Driver.bot = {
     autoRespawn: function (on) { return Driver.invoke('mc.bot.setting', { autoRespawn: !!on }); },
     // Baritone BackfillProcess analogue — when on, the bot tracks the cells its
     // own digs break (never air it only walks through) and refills them with
-    // `block` (default cobblestone) whenever it would otherwise be idle. Pass {radius:N} to cap how far from the
-    // player the auto-fill considers (default 6, range 1..16).
+    // `block` (default cobblestone) whenever it would otherwise be idle. Pass
+    // {radius:N} to cap how far from the player the auto-fill considers
+    // (default 6, range 1..16).
     autoBackfill: function (on, opts) {
         var p = { autoBackfill: !!on };
         if (opts && opts.block !== undefined)  p.autoBackfillBlock  = String(opts.block);
