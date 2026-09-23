@@ -424,6 +424,31 @@ action never happens or leaked so the bot walks around holding a key.
 `SharedKeybindQuarantineTest` refuses any attack-key or use-key write outside the mixin, so a new
 one has to be argued there.
 
+## Publishing a change
+
+A pushed branch, a pull request and every edit to one are public the moment they happen, and
+cannot be taken back. The maintainer reviews what goes out before it goes out.
+
+1. **Changes reach `master` through a pull request.** Do not push to `master`.
+2. **Show the maintainer exactly what will be published, then wait for an explicit yes.**
+   - "What will be published" means:
+     - the branch name and its base;
+     - every commit subject;
+     - the `git push --dry-run` output;
+     - the pull request title and its full body, verbatim.
+   - A dry run you ran and read yourself is a check, not the review. When asked to dry-run
+     before publishing, the point is for the maintainer to read it.
+   - The same applies to changing the title or body of a pull request that is already open.
+3. **Write the pull request for a reader who was not there.**
+   - Use plain words over working shorthand. Say "the test failed before the fix", not "ran red".
+     Say "the bot", not "the body". Say "the search finished", not "landed".
+   - Name a test suite or a server configuration in words the first time it appears.
+   - Cite only evidence the reviewer can open: test names, commands, log lines quoted in the
+     body. Do not mention a recording, a screenshot or a log that is not attached or linked.
+4. **`gh pr edit` fails on this repository** with a GraphQL error about Projects (classic)
+   being deprecated. Update a pull request through the REST API instead:
+   `gh api -X PATCH repos/AI-assisted-Minecraft-Developers/worlddriver/pulls/<n> -f title=… -F body=@<file>`.
+
 ## Pointers
 
 - **Architecture, the seams, the threading discipline**: `docs/dev/architecture.md`
