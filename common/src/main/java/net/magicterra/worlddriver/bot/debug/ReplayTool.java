@@ -27,8 +27,9 @@ import java.util.stream.Stream;
 /**
  * {@code mc.debug.replay} route handler. Loads a recorded path archive, force-
  * restores its block envelope into the world, teleports the bot to the recorded
- * start, and re-executes the stored plan through the Walker in replay mode (no
- * re-planning) so a pathfinding wedge reproduces deterministically. The run is
+ * start, and re-issues the recorded goal with normal planning ({@code replan}, the
+ * default) or, with {@code replan:false}, re-executes the stored plan through the
+ * Walker in replay mode, so a pathfinding wedge reproduces deterministically. The run is
  * captured as a {@code replay-run-*.json} with the actual trajectory + per-step
  * deviation (written async by {@link PathArchiveRecorder} on terminal).
  *
