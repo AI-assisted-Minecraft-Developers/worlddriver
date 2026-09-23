@@ -341,6 +341,7 @@ public final class VerbOrders {
         String name = p.getString("name");
         int radius = p.getIntClamped("radius", 3, 1, 16);
         int maxIdleTicks = p.getIntClamped("maxIdleTicks", 0, 0, 100_000);
+        int giveUpTicks = p.getIntClamped("giveUpTicks", FollowProcess.DEFAULT_GIVE_UP_TICKS, 0, 100_000);
         if (entityType == null && name == null) return Order.refuse("entityType or name required");
         // The same route object goto takes, minus what a follow has no use for: it already tracks an
         // entity, so via points, an entity leash and the fly mode are refused rather than silently dropped.
@@ -356,7 +357,8 @@ public final class VerbOrders {
         if (name != null) r.put("name", name);
         r.put("radius", radius);
         if (maxIdleTicks > 0) r.put("maxIdleTicks", maxIdleTicks);
-        return new Order(new FollowProcess(entityType, name, radius, maxIdleTicks, route.profile()), r);
+        r.put("giveUpTicks", giveUpTicks);
+        return new Order(new FollowProcess(entityType, name, radius, maxIdleTicks, giveUpTicks, route.profile()), r);
     }
 
     public static Order explore(Params p, LivingEntity self) {

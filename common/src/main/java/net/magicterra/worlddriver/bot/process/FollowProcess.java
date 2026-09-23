@@ -14,6 +14,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.Locale;
+
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
 import static net.magicterra.worlddriver.bot.util.BotInteract.*;
 import static net.magicterra.worlddriver.bot.util.BotUtil.*;
@@ -25,6 +27,10 @@ public final class FollowProcess implements BotProcess {
     private final String name;
     private final int radius;
     private final int maxIdleTicks;
+    /** Ticks without progress before the follow ends as unreachable; 0 = never. */
+    public static final int DEFAULT_GIVE_UP_TICKS = 600;
+    private final int giveUpTicks;
+    private final Chase chase;
     private final Walker walker = new Walker("follow");
     private int idleTicks;
     private int consecutiveFails;
@@ -32,16 +38,19 @@ public final class FollowProcess implements BotProcess {
     private int lastTargetId = -1;
 
     public FollowProcess(String entityType, String name, int radius, int maxIdleTicks) {
-        this(entityType, name, radius, maxIdleTicks, SearchProfile.NONE);
+        this(entityType, name, radius, maxIdleTicks, DEFAULT_GIVE_UP_TICKS, SearchProfile.NONE);
     }
 
     /** A3a: pass a per-follow {@link SearchProfile} (e.g. a leashed capability
      *  envelope) through to the underlying {@link Walker}. */
-    public FollowProcess(String entityType, String name, int radius, int maxIdleTicks, SearchProfile profile) {
+    public FollowProcess(String entityType, String name, int radius, int maxIdleTicks, int giveUpTicks,
+                         SearchProfile profile) {
         this.entityType = entityType;
         this.name = name;
         this.radius = radius;
         this.maxIdleTicks = maxIdleTicks;
+        this.giveUpTicks = giveUpTicks;
+        this.chase = new Chase(giveUpTicks);
         walker.setSearchProfile(profile == null ? SearchProfile.NONE : profile);
     }
 
@@ -49,7 +58,8 @@ public final class FollowProcess implements BotProcess {
     public void attach(BotState st) {
         st.follow.active = true;
         st.follow.goal = "follow " + (name != null ? "name=" + name : "type=" + entityType) + " r=" + radius
-            + (maxIdleTicks > 0 ? " idle≤" + maxIdleTicks + "t" : "");
+            + (maxIdleTicks > 0 ? " idle≤" + maxIdleTicks + "t" : "")
+            + (giveUpTicks > 0 ? " giveUp≤" + giveUpTicks + "t" : "");
         st.follow.startedAtMs = System.currentTimeMillis();
         st.follow.lastError = null;
     }
@@ -86,6 +96,12 @@ public final class FollowProcess implements BotProcess {
         Walker.Step s = walker.tick(a, w);
         st.follow.pathLen = walker.pathLen();
         st.follow.pathStep = walker.pathStep();
+        if (chase.tick(s == Walker.Step.ARRIVED, Math.sqrt(target.distanceToSqr(p)))) {
+            st.follow.lastError = String.format(Locale.ROOT,
+                    "unreachable: no closer than %.1f blocks in %d ticks", chase.closest(), giveUpTicks);
+            st.follow.reset();
+            return true;
+        }
         if (s == Walker.Step.FAILED) {
             consecutiveFails++;
             if (consecutiveFails >= MAX_CONSECUTIVE_FAILS) {
@@ -121,12 +137,49 @@ public final class FollowProcess implements BotProcess {
         boolean newTarget = lastTargetId != targetId;
         if (!newTarget && tBlock.equals(lastTargetBlock)) return;
         Goal g = new Goal.Near(tBlock, radius);
-        if (newTarget) walker.setGoal(g); else walker.retargetGoal(g);
+        if (newTarget) {
+            walker.setGoal(g);
+            chase.restart();
+        } else {
+            walker.retargetGoal(g);
+        }
         lastTargetBlock = tBlock;
         lastTargetId = targetId;
     }
 
     Walker walker() { return walker; }
+
+    /**
+     * Whether the chase is still getting anywhere. The walker's futile-search guard cannot say: a
+     * quarry in a pen the body cannot enter sends it circling the pen, and a body that moves is never
+     * futile. Progress is reaching the standoff or a block gained on the closest approach so far.
+     */
+    static final class Chase {
+        private final int giveUpTicks;
+        private double closest = Double.POSITIVE_INFINITY;
+        private int sinceGain;
+
+        Chase(int giveUpTicks) {
+            this.giveUpTicks = giveUpTicks;
+        }
+
+        /** One tick of the chase; true once {@code giveUpTicks} have passed without progress (0 = never). */
+        boolean tick(boolean arrived, double distance) {
+            if (arrived || distance < closest - 1.0) {
+                closest = distance;
+                sinceGain = 0;
+                return false;
+            }
+            return giveUpTicks > 0 && ++sinceGain >= giveUpTicks;
+        }
+
+        double closest() { return closest; }
+
+        void restart() {
+            closest = Double.POSITIVE_INFINITY;
+            sinceGain = 0;
+        }
+    }
 
     /** Point head+body yaw and pitch at the entity's mid-height, via
      *  {@link #smoothAngle} so it honors the smoothLook toggle. */
