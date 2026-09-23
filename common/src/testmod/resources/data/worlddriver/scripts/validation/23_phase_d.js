@@ -13,6 +13,17 @@ function clientAvailable() {
     }
 }
 
+// The message a call threw; NO_PLAYER when it returned that refusal (a client still on the
+// title screen answers before reading the box); null for any other return. Top level because
+// Rhino leaves a function declared inside a block undefined when the tests below call it.
+var NO_PLAYER = "no player";
+function thrown(call) {
+    try {
+        var r = call();
+        return (r && r.ok === false && String(r.error).indexOf(NO_PLAYER) >= 0) ? NO_PLAYER : null;
+    } catch (e) { return String(e); }
+}
+
 if (!clientAvailable()) {
     ScriptTest.run("23_phase_d: skipped (no client api — dedicated server)", function(t) {
         // PASS — farm + Parkour3/2-diagonal need a real client.
@@ -27,16 +38,6 @@ if (!clientAvailable()) {
                   && msg.indexOf("missing required 'to'") >= 0,
             "missing rect must be rejected by schema validation naming both keys, got: " + msg);
     });
-
-    // The message a call threw; NO_PLAYER when it returned that refusal (a client still on the
-    // title screen answers before reading the box); null for any other return.
-    var NO_PLAYER = "no player";
-    function thrown(call) {
-        try {
-            var r = call();
-            return (r && r.ok === false && String(r.error).indexOf(NO_PLAYER) >= 0) ? NO_PLAYER : null;
-        } catch (e) { return String(e); }
-    }
 
     // 100×1×100 = 10000 cells, past the 4096 cap on the cells a search rescans.
     var OVERSIZE = { from: { x: 0, y: 64, z: 0 }, to: { x: 99, y: 64, z: 99 } };
