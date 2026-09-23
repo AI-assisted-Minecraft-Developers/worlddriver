@@ -193,7 +193,7 @@ cite a commit hash — a history rewrite invalidates it.
 
 ## Submitting a change
 
-1. Branch from `main`.
+1. Branch from `master`.
 2. Make the change. Add a scene or a JVM test for new behaviour, and a validation script if
    the change adds or alters a method on the API surface.
 3. Run the checks the change needs: `./gradlew :common:test` always, the relevant gate tasks
