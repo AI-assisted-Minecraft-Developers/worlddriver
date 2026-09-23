@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`autoBackfill` refills only the cells the bot itself broke.** The client tick recorded the
+  foot cell every tick, so the bot went back and plugged natural air it had merely walked through
+  (a cave, a cliff edge, a tunnel someone else dug) with cobblestone. A cell is now recorded when
+  one of the bot's own dig drives turns it from a block into air, as Baritone's `BackfillProcess`
+  does; a human's break, a cell that was already air and a break made with the switch off record
+  nothing.
 - **The RPC skill no longer calls `mc.script.eval` sandboxed or server-threaded.** Its method
   reference said a snippet had no file, network or reflection access, so an agent following it
   would pass untrusted source through. Scripts have full JVM access unless the game runs with

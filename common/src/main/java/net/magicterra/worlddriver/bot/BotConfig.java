@@ -1051,9 +1051,9 @@ public final class BotConfig {
      *  negative live setting can never wedge the yield loop). */
     public static volatile int manualSlotGraceTicks = 100;
 
-    /** Baritone {@code BackfillProcess} analogue — when on, the bot tracks
-     *  cells it walked through and auto-fills them with {@link #autoBackfillBlock}
-     *  whenever no other process owns the keys. Useful for sealing mine
+    /** Baritone {@code BackfillProcess} analogue — when on, the bot tracks the cells
+     *  its own digs broke (never air it only walked through) and refills them with
+     *  {@link #autoBackfillBlock} whenever no other process owns the keys. Seals mine
      *  tunnels behind a {@code mc.bot.mine} pass. Off by default. */
     public static volatile boolean autoBackfill = false;
 

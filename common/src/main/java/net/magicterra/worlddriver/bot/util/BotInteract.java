@@ -127,8 +127,12 @@ public final class BotInteract {
      * and, to a third-party server, a mining-without-swinging anticheat signature.
      */
     public static boolean continueDestroy(Minecraft mc, LocalPlayer p, BlockPos cell) {
-        if (mc == null || mc.gameMode == null || p == null || cell == null) return false;
+        if (mc == null || mc.gameMode == null || mc.level == null || p == null || cell == null) return false;
+        // The finishing tick predicts the break inside this call, so the cell turning air across it
+        // is a break by this drive: autoBackfill's only record of what the bot itself opened.
+        boolean airBefore = mc.level.getBlockState(cell).isAir();
         boolean ok = mc.gameMode.continueDestroyBlock(cell, pickFaceTowardsPlayer(cell, p));
+        ClientIntents.noteDrive(cell, airBefore, mc.level.getBlockState(cell).isAir());
         if (ok) p.swing(InteractionHand.MAIN_HAND);
         // Vanilla's next attack pass stands aside for this drive (see ClientIntents) — the
         // per-tick stopDestroyBlock that used to zero the progress never runs while we drive.

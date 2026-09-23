@@ -145,7 +145,7 @@ public final class BotApiImpl implements BotApi {
     private final AutoHeal autoHeal = new AutoHeal();
     private final AutoTotem autoTotem = new AutoTotem();
 
-    /** Records cells the player's foot passed through while {@link BotConfig#autoBackfill}
+    /** Records cells the bot's own digs broke while {@link BotConfig#autoBackfill}
      *  is on. BackfillProcess consumes from this when no main process is
      *  active. Bounded so the bot doesn't carry an unbounded queue across a
      *  long session. */
@@ -1006,12 +1006,10 @@ public final class BotApiImpl implements BotApi {
         if (BotConfig.autoTool && AutoTool.mayRun(c, scheduler)) {
             AutoTool.tick(mc, mc.player);
         }
-        // Record foot position for autoBackfill — runs every tick the setting
-        // is on, regardless of current process, so that cells passed through
-        // during mining/walking are candidates once the bot idles. The
-        // tracker itself dedupes and caps storage.
+        // autoBackfill puts back only what the bot broke — every process's digs, taken here
+        // whoever drove them — never the natural air it walked through.
+        backfillTracker.onClientTick(BotConfig.autoBackfill, ClientIntents.takeOwnBreaks());
         BlockPos foot = mc.player.blockPosition();
-        if (BotConfig.autoBackfill) backfillTracker.record(foot);
         // Auto-start BackfillProcess when idle + setting on + a cell is waiting.
         // Matches Baritone's BackfillProcess.isActive() trigger pattern: it
         // only runs when no higher-priority process wants the slot. The

@@ -1,5 +1,8 @@
 package net.magicterra.worlddriver.bot.movement;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import net.minecraft.core.BlockPos;
 
 /**
@@ -60,6 +63,7 @@ public final class ClientIntents {
     private static BlockPos digPos;
     private static int standAsidePasses;
     private static boolean useHeld;
+    private static final List<BlockPos> ownBreaks = new ArrayList<>();
 
     /** The {@code breakHold} latch. Releasing also drops any pending stand-aside, so vanilla's
      *  next pass aborts the break exactly as it did when the attack key came up. */
@@ -90,4 +94,18 @@ public final class ClientIntents {
     public static void holdUse(boolean v) { useHeld = v; }
 
     public static boolean useHeld() { return useHeld; }
+
+    /** A destroy drive on {@code pos} just returned. It broke the block only if it found the cell
+     *  not air and left it air; a human's break never runs a drive, so this is the bot's alone. */
+    public static void noteDrive(BlockPos pos, boolean airBefore, boolean airAfter) {
+        if (!airBefore && airAfter) ownBreaks.add(pos.immutable());
+    }
+
+    /** The cells the bot's drives have broken since the last call, each handed over once. */
+    public static List<BlockPos> takeOwnBreaks() {
+        if (ownBreaks.isEmpty()) return List.of();
+        List<BlockPos> taken = List.copyOf(ownBreaks);
+        ownBreaks.clear();
+        return taken;
+    }
 }

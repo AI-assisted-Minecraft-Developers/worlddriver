@@ -163,8 +163,8 @@ public final class BackfillProcess implements BotProcess {
     }
 
     /** Whether the idle auto-start should hand the tracker to a new process. Not the tracker's
-     *  size: the tick records the current foot every tick, so it is never empty, and the foot and
-     *  head cells are the two the scan always skips — a process started on size ends at once. */
+     *  size: a bot idles in the cells it just dug, and the foot and head cells are the two the scan
+     *  always skips, as it does cells out of radius — a process started on size ends at once. */
     public static boolean autoStartWanted(BackfillTracker tracker, BlockPos playerFoot, Level lvl) {
         return autoStartWanted(tracker, playerFoot, BotConfig.autoBackfillRadius, cells(lvl));
     }
