@@ -64,8 +64,14 @@ public final class ReplayProcess implements BotProcess {
         if (s == Walker.Step.WALKING) return false;
         if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
         st.mc_goto.reset();
+        failure = IntentProcess.walkFailure(s, walker.lastError, walker.lastGoalReached,
+                walker.lastEndReason, walker.lastFinalDist);
         return true;
     }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     /** Replay never repaths — on resume, just keep executing the fixed plan. */
     @Override public void onResume() { }

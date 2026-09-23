@@ -121,7 +121,13 @@ public final class ElytraProcess implements BotProcess {
         st.elytra.target = target;
         st.elytra.startedAtMs = System.currentTimeMillis();
         st.elytra.lastError = null;
+        slot = st.elytra;
     }
+
+    /** Every elytra stamp is a failure (arrivals stamp nothing), so the slot answers directly. */
+    private BotState.ProcessSlot slot;
+
+    @Override public String failure() { return slot == null ? null : slot.lastError; }
 
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();

@@ -510,9 +510,9 @@ public final class BotApiImpl implements BotApi {
         // led to a working shelter being cancelled mid-seal. null for processes
         // with no sub-state.
         snap.put("activeProcessDetail", c == null ? null : c.statusDetail());
-        // Why the PREVIOUS process stopped: {kind, error} (error null = ran to
-        // completion). The per-verb slots carry this too, but a process that switched
-        // no slot on would otherwise leave no trace once activeProcess went back to null.
+        // Why the PREVIOUS process stopped: {kind, error} (error null = did what it was
+        // asked). Not derivable from the slots: their lastError also holds success
+        // summaries, and a process that switched no slot on leaves nothing there.
         snap.put("lastProcessEnd", userTask.lastEnd());
         snap.put("activeChain", scheduler.currentName());
         snap.put("userTaskSuspended", c != null && scheduler.current() != userTask);

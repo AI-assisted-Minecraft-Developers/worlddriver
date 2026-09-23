@@ -206,8 +206,16 @@ public final class BunkerProcess implements BotProcess {
         boolean sealedNow = phase == Phase.SEALED || (phase == Phase.DONE && sealedOk);
         st.bunker.goalReached = sealedNow && enclosed(w, a);
         st.bunker.reset();
+        // A null err also ends a bunker that ran out of plug blocks, which is not a shelter.
+        failure = err != null ? err
+                : Boolean.TRUE.equals(st.bunker.goalReached) ? null
+                : "not enclosed (ended in " + endReason + ")";
         return true;
     }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     /** Block-level enclosure ground truth (spec §4.3 修正): the 4 horizontal
      *  neighbors of the FOOT cell, the head cell's 4 horizontal neighbors, and the

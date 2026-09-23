@@ -26,6 +26,12 @@ public interface BotProcess {
      *  @return true when finished (success or unrecoverable failure). */
     boolean tick(Body a, WorldView w, BotState st);
 
+    /** Why the process stopped short of what it was asked to do, or null when it did it. Read
+     *  once, right after {@link #tick} returned true, and surfaced as the {@code error} of
+     *  {@code lastProcessEnd}. Not defaulted: the slot's {@code lastError} cannot answer this,
+     *  because several processes write their success summary there ({@code "done (placed=…)"}). */
+    String failure();
+
     /** Called when this process regains the movement channel after being
      *  suspended by a higher-priority chain (panic/retreat/combat), so it can force a repath
      *  from the current position rather than reuse a path that went stale during suspension.

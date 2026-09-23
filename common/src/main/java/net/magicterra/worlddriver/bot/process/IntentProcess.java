@@ -23,6 +23,7 @@ import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The generic navigation process for the LLM navigation intent layer: drives the
@@ -202,8 +203,22 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.endReason = walker.lastEndReason;
         st.mc_goto.finalDist = walker.lastFinalDist;
         st.mc_goto.reset();
+        failure = walkFailure(s, walker.lastError, walker.lastGoalReached, walker.lastEndReason, walker.lastFinalDist);
         return true;
     }
+
+    /** The walker's give-ups (churn, frontier, a consumed best-effort path) return ARRIVED, so the
+     *  step alone reads them as success; only the goal test at the foot tells them apart. */
+    static String walkFailure(Walker.Step s, String walkerError, boolean goalReached, String endReason,
+                              double finalDist) {
+        if (s == Walker.Step.FAILED) return walkerError != null ? walkerError : "walk failed";
+        if (goalReached) return null;
+        return String.format(Locale.ROOT, "goal not reached (%s, %.1f blocks short)", endReason, finalDist);
+    }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     /**
      * The body changed worlds under a goal that was set in the old one: stop, and say which of the
@@ -246,6 +261,7 @@ public final class IntentProcess implements BotProcess {
                 + " — those coordinates mean nothing here, so the walk was stopped rather than "
                 + "re-aimed (a goal belongs to whoever set it)";
         st.mc_goto.finalDist = -1;
+        failure = st.mc_goto.lastError;
         st.mc_goto.reset();
         WorldDriverCommon.LOG.info("[IntentProcess] {} → {}: goal {} abandoned, {}",
                 plannedIn.location(), here.location(), intent.target(), DIMENSION_CHANGED);

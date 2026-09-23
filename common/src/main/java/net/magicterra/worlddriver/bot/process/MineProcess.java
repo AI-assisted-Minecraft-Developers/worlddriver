@@ -731,7 +731,14 @@ public final class MineProcess implements BotProcess {
                 + (retiredTargets > 0 ? ", blacklisted " + retiredTargets + " target(s)" : "")
                 + ")";
         st.mine.reset();
+        // The quota is the ask; drops left on the ground stay in endReason and do not fail it.
+        failure = st.mine.goalReached ? null
+                : st.mine.lastError != null ? st.mine.lastError : st.mine.endReason;
     }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     /**
      * Retire {@code currentTarget} and go back to SEARCH — the ONE door out of a target this

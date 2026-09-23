@@ -83,8 +83,13 @@ public final class DescendProcess implements BotProcess {
         BotState.ProcessSlot s = st.escape;
         s.active = false;
         s.lastError = error;
+        failure = error;
         return true;
     }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();

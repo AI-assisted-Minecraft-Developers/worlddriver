@@ -36,6 +36,9 @@ public final class BuildProcess implements BotProcess {
     private int idx;
     private int placed;
     private int skipped;
+    private String failure;
+
+    @Override public String failure() { return failure; }
     private final Set<Integer> failedIdx = new HashSet<>();
     private Phase phase = Phase.NEXT;
     private BlockPos currentBlock;
@@ -62,9 +65,9 @@ public final class BuildProcess implements BotProcess {
         LivingEntity p = a.entity();
         // Stamped for the same reason as BackfillProcess: `BotState.toMap` drops a null lastError,
         // so staying silent here reports "finished, no error" rather than nothing at all.
-        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -76,6 +79,8 @@ public final class BuildProcess implements BotProcess {
                 if (idx >= schematic.entries.size()) {
                     st.builder.lastError = "done (placed=" + placed + ", skipped=" + skipped + ")";
                     st.builder.reset();
+                    if (skipped > 0) failure = "incomplete: " + skipped + " of " + schematic.entries.size()
+                            + " blocks skipped";
                     return true;
                 }
                 Schematic.Entry e = schematic.entries.get(idx);

@@ -81,7 +81,9 @@ public final class UserTaskChain implements Chain {
     }
 
     /** {@code {kind, error}} of the last process ending, or null if none has ended
-     *  this session. Surfaced as {@code lastProcessEnd} in {@code mc.bot.status}. */
+     *  this session. {@code error} is null only when the process did what it was asked; a
+     *  give-up, a throw and a cancel all carry their reason. Surfaced as {@code lastProcessEnd}
+     *  in {@code mc.bot.status}. */
     public Map<String, Object> lastEnd() {
         String k = endKind;
         if (k == null) return null;
@@ -117,7 +119,7 @@ public final class UserTaskChain implements Chain {
         try {
             if (c.tick(body, w, st)) {
                 endClaim(null);
-                recordEnd(c.kind(), null);   // ran to completion: kind with error == null
+                recordEnd(c.kind(), c.failure());
                 if (drove) keyRelease.run();
                 process = null;
             } else {

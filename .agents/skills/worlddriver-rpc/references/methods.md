@@ -104,8 +104,10 @@ accept `awaitMs`: `mc.bot.goto`, `mine`, `bunker`, `craft`, `smelt`, `combat`,
 (it polls `mc.bot.status`), folding the final status in:
 `{ok, started, awaited:true, completed:bool, ms, status:{…}}`. **`completed:true`
 only means the slot went idle — a no-path *failure* also reports completed.**
-Confirm real success via `status.<slot>.lastError` and `status.lastPath`
-(`goalReached`, `finalCost`), or re-observe the player. **`mc.bot.escape` is also a
+Confirm real success via `mc.bot.status` `lastProcessEnd` (`{kind, error}`; `error` null
+only when the task did what it was asked — a slot's `lastError` also holds success summaries
+such as `"done (placed=…)"`) and `status.lastPath` (`goalReached`, `finalCost`), or
+re-observe the player. **`mc.bot.escape` is also a
 bot process but takes NO `awaitMs`** (its schema has only `targetY`) — fire it and
 poll `mc.bot.status`/`mc.observe.player`. `mc.bot.equip` is **synchronous** (returns
 its result directly, no `awaitMs`); `mc.bot.playbook` runs on a **background thread**

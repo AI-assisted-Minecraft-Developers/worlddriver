@@ -677,6 +677,7 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         java.util.concurrent.atomic.AtomicReference<String> cancelledWith = new java.util.concurrent.atomic.AtomicReference<>();
         BotProcess probe = new BotProcess() {
             @Override public String kind() { return "probe"; }
+            @Override public String failure() { return null; }
             @Override public void attach(BotState s) {}
             @Override public boolean tick(net.magicterra.worlddriver.bot.body.Body a,
                                           net.magicterra.worlddriver.bot.pathfinder.WorldView w, BotState s) { return false; }

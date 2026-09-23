@@ -2266,6 +2266,7 @@ public final class JourneyEndRungs {
         }
 
         @Override public String kind() { return "journeySwingAt"; }
+        @Override public String failure() { return null; }
 
         @Override public void attach(BotState st) { }
 
@@ -2348,6 +2349,7 @@ public final class JourneyEndRungs {
         }
 
         @Override public String kind() { return "journeyDragonDuel"; }
+        @Override public String failure() { return null; }
 
         @Override public void attach(BotState st) { }
 
