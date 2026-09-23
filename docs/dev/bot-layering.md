@@ -247,8 +247,7 @@ moved text without decomposing the method — which is why the method budget exi
 | `util/` | Shared helpers |
 
 `FocusPolicy` and `MouseYield` govern how the bot shares keyboard and mouse with a human
-at the same client; read the input-sharing section of [`AGENTS.md`](../../AGENTS.md)
-before changing them.
+at the same client; read [`input-sharing.md`](input-sharing.md) before changing them.
 
 ## Before pushing a change here
 
