@@ -52,6 +52,14 @@ class BuildStampTest {
         assertEquals(cls, BuildStamp.resolve("union:" + dir + "%231!/" + ENTRY));
     }
 
+    /** The dev jar carries the mod version, and {@code 0.1.0+1.21.1} is where a plus shows up. */
+    @Test
+    void aPlusInTheJarNameIsKeptLiterally(@TempDir Path dir) throws IOException {
+        Path jar = writeJar(dir.resolve("worlddriver-common-0.1.0+1.21.1-dev.jar"));
+        assertEquals(jar, BuildStamp.resolve("jar:" + jar.toUri() + "!/" + ENTRY));
+        assertEquals(jar, BuildStamp.resolve("union:" + jar + "%231!/" + ENTRY));
+    }
+
     @Test
     void aContainerThatIsNotThereStampsNothing(@TempDir Path dir) {
         assertNull(BuildStamp.resolve("union:" + dir.resolve("absent.jar") + "%231!/" + ENTRY));

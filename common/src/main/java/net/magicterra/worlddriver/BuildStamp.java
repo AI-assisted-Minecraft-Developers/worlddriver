@@ -104,7 +104,11 @@ public final class BuildStamp {
         return Files.exists(entry) ? entry : container;
     }
 
-    private static String decode(String s) { return URLDecoder.decode(s, StandardCharsets.UTF_8); }
+    /** Percent-decoding only: URLDecoder is a form decoder and turns the plus in a jar named
+     *  {@code 0.1.0+1.21.1} into a space, so the path it yields names no file. */
+    private static String decode(String s) {
+        return URLDecoder.decode(s.replace("+", "%2B"), StandardCharsets.UTF_8);
+    }
 
     private static Path filePath(String text) {
         try {
