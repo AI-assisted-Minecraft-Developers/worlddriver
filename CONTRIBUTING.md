@@ -160,6 +160,8 @@ Nothing should ever be written to the repository root.
 | The integrated-server scene task | `<loader>/run-stagewright-integrated/` |
 | The dedicated-server-with-client scene task | `<loader>/run-stagewright-with-client/`, and `<loader>/run-stagewright-joining-client/` for its client half |
 | The instrument-contract server | `<loader>/run-contract/` |
+| The playthrough ladder | `fabric/run-journey`, `run-journey-integrated`, `run-journey-with-client`, `run-journey-joining-client` |
+| One-rung rehearsals | `fabric/run-rehearsal`, `fabric/run-rehearsal-integrated` |
 | Smoke-driver screenshots and traces | `fabric/run/smoke/` |
 | Compiler output | `<module>/build/` |
 
@@ -198,7 +200,12 @@ cite a commit hash — a history rewrite invalidates it.
    for anything the game executes, and both loaders for anything that could load differently
    on a dedicated server.
 4. Open a pull request saying what changed and why, naming the tests that demonstrate it, and
-   linking any specification section you are following or amending.
+   linking any specification section you are following or amending. Write it in plain words
+   for a reader who was not there, and cite only evidence the reviewer can open.
+
+`gh pr edit` fails on this repository with a GraphQL error about Projects (classic) being
+deprecated. Update a pull request through the REST API instead:
+`gh api -X PATCH repos/AI-assisted-Minecraft-Developers/worlddriver/pulls/<n> -f title=… -F body=@<file>`.
 
 ## Licence
 
