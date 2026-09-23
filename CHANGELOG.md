@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-23
 
+- **A chase keeps its running search when the quarry moves.** `mc.bot.follow` and the combat
+  approach re-aim the walker whenever their target changes block, and each re-aim dropped the
+  full search in flight. A target that changes block faster than a search lands, like a mob
+  pacing in a pen, left a chase that never landed one: the body stood still and the futile-search
+  guard never counted anything. A search already running from the feet now lands and is judged.
 - **`mc.bot.follow` gives up on a quarry it cannot get closer to.** A target pacing in a pen the
   body cannot enter sent the walker circling the pen, and a body that keeps moving never trips the
   walker's futile-search guard, so the follow ran until cancelled. It now ends `unreachable` after

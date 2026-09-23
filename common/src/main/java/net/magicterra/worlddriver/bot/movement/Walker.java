@@ -762,6 +762,11 @@ public final class Walker {
      * is {@code setGoal} plus the six fields that describe "how this pursuit has been going"
      * rather than "which cell we want" — including the backoff, since taking away an armed
      * cooldown is the same leak one cap below.
+     *
+     * <p>A search already running from the feet is kept too: the futile judge counts only landed
+     * searches, and a quarry pacing in a pen re-aims faster than a full search lands, so dropping it
+     * leaves a chase that never lands one — never counted, never routed. A continuation from the
+     * segment end goes, since the path it would extend is cleared.
      */
     public void retargetGoal(Goal g) {
         double bestDist = searchGov.futileBestDist;
@@ -770,6 +775,7 @@ public final class Walker {
         BlockPos latchFoot = searchGov.futileLatchFoot;
         int searches = searchGov.futileSearches;
         int backoff = searchGov.searchBackoffTicks;
+        PathFinder.Search running = seg.searchFromEnd ? null : seg.activeSearch;
         setGoal(g);
         searchGov.futileBestDist = bestDist;
         searchGov.futileFoot = bestFoot;
@@ -777,6 +783,7 @@ public final class Walker {
         searchGov.futileLatchFoot = latchFoot;
         searchGov.futileSearches = searches;
         searchGov.searchBackoffTicks = backoff;
+        seg.activeSearch = running;
     }
 
     public void setGoal(Goal g) {
