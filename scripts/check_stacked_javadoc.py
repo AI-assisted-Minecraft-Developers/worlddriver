@@ -8,7 +8,7 @@ sits on top of a member it does not describe and reads as that member's contract
 NOT WIRED TO ANYTHING. No gradle task and no CI workflow invokes this file, or any
 of the five scripts/check_*.py beside it -- verified by grepping *.gradle and
 .github; the single hit is a COMMENT in neoforge/build.gradle:157. They are hand-run
-gates listed in AGENTS.md. Nothing turns red on its own if this rots: someone has to
+gates listed in docs/dev/testing.md. Nothing turns red on its own if this rots: someone has to
 type `python scripts/check_stacked_javadoc.py`. Do not read a green build as a green
 here, and do not assume a later reader knows that -- an instrument nobody calls is
 not an instrument.
