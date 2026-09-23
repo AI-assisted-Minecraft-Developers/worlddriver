@@ -73,7 +73,7 @@ version control**, and the tooling's paths have not matched where the archives a
 project was renamed. In other words this gate is designed, implemented, and not currently running.
 That is worth knowing before citing a corpus result as evidence for anything.
 
-The log line the telemetry reads is a contract: `AGENTS.md` names the scripts as consumers of the
+The log line the telemetry reads is a contract: `docs/dev/testing.md` names the scripts as consumers of the
 walker's step line, so its format cannot be changed casually.
 
 ## Where to look

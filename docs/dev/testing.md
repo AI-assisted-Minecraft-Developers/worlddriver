@@ -15,6 +15,11 @@ out-of-process JUnit suite that attaches to a running game, and a handful of Pyt
 checks. None of it runs automatically: this repository has no CI workflow and no Gradle
 task invokes the Python checks, so everything below is something a contributor types.
 
+The JUnit layer also holds the checks that are properties of the source rather than of a
+run; they read the compiled bytecode and fail with a file and a line instead of a scene
+verdict. Their JVM's working directory is the module directory, which is what makes a
+relative `src/main/java` resolve; do not add a `workingDir` to the task.
+
 ## The gate tasks
 
 `build.gradle` declares six topologies in its `stagewright { topologies { … } }` block,
@@ -150,7 +155,7 @@ scene added anywhere must be added to both files.
 **A scene and its manifest entry land in the same commit.** That is the whole discipline,
 and both directions of the reconciliation exist to enforce it. Counting the manifest files
 is also the right way to answer "how many scenes are there" — any number written in prose
-is a claim about the past.
+is a claim about the past. Editing a manifest while judging a run changes the judge mid-run.
 
 ### Hand-built scenes
 
@@ -273,7 +278,8 @@ Passing the scene gates does not imply passing this one. Run it before committin
 ## The other hand-run checks
 
 None of these is wired into the build. Each is a Python script run from the repository
-root, exiting non-zero on a violation; `AGENTS.md` is the canonical list.
+root, exiting non-zero on a violation; this table is the canonical list. The remap check's
+reasoning is in [`loader-glue.md`](loader-glue.md#no-reflection-on-a-mojang-mapped-member).
 
 | Script | What it verifies |
 |---|---|
@@ -290,7 +296,57 @@ Several development tools recover bot state by matching regular expressions agai
 the tick path, and nothing connects the two. Renaming a field there compiles, passes every
 scene, and turns each of those tools into a no-op — a regular expression that matches
 nothing does not raise, it yields an empty result, and the tool reports "no ticks" as
-though the body had never moved.
+though the body had never moved. The emitters are `WalkerTickClimb` and `WalkerTickDrive`; the
+consumers are `scripts/forensic.py`, `scripts/pmcs/telemetry.py`, `scripts/pmcs/run_case.py` and
+`scripts/accept_cycle.py`. The check imports the consumers' own patterns rather than copying
+them, so it cannot pass while the tool it protects is broken.
+
+### A scene's terrain must fit its force-loaded arena
+
+The harness force-loads a square chunk window around the scene origin whose radius comes from
+`Scene.withChunkRadius(r)`, default 1, so the usable offsets are `dx, dz ∈ [-16r, 16r+15]`.
+Build terrain outside it and nothing fails loudly: the write succeeds by loading the chunk on
+demand, but the preparation phase never waited for that chunk, so the scene passes most of the
+time and fails when it does not — which reads as a bot defect rather than an arena defect.
+Prefer `ctx.setBlock(dx, dy, dz, block)` for new terrain, because it states the footprint as
+arguments and `check_scene_arena.py` reads it directly; the check reads the source and needs
+neither a build nor a run.
+
+The check only sees offsets a scene writes itself. A scene that builds through a helper at an
+absolute position is outside every arena window and the check reports it fine. Blocks still work
+there, because the write loads the chunk; entities do not, because entity queries see loaded
+sections only, so the scene fails as an empty entity query somewhere far from the cause. The one
+such helper that exists takes its own region ticket. If you add another, it needs one too, and
+the check will not tell you.
+
+### A scene that writes `BotConfig` must hold a pin
+
+Nothing resets the configuration between scenes — the baseline is applied once at server start —
+so whatever a scene leaves changed is what the next scene starts with, and scene order then
+decides a reading. Two lines at the top of the body, which beat an assignment at the end because
+cleanup also runs when the scene fails, and failing is the path that leaks:
+
+```java
+var pin = BotConfig.pinnedBaseline();
+ctx.cleanup(pin::close);
+```
+
+`ConfigPinDisciplineTest` reads the compiled testmod bytecode and names any method that writes a
+`BotConfig` static without a `pinnedBaseline()` on every path into it, counting a pin taken by a
+helper it calls. Run `./gradlew :common:test` before landing a scene that touches configuration.
+
+Restoring by hand is legal, but only on a path a failure also takes — a `try`/`finally`, or
+`ctx.cleanup`. Restoring at the end of the body is not; that is exactly the line a failing scene
+skips. Methods that restore by hand are listed in the test's accounted-for set beside the
+still-open ones, and the test also fails when an entry there stops being needed, so the list
+cannot rot into a record of problems already fixed.
+
+### Do not compile under a live run
+
+Development runs load classes lazily from `build/classes`, so recompiling while one is running
+produces a single run that is a mixture of two builds. The bytecode checks above
+(`ConfigPinDisciplineTest`, `SchedulerClientCallSurfaceTest`) recompile `:common` from whatever
+is on disk, so they need the tree to themselves exactly as a gate task does.
 
 ## Where to read more
 
