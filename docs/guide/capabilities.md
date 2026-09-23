@@ -188,7 +188,7 @@ that need them answer `no_hands`.
 | Method | What it does | Notable parameters |
 |---|---|---|
 | `mc.bot.goto` | **Asynchronous.** Pathfinds and walks to a goal. Implicitly cancels any previous `goto`. | See the selectors and route conditions below |
-| `mc.bot.follow` | **Asynchronous.** Follows an entity, recomputing the goal about every 1.5 seconds. | `entityType` or `name`, `radius` (1–16, default 3), `maxIdleTicks`, `route` |
+| `mc.bot.follow` | **Asynchronous.** Follows an entity, re-aiming whenever it moves to another block. Ends with `unreachable` after five failed replans in a row. | `entityType` or `name`, `radius` (1–16, default 3), `maxIdleTicks`, `route` |
 | `mc.bot.explore` | **Asynchronous.** Wanders to unvisited chunk centres in a spiral, to reveal terrain. | `centerX`, `centerZ`, `maxChunks` (1–64, default 16) |
 | `mc.bot.runAway` | **Asynchronous.** Walks to any reachable point at least `minDist` blocks from a position. | `from`, `minDist` (4–64, default 16) |
 | `mc.bot.escape` | **Asynchronous, and not awaitable.** Carves a staircase up the driest wall and climbs out of a pit or well the pathfinder cannot solve. Needs block breaking on and a solid, non-falling wall. Poll `mc.bot.status`. | `targetY` |
@@ -262,7 +262,7 @@ is off.
 | `mc.bot.build` | **Asynchronous.** Places blocks from a schematic, bottom-up. Takes either a procedural object or base64 Sponge `.schem` bytes. Cap 4096 blocks. | `origin`, `schematic` or `schematicBase64` |
 | `mc.bot.clearArea` | **Asynchronous.** Three modes in one verb: clear every non-air cell in a box; clear and then fill with an id; or replace one block type with another. Bottom-up, so fresh blocks support higher layers. Volume capped at 4096. | `from`, `to`, `fill`, `replace` |
 | `mc.bot.construct` | **Asynchronous.** Constructive movement: `tower` pillars straight up to a height or an absolute level, `bridge` sneak-walks forward placing blocks underfoot. | `mode`, `height` or `targetY`, `direction`, `distance`, `block` |
-| `mc.bot.farm` | **Asynchronous.** Walks a field, harvests mature wheat, carrots, potatoes and beetroots, and replants the seed. Capped at 4096 horizontal cells. | `from`, `to`, `crops`, `replant` |
+| `mc.bot.farm` | **Asynchronous.** Walks a field, harvests mature wheat, carrots, potatoes and beetroots, and replants the seed. Capped at 4096 cells of volume, Y included, because the whole box is rescanned after every harvest; a larger box, or a Y outside the world, is an invalid-argument error. | `from`, `to`, `crops`, `replant` |
 | `mc.bot.craft` | **Asynchronous.** Crafts an item, resolving the whole sub-recipe tree from the inventory and using the inventory grid for 2×2 recipes or a crafting table for 3×3. Fails up front if a leaf material is missing. Smelting is not followed — use `smelt`. | `item`, `count` |
 | `mc.bot.smelt` | **Asynchronous.** Opens a furnace, loads the ingredient and a fuel, waits for the cook and takes the result back. Fuel is auto-picked if you do not name one. | `item`, `count`, `fuel` |
 | `mc.bot.sleep` | **Asynchronous.** Finds the nearest bed within a radius, or an explicit one, paths to it and right-clicks. Vanilla owns the actual gating — night or thunder, no hostiles nearby, bed unoccupied. | `pos`, `radius` (default 16, clamped to 64) |

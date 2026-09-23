@@ -127,8 +127,9 @@ public final class BotState {
     }
 
     /**
-     * The slot a process of {@code kind} reports into, or null. Here rather than in
-     * {@code UserTaskChain} so a server-side driver can end a slot without loading a client class.
+     * The slot named after {@code kind}, or null. Only for stamping a verb's refusal before any
+     * process exists: a process's own slots are the ones its attach switched on, which is what
+     * {@code SlotClaim} records, because {@code sleep} and {@code replay} report into the goto slot.
      */
     public ProcessSlot slotFor(String kind) {
         return switch (kind) {

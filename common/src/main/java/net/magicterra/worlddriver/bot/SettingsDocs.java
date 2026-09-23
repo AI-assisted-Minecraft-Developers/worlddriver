@@ -2,6 +2,8 @@ package net.magicterra.worlddriver.bot;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Per-key documentation for the {@code mc.bot.setting} surface.
@@ -39,6 +41,26 @@ public final class SettingsDocs {
     /** Every documented key — {@link SettingsRegistry} checks these all resolve. */
     public static java.util.Set<String> documentedKeys() { return DESCRIPTIONS.keySet(); }
 
+    /** An inclusive numeric range, with the text the row states it in. */
+    public record Range(double lo, double hi, String text) {
+        public boolean contains(double v) { return v >= lo && v <= hi; }
+    }
+
+    private static final Pattern RANGE = Pattern.compile("^\\[(-?\\d+(?:\\.\\d+)?),(-?\\d+(?:\\.\\d+)?)]");
+
+    /**
+     * The range a row opens with, as in {@code "[1,16] dflt 4 — …"}, or null. The write path
+     * enforces exactly this, so the range a client reads in the schema is the one it gets.
+     */
+    public static Range range(String key) {
+        String doc = DESCRIPTIONS.get(key);
+        if (doc == null) return null;
+        Matcher m = RANGE.matcher(doc);
+        if (!m.find()) return null;
+        return new Range(Double.parseDouble(m.group(1)), Double.parseDouble(m.group(2)),
+                "[" + m.group(1) + "," + m.group(2) + "]");
+    }
+
     @SafeVarargs
     private static void put(Map<String, String> m, Map.Entry<String, String>... entries) {
         for (Map.Entry<String, String> en : entries) m.put(en.getKey(), en.getValue());
@@ -53,6 +75,7 @@ public final class SettingsDocs {
         part3(m);
         part4(m);
         part5(m);
+        part6(m);
         return java.util.Collections.unmodifiableMap(m);
     }
 
@@ -532,17 +555,17 @@ public final class SettingsDocs {
         e("pathfinderGoalField",
             "bool dflt false — obstacle-aware goal-distance heuristic (coarse D*-lite field): routes " +
             "AROUND concave pinches instead of backtracking. Phase-0 A/B knob"),
-        e("goalFieldCellSize", "int dflt 4 — goal-field coarse cell size (blocks)"),
-        e("goalFieldRadius", "int dflt 64 — goal-field horizontal half-extent (blocks; keep ≤ render distance)"),
-        e("goalFieldVerticalRadius", "int dflt 32 — goal-field vertical half-extent (blocks)"),
+        e("goalFieldCellSize", "[1,16] dflt 4 — goal-field coarse cell size (blocks)"),
+        e("goalFieldRadius", "[8,192] dflt 64 — goal-field horizontal half-extent (blocks; keep ≤ render distance)"),
+        e("goalFieldVerticalRadius", "[4,128] dflt 32 — goal-field vertical half-extent (blocks)"),
         e("pathfinderDepthPenalty",
-            "number dflt 6 — anti-basin-dive: cost/block for descending below the search start Y (XZ " +
+            "[0,100] dflt 6 — anti-basin-dive: cost/block for descending below the search start Y (XZ " +
             "goals dive into dead-end valleys without it); biases routes higher/smoother. 0=off"),
         e("pathfinderDepthSlack",
-            "int dflt 4 — free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost " +
+            "[0,64] dflt 4 — free descent blocks before pathfinderDepthPenalty/pathfinderDescendCost " +
             "apply"),
         e("pathfinderDescendCost",
-            "number dflt 40 — REAL g-cost/block for descending IN WATER or by BREAKING below the " +
+            "[0,200] dflt 40 — REAL g-cost/block for descending IN WATER or by BREAKING below the " +
             "slack threshold (fixes deep-water-bowl 卡上岸: makes dive-and-tunnel cost more than " +
             "climb-ashore). Dry stepped descent pays nothing. 0=off"),
         e("pathfinderWaterCellCost",
@@ -567,11 +590,11 @@ public final class SettingsDocs {
             "0 = free) — tolerating a short detour over a tall climb-out (fixes 卡在土墙/反复挖同一土块/横跳 " +
             "climb-out windows). Tall exits NOT forbidden; Goal.Block water arenas unaffected. 0=off"),
         e("pathfinderThinObstacleHeight",
-            "number dflt 0.2 — collision-box height (blocks) a floor-resting obstacle is stepped/swum " +
+            "[0,1] dflt 0.2 — collision-box height (blocks) a floor-resting obstacle is stepped/swum " +
             "OVER and treated as passable (fixes 被浮萍/荷叶挡住: lily pad ≈0.094 over water no longer walls " +
             "off the water cell below). Below 0.5 keeps slabs blocking. 0=off"),
         e("pathfinderBridgeCost",
-            "number dflt 80 — TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground " +
+            "[0,1000] dflt 80 — TOTAL g-cost of one aerial bridgePlace edge. High = prefer ground " +
             "routes (descend a valley / go around) over an unexecutable ~30-block aerial bridge " +
             "(fixes 深谷凌空架桥 freeze). Doesn't touch depthPenalty (basin-dive still guarded). Old " +
             "hardcoded 30"),
@@ -604,6 +627,36 @@ public final class SettingsDocs {
             "with BridgePlace (the 丝滑-descent lever). Survival-sensitive: the bot takes the fall " +
             "damage (4≈0.5♥, 5≈1♥)"),
         e("pathfinder.axisHeight", "[-64,320] dflt 120 — Y plane for goto{axis:true} (GoalAxis)")
+        );
+    }
+
+    private static void part6(Map<String, String> m) {
+        put(m,
+        e("retreatHpThreshold", "[0,20] dflt 6 — HP at/below which autoRetreat flees"),
+        e("healHpThreshold", "[0,20] dflt 12 — HP at/below which autoHeal uses a healing item"),
+        e("autoFightThreatThreshold", "[0,1] dflt 0.05 — threat score a hostile must reach to trigger autoFight"),
+        e("combatReach", "[1,6] dflt 3 — melee engage distance (blocks, centre-to-centre)"),
+        e("kiteDistance", "[3,32] dflt 8 — range a bow/crossbow fight keeps from its target"),
+        e("creeperKeepDistance", "[1,16] dflt 3.5 — a swelling creeper this close makes the bot sprint away"),
+        e("projectileDodgeRadius", "[1,32] dflt 12 — an incoming projectile predicted to hit within this triggers a sidestep"),
+        e("equipDurabilityThreshold",
+            "[0,1] dflt 0.1 — remaining-durability fraction below which mc.bot.equip reports an item in lowDurability"),
+        e("riskBias.scale", "[0,400] dflt 15 — max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block)"),
+        e("pathfinder.sliceMs", "[1,50] dflt 6 — per-tick compute slice, ms, of a search while the body walks"),
+        e("pathfinder.idleSliceMs", "[1,50] dflt 30 — per-tick compute slice, ms, while the body stands waiting for a path"),
+        e("pathfinder.lavaDangerPenalty",
+            "[0,5000] dflt 300 — cost added per lava cell adjacent to a stand position when avoidDanger is on"),
+        e("pathfinder.contactDangerPenalty",
+            "[0,1000] dflt 60 — cost added per contact-damage block (cactus, berry bush, magma, …) adjacent to a " +
+            "stand position"),
+        e("pathfinder.ledgeDangerPenalty",
+            "[0,1000] dflt 200 — cost of a stand position at the lip of a drop the body would not survive, when " +
+            "avoidDanger is on"),
+        e("pathfinder.ledgeDangerMinDrop",
+            "[1,64] dflt 4 — least drop (blocks) ledgeDangerPenalty counts; the tax fires at the larger of this " +
+            "and the lethal fall height"),
+        e("pathfinder.waterDangerPenalty",
+            "[0,1000] dflt 3 — cost added per node whose foot is in water, when avoidDanger is on; 0=off")
         );
     }
 }

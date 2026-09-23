@@ -38,7 +38,7 @@ public final class FarmProcess implements BotProcess {
     private static final int BREAK_TIMEOUT_TICKS = 60;
     private static final int PLACE_TIMEOUT_TICKS = 40;
 
-    private final BlockPos minP, maxP;     // y range collapsed to a single scan plane below
+    private final BlockPos minP, maxP;     // every cell, Y included, is rescanned per search; VerbOrders.farm caps the count
     private final Set<String> crops;
     private final boolean replant;
     private final Walker walker = new Walker("farm");

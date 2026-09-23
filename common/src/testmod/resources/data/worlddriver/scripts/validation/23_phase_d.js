@@ -28,15 +28,25 @@ if (!clientAvailable()) {
             "missing rect must be rejected by schema validation naming both keys, got: " + msg);
     });
 
-    ScriptTest.run("23_phase_d: farm rejects oversize area", function(t) {
-        // 100×100 = 10000 cells, well past the 4096 cap.
-        var r = Driver.invoke("mc.bot.farm", {
-            from: { x: 0, y: 64, z: 0 },
-            to:   { x: 99, y: 64, z: 99 }
-        });
-        t.assertEqual(r.ok, false, "oversize → ok:false");
-        t.assertTrue(String(r.error).indexOf("too large") >= 0
-                  || String(r.error).indexOf("4096") >= 0, "error mentions cap: " + r.error);
+    // The message a call threw; NO_PLAYER when it returned that refusal (a client still on the
+    // title screen answers before reading the box); null for any other return.
+    var NO_PLAYER = "no player";
+    function thrown(call) {
+        try {
+            var r = call();
+            return (r && r.ok === false && String(r.error).indexOf(NO_PLAYER) >= 0) ? NO_PLAYER : null;
+        } catch (e) { return String(e); }
+    }
+
+    // 100×1×100 = 10000 cells, past the 4096 cap on the cells a search rescans.
+    var OVERSIZE = { from: { x: 0, y: 64, z: 0 }, to: { x: 99, y: 64, z: 99 } };
+    var OVERSIZE_CORE = "the box covers 10000 cells";
+
+    ScriptTest.run("23_phase_d: farm rejects an oversize box as a bad argument", function(t) {
+        var msg = thrown(function() { Driver.invoke("mc.bot.farm", OVERSIZE); });
+        if (msg === NO_PLAYER) return;
+        t.assertTrue(msg !== null && msg.indexOf(OVERSIZE_CORE) >= 0 && msg.indexOf("4096") >= 0,
+            "oversize must throw naming the cell count and the cap, got: " + msg);
     });
 
     ScriptTest.run("23_phase_d: farm rejects invalid crops filter", function(t) {
@@ -74,15 +84,19 @@ if (!clientAvailable()) {
 
     ScriptTest.run("23_phase_d: farm byte-identical across in-JVM/RPC/MCP transports",
         function(t) {
-            // Schema-reject path is deterministic and doesn't need a player.
-            var args = { from: { x: 0, y: 64, z: 0 }, to: { x: 99, y: 64, z: 99 } };
-            var direct = Driver.invoke("mc.bot.farm", args);
-            var viaTcp = Driver.system.rpcRoundtrip("mc.bot.farm", args);
-            var viaMcp = Driver.system.mcpRoundtrip("mc.bot.farm", args);
-            t.assertEqual(viaTcp.ok, direct.ok, "RPC.ok mismatch");
-            t.assertEqual(viaMcp.ok, direct.ok, "MCP.ok mismatch");
-            t.assertEqual(viaTcp.error, direct.error, "RPC.error mismatch");
-            t.assertEqual(viaMcp.error, direct.error, "MCP.error mismatch");
+            // The oversize argument error is deterministic; each transport wraps it its own way,
+            // so compare the message the route threw rather than the wrapper.
+            var direct = thrown(function() { Driver.invoke("mc.bot.farm", OVERSIZE); });
+            var viaTcp = thrown(function() { Driver.system.rpcRoundtrip("mc.bot.farm", OVERSIZE); });
+            var viaMcp = thrown(function() { Driver.system.mcpRoundtrip("mc.bot.farm", OVERSIZE); });
+            if (direct === NO_PLAYER) {
+                t.assertEqual(viaTcp, NO_PLAYER, "RPC must refuse like in-JVM");
+                t.assertEqual(viaMcp, NO_PLAYER, "MCP must refuse like in-JVM");
+                return;
+            }
+            t.assertTrue(direct !== null && direct.indexOf(OVERSIZE_CORE) >= 0, "in-JVM: " + direct);
+            t.assertTrue(viaTcp !== null && viaTcp.indexOf(OVERSIZE_CORE) >= 0, "RPC: " + viaTcp);
+            t.assertTrue(viaMcp !== null && viaMcp.indexOf(OVERSIZE_CORE) >= 0, "MCP: " + viaMcp);
         });
 
 }

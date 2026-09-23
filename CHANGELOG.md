@@ -45,6 +45,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bundles `:common`, which is nearly all of the driver, but its sources jar held only the two
   loader entry classes, so it was not the source of the jar published beside it. The Fabric one is
   remapped to intermediary names, like its binary.
+- **A call that would wait on the server thread fails at once when made from it.** User scripts
+  and `ScriptEvents` callbacks run on the server thread, and `Driver.invokeRpc`, `Driver.invokeMcp`,
+  `awaitMs` and a foreground `mc.wait.*` all wait for work only that thread can do, so the game
+  froze for the 8 s hop timeout per call (or the whole wait budget) and the error named the timeout.
+  They now throw an `IllegalStateException` naming the call and the server thread before anything
+  starts; `mc.system.waitTicks` shares the same check, and `background: true` waits are unaffected.
+- **A timed-out client-thread call says whether it can still happen, as a server-thread one does.**
+  The client bot's verbs hop onto the client thread, and a hop that waited past
+  `worlddriver.clientThreadTimeoutMs` reported a failure while the task stayed queued and ran once
+  the client caught up, so a retried order ran twice. The hop now uses the server hop's state
+  machine: a task the client had not started is withdrawn and reported as `-32001`, one already
+  running as `-32002`.
+- **A server-side body's cancelled `sleep` or replay no longer leaves `goto.active` stuck true.**
+  `ServerWorldDriver` and the testmod's NPC host still reset the slot named after the process's kind,
+  which misses the goto slot those two borrow, and on a superseded, finished or goto-replaced process
+  they reset nothing at all. Both now hold their process through `HeldProcess`, which releases the
+  slots the process switched on at attach, the same `SlotClaim` the client's user-task chain uses, at
+  every ending. `gotoGoal` now cancels a held process as `mine` already did, so it hears
+  `onCancelled`.
+- **`mc.bot.farm` caps the cells it scans, Y included.** Only the XZ area was capped at 4096, and the
+  process rescans every cell of the box on the tick thread after each harvest, so a 64x64 field from
+  y=-64 to y=320 meant 1.5 million block reads per crop, and a Y span of two billion never finished.
+  The box's volume now shares `clearArea`'s 4096 cap, and a bigger box, or a Y outside the world's
+  build height, is an invalid-params error (`-32602` over RPC) instead of an `ok:false` reply. The
+  reply adds `volume`.
+- **`mc.bot.setting` no longer offers the four per-tick flags as settings.** `fleeActive`,
+  `walkerDigActive`, `walkerCruiseActive` and `pathfinderBoxedEscalate` are state the bot rewrites
+  every tick, but the reflective scan put them in the schema and the snapshot and accepted writes to
+  them as `applied`, for a value gone a tick later. Fields marked `@RuntimeState` are now off the
+  surface, so a write to one is refused as an unknown key, and the same mark is what keeps them out
+  of the saved config, replacing a hand-kept name list.
+- **`mc.bot.setting` rejects a number outside the key's documented range.** The ranges were written
+  twice, once in the schema text and once in the write path, and the two had drifted: the goal-field,
+  depth, descend, bridge and thin-obstacle keys clamped to a lower bound and took anything above
+  it, `lowHealthCareful` took 999, and all of them reported `applied`. The range is now read from
+  the key's row in `SettingsDocs`, which is also its schema description, and a value outside it lands
+  in `rejected` as `<key> out of range [min,max]` and changes nothing. The sixteen ranged keys that
+  had no row got one, the goal-field and depth keys got the ranges `methods.md` already listed, and
+  an aliased field's own name (`walkerRepathEveryTicks`) is held to its alias's range.
+- **`autoTotem` no longer hides an offhand shield from `autoShield`.** It swapped the first totem it
+  found, backpack before hotbar, into the offhand, and the swap drops the offhand's item into the
+  totem's old slot. `autoShield` only looks at the offhand and the hotbar, so with both reflexes on a
+  shield could land in the backpack and the bot stopped blocking for the rest of the session. A
+  hotbar totem is now taken first, and with a shield in the offhand a backpack totem is parked on the
+  hotbar for one tick so the shield lands there instead.
+- **`mc.bot.follow` gives up on a target it cannot reach.** It replaced the walker's goal each time
+  the target changed block and every 30 ticks anyway, which threw away the path and zeroed the
+  futile-search counter, so a follow toward an entity across water or up a pillar ran a full search
+  every tick and never ended. The same entity in a new cell now re-aims the pursuit and keeps the
+  counter; only a different entity starts over, and the follow ends `unreachable` after five failed
+  replans.
 - **`/worlddriver test` is no longer in the published jar.** Any player could run it: it seeded
   the arena at the test origin, which clears blocks and discards every non-player entity within
   twenty blocks, then ran sixty scripts that summon mobs and issue commands at operator level.

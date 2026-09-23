@@ -294,7 +294,8 @@ public final class BotTools {
                 ),
 
             wrTool("mc.bot.follow",
-                "Follow an entity; goal recomputes ~1.5s. Pass `entityType` (registry id) or " +
+                "Follow an entity; re-aims whenever it changes block, ends `unreachable` after 5 failed replans in a row. " +
+                "Pass `entityType` (registry id) or " +
                 "`name` (case-sensitive GameProfile). " +
                 "radius: standoff 1-16 (default 3). maxIdleTicks>0 stops gracefully when no " +
                 "match seen for N ticks (~20=1s); 0 = forever. " +
@@ -457,9 +458,10 @@ public final class BotTools {
                 "Walk a 2D field, harvest mature crops, replant the dropped seed. " +
                 "Baritone farm analogue. Supports wheat/carrots/potatoes/beetroots. " +
                 "Cycle: scan bbox for nearest mature crop→walk adjacent→break→useItem " +
-                "on farmland to replant (skips when seed absent). Bbox capped at 4096 " +
-                "XZ cells (Y range still scanned but typically a single layer). " +
-                "Async; pass awaitMs to block. Returns {ok, started, from, to, area, crops, replant}.",
+                "on farmland to replant (skips when seed absent). Every cell of the bbox, Y included, " +
+                "is rescanned after each harvest, so its volume is capped at 4096; a bigger box or a Y " +
+                "outside the world is an invalid-params error. " +
+                "Async; pass awaitMs to block. Returns {ok, started, from, to, area, volume, crops, replant}.",
                 object()
                     .req("from", pos())
                     .req("to",   pos())

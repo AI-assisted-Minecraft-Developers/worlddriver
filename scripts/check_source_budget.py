@@ -61,10 +61,6 @@ GRANDFATHERED = {
     "WalkerTickDrive.java::run": 1262,
     "WalkerTickClimb.java::run": 1008,
     "WalkerTickAim.java::run": 851,
-    # 794 -> 408 by deleting 100 branches that duplicated the method's own reflective
-    # write path. The remainder is clamps, aliases, list validation and 3 side-effecting
-    # keys; shrinking it further means moving the clamps to a table.
-    "SettingsCommand.java::apply": 408,
     "BotTools.java::tools": 762,
     "WalkerTickProgress.java::run": 734,
     "WalkerTickStallDetect.java::run": 389,

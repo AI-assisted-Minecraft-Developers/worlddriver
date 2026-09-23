@@ -174,7 +174,11 @@ needs is a deadlock. Each transport already avoids that:
 - `McpServer` gives its `HttpServer` a cached thread pool as its executor.
 - `ScriptEvaluator` runs scripts on its own cached-pool worker, off the server thread.
 
-A fourth caller has to do the same.
+A fourth caller has to do the same. User scripts and `ScriptEvents` callbacks are the callers
+that cannot: they run on the server thread. For them `ServerThreadGuard.refuseBlocking` makes
+the calls that would wait on that thread throw at once instead — `RpcClient`, `McpBridge`,
+`awaitMs`, a foreground `mc.wait.*` and `waitTicks`. `DriverApi.attachServer` installs its
+same-thread check.
 
 ### The event ring buffer
 

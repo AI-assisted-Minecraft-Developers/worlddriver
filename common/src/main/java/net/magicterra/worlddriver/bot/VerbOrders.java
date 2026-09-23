@@ -173,9 +173,8 @@ public final class VerbOrders {
         BlockPos from = p.getPos("from");
         BlockPos to   = p.getPos("to");
         if (from == null || to == null) return Order.refuse("from and to required");
-        long volume = (long) (Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getY() - to.getY()) + 1)
-                * (Math.abs(from.getZ() - to.getZ()) + 1);
-        if (volume > 4096) return Order.refuse("area too large (max 4096 blocks)");
+        long volume = cells(from, to);
+        if (volume > MAX_BOX_CELLS) return Order.refuse("area too large (max " + MAX_BOX_CELLS + " blocks)");
         // Baritone sel-system parity: fill="id" places id after clearing each cell; replace={from,to}
         // only touches cells matching the from id and leaves the to id behind. Each cell costs
         // walk+break(+place) so the bbox is bot-driven (matches Baritone's survival path — survival
@@ -203,12 +202,38 @@ public final class VerbOrders {
         return new Order(new BboxFillProcess(from, to, effFillId, effFilterFromId), out);
     }
 
+    /** Most cells a box verb may cover: clearArea works every one, and farm rescans them all after each harvest. */
+    static final int MAX_BOX_CELLS = 4096;
+
+    /** Cells in the box spanned by {@code a} and {@code b}, as a long so no span can overflow it. */
+    private static long cells(BlockPos a, BlockPos b) {
+        return (Math.abs((long) a.getX() - b.getX()) + 1) * (Math.abs((long) a.getY() - b.getY()) + 1)
+                * (Math.abs((long) a.getZ() - b.getZ()) + 1);
+    }
+
+    /** An oversized box, or a Y outside the world, throws as an argument error rather than refusing:
+     *  no later state of the world makes that order valid, so the caller must change it. */
     public static Order farm(Params p, LivingEntity self) {
+        if (self == null) return farm(p, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        return farm(p, self.level().getMinBuildHeight(), self.level().getMaxBuildHeight() - 1);
+    }
+
+    static Order farm(Params p, int minY, int maxY) {
         BlockPos from = p.getPos("from");
         BlockPos to   = p.getPos("to");
         if (from == null || to == null) return Order.refuse("from and to required");
+        for (BlockPos end : new BlockPos[] {from, to}) {
+            if (end.getY() < minY || end.getY() > maxY) {
+                throw new IllegalArgumentException("mc.bot.farm: y=" + end.getY()
+                        + " is outside the world's build height [" + minY + "," + maxY + "]");
+            }
+        }
+        long volume = cells(from, to);
+        if (volume > MAX_BOX_CELLS) {
+            throw new IllegalArgumentException("mc.bot.farm: the box covers " + volume + " cells (x*y*z), max "
+                    + MAX_BOX_CELLS + "; every cell is rescanned after each harvest, so keep the Y span to the crop layer");
+        }
         long area = (long) (Math.abs(from.getX() - to.getX()) + 1) * (Math.abs(from.getZ() - to.getZ()) + 1);
-        if (area > 4096) return Order.refuse("area too large (max 4096 cells)");
         // Crops filter: caller may restrict to a subset, otherwise all four vanilla crops. Validated
         // against known ids — unknown entries get silently dropped (Baritone shrugs the same way on bad
         // filter input).
@@ -224,6 +249,7 @@ public final class VerbOrders {
         out.put("ok", true); out.put("started", true);
         out.put("from", posMap(from)); out.put("to", posMap(to));
         out.put("area", (int) area);
+        out.put("volume", (int) volume);
         out.put("crops", new ArrayList<>(crops));
         out.put("replant", replant);
         return new Order(new FarmProcess(from, to, crops, replant), out);

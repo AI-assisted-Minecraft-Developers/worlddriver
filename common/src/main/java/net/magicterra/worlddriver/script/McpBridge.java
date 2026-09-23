@@ -1,5 +1,6 @@
 package net.magicterra.worlddriver.script;
 
+import net.magicterra.worlddriver.api.ServerThreadGuard;
 import net.magicterra.worlddriver.rpc.JsonCodec;
 
 import java.net.URI;
@@ -40,6 +41,7 @@ public final class McpBridge {
      */
     @SuppressWarnings("unchecked")
     public Object call(String toolName, Map<String, Object> args) {
+        ServerThreadGuard.refuseBlocking("an MCP round-trip");
         Map<String, Object> req = new LinkedHashMap<>();
         req.put("jsonrpc", "2.0");
         req.put("id", seq.incrementAndGet());

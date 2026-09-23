@@ -68,7 +68,10 @@ rejected by the schema or the route · `-32603` anything else the route threw ·
 server tick never started the task in time (`worlddriver.serverThreadTimeoutMs`, 8 s): withdrawn,
 retry freely · `-32002` it started and may still apply: observe before retrying · `-32005`
 refused without running (16 requests in flight on this connection, 64 RPC workers busy, or 32
-background waits running): retry once an earlier call returns.
+background waits running): retry once an earlier call returns. The client bot's `mc.bot.*` verbs
+hop onto the client thread instead (`worlddriver.clientThreadTimeoutMs`, 8 s) and time out with
+the same `-32001`/`-32002`. MCP reports these three codes on `tools/call` as JSON-RPC error
+envelopes, not as tool errors.
 
 **Body preconditions.** Every `mc.bot.*` verb that drives the player (all but `status`,
 `cancel`, `setting`, `waypoint`, `playbook`) first checks that the body can act, on every
@@ -238,10 +241,10 @@ client's click is silently ignored, `useItem` on an entity answers `menu` instea
 | `mc.bot.equip` | `profile?:"best"\|"combat"\|"armor"` (dflt best), `armorOnly?` (dflt false) | **synchronous**: score armor tier+enchants, swap via inventory clicks → `{ok, profile, equipped:[ids], loadout:{head,chest,legs,feet,mainHand}, lowDurability:[ids], missing:[slots]}`. |
 | `mc.bot.build` | `origin` (req), `schematic?:{w,h,d,palette[],data[[dx,dy,dz,idx]]}` or `schematicBase64?` (Sponge .schem), `awaitMs?`, `body?` | place a schematic bottom-up; cap 4096; failures skip+count. |
 | `mc.bot.clearArea` | `from,to` (req), `fill?:id` or `replace?:{from,to}`, `awaitMs?`, `body?` | clear/fill/replace an AABB (cap 4096); needs a block in inventory for fill/replace. |
-| `mc.bot.farm` | `from,to` (req), `crops?:[id]`, `replant?`, `awaitMs?`, `body?` | harvest+replant wheat/carrot/potato/beetroot over a field (cap 4096 XZ). |
+| `mc.bot.farm` | `from,to` (req), `crops?:[id]`, `replant?`, `awaitMs?`, `body?` | harvest+replant wheat/carrot/potato/beetroot over a field → `{ok, started, from, to, area, volume, crops, replant}`; volume (x·y·z) capped at 4096, and a bigger box or a Y outside the world is a `-32602` argument error. |
 | `mc.bot.construct` | `mode:"tower"\|"bridge"` (req); tower: `height?` or `targetY?`; bridge: `direction?`,`distance?`; `block?`, `awaitMs?`, `body?` | pillar up / sneak-bridge forward. |
 | `mc.bot.sleep` | `pos?`, `radius?`, `awaitMs?`, `body?` | find+enter nearest bed (vanilla night/safety gates). |
-| `mc.bot.follow` | `entityType?` or `name?` (≥1 req), `radius?` (1–16), `maxIdleTicks?`, `awaitMs?`, `body?`; `route?` = the same object as `mc.bot.goto` minus `via`, and with `mode:["fly"]` / `leash.entity` rejected (a follow already tracks its entity) | follow an entity; recomputes ~1.5s. |
+| `mc.bot.follow` | `entityType?` or `name?` (≥1 req), `radius?` (1–16), `maxIdleTicks?`, `awaitMs?`, `body?`; `route?` = the same object as `mc.bot.goto` minus `via`, and with `mode:["fly"]` / `leash.entity` rejected (a follow already tracks its entity) | follow an entity; re-aims whenever it changes block, ends `unreachable` after 5 failed replans in a row. |
 | `mc.bot.explore` | `centerX,centerZ` (req), `maxChunks?` (1–64), `awaitMs?`, `body?` | spiral to unvisited chunk centers. |
 | `mc.bot.runAway` | `from?`, `minDist?` (4–64), `awaitMs?`, `body?` | flee to a point ≥minDist from `from`/player (hazard-aware). |
 | `mc.bot.lookAt` | `pos?` or (`yaw`+`pitch`), `body?` | aim view; instant, or a 'look' process if `smoothLook` is on → `{ok, yaw, pitch}`. |
@@ -261,7 +264,10 @@ names, some with a `dotted.name` ⇄ `botConfigField` remap like
 `walker.repathEveryTicks`→`walkerRepathEveryTicks`) **plus a reflective pass that
 auto-includes every `public static volatile` primitive/String field of
 `BotConfig`.** So the *field is the schema*: adding a settable `BotConfig` field
-makes it a valid key with no second edit. Ranges live in `BotConfig`'s apply logic.
+makes it a valid key with no second edit. Ranges live in **`SettingsDocs.java`**: a
+key's row opens with `[min,max]`, that row is the key's schema description, and the
+write path rejects any number outside it (an aliased field's own name, e.g.
+`walkerRepathEveryTicks`, is held to its alias's range).
 The set is large — **on the order of 200 keys** (currently ~120 boolean, ~70
 numeric, plus a handful of list/string keys); the great majority are `walker*` /
 `pathfinder*` movement-research toggles.
@@ -310,10 +316,10 @@ rangedAvoidRadius[4,48], autoBackfillRadius[1,16], maxWaterBucketFall[4,256],
 walker.repathEveryTicks[20,10000], walker.totalTickBudget[200,36000],
 mine.searchVerticalRadius[1,32], breakTimeoutTicks[20,2000],
 pathfinder.maxNodes[1000,1000000], pathfinder.maxMs[100,30000],
-pathfinder.sliceMs[1,50], pathfinder.idleSliceMs, pathfinder.ledgeDangerMinDrop[1,64],
+pathfinder.sliceMs[1,50], pathfinder.idleSliceMs[1,50], pathfinder.ledgeDangerMinDrop[1,64],
 pathfinder.axisHeight[-64,320], goalFieldCellSize[1,16], goalFieldRadius[8,192],
-goalFieldVerticalRadius[4,128], pathfinderDepthSlack[0,64], pathfinderHorizonBlocks,
-pathfinderMaxDryFall, pathfinderSoftCommitNodes, pathfinderQuickNodes,
+goalFieldVerticalRadius[4,128], pathfinderDepthSlack[0,64], pathfinderHorizonBlocks[0,512],
+pathfinderMaxDryFall[3,5], pathfinderSoftCommitNodes[0,1000000], pathfinderQuickNodes[0,10000],
 pathDebugMaxNodes[100,200000], pathDebugMaxSamples[100,200000]`.
 
 **Numbers (double, [min,max])** — survival/combat: `retreatHpThreshold[0,20],

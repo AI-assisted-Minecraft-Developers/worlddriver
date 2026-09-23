@@ -6,7 +6,6 @@ import net.magicterra.worlddriver.model.Params;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.client.Minecraft;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.player.Player;
@@ -17,10 +16,6 @@ import net.minecraft.world.level.material.Fluids;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import net.minecraft.world.entity.Entity;
@@ -105,20 +100,16 @@ public final class BotUtil {
 
     // === Threading bridge ====================================================
 
-    /** Default budget for waiting on a client-tick hop. Mirrors
-     *  {@code DriverApi.SERVER_THREAD_TIMEOUT_MS} — the server-side twin of this
-     *  bridge — so a stalled client surfaces as a clear error instead of parking
-     *  the calling RPC/MCP thread forever. Override with
-     *  {@code -Dworlddriver.clientThreadTimeoutMs=N}. */
-    private static final long CLIENT_THREAD_TIMEOUT_MS =
-            Long.getLong("worlddriver.clientThreadTimeoutMs", 8_000L);
-
     /**
      * Run {@code body} on the client thread and return its value.
      *
-     * <p>Modelled on {@code DriverApi.onServerThread}, and deliberately identical to it
-     * in the two respects that are observable to a caller:
+     * <p>The same hop as {@code DriverApi.onServerThread} ({@link ClientHop} runs
+     * {@code ServerThreadHop} over the client's executor), so it is identical to it in the
+     * respects that are observable to a caller:
      * <ul>
+     *   <li><b>A timeout is a definite answer.</b> A task still queued when the wait runs out
+     *       is withdrawn and never runs ({@code -32001}); one already running is reported as
+     *       such ({@code -32002}). A caller told "failed" that retries cannot apply it twice.</li>
      *   <li><b>Bounded.</b> {@code mc.execute} only runs when the client drains its task
      *       queue; during shutdown, a hung level load, or a blocking modal it may never
      *       do so. The old unbounded {@code fut.get()} then parked the calling transport
@@ -134,26 +125,7 @@ public final class BotUtil {
      * </ul>
      */
     public static <T> T onClient(Supplier<T> body) {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.isSameThread()) return body.get();
-        CompletableFuture<T> fut = new CompletableFuture<>();
-        mc.execute(() -> {
-            try { fut.complete(body.get()); }
-            catch (Throwable t) { fut.completeExceptionally(t); }
-        });
-        try {
-            return fut.get(CLIENT_THREAD_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            throw new RuntimeException("client thread did not run task within "
-                    + CLIENT_THREAD_TIMEOUT_MS + "ms (client busy, loading or paused)");
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            if (cause instanceof RuntimeException re) throw re;
-            throw new RuntimeException(cause);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("interrupted while waiting on client thread");
-        }
+        return ClientHop.call(body);
     }
 
     // === Camera smoothing (mc.bot.setting{smoothLook}) =======================

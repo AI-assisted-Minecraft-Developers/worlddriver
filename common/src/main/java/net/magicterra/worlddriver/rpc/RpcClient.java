@@ -23,6 +23,8 @@ import io.netty.handler.codec.http.websocketx.WebSocketClientHandshakerFactory;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketVersion;
 
+import net.magicterra.worlddriver.api.ServerThreadGuard;
+
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
@@ -53,6 +55,7 @@ public final class RpcClient implements Closeable {
     private final AtomicLong nextId = new AtomicLong(1);
 
     public RpcClient(String host, int port) throws IOException {
+        ServerThreadGuard.refuseBlocking("an RPC round-trip");
         URI uri = URI.create("ws://" + host + ":" + port + "/rpc");
         // The inbound limit matters at least as much here as on the server: responses
         // are the big direction (mc.client.screenshot returns base64 image bytes), and
@@ -134,6 +137,7 @@ public final class RpcClient implements Closeable {
      * enough to echo an id) can only belong to it.
      */
     private Map<?, ?> send(String frameText, long id) throws IOException {
+        ServerThreadGuard.refuseBlocking("an RPC round-trip");
         if (!channel.isActive()) throw new EOFException("ws channel closed");
         channel.writeAndFlush(new TextWebSocketFrame(frameText));
         long deadlineNs = System.nanoTime() + CALL_TIMEOUT_MS * 1_000_000L;
