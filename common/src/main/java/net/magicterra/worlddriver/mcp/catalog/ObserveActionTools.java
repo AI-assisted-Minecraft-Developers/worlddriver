@@ -235,7 +235,8 @@ public final class ObserveActionTools {
 
             roTool("mc.query",
                 "Scan blocks or entities in a cube. center defaults to mc.system.testOrigin. " +
-                "filter.in_radius is the Chebyshev radius (required for blocks, default 16 for entities). " +
+                "filter.in_radius is the Chebyshev radius (blocks default 0, the centre cell alone; " +
+                "entities default 16). " +
                 "Blocks: in_radius at most 15 (a 31^3 cube, inside the 32768-cell budget mc.action.fill " +
                 "uses; larger is rejected), and only loaded chunks are read — a cube touching an unloaded " +
                 "chunk is an error naming it, never a load. " +
@@ -256,7 +257,7 @@ public final class ObserveActionTools {
                     .prop("center", pos())
                     .prop("filter", object()
                         .prop("in_radius", integer(0, 128)
-                            .desc("Blocks: max 15. Entities: max 128."))
+                            .desc("Blocks: default 0 (the centre cell), max 15. Entities: default 16, max 128."))
                         .prop("type", string()
                             .desc("Restrict to one id. Blocks also accept a '#tag' "
                                 + "selector to match any block in that tag (e.g. '#minecraft:logs' "
