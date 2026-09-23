@@ -599,6 +599,8 @@ wd.bodyRoutesWalkAPlayerAndAnNpcByName
 wd.bodyRoutesStartProcessesByName
 # mc.query q=blocks holds its radius budget and reads only chunks that are already loaded.
 wd.queryBlocksStaysInLoadedChunks
+# The client scan names the chunks ClientLevel has not received, so the mc.query client fallback can refuse them.
+wd.clientBlocksNamesUnloadedChunks
 # Hand-built fixtures (common/src/testmod/resources/scenes/index.txt): a name here and in the index, same commit.
 human.flatStep
 # A fixture that gives nothing to hold also runs on an NPC under <name>.npc (HumanScenes).

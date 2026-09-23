@@ -232,6 +232,14 @@ public final class ClientObserve {
             out.put("blocks", blocks);
             out.put("center", Map.of("x", bx, "y", by, "z", bz));
             out.put("radius", r);
+            // ClientLevel answers air for a chunk it has not received, which the rows cannot tell
+            // apart from real air; name those chunks so a caller can refuse the scan.
+            List<Object> unloaded = new ArrayList<>();
+            for (int chx = (bx - r) >> 4; chx <= (bx + r) >> 4; chx++)
+                for (int chz = (bz - r) >> 4; chz <= (bz + r) >> 4; chz++)
+                    if (level.getChunkSource().getChunkNow(chx, chz) == null)
+                        unloaded.add(Map.of("x", chx, "z", chz));
+            if (!unloaded.isEmpty()) out.put("unloaded", unloaded);
             return out;
         });
     }

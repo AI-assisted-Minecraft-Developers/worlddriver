@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **`mc.query` block scans answer the same on a client with no server attached.** The client
+  fallback defaulted `in_radius` to 4 and clamped it at 16, ignored `select`, and read a chunk the
+  client had not received as air, so the same call that the server refuses came back as an empty
+  or oversized array. It now defaults to 0, rejects a radius above 15, validates and applies
+  `select` with the server's keys, and refuses a cube touching an unloaded chunk with the same
+  `UnloadedAreaException`. `mc.client.blocks` reports those chunks as `unloaded`.
 - **The RPC skill no longer calls `mc.script.eval` sandboxed or server-threaded.** Its method
   reference said a snippet had no file, network or reflection access, so an agent following it
   would pass untrusted source through. Scripts have full JVM access unless the game runs with

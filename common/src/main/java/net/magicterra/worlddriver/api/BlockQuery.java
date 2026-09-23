@@ -56,6 +56,15 @@ final class BlockQuery {
         return new BlockQuery(r, match, p.select);
     }
 
+    int radius() {
+        return radius;
+    }
+
+    /** Applies the validated {@code select} to one row, so the client fallback projects like the server. */
+    Map<String, Object> project(Map<String, Object> row) {
+        return DriverApi.project(row, select);
+    }
+
     /** Runs on the server thread: {@code getChunkNow} answers only from loaded chunks there. */
     List<Map<String, Object>> scan(ServerLevel level, BlockPos center) {
         int minCx = (center.getX() - radius) >> 4, maxCx = (center.getX() + radius) >> 4;
@@ -81,7 +90,7 @@ final class BlockQuery {
                     BlockState st = chunk.getBlockState(bp);
                     if (st.isAir()) continue;
                     if (match != null && !match.test(st)) continue;
-                    out.add(DriverApi.project(row(bp.immutable(), st), select));
+                    out.add(project(row(bp.immutable(), st)));
                 }
         return out;
     }

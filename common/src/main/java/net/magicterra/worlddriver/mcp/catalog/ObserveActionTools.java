@@ -247,9 +247,10 @@ public final class ObserveActionTools {
                 "entities only; effects entries are {id, amplifier, durationTicks}; " +
                 "id feeds mc.bot.attackEntity.\n" +
                 "Client-MCP fallback (no server attached): scans ClientLevel. center defaults to " +
-                "local player; radius capped at 32 (entities) / 16 (blocks). Same flat array and " +
-                "filters as the server path; q='entities' adds {hostile, maxHealth, distance} per row, " +
-                "which select may also name.",
+                "local player; entity radius capped at 32. Same flat array and filters as the server " +
+                "path; q='blocks' keeps the server's radius limit, select keys and unloaded-chunk " +
+                "refusal (judged by the chunks the client has loaded); q='entities' adds " +
+                "{hostile, maxHealth, distance} per row, which select may also name.",
                 object()
                     .req("q", stringEnum("blocks", "entities"))
                     .prop("center", pos())

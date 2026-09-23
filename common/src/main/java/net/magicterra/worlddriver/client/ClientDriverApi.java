@@ -74,8 +74,10 @@ public interface ClientDriverApi {
      * Client-side world scan — same shape as the server-side {@code mc.query}
      * with {@code q='blocks'} but reads {@code ClientLevel}. Center defaults to
      * the local player; radius is capped at 16 (client view distance, so larger
-     * scans would just return air). Backs the client-MCP fallback path of
-     * {@code mc.query q='blocks'} when no server is attached.
+     * scans would just return air). {@code unloaded}, present only when non-empty,
+     * lists the {@code {x,z}} chunks the client has not loaded, whose cells read
+     * as air. Backs the client-MCP fallback path of {@code mc.query q='blocks'}
+     * when no server is attached.
      */
     Map<String, Object> observeArea(int radius, Double cx, Double cy, Double cz, Set<String> filterIds);
 
