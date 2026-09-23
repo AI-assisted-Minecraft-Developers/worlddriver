@@ -155,6 +155,7 @@ class GameTestBaselineManifestTest {
             e("pathfinderForbidParkourOverTheVoid", "refuse to plan a leap over the void when bridging is possible"),
             e("pathfinderForbidParkourIntoDeepWater", "refuse to plan a leap into deep water"),
             e("pathfinderParkourAscendNeedRunway", "approach-runway gate for the +1-up parkour leap"),
+            e("walkerTailConsumeDirectional", "a best-effort tail still ahead of the bot is not spent; OFF fails long straight walks"),
 
             // the arc-length pursuit refactor — its ON phases replaced whole families of
             // per-tick gates, so pinning them off would restore machinery that no longer exists

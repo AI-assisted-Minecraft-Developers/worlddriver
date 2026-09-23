@@ -75,7 +75,11 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 Scene.of("wd.bridgeStepTwoBypassNoPlace", 900, WorldDriverBridgeScenes::bridgeStepTwoBypassNoPlace),
                 Scene.of("wd.bridgeBreakThrough", 900, WorldDriverBridgeScenes::bridgeBreakThrough),
                 Scene.of("wd.bridgeDigShortcut", 900, WorldDriverBridgeScenes::bridgeDigShortcut),
-                Scene.of("wd.bridgeDetourCheap", 900, WorldDriverBridgeScenes::bridgeDetourCheap));
+                Scene.of("wd.bridgeDetourCheap", 900, WorldDriverBridgeScenes::bridgeDetourCheap),
+                Scene.of("wd.bridgeLongFlatWalk", 1600, WorldDriverBridgeScenes::bridgeLongFlatWalk)
+                        .withChunkRadius(6),
+                Scene.of("wd.bridgeCausewayOverWater", 1600, WorldDriverBridgeScenes::bridgeCausewayOverWater)
+                        .withChunkRadius(6));
     }
 
     // ---------------------------------------------------------------- rig helpers ----
@@ -310,17 +314,66 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         BotConfig.applyCompiledDefaults();
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
-        // Per-scene opt-in of the two default-OFF planner-flow mechanisms this battery
-        // depends on (both pending their own replay A/B — see the BotConfig javadocs):
-        // directional tail consume keeps the quick-start stub's far-ahead tail alive
-        // (else sealed-goal journeys self-consume at the start pad and livelock), and
-        // the from-end no-progress discard ends a sealed-goal journey cleanly at the
-        // farthest reachable point instead of ping-ponging the deck.
-        BotConfig.walkerTailConsumeDirectional = true;
+        // Per-scene opt-in of a default-OFF planner-flow mechanism this battery depends on
+        // (pending its own replay A/B, see the BotConfig javadoc): the from-end no-progress
+        // discard ends a sealed-goal journey cleanly at the farthest reachable point instead
+        // of ping-ponging the deck.
         BotConfig.walkerFromEndNoProgressDiscard = true;
     }
 
     // ---------------------------------------------------------------- scenes ----
+
+    /** A straight walk must not crawl: at least 2.2 blocks per second, half a plain walk's pace. */
+    private static void assertPace(SceneContext ctx, String scene, Run r, int blocks) {
+        if (r.ticks() > blocks * 9)
+            ctx.fail(scene + ": " + blocks + " blocks took " + r.ticks() + " ticks (limit " + blocks * 9
+                    + ") | journey: " + r.journey());
+    }
+
+    /** Open floor, 5 wide, 100 blocks: the plainest walk there is. The goal lies beyond the
+     *  planner's 48-block horizon plus the 25-block quick-start stub, so no search from the start
+     *  reaches it and every segment is a best-effort partial; the floor is straight, so
+     *  string-pulling leaves each segment two nodes with the tail far ahead of the feet. A tail
+     *  consumed on distance alone is spent on the first tick, and the walk churns at the start pad
+     *  until the walker gives up. Radius 6: x spans -6..106. */
+    private static void bridgeLongFlatWalk(SceneContext ctx) {
+        liveStack(ctx);
+        final int run = 100;
+        for (int x = -4; x <= run + 4; x++)
+            for (int z = -2; z <= 2; z++)
+                ctx.setBlock(x, DECK, z, Blocks.STONE);
+        catchFloor(ctx, -6, run + 6, DECK - CATCH_DROP, -8, 8);
+        BlockPos goal = ctx.rel(run + 2, DECK + 1, 0);
+        Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 1400, goal, DECK + 1);
+        assertNeverFell(ctx, "bridgeLongFlatWalk", r, DECK + 1);
+        assertArrived(ctx, "bridgeLongFlatWalk", r, goal);
+        assertPace(ctx, "bridgeLongFlatWalk", r, run + 4);
+    }
+
+    /** A 1-wide causeway flush with two-deep water on both sides, 100 blocks: the walk must stay on
+     *  the deck the whole way. Water rather than void, because a bot that steps off here swims
+     *  instead of falling, and the failure this guards against ended with it in the water.
+     *  Radius 6: x spans -5..105. */
+    private static void bridgeCausewayOverWater(SceneContext ctx) {
+        liveStack(ctx);
+        final int run = 100;
+        for (int x = -5; x <= run + 5; x++)
+            for (int z = -5; z <= 5; z++) {
+                ctx.setBlock(x, DECK - 2, z, Blocks.STONE);
+                boolean rim = x == -5 || x == run + 5 || z == -5 || z == 5;
+                for (int y = DECK - 1; y <= DECK; y++)
+                    ctx.setBlock(x, y, z, rim ? Blocks.STONE : Blocks.WATER);
+            }
+        strip(ctx, -4, run + 4, DECK, 0);
+        strip(ctx, -4, run + 4, DECK - 1, 0);
+        pad(ctx, -2, DECK, 0);
+        pad(ctx, run + 2, DECK, 0);
+        BlockPos goal = ctx.rel(run + 2, DECK + 1, 0);
+        Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 1400, goal, DECK + 1);
+        assertNeverFell(ctx, "bridgeCausewayOverWater", r, DECK + 1);
+        assertArrived(ctx, "bridgeCausewayOverWater", r, goal);
+        assertPace(ctx, "bridgeCausewayOverWater", r, run + 4);
+    }
 
     /** 长条单宽独木桥跑酷: 32-block 1-wide run, end to end, no shed. */
     private static void bridgeLongRun(SceneContext ctx) {

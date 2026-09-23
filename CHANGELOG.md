@@ -21,6 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   break, not only those it could not place; a farm counts harvested crops it could not replant
   apart, as `unplanted`, and an explore reports the chunks it could not reach as `missed`.
   `BotApi.userTaskLeg()` carries the same `error`.
+- **A straight walk to a goal beyond the planner's horizon no longer churns at its start.** Each
+  segment of such a walk is a best-effort partial that string-pulling reduces to two nodes, the
+  start and a tail up to 48 blocks ahead. The walker consumed that tail on distance alone, before
+  the bot had moved, so the walk swapped in a quick-start stub, rejected the continuation searched
+  from the old tail and searched again, advancing a fraction of a block per round until it gave
+  up with "no route progress". A 140-block `mc.bot.goto` over flat ground failed this way, and so
+  did a one-wide causeway between two bodies of water. The tail is now consumed only once the bot
+  is past it along the segment, or has stopped closing on it (`walkerTailConsumeDirectional`,
+  now on by default).
 - **A chase keeps its running search when the quarry moves.** `mc.bot.follow` and the combat
   approach re-aim the walker whenever their target changes block, and each re-aim dropped the
   full search in flight. A target that changes block faster than a search lands, like a mob

@@ -230,6 +230,8 @@ wd.bridgeStepTwoBypassNoPlace
 wd.bridgeBreakThrough
 wd.bridgeDigShortcut
 wd.bridgeDetourCheap
+wd.bridgeLongFlatWalk
+wd.bridgeCausewayOverWater
 
 # JavaScript scenes, installed from ../stagewright-scenes by the provision step.
 pack.placesAndReadsBack
