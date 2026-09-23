@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-22
 
+- **The RPC skill no longer calls `mc.script.eval` sandboxed or server-threaded.** Its method
+  reference said a snippet had no file, network or reflection access, so an agent following it
+  would pass untrusted source through. Scripts have full JVM access unless the game runs with
+  `-Dworlddriver.sandbox=on`, and they run on a worker thread, from which client verbs work. The
+  reference also named the wrong skill directory; it is `config/worlddriver/scripts/skills/`.
+- **The RPC skill's method reference lists every registered verb.** `mc.bot.holdItem`, the prelude
+  to `useItem`, and the client's `mc.debug.pathChart`, `plan` and `replay` had no entry, so an
+  agent told to read the reference first never learned they existed. The reference and `SKILL.md`
+  also disagreed on the total (72 against 73); both now say what is registered where instead of a
+  number that goes stale.
 - **`/worlddriver test` is no longer in the published jar.** Any player could run it: it seeded
   the arena at the test origin, which clears blocks and discards every non-player entity within
   twenty blocks, then ran sixty scripts that summon mobs and issue commands at operator level.

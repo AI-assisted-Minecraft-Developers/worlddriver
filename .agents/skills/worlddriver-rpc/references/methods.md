@@ -3,15 +3,20 @@
 Every method the JSON-RPC websocket (`ws://127.0.0.1:39801/rpc`) accepts. Most
 are also MCP tools (`mcp__worlddriver__*`) with `.`→`_` names (`mc.bot.goto` ⇄
 `mc_bot_goto`); both go through one dispatcher (`DriverApi.route`), so behaviour is
-identical. **72 methods across 13 namespaces**, all exposed as MCP tools: the driver
-layer owns no hidden verb any more (`mc.test.yaml`, the last one, retired with the
-YAML harness). Every route is asserted at boot to carry a schema
-(`DriverApi.requireSchemasFor`), so "route with no schema" can't drift in. Hidden
-(RPC-route-only) verbs still exist as a mechanism — `ToolCatalog.HIDDEN_TOOLS` for
-driver-owned ones, `registerVerb(..., .asHidden())` for granted namespaces — but the
-only live ones are the StageWright harness's `mc.test.run` / `mc.test.reset` /
-`mc.test.input.*`, which appear only when that runtime is loaded. Over RPC a hidden
-verb works like any other method — one of the reasons this skill exists.
+identical. Which methods exist depends on what is loaded, so this page gives no
+total to go stale: the core set is every `routes.put` / `putBodyVerb` in the
+`DriverApi` constructor and is there wherever the mod runs; a game client adds the
+three `mc.debug.*` path-debug verbs (`bot/debug/PathDebugBootstrap`); the testmod adds
+`worlddriver.*`; the StageWright runtime adds `mc.test.*`. The core set and
+`mc.debug.*` are all visible MCP tools: the driver layer owns no hidden verb any more
+(`mc.test.yaml`, the last one, retired with the YAML harness). Every route is asserted
+at boot to carry a schema (`DriverApi.requireSchemasFor`), so "route with no schema"
+can't drift in. Hidden (RPC-route-only) verbs still exist as a mechanism —
+`ToolCatalog.HIDDEN_TOOLS` for driver-owned ones, `registerVerb(..., .asHidden())` for
+granted namespaces — and the live ones are the testmod's `worlddriver.*` scene verbs
+and the StageWright harness's `mc.test.run` / `mc.test.reset` / `mc.test.input.*`,
+present only when those are loaded. Over RPC a hidden verb works like any other
+method — one of the reasons this skill exists.
 
 Source of truth: `common/.../api/DriverApi.java` (the route table — the canonical
 list of *which* methods exist), `common/.../mcp/catalog/*Tools.java` (visible MCP
@@ -37,24 +42,33 @@ the RPC-only verbs), `common/.../bot/SettingsRegistry.java` (the canonical order
 - [`mc.recipe.*` / `mc.plan.acquire`](#mcrecipe--mcplan) — recipe lookup/resolve, acquisition plan
 - [`mc.client.screen.*`](#mcclientscreen) — info, tree, close
 - [`mc.client.chat.*`](#mcclientchat) — send, history
-- [`mc.client.input.*`](#mcclientinput) — click, slotClick, mouseMove, typeText, replaceText, key, setHotbarSlot, slider
+- [`mc.client.input.*`](#mcclientinput) — click, slotClick, mouseMove, typeText, replaceText, keybind, key, setHotbarSlot, slider
 - [`mc.client.*`](#mcclient-misc) — player, scene, blocks, overlays, screenshot
-- [`mc.bot.*`](#mcbot) — goto, mine, bunker, escape, craft, smelt, combat, equip, build, clearArea, farm, construct, sleep, follow, explore, runAway, lookAt, useItem, attackEntity, elytraFly, playbook, waypoint, status, cancel, setting
-- [`mc.script.eval` / `mc.skill`](#mcscript--mcskill)
+- [`mc.bot.*`](#mcbot) — goto, mine, bunker, escape, craft, smelt, combat, equip, build, clearArea, farm, construct, sleep, follow, explore, runAway, lookAt, holdItem, useItem, attackEntity, elytraFly, playbook, waypoint, status, cancel, setting
+- [`mc.script.eval` / `mc.skill`](#mcscripteval--mcskill)
+- [`mc.debug.*`](#mcdebug) — pathChart, plan, replay (client only)
+- [`worlddriver.*`](#worlddriver-testmod-only--hand-built-scenes) — testmod scene verbs
 
 ---
 
 ## Envelope & errors
 Request: `{"id": N, "method": "mc.x.y", "params": {…}}` (omit/`{}` params for parameterless).
-Success: `{"id": N, "result": <any>}`. Error: `{"id": N, "error": "<string>"}` — a plain
-string, **not** a JSON-RPC 2.0 error object, and there is no `jsonrpc` version field.
-Common errors: `parse: …` (bad JSON), `unknown method: <name>`, or the handler's
-exception message. Many handlers don't throw — they return `{ok:false, error:…}` in
-the result instead, so check `ok`, not just transport success.
-A `code` field sits beside `error`. Two codes mean the server tick was too busy to answer in
-time (`-Dworlddriver.serverThreadTimeoutMs`, 8 s default): `-32001` = the task was withdrawn
-and never ran, retry freely; `-32002` = it started and may still apply, observe before
-retrying. MCP reports the same two as JSON-RPC error envelopes on `tools/call`.
+Success: `{"id": N, "result": <any>}`. Error: `{"id": N, "error": "<string>", "code": <int>}` —
+`error` is a plain string, **not** a JSON-RPC 2.0 error object, and there is no `jsonrpc`
+version field; `code` beside it is the JSON-RPC 2.0 classification, the same the MCP
+transport reports for the same failure. `id` is echoed, and is `null` only when the request
+carried none or was too malformed to read. Many handlers don't throw — they return
+`{ok:false, error:…}` in the result instead, so check `ok`, not just transport success.
+
+The code table and the rules behind it are in
+[`docs/guide/transports.md` § Error codes](../../../../docs/guide/transports.md#error-codes);
+in short: `-32700` bad JSON (`parse: …`) · `-32600` not a usable request (not an object,
+`method` missing or not a string) · `-32601` `unknown method: <name>` · `-32602` params
+rejected by the schema or the route · `-32603` anything else the route threw · `-32001` the
+server tick never started the task in time (`worlddriver.serverThreadTimeoutMs`, 8 s): withdrawn,
+retry freely · `-32002` it started and may still apply: observe before retrying · `-32005`
+refused without running (16 requests in flight on this connection, 64 RPC workers busy, or 32
+background waits running): retry once an earlier call returns.
 
 **Body preconditions.** Every `mc.bot.*` verb that drives the player (all but `status`,
 `cancel`, `setting`, `waypoint`, `playbook`) first checks that the body can act, on every
@@ -69,7 +83,8 @@ with `reason:"no_player"`.
 
 ## Availability (client vs server)
 - `mc.client.*` and `mc.bot.*` require a **client** (a running game client). On a
-  dedicated server they raise `… not available (client only …)`.
+  dedicated server they raise `… not available (client only …)`. `mc.debug.*` is
+  registered only by a client, so on a dedicated server it is an unknown method.
 - `mc.observe.threats` / `mc.observe.boss` are client-backed: they return
   empty/`{present:false}` on a dedicated server.
 - `mc.system.*`, `mc.action.*`, `mc.world.*`, `mc.observe.scene` / `map` / `container`,
@@ -133,7 +148,7 @@ In-memory block-box save/restore — the clean way to A/B a pathfinder/build tri
 ## mc.query
 | method | params | returns / notes |
 |---|---|---|
-| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?, is_living?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; required for blocks, default 16 for entities). Blocks: `in_radius` max 15 (31³ cells, inside the 32768-cell budget of `mc.action.fill`; larger → error), and only loaded chunks are read — a cube touching an unloaded chunk is an error naming it, never a chunk load. `filter.type` = one exact id for both blocks (`#tag` ok) and entities (bare path → `minecraft:`). Blocks → `[{pos,type,state?}]` (`state` = blockstate property map, omitted when property-less); entities → `[{pos,type,uuid,id,health?,effects?}]` (`effects` = `[{id,amplifier,durationTicks}]`, living only; `is_living` filters item/orb rows). `select` projects fields; unknown select keys are rejected with an error. Client fallback (no server attached) returns the same flat array and honours the same `filter`/`select`; its entity rows add `{hostile,maxHealth,distance}`, which `select` may also name. |
+| `mc.query` | `q:"blocks"\|"entities"` (req), `center?`, `filter?:{in_radius?, type?, is_hostile?, is_living?}`, `select?:[…]` | scan a cube (Chebyshev `in_radius`; always pass it for blocks — omitted there means 0, the centre cell alone; default 16 for entities). Blocks: `in_radius` max 15 (31³ cells, inside the 32768-cell budget of `mc.action.fill`; larger → error), and only loaded chunks are read — a cube touching an unloaded chunk is an error naming it, never a chunk load. `filter.type` = one exact id for both blocks (`#tag` ok) and entities (bare path → `minecraft:`). Blocks → `[{pos,type,state?}]` (`state` = blockstate property map, omitted when property-less); entities → `[{pos,type,uuid,id,health?,effects?}]` (`effects` = `[{id,amplifier,durationTicks}]`, living only; `is_living` filters item/orb rows). `select` projects fields; unknown select keys are rejected with an error. Client fallback (no server attached) returns the same flat array. Its entity rows honour the same `filter`/`select` and add `{hostile,maxHealth,distance}`, which `select` may also name. Its block rows come from the `mc.client.blocks` scan: `in_radius` defaults to 4 and is clamped to 16 rather than rejected, `select` is not applied, and an area the client has not loaded reads as empty rather than being refused. |
 
 ## mc.events
 Server-side event channel: emit your own events and set up server-side **watchers** that poll an arbitrary method on a rising-edge predicate and emit when it fires (a building block for `wait.condition`-style automation without a client long-poll).
@@ -142,7 +157,7 @@ Server-side event channel: emit your own events and set up server-side **watcher
 | `mc.events` | `op:"emit"\|"watch"\|"unwatch"\|"list"` (req); emit: `type`,`data?`,`pos?`; watch: `invoke`,`params?`,`field?`,`emitAs?`,`everyMs?`,`once?`,`value?`/`above?`/`below?`; unwatch: `id` | `emit`→`{ok,seq,type}`; `watch`→`{ok,watching,id,emitAs,everyMs}` (an `invoke` that is not a registered method is a `-32602` error at watch time); `unwatch`→`{ok,removed}`; `list`→`{watchers:[…],count}`. |
 
 ## mc.wait.*
-Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000, max 120000; `pollMs`). Pass `background:true` to return a `{waitId}` immediately and fetch the result later with `mc.wait.result`. At most 32 background waits run at once; one more is refused with a `busy:` error, not queued.
+Long-poll primitives (block server-side; respect `timeoutMs`, default 5000/30000, max 120000; `pollMs`). Pass `background:true` to return a `{waitId}` immediately and fetch the result later with `mc.wait.result`. At most 32 background waits run at once; one more is refused with code `-32005` (message `busy: …`), not queued.
 | method | params | returns / notes |
 |---|---|---|
 | `mc.wait.event` | `cursor` (req), `types?[]`, `limit?`, `timeoutMs?`, `pollMs?`, `background?` | returns as soon as ≥1 matching event arrives, else `{timedOut:true}`. `{events[], timedOut, cursor, ms}`; chain `cursor`. |
@@ -192,7 +207,7 @@ Client-authoritative reads — diff against the server-side `mc.observe.*` to sp
 |---|---|---|
 | `mc.client.player` | — | client-authoritative player snapshot from LocalPlayer → `{present, name, uuid, dimension, pos, look, onGround, eyePos, pose, inWall, inWater, underWater, crouching, eyeBlock, feetBlock, health, maxHealth, food, saturation, xpLevel, effects:[{id,amplifier,durationTicks}], time, gameMode, selectedSlot, mainHand, inventory:[{slot,id?,count?}], hit}`. |
 | `mc.client.scene` | — | client hazard/threat blackboard → `{present, pos, health, food, dayPhase:"DAY"\|"DUSK"\|"NIGHT"\|"DAWN", skyExposed, exposedAtNight, cornered, lethalCount, rows?}`. |
-| `mc.client.blocks` | `center?`, `filter?:{in_radius? (0–16, dflt 4), type?}` | client-authoritative block scan (Chebyshev radius around player/center) → `{blocks:[{pos,type}], center, radius}`. `type` accepts `#tag` selectors. NOTE: `in_radius:0` still scans the default radius. |
+| `mc.client.blocks` | `center?`, `filter?:{in_radius? (0–16, dflt 4), type?}` | client-authoritative block scan (Chebyshev radius around player/center; air omitted) → `{blocks:[{pos,type,state?}], center, radius}` (`state` = blockstate property map, omitted when property-less). `type` accepts `#tag` selectors. `in_radius:0` scans the centre cell alone; omit it for the default 4. |
 | `mc.client.overlays` | `tutorial?`, `toasts?` | both default true (`{}` clears all): kill tutorial toasts + toast queue → `{ok, tutorial?, toasts?}`. |
 | `mc.client.screenshot` | `maxWidth?`, `maxHeight?`, `format?:"png"\|"jpeg"`, `quality?` | framebuffer capture (aspect-preserving downscale). Over RPC → `{format, width, height, frame, frameWaited, windowActive, fps, base64}`. The capture waits (≤1s) for a frame drawn **after** the request, so what you just did is in it; `frameWaited:false` means none was drawn and you got the leftover. ⚠️ `fps>0` only rules out a stopped renderer — at 15 fps a frame is up to 66 ms old, several round-trips. Compare `frame` to tell two captures apart: same number = same image, whatever the picture shows. |
 
@@ -230,6 +245,7 @@ client's click is silently ignored, `useItem` on an entity answers `menu` instea
 | `mc.bot.explore` | `centerX,centerZ` (req), `maxChunks?` (1–64), `awaitMs?`, `body?` | spiral to unvisited chunk centers. |
 | `mc.bot.runAway` | `from?`, `minDist?` (4–64), `awaitMs?`, `body?` | flee to a point ≥minDist from `from`/player (hazard-aware). |
 | `mc.bot.lookAt` | `pos?` or (`yaw`+`pitch`), `body?` | aim view; instant, or a 'look' process if `smoothLook` is on → `{ok, yaw, pitch}`. |
+| `mc.bot.holdItem` | `item` (req; bare name gets `minecraft:`), `body?` | **synchronous**: put that item in the main hand — selects its hotbar slot, or swaps it up from anywhere in the 36-slot inventory → `{ok, held}` (`held` = id actually in hand afterwards), or `{ok:false, error:"not in inventory: <id>", held}`. The prelude to `useItem` (hold the bucket / flint and steel / chosen food first). |
 | `mc.bot.useItem` | `pos?`, `entityId?`, `face?`, `hand?:"main"\|"off"`, `lookAt?`, `sneak?`, `body?` | right-click held item, **three modes**: no `pos`/`entityId` = use in air (eat/throw/draw bow); +`pos` = use on a block face (place/bucket/bonemeal/shears); +`entityId` = use ON an entity (mount with EMPTY hand, trade, shear/milk/feed, leash — `entityId` wins over `pos`). `sneak` = entity-mode shift-interact. Synchronous → `{ok, hand, result, consumed}` (+`pos,face` in pos-mode; +`entityId,type,distance,riding,screen` in entity-mode). Out-of-reach rejected server-side (check `distance`). |
 | `mc.bot.attackEntity` | `entityId` (req), `body?` | one left-click attack via the game mode (server applies damage/cooldown). Out-of-reach silently ignored. |
 | `mc.bot.elytraFly` | `pos?`, `yaw?`, `pitch?`, `reactive?`, `fireworks?`, `fireworkEveryTicks?` (5–400), `ticks?` (1–20000), `stopXZDist?`, `groundFallback?`, `near?` (0–64), `awaitMs?`, `body?` | elytra glide to a target (needs to already be airborne). With `pos` and no `pitch` → reactive sim-lookahead flight + firework boosts; `pitch` pins a fixed-heading glide; no `pos` → glide on the current heading. No usable elytra + `groundFallback:true` falls back to the pathfinder. → `{ok, started, mode:"reactive"\|"goal"\|"glide"\|"groundFallback", pitch?, fireworks?}`. |
@@ -321,8 +337,17 @@ creative-flight test toggle, no snapshot field).
 ## mc.script.eval / mc.skill
 | method | params | returns / notes |
 |---|---|---|
-| `mc.script.eval` | `source` (req), `timeoutMs?` (dflt 3000, max 30000) | run a sandboxed JS snippet against the in-process API. Inside: `Driver.invoke(method, params)`, the `Driver.system/observe/action/query/client` helpers, `console.log(x)`. Last expression is the result → `{result, error?, log:[…], ms}`. **Best when a task needs ≥3 chained calls** (observe→decide→act) — one round-trip instead of N. No file/network/reflection; server thread, so client-thread state can't be set here. |
-| `mc.skill` | `op?:"save"\|"list"\|"get"\|"run"\|"delete"` (dflt list), `name?` (`[a-z][a-z0-9_]*`), `source?` (save), `args?` (run), `timeoutMs?` (1–30000, dflt 3000) | persistent skill library (scripts saved under `scripts/skills/`). `save`→`{ok,saved,name,bytes}`; `list`→`{ok,skills:[{name,bytes}],count}`; `get`→`{ok,name,source}`; `run`→`{ok,result,error,log,ms,skill}`; `delete`→`{ok,deleted,name}`. |
+| `mc.script.eval` | `source` (req, ≤64 KiB), `timeoutMs?` (dflt 3000, max 30000) | run a JS snippet (Rhino, fresh scope per call) against the in-process API. Inside: `Driver.invoke(method, params)` (any route by name), the `Driver.system/observe/action/query/plan/skill/events/wait/client/bot` helpers, `console.log(x)`/`console.error(x)`. Last expression is the result → `{result, error, log:[…], ms}`. **Best when a task needs ≥3 chained calls** (observe→decide→act) — one round-trip instead of N. **Not sandboxed by default**: scripts are a first-party capability with full JVM access; the class filter that denies file/socket/process/reflection access applies only when the game runs with `-Dworlddriver.sandbox=on`. Treat the endpoint as a shell (`docs/guide/transports.md` § Security). Runs on a worker thread, off both the server and the client thread; each `Driver.invoke` hops onto the thread its route needs, so `mc.client.*` / `mc.bot.*` calls from a script work. |
+| `mc.skill` | `op?:"save"\|"list"\|"get"\|"run"\|"delete"` (dflt list), `name?` (`[a-z][a-z0-9_]*`), `source?` (save), `args?` (run), `timeoutMs?` (1–30000, dflt 3000) | persistent skill library (scripts saved under `config/worlddriver/scripts/skills/`, or `skills/` under `-Dworlddriver.scriptsDir`). Runs through the same evaluator as `mc.script.eval`, so the same trust model applies. `save`→`{ok,saved,name,bytes}`; `list`→`{ok,skills:[{name,bytes}],count}`; `get`→`{ok,name,source}`; `run`→`{ok,result,error,log,ms,skill}`; `delete`→`{ok,deleted,name}`. |
+
+<a id="mcdebug"></a>
+## mc.debug.* (client only — path debugging)
+Registered by `PathDebugBootstrap` at client init, so absent (`-32601`) on a dedicated server. Visible MCP tools; schemas in `bot/debug/DebugTools.java`.
+| method | params | returns / notes |
+|---|---|---|
+| `mc.debug.pathChart` | `view?:"dashboard"\|"threeview"` (dflt dashboard), `width?` (256–4096, dflt 1280), `height?` (256–4096, dflt 960), `includeCandidates?` (dflt true), `save?` (dflt true), `name?` (file name, no extension) | render the current goto session's debug chart → `{ok, view, outcome, plans, candidates, samples}` plus `{path, width, height, bytes}` when saved (PNG under `config/worlddriver/debug/`) or `{width, height}` with `save:false`. Captures nothing unless `mc.bot.setting{pathDebug:true}` was on **before** the goto. |
+| `mc.debug.plan` | `goal:{x,z}` (req), `from?:{x,y,z}` (dflt the player's block), `chain?` (dflt false), `maxSegments?` (1–200, dflt 40) | read-only single A* search to an XZ goal: no walking, no world edits → `{ok, start, goal, goalReached, pathLen, end, expanded, computeMs, wallMs, finalCost, hStart, hEnd, hDelta, forward, maxStepDrop, yProfile}` (`hDelta<0` = forward progress). `chain:true` feeds each committed endpoint back in → `{ok, chain, start, goal, reached, segments, backwardSegments, maxRegression, totalExpanded, hStart, hFinal, trail[]}`. Pin `pathfinder.maxNodes` for repeatable numbers. |
+| `mc.debug.replay` | `file?` (under `config/worlddriver/replays/`, dflt newest plan archive), `restoreBlocks?` (dflt true), `replan?` (dflt true), `fromStep?` (accepted, ignored) | **mutates the world and moves the bot**: restores the archive's block envelope, teleports to the recorded start and runs again. `replan:true` re-issues the recorded goal with normal planning → `{ok, file, goal, restoredBlocks, mode:"replan", envelopeCells, blockStateFidelity}`; `replan:false` walks the stored plan with no re-planning → `{ok, file, plannedNodes, restoredBlocks, replayRun, segments, fromStepRequested, fromStepHonored:false, blockStateFidelity}`. The run is written as `replay-run-*.json`. Needs `pathArchive` on during the original goto. |
 
 ## worlddriver.* (testmod only — hand-built scenes)
 Registered by the testmod (`stagewright*` runs and holds, never the published jar), hidden from the MCP tool list, callable on every transport. Positions in a fixture are origin-relative; `pos`/`around` on the wire are absolute `{x,y,z}`. Files live under `config/worlddriver/scenes/` of the run directory. Manual: `docs/guide/human-verification.md`.
