@@ -106,13 +106,11 @@ public final class BotConfig {
      *  (bridge stop-family livelock, t0 2026-07-20). When ON, overshoot also requires
      *  the foot to be beyond the tail along the incoming leg's direction (while step
      *  progress is healthy; a stalled approach falls back to the distance consume).
-     *  <p>Default OFF pending a replay A/B: the r14 t0 net showed the distance-consume is
-     *  LOAD-BEARING in coupled machinery — entityLeash's hold rides on segment
-     *  truncation, boxedChurn's escapes feed on the consume/repath cycle, descentYaw
-     *  stalled — flipping this needs its own corpus campaign, not a drive-by. The
-     *  bridge battery's scenes opt in per-scene (their quick-start stub is the
-     *  canonical far-ahead-tail victim). */
-    public static volatile boolean walkerTailConsumeDirectional = false;
+     *  <p>ON because OFF fails any straight walk to a goal beyond the planner's horizon: the
+     *  segment is string-pulled to [start, far tail], the tail is consumed on the first tick,
+     *  and the walk churns at its start until the walker gives up ({@code wd.bridgeLongFlatWalk},
+     *  {@code wd.bridgeCausewayOverWater}). */
+    public static volatile boolean walkerTailConsumeDirectional = true;
 
     /** Corner-clearance repulsion in the walk drive: pure-pursuit cuts corners by design,
      *  and the 0.6-wide body then grazes solid corners the carrot line passes within
