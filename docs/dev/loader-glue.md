@@ -95,3 +95,54 @@ StageWright's common module compiles against six WorldDriver classes: `ToolCatal
 six names an Architectury type anywhere — all the subscriptions are inside method bodies
 of other classes. StageWright's own runs do not load the WorldDriver mod, so this
 dependency is invisible to it.
+
+## No reflection on a Mojang-mapped member
+
+Checked by `python3 scripts/check_remap_safety.py`, which reads the remapped jar and therefore
+needs `./gradlew :fabric:build` first. The build maps to Mojang names, but remapping rewrites the
+shipped Fabric artifact into the intermediary namespace and does not rewrite string constants,
+so a reflective lookup by field name throws at runtime in the shipped jar. NeoForge is
+unaffected, its runtime namespace already being Mojang-mapped, and no gate task ever loads a
+remapped jar — which is why the existing sites went unnoticed.
+
+To open a member, add it to **both** of these and call it directly:
+
+- `common/src/main/resources/worlddriver.accesswidener` — Fabric and compile
+- `neoforge/src/main/resources/META-INF/accesstransformer.cfg` — NeoForge
+
+They are separate because the loom version in use has no access-widener-to-transformer
+conversion for NeoForge. The check asserts the two stay in step; nothing in the build does, and a
+member opened on one loader only is a runtime `IllegalAccessError` on the other. Remaining
+reflection sites are baselined in the script with a per-site reason. Shrink that list, never grow
+it; if you must add one, make the degradation loud and say so in the entry.
+
+## No client type handed to a wider parameter from a class a dedicated server loads
+
+The check is running both `stagewrightDedicatedServerFabric` and
+`stagewrightDedicatedServerNeoforge`: the two loaders use different mechanisms — Fabric's class
+loader checks the environment type, NeoForge's runtime cleaner checks the dist — so one loader
+passing proves nothing about the other. The failure is at class-load time, so the scene dies at
+zero ticks with a message naming the class that failed to load and never the call site that
+asked for it.
+
+Holding a `LocalPlayer` in a local variable and calling its own methods is fine and always was.
+What is not fine is passing it to a parameter declared `Player` or `Entity`: that widening makes
+the verifier load `LocalPlayer` to prove the subtype relation. "It calls into a client type" is
+not the rule.
+
+The shape that survives is to put the widening inside a client-only class and reach it with
+`invokestatic`, which resolves its owner and not its owner's dependencies; a chain whose tick
+method opens by returning when the client is absent never loads that owner on a server. Verify by
+measurement rather than by reading. For `bot/scheduler/**` the measurement is already written:
+`SchedulerClientCallSurfaceTest` parses the compiled constant pool and fails on any call site in
+that package whose descriptor takes `Player`, `LivingEntity` or `Entity`. It carries its own
+positive controls, so a green result means it looked rather than that it found nothing.
+`./gradlew :common:test` runs it and needs no game. **Run it before landing any change that alters
+the shape of a call** — folding a duplicated expression into a shared helper, extracting a method,
+adding a parameter. Those read as tidy-ups, which is the disguise this rule keeps being broken in.
+
+That test guards one package and its scope cannot simply be widened: it asserts the
+wide-parameter set is empty, which is only true in `bot/scheduler/**`. `Walker` is loaded on both
+sides and legitimately makes such calls, so pointing the same assertion at `bot/movement/**` fails
+a healthy tree. Outside that package, disassemble the class and count the calls taking a `Player`
+parameter by hand.
