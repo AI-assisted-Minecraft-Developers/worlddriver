@@ -7,7 +7,10 @@ import net.magicterra.worlddriver.bot.BodyReady;
 import net.magicterra.worlddriver.bot.body.Body;
 import net.magicterra.worlddriver.bot.body.Hands;
 import net.magicterra.worlddriver.bot.movement.Walker;
+import net.magicterra.worlddriver.bot.pathfinder.CapabilityProfile;
+import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
+import net.magicterra.worlddriver.bot.pathfinder.constraints.NoBreak;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -17,6 +20,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import static net.magicterra.worlddriver.bot.movement.ClutchController.CLUTCH;
@@ -27,6 +31,10 @@ public final class BackfillProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Hands hands;
     private static final int PLACE_TIMEOUT_TICKS = 60;
+    /** A stand reached by digging reopens a cell this process filled, and that dig is recorded as the
+     *  bot's own break: the two would trade the same cells for as long as the bot stays idle. */
+    private static final SearchProfile NO_DIG =
+            new SearchProfile(List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
 
     private final BackfillTracker tracker;
     private final Walker walker = new Walker("backfill");
@@ -40,6 +48,7 @@ public final class BackfillProcess implements BotProcess {
 
     public BackfillProcess(BackfillTracker tracker) {
         this.tracker = tracker;
+        walker.setSearchProfile(NO_DIG);
     }
 
     public String kind() { return "builder"; }
@@ -163,8 +172,8 @@ public final class BackfillProcess implements BotProcess {
     }
 
     /** Whether the idle auto-start should hand the tracker to a new process. Not the tracker's
-     *  size: the tick records the current foot every tick, so it is never empty, and the foot and
-     *  head cells are the two the scan always skips — a process started on size ends at once. */
+     *  size: a bot idles in the cells it just dug, and the foot and head cells are the two the scan
+     *  always skips, as it does cells out of radius — a process started on size ends at once. */
     public static boolean autoStartWanted(BackfillTracker tracker, BlockPos playerFoot, Level lvl) {
         return autoStartWanted(tracker, playerFoot, BotConfig.autoBackfillRadius, cells(lvl));
     }

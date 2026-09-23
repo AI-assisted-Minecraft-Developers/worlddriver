@@ -15,18 +15,25 @@ public final class BackfillTracker {
     private static final int CAPACITY = 512;
     private final LinkedHashSet<BlockPos> recent = new LinkedHashSet<>();
 
-    public synchronized void record(BlockPos foot) {
-        if (recent.contains(foot)) {
-            recent.remove(foot);
-            recent.add(foot);
+    public synchronized void record(BlockPos cell) {
+        if (recent.contains(cell)) {
+            recent.remove(cell);
+            recent.add(cell);
             return;
         }
-        recent.add(foot);
+        recent.add(cell);
         if (recent.size() > CAPACITY) {
             Iterator<BlockPos> it = recent.iterator();
             it.next();
             it.remove();
         }
+    }
+
+    /** Once per client tick, with the cells the bot's own drives broke since the last one. Never
+     *  the cells the body walked through: those were air it did not open, and filling them plugs
+     *  its own path. A break made with the switch off is dropped, not kept for later. */
+    public synchronized void onClientTick(boolean enabled, List<BlockPos> ownBreaks) {
+        if (enabled) for (BlockPos cell : ownBreaks) record(cell);
     }
 
     synchronized List<BlockPos> snapshot() {

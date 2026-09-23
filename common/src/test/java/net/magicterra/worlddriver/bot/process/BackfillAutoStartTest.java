@@ -11,10 +11,9 @@ import net.minecraft.core.BlockPos;
 import org.junit.jupiter.api.Test;
 
 /**
- * With {@code autoBackfill} on, the client tick records the current foot cell every tick, so the
- * tracker is never empty, and the foot and head cells are exactly the ones the candidate scan
- * skips. An auto-start gated on the tracker's size therefore started a process on every idle tick
- * that found nothing and ended at once. The gate must ask the scan's own question.
+ * A bot idles in the cells it just dug, and its foot and head cells are exactly the ones the
+ * candidate scan skips. An auto-start gated on the tracker's size therefore starts a process on
+ * every idle tick that finds nothing and ends at once. The gate must ask the scan's own question.
  */
 class BackfillAutoStartTest {
 

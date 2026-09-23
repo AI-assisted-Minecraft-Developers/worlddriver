@@ -12,7 +12,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 
 /**
@@ -114,13 +113,12 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
         // destroyBlockPos alone. sameDestroyTarget() compares only the position and the held item,
         // never isDestroying, so the next direct drive walked straight back into the accumulate
         // branch and started from zero again: a dig that could never finish and never said so.
-        // The assertDig below is what ends that: MinecraftMixin skips vanilla's next attack pass
+        // The drive's assertDig is what ends that: MinecraftMixin skips vanilla's next attack pass
         // whole. `before` stays in the row because it is the reading that would show the zeroing
         // coming back — a `before` of 0.0 on every row while ok=true is that regression's signature.
         float before = mc.gameMode.destroyProgress;
-        boolean ok = mc.gameMode.continueDestroyBlock(cell, BotInteract.pickFaceTowardsPlayer(cell, p));
-        if (ok) p.swing(InteractionHand.MAIN_HAND);
-        ClientIntents.assertDig(cell);
+        // The drive every client dig shares, so a break the bot completes is noted in one place.
+        boolean ok = BotInteract.continueDestroy(mc, p, cell);
         // UNCONDITIONAL (once a second while a dig is running). It was gated on walkerDebug, which no
         // ladder and no gate ever sets, so the one reading that answers the user-reported「机器人挖矿
         // 不挥手」was absent from every run that could have shown it: the swing above happens only when

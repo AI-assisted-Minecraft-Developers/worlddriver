@@ -2,6 +2,7 @@ package net.magicterra.worlddriver.bot.stagewright.scene;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import net.magicterra.stagewright.scene.Scene;
 import net.magicterra.stagewright.scene.SceneContext;
@@ -28,7 +29,69 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 Scene.of("wd.clientTunnelsThroughStone", 2_000, ctx -> tunnel(ctx, 10, 12, 450)),
-                Scene.of("wd.clientTunnelsFarThroughStone", 4_000, ctx -> tunnel(ctx, 40, 26, 900)));
+                Scene.of("wd.clientTunnelsFarThroughStone", 4_000, ctx -> tunnel(ctx, 40, 26, 900)),
+                Scene.of("wd.clientBackfillRefillsOwnDigs", 3_000, WorldDriverClientDigScenes::backfill));
+    }
+
+    /**
+     * {@code autoBackfill} puts back what the bot broke and nothing else. The body digs a five-cell
+     * tunnel out of a sealed stone pocket into a natural 3×3×2 room and walks across the room to its
+     * far wall, then idles. The backfill must plug the tunnel's mouth — the two dug cells it can
+     * stand beside without digging — and leave every room cell air, although the body walked
+     * through three of them: a tracker fed the foot cell every tick filled those first, being
+     * nearest. The cells deeper in the tunnel are reachable only by digging through the fill, so
+     * they are given up, and the process must have ended by the close rather than trading the
+     * same cells back and forth.
+     */
+    private static void backfill(SceneContext ctx) {
+        for (int dx = -10; dx <= 10; dx++)
+            for (int dz = -10; dz <= 10; dz++)
+                for (int dy = -6; dy <= 8; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.STONE);
+        for (int dy = 1; dy <= 2; dy++) {
+            ctx.setBlock(-6, GROUND + dy, 0, Blocks.AIR);
+            for (int dx = 0; dx <= 2; dx++)
+                for (int dz = -1; dz <= 1; dz++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
+        }
+        BlockPos start = ctx.rel(-6, GROUND + 1, 0);
+        BlockPos goal = ctx.rel(2, GROUND + 1, 0);
+        BlockPos mouthFoot = ctx.rel(-1, GROUND + 1, 0);
+        BlockPos mouthHead = ctx.rel(-1, GROUND + 2, 0);
+        ctx.record("布景", "实心石块，起点口袋 " + start.toShortString() + "，往东 5 格石头要挖，然后是天然空气房间 x0..2 z-1..1 两格高，目标 "
+                + goal.toShortString() + "；autoBackfill 开，铁镐在手，圆石 64");
+        ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
+        // Cobblestone from the start: this scene is about which cells get filled, not about pickup.
+        helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.COBBLESTONE, 64));
+        BotConfig.allowBreak = true;
+        BotConfig.allowPlace = false;
+        BotConfig.autoBackfill = true;
+        BotConfig.autoBackfillBlock = "minecraft:cobblestone";
+        helm.sync(30, () -> {
+            ctx.record("起点.同步后", helm.where());
+            helm.goTo("leg", new Goal.Block(goal), goal, LEG_TICKS, null, () -> {
+                double flat = helm.flatDistance(goal);
+                helm.sync(IDLE_TICKS, () -> {
+                    Map<?, ?> builder = helm.slot("builder");
+                    ctx.record("空闲后", helm.where() + "；builder=" + builder);
+                    ctx.check(flat <= 1.5).as(String.format(Locale.ROOT, "A 腿末走到了房间远端：水平差 %.2f", flat)).isTrue();
+                    ctx.check(ctx.level().getBlockState(mouthFoot).is(Blocks.COBBLESTONE)
+                            && ctx.level().getBlockState(mouthHead).is(Blocks.COBBLESTONE))
+                            .as("B 自己挖开的隧道口两格被填回：脚 " + ctx.level().getBlockState(mouthFoot).getBlock()
+                                    + "，头 " + ctx.level().getBlockState(mouthHead).getBlock()).isTrue();
+                    StringBuilder filled = new StringBuilder();
+                    for (int dy = 1; dy <= 2; dy++)
+                        for (int dx = 0; dx <= 2; dx++)
+                            for (int dz = -1; dz <= 1; dz++) {
+                                BlockPos cell = ctx.rel(dx, GROUND + dy, dz);
+                                if (!ctx.level().getBlockState(cell).isAir()) filled.append(' ').append(cell.toShortString());
+                            }
+                    ctx.check(filled.length() == 0).as("C 天然空气房间一格都没被填（走过的也不算）：被填 ["
+                            + filled.toString().trim() + "]").isTrue();
+                    ctx.check(!Boolean.TRUE.equals(builder.get("active")))
+                            .as("D 回填进程空闲窗口末已经结束，没有在填了又挖之间来回：builder.active="
+                                    + builder.get("active")).isTrue();
+                });
+            });
+        });
     }
 
     /**
@@ -118,4 +181,5 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
     private static final int GROUND = 20;
     private static final int LEG_TICKS = 2_400;
     private static final int SETTLE_TICKS = 10;
+    private static final int IDLE_TICKS = 600;
 }
