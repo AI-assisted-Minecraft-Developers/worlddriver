@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one of the bot's own dig drives turns it from a block into air, as Baritone's `BackfillProcess`
   does; a human's break, a cell that was already air and a break made with the switch off record
   nothing.
+- **A backfill never digs its way to a place to stand.** Reaching the stand for a cell deeper in a
+  tunnel meant digging through the cell it had just filled, and that dig is one of the bot's own
+  breaks, so the next pick filled it again and the bot traded the same cells for as long as it
+  stayed idle. A cell whose stand cannot be reached without digging is now given up like any other
+  unreachable one.
 - **The RPC skill no longer calls `mc.script.eval` sandboxed or server-threaded.** Its method
   reference said a snippet had no file, network or reflection access, so an agent following it
   would pass untrusted source through. Scripts have full JVM access unless the game runs with
