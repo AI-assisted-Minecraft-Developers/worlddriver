@@ -69,6 +69,10 @@ public final class TowerProcess implements BotProcess {
     private final boolean reachIntoBag;
     private int placed;
     private int stuckTicks;
+    /** "not needed" is a success: the body already stands at the height the caller asked for. */
+    private String failure;
+
+    @Override public String failure() { return failure; }
     private int startFeetY = Integer.MIN_VALUE;
     private int lastApexFloorY;
     private int sinceJump;
@@ -111,11 +115,11 @@ public final class TowerProcess implements BotProcess {
     }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
-        if (a.entity() == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (a.entity() == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         // The tower is laid from a player's inventory: a body that is not a player has no hands for it.
         Player p = a.asPlayer();
         hands = a.hands().orElse(null);
-        if (hands == null || p == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (hands == null || p == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         int feetY = (int) Math.floor(p.getY());
         if (startFeetY == Integer.MIN_VALUE) { startFeetY = feetY; lastApexFloorY = feetY; }
         st.builder.target = new BlockPos(
@@ -158,6 +162,7 @@ public final class TowerProcess implements BotProcess {
                     + ", phase=" + phase + ", apexFeetY=" + lastApexFloorY
                     + ", shortJumps=" + shortJumps + ", overhead=" + overheadRow(p)
                     + (startedWhileMoving ? ", started while still moving" : "") + ")";
+            failure = st.builder.lastError;
             st.builder.reset();
             a.releaseInputs();
             return true;
@@ -168,7 +173,7 @@ public final class TowerProcess implements BotProcess {
         // and that repetition is the point: whatever the last course's break moved into the hand,
         // this puts the pillar block back.
         if (!ensureHoldingPlaceable(hands, preferredBlockId, reachIntoBag)) {
-            st.builder.lastError = "no placeable block in hotbar";
+            failure = st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
             a.releaseInputs();
             return true;
@@ -206,6 +211,7 @@ public final class TowerProcess implements BotProcess {
                         p.getBoundingBox().move(0.0, WalkerGeometry.PILLAR_RISE, 0.0))) {
                     st.builder.lastError = "blocked overhead (placed=" + placed + ", feetY=" + feetY
                             + ", 升不满一格：" + overheadRow(p) + ")";
+                    failure = st.builder.lastError;
                     st.builder.reset();
                     a.releaseInputs();
                     return true;

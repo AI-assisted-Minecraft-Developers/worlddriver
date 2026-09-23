@@ -44,7 +44,7 @@ public final class ExploreProcess implements BotProcess {
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
         // unstamped exit is not silence — it is the POSITIVE report "finished, no error". Every
         // other exit in this file already stamps; this one was the hole.
-        if (p == null) { st.explore.lastError = "player vanished"; st.explore.reset(); return true; }
+        if (p == null) { failure = st.explore.lastError = "player vanished"; st.explore.reset(); return true; }
         if (visitedCount >= maxChunks) {
             st.explore.lastError = "done (visited=" + visitedCount + ")";
             st.explore.reset();
@@ -73,6 +73,11 @@ public final class ExploreProcess implements BotProcess {
         }
         return false;
     }
+
+    /** Running out of chunks is a finished exploration, not a failure: every chunk in range was tried. */
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     /** Spiral search outward from (centerChunkX, centerChunkZ); skip already-visited. */
     private Long pickNextChunk() {

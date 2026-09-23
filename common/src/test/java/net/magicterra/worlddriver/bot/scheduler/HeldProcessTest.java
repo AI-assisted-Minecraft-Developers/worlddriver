@@ -35,6 +35,7 @@ class HeldProcessTest {
         }
 
         @Override public String kind() { return kind; }
+        @Override public String failure() { return null; }
         @Override public void attach(BotState st) { attach.accept(st); }
         @Override public boolean tick(Body a, WorldView w, BotState st) { return false; }
         @Override public void onCancelled(String reason) { cancels.add(reason); }

@@ -389,6 +389,7 @@ public final class JourneyPortalEntry {
         StepInto(BlockPos cell, int ticks) { this.cell = cell; this.ticks = ticks; }
 
         @Override public String kind() { return "portalStepIn"; }
+        @Override public String failure() { return null; }
 
         @Override public void attach(BotState st) { }
 

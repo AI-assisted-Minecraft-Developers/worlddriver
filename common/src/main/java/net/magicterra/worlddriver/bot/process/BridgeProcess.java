@@ -31,6 +31,9 @@ public final class BridgeProcess implements BotProcess {
     private final String preferredBlockId;
     private BlockPos startFoot;
     private int placed;
+    private String failure;
+
+    @Override public String failure() { return failure; }
     /** Cell our last placeOn click targeted, pending world confirmation — `placed` counts
      *  only cells OBSERVED solid afterwards (gap #75-a family audit: a blind placed++ on a
      *  silently no-op'd click decouples the counter from the world). */
@@ -58,9 +61,9 @@ public final class BridgeProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
         // Body yaw BEFORE this tick's snap-write below: on the client the LookController
         // re-clamps the camera after every actuator, so the value we WRITE is not the yaw
@@ -81,14 +84,14 @@ public final class BridgeProcess implements BotProcess {
         }
         if (progress > lastProgress) { lastProgress = progress; stuckTicks = 0; }
         else if (++stuckTicks > STUCK_TICKS) {
-            st.builder.lastError = "stuck (no XZ progress in " + STUCK_TICKS + "t — out of blocks or blocked)";
+            failure = st.builder.lastError = "stuck (no XZ progress in " + STUCK_TICKS + "t — out of blocks or blocked)";
             st.builder.reset();
             a.releaseInputs();
             return true;
         }
 
         if (!TowerProcess.ensureHoldingPlaceable(hands, preferredBlockId)) {
-            st.builder.lastError = "no placeable block in hotbar";
+            failure = st.builder.lastError = "no placeable block in hotbar";
             st.builder.reset();
             a.releaseInputs();
             return true;
@@ -151,7 +154,7 @@ public final class BridgeProcess implements BotProcess {
                 if (!lvl.getBlockState(currentSupport).blocksMotion()) {
                     // The anchored foot has no support either — the body is genuinely
                     // airborne (anchoredFoot already re-anchored any sneak overhang).
-                    st.builder.lastError = "no support under feet (fell off?)";
+                    failure = st.builder.lastError = "no support under feet (fell off?)";
                     st.builder.reset();
                     a.releaseInputs();
                     return true;

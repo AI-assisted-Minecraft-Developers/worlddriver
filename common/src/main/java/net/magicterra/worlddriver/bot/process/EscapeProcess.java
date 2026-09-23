@@ -94,8 +94,13 @@ public final class EscapeProcess implements BotProcess {
         s.lastError = error;
         s.reset();
         if (error != null) dbg("BAIL: {}", error);
+        failure = error;
         return true;
     }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();

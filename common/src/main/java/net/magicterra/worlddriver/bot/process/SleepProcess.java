@@ -51,18 +51,16 @@ public final class SleepProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { st.mc_goto.lastError = "player vanished"; st.mc_goto.reset(); return true; }
+        if (p == null) return giveUp(st, "player vanished");
         hands = a.hands().orElse(null);
-        if (hands == null) { st.mc_goto.lastError = BodyReady.Reason.NO_HANDS; st.mc_goto.reset(); return true; }
+        if (hands == null) return giveUp(st, BodyReady.Reason.NO_HANDS);
         Level lvl = p.level();
 
         switch (phase) {
             case SEARCH -> {
                 BlockPos found = explicit != null ? explicit : scanNearestBed(lvl, p);
                 if (found == null || !lvl.getBlockState(found).is(BlockTags.BEDS)) {
-                    st.mc_goto.lastError = "no bed within " + searchRadius;
-                    st.mc_goto.reset();
-                    return true;
+                    return giveUp(st, "no bed within " + searchRadius);
                 }
                 bedPos = found;
                 st.mc_goto.target = bedPos;
@@ -74,9 +72,7 @@ public final class SleepProcess implements BotProcess {
                 st.mc_goto.pathLen = walker.pathLen();
                 st.mc_goto.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
-                    st.mc_goto.lastError = "no path to bed @" + bedPos;
-                    st.mc_goto.reset();
-                    return true;
+                    return giveUp(st, "no path to bed @" + bedPos);
                 }
                 if (s == Walker.Step.ARRIVED) {
                     a.releaseInputs();
@@ -88,9 +84,7 @@ public final class SleepProcess implements BotProcess {
             case USE -> {
                 // Bed may have been griefed during the walk.
                 if (!lvl.getBlockState(bedPos).is(BlockTags.BEDS)) {
-                    st.mc_goto.lastError = "bed disappeared during approach";
-                    st.mc_goto.reset();
-                    return true;
+                    return giveUp(st, "bed disappeared during approach");
                 }
                 if (p.isSleeping()) {
                     st.mc_goto.lastError = "done (sleeping)";
@@ -110,15 +104,24 @@ public final class SleepProcess implements BotProcess {
                     hands.placeOn(bedPos, Direction.UP);
                 }
                 if (++useTicks > USE_TIMEOUT_TICKS) {
-                    st.mc_goto.lastError = "bed click did not start sleep (wrong time / monsters / occupied)";
-                    st.mc_goto.reset();
-                    return true;
+                    return giveUp(st, "bed click did not start sleep (wrong time / monsters / occupied)");
                 }
             }
             case DONE -> { return true; }
         }
         return false;
     }
+
+    private boolean giveUp(BotState st, String why) {
+        failure = why;
+        st.mc_goto.lastError = why;
+        st.mc_goto.reset();
+        return true;
+    }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     private BlockPos scanNearestBed(Level lvl, LivingEntity p) {
         BlockPos foot = blockPosOf(p);

@@ -44,7 +44,7 @@ public final class LookProcess implements BotProcess {
 
     public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { st.look.lastError = "player vanished"; st.look.reset(); return true; }
+        if (p == null) { failure = st.look.lastError = "player vanished"; st.look.reset(); return true; }
         float ty = fixedYaw, tp = fixedPitch;
         if (track != null) {
             Vec3 eye = p.getEyePosition();
@@ -70,7 +70,7 @@ public final class LookProcess implements BotProcess {
             // with it because an aim that stopped 0.6° out and one still 90° out want different
             // work, and the only place that distinction existed was the `walkerDebug` line above —
             // which is off in every normal run, so it is not an instrument.
-            st.look.lastError = String.format(Locale.ROOT,
+            failure = st.look.lastError = String.format(Locale.ROOT,
                     "aim did not converge in %d ticks (yawErr=%.2f pitchErr=%.2f, eps=%.2f)",
                     MAX_TICKS, yawErr, Math.abs(tp - np), ALIGN_EPS);
             st.look.reset();
@@ -78,4 +78,8 @@ public final class LookProcess implements BotProcess {
         }
         return false;
     }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 }

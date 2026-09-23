@@ -57,6 +57,7 @@ public final class HoldStill implements BotProcess {
     public HoldStill(int ticks) { this.ticks = ticks; }
 
     @Override public String kind() { return "holdStill"; }
+    @Override public String failure() { return null; }
 
     @Override public void attach(BotState st) { }
 

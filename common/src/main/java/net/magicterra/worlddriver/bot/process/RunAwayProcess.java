@@ -65,6 +65,12 @@ public final class RunAwayProcess implements BotProcess {
         if (step == Walker.Step.WALKING) return false;
         if (step == Walker.Step.FAILED) s.lastError = walker.lastError;
         s.reset();
+        failure = IntentProcess.walkFailure(step, walker.lastError, walker.lastGoalReached,
+                walker.lastEndReason, walker.lastFinalDist);
         return true;
     }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 }

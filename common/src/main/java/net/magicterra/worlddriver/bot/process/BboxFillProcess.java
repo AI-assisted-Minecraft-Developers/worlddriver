@@ -42,6 +42,9 @@ public final class BboxFillProcess implements BotProcess {
     private int placeTicks;
     private String breakStartId = "";
     private int broken, placed, skipped;
+    private String failure;
+
+    @Override public String failure() { return failure; }
     private Phase phase = Phase.SEARCH;
     private enum Phase { SEARCH, GOING, BREAKING, PLACING }
 
@@ -66,9 +69,9 @@ public final class BboxFillProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -79,6 +82,7 @@ public final class BboxFillProcess implements BotProcess {
                     // so the status snapshot surfaces them.
                     st.builder.lastError = "done (broken=" + broken + ", placed=" + placed + ", skipped=" + skipped + ")";
                     st.builder.reset();
+                    if (skipped > 0) failure = "incomplete: " + skipped + " cells skipped";
                     return true;
                 }
                 currentTarget = found[0];

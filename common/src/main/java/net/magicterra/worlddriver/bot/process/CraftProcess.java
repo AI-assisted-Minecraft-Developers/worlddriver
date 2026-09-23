@@ -90,6 +90,8 @@ public final class CraftProcess implements BotProcess {
     private int reclaimTicks;
     private int pickupTicks;
     private String error;
+
+    @Override public String failure() { return error; }
     private int crafted;         // total items produced (for the result summary)
 
     public CraftProcess(String target, int count) {

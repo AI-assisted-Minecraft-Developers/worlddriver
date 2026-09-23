@@ -79,6 +79,9 @@ public final class SmeltProcess implements BotProcess {
     private int waited;
     private int smeltWaitBudget;
     private String error;
+
+    /** A partial smelt ends in DONE with {@link #error} set, and it is still short of what was asked. */
+    @Override public String failure() { return error; }
     /** Consecutive WORLD ticks with BOTH input and fuel in the furnace and the fire still out. */
     private int coldTicks;
     /** Game time of the last tick counted into {@link #coldTicks}. The cold check has to count

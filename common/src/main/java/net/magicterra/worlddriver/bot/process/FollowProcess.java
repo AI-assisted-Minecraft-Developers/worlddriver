@@ -70,7 +70,7 @@ public final class FollowProcess implements BotProcess {
         // .snapshot()` emits lastError only `if (lastError != null)` and `attach` cleared it, so an
         // unstamped exit is not silence — it is the POSITIVE report "finished, no error". Every
         // other exit in this file already stamps; this one was the hole.
-        if (p == null) { st.follow.lastError = "player vanished"; st.follow.reset(); return true; }
+        if (p == null) return giveUp(st, "player vanished");
         Level lvl = p.level();
         Entity target = findTarget(lvl, p);
         if (target == null) {
@@ -80,9 +80,7 @@ public final class FollowProcess implements BotProcess {
             a.commandJump(false);
             p.setSprinting(false);
             if (maxIdleTicks > 0 && ++idleTicks > maxIdleTicks) {
-                st.follow.lastError = "target not seen for " + maxIdleTicks + " ticks";
-                st.follow.reset();
-                return true;
+                return giveUp(st, "target not seen for " + maxIdleTicks + " ticks");
             }
             return false;
         }
@@ -97,17 +95,13 @@ public final class FollowProcess implements BotProcess {
         st.follow.pathLen = walker.pathLen();
         st.follow.pathStep = walker.pathStep();
         if (chase.tick(s == Walker.Step.ARRIVED, Math.sqrt(target.distanceToSqr(p)))) {
-            st.follow.lastError = String.format(Locale.ROOT,
-                    "unreachable: no closer than %.1f blocks in %d ticks", chase.closest(), giveUpTicks);
-            st.follow.reset();
-            return true;
+            return giveUp(st, String.format(Locale.ROOT,
+                    "unreachable: no closer than %.1f blocks in %d ticks", chase.closest(), giveUpTicks));
         }
         if (s == Walker.Step.FAILED) {
             consecutiveFails++;
             if (consecutiveFails >= MAX_CONSECUTIVE_FAILS) {
-                st.follow.lastError = "unreachable (" + consecutiveFails + " failed replans): " + walker.lastError;
-                st.follow.reset();
-                return true;
+                return giveUp(st, "unreachable (" + consecutiveFails + " failed replans): " + walker.lastError);
             }
             // Force a fresh A* on the next tick rather than re-walking the dead path.
             lastTargetBlock = null;
@@ -126,6 +120,18 @@ public final class FollowProcess implements BotProcess {
         }
         return false; // follow runs until cancelled or unreachable
     }
+
+    /** A follow runs until cancelled, so every ending of its own is a give-up. */
+    private boolean giveUp(BotState st, String why) {
+        failure = why;
+        st.follow.lastError = why;
+        st.follow.reset();
+        return true;
+    }
+
+    private String failure;
+
+    @Override public String failure() { return failure; }
 
     /**
      * Aim the walker at the target's cell. The same entity in a new cell is the same pursuit, so it

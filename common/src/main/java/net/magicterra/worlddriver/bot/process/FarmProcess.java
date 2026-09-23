@@ -49,6 +49,9 @@ public final class FarmProcess implements BotProcess {
     private String currentCropId;
     private int breakingTicks, placeTicks;
     private int harvested, replanted, skipped;
+    private String failure;
+
+    @Override public String failure() { return failure; }
     private Phase phase = Phase.SEARCH;
     private enum Phase { SEARCH, GOING, HARVEST, REPLANT }
 
@@ -72,9 +75,9 @@ public final class FarmProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity p = a.entity();
-        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
 
         switch (phase) {
@@ -84,6 +87,7 @@ public final class FarmProcess implements BotProcess {
                     st.builder.lastError = "done (harvested=" + harvested +
                             ", replanted=" + replanted + ", skipped=" + skipped + ")";
                     st.builder.reset();
+                    if (skipped > 0) failure = "incomplete: " + skipped + " crops skipped";
                     return true;
                 }
                 currentTarget = found[0];

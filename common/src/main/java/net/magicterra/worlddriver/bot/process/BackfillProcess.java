@@ -39,6 +39,9 @@ public final class BackfillProcess implements BotProcess {
     private final BackfillTracker tracker;
     private final Walker walker = new Walker("backfill");
     private final Set<BlockPos> failed = new HashSet<>();
+    private String failure;
+
+    @Override public String failure() { return failure; }
     private Phase phase = Phase.NEXT;
     private BlockPos currentBlock;
     private BlockPos currentStand;
@@ -66,9 +69,9 @@ public final class BackfillProcess implements BotProcess {
         // exit is not "no information" to the caller — it is the POSITIVE report "finished, no
         // error", which is the one thing that did not happen. BboxFillProcess and FarmProcess, which
         // share this very `st.builder` slot, have always stamped it.
-        if (p == null) { st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
+        if (p == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
         hands = a.hands().orElse(null);
-        if (hands == null) { st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
+        if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
         BlockPos playerFoot = blockPosOf(p);
 
@@ -78,6 +81,7 @@ public final class BackfillProcess implements BotProcess {
                 if (pick == null) {
                     st.builder.lastError = "backfill done";
                     st.builder.reset();
+                    if (!failed.isEmpty()) failure = "incomplete: " + failed.size() + " cells could not be filled";
                     return true;
                 }
                 String blockId = BotConfig.autoBackfillBlock;

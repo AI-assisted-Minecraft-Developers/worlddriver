@@ -22,6 +22,7 @@ class UserTaskChainKeyReleaseTest {
         int ticks;
         Finisher(int finishOnTick) { this.finishOnTick = finishOnTick; }
         @Override public String kind() { return "builder"; }
+        @Override public String failure() { return null; }
         @Override public void attach(BotState st) { st.builder.active = true; }
         @Override public boolean tick(Body a, WorldView w, BotState st) { return ++ticks >= finishOnTick; }
     }
