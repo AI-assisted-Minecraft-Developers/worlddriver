@@ -294,21 +294,26 @@ public final class BotTools {
                 ),
 
             wrTool("mc.bot.follow",
-                "Follow an entity; re-aims whenever it changes block, ends `unreachable` after 5 failed replans in a row. " +
-                "Pass `entityType` (registry id) or " +
+                "Follow an entity; re-aims whenever it changes block, ends `unreachable` after 5 failed replans in a row, " +
+                "or when for giveUpTicks it neither reaches the standoff nor gets a block closer than its closest " +
+                "approach (default 600 = 30 s; 0 = never) — a quarry in a pen it cannot enter, or one that " +
+                "outruns it. Pass `entityType` (registry id) or " +
                 "`name` (case-sensitive GameProfile). " +
                 "radius: standoff 1-16 (default 3). maxIdleTicks>0 stops gracefully when no " +
                 "match seen for N ticks (~20=1s); 0 = forever. " +
                 "Takes goto's `route` object for the follow pathing (no via, no entity leash, no fly — " +
                 "it already tracks an entity). The former top-level condition fields moved into route " +
                 "exactly as for goto. " +
-                "Returns {ok, started, entityType?|name?, radius, maxIdleTicks?}.",
+                "Returns {ok, started, entityType?|name?, radius, maxIdleTicks?, giveUpTicks}.",
                 object()
                     .prop("entityType", string().desc("Registry id of entity type."))
                     .prop("name", string().desc("Specific entity name."))
                     .prop("radius", integer(1, 16))
                     .prop("maxIdleTicks", integer(0, 100000)
                         .desc("Idle-tick budget before giving up. 0 = no timeout."))
+                    .prop("giveUpTicks", integer(0, 100000)
+                        .desc("Ticks without reaching the standoff or gaining a block before ending `unreachable`. "
+                            + "Default 600; 0 = never."))
                     .prop("route", routeSchema(false)
                         .desc("Route conditions as in mc.bot.goto, minus via."))
                     .prop("awaitMs", awaitMs())

@@ -12,6 +12,7 @@ import net.magicterra.worlddriver.bot.process.BridgeProcess;
 import net.magicterra.worlddriver.bot.process.BuildProcess;
 import net.magicterra.worlddriver.bot.process.CombatProcess;
 import net.magicterra.worlddriver.bot.process.EntityLeash;
+import net.magicterra.worlddriver.bot.pathfinder.SearchProfile;
 import net.magicterra.worlddriver.bot.process.FollowProcess;
 import net.magicterra.worlddriver.bot.process.Intent;
 import net.magicterra.worlddriver.bot.process.IntentProcess;
@@ -186,6 +187,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 Scene.of("wd.serverBuild", 600, WorldDriverProcessScenes::serverBuildScene),
                 Scene.of("wd.serverLookRaycast", 200, WorldDriverProcessScenes::serverLookRaycastScene),
                 Scene.of("wd.serverFollow", 400, WorldDriverProcessScenes::serverFollowScene),
+                Scene.of("wd.serverFollowGivesUpOnAPennedQuarry", 400,
+                        WorldDriverProcessScenes::serverFollowGivesUpOnAPennedQuarryScene),
                 Scene.of("wd.serverCombat", 400, WorldDriverProcessScenes::serverCombatScene),
                 Scene.of("wd.serverCombatCollectDrops", 400, WorldDriverProcessScenes::serverCombatCollectDropsScene),
                 Scene.of("wd.serverLook", 400, WorldDriverProcessScenes::serverLookScene),
@@ -1640,6 +1643,71 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                     fp.getX(), fp.getY(), fp.getZ(), dist, closed);
             if (!closed)
                 ctx.fail("server FollowProcess did not close on the armor stand: dist=" + dist);
+        });
+    }
+
+    // ==================================================================================
+    // wd.serverFollowGivesUpOnAPennedQuarry — a quarry pacing inside a sealed bedrock pen. The body
+    // can walk round the pen but never reach the standoff, and every lap reads as movement to the
+    // walker's futile guard, so only the follow's own give-up window can end it.
+    // ==================================================================================
+
+    private static final int PEN_GIVE_UP_TICKS = 200;
+
+    private static void serverFollowGivesUpOnAPennedQuarryScene(SceneContext ctx) {
+        ServerLevel level = ctx.level();
+        final int cx = ctx.origin().getX(), cz = ctx.origin().getZ(), floorY = ctx.origin().getY() + 20;
+
+        var pin = BotConfig.pinnedBaseline();
+        ctx.cleanup(pin::close);
+        ServerAvatarManager.clear();
+        ctx.cleanup(ServerAvatarManager::clear);
+        ctx.cleanup(() -> {
+            for (int dx = -2; dx <= 12; dx++)
+                for (int dy = 0; dy <= 3; dy++)
+                    for (int dz = -4; dz <= 6; dz++)
+                        level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz), Blocks.AIR.defaultBlockState());
+        });
+
+        for (int dx = -2; dx <= 12; dx++)
+            for (int dz = -4; dz <= 6; dz++)
+                level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
+        // Walls, floor and roof of bedrock around a 3x1x2 cell at dx 7..9, dz 3.
+        for (int dx = 6; dx <= 10; dx++)
+            for (int dy = 0; dy <= 3; dy++)
+                for (int dz = 2; dz <= 4; dz++) {
+                    boolean inside = dx >= 7 && dx <= 9 && dz == 3 && dy >= 1 && dy <= 2;
+                    level.setBlockAndUpdate(new BlockPos(cx + dx, floorY + dy, cz + dz),
+                            (inside ? Blocks.AIR : Blocks.BEDROCK).defaultBlockState());
+                }
+        var stand = new ArmorStand(level, cx + 7 + 0.5, floorY + 1, cz + 3 + 0.5);
+        stand.setNoGravity(true);
+        level.addFreshEntity(stand);
+        ctx.cleanup(stand::discard);
+
+        BotConfig.walkerDebug = false;
+        BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
+        BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
+
+        ctx.await(() -> !level.getEntitiesOfClass(ArmorStand.class, entityBox(cx, floorY, cz)).isEmpty())
+                .within(100).then(() -> {
+            ServerWorldDriver driver = SceneBody.mint(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
+            driver.runProcess(new FollowProcess("minecraft:armor_stand", null, 1, 0, PEN_GIVE_UP_TICKS,
+                    SearchProfile.NONE));
+            ServerAvatarManager.register(driver);
+
+            int t = 0;
+            for (; t < 4 * PEN_GIVE_UP_TICKS && driver.activeKind() != null; t++) {
+                // Paces between the pen's two end cells: the goal cell moves, the pursuit does not.
+                if (t % 20 == 0) stand.teleportTo(cx + (t / 20 % 2 == 0 ? 9 : 7) + 0.5, floorY + 1, cz + 3 + 0.5);
+                ServerAvatarManager.tickAll();
+            }
+            String err = driver.botState().follow.lastError;
+            ctx.record("结束", "第 " + t + " tick，activeKind=" + driver.activeKind() + "，lastError=" + err);
+            ctx.check(driver.activeKind() == null)
+                    .as("A 追不进围栏的 follow 在 " + 4 * PEN_GIVE_UP_TICKS + " tick 内结束：第 " + t + " tick").isTrue();
+            ctx.check(err != null && err.startsWith("unreachable"))
+                    .as("B 以 unreachable 结束：" + err).isTrue();
         });
     }
 
