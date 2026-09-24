@@ -797,8 +797,9 @@ public final class JourneyRig {
     /**
      * Record HOW the client's chain let go of the leg, not merely that it did.
      *
-     * <p>{@code userTaskBusy()} goes false for three different endings — ran to completion, threw,
-     * or was cancelled by a higher-priority chain — and the real player's helm is the one that has
+     * <p>{@code userTaskBusy()} goes false for four different endings — ran to completion, gave up
+     * on its own, threw, or was cancelled by a higher-priority chain — and the leg's {@code error}
+     * carries the reason for all but the first. The real player's helm is the one that has
      * reflexes at all: Panic (creeper), Dodge (projectile), Combat and Bunker can all preempt the
      * rung's own process. Without this row a leg a creeper interrupted reads exactly like a leg
      * that finished, which is {@code UserTaskChain}'s own documented ambiguity arriving one layer
@@ -812,7 +813,8 @@ public final class JourneyRig {
         endedLeg = null;
         if (end == null) return;
         Object err = end.get("error");
-        String line = String.valueOf(end.get("kind")) + (err == null ? "→跑完" : "→被结束：" + err);
+        // The reason may be the process's own give-up as well as a preempt, so the label claims neither.
+        String line = String.valueOf(end.get("kind")) + (err == null ? "→跑完" : "→没做成：" + err);
         // Collapse an unchanged repeat rather than printing「goto→跑完」forty times: a rung that
         // settles per cell would otherwise bury its one interesting ending under its own noise.
         int n = legEndings.size();
