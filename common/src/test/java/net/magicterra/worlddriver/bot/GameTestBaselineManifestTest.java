@@ -115,10 +115,10 @@ class GameTestBaselineManifestTest {
 
     // LIVE — default-ON booleans the baseline deliberately leaves alone, so the arena runs them
     // exactly as a live client does. Listed so that "not pinned" is a recorded decision rather
-    // than an absence. The reason each is here is the same one: it was already ON when the arena
-    // assertions were authored, so the scenes were written against it. What differs per row is
-    // what the flag does, which is what a reader needs in order to judge whether a NEW flag
-    // belongs beside it or in PINNED.
+    // than an absence. The reason each is here is the same one unless its group says otherwise: it
+    // was already ON when the arena assertions were authored, so the scenes were written against
+    // it. What differs per row is what the flag does, which is what a reader needs in order to
+    // judge whether a NEW flag belongs beside it or in PINNED.
 
     private static final Map<String, String> LIVE = new TreeMap<>(Map.ofEntries(
             // survival reflexes and safety gates — a scene that removed these would be testing
@@ -155,7 +155,10 @@ class GameTestBaselineManifestTest {
             e("pathfinderForbidParkourOverTheVoid", "refuse to plan a leap over the void when bridging is possible"),
             e("pathfinderForbidParkourIntoDeepWater", "refuse to plan a leap into deep water"),
             e("pathfinderParkourAscendNeedRunway", "approach-runway gate for the +1-up parkour leap"),
-            e("walkerTailConsumeDirectional", "a best-effort tail still ahead of the bot is not spent; OFF fails long straight walks"),
+
+            // flipped ON after the arena assertions were written, and live anyway: pinning it OFF
+            // leaves the arena a bot that cannot finish a walk past the planner's horizon
+            e("walkerTailConsumeDirectional", "a best-effort tail still ahead of the bot is not spent until the bot passes it or stalls"),
 
             // the arc-length pursuit refactor — its ON phases replaced whole families of
             // per-tick gates, so pinning them off would restore machinery that no longer exists
