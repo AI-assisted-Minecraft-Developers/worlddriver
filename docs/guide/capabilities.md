@@ -309,14 +309,15 @@ the reply comes back immediately without polling.
 
 **Poll yourself.** Call `mc.bot.status` and read the slot. Each slot carries `active`,
 `pathLen`, `pathStep` and `lastError`. A slot's `lastError` is not a failure flag on its own:
-`build`, `clearArea`, `farm`, `explore` and `sleep` also leave their success summary there
-(`"done (placed=12, skipped=0)"`). Whether the last user task did what it was asked is
-`lastProcessEnd`, `{kind, error}` at the top level of the status: `error` is null only when it
-did, and otherwise says why it stopped — a give-up (a goto that ended short of its goal, a build
-that skipped blocks, a follow that could not close in), an exception, or a cancel. A goto with
-`invert` or a strict `direction` has no goal to reach, so it is done when it stops. The
-auto-backfill is not a user task and leaves `lastProcessEnd` as it was. A named body's status
-(`body: "player:…"` or `"npc:…"`) carries its own `lastProcessEnd` in the same shape. `lastPath` holds the
+`build`, `clearArea`, `farm`, `construct`, `explore` and `sleep` also leave their success summary
+there (`"done (placed=12, skipped=0)"`, `"not needed (…)"`), and so does the auto-backfill
+(`"backfill done"`). Whether the last user task did what it was asked is `lastProcessEnd`,
+`{kind, error}` at the top level of the status: `error` is null only when it did, and otherwise
+says why it stopped — a give-up (a goto that ended short of its goal, a build that skipped
+blocks, a follow that could not close in), an exception, or a cancel. A goto with `invert` or a
+strict `direction` has no goal to reach, so it is done when it stops. The auto-backfill is not a
+user task and leaves `lastProcessEnd` as it was. A named body's status (`body: "player:…"` or
+`"npc:…"`) carries its own `lastProcessEnd` in the same shape. `lastPath` holds the
 statistics of the most recent search — how many nodes were expanded, how long it took, and
 whether the goal was reached — which is the first thing to read when the answer to "why is
 it not moving" is not obvious: few expanded nodes together with `goalReached: false` means
