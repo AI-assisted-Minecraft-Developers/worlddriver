@@ -314,7 +314,8 @@ the reply comes back immediately without polling.
 `lastProcessEnd`, `{kind, error}` at the top level of the status: `error` is null only when it
 did, and otherwise says why it stopped — a give-up (a goto that ended short of its goal, a build
 that skipped blocks, a follow that could not close in), an exception, or a cancel. A goto with
-`invert` or a strict `direction` has no goal to reach, so it is done when it stops. `lastPath` holds the
+`invert` or a strict `direction` has no goal to reach, so it is done when it stops. The
+auto-backfill is not a user task and leaves `lastProcessEnd` as it was. `lastPath` holds the
 statistics of the most recent search — how many nodes were expanded, how long it took, and
 whether the goal was reached — which is the first thing to read when the answer to "why is
 it not moving" is not obvious: few expanded nodes together with `goalReached: false` means

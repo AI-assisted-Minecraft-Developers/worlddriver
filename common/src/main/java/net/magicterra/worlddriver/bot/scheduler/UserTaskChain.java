@@ -44,11 +44,25 @@ public final class UserTaskChain implements Chain {
     /** Start a process, superseding any current one. Mirrors the old
      *  {@code BotApiImpl.startProcess}. */
     public void setProcess(BotProcess next) {
+        install(next, true);
+    }
+
+    /** Start a process nobody asked for (the auto-backfill). It runs like a user task, but its
+     *  ending is not recorded: {@link #lastEnd} answers for the last task a caller started. */
+    public void setAmbientProcess(BotProcess next) {
+        install(next, false);
+    }
+
+    private void install(BotProcess next, boolean asked) {
         cancel("superseded");
         claim = SlotClaim.attach(next, state);
         drove = false;
+        this.asked = asked;
         process = next;
     }
+
+    /** Whether the held process was started by a caller, so that its ending is theirs to read. */
+    private boolean asked;
 
     /** Whether the held process has been left running across a tick boundary, i.e. has driven the
      *  body. One that ends on its first tick never did, and the keybinds it would release are the
@@ -72,24 +86,26 @@ public final class UserTaskChain implements Chain {
     // error, and without this it would end with active:false and no lastError,
     // which reads as success. Recorded for EVERY kind, so a reader never has to
     // know which slot, if any, a kind reports into.
-    private volatile String endKind;
-    private volatile String endError;
+    // One immutable value, because the reader is on an RPC thread: two volatiles written in turn
+    // can be read as a new kind paired with the previous task's error.
+    private record End(String kind, String error) {}
+
+    private volatile End end;
 
     private void recordEnd(String kind, String error) {
-        endKind = kind;
-        endError = error;
+        if (asked) end = new End(kind, error);
     }
 
-    /** {@code {kind, error}} of the last process ending, or null if none has ended
-     *  this session. {@code error} is null only when the process did what it was asked; a
+    /** {@code {kind, error}} of the last ending of a process a caller started, or null if none has
+     *  ended this session. {@code error} is null only when the process did what it was asked; a
      *  give-up, a throw and a cancel all carry their reason. Surfaced as {@code lastProcessEnd}
      *  in {@code mc.bot.status}. */
     public Map<String, Object> lastEnd() {
-        String k = endKind;
-        if (k == null) return null;
+        End e = end;
+        if (e == null) return null;
         Map<String, Object> m = new LinkedHashMap<>();
-        m.put("kind", k);
-        m.put("error", endError);
+        m.put("kind", e.kind());
+        m.put("error", e.error());
         return m;
     }
 

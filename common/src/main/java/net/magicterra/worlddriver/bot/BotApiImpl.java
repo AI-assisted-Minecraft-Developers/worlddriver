@@ -1017,7 +1017,8 @@ public final class BotApiImpl implements BotApi {
         if (respawnGraceLeft > 0) respawnGraceLeft--;
         if (c == null && respawnGraceLeft == 0 && BotConfig.autoBackfill
                 && BackfillProcess.autoStartWanted(backfillTracker, foot, mc.level)) {
-            startProcess(new BackfillProcess(backfillTracker));
+            userTask.setAmbientProcess(new BackfillProcess(backfillTracker));
+            paused = false;
         }
         // Movement channel: run the highest-priority chain (user task, or a
         // survival/combat chain preempting it). When every chain sits out, the
