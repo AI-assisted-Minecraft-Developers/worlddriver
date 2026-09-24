@@ -105,7 +105,7 @@ public final class FixtureVerdicts {
     /**
      * The {@code expect} block a fixture gets from its verdicts: the newest run a human judged
      * {@code pass}, each observed number widened by {@link #SLACK} and rounded up. Null when no run
-     * was judged a pass. A quantity the run did not observe (no walker on that leg) is left out, so
+     * was judged a pass. A quantity the run did not observe (no walker ran for that walk) is left out, so
      * it stays unchecked rather than pinned at zero.
      */
     public static Map<String, Object> acceptFrom(List<Record> records) {

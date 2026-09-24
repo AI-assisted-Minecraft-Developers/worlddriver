@@ -1,7 +1,7 @@
 # Human verification: hand-built scenes
 
 This is a procedure for verifying behaviour by hand. You build a piece of terrain in the
-running game, mark where the body starts, where it must go, what it must pass and what it
+running game, mark where the bot starts, where it must go, what it must pass and what it
 must never enter, and watch the bot run it. The run's automatic checks and your own
 judgement are both recorded, and a scene you accept becomes an ordinary member of the
 automated suite, judged by the same check as every other scene.
@@ -15,15 +15,15 @@ reasoning behind the design is in
 
 ```bash
 ./gradlew stagewrightDedicatedServerFabricHold    # a headless server, held open; join it with your own client
-./gradlew stagewrightIntegratedServerFabricHold   # your client hosting the world; the bot drives your own body
+./gradlew stagewrightIntegratedServerFabricHold   # your client hosting the world; the bot drives your own player
 ```
 
 A `Hold` task runs the same topology as the check of the same name but does not stop when
 the scenes finish, so you can join and work in the world it left standing.
 
-On the dedicated hold the body is a headless player you watch from beside it, selected as
+On the dedicated hold the bot is a headless player you watch from beside it, selected as
 `server`. On the integrated hold the bot drives the player you are, selected as `self`;
-watch in first person or from the third-person camera. Asking for the other body on either
+watch in first person or from the third-person camera. Asking for the other bot on either
 topology is an error, and the message says why.
 
 ## Markers
@@ -31,19 +31,19 @@ topology is an error, and the message says why.
 The block `worlddriver:marker` carries a `role` as a block-state property, so it survives a
 world save without needing a block entity. There is one item per role in the WorldDriver
 scenes creative tab. A marker has no collision, does not block motion and gives way to
-anything placed over it, so a marker in the wrong place cannot change what the body is able
+anything placed over it, so a marker in the wrong place cannot change what the bot is able
 to do — there is a scene that holds that guarantee.
 
 | Role | How many | Meaning |
 |---|---|---|
 | `corner` | exactly 2 | Opposite corners of the box that gets saved. |
 | `origin` | at most 1, inside the box | The cell every position in the file is relative to. Without one, the `start` cell is the origin. One cell holds one marker. Its label is the scene's name; see [Several scenes in one world](#several-scenes-in-one-world). |
-| `start` | exactly 1 | Where the body's feet start. The label or arguments may carry a `yaw`. |
-| `goal` | 1 or more | Where a leg goes. The label is `block` (the default), `near:<r>`, or `y:`; a leading number orders several goals, as in `2 near:1`. |
-| `via` | any, and only with a single goal | Waypoints in label order. They become the leg's `route.via`. |
-| `pass` | any | A cell the body must pass within `radius` of; the label sets the radius, default 1. |
-| `forbid` | any | A cell the body's feet or head must never occupy, checked every tick. |
-| `stand` | at most 1 | Where the body must be standing when the last leg ends, on the ground and out of water. |
+| `start` | exactly 1 | Where the bot's feet start. The label or arguments may carry a `yaw`. |
+| `goal` | 1 or more | Where a task goes. The label is `block` (the default), `near:<r>`, or `y:`; a leading number orders several goals, as in `2 near:1`. |
+| `via` | any, and only with a single goal | Waypoints in label order. They become the task's `route.via`. |
+| `pass` | any | A cell the bot must pass within `radius` of; the label sets the radius, default 1. |
+| `forbid` | any | A cell the bot's feet or head must never occupy, checked every tick. |
+| `stand` | at most 1 | Where the bot must be standing when the last task ends, on the ground and out of water. |
 | `watch` | any | A cell whose block must still be what it was (`same`, the default) or must have become the block the label names. |
 
 Place one by looking at a block and typing `/worlddriver mark <role> [label]`. The marker
@@ -55,7 +55,7 @@ says what the label means for its role. The same verb over RPC is
 
 A marker can go into water or lava. Aim at the surface — both the command and the item stop
 at the first fluid cell — and the marker keeps that source, so the cell still counts as
-water or lava for the body, the neighbouring fluid does not wash the marker away, and the
+water or lava for the bot, the neighbouring fluid does not wash the marker away, and the
 saved terrain holds the fluid rather than a hole. Only source cells are kept; a marker in
 flowing fluid holds nothing.
 
@@ -103,7 +103,7 @@ loaded.
 - `run here` runs the box you are standing in. The markers are the truth and the terrain
   runs as it is.
 - `run <name>` does the same at the anchor named `<name>`. The saved file adds `hand`,
-  `equip`, `config`, `expect` and each leg's verb and budget. When the world has no such
+  `equip`, `config`, `expect` and each task's verb and budget. When the world has no such
   anchor the run is refused; `place` the scene first, or pass `pos` over RPC to place its
   terrain there for the run.
 - `place <name>` puts the file's terrain and markers back at the anchor, which is how you
@@ -134,17 +134,17 @@ bright outline in its role's colour and its box as a line frame, visible through
 
 ```
 /worlddriver scene run here                 # the markers in the world, terrain as it is
-/worlddriver scene run here server watch    # a body choice and a progress line every 20 ticks
+/worlddriver scene run here server watch    # the chosen bot and a progress line every 20 ticks
 /worlddriver scene run here npc             # a driven piglin instead of a player
 ```
 
-The body argument is `self`, `server` or `npc`, and `watch` may follow it or the name. All
+The bot argument is `self`, `server` or `npc`, and `watch` may follow it or the name. All
 of these need permission level 2.
 
 `here` needs the two corners, a start and a goal, and an origin unless the start is serving
-as one. A run on your own body fails at once if you are dead — respawn first. The bot verbs
+as one. A run on your own bot fails at once if you are dead — respawn first. The bot verbs
 it uses refuse a dead, paused, sleeping or still-loading player the same way, answering
-`{ok: false, reason: …}` over RPC. The `npc` body runs anywhere, including your own world;
+`{ok: false, reason: …}` over RPC. The `npc` bot runs anywhere, including your own world;
 it has no inventory, so a scene whose file gives `hand` or `equip` refuses it, and it cannot
 dig, place or climb a pillar.
 
@@ -153,7 +153,7 @@ buttons:
 
 ```
 [scene here] PASS
-  ✓ leg 0 goto arrived at 12,2,2 (ended at tick 38)
+  ✓ task 0 goto arrived at 12,2,2 (ended at tick 38)
   ✓ pass 1/1
   ✓ never entered a forbid cell
   ✓ stands on 12,2,2
@@ -181,8 +181,8 @@ it to decide anything.
 ## Save, edit, run again
 
 ```
-/worlddriver scene save human.riverBankTwoHigh            # goto legs, 1200 ticks each
-/worlddriver scene save human.riverBankTwoHigh mine 2400  # the goal legs' verb and budget
+/worlddriver scene save human.riverBankTwoHigh            # goto tasks, 1200 ticks each
+/worlddriver scene save human.riverBankTwoHigh mine 2400  # the goal tasks' verb and budget
 /worlddriver scene list
 /worlddriver scene place human.riverBankTwoHigh
 /worlddriver scene run human.riverBankTwoHigh
@@ -206,9 +206,9 @@ The JSON is plain and meant to be edited by hand for the things markers cannot s
 ]
 ```
 
-The `config` keys are bot setting names and are restored when the run ends. A `goto` leg
-takes the same `route` object as `mc.bot.goto`. An `escape` leg with a `targetY` below the
-feet descends and above them climbs. Positions are relative to the origin throughout.
+The `config` keys are bot setting names and are restored when the run ends. Each entry of
+`legs` is one task. A `goto` task takes the same `route` object as
+`mc.bot.goto`. An `escape` task with a `targetY` below the feet descends and above them climbs. Positions are relative to the origin throughout.
 
 ## Accept: the run you judged becomes the standard
 
@@ -220,9 +220,9 @@ its four numbers by 20 per cent, rounding up, and writes them into the fixture's
 ```
 
 From then on a run that takes longer, replans more, hops more or digs more than that fails,
-both in place and in the suite. `repaths` counts finished searches by the leg's walker, and
+both in place and in the suite. `repaths` counts finished searches by the task's walker, and
 a segmented walk finishes several; `hops` counts the recovery hops the walker allowed; and
-`digs` counts the distinct cells it dug. Legs whose process has no walker, such as `escape`
+`digs` counts the distinct cells it dug. Tasks whose process has no walker, such as `escape`
 and `elytra`, contribute nothing, and the report says so. Edit the numbers by hand if the
 accepted run was tighter than you want — a hand-set bound is as good as an accepted one.
 
@@ -239,8 +239,8 @@ Three things belong in one commit, or the run fails on whichever is missing:
 The name must start with `human.`. Run `python scripts/check_scene_arena.py` to confirm the
 file's `chunkRadius` covers its box.
 
-The suite places the terrain at the harness origin, picks the body from the topology —
-headless on a dedicated server, the real player on an integrated one — runs the legs, and
+The suite places the terrain at the harness origin, picks the bot from the topology —
+headless on a dedicated server, the real player on an integrated one — runs the tasks, and
 judges the markers and the `expect` bounds. Your latest human verdict, when the run
 directory has one, is written into the results line for the record; it never changes the
 outcome. For the topologies themselves, and how to run and read the automated suite, see
@@ -266,9 +266,9 @@ With `awaitMs` the reply carries the status, the automatic checks, the observed 
 the report lines. `worlddriver.scene.verdict` and `worlddriver.scene.accept` follow. One run
 at a time per server.
 
-## Drive a body by name
+## Drive a bot by name
 
-A server can hold bodies besides your own, and the `mc.bot.*` verbs that drive a body reach
+A server can hold bots besides your own player, and the `mc.bot.*` verbs that drive a bot reach
 them by name through the `body` parameter. Spawn one, find it, send it somewhere, stop it:
 
 ```
@@ -284,14 +284,14 @@ $RPC mc.bot.runAway '{"body":"player:alex","minDist":8}'
 $RPC mc.bot.cancel '{"body":"player:alex","process":"runAway"}'
 ```
 
-Accept the result when the reply names the body, the body you are watching in the world is
-the one that moves, `status` for that body shows the slot go active and then idle, and your
-own player does not move. A name nobody spawned answers `reason: "unknown_body"`, and a body
-whose chunk is not loaded answers `chunk_unloaded`. Another body has no reflexes: it will not
+Accept the result when the reply names the bot, the bot you are watching in the world is
+the one that moves, `status` for that bot shows the slot go active and then idle, and your
+own player does not move. A name nobody spawned answers `reason: "unknown_body"`, and a bot
+whose chunk is not loaded answers `chunk_unloaded`. Another bot has no reflexes: it will not
 eat, flee or fight back unless told to. `/worlddriver server clear` removes it and forgets
 the name.
 
-Bodies named `npc:<name>` exist only while a test scene holds one, and there is no command
+Bots named `npc:<name>` exist only while a test scene holds one, and there is no command
 to spawn one. They have no hands, so `holdItem`, `useItem` and `attackEntity` answer
 `no_hands`, and a process that needs hands ends on its first tick with `no_hands` in its
 slot.

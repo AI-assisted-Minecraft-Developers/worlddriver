@@ -157,7 +157,7 @@ public final class FollowProcess implements BotProcess {
 
     /**
      * Whether the chase is still getting anywhere. The walker's futile-search guard cannot say: a
-     * quarry in a pen the body cannot enter sends it circling the pen, and a body that moves is never
+     * quarry in a pen the bot cannot enter sends it circling the pen, and a bot that moves is never
      * futile. Progress is reaching the standoff or a block gained on the closest approach so far.
      */
     static final class Chase {

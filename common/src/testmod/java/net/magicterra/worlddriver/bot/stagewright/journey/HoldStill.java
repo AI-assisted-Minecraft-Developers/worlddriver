@@ -8,15 +8,15 @@ import net.magicterra.worlddriver.bot.process.BotProcess;
 /**
  * Stand still for N ticks and let physics happen.
  *
- * <p>Sounds like nothing; it is the only way to make this body fall. A server avatar has no
+ * <p>Sounds like nothing; it is the only way to make this bot fall. A server avatar has no
  * free-running physics — {@code ServerAvatarManager} steps only the avatars a registered driver is
- * ticking — so an unregistered body hangs in the air over the hole it just dug. Every process this
+ * ticking — so an unregistered bot hangs in the air over the hole it just dug. Every process this
  * suite had available also STEERS, and steering is exactly what ruins a shaft.
  *
  * <p>Measured, twice. {@code Goal.YLevel(targetY)} descends to the wrong place: "be at y=60" is
  * satisfied anywhere, and the walker took the cheapest way down it could find, landing six blocks
  * off the ore column. {@code Goal.Block(cellJustEmptied)} names the right cell and still fails in
- * the field: the body stood exactly on the surveyed column ({@code arrived.horizontalDistance=0}),
+ * the field: the bot stood exactly on the surveyed column ({@code arrived.horizontalDistance=0}),
  * broke the floor clean through, and the walker then carried it sideways one cell at a time —
  * {@code 72 → 73 → 74} — because open ground offers it alternatives that a sealed test arena does
  * not. {@code wd.serverSelfShaftDescends} passes precisely because there is nowhere else to go
@@ -65,7 +65,7 @@ public final class HoldStill implements BotProcess {
     @Override
     public boolean tick(Body a, WorldView w, BotState st) {
         // Release everything a previous process may have latched. A leftover forward impulse would
-        // walk the body off the hole just as surely as a goal would.
+        // walk the bot off the hole just as surely as a goal would.
         a.commandMove(0, 0);
         a.commandJump(false);
         a.hands().ifPresent(h -> h.breakHold(false));

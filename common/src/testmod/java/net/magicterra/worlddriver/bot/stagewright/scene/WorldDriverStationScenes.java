@@ -50,12 +50,12 @@ import net.minecraft.world.level.block.Blocks;
  * absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} → {@code origin.y + 20}
  * (grid {@code GRID_Y = 200}, so the mapped absolute Y equals the legacy Y — geometry unchanged,
  * only X/Z relocate); {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated}
- * (#48 per-scene isolated body via {@code ServerPlayerBody.createUnique}) + a {@code
+ * (#48 per-scene isolated player via {@code ServerPlayerBody.createUnique}) + a {@code
  * ctx.cleanup(fp::discard)}; {@code try/finally} {@link BotConfig} save/restore →
  * {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code
  * GameTestAssertException}/{@code throw} → {@link SceneContext#fail} with a scene-name prefix;
  * {@code helper.succeed()} → return; the {@code gtOnlySkips(...)} probe line → deleted. The
- * legacy body type was a NeoForge {@code FakePlayer}; the common driver's {@link
+ * legacy player type was a NeoForge {@code FakePlayer}; the common driver's {@link
  * ServerWorldDriver#fakePlayer()} is a plain {@link ServerPlayer} (a {@code FakePlayer} IS a
  * {@code ServerPlayer}), and every station call used here — {@code getInventory()},
  * {@code containerMenu}, {@code inventoryMenu} — is a {@code ServerPlayer} member, so the port is
@@ -566,7 +566,7 @@ public final class WorldDriverStationScenes implements SceneProvider {
      * <p>It was a capability-cliff proof — a fake player could not open a furnace menu, so the most
      * this could ask was that the process degrade gracefully and finish with an "open furnace"
      * error instead of wedging the tick. A hand-built station menu removed the cliff, and joined
-     * server bodies now open the furnace through vanilla's own {@code openMenu}, so the
+     * server-side players now open the furnace through vanilla's own {@code openMenu}, so the
      * graceful-degradation assertion became a test that the feature stays broken. It
      * now asserts the capability. Renamed with it: a scene called {@code …Cliff} that requires the
      * cliff to be gone is a trap for the next reader.

@@ -26,7 +26,7 @@ import net.minecraft.world.level.block.Blocks;
  * the recovery work". That question needs the occasion staged, which is what these two scenes are.
  *
  * <p><b>Both assert that the recovery was OBSERVED to run</b> — the evidence row it writes must be
- * present — rather than that the world ended up tidy. A body that was never on a tower also ends on
+ * present — rather than that the world ended up tidy. A bot that was never on a tower also ends on
  * the ground; counting that as a pass is how a fix gets signed off without ever executing
  * (see the ladder's own history of exactly this).
  *
@@ -49,7 +49,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                 // "arrived" mean one cell out in the water, and `afloat` answering "no" for a bot
                 // treading water with no floor). What it is waiting on is TODO J47 — the pathfinder
                 // returns `end=path-consumed` one cell short of a bank that is flush with the water,
-                // so no amount of asking moves the body the last step. When J47 lands this flips to
+                // so no amount of asking moves the bot the last step. When J47 lands this flips to
                 // PASS by itself, which is the whole reason it stays in the suite red rather than
                 // being softened into something a broken walker can satisfy.
                 Scene.of("wd.journeyGetsAshoreBeforePouring", 6_000,
@@ -65,14 +65,14 @@ public final class JourneyLandingScenes implements SceneProvider {
                 Scene.of("wd.journeyFlightEndsOnADryStep", 6_000,
                         JourneyLandingScenes::flightEndsOnADryStep),
                 // REQUIRED. It spent one afternoon on the optional shelf and came off it: first it
-                // REFUTED the fix it was written to validate (a second leg aimed one step further
-                // down walked the body two cells BACK and one row UP), then it named the real one.
+                // REFUTED the fix it was written to validate (a second walk aimed one step further
+                // down moved the bot two cells BACK and one row UP), then it named the real one.
                 //
                 // What it pins now is the turn before the last step. Its three readings, in order,
                 // are the whole argument and none of them is an inference:
                 //   two-cell staircase   → `end=failed:no path (expanded=2)`   (this arena's own bug)
-                //   three-cell, no turn  → `end=path-consumed`, body 0.10 b short, `descentHolds=3`
-                //   three-cell, turned   → `end=arrived`, `yawErr` 0, body in the terminal
+                //   three-cell, no turn  → `end=path-consumed`, bot 0.10 b short, `descentHolds=3`
+                //   three-cell, turned   → `end=arrived`, `yawErr` 0, bot in the terminal
                 // Ten seconds a run under `-Pstagewright.scenes=`, and every one of those readings
                 // came out of this arena rather than off a 50-minute ladder.
                 Scene.of("wd.journeyWalksOffTheLipOntoTheDryStep", 6_000,
@@ -86,7 +86,7 @@ public final class JourneyLandingScenes implements SceneProvider {
     /** Natural ground level inside the arena box. */
     private static final int GROUND = 20;
 
-    /** Courses of tower under the body. Twelve where the guard trips at eight. */
+    /** Courses of tower under the bot. Twelve where the guard trips at eight. */
     private static final int TOWER = 12;
 
     /** How deep the pit is. Twelve, for the same reason. */
@@ -100,8 +100,8 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
         flatGround(ctx);
-        // The tower, at the body's own column and NOT at the home column — the fix reads the home
-        // column's heightmap precisely because the body's own reports the tower top.
+        // The tower, at the bot's own column and NOT at the home column — the fix reads the home
+        // column's heightmap precisely because the bot's own reports the tower top.
         for (int dy = 1; dy <= TOWER; dy++) ctx.setBlock(0, GROUND + dy, 0, Blocks.COBBLESTONE);
 
         BlockPos home = ctx.rel(3, GROUND + 1, 0);
@@ -155,7 +155,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerLevel level = ctx.level();
         ctx.cleanup(() -> clearBox(ctx));
         flatGround(ctx);
-        // A dry shaft under the body: the OTHER direction of the same guard, which had never been
+        // A dry shaft under the bot: the OTHER direction of the same guard, which had never been
         // exercised either. Dug one wide, as the ladder's own shafts are.
         for (int dy = 0; dy > -PIT; dy--) ctx.setBlock(0, GROUND + dy, 0, Blocks.AIR);
 
@@ -202,7 +202,7 @@ public final class JourneyLandingScenes implements SceneProvider {
     private static final int POOL_DEPTH = 6;
     private static final int POOL_HALF = 4;
 
-    /** How far under the surface the body starts. Two, so a body that bobs up a cell while the three
+    /** How far under the surface the bot starts. Two, so a bot that bobs up a cell while the three
      *  settling steps run is still in water when the recovery reads it. */
     private static final int SUBMERGED = 2;
 
@@ -218,12 +218,12 @@ public final class JourneyLandingScenes implements SceneProvider {
         ServerWorldDriver driver = SceneBody.managed(ctx, ctx.rel(0, GROUND - SUBMERGED, 0));
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.LAVA_BUCKET));
-        // AND BLOCKS, because the real body has them. The first staging carried only the bucket and
-        // the body could not get out of the pool at all: `end=path-consumed` one cell from the bank,
-        // every run. `WalkerTickClimb:557` gates the swim escape on `holdPlaceable()`, so a body
-        // with nothing to place has no way up out of water — and the ladder's body always has
+        // AND BLOCKS, because the real bot has them. The first staging carried only the bucket and
+        // the bot could not get out of the pool at all: `end=path-consumed` one cell from the bank,
+        // every run. `WalkerTickClimb:557` gates the swim escape on `holdPlaceable()`, so a bot
+        // with nothing to place has no way up out of water — and the ladder's bot always has
         // something (the run this scene is about recorded `pillarStock = minecraft:dirt ×30`).
-        // Staging it empty-handed was testing a body the ladder never has.
+        // Staging it empty-handed was testing a bot the ladder never has.
         fp.getInventory().items.set(1, new ItemStack(Items.COBBLESTONE, 32));
         fp.getInventory().selected = 0;
         ServerPlayerBody av = driver.avatar();
@@ -275,15 +275,15 @@ public final class JourneyLandingScenes implements SceneProvider {
      *
      * <p><b>The occasion, and why it needs staging.</b> Rung 12 opens by scooping water, standing
      * where rung 11 just cast obsidian — and rung 11 casts it into the very pond rung 12 drinks
-     * from. On ladder j50 the body happened to stand at y=62 and the fresh obsidian sat on the
+     * from. On ladder j50 the bot happened to stand at y=62 and the fresh obsidian sat on the
      * diagonal to the nearest source: {@code waterFill.result = FAIL}, rung 12 dead at tick 7.
-     * On j48 and j51 the body happened to stand at y=63, its ray cleared the obsidian's top face,
+     * On j48 and j51 the bot happened to stand at y=63, its ray cleared the obsidian's top face,
      * and the same code filled. Same coordinate, same 1.4 blocks, opposite outcomes — the seat
      * decided it, so no number of ladder runs decides anything. This stages the bad seat.
      *
      * <p><b>Why a lid rather than a wall.</b> A wall has to be placed on the exact line the ray
      * takes, which is arithmetic this scene would then be testing instead of the fix. A lid
-     * directly ABOVE the near source blocks every ray from every body standing higher than it, so
+     * directly ABOVE the near source blocks every ray from every bot standing higher than it, so
      * the staging cannot quietly stop reproducing the trap when an unrelated constant moves.
      *
      * <p><b>What it asserts, in order.</b> First that the trap is real (the distance-ranked finder
@@ -468,7 +468,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * it.</b> That one stages a blocked source next to an open one, so the chooser has a right
      * answer to find and never enters the re-seat at all. This one stages a pond with <i>no</i>
      * seat-visible source, which is the other branch: {@code visibleSourceNear} returns null and the
-     * only thing left to change is the body's own cell. Ladder j52 measured exactly that
+     * only thing left to change is the bot's own cell. Ladder j52 measured exactly that
      * ({@code waterFill.aim} reported that no water source was visible from this eye) and then aimed
      * anyway.
      *
@@ -477,12 +477,12 @@ public final class JourneyLandingScenes implements SceneProvider {
      * the branch has nowhere to go. The trap has to be <i>directional</i>, and the ladder's real one
      * was: {@code empty-bucket ray -5,62,55 minecraft:grass_block (1.05 blocks)} is a bank one
      * block above the
-     * body's feet, and the same pond filled a bucket on the first try from one block higher (j48,
+     * bot's feet, and the same pond filled a bucket on the first try from one block higher (j48,
      * j51). So the staging is a seat cut one below the bank, with the pond behind it.
      *
-     * <p><b>The body is staged exactly {@code Goal.Near}'s radius from the pond</b> (distSqr 4 for
+     * <p><b>The bot is staged exactly {@code Goal.Near}'s radius from the pond</b> (distSqr 4 for
      * radius 2, and {@code reached} is {@code <=}), so the approach the scoop opens with is already
-     * satisfied and cannot quietly walk the body out of the trap before the branch is reached. That
+     * satisfied and cannot quietly walk the bot out of the trap before the branch is reached. That
      * is asserted, not assumed — control A asks the engine, after the settle.
      */
     private static void reseatsWhenItCanSeeNoWater(SceneContext ctx) {
@@ -508,16 +508,16 @@ public final class JourneyLandingScenes implements SceneProvider {
      * seven blocks away contributes its own rim cells — and a seat there is seven blocks from the
      * {@code water} the re-entry would walk back to. So: ring the near pond at head height, which
      * kills every seat around it while leaving it open above (still the distance-nearest); and put
-     * the far pond outside {@code visibleSourceNear}'s radius <i>of the body</i> but inside
+     * the far pond outside {@code visibleSourceNear}'s radius <i>of the bot</i> but inside
      * {@code standToScoop}'s radius <i>of the near pond</i>. Without the guard, the re-entry walks
-     * the body all the way back to the ringed pond it cannot drink from, and the scene says so.
+     * the bot all the way back to the ringed pond it cannot drink from, and the scene says so.
      */
     private static void keepsTheSeatItMovedTo(SceneContext ctx) {
         bankedPondScoop(ctx, true);
     }
 
     /** How far west the second pond sits. Nine: outside {@code visibleSourceNear}'s radius 8 of a
-     *  body two blocks east of the first pond, and seven from that pond, so it is inside
+     *  bot two blocks east of the first pond, and seven from that pond, so it is inside
      *  {@code standToScoop}'s radius 8 of it. Both halves of that sentence are asserted. */
     private static final int FAR_POND_DX = -9;
 
@@ -596,7 +596,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                     + " radius - inside it, the approach on re-entry has nothing to do and G is 0==0 again:"
                     + " seat " + seat + " distSqr to the pond="
                     + (seat == null ? "—" : String.valueOf(seat.distSqr(pond)))).isTrue();
-            // And that the two radii really do separate: the far pond must be OUT of the body's
+            // And that the two radii really do separate: the far pond must be OUT of the bot's
             // reach (else A above would have found it and there is no trap) and IN the near pond's
             // (else `standToScoop` never sees it and there is no seat). Both are staged by one
             // number, so one row proves or kills the whole geometry.
@@ -631,7 +631,7 @@ public final class JourneyLandingScenes implements SceneProvider {
                     + " still has never executed").isNotNull();
             ctx.check(!String.valueOf(reseat).startsWith("cannot re-seat")).as(
                     "F and it really moved, rather than printing a refusal: " + reseat).isTrue();
-            // G — the concern that the re-entry re-runs `Goal.Near(water,2)` and can walk the body
+            // G — the concern that the re-entry re-runs `Goal.Near(water,2)` and can walk the bot
             // off the seat it just paid for. One pond cannot make that fail, so this is a guard for
             // the day a second source is within `FILL_RESEARCH` of the first, not a measurement of
             // it today.
@@ -674,7 +674,7 @@ public final class JourneyLandingScenes implements SceneProvider {
     private static final int STEPS = 5;
 
     /**
-     * The flight stops on the lowest step a body can stand on, and that is the bottom only while the
+     * The flight stops on the lowest step a bot can stand on, and that is the bottom only while the
      * bottom is dry.
      *
      * <p>Staged rather than waited for, because the occasion arrives exactly once per ladder run and
@@ -706,7 +706,7 @@ public final class JourneyLandingScenes implements SceneProvider {
         // stays, because that is what holds the step up.
         // THREE CELLS PER STEP, the same three `digStairsDown` cuts — the step, its head room, and
         // the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
-        // lip scene paid for it on its first reading: `end=failed:no path (expanded=2)` on BOTH legs,
+        // lip scene paid for it on its first reading: `end=failed:no path (expanded=2)` on BOTH walks,
         // an artifact of this staging rather than anything the ladder does. `StepDown` requires the
         // PASSTHROUGH column's head to be clear (`moves/StepDown.java:23`), and on the way down that
         // passthrough is exactly the cell whose head is the third cut — so omitting it breaks the
@@ -772,7 +772,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * <p>THREE CELLS PER STEP, the same three {@code digStairsDown} cuts — the step, its head room,
      * and the one above that. Cutting two gave these arenas a staircase the rung never digs, and the
      * lip scene paid for it on its first reading: {@code end=failed:no path (expanded=2)} on BOTH
-     * legs, an artifact of this staging rather than anything the ladder does. {@code StepDown}
+     * walks, an artifact of this staging rather than anything the ladder does. {@code StepDown}
      * requires the PASSTHROUGH column's head to be clear ({@code moves/StepDown.java:23}), and on the
      * way down that passthrough is exactly the cell whose head is the third cut — so omitting it
      * breaks the descent search too, not only the climb back up that {@code digStairsDown}'s javadoc
@@ -843,7 +843,7 @@ public final class JourneyLandingScenes implements SceneProvider {
      * judgment fired a tick or two before the drop landed. Same shape as the blaze fight's fall guard
      * — a branch a healthy arm never executes has to be staged, or its green is worth nothing.
      *
-     * <p>Staged by POSE, not by clock: the body is put in the terminal's own head room with air below
+     * <p>Staged by POSE, not by clock: the bot is put in the terminal's own head room with air below
      * it, so it is falling from the first tick, and the one-node movement task is consumed long
      * before the drop lands. Nothing about the healthy arm changes.
      */
@@ -851,20 +851,20 @@ public final class JourneyLandingScenes implements SceneProvider {
         BlockPos ends = stageLipArena(ctx);
 
         // IN THE AIR OVER THE TERMINAL, dead centre — not a fifth of a cell into it like the lip arm.
-        // The lip pose exists to keep the body supported by the tread above; this one exists to take
-        // that support away, so the only thing between the body and the terminal is the fall.
+        // The lip pose exists to keep the bot supported by the tread above; this one exists to take
+        // that support away, so the only thing between the bot and the terminal is the fall.
         //
         // SLOW FALLING, AND IT IS A CLOCK CONTROL, NOT THE SUBJECT. `blockPosition()` flips the
         // moment the feet cross the cell boundary, and a free fall crosses a one-block cell in about
-        // four ticks — less than the one-node leg takes to be consumed. Both measured, on this arena,
+        // four ticks — less than the one-node walk takes to be consumed. Both measured, on this arena,
         // before the effect went in:
         //
         //   posed at ends+1.0 → `subject.endedAt … exact …/217.92/…`, settled=null
         //   posed at ends+1.6 → `subject.endedAt … exact …/217.83/…`, settled=null
         //
-        // Both times `down()` was already true when the leg's callback ran and the branch under test
+        // Both times `down()` was already true when the walk's callback ran and the branch under test
         // was never entered — there is no height inside a one-block cell that survives four ticks of
-        // gravity. The effect slows the descent by an order of magnitude so the body is STILL in the
+        // gravity. The effect slows the descent by an order of magnitude so the bot is STILL in the
         // terminal's head room, still unsupported, and still going to land, when the callback fires.
         // That is the branch's entry condition exactly; what the effect changes is how long it lasts,
         // and the ladder held it open by a different route — a bot at exact position
@@ -876,11 +876,12 @@ public final class JourneyLandingScenes implements SceneProvider {
                 net.minecraft.world.effect.MobEffects.SLOW_FALLING, 400, 0));
         // +1.15, so the head stays under the stairwell's three-high cut (top at +2.95). This was +1.4,
         // which put the head 0.2 into the solid block over the terminal. The client's
-        // moveTowardsClosestSpace, which the pumped body runs, answers that with 0.1/tick toward the
-        // nearest free column — the tread above — and the body was shoved onto the lip it is meant to
-        // be falling past (`staged.pose … 247967.40`, then resting at `.15/218.00`). The hand-
-        // integrated body had no push-out and fell straight. The ladder's own pose was +1.0 with the
-        // head clear; +1.15 still reads about +0.8 when the leg calls back, well past SETTLED_SLACK.
+        // moveTowardsClosestSpace, which the stepped player runs, answers that with 0.1/tick toward
+        // the nearest free column — the tread above — and the bot was shoved onto the lip it is meant
+        // to be falling past (`staged.pose … 247967.40`, then resting at `.15/218.00`). The hand-
+        // integrated player had no push-out and fell straight. The ladder's own pose was +1.0 with
+        // the head clear; +1.15 still reads about +0.8 when the walk calls back, well past
+        // SETTLED_SLACK.
         fp.moveTo(ends.getX() + 0.5, ends.getY() + 1.15, ends.getZ() + 0.5);
         av.step();
         ctx.check(fp.hasEffect(net.minecraft.world.effect.MobEffects.SLOW_FALLING))
@@ -940,21 +941,21 @@ public final class JourneyLandingScenes implements SceneProvider {
      * 1.20/58.00/19.49 with {@code onGround=true}, with the terminal at {@code 1,57,19}. A 0.6-wide box centred a fifth of a cell past the
      * boundary overlaps the previous step's tread by a tenth of a block — enough to stand on, three
      * tenths short of falling in. {@code blockPosition()} rounds into the terminal's column, so every
-     * cell-granular row in the run says the body is where it needs to be.
+     * cell-granular row in the run says the bot is where it needs to be.
      *
      * <p>That pose turns up about one return in three on the ladder and costs forty minutes to reach.
-     * Staged here it is deterministic, which is the only reason the second leg can be judged at all —
+     * Staged here it is deterministic, which is the only reason the second walk can be judged at all —
      * see {@code landOnFloor}, the rehearsal lever written when this coin was first noticed.
      *
      * <p><b>Staged to the losing side, and checked that it IS the losing side before anything else.</b>
-     * A body that simply falls into the terminal on its own would satisfy the outcome check while
+     * A bot that simply falls into the terminal on its own would satisfy the outcome check while
      * testing nothing, so the control asserts the pose held: above the terminal's row, on the ground,
      * in the terminal's column.
      *
-     * <p><b>The outcome is asserted; which leg bought it is recorded.</b> An isolated arena is not the
-     * ladder and the walker may well land it in one leg here — demanding two would be a red that says
-     * nothing about the production path. What IS asserted is the implication: if the first leg missed,
-     * the second must have fired. That is the branch the ladder never had.
+     * <p><b>The outcome is asserted; which walk achieved it is recorded.</b> An isolated arena is not
+     * the ladder and the walker may well land it in one walk here — demanding two would be a red that
+     * says nothing about the production path. What IS asserted is the implication: if the first walk
+     * missed, the second must have fired. That is the branch the ladder never had.
      */
     private static void walksOffTheLipOntoTheDryStep(SceneContext ctx) {
         BlockPos ends = stageLipArena(ctx);

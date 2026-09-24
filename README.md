@@ -190,7 +190,7 @@ endpoints are still in `worlddriver-mcp.port` and `worlddriver-rpc.port`.
 | `/worlddriver port`        | Print the RPC endpoint |
 | `/worlddriver mcp`         | Print the MCP endpoint |
 | `/worlddriver reload`      | Reload user scripts from `config/worlddriver/scripts/` |
-| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side body |
+| `/worlddriver server spawn\|goto\|mine\|status\|clear` | Spawn and steer a server-side player |
 
 The validation suite's `/worlddriver test` ships with the testmod and exists only in
 development runs; see [`docs/dev/testing.md`](docs/dev/testing.md).

@@ -10,19 +10,19 @@ import net.minecraft.util.StringRepresentable;
 public enum MarkerRole implements StringRepresentable {
     /** The scene's coordinate origin; relative positions are measured from here. Exactly one. */
     ORIGIN(0xFFFFFF),
-    /** The block the body's feet start in; the entity may carry a {@code yaw}. Exactly one. */
+    /** The block the bot's feet start in; the entity may carry a {@code yaw}. Exactly one. */
     START(0x3CDC3C),
     /** A goal; the label picks the goal type ({@code block}, {@code near:r}, {@code y:}). One or more. */
     GOAL(0x3C78FF),
-    /** A cell the body may never occupy with feet or head, checked every tick. */
+    /** A cell the bot may never occupy with feet or head, checked every tick. */
     FORBID(0xE03030),
     /** Where the feet must stand at the end, on the ground and out of water. At most one. */
     STAND(0xF0E040),
     /** A block inspected after the run: {@code same}, or a block id it must have become. */
     WATCH(0xB050E0),
-    /** A waypoint the body is ordered through, in label order, as {@code route.via}. */
+    /** A waypoint the bot is ordered through, in label order, as {@code route.via}. */
     VIA(0x40D8D8),
-    /** A cell the body must have passed near at least once; a check, not an order. */
+    /** A cell the bot must have passed near at least once; a check, not an order. */
     PASS(0xF09030),
     /** One of the two opposite corners of the scene's bounding box. Exactly two. */
     CORNER(0x909090);

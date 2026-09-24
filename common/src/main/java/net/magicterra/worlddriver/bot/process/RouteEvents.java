@@ -72,9 +72,9 @@ public final class RouteEvents {
     public Map<Integer, Integer> lastExposed() { return lastExposed; }
 
     /**
-     * A deep search finished with {@code res} toward {@code goal}, the body at {@code foot}, on
-     * leg {@code leg}. {@code risk} may be null (no profile to ask); {@code taxes} is only called
-     * when a detour is being reported.
+     * A deep search finished with {@code res} toward {@code goal}, the bot at {@code foot}, on
+     * route segment {@code leg}. {@code risk} may be null (no profile to ask); {@code taxes} is
+     * only called when a detour is being reported.
      */
     public void onSearch(PathFinder.Result res, Goal goal, BlockPos foot, int leg,
                          PreviewSearch.RiskAt risk, Supplier<Map<String, Double>> taxes) {
@@ -133,7 +133,7 @@ public final class RouteEvents {
 
     private void exposed(PathFinder.Result res, BlockPos foot, int leg, PreviewSearch.RiskAt risk) {
         if (!hasSight || risk == null) return;
-        // The route AND the current cell: a body standing in sight while its route is clear is
+        // The route AND the current cell: a bot standing in sight while its route is clear is
         // exposed right now, and the previous plan's cells say nothing about where it stands.
         List<BlockPos> cells = new ArrayList<>(res.path());
         if (foot != null && (cells.isEmpty() || !cells.get(0).equals(foot))) cells.add(0, foot);

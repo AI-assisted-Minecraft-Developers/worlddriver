@@ -9,14 +9,14 @@ import net.minecraft.client.player.KeyboardInput;
  * {@code travel()} via {@code serverAiStep}'s {@code xxa}/{@code zza}), instead of by
  * simulating key presses that the camera then steers.
  *
- * <p><b>Why.</b> With key-based control the body moves along the CAMERA yaw
+ * <p><b>Why.</b> With key-based control the bot moves along the CAMERA yaw
  * ({@code LocalPlayer.travel} rotates the forward impulse by {@code getYRot()}). The
  * Walker slews the camera toward the heading at only {@link WalkerConstants#WALKER_MAX_YAW_SLEW_DEG}
  * °/tick for smooth, jump-free framing — so during a turn the camera lags the intended
- * heading and the forward key drives the body into a wall (the stall where a block in front
+ * heading and the forward key drives the bot into a wall (the stall where a block in front
  * holds the bot in place because nothing corrects the heading dynamically). Decoupling fixes this: the Walker computes the impulse that, AFTER
  * vanilla rotates it by the (lagging) camera yaw, yields motion along the true travel
- * heading. The camera keeps slewing cosmetically; the body always tracks the target.
+ * heading. The camera keeps slewing cosmetically; the bot always tracks the target.
  *
  * <p><b>Transparency.</b> Extends {@link KeyboardInput}, so when the Walker issues no
  * command for a tick this behaves EXACTLY like vanilla — manual play and the Walker's
@@ -42,7 +42,7 @@ public final class AvatarInput extends KeyboardInput {
      * Set this tick's RAW forward intent (camera-frame, no decoupling), replacing
      * {@code mc.options.keyUp.setDown(v)} — {@code commandForward(1)} ≡ keyUp held,
      * {@code commandForward(0)} ≡ keyUp released. Unlike {@link #commandMove} (which
-     * pre-rotates for camera-decoupled walking) this just drives the body along the
+     * pre-rotates for camera-decoupled walking) this just drives the bot along the
      * camera, exactly as the keyboard's W key did, for the Walker's pillar/parkour/
      * swim/vine branches and the processes' flee/approach loops. Per-tick; the sneak
      * speed multiplier is applied in {@link #tick} just as super.tick() does for keys.
@@ -105,7 +105,7 @@ public final class AvatarInput extends KeyboardInput {
             this.leftImpulse = l;
             moveCommanded = false;
         } else if (rawMoveCommanded) {
-            // Raw camera-frame forward (keyUp equivalent): straight along the body, no
+            // Raw camera-frame forward (keyUp equivalent): straight along the bot, no
             // decoupling. leftImpulse forced to 0 — the bot never strafes, so this also
             // subsumes the old keyLeft/keyRight clears.
             float f = rawForward;

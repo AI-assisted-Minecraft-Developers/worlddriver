@@ -19,12 +19,12 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.*;
  * {@code mcGoto} delegates here. The {@code waypoints} map (named positions
  * owned by the bot impl) is passed in so a {@code waypoint:} selector resolves.
  *
- * <p>Only the GOAL lives here — the part that needs the body and the live world. The route
+ * <p>Only the GOAL lives here — the part that needs the player and the live world. The route
  * conditions ({@code route}: bias, capability, hard constraints, via, the entity leash) are
  * {@link RouteParams#parse}, a pure function shared with {@code mc.bot.follow} and with the
  * dedicated-server scenes.
  *
- * <p><b>Free of client types, like {@link GoalResolver}</b>, because a server body resolves its
+ * <p><b>Free of client types, like {@link GoalResolver}</b>, because a server-side bot resolves its
  * goal here too. The one selector whose answer depends on the side is {@code entity:}: the client
  * looks through what it has loaded for rendering, a server through its level. So the caller passes
  * that lookup in.
@@ -34,14 +34,14 @@ public final class GotoGoalResolver {
     private GotoGoalResolver() {}
 
     /**
-     * Resolve a goal from goto params on the body's own thread (some selectors need
-     * the body position or live world state). Throws IllegalArgumentException
+     * Resolve a goal from goto params on the bot's own thread (some selectors need
+     * the player's position or live world state). Throws IllegalArgumentException
      * with a descriptive message when a selector matches but cannot be resolved
      * (e.g. block not found in radius, entity id stale, unknown direction);
      * returns null when no selector is recognized so the caller can emit the
      * "missing goal" error.
      *
-     * @param nearestOfType the nearest entity of a registry id the body can see, or null
+     * @param nearestOfType the nearest entity of a registry id the bot can see, or null
      */
     public static Goal resolveGoal(Params p, Entity self, Map<String, BlockPos> waypoints,
                                    Function<String, Entity> nearestOfType) {

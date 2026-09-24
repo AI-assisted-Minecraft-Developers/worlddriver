@@ -47,10 +47,10 @@ import net.minecraft.world.level.block.Blocks;
  * platform over void is true on <i>every grounded tick</i>. A flat leap over void therefore launches
  * with the sprint channel closed, and no scene in the manifest has ever executed one.
  *
- * <p>Observed on the End arrival platform (rung 20 of the journey ladder): the body walked the 5x5
+ * <p>Observed on the End arrival platform (rung 20 of the journey ladder): the bot walked the 5x5
  * spawn platform toward the main island, met the first {@code parkour3} across two cells of void,
  * and fell out of the world. {@code h:0.1530 -> 0.1382} across the takeoff — exactly the x0.91 decay
- * of a body with no impulse at all, where a sprint-jump would show around 0.35.
+ * of a player with no impulse at all, where a sprint-jump would show around 0.35.
  *
  * <h2>What these three scenes are, and what they are NOT</h2>
  *
@@ -104,14 +104,14 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
         return List.of(
                 // REQUIRED since the sprint gate was narrowed to `parkourEdge` — this arm was the
                 // green half of the pair that measured the defect (takeoff h 0.1232 -> 0.2475: the
-                // impulse fires when the body launches from BEHIND the lip), so it now guards
+                // impulse fires when the player launches from BEHIND the lip), so it now guards
                 // against the fix being reverted along with the long arm it made possible.
                 Scene.of("wd.parkourVoidShortRunway", 200,
                         WorldDriverParkourVoidScenes::parkourVoidShortRunway),
                 // REQUIRED, and the answer to its own open question is now on record: the run-up
                 // did NOT buy the leap anything, it COST it. `lethalNear` reads only the CURRENT
-                // foot cell's eight neighbours, so eleven blocks of runway behind the body change
-                // it by not one bit — what they change is WHICH cell the body launches from, and a
+                // foot cell's eight neighbours, so eleven blocks of runway behind the player change
+                // it by not one bit — what they change is WHICH cell the player launches from, and a
                 // fuller run-up puts it ON the lip, where the eight neighbours include void and the
                 // old `parkourAscend` exemption (rising leaps only) let the gate close. Measured
                 // 0.1563 -> 0.1400 across the takeoff: x0.896 air decay, no impulse, into the gap.
@@ -218,14 +218,14 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      *
      * <ol>
      *   <li><b>Do not fall.</b> {@code minY > padY - 3}, the {@code fellInPit} idiom from
-     *       {@code wd.parkourAscend}. A body that refuses the leap and stands on the lip forever
+     *       {@code wd.parkourAscend}. A bot that refuses the leap and stands on the lip forever
      *       satisfies this one.</li>
-     *   <li><b>Get across.</b> The final position must be past the gap at deck level. A body that
+     *   <li><b>Get across.</b> The final position must be past the gap at deck level. A bot that
      *       stalls on the lip satisfies (1) and fails this.</li>
      * </ol>
      *
      * <p><b>Jumping across and bridging across BOTH count as getting across</b>, deliberately:
-     * {@code allowPlace} is ON with 256 cobblestone in the hotbar, so a fix that teaches the body to
+     * {@code allowPlace} is ON with 256 cobblestone in the hotbar, so a fix that teaches the bot to
      * bridge what it cannot leap is a legitimate answer to this scene. What is NOT an answer is
      * standing still, and what is definitely not an answer is walking off the edge. The arm that
      * refuses "always bridge" is {@link #parkourVoidLongRunway}, not this one.
@@ -241,7 +241,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      * <h2>Why this arm has to exist</h2>
      *
      * Without it, <b>"forbid every parkour and bridge everything" scores full marks</b> on
-     * {@link #parkourVoidShortRunway}: the body would never fall, would always arrive, and would pay
+     * {@link #parkourVoidShortRunway}: the bot would never fall, would always arrive, and would pay
      * 170 cost and dozens of ticks per gap that a sprint-jump crosses for 32. So this arm asserts the
      * leap POSITIVELY, and none of its extra criteria is redundant:
      *
@@ -250,18 +250,18 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      *   <li><b>it spent no blocks.</b> Not "a bridge would be slower" — it must not have bridged;</li>
      *   <li><b>it crossed within {@value #LEAP_TICKS} ticks of reaching the lip.</b> A 2-cell bridge
      *       is two rounds of aim-and-place, tens to hundreds of ticks. The block count alone is
-     *       fooled by a body that places a block and then does not cross on it — the inventory says
+     *       fooled by a bot that places a block and then does not cross on it — the inventory says
      *       "bridged" while nothing was bridged. The clock is what distinguishes them.</li>
      * </ol>
      *
      * <p>The clock criterion is written so it <b>cannot be satisfied vacuously</b>: a run that never
      * reaches the deck has no crossing duration, and that reads as a violation rather than as
-     * {@code 0 <= 40}. A criterion a stalled body passes is the {@code 0 == 0} assertion this repo
+     * {@code 0 <= 40}. A criterion a stalled bot passes is the {@code 0 == 0} assertion this repo
      * has already paid for once.
      *
      * <p><b>If this arm is RED, the premise "a long run-up gets across" is itself false</b> — which
      * is a finding about the product, not about the rig. The sprint gate is evaluated at the LIP, on
-     * the foot cell, so run-up length may buy the body nothing at all. Do not lengthen the pad,
+     * the foot cell, so run-up length may buy the bot nothing at all. Do not lengthen the pad,
      * shrink the gap or widen the tolerance to make it green; the red IS the measurement.
      */
     private static void parkourVoidLongRunway(SceneContext ctx) {
@@ -269,7 +269,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
     }
 
     /**
-     * The shared body of both execution arms. The rig, the switches, the inventory and the sampling
+     * The shared implementation of both execution arms. The rig, the switches, the inventory and the sampling
      * are identical; {@code padLen} and {@code spawnDx} are the only inputs, so a difference between
      * the two scenes can only be the run-up.
      *
@@ -277,7 +277,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      * {@link LevelWorldView} + a synchronous {@code walker.tick / av.step} loop — so the two are
      * comparable readings of the same executor and flat-versus-rising is the only variable.
      *
-     * @param assertLeap when true, also assert HOW the body crossed (no blocks spent, and fast
+     * @param assertLeap when true, also assert HOW the bot crossed (no blocks spent, and fast
      *                   enough that a bridge cannot have produced it)
      */
     private static void runVoidGap(SceneContext ctx, String name, int padLen, int spawnDx,
@@ -331,9 +331,9 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
             }
             if (tDeck < 0 && Mth.floor(fp.getX()) <= cx - GAP - 1
                     && Math.abs(fp.getY() - standY) <= 0.4) tDeck = t;
-            // Stop the moment the body is in the void. Not politeness: a shed body spends the rest
-            // of the budget asking A* about terrain 30 blocks down, which is both expensive and a
-            // reading about a falling body rather than about the leap.
+            // Stop the moment the player is in the void. Not politeness: a player that has fallen
+            // off spends the rest of the budget asking A* about terrain 30 blocks down, which is
+            // both expensive and a reading about a falling player rather than about the leap.
             if (fp.getY() < padY - 3) { tFell = t; break; }
             prevX = fp.getX(); prevH = h;
         }
@@ -397,7 +397,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
                 .as("D must have leapt FAST: from reaching the lip cell t="
                         + (tLip < 0 ? "never" : String.valueOf(tLip)) + " to standing on the deck t="
                         + (tDeck < 0 ? "never" : String.valueOf(tDeck)) + ", budget " + LEAP_TICKS
-                        + " ticks (never reaching the deck is a violation too, otherwise a body"
+                        + " ticks (never reaching the deck is a violation too, otherwise a bot"
                         + " stalled on the lip passes this as 0 <= " + LEAP_TICKS + ")").isTrue();
     }
 
@@ -420,7 +420,7 @@ public final class WorldDriverParkourVoidScenes implements SceneProvider {
      * i.e. "is the cell under the launch foot solid?" — which a 1x1 pillar top satisfies exactly as
      * well as a twelve-cell runway. <b>No parkour precondition in the family models a single joule
      * of kinetic energy.</b> So the planner proposes, from a standing start on an isolated block, a
-     * leap costed for a body at full sprint.
+     * leap costed for a player at full sprint.
      *
      * <p>This scene turns that into a criterion at planning cost rather than execution cost: it runs
      * two searches and asserts a DIFFERENCE between them. Its short half is expected RED today —

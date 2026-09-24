@@ -62,7 +62,7 @@ public final class JourneyFireCensusScenes implements SceneProvider {
     /** The floor row, as a dy offset — the same twenty above the grid the sibling journey arenas use. */
     private static final int BASE = 20;
 
-    /** The pad the corridor legs will ask for: one cell on every side, enough that a body walking the
+    /** The pad the corridor segments will ask for: one cell on every side, enough that a bot walking the
      *  span is inside the box even when it is a cell off its node. */
     private static final int PAD = 1;
 

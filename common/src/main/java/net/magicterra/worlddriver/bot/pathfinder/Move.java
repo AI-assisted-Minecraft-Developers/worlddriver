@@ -167,13 +167,13 @@ public abstract class Move {
         return w.isSolid(from.offset(0, -1, 0));
     }
 
-    /** Cells of standable ground the body needs BEHIND a launch to reach sprint speed. Two, because
+    /** Cells of standable ground the bot needs BEHIND a launch to reach sprint speed. Two, because
      *  vanilla sprint takes a couple of ticks of ground contact to engage and the leap is priced at
      *  the sprint-jump maximum. */
     public static final int RUNUP_CELLS = 2;
 
     /** How far down a gap must be clear before it counts as bottomless rather than as a pit the
-     *  body would merely fall into. Matches the walker's own {@code BOTTOMLESS_SCAN_FLOOR}: the two
+     *  bot would merely fall into. Matches the walker's own {@code BOTTOMLESS_SCAN_FLOOR}: the two
      *  must agree, or the planner routes over a gap the executor's guards then refuse to cross. */
     public static final int VOID_SCAN_FLOOR = -70;
 
@@ -197,9 +197,9 @@ public abstract class Move {
      * the right answer for another is not the tool for this; a hard rule is.
      *
      * <p>The asymmetry is the point. Misjudging a leap over a 3-deep pit costs a few ticks and a
-     * climb out. Misjudging one over the void ends the run: this body's {@code isInvulnerableTo} is
+     * climb out. Misjudging one over the void ends the run: this bot's {@code isInvulnerableTo} is
      * permanently true, so it does not die and land at spawn — it falls forever, and every order
-     * issued afterwards is issued to a body in the void. Rung 20 has ended that way repeatedly
+     * issued afterwards is issued to a bot in the void. Rung 20 has ended that way repeatedly
      * (measured: the bot fell out of the world at y=-65, position -61,-65,16, with 5 of 10
      * spikes destroyed).
      */
@@ -218,12 +218,12 @@ public abstract class Move {
      *
      * <p>The version above models no momentum whatsoever: it looks under the launch foot and
      * nothing else, so a 1-cell pad hanging over the void reports a runway and A* prices a leap at
-     * the sprint-jump MAXIMUM that a standing body cannot cover. {@code wd.parkourVoidRunwayGate}
+     * the sprint-jump MAXIMUM that a standing player cannot cover. {@code wd.parkourVoidRunwayGate}
      * puts two arms over the identical gap differing only in run-up length and shows both planning
      * the identical {@code parkour3}. Rung 20 pays for that difference by falling out of the world.
      *
      * <p>Only the 3-block leap uses this. A 2-block gap is inside a standing jump, so requiring a
-     * run-up there would refuse leaps the body can actually make — and a guard that refuses what
+     * run-up there would refuse leaps the bot can actually make — and a guard that refuses what
      * works is how a route gets replaced by a worse one rather than a safer one.
      */
     public static boolean hasRunway(WorldView w, BlockPos from, int dx, int dz) {
@@ -255,9 +255,9 @@ public abstract class Move {
     }
 
     /**
-     * A body-height column the player can occupy: foot and head both passable and neither a
+     * A player-height column the player can occupy: foot and head both passable and neither a
      * hazard. The diagonal moves gate their two corner columns on this — a diagonal step cuts
-     * the corner, so the body sweeps both of them even though it stands in neither.
+     * the corner, so the player's hitbox sweeps both of them even though it stands in neither.
      *
      * <p>Here rather than three times over, which is how it was written: {@code Diagonal},
      * {@code DiagonalAscend} and {@code DiagonalDescend} each carried a byte-identical private
@@ -271,7 +271,7 @@ public abstract class Move {
     /**
      * The whole falling path of a step-off-a-ledge move: every level from the launch lip down to
      * {@code drop} below is clear at foot AND head in the destination column, and the launch cell
-     * itself has head clearance to step off with. An overhang at any one level wedges the body
+     * itself has head clearance to step off with. An overhang at any one level wedges the bot
      * even when the foot column is clear all the way down.
      *
      * <p>{@code Fall}, {@code FallIntoWater} and {@code WaterBucketFall} each ended their
@@ -299,7 +299,7 @@ public abstract class Move {
      * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimTraverseBreak} and
      * {@link net.magicterra.worlddriver.bot.pathfinder.moves.SwimUpBreak}. This list
      * named only the first two, and the omitted one is the VERTICAL move — the one that
-     * keeps a roofed body from drowning — so anyone tightening this predicate for the
+     * keeps a roofed-in bot from drowning — so anyone tightening this predicate for the
      * horizontal bank-exit case would have moved a drown-escape gate without knowing it.
      * ({@code SwimUpBreak}'s own javadoc says it is gated here; the disagreement was
      * one-sided, which is why nothing caught it.) The fourth swim-break,
@@ -427,7 +427,7 @@ public abstract class Move {
         // Diagonal ascend / descend (Baritone MovementDiagonal with a Y delta) —
         // cut the corner of a staircase in one move instead of zig-zagging a
         // Walk+StepUp / StepDown+Walk pair. Both require the corner clear on
-        // BOTH cardinal sides (a rising/falling body sweeps the whole corner),
+        // BOTH cardinal sides (a rising/falling player sweeps the whole corner),
         // which is stricter than the flat Diagonal's one-side rule.
         for (int[] d : DIAGONAL) ms.add(new DiagonalAscend(d[0], d[1]));
         for (int[] d : DIAGONAL) ms.add(new DiagonalDescend(d[0], d[1]));

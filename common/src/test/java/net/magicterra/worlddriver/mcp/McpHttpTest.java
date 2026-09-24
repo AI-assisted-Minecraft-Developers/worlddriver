@@ -45,7 +45,7 @@ class McpHttpTest {
 
     @Test
     void everyIdLessMessageIsANotificationAnswered202WithNoBody() throws Exception {
-        // spec: 2025-06-18 §Transports — an accepted notification MUST get 202 and no body.
+        // spec: 2025-06-18 §Transports — an accepted notification MUST get 202 and no bot.
         try (McpServer server = new McpServer(new DriverApi(), 0)) {
             for (String body : new String[] {
                     "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}",

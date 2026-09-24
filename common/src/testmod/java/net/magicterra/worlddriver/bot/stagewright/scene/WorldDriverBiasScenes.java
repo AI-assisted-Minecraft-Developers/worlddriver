@@ -53,7 +53,7 @@ import net.minecraft.world.level.block.Blocks;
  *       vertical geometry is literally unchanged (and A* is integer-cell, so a planner scene
  *       is position-invariant regardless);</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())};</li>
+ *       (per-scene player, #48) + {@code ctx.cleanup(() -> fp.discard())};</li>
  *   <li>the neoforge {@code FakePlayer} handle → the common {@link ServerPlayer} handle
  *       ({@link ServerPlayerBody#fakePlayer()} return type; inventory ops identical);</li>
  *   <li>{@code try/finally} per-key {@code BotConfig} save/restore → the ONLY scenes that
@@ -84,7 +84,7 @@ import net.minecraft.world.level.block.Blocks;
  * stepping, and no {@code SimProbes.grantWaterEffects} (nothing ever moves or takes damage).
  * The brief's "likely driver-mode members (createIsolated)" hypothesis did not hold — the
  * densest {@code AgentGameTestSupport} coupling was 21 {@code gtOnlySkips}/{@code maxPathY}
- * call sites, all of which drop out or inline. The body runs synchronously on the scene's
+ * call sites, all of which drop out or inline. The scene method runs synchronously on its
  * first RUN tick and returns (no await steps), so the old/new-shell A/B compares like with
  * like.
  *

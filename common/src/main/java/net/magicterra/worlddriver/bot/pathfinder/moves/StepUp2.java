@@ -9,7 +9,7 @@ import net.minecraft.core.BlockPos;
  * +2 (a strong horse, or Jump Boost). Gated on {@link WorldView#maxJumpUpBlocks()}
  * &ge; 2 so an on-foot player (apex ~1.25 → 1) never plans it. Needs the two-tall
  * destination clear ({@code canStandAt}) and head clearance through the whole jump
- * column (the body rises to {@code from + 3}). Costlier than a +1 {@link StepUp},
+ * column (the player rises to {@code from + 3}). Costlier than a +1 {@link StepUp},
  * so A* still prefers a +1 staircase when one exists.
  */
 public final class StepUp2 extends Move {

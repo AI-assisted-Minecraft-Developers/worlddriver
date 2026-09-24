@@ -19,7 +19,7 @@ public final class BridgeProcess implements BotProcess {
     /** This tick's hands, bound at the top of {@link #tick}, which is the one place they can be absent. */
     private Hands hands;
     private static final int STUCK_TICKS = 80;
-    /** Max |body yaw − bridge yaw| before the forward key is allowed (gap #75-a): the raw
+    /** Max |player yaw − bridge yaw| before the forward key is allowed (gap #75-a): the raw
      *  forward impulse walks along the CAMERA yaw, and on the client the LookController
      *  re-clamps the camera to ~30°/tick AFTER this process writes it — so the first
      *  WALKING ticks used to drive up to 180° off the bridge axis, over a 1×1 pillar top
@@ -65,9 +65,9 @@ public final class BridgeProcess implements BotProcess {
         hands = a.hands().orElse(null);
         if (hands == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
         Level lvl = p.level();
-        // Body yaw BEFORE this tick's snap-write below: on the client the LookController
+        // Player yaw BEFORE this tick's snap-write below: on the client the LookController
         // re-clamps the camera after every actuator, so the value we WRITE is not the yaw
-        // the body travels by — the pre-write value is the rendered truth (gap #75-a).
+        // the player travels by — the pre-write value is the rendered truth (gap #75-a).
         float yawNow = p.getYRot();
         BlockPos foot = anchoredFoot(p, lvl);
         if (startFoot == null) startFoot = foot;
@@ -128,7 +128,7 @@ public final class BridgeProcess implements BotProcess {
                     phase = Phase.PLACING;
                     return false;
                 }
-                // Gate the forward key on the BODY actually facing down the bridge axis:
+                // Gate the forward key on the PLAYER actually facing down the bridge axis:
                 // the raw impulse walks along the camera yaw, which pans toward `yaw` at
                 // the LookController's slew rate — walking before it arrives drives off
                 // the bridge line (over a pillar start, into the void). Gap #75-a.
@@ -152,7 +152,7 @@ public final class BridgeProcess implements BotProcess {
                 // support for the next step.
                 BlockPos currentSupport = foot.offset(0, -1, 0);
                 if (!lvl.getBlockState(currentSupport).blocksMotion()) {
-                    // The anchored foot has no support either — the body is genuinely
+                    // The anchored foot has no support either — the bot is genuinely
                     // airborne (anchoredFoot already re-anchored any sneak overhang).
                     failure = st.builder.lastError = "no support under feet (fell off?)";
                     st.builder.reset();
@@ -178,7 +178,7 @@ public final class BridgeProcess implements BotProcess {
      * edge-clamp ({@code Player.maybeBackOffFromEdge}) deliberately lets a sneaking player
      * OVERHANG a ledge until only a sliver of the 0.6-wide AABB still touches support, so
      * the center legally crosses into the unsupported neighbour column (a tower finish on a
-     * 1×1 pillar top routinely parks the body there). Anchoring on that column read
+     * 1×1 pillar top routinely parks the bot there). Anchoring on that column read
      * "support under feet = air" while the bot stood perfectly safe; the terminal then
      * released the sneak that was pinning it to the edge — the actual fall. If the center
      * cell has support it wins unchanged; otherwise the supported cell under the AABB with

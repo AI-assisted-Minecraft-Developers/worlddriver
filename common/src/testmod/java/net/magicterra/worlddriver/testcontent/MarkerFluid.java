@@ -12,7 +12,7 @@ import net.minecraft.world.level.material.Fluids;
 
 /**
  * The fluid a marker displaced when it went into a pool, kept as a block-state property so the
- * cell still reads as that fluid: the pathfinder, the body's physics, fire and drowning all ask
+ * cell still reads as that fluid: the pathfinder, the player's physics, fire and drowning all ask
  * {@code getFluidState}, so a forbid marker on a lake has not turned a water cell into air. Only
  * sources are held — a flowing cell is a consequence of its source, and holding one would turn it
  * into a new source.

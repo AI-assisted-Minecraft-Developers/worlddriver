@@ -589,7 +589,7 @@ public final class StageWrightCapabilityScenes implements SceneProvider {
     /**
      * A dimension no mod in this runtime registers records a skip, not a failure.
      *
-     * <p>The body cannot assert anything — it never runs, and the {@code s.fail} below is only
+     * <p>The bot cannot assert anything — it never runs, and the {@code s.fail} below is only
      * reachable if the harness got this wrong. {@code mustSkip} is where the real assertion lives:
      * without it, this scene was green whether it skipped OR executed, which made it the one scene
      * in the suite incapable of failing. The results file carries the rest — the scene stays

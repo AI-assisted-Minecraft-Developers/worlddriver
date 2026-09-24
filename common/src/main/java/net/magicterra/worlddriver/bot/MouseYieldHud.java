@@ -17,7 +17,7 @@ import net.minecraft.client.gui.GuiGraphics;
 public final class MouseYieldHud {
     private MouseYieldHud() {}
 
-    private static final int COLOR_DRIVING = 0xFFFFB300;   // amber: bot has the body
+    private static final int COLOR_DRIVING = 0xFFFFB300;   // amber: the bot is driving the player
     private static final int COLOR_YIELDED = 0xFFB0B0B0;   // grey: informational
     private static final int COLOR_RECLAIM = 0xFF7FD98A;   // green: you hold the mouse
     private static final int COLOR_BACKDROP = 0x90000000;

@@ -227,15 +227,15 @@ public final class PathFinder {
     private String owner = "?";
 
     /** Where this finder's horizon / soft-commit / depth-penalty come from — read LIVE at each use,
-     *  owned per body rather than shared through a process-global. See {@link PathTuning} for both
+     *  owned per bot rather than shared through a process-global. See {@link PathTuning} for both
      *  halves of the story: why the global was wrong, and why capturing values instead of a source
      *  was also wrong. {@link PathTuning#GLOBAL} is the compatibility default for finders with no
-     *  body behind them. */
+     *  bot behind them. */
     private PathTuning tuning = PathTuning.GLOBAL;
 
     /** Where each Search gets its entity snapshot and line of sight; null = {@link SearchScope#EMPTY},
      *  under which the {@link SearchAware} components in the profile are inert. Set by the Walker
-     *  (the one construction point with a body); the debug tools and unit tests leave it unset. */
+     *  (the one construction point with a bot); the debug tools and unit tests leave it unset. */
     private ScopeSource scopeSource;
 
     /** Default ctor reads live tunables from {@link net.magicterra.worlddriver.bot.BotConfig}
@@ -267,9 +267,9 @@ public final class PathFinder {
     /**
      * Plan from a specific tuning source instead of the process-global one.
      *
-     * <p>A body hands in {@link PathTuning#escalatedWhen} so its searches follow its OWN churn
+     * <p>A bot hands in {@link PathTuning#escalatedWhen} so its searches follow its OWN churn
      * clock; a scene measuring the planner hands in {@link PathTuning#fixed}. Either way the finder
-     * stops reading a knob another body is writing.
+     * stops reading a knob another bot is writing.
      */
     public PathFinder withTuning(PathTuning tuning) {
         if (tuning != null) this.tuning = tuning;
@@ -624,7 +624,7 @@ public final class PathFinder {
             // gate ever sets walkerDebug, so a reader could see every question and no answer.
             //
             // `reached` is the value the rung's failure turns on: `Goal.XZ(dig, 0)` has tolerance
-            // ZERO, so a leg that stops one cell short did not miss by a hair — the goal cell was
+            // ZERO, so a walk that stops one cell short did not miss by a hair — the goal cell was
             // never expanded, which points at the walker's own `canStandAt` rather than at any
             // tolerance. `end` carries where the committed path actually stops, so "one block short" is a
             // coordinate a reader can check rather than a claim to believe.
@@ -900,24 +900,26 @@ public final class PathFinder {
             return world.isBreakableObstruction(to.above()) ? tax : 0;
         }
 
-        /** Per-cell tax on a SURFACE-WATER traversal cell whose BODY/HEAD column carries a hanging-VINE
+        /** Per-cell tax on a SURFACE-WATER traversal cell whose two cells above ({@code foot+1} and
+         *  {@code foot+2}, where the floating bot's hitbox sits) carry a hanging-VINE
          *  or LEAF obstruction over the water — a tree-canopy (oak_leaves + draped vines, often with lily
          *  pads) growing IN/over a lake/river (see BotConfig.pathfinderVineOverWaterTax). The planner
          *  reads the foot cell as ordinary surface water and threads a horizontal crossing node STRAIGHT
          *  THROUGH it, because none of the sibling taxes price this geometry: {@link #waterCellTax} /
-         *  {@link #submergedTax} inspect only the water cell + its directly above/below (the body vine is
-         *  neither); {@link #leafCellTax} checks {@code isLeaves(above)} but the body cell over water is a
+         *  {@link #submergedTax} inspect only the water cell + its directly above/below (the vine at
+         *  {@code foot+1} is neither); {@link #leafCellTax} checks {@code isLeaves(above)} but the
+         *  {@code foot+1} cell over water is a
          *  VINE (not in #minecraft:leaves) and the leaf canopy sits TWO up; {@link #padCellTax} needs a
          *  COLLIDING instabreak block (a vine has no collision shape, so it isn't an
          *  {@code isBreakableObstruction}). A floating bot pushed onto such a node rams the vine/leaf wall
-         *  at body height (hCol, hSpd→0, X pins / Z creeps) — the live #47 ~-780,339 bob-jam. This softly
+         *  at {@code foot+1} height (hCol, hSpd→0, X pins / Z creeps) — the live #47 ~-780,339 bob-jam. This softly
          *  prices the cell so A* threads the adjacent clear water and swims AROUND the tree.
          *  <p>Scoped TIGHT, mirroring padCellTax's exactness: the FOOT must be a real water cell (no
          *  dry-canopy / open-water false positives — dry leaf canopy is already {@link #leafCellTax}'d on
-         *  land) AND the obstruction is in the BODY/HEAD cells ABOVE the foot ({@code foot+1} / {@code
+         *  land) AND the obstruction is in the two cells ABOVE the foot ({@code foot+1} / {@code
          *  foot+2}). The foot cell itself is deliberately NOT tested, so a legitimate vine-CLIMB up out of
          *  the water — whose climbable vine starts AT the foot — is never penalised. A leaf cap at
-         *  {@code foot+1} or {@code foot+2}, or a hanging vine (climbable) draping into the body column,
+         *  {@code foot+1} or {@code foot+2}, or a hanging vine (climbable) draping into the bot's column,
          *  trips it. Y-agnostic and goal-type-neutral — a vine/leaf wall janks a buoyant crossing
          *  regardless of goal Y (same neutrality as {@link #leafCellTax}). A TAX, never a forbid: a fully
          *  canopied channel with no clear alternative still threads through (the price decays into the
@@ -926,14 +928,14 @@ public final class PathFinder {
         private double vineOverWaterTax(BlockPos to) {
             double tax = BotConfig.pathfinderLeafCellCost;
             if (!BotConfig.pathfinderVineOverWaterTax || tax <= 0 || !world.isWater(to)) return 0;
-            BlockPos head = to.above();          // foot+1 — the body cell a hanging vine drapes into
+            BlockPos head = to.above();          // foot+1 — the bot's own cell a hanging vine drapes into
             BlockPos over = to.offset(0, 2, 0);  // foot+2 — the head cell / low leaf canopy
             boolean obstructed = world.isLeaves(head) || world.isClimbable(head)
                     || world.isLeaves(over) || world.isClimbable(over);
             return obstructed ? tax : 0;
         }
 
-        /** Per-cell tax on a SURFACE-WATER traversal cell whose FOOT+1 (body) cell holds a thin breakable
+        /** Per-cell tax on a SURFACE-WATER traversal cell whose FOOT+1 cell holds a thin breakable
          *  obstruction — canonically a SINGLE SPARSE lily pad over deep OPEN water (see
          *  BotConfig.pathfinderPadOverWaterTax). This is the goal-type-NEUTRAL sibling of {@link #padCellTax}:
          *  that method prices the identical pad geometry but is gated to XZ goals ({@code goal.ignoresY()},
@@ -942,14 +944,14 @@ public final class PathFinder {
          *  {@code Goal.Near}), for which {@code padCellTax} returns 0 — so an OPEN-water corridor dotted with
          *  SPARSE single pads is left unpriced and A* threads a crossing node STRAIGHT THROUGH each pad (a
          *  1-pad instabreak dig is cheaper than a 1-block detour). A floating bot then rams + hand-digs the
-         *  pad in its body cell (hCol, hSpd→0, attack=true) — the live #47 ~-830,363 / -817,298 multi-second
+         *  pad in its {@code foot+1} cell (hCol, hSpd→0, attack=true) — the live #47 ~-830,363 / -817,298 multi-second
          *  bob-jams. This is the SAME structural gap {@link #vineOverWaterTax} closes for vines/leaves (also
          *  goal-neutral), but a lily pad is neither {@code isLeaves} nor {@code isClimbable} (it has a thin
          *  floor collision shape → it IS an {@code isBreakableObstruction}), so the vine tax misses it.
          *  <p>Reuses {@code padCellTax}'s EXACT predicate ({@code isWater(foot) && isBreakableObstruction(
          *  foot+1)}) WITHOUT the {@code goal.ignoresY()} gate, so a sparse pad over a Y-aware-goal crossing is
          *  priced too. No cluster/pool requirement — a lone isolated pad trips it. The foot cell is never
-         *  tested (a pad implies water below), and the obstruction is the BODY cell ({@code foot+1}) where a
+         *  tested (a pad implies water below), and the obstruction is the {@code foot+1} cell, where a
          *  floating bot's collision lives. Y-agnostic and goal-type-neutral. A TAX, never a forbid: a fully
          *  pad-covered field with no clear lane still threads through (the price decays into the move cost,
          *  the break-actuator stays the fallback) — nothing becomes unreachable, so no stranding. Inert when
@@ -983,7 +985,7 @@ public final class PathFinder {
             return tax;
         }
 
-        /** True when {@code foot} is a real water cell whose BODY cell ({@code foot+1}) carries a thin
+        /** True when {@code foot} is a real water cell whose {@code foot+1} cell carries a thin
          *  breakable obstruction — the canonical lily-pad-over-water signature shared by {@link #padCellTax}
          *  and {@link #padOverWaterTax}. Used by the cluster surcharge to count adjacent pads in the
          *  4-neighbourhood. (A pad implies water below, so the foot-water test is exact — dry grass overhead
@@ -1069,7 +1071,7 @@ public final class PathFinder {
             // ({@link BotConfig#pathfinderFloatingSurfaceCross}). Once a buoyant bot enters deep water
             // already submerged, the rest of the crossing is horizontal (never a fresh descent), so the
             // descent clause above never fires and A* threads the whole crossing one cell below the
-            // surface — where the floating body can't follow (it bobs at the surface above the y-1
+            // surface — where the floating bot cannot follow (it bobs at the surface above the y-1
             // path, jams until a repath re-routes on top: live #47 R3 seg0 y61 run). Pricing every such
             // floating-submerged cell tips A* to swim ON THE SURFACE instead. FLOATING water only
             // (water below → no foothold; a shallow grounded splash is exempt) and submerged (water
@@ -1256,7 +1258,7 @@ public final class PathFinder {
                             // A water start may ALSO horizon-commit, but only onto dry
                             // land or a SURFACE cell (water foot, air head) — never a
                             // submerged node, so the climb-out triage below still owns
-                            // those. Without this, an open-sea leg burned the full 60k
+                            // those. Without this, an open-sea walk burned the full 60k
                             // nodes / ~22 s per repath for pathLen=0 (the shore lies
                             // beyond any budget, so bestAshore stays null) while 600-node
                             // quick-start micro-segments carried the actual swimming

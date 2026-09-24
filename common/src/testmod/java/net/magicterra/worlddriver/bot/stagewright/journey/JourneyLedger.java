@@ -16,7 +16,7 @@ import net.minecraft.core.BlockPos;
  * playthrough is <b>one continuous run</b>, so its stages are not independent tests that happen to
  * be adjacent — they are chapters of a single narrative, and each one only means anything given
  * everything before it. An {@code IRON} stage that ran in a freshly staged arena would be a test of
- * {@code SmeltProcess}; an {@code IRON} stage that ran on ore the same body mined with a pickaxe it
+ * {@code SmeltProcess}; an {@code IRON} stage that ran on ore the same bot mined with a pickaxe it
  * crafted from wood it cut is a test of the playthrough. The suite already has 222 scenes doing the
  * former.
  *
@@ -91,7 +91,7 @@ public final class JourneyLedger {
      *
      * <p>One bound rides along with this floor and is not hidden: every green row on this track
      * carries {@code body.invulnerable=true}. The ladder proves what the driver can DO, never that
-     * a body survives doing it.
+     * a bot survives doing it.
      */
     public static final JourneyStage FLOOR = JourneyStage.PORTAL_KIT;
 
@@ -125,7 +125,7 @@ public final class JourneyLedger {
      *
      * <p>It exists because the 2026-08-22 run needed it and only had it as prose: rung 13 printed
      * "landed at 6, 41, 3" into an evidence string, and rung 17 — which must walk back through that
-     * doorway — could not read a sentence. It searched 24 blocks around a body that rungs 14 and 15
+     * doorway — could not read a sentence. It searched 24 blocks around a bot that rungs 14 and 15
      * had carried 470 blocks away, found nothing, and failed. A landmark that is only printed is a
      * landmark nobody can use.
      */

@@ -18,10 +18,10 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Legs the client's REAL player has to dig its way through. What these measure that a surface
- * leg cannot: every node the search expands inside rock is priced through {@code breakCost}, so
+ * Walks the client's REAL player has to dig its way through. What these measure that a surface
+ * walk cannot: every node the search expands inside rock is priced through {@code breakCost}, so
  * the planner's per-node cost, the slice cadence and the segment length all change shape the
- * moment the body is enclosed. The evidence rows carry the search totals for that reason.
+ * moment the player is enclosed. The evidence rows carry the search totals for that reason.
  */
 public final class WorldDriverClientDigScenes implements SceneProvider {
 
@@ -34,10 +34,10 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
     }
 
     /**
-     * {@code autoBackfill} puts back what the bot broke and nothing else. The body digs a five-cell
+     * {@code autoBackfill} puts back what the bot broke and nothing else. The bot digs a five-cell
      * tunnel out of a sealed stone pocket into a natural 3×3×2 room and walks across the room to its
      * far wall, then idles. The backfill must plug the tunnel's mouth — the two dug cells it can
-     * stand beside without digging — and leave every room cell air, although the body walked
+     * stand beside without digging — and leave every room cell air, although the bot walked
      * through three of them: a tracker fed the foot cell every tick filled those first, being
      * nearest. The cells deeper in the tunnel are reachable only by digging through the fill, so
      * they are given up, and the process must have ended by the close rather than trading the
@@ -95,15 +95,15 @@ public final class WorldDriverClientDigScenes implements SceneProvider {
     }
 
     /**
-     * The body stands in a two-high pocket inside solid stone with a survival bag and an iron
+     * The bot stands in a two-high pocket inside solid stone with a survival bag and an iron
      * pickaxe in hand; the goal is {@code cells} away in the same rock, and every cell between is
      * stone. A traverse is two iron-pickaxe stone digs (about eight ticks a block plus vanilla's
      * five-tick destroy delay) and a step, near thirty ticks: ten cells are some 300 ticks of
-     * physics, and the budget is that plus one search, not a planner that freezes the body for
+     * physics, and the budget is that plus one search, not a planner that freezes the bot for
      * seconds at every segment end.
      *
      * <p>The far variant is the same rock forty cells long, the slab eight blocks thick over the
-     * goal: past the search horizon, so the leg is several best-effort segments, and the planner
+     * goal: past the search horizon, so the walk is several best-effort segments, and the planner
      * climbs out, walks the top and digs back down. Measured at 680 ticks once the stale-plan cut,
      * the stacked-node pointer hold and the full-cube fast path were in; before them it did not
      * arrive in 1500.

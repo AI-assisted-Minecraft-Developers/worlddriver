@@ -2,7 +2,7 @@
 
 ## The problem
 
-The thing under test is a driver: its whole job is to move a body, read a world and press
+The thing under test is a driver: its whole job is to move a player, read a world and press
 buttons. A test framework for it needs to do all of those, and the only implementation of all
 of those is the driver.
 
@@ -20,15 +20,15 @@ framework is downstream of the same code.
 ### The driver's surface is split in two, by role rather than by module
 
 An **instrument face** is the part a scene may use to build a situation and to read the result:
-teleporting a body, filling blocks, giving items, reading positions and inventories, injecting a
+teleporting a player, filling blocks, giving items, reading positions and inventories, injecting a
 key or a click, reading the open screen.
 
 A **behaviour face** is the part that is the thing under test: walking, mining, crafting,
 fighting, escaping — everything the driver does autonomously.
 
-**Setup may never use the behaviour face.** A scene that walks the body to its starting position
+**Setup may never use the behaviour face.** A scene that walks the bot to its starting position
 is testing its own setup, and if walking is broken that scene fails for a reason that has nothing
-to do with what it claims to check. A scene puts the body where it wants it and then asks the
+to do with what it claims to check. A scene puts the bot where it wants it and then asks the
 behaviour face for exactly one thing.
 
 The split is a discipline over one API, not two APIs. Making it two would mean two dispatch paths

@@ -90,7 +90,7 @@ public final class SceneVerbs {
                     .req("pos", pos())
                     .prop("label", string())
                     .prop("args", object()
-                            .prop("yaw", number().desc("the body's facing, on start"))
+                            .prop("yaw", number().desc("the bot's facing, on start"))
                             .prop("box", array(integer()).desc("on an anchor (origin, or start): the scene's box as six "
                                     + "offsets from the marker, min corner then max; all zero clears it"))
                             .desc("entity args"))).asHidden();
@@ -121,9 +121,9 @@ public final class SceneVerbs {
     public static final ToolSchema RUN = tool("worlddriver.scene.run",
             "Run a scene in place. `here`: the corner box around `around` (default the first player's feet), "
             + "markers as the truth, terrain as is. A name: the same at the anchor marker labelled with that "
-            + "name when this world has one (the file adds hand/equip/config/expect and the legs' verb and "
+            + "name when this world has one (the file adds hand/equip/config/expect and the walks' verb and "
             + "budget); otherwise the saved terrain is placed at `pos` and run there (no `pos`: refused — "
-            + "`scene.place` first). body: "
+            + "`scene.place` first). body: which bot runs the scene: "
             + "server (headless, dedicated server), self (the real player, integrated server), or npc / "
             + "npc:<name> (a driven piglin, any topology, no inventory); default: the file's npc when it names "
             + "one, else by topology. watch: a progress line to the first player every 20 ticks. awaitMs: wait "
@@ -134,8 +134,8 @@ public final class SceneVerbs {
                     .prop("watch", bool())
                     .prop("pos", pos())
                     .prop("around", pos())
-                    .prop("verb", stringEnum("goto", "mine", "escape", "elytra").desc("for `here`: the goal legs' verb"))
-                    .prop("budget", integer(1, 100_000).desc("for `here`: each leg's tick budget"))
+                    .prop("verb", stringEnum("goto", "mine", "escape", "elytra").desc("for `here`: the verb of the walks to the goals"))
+                    .prop("budget", integer(1, 100_000).desc("for `here`: each walk's tick budget"))
                     .prop("awaitMs", integer(0, 3_600_000))).asHidden();
 
     public static final ToolSchema VERDICT = tool("worlddriver.scene.verdict",

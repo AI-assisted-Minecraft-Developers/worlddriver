@@ -5,7 +5,7 @@
 The failures that matter over a long journey are failures of *execution*, not of the plan:
 churning in deep water, sliding off a sheer face, wedging in a one-block gap, orbiting a goal
 without reaching it. Numeric path statistics and a text log cannot answer the questions those
-raise — did the body actually follow the plan, did its heading drift from the target, was its
+raise — did the bot actually follow the plan, did its heading drift from the target, was its
 speed right for the medium it was in, and where exactly did it come apart.
 
 Worse, they were not reproducible. Every search varies from run to run, so "run it again and
@@ -62,7 +62,7 @@ trajectory.
 The envelope is a thin corridor around the route's nodes rather than a dense box, because routes are
 corridors and a dense capture of a few hundred blocks of travel is unusable.
 
-Pose is never predicted from terrain. What pose a body ends up in depends on intent that only the
+Pose is never predicted from terrain. What pose the player ends up in depends on intent that only the
 executor has, so the archive records what the terrain **allows or forces** — whether a standing box
 fits, whether a crouching one does, whether the ceiling forces a crouch, whether the foot cell is
 hazardous, how much the bounding box overlaps — and separately records the pose actually observed

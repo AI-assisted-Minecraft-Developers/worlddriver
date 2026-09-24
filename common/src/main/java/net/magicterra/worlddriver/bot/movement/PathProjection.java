@@ -34,10 +34,10 @@ public final class PathProjection {
     /** MC yaw of the path tangent {@code lookahead} blocks of arc-length ahead of the projection. */
     public float tangentYaw;
     /** MC yaw from the position to the POINT of the path {@code lookahead} blocks ahead of the projection:
-     *  the tangent with a cross-track term. A body driven at the bare tangent from {@code perp} blocks off
+     *  the tangent with a cross-track term. A bot driven at the bare tangent from {@code perp} blocks off
      *  the path walks PARALLEL to it forever (the offset is never in the heading); this bearing closes the
      *  offset at atan(perp / lookahead) per tick and becomes the tangent as it closes. Equal to
-     *  {@link #tangentYaw} when the point ahead is degenerate (the path ends at the body). */
+     *  {@link #tangentYaw} when the point ahead is degenerate (the path ends at the bot). */
     public float pursuitYaw;
     /** True when the scan stopped early at a barrier (submerged dive node / pending break-place edge). */
     public boolean barrierHit;
@@ -45,7 +45,7 @@ public final class PathProjection {
     /**
      * Project {@code (px,pz)} onto {@code path} within the FORWARD window {@code [step, step+window]} and
      * fill the result fields. The forward window is what keeps the projection from snapping backward onto a
-     * self-overlapping earlier leg (a dive→ride-bed→climb-out "V" overlaps itself in XZ — the dominant
+     * self-overlapping earlier segment (a dive→ride-bed→climb-out "V" overlaps itself in XZ — the dominant
      * projection hazard). Two barriers mirror {@code Walker.adoptPath}: a node sitting {@code >1} below the
      * foot that is water is a hard dive barrier (everything beyond is only reachable through the dive), and a
      * node entered by a still-pending break/place edge stops the scan (don't skim past an unexecuted bridge
@@ -93,7 +93,7 @@ public final class PathProjection {
         } else if (Double.isInfinite(bestD2)) {
             // Degenerate: step was already at/past the LAST node (the forward window was empty, no segment to
             // project onto). Pin the projection to the final node and measure perp to it — never index past
-            // the end (the OOB that crashed leg-2 when the bot smoothly reached a segment's final node).
+            // the end (the OOB that crashed walk 2 when the bot smoothly reached a segment's final node).
             BlockPos last = path.get(n - 1);
             double dxl = (last.getX() + 0.5) - px, dzl = (last.getZ() + 0.5) - pz;
             bestD2 = dxl * dxl + dzl * dzl;

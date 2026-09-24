@@ -1,6 +1,6 @@
 # The `bot/` layers
 
-Everything behind `mc.bot.*` — the autonomous layer that plans and drives a body. Read
+Everything behind `mc.bot.*` — the autonomous layer that plans and drives a bot. Read
 [`architecture.md`](architecture.md) first; this document picks up where `DriverApi.route`
 hands off.
 
@@ -70,36 +70,36 @@ mid-mutation. New off-thread state should follow that pattern.
 
 `BotProcess` is a behaviour driven once per tick; the implementations live in `process/`.
 Its one entry point is `tick(Body, WorldView, BotState)`. The scheduler's chains hand a
-process the body the scheduler was given, and the client tick chain builds a
+process the `Body` the scheduler was given, and the client tick chain builds a
 `ClientPlayerBody` once per tick for that purpose. A process that names `Minecraft` in its
-own signature will not run on a server body.
+own signature will not run on a server-side player.
 
 Two optional hooks come with caveats that are recorded in `BotProcess`'s own javadoc and
 are worth reading before relying on either. `onResume()` is called when a process regains
-the channel after preemption so it can repath from where the body actually is; only one
+the channel after preemption so it can repath from where the bot actually is; only one
 process in the package implements it, and the rest inherit the no-op and resume on a path
-computed from a position the body may have been dragged out of. `onCancelled(String)` is
+computed from a position the bot may have been dragged out of. `onCancelled(String)` is
 called when a process is superseded before finishing; overriding it and finalising the
 walker are two different things, and counting overrides does not answer the second
 question.
 
-The chains talk in bodies too — `Chain.priority(Body, …)` and `Chain.tick(Body, …)` — but
+The chains take a `Body` too — `Chain.priority(Body, …)` and `Chain.tick(Body, …)` — but
 the chain implementations still read the local player, the client level and the
 client-only helpers through `Minecraft`, so each downcasts at the top of both methods via
-`Chain.clientOf(body)`. That returns null for any body that is not the client's, which is
-also what the headless scenes pass when they tick the scheduler with no body.
+`Chain.clientOf(body)`. That returns null for any `Body` that is not the client's, which is
+also what the headless scenes pass when they tick the scheduler with no `Body`.
 
 ## `Walker` — executing a path
 
-`Walker` consumes a path and drives the body along it, reporting `Step.WALKING`,
+`Walker` consumes a path and drives the bot along it, reporting `Step.WALKING`,
 `ARRIVED` or `FAILED`.
 
 Two things regularly surprise contributors.
 
 **Unplanned falls are not the walker's job.** Water-bucket clutch handling lives in the
-always-on `ClutchController`, ticked at the top of `clientTick`, so a falling body
-self-rescues whether or not a walker is driving. The walker only arms a *planned* fall as
-it steps off a lip, and biases the step-off keys so the body drops close to vertically.
+always-on `ClutchController`, ticked at the top of `clientTick`, so a falling bot
+rescues itself whether or not a walker is driving. The walker only arms a *planned* fall as
+it steps off a lip, and biases the step-off keys so the bot drops close to vertically.
 
 **Its static counters are monotone and never reset.** `Walker.lastStats` and counters such
 as `descentHolds` accumulate for the life of the process; a caller that wants a window
@@ -145,37 +145,37 @@ a region unreachable and turn a slow path into no path.
 
 ## The `Body` seam
 
-`Walker` and every process drive a `Body` (package `bot/body/`), not a player. A body's
+`Walker` and every process drive a `Body` (package `bot/body/`), not a player. A `Body`'s
 `entity()` is a `LivingEntity`, so everything the walker reads — position, ground contact,
 water, velocity, bounding box, health — and every pose it sets is identical on a client
 `LocalPlayer`, a server `ServerPlayer` and a driven mob. The interface itself carries only
-what every body has: locomotion impulse and the look.
+what every driven entity has: locomotion impulse and the look.
 
-What only a body with an inventory has sits behind two optionals: `Hands` (hold, place,
+What only an entity with an inventory has sits behind two optionals: `Hands` (hold, place,
 break, swing, use) and `Containers` (recipe book, container clicks, closing). A process
 that needs them asks at the top of its tick and, when the answer is empty, stamps its
 slot's `lastError` with the `no_hands` reason from `BodyReady` and finishes; a caller that
 never asks cannot compile a call to them. `asPlayer()` is the raw `Player` view for the
 few readers of a player's own state such as food, abilities and the attack cooldown, and
-is null for a body that is not one. The walker, which cannot refuse an order, drives
-`WalkerNoHands` for a handless body, so its dig and place gates fall closed on their own
+is null for an entity that is not a player. The walker, which cannot refuse an order, drives
+`WalkerNoHands` for an entity without hands, so its dig and place gates fall closed on their own
 readings.
 
 `ClientPlayerBody` and `ServerPlayerBody` implement all three interfaces, so a caller
 holding either concrete type is unchanged. That is what lets one process run on a client
-body and headless on a server tick, and what the test scenes' driven-mob body plugs into.
+player and headless on a server tick, and what the test scenes' driven-mob `Body` plugs into.
 
-### Naming a body
+### Naming a bot
 
-`bot/body/BodyRegistry` holds the bodies the API can address besides the client's own.
+`bot/body/BodyRegistry` holds the bots the API can address besides the client's own player.
 Whoever creates a host registers it: `/worlddriver server spawn <name>` registers
 `player:<name>`, the test content registers `npc:<name>`, and a third-party mod registers
 whatever it builds. Transport threads read the registry and the server thread writes it,
 so every method synchronizes on the map; iteration is in registration order, which is the
-order `mc.bot.status` lists bodies in. The registry empties when the server stops, since
+order `mc.bot.status` lists bots in. The registry empties when the server stops, since
 every host wraps an entity of that server.
 
-The `mc.bot.*` verbs that drive a body take a `body` parameter; `equip`, `setting`,
+The `mc.bot.*` verbs that drive a bot take a `body` parameter; `equip`, `setting`,
 `waypoint` and `playbook` stay with the client. Anything other than `self` goes to
 `api/BodyRoutes`, which hops to the server thread and refuses in `BodyReady` terms judged
 on the entity. A process verb's parameters are read by `bot/VerbOrders`, the same builder
@@ -186,7 +186,7 @@ scheduler, chains or reflexes; `self` keeps all three. `BodyRoutes`, `BodyIntera
 and `VerbOrders` must not name a client class — on a dedicated server they are the only
 `mc.bot.*` code that runs.
 
-How faithfully a server-side body reproduces a real player, and every known divergence, is
+How faithfully a server-side player reproduces a real player, and every known divergence, is
 tabulated in [`fake-player-parity.md`](fake-player-parity.md). Read it before assuming a
 vanilla behaviour survives the seam, and do not duplicate its claims here.
 
@@ -240,7 +240,7 @@ moved text without decomposing the method — which is why the method budget exi
 | `process/` | One class per verb behaviour |
 | `scheduler/` | `ProcessScheduler`, `Chain`, `Priorities` and the chain implementations |
 | `world/` | The bot's world model: `WorldView` implementations, hazard fields, scene model, survival facts |
-| `sim/` | Server-side bodies and their hosts |
+| `sim/` | Server-side players and their hosts |
 | `debug/` | Path archive and replay, chart rendering, probe tools — instrumentation, strippable |
 | `auto/` | Always-on ambient behaviours that are not chains (eat, heal, shield, swim, tool, …) |
 | `combat/`, `elytra/` | Domain helpers behind the matching processes |

@@ -59,7 +59,7 @@ public final class ClutchController {
 
     /**
      * Yield the movement channel for this tick: the clutch OWNS the descent, so nothing the
-     * walker or a process commanded may move the body sideways or add a jump.
+     * walker or a process commanded may move the bot sideways or add a jump.
      *
      * <p>Was two byte-identical six-line blocks clearing keyUp/Down/Left/Right/Jump/Sprint —
      * and clearing those keys did nothing at all while a process was driving:
@@ -167,12 +167,12 @@ public final class ClutchController {
             lipTicks = 0;
             yieldMovement(mc);
             // Drift control: a walk-off leaves the lip with residual horizontal
-            // momentum, and air has no friction, so over a tall fall the body
+            // momentum, and air has no friction, so over a tall fall the bot
             // coasts a full block sideways — clean off a 1-wide landing column
             // (it then descends a neighbouring column with no floor, and the
             // water lands at the world bottom). Bleed the horizontal velocity
             // and add a small spring nudge toward the planned landing centre:
-            // the two settle the body directly over the column it will place
+            // the two settle the bot directly over the column it will place
             // water in, so "straight down" hits the intended block. Converges
             // to zero drift right at the centre (nudge → 0 as offset → 0), so
             // it can't push the bot past.

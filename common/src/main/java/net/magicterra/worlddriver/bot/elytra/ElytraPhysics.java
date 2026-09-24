@@ -36,7 +36,7 @@ public final class ElytraPhysics {
     public static final double GRAVITY = 0.08;
     public static final double GRAVITY_SLOW_FALLING = 0.01;
 
-    /** Position + velocity (deltaMovement) of a flying body. Immutable. */
+    /** Position + velocity (deltaMovement) of a gliding player. Immutable. */
     public record State(Vec3 pos, Vec3 vel) {}
 
     /**

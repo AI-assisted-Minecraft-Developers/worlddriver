@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 2026-09-24
 
+- **Messages and descriptions call the controlled player "the bot", not "the body", and a walk or
+  task by its name, not "leg".** Error text changes accordingly, for example `no bot named 'x';
+  mc.bot.status lists the bots` and `waypoint is only accepted with body=self`, and so do the MCP
+  tool and setting descriptions and the `scene.run` report lines (`task 0 goto arrived at …`).
+  Parameter names, JSON keys and evidence keys are unchanged: `body`, `bodies`, `userTaskLeg`,
+  `legs`, `body.*` and `leg.*` still mean what they did.
 - **Messages, comments and test output are in English.** Error text a caller can read, such as
   the smelt failures in `lastError` ("timed out opening the furnace", "partially completed: smelted
   only 3/8 (the ingredient ran out)"), log lines, and the evidence StageWright scenes record were
@@ -19,9 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for every ending the process reached by itself, so a goto that gave up short of its goal, a
   build that skipped blocks and a follow that lost its target all read as successes. Each process
   now reports its own verdict: `error` is null only when the task was done, and otherwise names
-  the give-up, the exception or the cancel. A goto whose leg to a `route.via` waypoint gives up
+  the give-up, the exception or the cancel. A goto whose walk to a `route.via` waypoint gives up
   now ends there instead of walking on to the next one. The auto-backfill no longer counts as a
-  user task, so it cannot overwrite the ending of the one before it, and a named body's status
+  user task, so it cannot overwrite the ending of the one before it, and a named bot's status
   (`player:…`, `npc:…`) now carries its own `lastProcessEnd`. The per-slot `lastError` keeps its
   success summaries and now also names the give-ups it used to leave blank: an elytra flight whose
   wing closed short of its target, and a smelt that ran out of ingredient before the batch was

@@ -14,7 +14,7 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * The shape of the mould rung 12 casts its portal frame in, and the rules that say where it may go.
  *
- * <p>Pure geometry and world-reading: no body, no rig, no processes. It lives apart from the rung
+ * <p>Pure geometry and world-reading: no bot, no rig, no processes. It lives apart from the rung
  * that drives it because the rung's file is at its line budget, and because these are the parts a
  * failure is usually diagnosed against — {@code RING}'s order and the shell rule below are each a
  * one-line invariant that cost a run to learn.
@@ -24,7 +24,7 @@ import net.minecraft.world.level.block.Blocks;
  * <b>1. Every cell is cast onto something.</b> {@link #RING} is the cast order and it encodes a
  * dependency: each cell's floor is either rock nobody has touched or the obsidian cast one step
  * earlier — {@code (-1,2)} stands on {@code (-1,1)}, which is cast before it. That is why
- * {@link #corridor} carves only the space the body walks in and the frame cells are opened one at a
+ * {@link #corridor} carves only the space the bot walks in and the frame cells are opened one at a
  * time, in {@code castCell}. Hollowing all twelve up front turns every one of those floors into air
  * before the first pour, and every fluid then runs off: measured as {@code frame.cast=0/10} with
  * both buckets reporting {@code CONSUME}.
@@ -47,7 +47,7 @@ public final class JourneyForge {
     public static final int[][] RING = {
             {0, 0}, {1, 0}, {-1, 1}, {2, 1}, {-1, 2}, {2, 2}, {-1, 3}, {2, 3}, {0, 4}, {1, 4}};
 
-    /** How tall the alcove is, in cells — the body's floor plus six. */
+    /** How tall the alcove is, in cells — the bot's floor plus six. */
     public static final int ALCOVE_HEIGHT = 7;
 
     /** How far below the lava the mould starts out being cut.
@@ -71,10 +71,10 @@ public final class JourneyForge {
     }
 
     /**
-     * Only the corridor — the space the body walks and stands in. <b>Not</b> the frame cells.
+     * Only the corridor — the space the bot walks and stands in. <b>Not</b> the frame cells.
      *
      * <p>Carved bottom-up and deepening with {@code push}, so however far out the frame is pushed the
-     * body still has a walked path to each cell. Order is not tidiness: the body digs what it can
+     * bot still has a walked path to each cell. Order is not tidiness: the bot digs what it can
      * path to, so opening a whole layer before the one above keeps every next cell adjacent to air it
      * can already stand in.
      */
@@ -88,7 +88,7 @@ public final class JourneyForge {
     }
 
     /**
-     * The width of the alcove, ordered OUTWARD from the shaft the body arrives down.
+     * The width of the alcove, ordered OUTWARD from the shaft the bot arrives down.
      *
      * <p>Not cosmetic: {@code Body.canBreak} refuses a block whose six neighbours are all full
      * solid faces, on the correct grounds that no ray from any eye could reach it. Sweeping

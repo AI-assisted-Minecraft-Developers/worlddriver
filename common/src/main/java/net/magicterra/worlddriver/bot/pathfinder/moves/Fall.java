@@ -35,7 +35,7 @@ public final class Fall extends Move {
         BlockPos to = apply(from);
         if (!w.canStandAt(to)) return false;
         // Buoyancy: a fall into SUBMERGED water (more water directly above the
-        // landing) doesn't rest there — autoSwim floats the body up to the
+        // landing) doesn't rest there — autoSwim floats the bot up to the
         // surface cell. canStandAt accepts ANY water cell as a floor, so without
         // this A* routes the floating bot DOWN to a riverbed node it can never
         // reach and wedges (live 2026-06-15 deep-water crossing: fall3 to a y59

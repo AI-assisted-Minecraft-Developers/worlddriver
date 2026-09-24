@@ -70,7 +70,7 @@ final class WalkerTickSearch {
      * budget's breakHeld hold. Water is exempt: an afloat bot legitimately repaths many times while
      * stationary (bank climb-outs, bobbing), and that churn is owned by the existing in-water
      * anti-spin (repathsNoProgress) — two governors on one loop would race. This guard owns the DRY
-     * unreachable churn. gap#66 leg C: a COMPLETELY empty result while stuck-penalties are live is
+     * unreachable churn. gap#66 run C: a COMPLETELY empty result while stuck-penalties are live is
      * (likely) SELF-INFLICTED blindness — the wedge penalties walled the pocket, not the terrain
      * (live pit 2026-07-14: "waiting out decay (1/900)" then the 5th futile search fail-stopped the
      * goto 6 s in, 39 s before the penalties would have cleared). Don't count those; penalties decay
@@ -89,7 +89,7 @@ final class WalkerTickSearch {
                 && wk.searchGov.futileBestDist != Double.POSITIVE_INFINITY;
         // Judge today's foot with YESTERDAY's goal. A pursuit re-goals as its quarry moves and every
         // re-goal resets goalSpin, so measured against the CURRENT goal the quarry drifting closer
-        // reads as the body having earned ground. Against the goal that set the baseline it does
+        // reads as the bot having earned ground. Against the goal that set the baseline it does
         // not — and this holds for every goal shape, with no per-shape arithmetic to get wrong.
         boolean gotCloser = seeded
                 && wk.searchGov.futileGoal.estimate(foot) < wk.searchGov.futileBestDist - 0.5;
@@ -226,7 +226,7 @@ final class WalkerTickSearch {
                 // progress at all do we give up best-effort instead of pressing forever.
                 if (d < wk.goalSpin.bestGoalDist - 5.0) { wk.goalSpin.bestGoalDist = d; wk.goalSpin.repathsNoProgress = 0; wk.goalSpin.churnResets = 0; }
                 else wk.goalSpin.repathsNoProgress++;
-                // Only a body actually AFLOAT counts as a water repath: the old
+                // Only a bot actually AFLOAT counts as a water repath: the old
                 // `|| isWater(foot.below())` arm also matched a bot standing on dry
                 // ground beside a waterfall, so a canyon pacing loop was misread as
                 // water churn and the goto ended in a FAKE ARRIVED at (420,-349)
@@ -281,8 +281,8 @@ final class WalkerTickSearch {
                 // Route hysteresis (walkerRouteHysteresis): don't let a periodic repath
                 // U-turn a healthy walk onto the alternate near-equal route (§55 oscillation).
                 // The direction dot doubles as the REPATH-flip expectation alarm: adopting a
-                // route whose near-term direction REVERSES the current one is exactly one leg
-                // of the planner oscillation loop — two adoptions with reversed legs inside
+                // route whose near-term direction REVERSES the current one is exactly one half
+                // of the planner oscillation loop — two adoptions with reversed directions inside
                 // 200 ticks is the live signature of "A* alternates two near-equal routes"
                 // (the C16 dry-land churn that took three autopsies to see from raw logs).
                 boolean keepCurrent = false;

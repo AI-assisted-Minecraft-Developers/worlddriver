@@ -29,7 +29,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * maps onto {@code getDestroyType(RULE_BLOCK_EXPLOSION_DROP_DECAY)} — {@code DESTROY} or
  * {@code DESTROY_WITH_DECAY}, <b>never</b> {@code KEEP}. Unlike a creeper it is not gated on
  * {@code mobGriefing}. Iron bars have explosion resistance 6.0 and obsidian 1200, so the blast eats
- * the cage and leaves the pillar — and a body that climbed onto the cage is standing on the half
+ * the cage and leaves the pillar — and a bot that climbed onto the cage is standing on the half
  * that goes.
  *
  * <h2>The threshold, and why it is NOT {@code resistance < power}</h2>
@@ -37,7 +37,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * Writing the criterion the obvious way — {@code getExplosionResistance() < power} — makes this
  * whole guard a <b>silent no-op</b> for the exact case it was written for: iron bars are 6.0, the
  * crystal's blast is 6.0, and {@code 6.0 < 6.0} is false, so the bars pass. Nothing would refuse,
- * nothing would log, and the body would still be dropped into the void.
+ * nothing would log, and the bot would still be dropped into the void.
  *
  * <p>The real rule is in {@code Explosion.explode()}. Each of vanilla's rays starts at
  * {@code f = power * (0.7F + random.nextFloat() * 0.6F)}, i.e. up to {@code 1.3 * power}. At every
@@ -52,7 +52,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * the bar is <b>25.7</b>:
  *
  * <table border="1">
- *   <caption>Blocks a body actually stands on near a crystal</caption>
+ *   <caption>Blocks a bot actually stands on near a crystal</caption>
  *   <tr><th>block</th><th>resistance</th><th>≥ 25.7?</th></tr>
  *   <tr><td>obsidian / crying obsidian</td><td>1200</td><td>✓</td></tr>
  *   <tr><td>bedrock</td><td>3 600 000</td><td>✓</td></tr>
@@ -64,7 +64,7 @@ import net.minecraft.world.level.block.state.BlockState;
  * <p>Distance decay is deliberately left OUT of the threshold. Folding it in would license standing
  * on something that survives a blast <i>at this range</i> — and the next crystal, or the next step,
  * is one block closer. The number above is the worst case (adjacent), which is the only case a
- * body about to melee something can assume it is in.
+ * bot about to melee something can assume it is in.
  *
  * <h2>What is on the trigger surface, and what is deliberately not</h2>
  *
@@ -106,7 +106,7 @@ public final class BlastFooting {
     /** How far {@link #refuseSwing}'s message looks for a stand that WOULD qualify. Small and
      *  bounded on purpose (9³ cells, read only on the cold refusal path). It is 4 rather than 3 so
      *  that the one stand vanilla's caged spike actually has — the 3x3 obsidian floor INSIDE the
-     *  cage, four blocks under a body on the lid — appears in the message instead of being reported
+     *  cage, four blocks under a bot on the lid — appears in the message instead of being reported
      *  as "nothing nearby", which would send the reader looking for the wrong fix. */
     public static final int STAND_SURVEY_RADIUS = 4;
 
@@ -141,13 +141,13 @@ public final class BlastFooting {
     }
 
     /**
-     * Why this body must not swing at {@code target} from where it is standing, or {@code null} to
+     * Why this bot must not swing at {@code target} from where it is standing, or {@code null} to
      * go ahead.
      *
      * <p>The footing is read with {@link WalkerGeometry#eachSoleCell} — the same row and the same
      * cells {@link WalkerGeometry#soleOnSolid} sums and {@link WalkerGeometry#soleRow} prints, so
      * this guard and every edge guard in the walker agree by construction about which block the
-     * body is standing on. The only predicate added on top is {@code isAir}, to skip cells that
+     * bot is standing on. The only predicate added on top is {@code isAir}, to skip cells that
      * hold nothing; the weakest remaining cell decides, because losing any one of them is losing
      * that part of the support.
      */
@@ -179,8 +179,8 @@ public final class BlastFooting {
 
         if (solidCells[0] == 0) {
             // A DIFFERENT failure from "your footing is too weak", and it must never read like it:
-            // this body has no stand to protect, so the blast decides where it lands. Airborne is
-            // the state a body is in one tick after jumping next to a crystal on good obsidian —
+            // this bot has no stand to protect, so the blast decides where it lands. Airborne is
+            // the state a bot is in one tick after jumping next to a crystal on good obsidian —
             // the caller simply gets its swing on the next grounded tick.
             return head + String.format(Locale.ROOT,
                     "The row under the bot's feet, y=%d, is all air (the bot is not on the ground), so "
@@ -249,7 +249,7 @@ public final class BlastFooting {
      * may branch on it. The coarser {@code blocksMotion} head-room test lives ONLY here, inside a
      * message — the criterion above is the sole row and nothing else. That test is deliberately the
      * same shape {@code LavaProximityEscape} already uses to look for a cell to stand in (floor
-     * blocks motion, the two body cells do not), so this survey and the escape's agree about what a
+     * blocks motion, the two bot cells do not), so this survey and the escape's agree about what a
      * candidate looks like even though neither decides anything with it.
      */
     private static String surveyStands(Level level, BlockPos from, double need) {

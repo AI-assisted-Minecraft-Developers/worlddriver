@@ -44,7 +44,8 @@ import net.minecraft.core.BlockPos;
  * the string-pulled route the walker would drive; the A* result itself is cached under the
  * {@code planId} for {@code WalkerPlanAdoption}, which straightens on its own.
  *
- * <p>Client only in this version: the verb lives there, and the server body has no caller yet.
+ * <p>Client only in this version: the verb lives there, and the server-side player has no caller
+ * yet.
  */
 public final class PreviewSearch {
 
@@ -56,7 +57,7 @@ public final class PreviewSearch {
     public record Request(BlockPos start, List<Goal> goals, SearchProfile profile, boolean includePath,
                           WorldView world, ScopeSource scope) {}
 
-    /** A finished preview, kept for adoption. {@code legs} are the raw A* results per goal. */
+    /** A finished preview, kept for adoption. {@code legs} are the raw A* results, one per goal. */
     public static final class Plan {
         public final String id;
         public final long createdMs;
@@ -168,8 +169,8 @@ public final class PreviewSearch {
         cur.expanded += res.expanded();
         cur.ms += res.ms();
         cur.cost += res.finalCost();
-        // Describe this leg NOW: the components' snapshot is the one this leg's search ran with,
-        // and the next leg's search begins by replacing it.
+        // Describe the route to this goal NOW: the components' snapshot is the one this goal's
+        // search ran with, and the next goal's search begins by replacing it.
         List<BlockPos> shown = res.path().isEmpty() ? List.of()
                 : PathSmoothing.stringPull(cur.req.world(), res.path(), res.edges(), cur.req.profile().bias()).path();
         cur.shown.add(shown);
@@ -184,7 +185,7 @@ public final class PreviewSearch {
             try {
                 startLeg(cur);
             } catch (RuntimeException e) {
-                finish(cur, "preview leg " + cur.legIndex + " could not start: " + e.getMessage());
+                finish(cur, "preview search toward goal " + cur.legIndex + " could not start: " + e.getMessage());
             }
             return;
         }
@@ -369,8 +370,8 @@ public final class PreviewSearch {
      * segment carries {@code from}/{@code to} (cell indices, {@code to} exclusive), and a
      * {@code risk} of {@code exposedTo} (observer id, type, how many of the segment's cells it
      * sees — all of them, by construction), {@code nearestMob} (the minimum over the segment,
-     * absent without a mob) and {@code regions}. A {@code leg} index is added when {@code leg}
-     * is not negative.
+     * absent without a mob) and {@code regions}. When {@code leg} is not negative it is added as
+     * the {@code leg} key: the index of the goal whose route the segment belongs to.
      */
     public static List<Map<String, Object>> segments(List<BlockPos> cells, RiskAt risk, int leg) {
         List<Map<String, Object>> out = new ArrayList<>();

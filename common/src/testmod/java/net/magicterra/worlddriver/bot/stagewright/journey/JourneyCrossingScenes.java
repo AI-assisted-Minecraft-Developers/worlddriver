@@ -123,7 +123,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
                         JourneyCrossingScenes::repathSeparatesARimWalkFromALivelock));
     }
 
-    /** dy of the shelf's top block. The body's foot cell is one above it. */
+    /** dy of the shelf's top block. The bot's foot cell is one above it. */
     private static final int DECK = 6;
 
     /** Cells of shelf along +z, from {@code dz = -2}. The lip is the last of them. */
@@ -135,12 +135,12 @@ public final class JourneyCrossingScenes implements SceneProvider {
      *  arena by their own rules rather than by a switch. */
     private static final int BAY_BED = DECK - 4;
 
-    /** dy the long-fall arm starts its body at. Thirty-nine rows over the bay floor's standing cell,
-     *  so the body is still in the air when the allowance expires: 26 ticks of gravity cover 23.4
+    /** dy the long-fall arm starts its bot at. Thirty-nine rows over the bay floor's standing cell,
+     *  so the bot is still in the air when the allowance expires: 26 ticks of gravity cover 23.4
      *  blocks and the run-up to {@code stillFalling} costs four more. */
     private static final int DEEP_START = 42;
 
-    /** Idle ticks before a drive, so a body that vanilla itself cannot hold up says so before the
+    /** Idle ticks before a drive, so a bot that vanilla itself cannot hold up says so before the
      *  measurement rather than during it. */
     private static final int SETTLE_TICKS = 20;
 
@@ -149,7 +149,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     private static final int WALK_TICKS = 160;
 
     /**
-     * A body walked off a four-block lip, judged twice: as the crossing used to, and as it does now.
+     * A bot walked off a four-block lip, judged twice: as the crossing used to, and as it does now.
      *
      * <p>See the class note. The control is the first verdict; if it comes back clean this arena
      * never reproduced the stop and the arm says so instead of passing.
@@ -159,7 +159,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ctx.cleanup(pin::close);
         // The guards keep their live values — this arm is a claim about them staying out of the way,
         // and an arm that switched them off could not make it. Placement is off because a plug under
-        // the body would change the geometry the arms differ in; the shore pair owns that question.
+        // the bot would change the geometry the arms differ in; the shore pair owns that question.
         BotConfig.allowPlace = false;
         BotConfig.allowBreak = false;
         BotConfig.walkerDebug = false;
@@ -275,7 +275,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * Rung 14's 2026-08-20 shuttle: four hops of 900 ticks each, 61–76 walk edges apiece, net −8 to
      * −28 blocks, all four inside one 27×31 box. The terrain, read out of that run's own region
      * files, is a lava sea — 18 458 lava cells against 2 543 netherrack in the walk band — and the
-     * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway the body built
+     * only ground in it beyond one netherrack shelf is a <b>127-block dirt causeway the bot built
      * itself</b>. The stride guard fired 491 times in that crossing across 184 distinct cells and
      * plugged 142 of them; only 5 cells ever reached the 12-fire plug dwell.
      *
@@ -293,9 +293,9 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * two situations the counter was built for</b>:
      *
      * <ul>
-     *   <li>a LIVELOCK — the body held against one lip, pinning on the same cell, which is the
+     *   <li>a LIVELOCK — the bot held against one lip, pinning on the same cell, which is the
      *       567-pins-at-one-cell run the forced repath exists for;</li>
-     *   <li>a RIM WALK — the body travelling along a lava shore, pinning on a new cell every few
+     *   <li>a RIM WALK — the bot travelling along a lava shore, pinning on a new cell every few
      *       ticks, which is what a Nether crossing is made of.</li>
      * </ul>
      *
@@ -371,7 +371,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /**
      * Drive the trench once and report the discard the pin forced.
      *
-     * <p>{@code travelling} is the arm's only variable. Both bodies stand on the same shore and
+     * <p>{@code travelling} is the arm's only variable. Both bots stand on the same shore and
      * both are steered at the lava; the travelling one is also pushed along +z, so its stride cell
      * sweeps, while the other is held against one lip and pins on the same cell for as long as it
      * takes. Sneak is not re-imposed — it is the channel the pin uses and the thing being measured.
@@ -385,7 +385,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
         fp.getInventory().clearContent();
-        // Face into the trench (−x) for the livelock, and RIM_LEAN for the rim walk so the body
+        // Face into the trench (−x) for the livelock, and RIM_LEAN for the rim walk so the bot
         // also travels along +z — the heading the ladder's own rim pins were all measured on.
         fp.setYRot(travelling ? RIM_LEAN : 90f);
         fp.yHeadRot = fp.getYRot();
@@ -452,7 +452,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
 
     /** dy of the shore deck's top block. */
     private static final int TRENCH_DECK = 20;
-    /** Rows of lava in the trench. Four, so a body that goes in is in it. */
+    /** Rows of lava in the trench. Four, so a bot that goes in is in it. */
     private static final int TRENCH_ROWS = 4;
     /** Westmost deck cell: dx below this is open trench, so the rim runs the whole arena at one x. */
     private static final int TRENCH_EDGE = 1;
@@ -464,7 +464,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /** Heading for the travelling arm, in degrees; 0 is +z and 90 is −x (into the trench). 30°
      *  walks the shore while leaning at it — the same shape as {@code wd.serverKeepsWalkingAtALavaRim}'s
      *  own 25°, and the shape every one of rung 12's 83 rim pins was measured on. The first cut used
-     *  150°, which is mostly −z: the body walked backwards off the arena and pinned on one cell,
+     *  150°, which is mostly −z: the bot walked backwards off the arena and pinned on one cell,
      *  and the arm reported the livelock's own answer for the rim. */
     private static final float RIM_LEAN = 30f;
 
@@ -627,7 +627,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      * drop to solid of {@code >16} and the control has nothing to be about. It has to be SHALLOWER than
      * what the walker's two guards refuse, or the walking half never happens: measured on the first
      * cut of this arena, over a bottomless shaft {@link Walker#strideFloorGuard} fired, killed the
-     * horizontal momentum and sneak-pinned the body on a 0.0001-wide sliver of the lip for all 160
+     * horizontal momentum and sneak-pinned the bot on a 0.0001-wide sliver of the lip for all 160
      * ticks — the guard doing exactly its job, and an arena that mistook it for a rig failure.
      * Eighteen clears both: the stride guard's fall scan reaches 23 at full health and finds this
      * floor, and {@code survivableFall(20) = 22} keeps {@link Walker#footingGuard} out too.
@@ -638,7 +638,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     private static final int SHAFT_CLEAR = SHAFT_FLOOR + 1;
 
     /**
-     * Walk the deck until the body is ONE TICK past the lip, and take the row there.
+     * Walk the deck until the bot is ONE TICK past the lip, and take the row there.
      *
      * <p>Not the first {@code stillFalling} tick — that is four ticks later, by which time
      * {@code onGround} has caught up and the two rows would differ for a reason that has nothing to
@@ -676,8 +676,8 @@ public final class JourneyCrossingScenes implements SceneProvider {
                     ctx.setBlock(dx, dy, dz, Blocks.AIR);
     }
 
-    /** The deck, the lone block beside it that a body can corner on, and the floor eighteen rows
-     *  down. Nothing in between — the column under BOTH bodies has to be open past the row's own
+    /** The deck, the lone block beside it that a bot can corner on, and the floor eighteen rows
+     *  down. Nothing in between — the column under BOTH bots has to be open past the row's own
      *  16-cell probe, which is the whole premise of the control. */
     private static void stageShaft(SceneContext ctx) {
         clearShaft(ctx);
@@ -711,7 +711,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
      *
      * <p>The walker is ticked so its guards run — they live in {@code Walker#tick}'s single-exit
      * wrapper, after every branch of {@code tickInner} — and the heading and impulse are re-imposed
-     * afterwards so the body walks one straight line whatever the walker would rather do. Sneak is
+     * afterwards so the bot walks one straight line whatever the walker would rather do. Sneak is
      * NOT re-imposed: it is the channel a guard pins on, and {@code pinnedTicks} is the reading that
      * says whether one did.
      *
@@ -792,7 +792,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
         av.step();
     }
 
-    /** A body at {@code dy}, optionally left to stand for {@link #SETTLE_TICKS} first. The settle is
+    /** A bot at {@code dy}, optionally left to stand for {@link #SETTLE_TICKS} first. The settle is
      *  for an arm that starts ON something — it proves vanilla itself holds the stance up before the
      *  measurement rather than during it. An arm that starts in the air must NOT have it: those
      *  ticks are its own fall. */
@@ -869,7 +869,7 @@ public final class JourneyCrossingScenes implements SceneProvider {
     /** The shelf, the lip, and the bay under it — the same terrain for both arms. */
     private static void stage(SceneContext ctx) {
         clear(ctx);
-        for (int dx = -1; dx <= 1; dx++)                       // the shelf the body walks out on
+        for (int dx = -1; dx <= 1; dx++)                       // the shelf the bot walks out on
             for (int dz = -2; dz <= SHELF_CELLS - 2; dz++)
                 for (int dy = 0; dy <= DECK; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.NETHERRACK);

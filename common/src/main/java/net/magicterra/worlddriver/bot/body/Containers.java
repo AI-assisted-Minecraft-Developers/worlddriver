@@ -8,16 +8,16 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 
 /**
- * What a body does with menus: the recipe book, container clicks, closing.
+ * What the controlled player does with menus: the recipe book, container clicks, closing.
  *
  * <p>Split out of {@link Body} with {@link Hands}, and for the same reason: vanilla hangs
- * menus off {@code Player} ({@code containerMenu}, {@code inventoryMenu}), so only a player body
+ * menus off {@code Player} ({@code containerMenu}, {@code inventoryMenu}), so only a player
  * can answer these. A process that crafts or smelts asks {@link Body#containers()} and refuses
  * the order when it is empty. Every method here was moved from the old {@code Avatar} unchanged.
  */
 public interface Containers {
 
-    /** The body whose menus these are. */
+    /** The player whose menus these are. */
     LivingEntity entity();
 
     /** The recipe registry — client: the connection's (works in multiplayer); server:

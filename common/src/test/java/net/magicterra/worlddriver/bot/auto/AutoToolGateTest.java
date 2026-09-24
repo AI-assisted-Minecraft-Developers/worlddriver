@@ -12,7 +12,7 @@ import net.magicterra.worlddriver.bot.scheduler.ProcessScheduler;
 import org.junit.jupiter.api.Test;
 
 /**
- * The hotbar picker stands aside whenever something drives the body, not only when the user task
+ * The hotbar picker stands aside whenever something drives the bot, not only when the user task
  * is empty: the bunker reflex picks its own tool and seal block, and dusk shelter and retreat drive
  * processes that do, all while the user slot is empty.
  */

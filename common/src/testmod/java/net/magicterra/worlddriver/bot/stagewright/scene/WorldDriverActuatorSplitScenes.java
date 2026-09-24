@@ -24,7 +24,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * How far apart the two halves of an "adopted" body drift, measured rather than argued about.
+ * How far apart the two halves of an "adopted" player drift, measured rather than argued about.
  *
  * <h2>The question this exists to answer</h2>
  *
@@ -32,7 +32,7 @@ import net.minecraft.world.phys.Vec3;
  * that player through <b>two different paths that do not agree about which object is authoritative</b>:
  *
  * <ul>
- *   <li><b>The legs</b> — {@code settle}/{@code drive}/{@code legStart}, 113 call sites — go
+ *   <li><b>The tasks</b> — {@code settle}/{@code drive}/{@code legStart}, 113 call sites — go
  *       {@code BotApi.runProcess} → the client's {@code UserTaskChain} → {@code BotProcess.tick(Minecraft,…)}
  *       → {@code ClientPlayerBody}, whose field is literally {@code mc.player}. That half really is
  *       {@code LocalPlayer}, driven by client input and client physics.</li>
@@ -76,7 +76,7 @@ import net.minecraft.world.phys.Vec3;
  * <p><b>Reads only, never marshalled writes.</b> The client side is read through
  * {@code mc.client.player}, which reports {@code selectedSlot} and {@code look.yaw/pitch} off the
  * real {@code LocalPlayer}. That route hops to the client thread and waits — acceptable here because
- * this scene is not inside a leg and holds no tick-critical deadline. It would NOT be acceptable
+ * this scene is not inside a task and holds no tick-critical deadline. It would NOT be acceptable
  * from inside {@code JourneyRig}'s await predicate, which is the deadlock this design is otherwise
  * careful to avoid, and the reason the fix in A0 must use a fire-and-forget form instead.
  *
@@ -85,7 +85,8 @@ import net.minecraft.world.phys.Vec3;
  * <b>Same tick</b> answers "did the server-side write land". <b>After {@link #SETTLE_TICKS} real
  * ticks</b> answers "did the client overwrite it". Only the second can see the packet arrive, and only the first can tell a
  * write that never landed from one that landed and was reverted — printing one without the other
- * reproduces the ambiguity the body census had to grow a second phase to escape.
+ * reproduces the ambiguity the player parity census ({@code wd.bodyParityCensus}) had to grow a
+ * second phase to escape.
  */
 public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
@@ -151,11 +152,11 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
         // ---- WHO, before anything else, and the scene REFUSES rather than reporting beside it ----
         //
-        // Every server body the driver mints is a JoinedBody, so this JVM can hold one as well as the
-        // client's player, and picking the wrong one would produce a full set of
+        // Every server-side player the driver mints is a JoinedBody, so this JVM can hold one as well
+        // as the client's player, and picking the wrong one would produce a full set of
         // plausible numbers describing the wrong subject — "the server write landed and the client
         // did not overwrite it" would be
-        // trivially true of a body no client has ever heard of. Every row below is void in that case,
+        // trivially true of a player no client has ever heard of. Every row below is void in that case,
         // so this must not be a row a reader has to notice: a criterion that depends on someone
         // checking a name before reading the numbers fails exactly when the numbers are interesting.
         //
@@ -183,17 +184,17 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         // ---- put it back, registered BEFORE the first write ---------------------------------
         //
         // This scene writes into a HUMAN's player: a stone into a hotbar slot, a selected slot, a
-        // yaw and a pitch. Everything after this line runs on the client's real body, and the scenes
+        // yaw and a pitch. Everything after this line runs on the client's real player, and the scenes
         // after this one inherit whatever it leaves — an arena audit calls a leftover entity a leak
         // and is right to; an item pushed into a player's inventory is the same class of residue.
         //
         // Registered here rather than at the end because cleanups drain on PASS, FAIL and TIMEOUT
-        // alike, and the interesting exits are the other two. The wrong-body refusal above cannot
+        // alike, and the interesting exits are the other two. The wrong-player refusal above cannot
         // reach this point, by design — it fires before anything is written — but the final check
         // and the await budget both can end the scene after the writes have landed, and a restore
         // written after them would be skipped on exactly those runs.
         //
-        // NOT restored through the Body. `holdItem` is the verb under measurement, and a cleanup
+        // NOT restored through `Body`. `holdItem` is the verb under measurement, and a cleanup
         // that runs the thing it is measuring fails silently precisely when that thing is broken —
         // and then lands on the NEXT scene, which is a shape this repo has already paid for. The
         // raw field is the primitive underneath it, so a restore can fail here only if the field
@@ -228,7 +229,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         });
 
         // ---- 1. the hotbar slot -------------------------------------------------------------
-        // Give the body something to select, so holdItem has a real target rather than failing for
+        // Give the player something to select, so holdItem has a real target rather than failing for
         // the uninteresting reason that the item is absent. Recorded, because "the switch did not
         // happen" and "there was nothing to switch to" are different findings and must never print
         // alike.
@@ -253,7 +254,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
         // ---- 2. the aim ---------------------------------------------------------------------
         // A cell far enough off-axis that the resulting angles cannot coincide with whatever the
-        // body happened to be facing — an aim that agrees by luck measures nothing.
+        // player happened to be facing — an aim that agrees by luck measures nothing.
         BlockPos aimAt = chooseAimTarget(real);
         ctx.record("aim.targetChoiceBasis", aimChoiceEvidence(real, aimAt));
         float yawBefore = real.getYRot();
@@ -262,8 +263,8 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
         float serverYawSameTick = real.getYRot();
         float serverPitchSameTick = real.getXRot();
         float[] clientLookSameTick = clientLook();
-        // WHERE the body stood when the angle was written, and what the angle therefore had to be.
-        // An aim stores ANGLES, not a target — the body moving afterwards silently invalidates it,
+        // WHERE the player stood when the angle was written, and what the angle therefore had to be.
+        // An aim stores ANGLES, not a target — the player moving afterwards silently invalidates it,
         // and at this range (~8.6 blocks) three quarters of a block of drift is worth the entire
         // tolerance. Captured here so the continuation can say whether the requirement moved, and so
         // the criterion below can be judged against what the actuator was ASKED for rather than
@@ -501,7 +502,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
         // Same reason as the sibling: the actuator writes angles, so the requirement must be pinned
         // to the moment it was asked for. Judging at +10 ticks against a recomputed requirement would
-        // let a body that merely MOVED fail this criterion, and A0 would be blamed for physics.
+        // let a player that merely MOVED fail this criterion, and A0 would be blamed for physics.
         Vec3 posAtWrite = real.position();
         float[] wantAtWrite = aimFromEyeTo(real, aimAt);
         // The precondition, measured BEFORE the real aim: parked and provably not already on target.
@@ -553,9 +554,9 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
             // that only PRINTS the quantity it exists to protect is the shape this repo keeps
             // paying for — the reading is there, and no run fails when it goes wrong.
             //
-            // The threshold comes from GEOMETRY, not from either body's reported angle. Deriving
+            // The threshold comes from GEOMETRY, not from either side's reported angle. Deriving
             // an aim criterion from the aim being measured is the same defect as taking a Y-band
-            // ceiling from the drifted body: it would be satisfied by any value the actuator
+            // ceiling from the drifted player: it would be satisfied by any value the actuator
             // happened to write, including no write at all.
             ctx.record("aim.geometricRequirement", deg(wantAtWrite[0]) + " / " + deg(wantAtWrite[1])
                     + " (computed from the target block centre and the eye position at the moment of the "
@@ -693,7 +694,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      * <p>Five degrees, and the number is chosen against the MEASURED defect rather than picked for
      * feeling safe: the ruler scene recorded gaps of 12-24° in yaw and 26-30° in pitch, so five
      * separates "the aim took effect" from "it had no effect at all" by a wide margin while leaving room for the eye-height
-     * and sub-tick position differences between the two bodies. A tolerance tuned tighter would make
+     * and sub-tick position differences between the server and client players. A tolerance tuned tighter would make
      * this criterion report the difference between two healthy implementations.
      */
     private static final float AIM_TOLERANCE_DEG = 5.0f;
@@ -702,10 +703,10 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      * How much the aim REQUIREMENT moved while the scene waited, and whether that invalidates the
      * verdict.
      *
-     * <p>An {@code aimAtBlock} stores <b>angles</b>, not a target. Once written, the body moving
+     * <p>An {@code aimAtBlock} stores <b>angles</b>, not a target. Once written, the player moving
      * makes them stale, and nothing in the actuator notices. At this scene's range (~8.6 blocks
      * horizontally) roughly three quarters of a block of drift is worth the entire
-     * {@link #AIM_TOLERANCE_DEG} tolerance — so a body that got pushed, fell, or was shoved by a mob
+     * {@link #AIM_TOLERANCE_DEG} tolerance — so a player that got pushed, fell, or was shoved by a mob
      * during the settle would make the aim criterion go red <b>on a perfectly healthy actuator</b>.
      *
      * <p>This row exists so that failure can never be silent. Without it, "the client's facing is
@@ -760,7 +761,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      *
      * <p>Never picked by index — see {@link #chooseAimTarget}. A fixed choice is what put a 5.21°
      * yaw gap into the first green run: {@code offset(7,-3,5)} happened to sit almost exactly along
-     * the body's spawn facing, so the yaw half of the test asked the actuator to turn five degrees
+     * the player's spawn facing, so the yaw half of the test asked the actuator to turn five degrees
      * and the whole reading rested on pitch. The measurement looked two-dimensional and was not.
      */
     private static final int[][] AIM_CANDIDATES = {
@@ -769,7 +770,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
     };
 
     /**
-     * The candidate cell that forces the LARGEST movement in BOTH yaw and pitch from where the body
+     * The candidate cell that forces the LARGEST movement in BOTH yaw and pitch from where the player
      * currently looks — chosen by maximising the smaller of the two gaps.
      *
      * <p>Maximising the <i>minimum</i> is the whole point. Being far in one component is enough to
@@ -778,7 +779,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
      * performed. Requiring both gaps to be large is what makes "the client followed" evidence about yaw
      * <i>and</i> pitch.
      *
-     * <p>Derived from the body's own SERVER-side rotation, deliberately not from the client's
+     * <p>Derived from the player's own SERVER-side rotation, deliberately not from the client's
      * reported look: the client's angles are (half of) what these scenes measure, and choosing the
      * target from the measurement is the shared-source mistake this file keeps warning about.
      * Both scenes call this, so both aim at the same cell and their rows stay comparable.
@@ -814,8 +815,8 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
     /**
      * Why {@link #chooseAimTarget} picked what it picked — <b>including its input</b>.
      *
-     * <p>The chooser reads the body's current rotation, and that rotation is not a constant: earlier
-     * actions in a scene change it, and the body is a human player who may be facing anywhere at
+     * <p>The chooser reads the player's current rotation, and that rotation is not a constant: earlier
+     * actions in a scene change it, and the player is a human who may be facing anywhere at
      * scene start. So the chosen cell legitimately differs run to run. Recording only the OUTPUT
      * would make a prediction that misses indistinguishable between "the chooser is wrong" and
      * "the input changed" — and the second is not a defect at all. Must be called BEFORE the aim write, while the input is
@@ -844,7 +845,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
     }
 
     /**
-     * The yaw/pitch that pointing at {@code cell}'s centre REQUIRES, computed from the body's eye
+     * The yaw/pitch that pointing at {@code cell}'s centre REQUIRES, computed from the player's eye
      * position — the independent yardstick this scene's aim criterion is judged against.
      *
      * <p>Same arithmetic both actuators perform ({@code ServerPlayerBody.aimAtBlock} and
@@ -899,7 +900,7 @@ public final class WorldDriverActuatorSplitScenes implements SceneProvider {
 
     // ------------------------------------------------------------------ topology
 
-    /** Everyone on this level who is not one of the driver's own minted bodies. */
+    /** Everyone on this level who is not one of the driver's own minted bot players. */
     private static List<ServerPlayer> humanPlayers(SceneContext ctx) {
         List<ServerPlayer> out = new ArrayList<>();
         for (ServerPlayer p : ctx.level().players()) {

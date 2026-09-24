@@ -57,7 +57,7 @@ public final class MouseYieldGate {
 
     public MouseYieldGate(int lingerTicks) { this.lingerTicks = lingerTicks; }
 
-    /** Record that the bot drove the body this tick (movement chain, process, reflex). */
+    /** Record that the bot drove the bot this tick (movement chain, process, reflex). */
     public void markDriving() { sinceDrive = 0; }
 
     /** True while a drive mark is still within the linger window. */

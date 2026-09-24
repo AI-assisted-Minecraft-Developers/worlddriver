@@ -289,8 +289,8 @@ public interface WorldView {
         if (isHazard(foot.offset(0, -1, 0))) return false;
         if (!isPassable(foot) || isHazard(foot)) return false;
         BlockPos head = foot.offset(0, 1, 0);
-        // A buoyant body rests only in the top water cell. A cell with water over its head is
-        // where the body passes on a swimUp/swimDown chain, never where it stands or turns, so
+        // A buoyant player rests only in the top water cell. A cell with water over its head is
+        // where the player passes on a swimUp/swimDown chain, never where it stands or turns, so
         // no lateral move may land there — unless this search is a deliberate dive.
         if (surfaceWaterNodes() && isWater(foot) && isWater(head)) return false;
         return isPassable(head) && !isHazard(head);
@@ -299,7 +299,7 @@ public interface WorldView {
     /**
      * Whether submerged cells are refused as lateral nodes: {@code BotConfig.pathfinderSurfaceWaterNodes}
      * unless the current search opted into {@code Capability.DIVE} (see {@link #diveSearch}), whose
-     * whole purpose is to route the body through water with its head under. Live views hold the
+     * whole purpose is to route the bot through water with its head under. Live views hold the
      * dive flag; the interface default only knows the config.
      */
     default boolean surfaceWaterNodes() { return net.magicterra.worlddriver.bot.BotConfig.pathfinderSurfaceWaterNodes; }
@@ -329,7 +329,7 @@ public interface WorldView {
      * A descending/leaping move would LAND on the SURFACE of a deep floating-water
      * pocket — the landing foot is water with no floor under the surface (≥2 deep,
      * {@link #isFloatingWater}) and its HEAD is air (so the existing fully-submerged
-     * gate {@code isWater(to) && isWater(to+1)} does NOT catch it). A buoyant body that
+     * gate {@code isWater(to) && isWater(to+1)} does NOT catch it). A buoyant player that
      * drops here floats at the surface and cannot climb back out (every grounded
      * climb-out gates itself off floating water), so the landing is a dead-end trap
      * that costs tens of seconds of bank-dig / shore-swim. Distinct from a SHALLOW
@@ -369,8 +369,8 @@ public interface WorldView {
      * The foot sits ≥2 cells below the water surface (water still fills the cell TWO
      * above the foot), so the bot floats fully submerged with its head under water and
      * cannot jump-mount a bank — a break-climb out ({@code swimAshore}/{@code
-     * swimAshoreClimb}) started from here only sink-churns, because the buoyant body
-     * can't lift its feet onto the bank from below the surface.
+     * swimAshoreClimb}) started from here only sink-churns, because the buoyant player
+     * cannot lift its feet onto the bank from below the surface.
      *
      * <p>Sibling of {@link #isFloatingWater}/{@link #isSubmergedAscent}: those gate the
      * non-breaking ascents; this one gates the BREAK-climbs. Without it, A* prefers a

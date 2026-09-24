@@ -67,9 +67,9 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
     }
 
     /** Continue when the {@code goto} slot reports {@code active: false}, or after {@code ticks}; the watcher
-     *  reads every tick. The slot, not {@code userTaskLeg()}: that leg is published only by the in-JVM
-     *  {@code runProcess} seam, and a process {@code mc.bot.goto} starts never marks it busy — waiting on
-     *  it returned on the first tick with the body still on its start cell. */
+     *  reads every tick. The slot, not {@code userTaskLeg()}: that task record is published only by the
+     *  in-JVM {@code runProcess} seam, and a process {@code mc.bot.goto} starts never marks it busy —
+     *  waiting on it returned on the first tick with the bot still on its start cell. */
     private static void awaitGotoEnd(SceneContext ctx, ClientHelm helm, int ticks, ClientHelm.TickWatcher watch, Runnable then) {
         final int[] waited = { 0 };
         ctx.await(() -> {
@@ -81,10 +81,10 @@ public final class WorldDriverClientRouteScenes implements SceneProvider {
     /**
      * Look before walking, then walk what was looked at. A preview of the flat lane comes back
      * reached in the {@code plan} slot; the goto with its {@code planId} reports {@code adopted}
-     * and the body arrives. How many searches the walker made on the way is recorded, not judged
+     * and the bot arrives. How many searches the walker made on the way is recorded, not judged
      * ({@code Walker.lastStats} moves once per search): the off-path safety re-search supersedes the
      * adopted route on the first tick of any lane longer than three cells, and cells are not
-     * comparable either ({@code adoptPath} straightens, trims and fast-forwards). Then the body is
+     * comparable either ({@code adoptPath} straightens, trims and fast-forwards). Then the bot is
      * put six cells off the previewed line, past the adoption gate's four, and the same call must
      * decline with a reason and search normally.
      */

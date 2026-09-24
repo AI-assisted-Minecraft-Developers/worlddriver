@@ -10,7 +10,7 @@ import net.minecraft.core.BlockPos;
  * cannot reach and which {@code Walker} — at its line budget — does not grow a twin of.
  *
  * <p>The RAW A* result is fed, never the string-pulled route a preview showed: {@code adoptPath}
- * straightens on its own, cuts a best-effort tail, and fast-forwards past the prefix the body has
+ * straightens on its own, cuts a best-effort tail, and fast-forwards past the prefix the bot has
  * already walked (anchoring on the nearest prefix node absorbs the drift since the preview). A
  * pre-straightened route would be straightened twice. Its own gate — the nearest prefix node
  * within 4 cells on dry ground, 8 in water — is the only distance rule; this design adds no
@@ -22,7 +22,7 @@ public final class WalkerPlanAdoption {
     private WalkerPlanAdoption() {}
 
     /**
-     * @param foot where the body stands now; the route is anchored to its nearest prefix node
+     * @param foot where the bot stands now; the route is anchored to its nearest prefix node
      * @return false when the walker refused the route (mis-anchored or stale); the caller then
      *         lets the walker search as usual
      */

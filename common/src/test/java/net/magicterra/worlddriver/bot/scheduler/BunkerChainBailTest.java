@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The bunker reflex's bid reads only health and hostiles, and a wet or unbreakable site changes
  * neither, so giving up without leaving the bid re-bid {@link Priorities#BUNKER} on the next tick
- * and retreat (100) and combat (60) never got the body. Giving up must bail through the scheduler.
+ * and retreat (100) and combat (60) never got control of the bot. Giving up must bail through the
+ * scheduler.
  */
 class BunkerChainBailTest {
 

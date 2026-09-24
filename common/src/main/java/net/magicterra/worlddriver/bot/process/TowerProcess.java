@@ -37,20 +37,20 @@ public final class TowerProcess implements BotProcess {
     private static final int STUCK_TICKS = 60;
     /** Horizontal speed (blocks/tick) below which a course may start.
      *
-     *  <p>A tower jumps, waits ~4 ticks, then fills the cell it jumped from. A body still travelling
+     *  <p>A tower jumps, waits ~4 ticks, then fills the cell it jumped from. A bot still travelling
      *  when the course begins crosses a cell boundary inside that window, so the fill lands in a
-     *  column the body is no longer over — and the next course starts from a cell with nothing under
+     *  column the bot is no longer over — and the next course starts from a cell with nothing under
      *  it. Measured 2026-08-18 by {@code wd.serverTowersAfterAWalk}, whose ONLY difference from the
-     *  green {@code wd.serverTowersTwelveCourses} is that the body arrives walking: it spent 3
+     *  green {@code wd.serverTowersTwelveCourses} is that the bot arrives walking: it spent 3
      *  blocks, put 0 of them in the target column, drifted 4 cells and fell 39. On the real ladder
      *  the same shape spent 13 blocks for 5 blocks of height.
      *
      *  <p>0.05 keeps the drift under half a cell across a whole course (≈9 ticks). Ground friction
      *  (0.6 × 0.91 per tick with no input) takes a walk's 0.156 below it in four ticks, so waiting
-     *  is cheap; {@link #SETTLE_TICKS} is the backstop for a body something else is pushing. */
+     *  is cheap; {@link #SETTLE_TICKS} is the backstop for a bot something else is pushing. */
     private static final double SETTLE_SPEED = 0.05;
-    /** How long a course waits for the body to stop before starting anyway. Generous next to the
-     *  four ticks friction needs: expiry means something is actively moving the body, which the
+    /** How long a course waits for the bot to stop before starting anyway. Generous next to the
+     *  four ticks friction needs: expiry means something is actively moving the bot, which the
      *  stuck message reports rather than hiding. */
     private static final int SETTLE_TICKS = 20;
 
@@ -69,7 +69,7 @@ public final class TowerProcess implements BotProcess {
     private final boolean reachIntoBag;
     private int placed;
     private int stuckTicks;
-    /** "not needed" is a success: the body already stands at the height the caller asked for. */
+    /** "not needed" is a success: the bot already stands at the height the caller asked for. */
     private String failure;
 
     @Override public String failure() { return failure; }
@@ -79,16 +79,16 @@ public final class TowerProcess implements BotProcess {
     private int jumpFromY;            // feet cell at the moment of the jump press
     /** The column the current course jumped from, latched with {@link #jumpFromY}.
      *
-     *  <p>Before this existed, PLACING recomputed x/z from the body's CURRENT position while taking
+     *  <p>Before this existed, PLACING recomputed x/z from the bot's CURRENT position while taking
      *  y from the jump — two halves of one coordinate describing two different moments, which is
-     *  how a drifting body filled a different column every course. The fill belongs to the course,
+     *  how a drifting bot filled a different column every course. The fill belongs to the course,
      *  and a course is defined by where it started. */
     private int jumpFromX;
     private int jumpFromZ;
     private int settling;
     private boolean startedWhileMoving;
-    /** Courses whose jump never lifted the body a whole block. Counted rather than merely survived:
-     *  a body that is being shoved off its own arc and one under a lid it cannot see produce the
+    /** Courses whose jump never lifted the bot a whole block. Counted rather than merely survived:
+     *  a bot that is being shoved off its own arc and one under a lid it cannot see produce the
      *  same zero height, and only this number distinguishes "tried 15 times" from "tried once and
      *  got stuck". */
     private int shortJumps;
@@ -117,7 +117,8 @@ public final class TowerProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         if (a.entity() == null) { failure = st.builder.lastError = "player vanished"; st.builder.reset(); return true; }
-        // The tower is laid from a player's inventory: a body that is not a player has no hands for it.
+        // The tower is laid from a player's inventory: a controlled entity that is not a player has
+        // no hands for it.
         Player p = a.asPlayer();
         hands = a.hands().orElse(null);
         if (hands == null || p == null) { failure = st.builder.lastError = BodyReady.Reason.NO_HANDS; st.builder.reset(); return true; }
@@ -133,14 +134,15 @@ public final class TowerProcess implements BotProcess {
         // standing at/above the target.
         //
         // soleOnSolid, NOT p.onGround(). `onGround` is `verticalCollisionBelow` — it describes the
-        // last move() and is wrong in both directions: a body can be flush on stone with it false.
+        // last move() and is wrong in both directions: a player can be flush on stone with it false.
         // Reading it here made a tower refuse to start on a footing it was standing on. The jump
-        // itself is vanilla's on both bodies and does wait for onGround, so a press made while the
-        // bit is still false is refused and the short-jump retry below presses again.
+        // itself is vanilla's on both the client and the server-side player and does wait for
+        // onGround, so a press made while the bit is still false is refused and the short-jump
+        // retry below presses again.
         boolean footed = WalkerGeometry.soleOnSolid(w, p) > 0.0;
         if (feetY >= targetY && footed) {
             // A tower that was never needed and a tower that built must not read alike. They did:
-            // both said `done (placed=N)`, so a rung whose body was already above its target printed
+            // both said `done (placed=N)`, so a rung whose bot was already above its target printed
             // the same row as one that climbed there, and four such rows on ladder rung 20 hid the
             // fact that the tower had never once been exercised. BotApiImpl already refuses this
             // argument ("target Y must be > current feet Y"); the constructor cannot, because
@@ -153,11 +155,11 @@ public final class TowerProcess implements BotProcess {
             return true;
         }
         if (++stuckTicks > STUCK_TICKS && feetY <= lastApexFloorY) {
-            // Report what is known, not a guess. "out of blocks?" was printed while the body held a
+            // Report what is known, not a guess. "out of blocks?" was printed while the bot held a
             // full stack — on ladder rung 20 it was printed with 933 cobblestone in the bag — and it
             // sent two rounds of debugging at the inventory. The block count, the phase and the apex
             // together separate the three real causes: nothing to place, a jump that never cleared
-            // its cell (phase stays JUMPING), and a body being carried off its own column.
+            // its cell (phase stays JUMPING), and a bot being carried off its own column.
             st.builder.lastError = "stuck (no Y gain in " + STUCK_TICKS + "t: placed=" + placed
                     + ", holding=" + p.getMainHandItem().getCount()
                     + ", phase=" + phase + ", apexFeetY=" + lastApexFloorY
@@ -184,8 +186,8 @@ public final class TowerProcess implements BotProcess {
             case READY -> {
                 if (!footed) return false;       // still falling / not landed
                 a.releaseInputs();
-                // Let the body stop before starting a course. `releaseInputs` only stops STEERING —
-                // it does not touch the velocity already in the body, so a tower begun at the end of
+                // Let the bot stop before starting a course. `releaseInputs` only stops STEERING —
+                // it does not touch the velocity the player already has, so a tower begun at the end of
                 // a walk coasts out of the column it is filling. Friction does the braking; this
                 // only waits for it.
                 if (p.getDeltaMovement().horizontalDistance() > SETTLE_SPEED) {
@@ -193,13 +195,13 @@ public final class TowerProcess implements BotProcess {
                     startedWhileMoving = true;   // said out loud by the stuck message, not swallowed
                 }
                 settling = 0;
-                // NOTHING TO JUMP INTO, NOTHING TO PLACE. A course fills the cell the body jumped
+                // NOTHING TO JUMP INTO, NOTHING TO PLACE. A course fills the cell the bot jumped
                 // FROM, so it needs a whole block of rise before vanilla will accept the placement
-                // (Level#isUnobstructed refuses a block inside the placer) — and a body that cannot
+                // (Level#isUnobstructed refuses a block inside the placer) — and a bot that cannot
                 // rise a whole block here can never make that placement, however many times it tries.
                 //
-                // ASKED WITH THE BODY'S OWN BOX, not with its block coordinate. See
-                // WalkerGeometry#pillarRiseBlockers: a 0.6-wide body standing within 0.3 of a cell
+                // ASKED WITH THE PLAYER'S OWN BOX, not with its block coordinate. See
+                // WalkerGeometry#pillarRiseBlockers: a 0.6-wide player standing within 0.3 of a cell
                 // boundary lifts a corner of itself through the NEIGHBOUR's cell, and every
                 // column-shaped question about it — including the ceiling clear this process's own
                 // caller does before each course — comes back clean.
@@ -217,18 +219,18 @@ public final class TowerProcess implements BotProcess {
                     a.releaseInputs();
                     return true;
                 }
-                // A tower is a purely vertical move, and a sprinting body's jump is not: vanilla
+                // A tower is a purely vertical move, and a sprinting player's jump is not: vanilla
                 // adds +0.2 along the yaw on top of the 0.42 whenever `isSprinting()`. `releaseInputs`
                 // clears forward/sneak/jump and deliberately leaves the sprint FLAG alone, so a tower
                 // begun at the end of a walk launches sideways once per course — measured, that was
-                // the half of `wd.serverTowersAfterAWalk`'s drift that survived waiting for the body
+                // the half of `wd.serverTowersAfterAWalk`'s drift that survived waiting for the bot
                 // to stop (4 cells -> 2). Cleared here rather than in `releaseInputs` because that
                 // default is on every avatar and the Walker rewrites the flag every tick anyway;
                 // this process is the one that must never have it set.
                 p.setSprinting(false);
                 // And BRAKE, not merely stop asking. The READY gate waits for horizontal speed to
                 // fall under SETTLE_SPEED, but "under the threshold" is not zero: whatever is left
-                // is carried through the whole jump arc, and a body that lands one cell beside its
+                // is carried through the whole jump arc, and a bot that lands one cell beside its
                 // own 1-wide pillar has nothing under it. Rung 20 left the world from -33,82,26 and
                 // -35,82,26 — two tower tops two blocks apart, with the entire leap family already
                 // gated, so no planned jump was involved. Vertical is untouched: this is the tick
@@ -260,14 +262,14 @@ public final class TowerProcess implements BotProcess {
                 }
                 // BACK TO READY WHEN THE JUMP CAME BACK DOWN. This was a one-way door: the only exit
                 // from JUMPING was the rise above, the jump key is released on this phase's first
-                // tick, and nothing here ever asked whether the body had landed — so ONE jump that
+                // tick, and nothing here ever asked whether the bot had landed — so ONE jump that
                 // failed to clear a whole block ended not the course but the ORDER, and the process
                 // spent every remaining tick of its caller's budget face-down over a cell it had
-                // already decided not to fill. Measured 2026-08-19 on three unrelated legs of the
+                // already decided not to fill. Measured 2026-08-19 on three unrelated rungs of the
                 // journey ladder, all reading "stuck (no Y gain in 60t: placed=0, holding=64,
-                // phase=JUMPING, apexFeetY=<start>)" over a body that was on the ground, not in water,
+                // phase=JUMPING, apexFeetY=<start>)" over a bot that was on the ground, not in water,
                 // and holding a stack; and reproduced in wd.serverTowersUnderTheNeighboursCeiling,
-                // where the body rose 0.20 of a block and then stood still for 60 ticks.
+                // where the bot rose 0.20 of a block and then stood still for 60 ticks.
                 //
                 // Retrying is not "a retry that changes nothing" HERE because the READY branch above
                 // now refuses a course it cannot make: a lid that is still there ends the order on
@@ -340,7 +342,7 @@ public final class TowerProcess implements BotProcess {
      *   <li><b>ANY placeable block</b> ({@code preferred == null}) — a different question with a
      *       different answer, and the hotbar-only limit below is NOT an oversight. Reaching into
      *       slots 9..35 for an unnamed block is the {@code holdPlaceable} family, where the client
-     *       body genuinely cannot move a bag stack without opening the inventory screen. Do not
+     *       player genuinely cannot move a bag stack without opening the inventory screen. Do not
      *       "fix" this branch by pointing it at the bag; that argument has been had.</li>
      * </ul>
      */

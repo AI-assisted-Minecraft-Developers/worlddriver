@@ -64,13 +64,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code docs/design/drowning-escape.md}, and {@code BotInteract#riseBlockedCell}, which exists
  * solely to host one). The owner scan reads Methodref/Fieldref OWNERS and cannot see a widening by
  * construction, so a second scan reads the invoked <b>descriptors</b> and asserts that no call
- * site in this package takes a wide body type at all — see {@link #wideBodyParams}.
+ * site in this package takes a wide player type at all — see {@link #wideBodyParams}.
  *
  * <p><b>What the second scan can and cannot say.</b> It reports the PARAMETER's declared type, not
  * the argument's: proving which value reaches which slot needs dataflow this file does not do. So
  * it is one-sided — an empty result is a proof of no widening, a non-empty one is a question to
  * answer, not a verdict. That asymmetry is usable because the measured state today is empty; the
- * day it stops being empty, someone has to say why the argument is not a client body.
+ * day it stops being empty, someone has to say why the argument is not the client player.
  *
  * <p><b>2026-08-26: the widening scan was correct, in scope, and nobody ran it.</b> A tidy-up
  * folded twelve hand-written foot-cell floors into {@code BotUtil.blockPosOf}, and one of the
@@ -135,7 +135,7 @@ class SchedulerClientCallSurfaceTest {
             "net/minecraft/client/Minecraft",
             "the entry point every chain's tick(mc, …) is handed — getInstance/player/level/options",
             "net/minecraft/client/player/LocalPlayer",
-            "the body: blockPosition/getHealth/getAirSupply/position/setYRot/setSprinting/…",
+            "the client player: blockPosition/getHealth/getAirSupply/position/setYRot/setSprinting/…",
             // KeyMapping and Options left this list on 2026-09-14: the attack/use latches the
             // reflexes used to set through them are ClientIntents now, a class with no client
             // types in it. Dropped, not kept — an allowlist row nothing exercises is accumulated.
@@ -158,9 +158,9 @@ class SchedulerClientCallSurfaceTest {
             Path.of("build/classes/java/main/net/magicterra/worlddriver/bot/util/BotInteract.class");
 
     /**
-     * Body types wide enough that passing a {@code LocalPlayer} into one is the rule-12 widening.
+     * Player types wide enough that passing a {@code LocalPlayer} into one is the rule-12 widening.
      *
-     * <p>The list is the client body's own supertypes and nothing else. {@code LocalPlayer}
+     * <p>The list is the client player's own supertypes and nothing else. {@code LocalPlayer}
      * extends {@code AbstractClientPlayer} extends {@code Player} extends {@code LivingEntity}
      * extends {@code Entity} — so a parameter declared as any of the last three forces the
      * verifier to load {@code LocalPlayer} to prove assignability, while a parameter declared
@@ -203,16 +203,16 @@ class SchedulerClientCallSurfaceTest {
             if (!wide.isEmpty()) offenders.put(c.getFileName().toString(), wide);
         }
         assertTrue(offenders.isEmpty(),
-                "a class in bot/scheduler/** now calls something that takes a WIDE body type "
+                "a class in bot/scheduler/** now calls something that takes a WIDE player type "
                 + "(Player/LivingEntity/Entity). These chains are constructed on a dedicated "
-                + "server, and if the argument is the client body, the widening makes the verifier "
+                + "server, and if the argument is the client player, the widening makes the verifier "
                 + "load LocalPlayer to prove the subtype relation — a class that does not exist "
                 + "there. That is AGENTS.md hard rule 12, and it is what actually killed the gate "
                 + "in 239be43b: the FIX that changed a parameter from LocalPlayer to Player is what "
                 + "created it, so 'I removed the client type from the signature' is the wrong "
                 + "instinct here. The shape that survives is to move the widening into a "
                 + "client-only class and reach it with invokestatic (BotInteract#riseBlockedCell "
-                + "exists for exactly this). If the argument genuinely is a server body, the call "
+                + "exists for exactly this). If the argument genuinely is a server-side player, the call "
                 + "still has to be proved by a green stagewrightDedicatedServer* on BOTH loaders "
                 + "before this test is taught to allow it — and taught by name, not by widening "
                 + "the predicate: " + offenders);
@@ -305,12 +305,12 @@ class SchedulerClientCallSurfaceTest {
      *
      * <p>Reported by the parameter's declared type, not by the argument's: proving which value
      * reaches which slot needs dataflow, and this file does not do dataflow. What it can say
-     * exactly is <b>which wide body types this class's call sites accept at all</b>, and today
+     * exactly is <b>which wide player types this class's call sites accept at all</b>, and today
      * that set is EMPTY for {@code bot/scheduler/**} — measured, not assumed. An empty set cannot
      * widen, so an empty set is the invariant worth pinning; the day one appears, someone has to
-     * say why the argument is not a client body.
+     * say why the argument is not the client player.
      *
-     * <p>Deliberately narrow: only the body hierarchy ({@link #WIDE_BODY_TYPES}). A descriptor
+     * <p>Deliberately narrow: only the player class hierarchy ({@link #WIDE_BODY_TYPES}). A descriptor
      * taking {@code Level} or {@code BlockPos} widens nothing that has a client subclass in this
      * codebase's call graph, and flagging those would make the guard cry wolf — which, as the
      * class comment already says about the owner rule, gets a guard switched off.

@@ -37,18 +37,18 @@ public record ScenePlan(List<BlockPos> nodes, List<Move.Edge> edges) {
      * <p>Callers pass only the nodes they want WALKED. This prepends the start node and the
      * {@code null} lead edge, because {@code PathFinder.build}'s javadoc says the start has no
      * incoming edge and {@code adoptPath} relies on it: it sets {@code step = 1} unconditionally,
-     * meaning "the body already stands on node 0". Hand it a plan without that node and the
+     * meaning "the bot already stands on node 0". Hand it a plan without that node and the
      * pointer starts one past the only edge there was — a plan that is finished the instant it is
      * adopted, which reports as a clean ARRIVED and executes nothing.
      *
-     * @param foot  where the body actually stands; becomes node 0
+     * @param foot  where the bot actually stands; becomes node 0
      * @param nodes the cells to walk, in order, NOT including {@code foot}
      * @param edges one edge per entry in {@code nodes}; {@code edges.get(i)} must enter
      *              {@code nodes.get(i)}, and none may be null
      */
     public static ScenePlan syntheticPlan(BlockPos foot, List<BlockPos> nodes, List<Move.Edge> edges) {
         if (nodes.isEmpty())
-            throw new IllegalArgumentException("syntheticPlan: no nodes to walk — the body is already there");
+            throw new IllegalArgumentException("syntheticPlan: no nodes to walk — the bot is already there");
         if (nodes.size() != edges.size())
             throw new IllegalArgumentException("syntheticPlan: " + nodes.size() + " nodes but "
                     + edges.size() + " edges — one edge ENTERS each node, so the counts must match");

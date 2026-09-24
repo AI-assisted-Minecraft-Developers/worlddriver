@@ -11,15 +11,15 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 
 /**
- * Whether the client's body can take an order right now, and the one failure every body verb
- * reports when it cannot.
+ * Whether the client player can take an order right now, and the one failure every verb that
+ * acts on the bot reports when it cannot.
  *
  * <p>Every {@code mc.bot.*} verb that drives the player used to check one thing — {@code player
  * != null} — and accept the order otherwise. A dead player on the death screen, a paused
  * singleplayer world, a player in a bed or one whose chunk has not arrived yet all passed that
- * check: the verb answered {@code started: true}, the process ran against a body that cannot move,
- * and the caller learned nothing until its own timeout. {@link #judge} is the whole list of
- * things that stop a body from acting, in the order a person would fix them (no world before a
+ * check: the verb answered {@code started: true}, the process ran against a player that cannot
+ * move, and the caller learned nothing until its own timeout. {@link #judge} is the whole list of
+ * things that stop the bot from acting, in the order a person would fix them (no world before a
  * dead player before a paused game before a bed before a missing chunk), and {@link Refusal#result}
  * is the shape they are all reported in: {@code {ok:false, error, reason}} — {@code error} says
  * what is wrong and what to do about it, {@code reason} is one of the fixed words in
@@ -41,12 +41,12 @@ public final class BodyReady {
         public static final String PAUSED = "paused";
         public static final String SLEEPING = "sleeping";
         public static final String CHUNK_UNLOADED = "chunk_unloaded";
-        /** The body has no {@code Hands} (or no {@code Containers}) and the verb needs them. Stamped
-         *  by the process itself on its slot's {@code lastError}, since the body is only known at
-         *  tick time; a compile-time constant, so a server-side process naming it loads nothing
+        /** The controlled player has no {@code Hands} (or no {@code Containers}) and the verb needs
+         *  them. Stamped by the process itself on its slot's {@code lastError}, since the
+         *  controlled player is only known at tick time; a compile-time constant, so a server-side process naming it loads nothing
          *  from this client-only class. */
         public static final String NO_HANDS = "no_hands";
-        /** A {@code body} param names no registered body. A compile-time constant for the same
+        /** A {@code body} param names no registered bot player. A compile-time constant for the same
          *  reason as {@link #NO_HANDS}. */
         public static final String UNKNOWN_BODY = "unknown_body";
         private Reason() { }
@@ -67,7 +67,7 @@ public final class BodyReady {
     public record Facts(boolean level, boolean player, String screen, boolean loading,
                         boolean paused, boolean dead, boolean sleeping, boolean chunkLoaded) { }
 
-    /** Why the body cannot take an order now, as a word and a sentence. */
+    /** Why the bot cannot take an order now, as a word and a sentence. */
     public record Refusal(String reason, String error) {
         /** The standard failure result: {@code {ok:false, error, reason}}. */
         public Map<String, Object> result() {
@@ -79,7 +79,7 @@ public final class BodyReady {
         }
     }
 
-    /** The first thing that stops the body from acting, or null when nothing does. */
+    /** The first thing that stops the bot from acting, or null when nothing does. */
     public static Refusal judge(Facts f) {
         if (!f.level() || !f.player()) {
             String where = f.screen() == null ? "no world is open" : "the client is on " + f.screen() + ", not in a world";

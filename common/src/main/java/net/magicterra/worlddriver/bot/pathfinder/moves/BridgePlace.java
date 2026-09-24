@@ -33,7 +33,7 @@ public final class BridgePlace extends Move {
         // Can't bridge off a VINE cling. A* may reach `from` by climbing a vine — that node is
         // "standable" only because the vine is climbable, NOT because the bot is grounded on a
         // solid block. A bridge needs a solid foothold to stand on while reaching out to place
-        // the next floor block; a body clinging a vine has none, and the placed block's only
+        // the next floor block; a bot clinging to a vine has none, and the placed block's only
         // neighbour (the vine column) isn't a solid face the Walker's place actuator can click,
         // so the bridge silently no-ops and the bot bob-stalls / drops off the vine (live -711
         // vine-over-water: A* routed parkour→climbUp→bridgePlace off the vine top over the gap;
@@ -47,7 +47,7 @@ public final class BridgePlace extends Move {
         if (w.isSolid(floor)) return null;                         // already has ground → Walk handles it
         // Never bridge over water. The "open air only" guard below tests isPassable, but water
         // IS passable, so without this a buoyant bot routes a plank-over-water path it cannot
-        // execute: a block dropped into deep water washes/bobs out and the float body can't stand
+        // execute: a block dropped into deep water washes/bobs out and the floating bot cannot stand
         // the rung (the PillarUp floating-water failure). A* should swim/walk it. Restores the
         // class-doc "not lava/water" intent. NOTE: tried also gating floor.below()==water (an
         // air-gap-on-water pool lip), but that just rerouted the planner to a HIGHER air-gap

@@ -18,9 +18,9 @@ import net.minecraft.world.level.Level;
  * NPC counterpart of {@code ServerBodyHost} over a {@code ServerWorldDriver}.
  *
  * <p>Shaped like that driver on purpose: one process, dropped from {@link ServerAvatarManager} when it
- * finishes, registered again by {@link #start}. A difference between the two bodies under the same
- * route is then the body's and not the host's. Like that driver, a finished host stops stepping its
- * body, and a driven mob nobody pumps stands where it stopped.
+ * finishes, registered again by {@link #start}. A difference between the two driven entities on the
+ * same route then comes from the entity and not from the host. Like that driver, a finished host
+ * stops stepping its entity, and a driven mob nobody pumps stands where it stopped.
  *
  * <p>An NPC holds no chunk ticket, so a walk can carry it out of the loaded area. The tick after its
  * chunk unloads, or after it dies, ends the task with the reason {@link #refusal} would have refused

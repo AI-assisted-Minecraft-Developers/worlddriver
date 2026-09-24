@@ -22,7 +22,7 @@ import net.minecraft.world.level.block.Blocks;
  * nothing in the level: it calls {@code BotConfig.isUsableBuildBlock} /
  * {@code isValuablePlacementBlock} / {@code isThrowawaySupportBlock} on a fixed block/item
  * matrix and asserts the classification. So there is no {@code SceneContext.origin()}
- * geometry, no {@code ServerPlayerBody}, no config pin, and the body resolves on the
+ * geometry, no {@code ServerPlayerBody}, no config pin, and the bot resolves on the
  * first RUN tick (the harness restores {@code BotConfig} baseline between scenes, and these
  * scenes never mutate it). Porting substitutions (canonical pattern —
  * {@link WorldDriverTerrainScenes} class javadoc): {@code throw new GameTestAssertException}

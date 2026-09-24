@@ -35,18 +35,18 @@ the server-thread hop.
 | `WorldApi` | `mc.world.*` |
 | `RecipeApi` | `mc.recipe.*`, `mc.plan.acquire` |
 | `EventsApi` | `mc.events` |
-| `BodyRoutes`, `BodyInteractions` | the `mc.bot.*` verbs addressed to a named body |
+| `BodyRoutes`, `BodyInteractions` | the `mc.bot.*` verbs addressed to a named bot |
 | `ApiSupport`, `QueryParams`, `ParamsValidator` | no verbs — parsing, encoding, validation |
 
 `mc.client.*` resolves at call time through `requireClient()`, so a dedicated server that
 has no client still boots and simply fails those verbs.
 
 `mc.bot.*` is not client-only. `DriverApi.putBodyVerb` installs each of those verbs as a
-two-way route: a call naming `self` — or naming no body at all — goes through
-`requireBot()` to the client-side implementation, and a call naming any other body goes to
+two-way route: a call naming `self` — or naming no bot at all — goes through
+`requireBot()` to the client-side implementation, and a call naming any other bot goes to
 `BodyRoutes`, which runs on a dedicated server. `mc.bot.status` is bound straight to
-`BodyRoutes`. A dedicated server therefore reaches the whole body-addressed half of that
-namespace, and only the `self` half needs a client.
+`BodyRoutes`. A dedicated server therefore serves every call in that
+namespace that names a bot other than `self`, and only the `self` half needs a client.
 
 ### Where each transport calls it
 

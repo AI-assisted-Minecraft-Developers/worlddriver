@@ -8,7 +8,7 @@ import net.minecraft.core.BlockPos;
 /**
  * The two things the bot used to say by pressing a shared keybind, said without one.
  *
- * <p>Until 2026-09-14 the client body's dig and item-use rode {@code mc.options.keyAttack} and
+ * <p>Until 2026-09-14 the client player's dig and item-use rode {@code mc.options.keyAttack} and
  * {@code mc.options.keyUse}: the bot latched the {@code KeyMapping} down and let vanilla's
  * {@code Minecraft.handleKeybinds} do the rest. A {@code KeyMapping} is one global boolean shared
  * with the human at the keyboard, so the two collided in both directions — a mouse-button release

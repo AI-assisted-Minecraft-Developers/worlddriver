@@ -14,35 +14,36 @@ import net.minecraft.world.entity.player.Player;
  * getDeltaMovement/getBoundingBox/getHealth) and sets (setYRot/setSprinting/
  * setShiftKeyDown) lives there, on a client {@code LocalPlayer}, a server
  * {@code ServerPlayer} and a driven mob alike. What is abstracted here is the
- * locomotion every body has — impulse via the body's own input, and the look.
+ * locomotion every controlled entity has — impulse via the entity's own input, and the look.
  *
- * <p>What only a body with an inventory has is behind two optionals: {@link #hands()}
+ * <p>What only an entity with an inventory has is behind two optionals: {@link #hands()}
  * (hold, place, break, swing, use) and {@link #containers()} (menus). A process that
  * needs either asks for it at the top of its tick and refuses the order with
  * {@code no_hands} when it is absent; a caller that never asks cannot compile a call to
  * it. {@link #asPlayer()} is the raw {@link Player} view for the few readers of a player's
- * own state (food, abilities, the attack cooldown) and is null for a body that is not one.
+ * own state (food, abilities, the attack cooldown) and is null for an entity that is not one.
  *
  * <p>{@link ClientPlayerBody} maps every method 1:1 to the previous inline
  * Walker behaviour (zero regression). {@code ServerPlayerBody} drives a joined
  * {@code ServerPlayer}. Both implement {@link Hands} and {@link Containers} themselves.
  * This interface was {@code Avatar} until 2026-09-14; the name changed with the split,
- * so that a third-party implementation reads as what it is — a body, not a costume.
+ * so that a third-party implementation reads as what it is — the controlled entity itself,
+ * not a costume.
  */
 public interface Body {
 
-    /** The controlled body, for state reads and vanilla pose setters. Never null while the
-     *  body is usable; a body built over nothing answers null and callers guard it. */
+    /** The controlled entity, for state reads and vanilla pose setters. Never null while the
+     *  {@code Body} is usable; a {@code Body} built over nothing answers null and callers guard it. */
     LivingEntity entity();
 
-    /** The body as a {@link Player}, or null when it is not one. Only what a player has —
-     *  inventory, menus, abilities, attack cooldown — should be reached through this. */
+    /** The controlled entity as a {@link Player}, or null when it is not one. Only what a player
+     *  has — inventory, menus, abilities, attack cooldown — should be reached through this. */
     default Player asPlayer() { return entity() instanceof Player p ? p : null; }
 
-    /** The body's hands, or empty for a body that cannot hold, place, break or use. */
+    /** The controlled entity's hands, or empty for one that cannot hold, place, break or use. */
     Optional<Hands> hands();
 
-    /** The body's menus, or empty for a body that has none. */
+    /** The controlled entity's menus, or empty for one that has none. */
     Optional<Containers> containers();
 
     // --- movement impulse (the player's OWN input, not shared keybinds) ---
@@ -50,14 +51,14 @@ public interface Body {
      * Camera-decoupled horizontal impulse, pre-rotated by aimYaw-yRot.
      *
      * <p><b>This channel outranks {@link #commandForward}.</b> The two are not peers: the client
-     * body's {@code AvatarInput.tick} applies a {@code commandMove} first and only falls through
+     * player's {@code AvatarInput.tick} applies a {@code commandMove} first and only falls through
      * to a {@code commandForward}, so a walker {@code commandMove} in the same tick silently
      * discards a reflex's {@code commandForward}, whatever the call order. A reflex that must
      * OVERRIDE a running process therefore drives this — {@code commandMove(0, 1)} is a full
-     * forward press along the body's own yaw, {@code commandMove(0, 0)} is a halt that a
-     * running process cannot undo that tick — and one that merely steers an otherwise idle body
+     * forward press along the player's own yaw, {@code commandMove(0, 0)} is a halt that a
+     * running process cannot undo that tick — and one that merely steers an otherwise idle bot
      * may use {@link #commandForward}. Measured 2026-08-22 on the integrated ladder: a submerged
-     * body whose escape reflex used the weaker channel bobbed for 7 800 ticks with zero
+     * bot whose escape reflex used the weaker channel bobbed for 7 800 ticks with zero
      * horizontal displacement, because the walker's own command overwrote it every tick.
      */
     void commandMove(float left, float forward);
@@ -68,7 +69,7 @@ public interface Body {
     void commandSneak(boolean v);
     /** Sprint intent. Sticky, unlike the per-tick channels above: it stays until something flips
      *  it back, which is what every "…and definitely do not sprint into the lava" caller wants. On
-     *  a client body this sets the sprint flag rather than pressing {@code keySprint}: vanilla's
+     *  a client player this sets the sprint flag rather than pressing {@code keySprint}: vanilla's
      *  {@code aiStep} reads the key only to DECIDE a sprint start and emits STOP_SPRINTING from
      *  the flag alone, so the flag is both the shorter path and the one that also stops. */
     void commandSprint(boolean v);
@@ -79,7 +80,7 @@ public interface Body {
      * a metres-long swim and the wrong one for a correction measured in tenths of a block: the
      * camera whips for a nudge, which is one of the things a watching person reports as
      * erratic camera whipping. Vanilla's {@code travel()} rotates the impulse by the CURRENT yaw, so feeding
-     * it the bearing's offset from that yaw moves the body along the bearing while the camera
+     * it the bearing's offset from that yaw moves the player along the bearing while the camera
      * stays put (the {@code WalkerTickRepath} back-off idiom). Drives {@link #commandMove}, so it
      * outranks a running process.
      *
@@ -100,7 +101,7 @@ public interface Body {
     /** Exempt this tick's heading from the cosmetic camera slew (no-op server-side). */
     void requestLookSnap();
     /** Release all commanded locomotion (forward/sneak/jump) + the logical sneak
-     *  flag — the body's equivalent of the old client {@code releaseKeys()}, but it
+     *  flag — the {@code Body} equivalent of the old client {@code releaseKeys()}, but it
      *  drives only THIS player's own input (never the shared human keybinds), so a
      *  process tearing down can't clobber a human's held keys. */
     default void releaseInputs() {
@@ -114,7 +115,7 @@ public interface Body {
     // --- look ---
     /** Snap the look (yaw+pitch) onto the block at {@code cell}. */
     void aimAtBlock(BlockPos cell);
-    /** The block the body's crosshair/look currently points at, or {@code null}.
+    /** The block the player's crosshair/look currently points at, or {@code null}.
      *  Client reads {@code mc.hitResult}; server raycasts from the eye along the
      *  view vector. Used by processes that gate an action on what they're aiming at
      *  (e.g. bbox-fill only breaking cells inside its region). */
@@ -127,11 +128,11 @@ public interface Body {
     default boolean dbgJumping() { return false; }
     default boolean dbgSneak() { return false; }
 
-    /** Game tick on which this body last actually EMITTED a jump impulse, or {@code -1} for never.
+    /** Game tick on which this player last actually EMITTED a jump impulse, or {@code -1} for never.
      *  Not "was asked to jump" — {@link #commandJump} is held for runs of ticks and vanilla's jump
      *  gate ({@code onGround}, {@code noJumpDelay}) decides which of them become an impulse, so the two answers differ by exactly
-     *  the thing worth reading. A takeoff sample that says the body was already airborne cannot say
-     *  WHY without this: an impulse a few ticks earlier means the body jumped itself off its floor
+     *  the thing worth reading. A takeoff sample that says the player was already airborne cannot say
+     *  WHY without this: an impulse a few ticks earlier means the player jumped itself off its floor
      *  (the edge became current mid-arc), none at all means it walked off. Diagnostic only. */
     default long dbgLastJumpTick() { return -1; }
 }

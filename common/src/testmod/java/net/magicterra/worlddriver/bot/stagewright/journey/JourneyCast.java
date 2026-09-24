@@ -295,8 +295,8 @@ final class JourneyCast {
             //
             // Ask the engine, from here, with the FULL bucket's own ray. Blocked → go back to the
             // surveyed pool and walk again rather than dig upward into the pool's own floor: that
-            // pool is above the body, so clearing the line means removing what holds the water,
-            // and the reward for succeeding is water on the body's head.
+            // pool is above the bot, so clearing the line means removing what holds the water,
+            // and the reward for succeeding is water on the bot's head.
             //
             // ⚠️ ASK THE POUR'S QUESTION, NOT THE FILL'S. This guard used to call
             // `bucketLineLandsOn`, which compares the hit BLOCK — the right question for an empty
@@ -463,7 +463,7 @@ final class JourneyCast {
                 // something in the way. Mining it would remove the floor under the target water and
                 // drain the pool this pour needs, i.e. the fix for one defect opening a worse one.
                 // Read `cast.lands` for where the fluid would have gone; `cast.landsElsewhere`
-                // upstream is where a body still has the budget to move instead.
+                // upstream is where a bot still has the budget to move instead.
                 boolean isTheBed = inTheWay != null && inTheWay.equals(bed);
                 if (isTheBed)
                     rig.evidence("cast.wrongFace", inTheWay.toShortString()
@@ -473,14 +473,14 @@ final class JourneyCast {
                             + ". This is a standing position, not an obstruction; mining it would"
                             + " remove the floor under that water cell, so it is not cleared");
                 if (clearings > 0 && inTheWay != null && !holdsThePool && !isTheBed) {
-                    // A plant stops the RAY but not the BODY. short_grass and seagrass have no
-                    // collider — the body walks through them — yet `getPlayerPOVHitResult` clips on
+                    // A plant stops the RAY but not the PLAYER. short_grass and seagrass have no
+                    // collider — the player walks through them — yet `getPlayerPOVHitResult` clips on
                     // Block.OUTLINE, which a plant has, so they land square on the aiming line. And
                     // MineProcess will not remove them: measured, two clearings in a row left the
                     // same seagrass standing, and short_grass cost run 9 this rung.
                     //
                     // So swing at it directly, which is what a player does — aim, hold, destroy.
-                    // This is the body's own verb, not staging: `staging.calls` stays 0 and the rung
+                    // This is the bot's own verb, not staging: `staging.calls` stays 0 and the rung
                     // keeps its claim. Solid blockers still go through mine, where the drop matters.
                     boolean noCollider = level.getBlockState(inTheWay)
                             .getCollisionShape(level, inTheWay).isEmpty();
@@ -490,7 +490,7 @@ final class JourneyCast {
                                             + " mine cannot clear it)"
                                           : " (blocking the aiming line, clearing it first)"));
                     if (noCollider) {
-                        // Aim BOTH bodies, then swing — see JourneyHands.swingOffPlant, which owns
+                        // Aim BOTH players (client and server), then swing — see JourneyHands.swingOffPlant, which owns
                         // the whole shape and the two measurements that shaped it. Routing the break
                         // to the server avatar without moving the aim there (the previous fix here)
                         // left `aimTarget` null and destroyed nothing: this exact cell, `-4, 63, 55`,
@@ -556,14 +556,14 @@ final class JourneyCast {
             // grep `holdPlaceable`) ALL short-circuit on
             // `BotConfig.allowPlace` before they touch the hand, so turning it off for these twelve
             // ticks makes the swap unreachable rather than merely unlikely. Nothing here needs to
-            // place: the body is standing still, aimed, about to empty a bucket.
+            // place: the bot is standing still, aimed, about to empty a bucket.
             //
             // Restored on every exit below — the fail branch and the settle's completion — because
             // the walk that follows the pour DOES need to pillar.
             boolean placeWas = BotConfig.allowPlace;
             BotConfig.allowPlace = false;
             // AND A NET UNDER IT. The two restores below cover every path this method can take, but
-            // not the one it cannot: `cast.handTrace.samples` documents that a body which leaves the
+            // not the one it cannot: `cast.handTrace.samples` documents that a bot which leaves the
             // world skips the settle outright, and then the flag would stay false for whatever runs
             // after — a global flipped by a scene that never came back. Cleanups drain on every exit,
             // including a timeout, so the flag cannot outlive the scene that turned it off.
@@ -573,7 +573,7 @@ final class JourneyCast {
                     + " the slot contents, and all three of its call sites short-circuit on"
                     + " allowPlace first");
             boolean gripped = JourneyHands.regripBeforeUse(rig, Items.LAVA_BUCKET, "cast");
-            // BOTH BODIES AT THE INSTANT OF THE USE, unconditionally — the row ladder-12 needed and
+            // BOTH PLAYERS (CLIENT AND SERVER) AT THE INSTANT OF THE USE, unconditionally — the row ladder-12 needed and
             // did not have. `useItemInHand` is `MultiPlayerGameMode.useItem`, i.e. a CLIENT-side
             // prediction over the CLIENT's stack, so its SUCCESS says only "the client held a
             // bucket". That run returned SUCCESS and read `lava_bucket.after = 1` off the server
@@ -590,7 +590,7 @@ final class JourneyCast {
                         + " and this rung would then report the failure as \"no obsidian cast\"");
                 return;
             }
-            // IS THE BODY STILL MOVING? `cast.atUse` shows both ends agreeing on the eye — but it
+            // IS THE BOT STILL MOVING? `cast.atUse` shows both ends agreeing on the eye — but it
             // samples HERE, and the server runs the ray when it processes the packet, one or more
             // movement packets later. The angle cannot drift (ServerboundUseItemPacket carries
             // yRot/xRot and handleUseItem absRotateTo's before useItem); the POSITION can, and
@@ -626,7 +626,7 @@ final class JourneyCast {
             // same thread boundary the defect is about, i.e. copy the bug into the instrument.
             //
             // A counter rather than the watcher's own tick number: TickWatcher takes no argument,
-            // and the window has to stop — 6 ticks × 2 bodies is 12 rows, and the rest of the
+            // and the window has to stop — 6 ticks × 2 players is 12 rows, and the rest of the
             // settle would add 8 more that answer nothing.
             int[] traced = {0};
             rig.settle(new HoldStill(10), 20, () -> {

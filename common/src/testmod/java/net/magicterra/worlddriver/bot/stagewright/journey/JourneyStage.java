@@ -47,7 +47,7 @@ public enum JourneyStage {
     /** The survey itself: this world is the world the rest of the ladder was written against. */
     RECON("reconnaissance", Chapter.SETUP, true),
 
-    /** A body at world spawn, empty-handed and alive. Everything downstream stands on this. */
+    /** A bot at world spawn, empty-handed and alive. Everything downstream stands on this. */
     SPAWN("spawn", Chapter.OVERWORLD, true),
 
     /** Logs in hand — ROADMAP N0's first half. */
@@ -105,15 +105,15 @@ public enum JourneyStage {
     /**
      * Obsidian cast from lava with water — ROADMAP N4.
      *
-     * <p>What a green row claims: the body fetched its own lava from the seed's nearest reachable
+     * <p>What a green row claims: the bot fetched its own lava from the seed's nearest reachable
      * pool — a 36-block shaft it dug itself — and cast obsidian into a cell it named beforehand,
      * with {@code staging.calls=0}. What it does not claim: that the scripted ascent works alone
-     * (every green so far carries {@code exit.walkerFallback=true}), or that the body survives
+     * (every green so far carries {@code exit.walkerFallback=true}), or that the bot survives
      * anything ({@code body.invulnerable=true} rides on every row of this track).
      *
      * <p><b>Promoted and demoted twice: on three greens, then on five.</b> Both regressions were the
      * same hazard — the tunnel mines horizontally through unsurveyed rock, holes a cave roof, and the
-     * body falls out of reach of the pool. And both times the qualifying runs had never once hit it:
+     * bot falls out of reach of the pool. And both times the qualifying runs had never once hit it:
      * {@code tunnel.fell} appears in none of the three, and in none of the five.
      *
      * <p>Raising the bar from three to five was therefore treating the wrong quantity. <b>A run that
@@ -124,7 +124,7 @@ public enum JourneyStage {
      * <p>What the next promotion has to show, then, is not a count: <b>each known hazard's recovery
      * observed working at least once</b>. For this rung that currently means {@code tunnel.fell}
      * followed by a run that still reaches the pool. The fall recovery has been seen twice and failed
-     * both times — the second with {@code climb.0.stalled} on a body standing on solid ground, ceiling
+     * both times — the second with {@code climb.0.stalled} on a bot standing on solid ground, ceiling
      * clear, holding 104 cobblestone — so it does not work yet, and five green runs that skirted it
      * never said otherwise.
      *
@@ -210,14 +210,14 @@ public enum JourneyStage {
      * asserting that nothing above it can happen until it does. For {@code BED} that assertion is
      * simply false: a bed is a durability keystone for a real player (it moves the spawn point so a
      * death does not undo the run), and <b>nothing on the road to the dragon needs one</b>. On this
-     * track it is doubly irrelevant, because the headless body cannot die.
+     * track it is doubly irrelevant, because the headless bot cannot die.
      *
      * <p>It came to matter because of the terrain. This paragraph used to say "a swamp whose only
      * animals are cows and frogs", which the rung disproved the first time it actually ran: there is
      * a flock of four to six white sheep around {@code -25,64,70}, and the food rung's own scan
      * reports {@code [chicken, cow, frog, pig]}. The true statement is narrower and still decisive —
      * <b>the sheep are ~83 blocks from where the food rung ends and ~90 from spawn</b>, far enough
-     * that reaching them is its own leg with its own ways to fail. Left in the line, "could not find
+     * that reaching them is a separate trip with its own ways to fail. Left in the line, "could not find
      * a sheep" would have blocked iron, the portal and the whole nether — a side quest holding the
      * critical path hostage, and every rung above it reporting BLOCKED for a reason that has nothing
      * to do with them.

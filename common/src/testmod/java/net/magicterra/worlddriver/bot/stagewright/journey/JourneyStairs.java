@@ -23,8 +23,8 @@ import net.minecraft.world.item.Items;
  * and walking half was itself the rung's until that file hit the budget in turn.)
  *
  * <p>The whole reason this exists as a self-check rather than as a one-off dig: a flight of sixteen
- * cut cells is not a thing that stays cut. Ten casts walk it twenty times, and between legs the same
- * body pillars, backfills and floods the ground it is standing on.
+ * cut cells is not a thing that stays cut. Ten casts walk it twenty times, and between trips the same
+ * bot pillars, backfills and floods the ground it is standing on.
  */
 final class JourneyStairs {
 
@@ -34,20 +34,20 @@ final class JourneyStairs {
      * Every cell of the flight, top first — the steps as cut, not as planned.
      *
      * <p>Recorded by {@code digStairsDown} as each one is opened, so the audit reads the staircase
-     * the body actually made rather than the one the arithmetic predicted.
+     * the bot actually made rather than the one the arithmetic predicted.
      */
     static final List<BlockPos> cells = new ArrayList<>();
 
-    /** How far the body may be from a cell it mends. Five, which is a block or so past a player's
-     *  own reach and well inside "the body walked to it"; see the note in {@link #mend}. */
+    /** How far the bot may be from a cell it mends. Five, which is a block or so past a player's
+     *  own reach and well inside "the bot walked to it"; see the note in {@link #mend}. */
     static final double MEND_REACH = 5.0;
 
-    /** How many faults one leg may mend before it gives up and walks anyway. Three: the body has
+    /** How many faults one trip may mend before it gives up and walks anyway. Three: the bot has
      *  never broken more than one step in a trip, and a flight with four faults is a different
      *  finding that should be read rather than patched over. */
     private static final int MEND_PER_LEG = 3;
 
-    /** Running totals, so a leg that mends nothing still leaves a trace of having asked. */
+    /** Running totals, so a trip that mends nothing still leaves a trace of having asked. */
     private static int checked, mended;
 
     private static boolean sabotaged;
@@ -59,7 +59,7 @@ final class JourneyStairs {
      * ones: {@code 0,58,19} is a step of this rung's staircase and is also an ordinary column in the
      * Nether. Everything that used to read this list was the portal rung's own code, which could not
      * be anywhere else; {@link JourneyShaft#towerColumnClearOfTheFlight} is asked by every climb in
-     * the ladder, so it can be asked about a body that is nowhere near a staircase — and a false
+     * the ladder, so it can be asked about a bot that is nowhere near a staircase — and a false
      * positive there would refuse a tower for a step in another world.
      */
     private static String dimension;
@@ -87,12 +87,12 @@ final class JourneyStairs {
     }
 
     /**
-     * Where the next course starts, which is not always the cell the body is standing in.
+     * Where the next course starts, which is not always the cell the bot is standing in.
      *
      * <p>{@code digStairsDown} used to read {@code blockPosition()} and cut the next step diagonally
-     * out of it. A step is opened by removing the floor of the cell the body is about to occupy, so
-     * the reading it takes right after is often of a body one row ABOVE that step, falling into it.
-     * A course measured from there is one row too high, and the course AFTER it — taken once the body
+     * out of it. A step is opened by removing the floor of the cell the bot is about to occupy, so
+     * the reading it takes right after is often of a bot one row ABOVE that step, falling into it.
+     * A course measured from there is one row too high, and the course AFTER it — taken once the bot
      * has landed — lands its step in the same column. The flight is then a contradiction no world
      * state satisfies: {@link #faults} wants the upper step's support solid and the lower step's own
      * cell open, and those are one cell.
@@ -113,13 +113,13 @@ final class JourneyStairs {
      * standing on the block its own repair had just dropped into the staircase, facing a two-block
      * drop where a step used to be.
      *
-     * <p>So the course is anchored to the flight rather than to the body — <b>unconditionally</b>.
+     * <p>So the course is anchored to the flight rather than to the bot — <b>unconditionally</b>.
      *
      * <h2>A CONDITIONAL ANCHOR FALLS BACK TO THE THING IT REPLACED</h2>
      *
      * <p>Worth the general statement, because it outlives this cell: <b>a rule whose condition fails
      * silently is bypassed by its own fallback</b>. This anchor first shipped guarded — it applied
-     * only while the body stood directly over the flight's deepest step — and the {@code else} behind
+     * only while the bot stood directly over the flight's deepest step — and the {@code else} behind
      * that guard was {@code return body}, i.e. exactly the "measure from {@code blockPosition()}"
      * algorithm the anchor exists to abolish. So the defect was not removed, only made intermittent,
      * and it came back as a coin flip. It is the same shape as {@link #needsOpen} being honoured by
@@ -134,15 +134,15 @@ final class JourneyStairs {
      *          stair.1.waited = -8, 66, 19 has not stepped down yet
      * </pre>
      *
-     * In {e3,e6} the body had not yet stepped off the top, so it was not over the deepest step, so the
-     * guard failed and the course was re-measured from the body — re-cutting the course just made.
+     * In {e3,e6} the bot had not yet stepped off the top, so it was not over the deepest step, so the
+     * guard failed and the course was re-measured from the bot — re-cutting the course just made.
      * Every repeat walks the flight one cell further out, which moved {@code stairs.bottom} from
      * {@code 2,56,19} to {@code 3,56,19}, dragged the whole mould with it, and killed the scoop
      * ({@code recover6}) on a seat whose only sightline is blocked by this rung's own obsidian. The
-     * race is real — whether the body has begun falling when the next course is measured is tick
-     * timing — but <b>the fix is not to wait for it</b>: waiting on a body standing on a step that
+     * race is real — whether the bot has begun falling when the next course is measured is tick
+     * timing — but <b>the fix is not to wait for it</b>: waiting on a bot standing on a step that
      * never opened burned a whole 40000-tick budget and produced no {@code stairs.bottom} at all.
-     * The fix is to stop asking the body.
+     * The fix is to stop asking the bot.
      *
      * <p>The one course that must NOT be anchored is the last, and that exception is <b>named at the
      * call site</b> ({@code anchored.getY() <= targetY ? body : anchored}) rather than hidden here:
@@ -218,8 +218,8 @@ final class JourneyStairs {
      *
      * <p>{@link #flightCell} answers about one named cell, which is the right question for a
      * placement that names its target. It is the wrong question for a TOWER, because a tower names
-     * nothing: {@code TowerProcess} fills whichever cell the body jumped FROM and then rises into the
-     * next one, so a body standing anywhere in a flight column walks its own cobblestone up the
+     * nothing: {@code TowerProcess} fills whichever cell the bot jumped FROM and then rises into the
+     * next one, so a bot standing anywhere in a flight column walks its own cobblestone up the
      * flight, cell after cell, without any of them ever being chosen.
      *
      * <p>Measured on the ladder run of 2026-08-19, rung 12. The unwedge on the walk back down towered
@@ -299,7 +299,7 @@ final class JourneyStairs {
      * <p><b>It was written as a walking goal and is no longer used as one.</b> Aiming the last step
      * at it was measured on {@code wd.journeyWalksOffTheLipOntoTheDryStep} and removed: whenever the
      * terminal was raised by {@link #lowestDryStep} — the only case where the lip pose happens — the
-     * step below is by definition under water, and the leg spent its whole budget walking the body
+     * step below is by definition under water, and the walk spent its whole budget walking the bot
      * two cells back and one row UP the flight. See {@code JourneyStairwell#finishTheFlight}.
      *
      * <p>What it is still for is <b>staging</b>: a scene that means to reproduce the raised-terminal
@@ -338,7 +338,7 @@ final class JourneyStairs {
      * <p>The fourth is the one this audit spent three runs without. {@code digStairsDown} cuts THREE
      * cells per step and says why in its own javadoc — the third is the clearance a jump needs two
      * above the feet it starts from — and this asked about two of them. On 2026-08-15 the ladder
-     * stalled on the bottom step with {@code -9,58,36=dirt}, the body's own pillar backfilled into
+     * stalled on the bottom step with {@code -9,58,36=dirt}, the bot's own pillar backfilled into
      * that third cell, and the audit certified all 16 steps intact: {@code StepUp.valid} refuses a +1
      * step unless {@code from.above(2)} is passable, and the flight walks under {@link NoBreak}, so
      * {@code StairUpBreak} — the variant that would have broken through it — is not on the table.
@@ -359,9 +359,9 @@ final class JourneyStairs {
                 out.add(new StairFault(step, step.above(), false,
                         String.valueOf(level.getBlockState(step.above()).getBlock())));
             } else if (s > 0 && level.getBlockState(step.above(2)).blocksMotion()) {
-                // s > 0: the clearance belongs to the step the body jumps FROM, and nothing is ever
+                // s > 0: the clearance belongs to the step the bot jumps FROM, and nothing is ever
                 // climbed from the top cell. It is also the one cell of the flight `digStairsDown`
-                // never cut — it is where the body was already standing — so asking about it would
+                // never cut — it is where the bot was already standing — so asking about it would
                 // report untouched surface rock as a broken stair and spend a mend digging it out.
                 out.add(new StairFault(step, step.above(2), false,
                         String.valueOf(level.getBlockState(step.above(2)).getBlock())));
@@ -434,7 +434,7 @@ final class JourneyStairs {
     /**
      * Put back what the flight has lost.
      *
-     * <p>A missing support is answered with cobblestone the body is already carrying (rung 10 leaves
+     * <p>A missing support is answered with cobblestone the bot is already carrying (rung 10 leaves
      * it about ninety), clicked onto a solid neighbour through {@code useItemOn} — the same path a
      * right click takes, and nothing here is a {@code setBlock}. Anything blocking a cell — the step,
      * its head room, or the clearance the ascent jumps through — is answered with the pick.
@@ -443,7 +443,7 @@ final class JourneyStairs {
         if (i >= faults.size() || i >= MEND_PER_LEG) { then.run(); return; }
         StairFault f = faults.get(i);
         ServerLevel level = rig.ctx().level();
-        // Get within arm's reach FIRST. The place and the mine both go through the body's own
+        // Get within arm's reach FIRST. The place and the mine both go through the bot's own
         // hands, so a repair aimed from the far end of the flight is a repair the ladder has not
         // earned — and the walk is short by construction, because the step below the break is
         // itself a step and the goal is satisfied from there.
@@ -451,7 +451,7 @@ final class JourneyStairs {
                 CapabilityProfile.ALL, List.of(new NoBreak()))), 400, () -> {
             BlockPos body = rig.player().blockPosition();
             // ARM'S LENGTH OR NOTHING. `placeOn` goes straight to `gameMode.useItemOn`, which has
-            // no reach gate on this avatar — so without this a mend the body could not walk to
+            // no reach gate on this avatar — so without this a mend the bot could not walk to
             // would still succeed, from the far end of the flight, through ten blocks of rock.
             // That is a repair the ladder has not earned, and it would read as one that worked.
             double reach = Math.sqrt(body.distSqr(f.cell()));
@@ -462,7 +462,7 @@ final class JourneyStairs {
                 return;
             }
             if (f.missingSupport()) {
-                // Both bodies: `placeInto` goes through `placeOn` → `gameMode.useItemOn`, so the
+                // Both bots: `placeInto` goes through `placeOn` → `gameMode.useItemOn`, so the
                 // SERVER's hand decides what lands. See JourneyHands.holdBoth.
                 boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
                 boolean put = held && placeInto(level, rig, f.cell());
@@ -496,8 +496,8 @@ final class JourneyStairs {
      * rehearsal with this on measures the repair against the failure it was written for.
      *
      * <p>It exists because a healthy flight never trips the audit, and a guard nobody has watched
-     * trip is a guard nobody has tested. The first leg is the control (audit silent, no mend); the
-     * second is the case (one fault, one mend, and the eight legs after it silent again).
+     * trip is a guard nobody has tested. The first trip is the control (audit silent, no mend); the
+     * second is the case (one fault, one mend, and the eight trips after it silent again).
      *
      * <p>Two locks, because a sabotage that reached the real ladder would be the worst possible
      * bug here: it is off unless asked for, and it refuses outright when no rung is being rehearsed.
@@ -536,7 +536,7 @@ final class JourneyStairs {
      * through the driver's {@code WorldView} — and that view can belong to another dimension.
      * {@code JourneyNetherRungs.theViewMatchesTheWorld} exists to catch exactly that: the driver
      * once planned every rung past the portal over OVERWORLD terrain while standing at NETHER
-     * coordinates, silently. Asking the level the body is actually standing in is what keeps a
+     * coordinates, silently. Asking the level the bot is actually standing in is what keeps a
      * caller from inheriting the pathfinder's problem.
      *
      * <p>Goes through {@code placeOn} → {@code gameMode.useItemOn}, which is the path a right click

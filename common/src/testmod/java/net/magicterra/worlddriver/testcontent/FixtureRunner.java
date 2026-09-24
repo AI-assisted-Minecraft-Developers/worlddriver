@@ -49,22 +49,22 @@ import net.magicterra.worlddriver.bot.stagewright.LivingBody;
 import net.magicterra.worlddriver.bot.stagewright.NpcBodyHost;
 
 /**
- * Runs one hand-built scene: puts a body at the start marker, walks the legs, and judges the
- * markers' hard conditions and the fixture's {@code expect} numbers. The same body serves both
- * homes — the suite ({@link #runAuto}, driven by StageWright's {@code ctx.advance()}) and an
+ * Runs one hand-built scene: puts a bot at the start marker, runs each task in {@code legs}, and
+ * judges the markers' hard conditions and the fixture's {@code expect} numbers. The same code
+ * serves both homes — the suite ({@link #runAuto}, driven by StageWright's {@code ctx.advance()}) and an
  * in-place run from the chat bar or RPC ({@link #startInPlace}, driven by {@link #tickInPlace}
  * off Architectury's server tick) — so what a tester watched is what the gate later judges.
  *
- * <p>A player body is chosen by the topology, not by the file: a dedicated server mints a headless
- * body ({@link SceneBody#mint}), an integrated server adopts the real player
+ * <p>The kind of player is chosen by the topology, not by the file: a dedicated server mints a
+ * headless server-side player ({@link SceneBody#mint}), an integrated server adopts the real player
  * ({@link ClientHelm#adopt}); each refuses on the other and the scene skips saying so. An in-place
  * run may ask for one explicitly and gets the same refusal as an error. An NPC ({@link SceneBody#npc})
  * is legal on every topology, so a file whose {@code body} is {@code npc} or {@code npc:<name>} runs
  * on one, and so does an in-place run that asks for it.
  *
- * <p>Counts come off the process's own {@link Walker#tallies()} — the walker the leg actually
- * ran, on whichever helm — never off the JVM-wide statics, so two bodies in one process cannot
- * pollute each other's numbers. A leg whose process has no walker (escape, elytra) contributes
+ * <p>Counts come off the process's own {@link Walker#tallies()} — the walker the task actually
+ * ran, on whichever helm — never off the JVM-wide statics, so two bots in one process cannot
+ * pollute each other's numbers. A task whose process has no walker (escape, elytra) contributes
  * nothing and the auto lines say so.
  */
 public final class FixtureRunner {
@@ -96,7 +96,7 @@ public final class FixtureRunner {
         return b.equals("npc") || b.startsWith("npc:");
     }
 
-    /** Which body this JVM can drive: the integrated server with the client half present adopts the
+    /** Which kind of bot this JVM can drive: the integrated server with the client half present adopts the
      *  real player, anything else mints. The same two facts {@code SceneBody} and {@code ClientHelm}
      *  decide on, asked once here so the two helpers' skips name the same reason. */
     public static String bodyForTopology(MinecraftServer server) {
@@ -129,7 +129,7 @@ public final class FixtureRunner {
 
     /**
      * Starts an in-place run at {@code origin}; the terrain is whatever the world holds there.
-     * Server thread only. Refuses while another run is going: two bodies on one tick hook would
+     * Server thread only. Refuses while another run is going: two bots on one tick hook would
      * share the markers and the report.
      *
      * @param body {@code server}, {@code self}, {@code npc} or {@code npc:<name>}; null picks {@link #bodyFor}
@@ -191,19 +191,19 @@ public final class FixtureRunner {
 
     // ------------------------------------------------------------------ the run
 
-    /** What a leg's process is driven by: the three helms behind one face. */
+    /** What a task's process is driven by: the three helms behind one face. */
     private interface Helm {
         void start(BotProcess p);
         boolean busy();
         /** A player for {@code server} and {@code self}, the driven mob for {@code npc}. */
         LivingEntity entity();
         String describe();
-        /** Let the body's client catch up with the adoption teleport before the first leg starts; a
-         *  server body is where it was put the moment it was put there. */
+        /** Let the bot's client catch up with the adoption teleport before the first task starts; a
+         *  server-side player is where it was put the moment it was put there. */
         default void settle(Runnable then) { then.run(); }
-        /** Let the server read where the body stopped before a leg is judged. A client's body reaches
+        /** Let the server read where the bot stopped before a task is judged. A client player reaches
          *  the server a move packet late, so its walker can say arrived while the server still has it
-         *  a step short; a server body and an NPC are read where they are. */
+         *  a step short; a server-side player and an NPC are read where they are. */
         default void caughtUp(Runnable then) { then.run(); }
     }
 
@@ -248,7 +248,7 @@ public final class FixtureRunner {
         void start() {
             SceneFixture.Start start = f.markers().start();
             if (start == null) throw new SceneFailure("scene '" + f.name() + "' has no start marker");
-            if (f.legs().isEmpty()) throw new SceneFailure("scene '" + f.name() + "' has no legs");
+            if (f.legs().isEmpty()) throw new SceneFailure("scene '" + f.name() + "' has an empty legs list");
             ctx.record("scene", f.name());
             ctx.record("body", bodyKind);
 
@@ -270,12 +270,12 @@ public final class FixtureRunner {
 
             BlockPos foot = FixtureIO.at(origin, start.pos());
             if (isNpc(bodyKind) && (!f.hand().isEmpty() || !f.equip().isEmpty())) {
-                throw new SceneFailure("scene '" + f.name() + "' gives hand or equip, and an npc body has no inventory");
+                throw new SceneFailure("scene '" + f.name() + "' gives hand or equip, and an npc has no inventory");
             }
             helm = isNpc(bodyKind) ? npcHelm(foot, start.yaw())
                     : bodyKind.equals("self") ? clientHelm(foot, start.yaw()) : serverHelm(foot, start.yaw());
             // After the helm: adopting the real player pins the baseline again, so a config applied
-            // before it never reached the walker that player's legs run on.
+            // before it never reached the walker that player's tasks run on.
             applyConfig(f.config());
             LivingEntity body = helm.entity();
             body.setHealth(body.getMaxHealth());
@@ -298,11 +298,11 @@ public final class FixtureRunner {
             fp.getInventory().clearContent();
             ctx.cleanup(() -> ServerAvatarManager.unregister(driver));
             return new Helm() {
-                // The manager drops a finished driver, so every leg registers again.
+                // The manager drops a finished driver, so every task registers again.
                 @Override public void start(BotProcess p) { driver.runProcess(p); ServerAvatarManager.register(driver); }
                 @Override public boolean busy() { return !driver.finished(); }
                 @Override public LivingEntity entity() { return fp; }
-                @Override public String describe() { return "server body " + fp.getGameProfile().getName() + " (ServerAvatarManager)"; }
+                @Override public String describe() { return "server-side player " + fp.getGameProfile().getName() + " (ServerAvatarManager)"; }
             };
         }
 
@@ -314,7 +314,7 @@ public final class FixtureRunner {
                 // The client trails the teleport by the move packets the server has not consumed
                 // (six ticks measured); a walker that snapshots before that plans from the old cell.
                 @Override public void settle(Runnable then) { helm.sync(10, then); }
-                // The same packets trail a leg's last steps; ten ticks outlast the six measured.
+                // The same packets trail a task's last steps; ten ticks outlast the six measured.
                 @Override public void caughtUp(Runnable then) { helm.sync(10, then); }
                 @Override public LivingEntity entity() { return helm.player(); }
                 @Override public String describe() { return "real player " + helm.player().getGameProfile().getName() + " (BotApi.runProcess)"; }
@@ -323,7 +323,7 @@ public final class FixtureRunner {
 
         /**
          * A driven piglin under the {@link NpcBodyHost} the {@code body} param reaches NPCs through, so a
-         * leg runs on it the way an order by name does. {@code npc:<name>} names the mob;
+         * task runs on it the way an order by name does. {@code npc:<name>} names the mob;
          * {@code npc:worlddriver:driven_piglin} is the one type there is. Not put in the registry: a
          * run is not something to send orders to.
          */
@@ -352,7 +352,7 @@ public final class FixtureRunner {
             };
         }
 
-        // ---- legs
+        // ---- tasks
 
         private void leg(int i) {
             if (i >= f.legs().size()) { finish(); return; }
@@ -372,7 +372,7 @@ public final class FixtureRunner {
                 if (!helm.busy()) { ended[0] = true; return true; }
                 return ++waited[0] >= leg.budget();
             }).within(leg.budget() + 100).then(() -> {
-                // Where the server had the body the tick the leg ended, before a client's last move
+                // Where the server had the bot the tick the task ended, before a client's last move
                 // packets land: the reading this runner judged by until it waited for them.
                 LivingEntity seen = helm.entity();
                 String endedAt = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", seen.getX(), seen.getY(), seen.getZ());
@@ -388,12 +388,12 @@ public final class FixtureRunner {
                     String where = String.format(Locale.ROOT, "%.2f,%.2f,%.2f", body.getX(), body.getY(), body.getZ());
                     boolean arrived = goal != null && arrived(body, goal, leg.goalKind());
                     String how = ended[0] ? "ended at tick " + waited[0] : "budget " + leg.budget() + " spent, process still busy";
-                    // The walker's own end beside the leg's: arrived here allows a cell of slack, and a walk
+                    // The walker's own end beside the task's: arrived here allows a cell of slack, and a walk
                     // that stopped a cell short reads arrived=true with the walker saying why it stopped.
                     ctx.record(tag, how + ", at " + where + (where.equals(endedAt) ? "" : " (" + endedAt + " as it ended)")
                             + (goal == null ? "" : ", arrived=" + arrived)
                             + (walker == null ? "" : ", walker ended " + walker.lastEndReason));
-                    // What the fixture's config reads when the leg ends, not when it was applied.
+                    // What the fixture's config reads when the task ends, not when it was applied.
                     if (!f.config().isEmpty()) {
                         Map<String, Object> now = new LinkedHashMap<>();
                         for (String k : f.config().keySet()) {
@@ -404,16 +404,16 @@ public final class FixtureRunner {
                     }
                     if (goal != null) {
                         auto.put("arrive." + i, arrived);
-                        line(arrived, "leg " + i + " " + leg.verb() + " arrived at " + goal.toShortString()
+                        line(arrived, "task " + i + " " + leg.verb() + " arrived at " + goal.toShortString()
                                 + " (" + how + ")");
-                        if (!arrived) failures.add("leg " + i + " did not arrive at " + goal.toShortString() + ": " + how);
+                        if (!arrived) failures.add("task " + i + " did not arrive at " + goal.toShortString() + ": " + how);
                     } else if (!ended[0]) {
                         auto.put("finish." + i, false);
-                        line(false, "leg " + i + " " + leg.verb() + " did not finish within " + leg.budget() + " ticks");
-                        failures.add("leg " + i + " " + leg.verb() + " did not finish");
+                        line(false, "task " + i + " " + leg.verb() + " did not finish within " + leg.budget() + " ticks");
+                        failures.add("task " + i + " " + leg.verb() + " did not finish");
                     } else {
                         auto.put("finish." + i, true);
-                        line(true, "leg " + i + " " + leg.verb() + " finished at tick " + waited[0]);
+                        line(true, "task " + i + " " + leg.verb() + " finished at tick " + waited[0]);
                     }
                     leg(i + 1);
                 });
@@ -425,7 +425,7 @@ public final class FixtureRunner {
             Params p = Params.of(leg.params() == null ? Map.of() : leg.params());
             switch (verb) {
                 case "goto" -> {
-                    if (leg.goal() == null) throw new SceneFailure("leg " + i + ": goto needs a goal");
+                    if (leg.goal() == null) throw new SceneFailure("task " + i + ": goto needs a goal");
                     Map<String, Object> route = new LinkedHashMap<>(leg.route() == null ? Map.of() : leg.route());
                     List<Goal> targets = new ArrayList<>();
                     if (route.get("via") instanceof List<?> vl) {
@@ -433,7 +433,7 @@ public final class FixtureRunner {
                         route.remove("via");
                     }
                     RouteParams.Parsed r = RouteParams.parse(route);
-                    if (r.fly()) throw new SceneFailure("leg " + i + ": route.mode fly is the elytra verb here");
+                    if (r.fly()) throw new SceneFailure("task " + i + ": route.mode fly is the elytra verb here");
                     targets.add(goal(FixtureIO.at(origin, leg.goal()), leg.goalKind()));
                     return new IntentProcess(new Intent(targets, r.profile().bias(), r.profile().capability(),
                             r.profile().constraints(), r.entityLeash()));
@@ -441,11 +441,11 @@ public final class FixtureRunner {
                 case "mine" -> {
                     List<String> ids = p.getStringList("block");
                     if (ids.isEmpty()) ids = p.getStringList("blocks");
-                    if (ids.isEmpty()) throw new SceneFailure("leg " + i + ": mine needs params.block");
+                    if (ids.isEmpty()) throw new SceneFailure("task " + i + ": mine needs params.block");
                     return new MineProcess(ids, Math.max(1, p.getInt("count", 1)), p.getIntClamped("radius", 16, 1, 64));
                 }
                 case "escape" -> {
-                    if (!(p.get("targetY") instanceof Number n)) throw new SceneFailure("leg " + i + ": escape needs params.targetY (origin-relative)");
+                    if (!(p.get("targetY") instanceof Number n)) throw new SceneFailure("task " + i + ": escape needs params.targetY (origin-relative)");
                     int targetY = origin.getY() + n.intValue();
                     boolean down = targetY < helm.entity().blockPosition().getY();
                     return down ? new DescendProcess(targetY) : new EscapeProcess(targetY);
@@ -460,7 +460,7 @@ public final class FixtureRunner {
                     return new ElytraProcess(target, yaw, pitch, fireworks, p.getIntClamped("fireworkEveryTicks", 40, 5, 400),
                             p.getIntClamped("ticks", reactive ? 2000 : 200, 1, 20_000), p.getDouble("stopXZDist", 3.0), reactive);
                 }
-                default -> throw new SceneFailure("leg " + i + ": unknown verb '" + verb + "' (goto|mine|escape|elytra)");
+                default -> throw new SceneFailure("task " + i + ": unknown verb '" + verb + "' (goto|mine|escape|elytra)");
             }
         }
 
@@ -558,7 +558,7 @@ public final class FixtureRunner {
                 observed.put("hops", hops);
                 observed.put("digs", digs);
             } else {
-                line(true, "repaths/hops/digs not observed: a leg's process has no walker");
+                line(true, "repaths/hops/digs not observed: a task's process has no walker");
             }
             Map<String, String> judged = FixtureVerdicts.judge(f.expect(), observed);
             for (var e : judged.entrySet()) {

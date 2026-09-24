@@ -29,11 +29,11 @@ public final class DrownEscapeGate {
     private DrownEscapeGate() {}
 
     /** Vanilla max air supply (ticks). A configured {@code releaseAir} above this
-     *  could otherwise latch forever (air can never reach it); the release leg
-     *  clamps to this. */
+     *  could otherwise latch forever (air can never reach it); the release
+     *  condition clamps to this. */
     public static final int MAX_AIR = 300;
 
-    /** Margin above {@code enterAir} the head-out-and-recovering release leg must
+    /** Margin above {@code enterAir} the head-out-and-recovering release condition must
      *  ALSO clear. Live death #9 (mangrove swamp): the bot's head bobbed into a
      *  one-tick air pocket between mangrove roots, air ticked 68→72, the latch
      *  released, and the preempted goto resumed its dive — three such flaps in

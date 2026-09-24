@@ -27,7 +27,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NetherPortalBlock;
 
 /**
- * A lit portal whose front is walled up, and a body that has to open one cell to get in.
+ * A lit portal whose front is walled up, and a bot that has to open one cell to get in.
  *
  * <p>The ladder's rung 13 died here on 2026-08-19 after rung 12 had lit the portal from a fresh
  * world. The evidence it left is worth quoting (rendered in English), because every row of it is
@@ -40,7 +40,7 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * </pre>
  *
  * The bot was never in the portal — its own {@code stand.in} says so — the scene ran 451 ticks and
- * not the 1200 the message claimed, and the eight legs are byte-identical because each asked the
+ * not the 1200 the message claimed, and the eight walks are byte-identical because each asked the
  * pathfinder the same unanswerable question.
  *
  * <h2>The geometry, and why it is not exotic</h2>
@@ -59,14 +59,14 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * <ul>
  *   <li>the only portal cell the pathfinder can accept as a GOAL is the bottom one — every other
  *       cell's floor is another portal block, which has no collision — and no route reached it;</li>
- *   <li>the only row with an open front is the TOP one, and a body does not fit there: a portal
- *       interior is three cells tall, a body is 1.8, so its head would be in the frame's obsidian
+ *   <li>the only row with an open front is the TOP one, and a player does not fit there: a portal
+ *       interior is three cells tall, a player is 1.8, so its head would be in the frame's obsidian
  *       cap. This arm measured that before {@code JourneyPortalEntry.enterable} existed — sixty
- *       ticks of held forward moved the body to {@code z = cellZ − 0.3} and stopped, {@code dm.z}
+ *       ticks of held forward moved the bot to {@code z = cellZ − 0.3} and stopped, {@code dm.z}
  *       exactly {@code 0.000}.</li>
  * </ul>
  *
- * <p>So the way in is to open ONE cell of the alcove wall, in front of the row the body does fit
+ * <p>So the way in is to open ONE cell of the alcove wall, in front of the row the bot does fit
  * through, and walk in there.
  *
  * <h2>Two arms</h2>
@@ -117,11 +117,11 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      *  journey arenas, which leaves head room over the portal and stays far under the build limit. */
     private static final int BASE = 20;
 
-    /** How many legs the control gets to prove the pre-fix approach cannot get in. Fewer than the
+    /** How many walks the control gets to prove the pre-fix approach cannot get in. Fewer than the
      *  rung's eight only because each one ends the instant the search reports no path. */
     private static final int CONTROL_LEGS = 4;
 
-    /** Synchronous ticks one walk leg may spend. The whole arena is nine blocks across. */
+    /** Synchronous ticks one walk may spend. The whole arena is nine blocks across. */
     private static final int LEG_TICKS = 200;
 
     /** What is standing in front of the doorway. One variable per arm; everything else is identical. */
@@ -144,7 +144,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     private static BlockPos bottomCell(SceneContext ctx) { return ctx.rel(0, BASE + 2, 0); }
 
     /** The portal's middle-left interior cell: the lowest one whose head cell is also portal, so the
-     *  lowest one a 1.8-tall body can stand in with the doorway's front open. */
+     *  lowest one a 1.8-tall player can stand in with the doorway's front open. */
     private static BlockPos middleCell(SceneContext ctx) { return ctx.rel(0, BASE + 3, 0); }
 
     /** The cell of the alcove wall that stands in front of {@link #middleCell}. */
@@ -156,7 +156,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         return List.of(ctx.rel(0, BASE + 3, -1), ctx.rel(0, BASE + 4, -1));
     }
 
-    /** Where the body starts: on the plateau, four cells north of the doorway. */
+    /** Where the bot starts: on the plateau, four cells north of the doorway. */
     private static BlockPos start(SceneContext ctx) { return ctx.rel(0, BASE + 4, -4); }
 
     /**
@@ -166,7 +166,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * ({@code wd.serverLightsPortal}) and this one is about the walk. The premise is asserted
      * immediately afterwards instead of assumed: a portal block whose frame vanilla does not accept
      * is removed by {@code NetherPortalBlock.updateShape} on the next neighbour update, and an arm
-     * that then walked a body into six cells of air would pass every check it has.
+     * that then walked a bot into six cells of air would pass every check it has.
      */
     private static void stage(SceneContext ctx, Front front) {
         clearBox(ctx);
@@ -176,8 +176,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
             for (int dz = -6; dz <= 4; dz++)
                 ctx.setBlock(dx, BASE, dz, Blocks.STONE);
 
-        // The plateau the body walks in on. SLAG puts its top face at BASE+3, so the standable row in
-        // front of the doorway is BASE+4 — the portal's TOP row, which a body does not fit through.
+        // The plateau the bot walks in on. SLAG puts its top face at BASE+3, so the standable row in
+        // front of the doorway is BASE+4 — the portal's TOP row, which a player does not fit through.
         // OPEN puts it one lower, so the standable row is the MIDDLE one and nothing needs digging.
         int plateauTop = front == Front.OPEN ? BASE + 2 : BASE + 3;
         for (int dx = -3; dx <= 4; dx++)
@@ -217,7 +217,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                     ctx.setBlock(dx, dy, -1, Blocks.OBSIDIAN);
                     ctx.setBlock(dx, dy, 1, Blocks.OBSIDIAN);
                 }
-            // Both cells of the middle row's front, because a doorstep is TWO cells: a body needs
+            // Both cells of the middle row's front, because a doorstep is TWO cells: a player needs
             // somewhere for its feet and somewhere for its head, and leaving obsidian in the head
             // cell would make the control fail for the reason the subject is supposed to.
             if (front == Front.FRAME_ONLY_WITH_A_WINDOW)
@@ -251,27 +251,27 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         ServerAvatarManager.clear();
         ctx.cleanup(ServerAvatarManager::clear);
         // Registered BEFORE anything is built, so an arm that fails mid-drive still hands the shared
-        // dogfood world back empty — a portal left standing would take the next scene's body.
+        // dogfood world back empty — a portal left standing would take the next scene's bot.
         ctx.cleanup(() -> clearBox(ctx));
     }
 
-    /** A body standing in {@code foot}, settled, with a pickaxe and the cleanup that removes it. */
+    /** A bot standing in {@code foot}, settled, with a pickaxe and the cleanup that removes it. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
         return body(ctx, foot, 0.5);
     }
 
-    /** The same, with the body's z inside its own cell named — a stance on the LIP of a block is a
+    /** The same, with the bot's z inside its own cell named — a stance on the LIP of a block is a
      *  different situation from one at its centre, and one arm here needs the lip. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot, double dz) {
         ServerWorldDriver driver = SceneBody.managed(ctx,
                 foot.getX() + 0.5, foot.getY(), foot.getZ() + dz);
         ServerPlayer fp = driver.fakePlayer();
-        // A pickaxe because the ladder's body has one by rung 13 and because destroyBlock hands the
+        // A pickaxe because the ladder's bot has one by rung 13 and because destroyBlock hands the
         // held item to dropResources — a fist opens the cell and drops nothing.
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().selected = 0;
         ServerPlayerBody av = driver.avatar();
-        // Three physics steps with no input, so the body is flush before anything is measured.
+        // Three physics steps with no input, so the bot is flush before anything is measured.
         for (int i = 0; i < 3; i++) av.step();
         return driver;
     }
@@ -282,12 +282,12 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     }
 
     /**
-     * Run one process to completion, its budget, or the body entering the portal.
+     * Run one process to completion, its budget, or the bot entering the portal.
      *
-     * <p>That last clause is not a shortcut. This arena's portal is LIT, so a body left standing in
+     * <p>That last clause is not a shortcut. This arena's portal is LIT, so a bot left standing in
      * it for eighty ticks is taken to the Nether and every reading after that is about a different
-     * world — including the arm's own cleanup, which would be airing out a box the body is no longer
-     * in. What is under test is the entry, and the entry is finished the moment the body's own cell
+     * world — including the arm's own cleanup, which would be airing out a box the bot is no longer
+     * in. What is under test is the entry, and the entry is finished the moment the bot's own cell
      * reads {@code nether_portal}.
      */
     private static int drive(ServerWorldDriver driver, BotProcess process, int budget) {
@@ -301,7 +301,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
     }
 
     /**
-     * The body to three decimals, with the heading and the ground bit.
+     * The bot's position to three decimals, with the heading and the ground bit.
      *
      * <p>A cell is too coarse to judge a one-block push by: the difference between "did not move" and
      * "slid to the lip and stopped" is a tenth of a block, and they are different defects — the second
@@ -316,7 +316,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 fp.getDeltaMovement().x, fp.getDeltaMovement().y, fp.getDeltaMovement().z);
     }
 
-    /** Where the body is and what it is standing in — the one sentence both arms judge on. */
+    /** Where the bot is and what it is standing in — the one sentence both arms judge on. */
     private static String where(ServerWorldDriver driver) {
         ServerPlayer fp = driver.fakePlayer();
         BlockPos at = fp.blockPosition();
@@ -331,36 +331,36 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
 
     // ---------------------------------------------------------------------- arms ----
 
-    // ------------------------------------------- the leg that asked a question already answered ----
+    // ------------------------------------------ the walk that asked a question already answered ----
 
     /** The perch arm's floor, as a dy offset. Its own {@code BASE} so a re-stage cannot inherit the
      *  portal arms' hill. */
     private static final int LEDGE = 40;
 
-    /** The body's z inside its own cell. {@code 0.79} leaves {@code 0.6 x 0.09 = 0.054} of sole on the
+    /** The bot's z inside its own cell. {@code 0.79} leaves {@code 0.6 x 0.09 = 0.054} of sole on the
      *  perch north of it — the ladder's own stance was {@code 0.794} for {@code 0.0563}. Rounded to
-     *  the cell centre the body has no support at all and simply falls, which would answer the
+     *  the cell centre the bot has no support at all and simply falls, which would answer the
      *  question by accident. */
     private static final double LEDGE_DZ = 0.79;
 
-    /** Ticks one leg gets. The whole move is one cell down; the ladder's legs were over in 11. */
+    /** Ticks one walk gets. The whole move is one cell down; the ladder's walks were over in 11. */
     private static final int LEDGE_TICKS = 80;
 
-    /** Where the body stands: one row ABOVE the doorstep, in its column, held up by the perch. */
+    /** Where the bot stands: one row ABOVE the doorstep, in its column, held up by the perch. */
     private static BlockPos ledgePerch(SceneContext ctx) { return ctx.rel(0, LEDGE + 2, 0); }
 
     /** The doorstep, straight down from {@link #ledgePerch}. */
     private static BlockPos ledgeStep(SceneContext ctx) { return ctx.rel(0, LEDGE + 1, 0); }
 
     /**
-     * <b>{@code Goal.XZ} ignores Y, so a leg that asks for a column the body is already standing in
-     * reports success without moving — and the rung counted that as a still leg.</b>
+     * <b>{@code Goal.XZ} ignores Y, so a walk that asks for a column the bot is already standing in
+     * reports success without moving — and the rung counted that as a walk that did not move.</b>
      *
      * <h2>What the ladder did</h2>
      *
-     * Rung 13 alternates its walk legs between {@code Goal.XZ} and {@code Goal.Block} because a retry
+     * Rung 13 alternates its walks between {@code Goal.XZ} and {@code Goal.Block} because a retry
      * that asks the identical question gets the identical answer. On 2026-08-20 15:20 the doorstep was
-     * {@code 3,57,20} and the body ended one row directly above it, on {@code 3,58,20}:
+     * {@code 3,57,20} and the bot ended one row directly above it, on {@code 3,58,20}:
      *
      * <pre>
      * portal.walk.1 = XZ goal 3, 57, 20: 2, 58, 20 → 3, 58, 20 (moved 1 block) end=arrived
@@ -368,32 +368,32 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * portal.walk.3 = XZ goal 3, 57, 20: 3, 58, 20 → 3, 58, 20 (moved 0 blocks) end=arrived
      * </pre>
      *
-     * {@code walk.1} and {@code walk.3} both say {@code arrived} and neither body was ever on the
+     * {@code walk.1} and {@code walk.3} both say {@code arrived} and in neither was the bot ever on the
      * doorstep, because {@code Goal.XZ(3,20,0).reached(3,58,20)} is TRUE — the column matches and the
      * row is not part of the question. {@code walk.3} is a pure no-op that reports success, and
-     * because it moved zero cells it also fed the two-still-legs terminator that ended the rung. So
-     * half of the leg budget was being spent on a shape that could not express "and be on that row",
-     * and the shape that could was being interleaved with it.
+     * because it moved zero cells it also fed the two-stationary-walks terminator that ended the
+     * rung. So half of the walk budget was being spent on a shape that could not express "and be on
+     * that row", and the shape that could was being interleaved with it.
      *
      * <h2>What this asks, and what it deliberately does not</h2>
      *
      * The subject is {@link JourneyPortalEntry#legGoal}, not the terrain — so unlike
      * {@code wd.serverStepsDownAPlanItSpentInOneTick}, whose subject IS the plan the terrain produces
      * and which therefore copies the region file cell for cell, this arm stages the smallest world in
-     * which the situation is real: a doorstep, a perch, and a body standing on the lip of the perch
-     * one row above the doorstep. The stance is not incidental and is checked — a body at the cell
+     * which the situation is real: a doorstep, a perch, and a bot standing on the lip of the perch
+     * one row above the doorstep. The stance is not incidental and is checked — a bot at the cell
      * centre has nothing under it and falls onto the doorstep by gravity, which would pass every
      * clause below while measuring nothing.
      *
      * <h2>Criteria</h2>
      *
      * <ol>
-     *   <li><b>the XZ leg is a no-op</b> — drive the goal the old alternation would have issued and
-     *       require the body NOT to reach the doorstep. This is the control: if this arm can descend,
+     *   <li><b>the XZ walk is a no-op</b> — drive the goal the old alternation would have issued and
+     *       require the bot NOT to reach the doorstep. This is the control: if this arm can descend,
      *       the scene cannot tell a fix from a walk that was never blocked;</li>
      *   <li><b>{@code legGoal} does not issue it</b> on a flat turn from that cell — it must hand back
      *       a {@code Goal.Block};</li>
-     *   <li><b>and driving what it does issue lands the body on the doorstep</b>;</li>
+     *   <li><b>and driving what it does issue lands the bot on the doorstep</b>;</li>
      *   <li><b>the alternation still exists.</b> From a cell OUTSIDE the doorstep's column a flat turn
      *       must still be {@code Goal.XZ}. Without this the fix could have deleted the alternation
      *       outright and every clause above would still be green.</li>
@@ -465,14 +465,14 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
                 + stillXz).isTrue();
     }
 
-    /** Floor, doorstep and the one block the body balances on. Nothing else: the subject is which
-     *  goal a leg asks for, so terrain past that would only add ways for the arm to be wrong. */
+    /** Floor, doorstep and the one block the bot balances on. Nothing else: the subject is which
+     *  goal a walk asks for, so terrain past that would only add ways for the arm to be wrong. */
     private static void stageLedge(SceneContext ctx) {
         clearLedge(ctx);
         for (int dx = -3; dx <= 3; dx++)
             for (int dz = -3; dz <= 3; dz++)
                 ctx.setBlock(dx, LEDGE, dz, Blocks.STONE);
-        // The perch: its top face is the body's floor, one row ABOVE the doorstep, one cell north.
+        // The perch: its top face is the bot's floor, one row ABOVE the doorstep, one cell north.
         ctx.setBlock(0, LEDGE + 1, 1, Blocks.STONE);
     }
 
@@ -490,21 +490,21 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * "the bot ends inside a {@code nether_portal} cell" is satisfied by any arena where it was
      * already there, by a portal staged around the start cell, by a step-in across a room with no
      * walls. So the arm FIRST drives the pre-fix approach — {@code Goal.Block(bottomCell)}, the goal
-     * the rung asked for eight times — and requires it to come back with the body OUTSIDE the portal.
+     * the rung asked for eight times — and requires it to come back with the bot OUTSIDE the portal.
      * An arm that cannot fail to get in has not earned the right to report that it got in.
      *
      * <h2>Criteria</h2>
      *
      * <ol>
      *   <li><b>nothing is walkable as staged.</b> The top row's front is open and the search must
-     *       still refuse it, because the body does not fit — this is the clause the first cut of the
+     *       still refuse it, because the player does not fit — this is the clause the first cut of the
      *       fix did not have;</li>
      *   <li><b>the way in it does name is the middle row, at the price of exactly one cell</b>, and
      *       that cell is the alcove wall rather than the frame;</li>
      *   <li><b>the dig actually opened it</b> — without this the walk below is measuring a wall that
      *       was never there;</li>
      *   <li><b>the walk arrives somewhere it can step in from</b>, else the step-in is 0 == 0;</li>
-     *   <li><b>the body ends inside a portal cell.</b></li>
+     *   <li><b>the bot ends inside a portal cell.</b></li>
      * </ol>
      */
     private static void digsIntoTheRowItFits(SceneContext ctx) {
@@ -601,7 +601,7 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
         if (ready == null) return;
 
         // The walk brakes into its goal with the sneak flag and nothing clears it when the process
-        // ends; a shifting body will not step off a ledge, and stepping into a floorless portal cell
+        // ends; a sneaking player will not step off a ledge, and stepping into a floorless portal cell
         // is exactly that. Recorded at the moment of the push because it is one of the two readings
         // that separate "pushed for sixty ticks and did not move" from "ran into something" — the
         // other is `exactly`.
@@ -623,8 +623,8 @@ public final class JourneyPortalEntryScenes implements SceneProvider {
      * <b>Obsidian all round the doorway: the answer is "no way in", because the frame is not a wall
      * this rung may remove.</b>
      *
-     * <p>This is the branch the failure message has to get right. A body that never reached a portal
-     * cell and a body that stood in one and was not transferred want opposite fixes — the geometry in
+     * <p>This is the branch the failure message has to get right. A bot that never reached a portal
+     * cell and a bot that stood in one and was not transferred want opposite fixes — the geometry in
      * front of the door, or {@code Entity.handlePortal} — so the rung picks between two messages on
      * exactly this predicate. And the temptation the digging search creates is precise: the frame
      * borders every doorway cell, so it is always the geometrically cheapest thing to remove, and a

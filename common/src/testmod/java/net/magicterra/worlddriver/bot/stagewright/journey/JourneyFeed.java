@@ -7,7 +7,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Eat, then wait for the health that eating makes possible — the leg the ladder never had.
+ * Eat, then wait for the health that eating makes possible — the step the ladder never had.
  *
  * <p><b>Why it exists.</b> On 2026-08-26 the iron rung fell three times down its own shaft (−4, −7,
  * −3, every {@code hp.trace} row placing the bot in air), banked its three ingots and PASSED: its
@@ -28,9 +28,9 @@ import net.minecraft.world.item.ItemStack;
  * wanted and nowhere else.
  *
  * <p><b>What it does NOT assert.</b> Nothing here fails a rung. Every branch records what it saw
- * and calls {@code then}: a body with no food, a hold that would not take, a bite that never
+ * and calls {@code then}: a bot with no food, a hold that would not take, a bite that never
  * started, a wait that timed out — the rung proceeds in exactly the state it would have been in
- * without this leg, and the evidence says which of those happened. That is deliberate for the first
+ * without this step, and the evidence says which of those happened. That is deliberate for the first
  * run: whether a client-driven {@code ServerPlayer} can be made to eat from the server side at all
  * is an open question (server-written state has been lost to the next client packet before — see
  * the aiming subsystem), and an instrument that fails the rung would answer it by killing the run.
@@ -38,7 +38,7 @@ import net.minecraft.world.item.ItemStack;
  * <p><b>What the first real occasion returned</b>, on the gravel rung of 2026-08-26: it fired on
  * FOOD, not on health — health 20.0/20.0, food 8/20. Health has been full on that rung both runs
  * that reached it, while hunger has been under {@link #REGEN_FOOD} from the food rung onward in
- * every run, so the hunger half of the condition is the half that gets used, and this leg speaks on
+ * every run, so the hunger half of the condition is the half that gets used, and this step reports on
  * every climb rather than only after a bad fall. The bite then landed in the one ending no branch
  * had a name for: the food was found, the hold took, {@code startUsingItem} took, the wait returned
  * — and the bar read {@code 8→8}. Start and finish both happened; the middle did not. {@link Bite}
@@ -95,7 +95,7 @@ final class JourneyFeed {
     private static final int REGEN_TICKS = 600;
 
     /**
-     * Eat if the body is low, wait for the regen, then continue — always continue.
+     * Eat if the bot is low, wait for the regen, then continue — always continue.
      *
      * @param tag evidence prefix, so two callers on one rung stay apart
      */
@@ -115,7 +115,7 @@ final class JourneyFeed {
         bite(rig, tag, 0, then);
     }
 
-    /** The first food in {@link #FOODS} the body owns, or null. A method rather than a loop with a
+    /** The first food in {@link #FOODS} the bot owns, or null. A method rather than a loop with a
      *  mutable local because the result is captured by the bite's continuation. */
     private static String firstFoodOwned(JourneyRig rig) {
         for (String id : FOODS) if (rig.carrying(id) > 0) return id;
@@ -187,7 +187,7 @@ final class JourneyFeed {
      *
      * <p><b>Through the avatar, not through {@code startUsingItem}.</b> The first two runs drove
      * this by calling {@code fp.startUsingItem(MAIN_HAND)} on the server and then watching the flag
-     * — and on a client-driven body the flag went out two ticks into a thirty-two-tick meal with
+     * — and on a client-driven bot the flag went out two ticks into a thirty-two-tick meal with
      * the hand correct. The engine has had the held use all along: {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem} is
      * how {@code CombatProcess} draws a bow and how rung 20 shoots the dragon, and on this topology
      * it resolves to {@code ClientPlayerBody}, which holds the CLIENT's use key. A bite begun by
@@ -205,9 +205,9 @@ final class JourneyFeed {
      * being asked about.
      *
      * <p>⚠️ The key is a shared global that {@code BotInteract.releaseKeys()} deliberately does not
-     * clear (see {@code UseKeyOwnershipTest}); leaking it leaves the body walking with right-click
+     * clear (see {@code UseKeyOwnershipTest}); leaking it leaves the bot walking with right-click
      * held. It is released in the continuation, which {@code rig.await} runs on timeout and on
-     * body death as well as on success.
+     * the bot's death as well as on success.
      */
     private static void startBite(JourneyRig rig, String tag, int n, String chosen, Runnable then) {
         ServerPlayer fp = rig.player();
@@ -254,7 +254,7 @@ final class JourneyFeed {
      * exists is one half of the comparison: {@code wd.serverAvatarTickFidelity} (A) holds the use
      * on cooked beef for forty ticks and requires the meal to finish, and it is GREEN — on a
      * {@code SceneBody.mint} SERVER avatar, which has no client to release anything. The missing
-     * half is the same measurement on a client-driven body.
+     * half is the same measurement on a client-driven bot.
      *
      * <p><b>A fallback, not the route.</b> {@link #startBite} holds the client's own use key
      * through {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem}, which is how the engine draws a bow; this runs only
@@ -291,9 +291,9 @@ final class JourneyFeed {
      * <p>The first line releases the use key unconditionally. {@link #startBite} already releases
      * in its own continuation, but a continuation is not a guarantee: a scene that hard-fails
      * mid-{@code await} never reaches one, and the use intent outlives the scene — a
-     * gravel rung that dies mid-bite would hand rung 11 a body walking around with right-click
+     * gravel rung that dies mid-bite would hand rung 11 a bot walking around with right-click
      * held, exactly the leak {@code UseKeyOwnershipTest} names. This method is where every exit of
-     * the leg converges, and releasing twice costs nothing (that test calls releases unrestricted).
+     * the eating step converges, and releasing twice costs nothing (that test calls releases unrestricted).
      */
     private static void afterEating(JourneyRig rig, String tag, int bites, Runnable then) {
         rig.hands().commandUseItem(false);

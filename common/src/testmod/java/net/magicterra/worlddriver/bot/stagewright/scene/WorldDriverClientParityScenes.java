@@ -44,7 +44,7 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
     private static final int SPACING = 2;
     private static final int COLUMNS = 8;
 
-    /** Foot cell of palette entry i. A grid hugging the body, not a row marching away from it:
+    /** Foot cell of palette entry i. A grid hugging the player, not a row marching away from it:
      *  the client only holds the chunks around its player, and a cell it never received reads as
      *  air on its side, which would show up here as a disagreement about nothing. */
     private static BlockPos footOf(SceneContext ctx, int i) {
@@ -155,7 +155,7 @@ public final class WorldDriverClientParityScenes implements SceneProvider {
         ctx.record("test setup", palette.size() + " terrain types, grid of " + COLUMNS + " columns, foot cell y=" + (GROUND + 1) + ", spacing " + SPACING + "; bot starts at " + start.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, 0f);
-        // The same hand on both bodies: the client's LocalPlayer and its ServerPlayer share one
+        // The same hand on both players: the client's LocalPlayer and its ServerPlayer share one
         // inventory on an integrated server, so a break price that differs is a rule that differs.
         helm.hold(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.DIRT, 16));
         BotConfig.allowBreak = true;

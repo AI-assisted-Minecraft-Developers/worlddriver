@@ -56,8 +56,8 @@ fields were simply deleted, and a call using one now fails in validation with th
 migration guidance lives in the tool description rather than in the error, because the error cannot know
 where a field went.
 
-Validation also has to be the reason a parameter is refused where a verb does not support it. A body
-name passed to a verb that does not drive a body is rejected by the schema rather than accepted and
+Validation also has to be the reason a parameter is refused where a verb does not support it. A bot
+name passed to a verb that does not drive a bot is rejected by the schema rather than accepted and
 explained by the handler — which is both more honest and cheaper, since the alternative is shipping
 unusable parameter documentation to every model client.
 

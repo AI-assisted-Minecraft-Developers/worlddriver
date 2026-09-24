@@ -248,11 +248,11 @@ public final class SettingsDocs {
             "with a mountable riser dead ahead and a confirmed ram → inert on flat ground / real " +
             "stepUps. Off by default"),
         e("walkerPadRamBreak",
-            "bool — break a LILY PAD a floating bot rams in an ADJACENT body-overlap column the " +
+            "bool — break a LILY PAD a floating bot rams in an ADJACENT column its hitbox overlaps that the " +
             "head-on pad scan misses: a surface swimmer can straddle 4 XZ cells, and a pad off the " +
-            "heading axis blocks the body (hCol, hSpd≈0, attack stays false) until A* repaths " +
+            "heading axis blocks the bot (hCol, hSpd≈0, attack stays false) until A* repaths " +
             "(~13.5s). When CONFIRMED rammed in water (noStepProgressTicks past the gate) and nothing " +
-            "was found ahead, scan the body footprint cells at the surface for an instabreak " +
+            "was found ahead, scan the player's footprint cells at the surface for an instabreak " +
             "obstruction and punch the nearest. Instabreak-only (lily pad / surface plant) so a real " +
             "wall is never touched; inert on dry land / pad-free crossings. Off by default"),
         e("walkerParkourAscendHold",
@@ -262,7 +262,7 @@ public final class SettingsDocs {
             "climb-out. On by default"),
         e("walkerDeepWaterDriftBrake",
             "bool — drop sprint when descending / walking ALONG a DEEP floating-water edge (≥2 deep, " +
-            "no floor) bordering the foot, so sprint momentum can't drift the body off the dry " +
+            "no floor) bordering the foot, so sprint momentum can't drift the bot off the dry " +
             "staircase into the pocket where a buoyant bot bob-stalls on the un-climbable surface. " +
             "Never fires on deliberate water entry (planned node IS deep water) or a 1-deep splash. " +
             "Drop-sprint only (no sneak-pin, so a planned step-down still proceeds). On by default"),
@@ -270,15 +270,15 @@ public final class SettingsDocs {
             "bool — DRY sibling of walkerDeepWaterDriftBrake (task#36): latch the steepDescentNear " +
             "sprint-drop across the airborne sub-arcs of a step-down descent. The raw brake is gated " +
             "onGround, so on the airborne half of each step sprint re-arms and forward momentum walks " +
-            "the body off a survivable-but-deep (>4, <survivableFall) lip into a fatal cumulative " +
+            "the bot off a survivable-but-deep (>4, <survivableFall) lip into a fatal cumulative " +
             "fall (live Mountains massif). Latched, sprint stays suppressed through the descent so " +
             "momentum can't build over the lip. Drop-sprint only (no pin); a gentle ≤4 staircase is a " +
             "no-op. On by default"),
         e("walkerDescentStepSkipBrake",
             "bool — descent step-skip SNEAK-brake (task#36 real fix): the planner is hard-capped at " +
-            "pathfinderMaxDryFall (=4) per node, so a grounded body can never legitimately have its " +
+            "pathfinderMaxDryFall (=4) per node, so a grounded bot can never legitimately have its " +
             "drive target (wp=path.get(step)) more than that below the foot — yet the executor " +
-            "advances step DOWN the staircase ahead of the body (arc-length advance), aiming it " +
+            "advances step DOWN the staircase ahead of the bot (arc-length advance), aiming it " +
             "forward+down at a far node and launching it off the stair edge into a fatal fall " +
             "(grounded foot y94 while wp=y83). Holds vanilla sneak (edge-guard: can't step off a " +
             "block edge but still steps down one at a time) + kills sprint on the same tick, so the " +
@@ -309,7 +309,7 @@ public final class SettingsDocs {
             "default"),
         e("walkerStepUpCrestReach",
             "bool — advance the step-pointer off a +1 stepUp/diagUp CREST node (a diagonal-staircase " +
-            "plateau lip) the DRY body has topped out on (foot risen to the node's Y, |dyNode|<0.5) " +
+            "plateau lip) the DRY bot has topped out on (foot risen to the node's Y, |dyNode|<0.5) " +
             "but ORBITS, pinning cur2 at ~0.49-1.2 just over the 0.45 reach gate so `within` never " +
             "fires and `passed` never reads the next node strictly closer while circling — the step " +
             "freezes ~25-51 ticks (live -633,80,318, deterministic). No actuator catches it " +
@@ -352,16 +352,16 @@ public final class SettingsDocs {
             "the frozen step by 2-5 segments at stalls). Edge-execution holds still gate it. On by " +
             "default"),
         e("walkerTangentAim",
-            "bool — Phase-2: aim camera AND body at the path TANGENT ahead of the projection instead " +
+            "bool — Phase-2: aim the camera AND the movement heading at the path TANGENT ahead of the projection instead " +
             "of the immediate-node bearing, which flips ~180° on node overshoot (the backward-jump / " +
-            "repeated side-to-side hopping / facing-the-wall dead-corner stall; live P1: body stalled on-path with dYaw up to " +
+            "repeated side-to-side hopping / facing-the-wall dead-corner stall; live P1: bot stalled on-path with dYaw up to " +
             "129°). The tangent never reverses, killing that failure mode + the descent " +
             "flip-rejection bandaids. Skipped for launches + in the aim dead-zone. On by default"),
         e("walkerTangentPursuit",
             "bool — with walkerTangentAim: more than 0.6 blocks off the path, aim at the path's point " +
-            "2.5 blocks ahead instead of the bare tangent, so the body rejoins the route instead of " +
+            "2.5 blocks ahead instead of the bare tangent, so the bot rejoins the route instead of " +
             "walking parallel to it (a route chosen for its line — sight, corridor — is only kept if " +
-            "the body is on it). On by default"),
+            "the bot is on it). On by default"),
         e("walkerArcLengthWedge",
             "bool — Phase-3: bob/jitter-IMMUNE ram-wedge recovery. When the arc-length projection " +
             "makes no forward progress (|ds|<0.05/tick) while horizontalCollision for ~1.5s, fold " +
@@ -441,20 +441,20 @@ public final class SettingsDocs {
             "a forbid. Off by default"),
         e("pathfinderVineOverWaterTax",
             "bool — planner: charge pathfinderLeafCellCost on a SURFACE-WATER crossing cell whose " +
-            "BODY/HEAD column (foot+1/foot+2) carries a hanging-VINE or LEAF obstruction over the " +
+            "column above the foot (foot+1/foot+2) carries a hanging-VINE or LEAF obstruction over the " +
             "water (a tree-canopy growing IN/over a lake). The foot reads as open surface water so A* " +
             "threads a node straight through the vine/leaf column; the floating bot then rams the " +
-            "wall at body height (hCol, hSpd→0) — a ~5-6 s bob-jam until a repath. Tips A* to swim " +
+            "wall at the player's height (hCol, hSpd→0) — a ~5-6 s bob-jam until a repath. Tips A* to swim " +
             "AROUND the tree. Scoped to real water cells (dry canopy uses leafCellCost; foot cell " +
             "untested so a vine-CLIMB out of water isn't penalised). The leaf-canopy/lily-pad tax " +
             "extended to vine/leaf-over-water. A tax, never a forbid. Off by default"),
         e("pathfinderPadOverWaterTax",
             "bool — planner: charge pathfinderLilyPadCellCost on a SURFACE-WATER crossing cell whose " +
-            "FOOT+1 (body) cell holds a thin breakable obstruction — a SINGLE SPARSE lily pad over " +
+            "FOOT+1 cell holds a thin breakable obstruction — a SINGLE SPARSE lily pad over " +
             "open water. The Y-aware-goal sibling of the XZ-only padCellTax: a real goto x,y,z is " +
             "Y-aware so padCellTax never fires, leaving sparse single pads unpriced → A* threads a " +
             "node straight THROUGH each pad (a 1-pad instabreak dig is cheaper than a 1-block detour) " +
-            "and the floating bot rams + hand-digs the pad in its body cell (hCol, hSpd→0, " +
+            "and the floating bot rams + hand-digs the pad in the cell it occupies (hCol, hSpd→0, " +
             "attack=true) — a ~5-15 s bob-jam per pad (live #47 dig-stalls at -830,363 / -817,298). " +
             "Reuses padCellTax's exact predicate (isWater(foot) && isBreakableObstruction(foot+1)) " +
             "WITHOUT the XZ gate; no cluster requirement (a lone pad trips it). A lily pad is neither " +
@@ -475,7 +475,7 @@ public final class SettingsDocs {
         e("walkerVineFreeHangClimb",
             "bool — sustain a climb on a FREE-HANGING (wall-less) vine: hold jump continuously + " +
             "center-seek the column instead of pressing toward the path node (which ejects a " +
-            "buoy-free body off a wall-less vine into the water below). Wall-backed vines keep the " +
+            "bot that is not buoyed by water off a wall-less vine into the water below). Wall-backed vines keep the " +
             "wall-press path. On by default"),
         e("walkerVineLandGrab",
             "bool — grab a free-hanging vine at the parkour LANDING apex (the tick foot first becomes " +
@@ -484,9 +484,9 @@ public final class SettingsDocs {
             "up. On by default"),
         e("walkerVineDescentDrop",
             "bool — release the vine CLING when the IMMEDIATE committed node is at/below the foot " +
-            "(wp.y<=foot.y, i.e. NOT a climb). Stops the buoyant body bobbing pinned on a vine " +
+            "(wp.y<=foot.y, i.e. NOT a climb). Stops the buoyant bot bobbing pinned on a vine " +
             "curtain that HANGS over a bank/inlet the path skims at one Y (climbUp oscillates with " +
-            "the y-bob, zero XZ progress — the -672 inlet vine-bob, ~10 s); the body drops off the " +
+            "the y-bob, zero XZ progress — the -672 inlet vine-bob, ~10 s); the bot drops off the " +
             "vine and the normal walk/stepDown resumes. A genuine vine ascent (wp ABOVE the foot) is " +
             "untouched. On by default"),
         e("elytraDebug", "bool — log per-tick elytra flight controller decisions; off by default"),
@@ -642,15 +642,15 @@ public final class SettingsDocs {
         e("equipDurabilityThreshold",
             "[0,1] dflt 0.1 — remaining-durability fraction below which mc.bot.equip reports an item in lowDurability"),
         e("riskBias.scale", "[0,400] dflt 15 — max extra A* cost a risk-100 edge pays under riskBias (10 = one walk block)"),
-        e("pathfinder.sliceMs", "[1,50] dflt 6 — per-tick compute slice, ms, of a search while the body walks"),
-        e("pathfinder.idleSliceMs", "[1,50] dflt 30 — per-tick compute slice, ms, while the body stands waiting for a path"),
+        e("pathfinder.sliceMs", "[1,50] dflt 6 — per-tick compute slice, ms, of a search while the bot walks"),
+        e("pathfinder.idleSliceMs", "[1,50] dflt 30 — per-tick compute slice, ms, while the bot stands waiting for a path"),
         e("pathfinder.lavaDangerPenalty",
             "[0,5000] dflt 300 — cost added per lava cell adjacent to a stand position when avoidDanger is on"),
         e("pathfinder.contactDangerPenalty",
             "[0,1000] dflt 60 — cost added per contact-damage block (cactus, berry bush, magma, …) adjacent to a " +
             "stand position"),
         e("pathfinder.ledgeDangerPenalty",
-            "[0,1000] dflt 200 — cost of a stand position at the lip of a drop the body would not survive, when " +
+            "[0,1000] dflt 200 — cost of a stand position at the lip of a drop the bot would not survive, when " +
             "avoidDanger is on"),
         e("pathfinder.ledgeDangerMinDrop",
             "[1,64] dflt 4 — least drop (blocks) ledgeDangerPenalty counts; the tax fires at the larger of this " +

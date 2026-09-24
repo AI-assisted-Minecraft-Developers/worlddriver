@@ -9,7 +9,7 @@ import net.magicterra.worlddriver.rpc.JsonCodec;
 
 /**
  * A hand-built scene as its {@code <name>.json} describes it. The terrain itself is in the
- * sibling {@code <name>.nbt}; this is everything else: where the body starts, what it holds, what
+ * sibling {@code <name>.nbt}; this is everything else: where the bot starts, what it holds, what
  * it is told to do, and what the markers said must hold. Plain data, encoded and decoded through
  * {@link JsonCodec} so the file is the same JSON the transports speak.
  *
@@ -38,7 +38,7 @@ public record SceneFixture(
         Map<String, Object> expect,
         String verdicts) {
 
-    /** One thing the body is told to do, in order. */
+    /** One task the bot is told to perform, in order. */
     public record Leg(String verb, int[] goal, String goalKind, int budget, Map<String, Object> route,
             Map<String, Object> params) {}
 
@@ -60,10 +60,10 @@ public record SceneFixture(
     }
 
     /**
-     * This fixture (positions and legs as the markers in the world say now) with what only the
-     * file can say taken from {@code file}: the body, what it holds and wears, the config, the
-     * accepted numbers, the verdicts file. An in-place run by name uses this so hand edits to the
-     * JSON apply while the markers stay the truth for where things are.
+     * This fixture (positions and tasks as the markers in the world say now) with what only the
+     * file can say taken from {@code file}: the kind of bot ({@code body}), what it holds and wears,
+     * the config, the accepted numbers, the verdicts file. An in-place run by name uses this so hand
+     * edits to the JSON apply while the markers stay the truth for where things are.
      */
     public SceneFixture withFileOf(SceneFixture file) {
         return new SceneFixture(name, author, created, terrain, size, origin, placedAt, chunkRadius,
@@ -152,7 +152,7 @@ public record SceneFixture(
         Object legsRaw = m.get("legs");
         if (legsRaw instanceof List<?> ll) {
             for (Object o : ll) {
-                if (!(o instanceof Map<?, ?> l)) throw new IllegalArgumentException("scene fixture: a leg is not an object");
+                if (!(o instanceof Map<?, ?> l)) throw new IllegalArgumentException("scene fixture: an entry of 'legs' is not an object");
                 legs.add(new Leg(str(l, "verb", "goto"),
                         l.get("goal") == null ? null : intsOf(l.get("goal"), "legs[].goal", 3),
                         str(l, "goalKind", null),

@@ -10,11 +10,11 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 
 /**
- * A body the API addresses by name: what the {@code mc.bot.*} verbs that take {@code body} need from
- * a body that is not this client's own.
+ * A bot the API addresses by name: what the {@code mc.bot.*} verbs that take {@code body} need from
+ * a controlled entity that is not this client's own player.
  *
  * <p>A host runs one process at a time and the server tick advances it, so every method here is
- * called on the server thread. The client's body is not a host. {@code self} keeps going through
+ * called on the server thread. The client player is not a host. {@code self} keeps going through
  * {@code BotApi}, with the scheduler, chains and reflexes a host does not have.
  */
 public interface BodyHost {
@@ -25,7 +25,7 @@ public interface BodyHost {
     /** {@code player} or {@code npc}. */
     String kind();
 
-    /** The body its processes drive; its {@link Body#hands()} is what the hand verbs act through. */
+    /** The {@link Body} its processes drive; its {@link Body#hands()} is what the hand verbs act through. */
     Body body();
 
     /** The entity, or null once there is none. */
@@ -37,7 +37,7 @@ public interface BodyHost {
     /** Whether a process is running. */
     boolean busy();
 
-    /** {@code {kind, error}} of the last process ending, or null: the body's {@code lastProcessEnd},
+    /** {@code {kind, error}} of the last process ending, or null: the bot's {@code lastProcessEnd},
      *  with {@code error} null only when the process did what it was asked. */
     Map<String, Object> lastProcessEnd();
 
@@ -51,7 +51,7 @@ public interface BodyHost {
     String cancel(String process);
 
     /**
-     * Why the body cannot take an order now, as {@code {ok:false, error, reason}}, or null. The same
+     * Why the bot cannot take an order now, as {@code {ok:false, error, reason}}, or null. The same
      * words the client's {@code BodyReady} uses, judged on the entity instead of on a screen.
      */
     default Map<String, Object> refusal() {
@@ -59,11 +59,11 @@ public interface BodyHost {
         // A removed entity that was not killed has most often gone to disk with its chunk; the id
         // still names it, so this is not unknown_body.
         if (e == null || (e.isRemoved() && e.getRemovalReason() != Entity.RemovalReason.KILLED)) {
-            return refuse(BodyReady.Reason.CHUNK_UNLOADED, "body " + id() + " is not in a loaded chunk");
+            return refuse(BodyReady.Reason.CHUNK_UNLOADED, "bot " + id() + " is not in a loaded chunk");
         }
-        if (!e.isAlive()) return refuse(BodyReady.Reason.DEAD, "body " + id() + " is dead");
+        if (!e.isAlive()) return refuse(BodyReady.Reason.DEAD, "bot " + id() + " is dead");
         if (!e.level().hasChunkAt(e.blockPosition())) {
-            return refuse(BodyReady.Reason.CHUNK_UNLOADED, "the chunk under body " + id() + " is not loaded");
+            return refuse(BodyReady.Reason.CHUNK_UNLOADED, "the chunk under bot " + id() + " is not loaded");
         }
         return null;
     }

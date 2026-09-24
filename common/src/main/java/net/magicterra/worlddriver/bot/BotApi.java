@@ -29,7 +29,7 @@ public interface BotApi {
      */
     Map<String, Object> combat(Map<String, Object> params);
     /**
-     * Phase F — equip the best armor on every body slot and (unless
+     * Phase F — equip the best armor in every armor slot and (unless
      * {@code armorOnly}) the best weapon in the main hand, scoring material tier
      * then enchantments. Synchronous; returns {equipped, loadout, lowDurability,
      * missing} so the caller (T2) can go repair / craft a missing piece.
@@ -165,9 +165,9 @@ public interface BotApi {
     // Why that matters: {@code BotProcess.tick(Minecraft,...)} default-bridges to
     // {@code tick(Body,...)} over a {@code ClientPlayerBody}, so the SAME process
     // object drives a client {@code LocalPlayer} here and a headless {@code FakePlayer}
-    // under {@code ServerWorldDriver}. That is the whole point of the Body seam, and
+    // under {@code ServerWorldDriver}. That is the whole point of the bot interface, and
     // without these three the only in-JVM caller of it — the playthrough ladder — had to
-    // spawn a fake body even on a topology that has a real player standing right there.
+    // spawn a fake player even on a topology that has a real player standing right there.
 
     /**
      * Run {@code process} as the foreground user task on the real player.
@@ -183,13 +183,13 @@ public interface BotApi {
     Map<String, Object> runProcess(BotProcess process);
 
     /**
-     * One self-consistent reading of the leg {@link #runProcess} started:
+     * One self-consistent reading of the user task {@link #runProcess} started:
      * {@code {seq:long, busy:bool, kind:String|null, error:String|null}}.
      *
      * <p><b>One call, not two, and that is the point.</b> "Is it still running" and "how did
      * it end" are separate volatiles updated by the client thread while the caller reads
      * from the server thread, and two atomic reads do not compose into an atomic pair: a
-     * poll landing between them sees {@code busy=false} beside the PREVIOUS leg's ending, so
+     * poll landing between them sees {@code busy=false} beside the PREVIOUS task's ending, so
      * "this process run has just completed" and "the previous run completed long ago and this one
      * is not installed yet" render identically. This repo has already paid for that exact shape —
      * a {@code null} that meant "not computed yet" read as "computed as zero". So the whole reading is published as one immutable snapshot and handed
@@ -203,7 +203,7 @@ public interface BotApi {
      * <p>{@code error} is non-null when the process did not do what it was asked: it gave up
      * ({@link BotProcess#failure()}), it threw, or a
      * higher-priority chain (panic / dodge / combat) cancelled it. A caller that ignores this
-     * cannot tell a leg a creeper interrupted from a leg that finished, because {@code busy}
+     * cannot tell a task a creeper interrupted from a task that finished, because {@code busy}
      * goes false for both.
      *
      * <p>{@code seq} increments once per {@code runProcess}, so a caller can tell a stale
@@ -228,7 +228,7 @@ public interface BotApi {
      * through a server-side {@code ServerPlayerBody} instead: the server's selected slot went to 4
      * and the client's stayed at 0; the server's aim went to (−55.32, 29.55) and the client's stayed
      * at (283.23, 0.00) — identical ten ticks later, so nothing propagated in either direction. The
-     * two sides simply hold unrelated values, and every such write lands on a body nobody is
+     * two sides simply hold unrelated values, and every such write lands on a player nobody is
      * steering. {@code ClientPlayerBody} does the same operations the way vanilla requires:
      * {@code setSelectedSlot} sends {@code ServerboundSetCarriedItemPacket}, and the aim moves the
      * player the server is receiving movement packets from.
@@ -240,7 +240,7 @@ public interface BotApi {
      * <p>An earlier version of this comment required callers to invoke through a client-thread hop
      * they do not wait on. <b>No caller does that, and worse, no caller CAN</b> — the requirement was
      * incoherent, so it is stated here as the open defect it is rather than as a rule that looks
-     * satisfied. StageWright scene bodies run on the server thread, and the call sites in
+     * satisfied. StageWright scenes run their code on the server thread, and the call sites in
      * {@code JourneyRig.avatar()}'s users are plain inline calls; on an integrated server they
      * therefore touch {@code mc.player}'s inventory and rotation, and send packets, from the wrong
      * thread.
@@ -298,12 +298,12 @@ public interface BotApi {
     Map<String, Object> elytraFly(Map<String, Object> params);
 
     /**
-     * The standard refusal when the body cannot take an order right now — no player, a world still
+     * The standard refusal when the bot cannot take an order right now — no player, a world still
      * loading, a dead player, a paused game, a bed, a chunk not yet on the client — or null when it
      * can. {@link BodyReady} decides and shapes it ({@code {ok:false, error, reason}}); this is the
-     * client-thread read of it that {@code DriverApi} puts in front of every body verb, so the same
-     * refusal comes back on every transport instead of {@code started: true} for a body that cannot
-     * move. Reads only; starts nothing.
+     * client-thread read of it that {@code DriverApi} puts in front of every verb that acts on the
+     * bot, so the same refusal comes back on every transport instead of {@code started: true} for
+     * a bot that cannot move. Reads only; starts nothing.
      */
     Map<String, Object> bodyRefusal();
 }

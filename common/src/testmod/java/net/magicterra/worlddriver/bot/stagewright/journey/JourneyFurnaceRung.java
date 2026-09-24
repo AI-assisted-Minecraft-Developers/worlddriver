@@ -38,7 +38,7 @@ final class JourneyFurnaceRung {
      *
      * <p><b>The happy path still does no walking and no mining</b>, and that is deliberate: a rung
      * that is purely a 3×3 craft is the cheapest possible regression sensor for the station-menu
-     * seam — if a server body's table ever stops opening again, this is the rung that says so in eight
+     * seam — if a server-side player's table ever stops opening again, this is the rung that says so in eight
      * seconds rather than the iron rung saying it after a two-minute dig. The top-up is a no-op when
      * the bag is full enough, so that property survives.
      *
@@ -77,8 +77,8 @@ final class JourneyFurnaceRung {
         // Does the band the scan will sweep even HOLD stone? Same vertical radius MineProcess uses,
         // so this asks the scan's own question rather than a nearby one — and it is the reading that
         // separates the two ways the cheap attempt can come back empty. Measured, the failing run
-        // had the body sixteen courses up a tower at y=78 over terrain at 63, which put the whole
-        // ±8 band in the air: "none" here means the world under the body's feet was never in scope,
+        // had the bot sixteen courses up a tower at y=78 over terrain at 63, which put the whole
+        // ±8 band in the air: "none" here means the world under the bot's feet was never in scope,
         // and a coordinate means there WAS a candidate and something else refused it.
         rig.evidence("furnace.topUp.stoneInBand", String.valueOf(
                 rig.nearestBlock("minecraft:stone", 32, BotConfig.mineSearchVerticalRadius)));
@@ -104,8 +104,8 @@ final class JourneyFurnaceRung {
     /**
      * The top-up's second answer: go where the survey certified there is stone.
      *
-     * <p>The cheap attempt above mines from wherever the rung below happened to leave the body, and
-     * that is exactly the assumption that failed — a body standing above the terrain has no stone in
+     * <p>The cheap attempt above mines from wherever the rung below happened to leave the bot, and
+     * that is exactly the assumption that failed — a bot standing above the terrain has no stone in
      * the scan's ±8 band no matter how wide the horizontal radius is. This is the same four steps
      * the stone rung runs and passes with (walk to the column, sink, mine, climb out), on the same
      * surveyed coordinates, so it inherits that rung's corrections rather than re-deriving them:
@@ -117,7 +117,7 @@ final class JourneyFurnaceRung {
      * own hole". Climbing out costs about one block per course, so the bill is the shortfall plus
      * the depth this shaft will sink plus a margin.
      *
-     * <p>Insurance, and expected never to fire once the bed rung stops leaving the body on a tower.
+     * <p>Insurance, and expected never to fire once the bed rung stops leaving the bot on a tower.
      * A run in which these rows are absent is a run that did not need them — which is why the
      * shortfall row above is written whether or not this is reached.
      */

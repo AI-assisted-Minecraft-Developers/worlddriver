@@ -3,17 +3,17 @@
 ## The problem
 
 The pathfinder never touches the level directly. It asks a `WorldView` three kinds of
-question about a cell: can the body pass through it (`isPassable`), can the body stand on
+question about a cell: can the player pass through it (`isPassable`), can the player stand on
 it (`canStandOn`), and what does breaking it cost (`breakCost`). Three implementations of
 that interface read a real level:
 
-| View | Used by | Body |
+| View | Used by | Player |
 |---|---|---|
 | `bot/ClientWorldView` | `BotApiImpl` on a shipping client, and `PlanProbeTool` | the real player, a `LocalPlayer` |
-| `bot/world/LevelWorldView` | `ServerWorldDriver`, the `wd.*` scenes, the journey harness | a server-side body |
+| `bot/world/LevelWorldView` | `ServerWorldDriver`, the `wd.*` scenes, the journey harness | a server-side player |
 | `bot/world/ServerWorldView` | `mc.observe.scene` and `WalkerGeometry`'s read-only probes | none |
 
-Each of them used to answer those questions with its own method body, and the three bodies
+Each of them used to answer those questions with its own method body, and the three implementations
 disagreed. Running the parity scene `wd.clientWorldViewParity`, which stands in one world
 and puts the same question to two views side by side, produced 67 disagreements out of
 1650 questions over 50 terrain types, in three families:
@@ -28,7 +28,7 @@ both were wrong, in opposite directions.
 cell, which rejects slabs, soul sand, mud, farmland, dirt paths and honey blocks. The server
 asked only whether the block stops motion, which accepts fences, walls and stairs as floor.
 
-**Passage.** The client let a body through a pressure plate or a closed trapdoor as a thin
+**Passage.** The client let a player through a pressure plate or a closed trapdoor as a thin
 floor decoration; the server treated both as walls.
 
 The consequence was not that scenes failed. It was worse: they passed, against a different
@@ -40,17 +40,17 @@ have planned.
 All three views delegate to one class, `bot/world/CellRules`, so each rule is written once.
 
 **`isPassable`** accepts air and water. With `BotConfig.collisionAwarePathing` on it also
-accepts two more cases: a collision shape that misses the 0.6-wide body column entirely
+accepts two more cases: a collision shape that misses the 0.6-wide column of the player's hitbox entirely
 (cocoa pods, single-axis glass panes, the bulge on a wall), and a shape that hugs the floor
 and is no taller than `BotConfig.pathfinderThinObstacleHeight` (pressure plates, carpets,
 lily pads, a closed bottom trapdoor).
 
 **`canStandOn`** requires the block to stop motion with a non-empty collision shape, to have
 a top face no higher than its own cell — a fence or wall tops out at 1.5, so the feet land
-in the cell above rather than in this one — not to be a thin decoration, since the body
-stands *in* that cell rather than on top of it, and to intersect the body column. The
+in the cell above rather than in this one — not to be a thin decoration, since the player
+stands *in* that cell rather than on top of it, and to intersect the player's hitbox column. The
 fourteen-sixteenths and fifteen-sixteenths family (soul sand, mud, farmland, dirt path,
-honey block), bottom slabs, chests and crafting tables are all floor, because a body really
+honey block), bottom slabs, chests and crafting tables are all floor, because a player really
 does stand on them.
 
 **`isBreakableObstruction`** is a non-air, non-fluid block with a collision shape that a bare
@@ -66,8 +66,8 @@ effects and the efficiency enchantment are snapshotted once per search in
 `CellRules.DigSnapshot`.
 
 Pose-dependent slowdowns — eyes underwater, feet off the ground — are deliberately **not**
-in `breakCost`. They describe where the body is now, not what a future dig will cost, and
-folding them in would make a search result depend on the body's posture at the moment the
+in `breakCost`. They describe where the bot is now, not what a future dig will cost, and
+folding them in would make a search result depend on the bot's posture at the moment the
 search happened to start.
 
 ## What each view still keeps for itself
@@ -100,7 +100,7 @@ cell below, at, and above each one, recording only the rows where two views disa
 criterion is zero rows. On a dedicated server it skips, because there is no client view to
 compare against. Run it before and after touching `CellRules` or adding a view.
 
-One trap in the staging: the palette has to be laid out in a grid beside the body, not in a
+One trap in the staging: the palette has to be laid out in a grid beside the player, not in a
 line running away from it. The client only holds the chunks near the player, and cells in
 chunks it has not received read as air on its side — which the scene faithfully records as a
 long list of disagreements that do not exist.

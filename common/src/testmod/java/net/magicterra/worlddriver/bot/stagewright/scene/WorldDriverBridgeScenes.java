@@ -24,10 +24,10 @@ import net.minecraft.world.level.block.Blocks;
  * Single-width plank-bridge battery: a systematic sweep of 1-wide elevated
  * walkways — flat runs, hurdles, bypass routing, dead ends, stairs, broken descents,
  * foothold placement and dig-vs-detour economics. The family-wide contract is
- * <b>"traverse (or stop) WITHOUT falling off"</b>: every scene tracks the body's
+ * <b>"traverse (or stop) WITHOUT falling off"</b>: every scene tracks the player's
  * minimum Y through the whole run and fails if it ever dropped below the lowest
  * legitimate deck level, and every rig hangs a catch floor 10 blocks under the deck
- * so a shed body lands inside the slot instead of leaving the arena (void-fall rig
+ * so a player that falls off lands inside the slot instead of leaving the arena (void-fall rig
  * rule; the catch floor is itself a failure detector, not a route).
  *
  * <p>Dedicated-topology caveats (same class as the documented DIG-hold / GEAR-degraded
@@ -40,10 +40,10 @@ import net.minecraft.world.level.block.Blocks;
  *       {@code ClientWorldView} (bucketFallReady) and the {@code ClutchController} is
  *       ticked from the client tick — a dedicated-server LevelWorldView can never emit
  *       or actuate {@code fallBucket*}. The lethal-gap scene therefore covers the
- *       bucket-less leg (MUST refuse the drop and hold the lip); the "with bucket →
- *       MLG through" leg is live/T1 territory (verified live: drop-10/20 onto 1×1).</li>
- *   <li><b>Digs are instant</b> (1 tick/block) on this topology, so the pickaxe vs
- *       bare-hand legs of the break-through scene share execution speed; what they
+ *       bucket-less case (MUST refuse the drop and hold the lip); the "with bucket →
+ *       MLG through" case is live/T1 territory (verified live: drop-10/20 onto 1×1).</li>
+ *   <li><b>Digs are instant</b> (1 tick/block) on this topology, so the pickaxe and
+ *       bare-hand runs of the break-through scene share execution speed; what they
  *       exercise is the PLANNER's break-cost economics and the dig fallback chain.</li>
  * </ul>
  *
@@ -110,9 +110,9 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 ctx.setBlock(cx + dx, y, cz + dz, Blocks.STONE);
     }
 
-    /** Catch floor: a shed body lands here (inside the slot) instead of leaving the
-     *  arena. Reaching it at all is already a scene failure via the minY guard. The
-     *  3-tall bedrock rim keeps a fallen body from wandering off the slot (rig rule:
+    /** Catch floor: a player that falls off lands here (inside the slot) instead of leaving
+     *  the arena. Reaching it at all is already a scene failure via the minY guard. The
+     *  3-tall bedrock rim keeps a fallen player from wandering off the slot (rig rule:
      *  fence every floor bordering void). */
     private static void catchFloor(SceneContext ctx, int x0, int x1, int y, int z0, int z1) {
         for (int x = x0; x <= x1; x++)
@@ -135,7 +135,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         BlockPos p = ctx.rel(x, standY, z);
         ServerPlayerBody av = SceneBody.avatar(ctx, level, p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
         ServerPlayer fp = av.fakePlayer();
-        ctx.cleanup(() -> { if (!fp.isRemoved()) fp.discard(); });   // breakThrough discards per-leg
+        ctx.cleanup(() -> { if (!fp.isRemoved()) fp.discard(); });   // breakThrough discards per run
         fp.getInventory().clearContent();
         return av;
     }
@@ -153,8 +153,8 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
     /** Drive one walker journey to {@code goal}, capped at {@code n} sim ticks; tracks
      *  the no-fall guard (minY) and the farthest +x progress (origin-relative).
      *  {@code guardStandY}: the scene's lowest legitimate stand level (origin-relative);
-     *  the first tick the body dips below it, the walker's state is snapshotted so a
-     *  fall failure reports WHERE and in WHAT state the body left the deck (the final
+     *  the first tick the player dips below it, the walker's state is snapshotted so a
+     *  fall failure reports WHERE and in WHAT state the player left the deck (the final
      *  probe is post-fall and has misled triage before). */
     private static Run drive(SceneContext ctx, ServerPlayerBody av, int n, BlockPos goal, int guardStandY) {
         ServerPlayer fp = av.fakePlayer();
@@ -177,7 +177,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         // window, and the livelock that matters happened hundreds of ticks before the end.
         java.util.List<String> journey = new java.util.ArrayList<>();
         String lastPid = "";
-        // Pin window: the first time the body sits STATIC for 15 ticks mid-journey the
+        // Pin window: the first time the player sits STATIC for 15 ticks mid-journey the
         // rolling trail is snapshotted — arrive-failures wedge long before the terminal,
         // and the end-of-run trail only shows the FAILED epilogue.
         String pinWindow = null;
@@ -250,12 +250,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 && r.fp().getY() >= goal.getY() - 0.5;
     }
 
-    /** Family-wide no-fall guard: the body must never have dropped below the lowest
+    /** Family-wide no-fall guard: the player must never have dropped below the lowest
      *  legitimate deck stand level of the scene. */
     private static void assertNeverFell(SceneContext ctx, String scene, Run r, int lowestStandY) {
         double floorAbs = ctx.origin().getY() + lowestStandY - 0.5;
         if (r.minY() < floorAbs)
-            ctx.fail(scene + ": body dropped below the deck (minY=" + r.minY() + " < " + floorAbs
+            ctx.fail(scene + ": the bot dropped below the deck (minY=" + r.minY() + " < " + floorAbs
                     + ") — fell off the bridge | " + r.breach() + " | final " + r.walker().progressProbe());
     }
 
@@ -527,7 +527,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         liveStack(ctx);
         BotConfig.allowPlace = true;
         // Live shape (replay-0013): the lip is MOUNTED BY A STEP-UP right before the
-        // descending place — the wedge fired while the body was still climbing onto
+        // descending place — the wedge fired while the bot was still climbing onto
         // the lip (the actuator freeze mid-step-up dropped it back down the stair,
         // x 89.81→89.28, 74× climb-slide-repath).
         pad(ctx, -2, DECK + 2, 0);
@@ -653,7 +653,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         // Branch: leave around x=8, climb +1 at x=11 and +1 at x=13 along z=5, rejoin the
         // high deck around x=14. Branch parallels the mainline at z=5 — OUTSIDE the
         // carrot/adoption snap radius (~3-4): at z=3 the fast-forward adopted the branch
-        // node while the body was still on the mainline and the drive dragged it off the
+        // node while the bot was still on the mainline and the drive dragged it off the
         // deck chasing a laterally-snapped carrot (t0 2026-07-20 round 2, breach@t=66).
         // Junctions are SOLID slabs, not 1-wide L-connectors: every thin L-junction
         // exposes a LEGAL parkour2d shortcut across its inside corner (the diagonal

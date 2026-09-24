@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * A follow re-aims its walker every time the target changes block. If that re-aim is a fresh goal,
- * the futile-search counter goes back to zero each time, so a target the body cannot reach never
+ * the futile-search counter goes back to zero each time, so a target the bot cannot reach never
  * trips the cap and the walker runs a full search per tick for as long as the follow lasts.
  */
 class FollowRegoalTest {

@@ -1,4 +1,4 @@
-# The scheduler: who owns the body this tick
+# The scheduler: which behaviour controls the bot this tick
 
 ## The problem
 
@@ -6,7 +6,7 @@ The original execution model had one foreground slot: a single process field tha
 overwrote. That is enough for "go there" and not enough for anything autonomous. A bot mining
 when a zombie arrives needs to fight and then *go back to mining*, which an overwriting slot
 cannot express; a boss fight needs a main behaviour with dodging and healing layered on top of
-it; and an emergency needs to take the body away from whatever was driving it and give it back
+it; and an emergency needs to take the bot away from whatever was driving it and give it back
 afterwards.
 
 There was one piece of the answer already in the tree and it turned out to be the right piece.
@@ -19,7 +19,7 @@ early return at the top of the tick, which is a preemption with no name.
 
 ### Two mechanisms, split by which channel they contend for
 
-Behaviours that decide **where the body goes** bid for one slot. Behaviours that only produce a
+Behaviours that decide **where the bot goes** bid for one slot. Behaviours that only produce a
 **momentary hand or equipment effect** — raise a shield, eat, drink, swap a tool, replace a
 totem, re-armour — run alongside movement under channel ownership, exactly as they already did.
 
@@ -33,7 +33,7 @@ if it wins. A priority of zero or less means "not participating", so a chain tha
 do simply does not compete. When a higher bid arrives the incumbent is told it was interrupted
 and releases its inputs; when it wins again it is resumed.
 
-Resuming forces a replan rather than continuing the old path. During the interruption the body
+Resuming forces a replan rather than continuing the old path. During the interruption the bot
 may have been knocked back and the terrain may have changed, and reusing a stale path walks into
 a wall.
 
@@ -44,13 +44,13 @@ and the foreground user task sits near the bottom, above only the behaviour that
 idle time.
 
 A challenger must beat the incumbent by `Priorities.HYSTERESIS` (5) rather than merely exceed it,
-so two chains with near-equal bids do not trade the body every tick.
+so two chains with near-equal bids do not trade control of the bot every tick.
 
 ### A chain that gives up sits out for a cooldown it names
 
 Because a bid is a function of the situation, giving up does not lower it: the situation that made
 the chain bid is still there on the next tick, so the chain bids the same band again, runs, gives up
-again, and nothing below it ever gets the body. A chain that gives up therefore calls
+again, and nothing below it ever gets control of the bot. A chain that gives up therefore calls
 `ProcessScheduler.bail(chain, reason, cooldownTicks)`. For the next `cooldownTicks` ticks the
 scheduler records that chain's bid as 0 and does not ask it for a priority at all, so a debounce
 inside the chain starts over instead of running on while it sits out. The scheduler owns the clock;
@@ -107,7 +107,7 @@ pathfinding change, or the two effects cannot be told apart afterwards.
 **A gate must consume the authoritative signal rather than re-derive it.** The retreat gate built its
 own picture of the threat instead of reacting to the damage event, so being hurt by something it did
 not classify produced no reaction at all. It became a pure function over a single situation object,
-with an unconditional leg for having been hurt. That leg was then narrowed by live evidence: firing at
+with an unconditional branch for having been hurt. That branch was then narrowed by live evidence: firing at
 any health meant a healthy bot fled from one hit, which is its own way to die.
 
 **Shelter-seeking needed a tier that can preempt.** It was priced below any user task, so a bot walking

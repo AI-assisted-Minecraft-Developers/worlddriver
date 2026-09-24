@@ -1,6 +1,6 @@
 # The movement tick phases
 
-`Walker` decides what the body does on every tick. That decision was once a single method
+`Walker` decides what the bot does on every tick. That decision was once a single method
 several thousand lines long. It is now a fixed pipeline of phase classes, each in its own
 file under `common/src/main/java/net/magicterra/worlddriver/bot/movement/`, driven from
 `Walker#tickInner`.
@@ -57,7 +57,7 @@ holders those fields are grouped into. The context is organised by the phase tha
 
 | Group | Produced by | What it carries |
 |---|---|---|
-| `frame` | Prelude | The resolved body and the anchor cells every later phase keys off. Phases that move the body re-derive the foot cell. |
+| `frame` | Prelude | The resolved entity being driven and the anchor cells every later phase keys off. Phases that move the entity re-derive the foot cell. |
 | `stall` | StallDetect | The stall and deviation verdict the repath and search stages consume. |
 | `edges` | Climb and EdgeGuards | The committed edge under execution and its guard classifications, consumed by Aim and Drive. |
 | `aim` | Aim | The full aim, camera and drive-shaping plan that Drive executes. |
@@ -98,7 +98,7 @@ keyed off the first writer in driver order, which stays correct when that happen
 `WalkerTickProgress` can replace the whole path and fall through on the new one. Almost
 everything downstream re-derives after the swap: the committed edge comes from the
 walker's own lookup in Climb and the waypoint from EdgeGuards, both after the replacement,
-and the foot cell stays valid because no phase moves the body — the position only changes
+and the foot cell stays valid because no phase moves the bot — the position only changes
 at the physics step after the pipeline.
 
 The exception is the breaking-edge flag in the stall group. StallDetect computes it from

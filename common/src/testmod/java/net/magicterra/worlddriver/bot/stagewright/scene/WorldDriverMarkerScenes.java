@@ -28,7 +28,7 @@ import net.minecraft.world.level.material.Fluids;
 
 /**
  * The marker block's one promise: a tester who puts it in the wrong place has not changed what the
- * body can do. The pathfinder reads {@code blocksMotion} and the collision shape, the body's
+ * bot can do. The pathfinder reads {@code blocksMotion} and the collision shape, the player's
  * physics reads the collision shape, and a scene's terrain is written over markers with
  * {@code setBlock} — all three are held here, on the real {@link Walker}. The same promise on
  * water: a marker in a source cell keeps the cell a source and survives the neighbours' flow.
@@ -41,8 +41,8 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
     }
 
     /**
-     * A three-deep wall of markers, every role, two high, right across the body's path on a flat
-     * floor; the body walks six cells through it. Then the entity's label survives a save/load, and
+     * A three-deep wall of markers, every role, two high, right across the bot's path on a flat
+     * floor; the bot walks six cells through it. Then the entity's label survives a save/load, and
      * a marker gives way to a stone written over it.
      */
     private static void neverBlocksMotion(SceneContext ctx) {

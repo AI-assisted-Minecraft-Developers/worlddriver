@@ -263,7 +263,7 @@ def _split_top(s: str, sep: str) -> list[str]:
 
 
 # `cx`/`cz` is the dominant convention but not a rule — WorldDriverStationScenes
-# binds the same thing to `x0`/`z0`. Read the names out of the body instead of
+# binds the same thing to `x0`/`z0`. Read the names out of the method body instead of
 # assuming them, or those scenes silently contribute no footprint at all.
 ORIGIN_BIND_RE = re.compile(r"\b(\w+)\s*=\s*ctx\.origin\(\)\.get([XZ])\(\)")
 
@@ -283,7 +283,7 @@ def origin_names(body: str) -> list[str]:
 # Third idiom: `BlockPos anchor = ctx.origin();` then `anchor.above(2)`. Pure
 # BlockPos arithmetic — the safest form there is, since above/below cannot leave
 # the origin's X/Z column, but a coordinate-expression scan sees no offset at all
-# and would score the body unresolved.
+# and would score the method body unresolved.
 Y_ONLY = {"above", "below"}
 XZ_SHIFT = {"east": 1, "west": 1, "north": 1, "south": 1}
 
@@ -638,7 +638,7 @@ def self_test() -> int:
     except Unknown:
         ck("interval call rejected", "Unknown", "Unknown")
 
-    # A body shaped like the real ones: bindings feed loop bounds feed offsets.
+    # A method body shaped like the real ones: bindings feed loop bounds feed offsets.
     body = """
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
         final int spanX = 56;
@@ -672,7 +672,7 @@ def self_test() -> int:
 
     # The wd.ledgeOvershoot idiom: the offset lives in the loop header and the
     # position argument is a bare `x`. Scoping to position arguments alone scored
-    # this body [0,0] "fits" while it actually reaches +44.
+    # this method body [0,0] "fits" while it actually reaches +44.
     ledge = """
         final int RUN = 26;
         for (int x = cx + RUN + 1; x <= cx + RUN + 18; x++)

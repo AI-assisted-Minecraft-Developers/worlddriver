@@ -129,7 +129,7 @@ final class InteractionCommands {
             // method carries the BlastFooting rule — rather than a second copy of the guard in
             // front of a direct mc.gameMode.attack. This verb used to be that second copy, and an
             // invariant enforced on two paths is one that comes back through whichever forgot it.
-            // Swung BEFORE the aim, so a refusal returns with the body not yet turned toward
+            // Swung BEFORE the aim, so a refusal returns with the player not yet turned toward
             // something it declined to hit; the server's attack handling reads the packet's
             // target and the distance, never the rotation, so the order costs nothing.
             ClientPlayerBody hands = new ClientPlayerBody(mc);

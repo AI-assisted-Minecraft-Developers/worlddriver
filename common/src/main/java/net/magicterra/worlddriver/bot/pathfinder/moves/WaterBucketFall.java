@@ -40,7 +40,7 @@ public final class WaterBucketFall extends Move {
         BlockPos head = to.offset(0, 1, 0);
         if (!w.isPassable(head) || w.isHazard(head)) return false;
         // Clear falling column (foot AND head) from the launch lip down to
-        // the landing — an overhang anywhere would wedge the falling body.
+        // the landing — an overhang anywhere would wedge the falling player.
         return clearFallColumn(w, from, dx, dz, drop);
     }
     public String name() { return "fallBucket" + drop; }

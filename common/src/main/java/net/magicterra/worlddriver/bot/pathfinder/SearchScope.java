@@ -23,7 +23,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
  * What one search knows about the world beyond its blocks: where it starts, where it is going,
  * which entities were around when it began, and a way to ask whether two points see each other.
  *
- * <p>Holds no entity and no body. A scope that carried the {@code LocalPlayer} would make every
+ * <p>Holds no entity and no bot. A scope that carried the {@code LocalPlayer} would make every
  * class that touches it load client types, which is the class-loading bomb the workspace's rule
  * about {@code Player} parameters exists for. The {@link WorldView} interface is untouched: it
  * still knows nothing about entities.
@@ -93,10 +93,10 @@ public final class SearchScope {
      * keeping the end nearest the start. Every living entity in it except {@code selfId} goes
      * into the snapshot; the components filter by kind themselves.
      *
-     * <p>Not {@code ThreatScanner}: that one is centred on the body and skips players, so a
+     * <p>Not {@code ThreatScanner}: that one is centred on the bot and skips players, so a
      * skeleton standing by the goal is not in its result.
      *
-     * @param selfId the body's entity id, excluded from the scan
+     * @param selfId the bot's entity id, excluded from the scan
      */
     public static SearchScope gather(Level level, int selfId, BlockPos start, Goal goal, SearchProfile profile) {
         int radius = scanRadius(profile);
@@ -115,7 +115,7 @@ public final class SearchScope {
             if (hi[a] - lo[a] <= max) continue;
             truncated = true;
             // Keep the end the start is on: the walk begins there, and the far end is reported
-            // by the route events when the body gets near it.
+            // by the route events when the bot gets near it.
             if (Math.abs(from[a] - lo[a]) <= Math.abs(hi[a] - from[a])) hi[a] = lo[a] + max;
             else lo[a] = hi[a] - max;
         }

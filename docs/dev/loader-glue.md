@@ -12,7 +12,7 @@ and each loader entry point keeps only what has no cross-loader form.
 
 | Method | Called from | What it subscribes |
 |---|---|---|
-| `WorldDriverEvents.register()` | Both loader entry points, once each during mod construction | `LifecycleEvent` SERVER_STARTING, SERVER_STARTED and SERVER_STOPPING; `TickEvent.SERVER_POST`, which fires the script tick and then drives the server-side bodies; `CommandRegistrationEvent`; `BlockEvent.BREAK` and `BlockEvent.PLACE`; `EntityEvent.LIVING_DEATH`; `PlayerEvent.PLAYER_JOIN` and `PLAYER_QUIT`; `ChatEvent.RECEIVED` |
+| `WorldDriverEvents.register()` | Both loader entry points, once each during mod construction | `LifecycleEvent` SERVER_STARTING, SERVER_STARTED and SERVER_STOPPING; `TickEvent.SERVER_POST`, which fires the script tick and then drives the server-side bot players; `CommandRegistrationEvent`; `BlockEvent.BREAK` and `BlockEvent.PLACE`; `EntityEvent.LIVING_DEATH`; `PlayerEvent.PLAYER_JOIN` and `PLAYER_QUIT`; `ChatEvent.RECEIVED` |
 | `WorldDriverClientEvents.subscribe()` | Both client entry points | `ClientTickEvent.CLIENT_POST`, which drives the bot's client tick; `ClientLifecycleEvent.CLIENT_STOPPING`, which releases the input focus policy; `ClientGuiEvent.RENDER_HUD`, which draws the mouse-yield overlay |
 | `WorldDriverClientEvents.install()` | Both client entry points, **on the render thread** | Not a subscription: it constructs the client API and the bot implementation and registers them with `ClientHooks` and `BotHooks` |
 
@@ -57,8 +57,8 @@ vanilla decoration is the identity transform, so the two produce the same text.
 | `WorldDriverFabricClient` | The GAME and CHAT message events, including both `_CANCELED` variants | `mc.client.chat.history` must record lines other mods cancelled, and Architectury's client chat event has no cancelled variant. The two variants register the same method so they cannot drift. |
 | `WorldDriverNeoForgeClient` | The client chat received event with `receiveCanceled = true` | The same reason, expressed in the platform's own form. |
 
-Neither server entry point keeps anything. The server-side body factory and the
-`/worlddriver server` command subtree live in `common`: a body joins through vanilla's own
+Neither server entry point keeps anything. The factory for server-side players and the
+`/worlddriver server` command subtree live in `common`: such a player joins through vanilla's own
 `PlayerList.placeNewPlayer`, which needs no loader API, and the command registers along
 with the rest of `WorldDriverEvents`.
 

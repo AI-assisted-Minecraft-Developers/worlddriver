@@ -64,7 +64,7 @@ public final class LavaProximityEscape {
             lastLava = null;
             // blockPosition(), NOT (int) casts. `(int)` truncates toward zero, so at x=-9.3 it
             // printed -9 while every decision below used foot.getX() == -10 — and on the rehearsal
-            // burn of 2026-08-23 that one digit was the whole question: a body standing ON TOP of
+            // burn of 2026-08-23 that one digit was the whole question: a bot standing ON TOP of
             // a source pool read as merely "adjacent" to it. The two are not cosmetic variants of
             // each other here. `own` (ox==0 && oz==0) is what exempts a cell from the source
             // carve-out in nearestThreat, so own-vs-adjacent decides whether a calm pool can
@@ -96,7 +96,7 @@ public final class LavaProximityEscape {
                 || isLava(mc.level, awayCell.below())
                 || !mc.level.getBlockState(awayCell.below()).blocksMotion();
         if (badVector) {
-            // `open` is this reflex's own notion of a cell the body fits through, and it is
+            // `open` is this reflex's own notion of a cell the player fits through, and it is
             // LOOSER than the contact sibling's: `!blocksMotion()` steps over a carpet or a
             // pressure plate that `getCollisionShape().isEmpty()` refuses. The shared picker
             // takes the test as a parameter so merging the two moved neither.
@@ -113,7 +113,7 @@ public final class LavaProximityEscape {
         // advancing front (the ep-026 shape: the brake vetoes every forward move, the repath loop
         // holds position, the lava arrives) — and that is exactly the case where a movement
         // process is commanding every tick. On the SHARED keybind the steer never reached the
-        // body at all; on commandForward it was discarded whenever the Walker commanded a move.
+        // player at all; on commandForward it was discarded whenever the Walker commanded a move.
         // Either way the reflex was inert precisely on the occasion it was built for.
         ClientPlayerBody a = new ClientPlayerBody(mc);
         a.commandMove(0f, 1f);

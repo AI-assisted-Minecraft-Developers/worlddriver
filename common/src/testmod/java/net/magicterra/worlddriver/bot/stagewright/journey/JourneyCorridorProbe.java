@@ -6,29 +6,31 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 
 /**
- * What the ground under a corridor leg actually looks like, printed as a map.
+ * What the ground under a corridor segment actually looks like, printed as a map.
  *
  * <h2>Why the corridor needed a map before it needed another fix</h2>
  *
  * Rung 14 walks the cells of {@code JourneyNetherRungs.FORTRESS_WAYPOINTS}, baked from a run that
  * reached the fortress. (No count is written here on purpose: the table has been edited since — one
  * waypoint was deleted on 2026-08-22 — and a spelled-out number in prose does not follow it. Ask the
- * array, or read the legs, which print their position as "N/{@code length}".) Legs 8, 9 and 10 came back
- * {@code {bridgePlace=15}}, {@code {bridgePlace=13}}, {@code {bridgePlace=14}} — and {@code walk=0}.
+ * array, or read the segments, which print their position as "N/{@code length}".) Segments 8, 9
+ * and 10 came back {@code {bridgePlace=15}}, {@code {bridgePlace=13}}, {@code {bridgePlace=14}} —
+ * and {@code walk=0}.
  * Not one step on existing ground. ⚠️ Those are readings from THAT run; the two ladder runs of
  * 2026-08-28 carry no bridging reading at all, so they neither confirm nor refute them.
  *
- * <p>That is not a bug in the walker. The waypoints are body positions recorded AFTER that run
+ * <p>That is not a bug in the walker. The waypoints are bot positions recorded AFTER that run
  * bridged, so <b>they describe a causeway, not terrain</b>, and a fresh world has none of it. Every
- * later leg has to rebuild the span it is standing on, and the corridor's pass rate is therefore the
- * per-cell placement success rate raised to the number of laid cells. Legs 11 onward then fail with
- * {@code expanded=100000}, which is what an A* over open sky looks like: with a bridge edge available
- * off every face and no wall to bound the frontier, the search fans out in three dimensions and hits
- * its node cap.
+ * later segment has to rebuild the span it is standing on, and the corridor's pass rate is
+ * therefore the per-cell placement success rate raised to the number of laid cells. Segments 11
+ * onward then fail with {@code expanded=100000}, which is what an A* over open sky looks like: with
+ * a bridge edge available off every face and no wall to bound the frontier, the search fans out in
+ * three dimensions and hits its node cap.
  *
- * <p>Three fixes were argued for on the strength of guesses about what is out there — reroute, split
- * the leg, raise the node cap — and <b>nobody had looked</b>. This looks. It is a measurement and
- * nothing else: it never fails a scene, never changes what a rung does next, and writes only rows.
+ * <p>Three fixes were argued for on the strength of guesses about what is out there — reroute,
+ * split the segment, raise the node cap — and <b>nobody had looked</b>. This looks. It is a
+ * measurement and nothing else: it never fails a scene, never changes what a rung does next, and
+ * writes only rows.
  *
  * <h2>What each map answers</h2>
  *
@@ -38,19 +40,19 @@ import net.minecraft.tags.FluidTags;
  *       honest answer; a band of digits says dry ground exists and the waypoints are simply aimed
  *       beside it.</li>
  *   <li><b>headroom</b> — how many passable cells sit above that floor. <b>This is the one that can
- *       name the killer outright.</b> A bridge edge needs a body-height gap to move into; a ceiling
+ *       name the killer outright.</b> A bridge edge needs a bot-height gap to move into; a ceiling
  *       two or three above the stand level erases every bridge edge across the span, and a search
  *       with no edges to expand reports exactly {@code expanded=100000}. A corridor that looks open
  *       in the stand map and reads {@code 0} or {@code 1} in the headroom map is a roofed tunnel,
- *       and no amount of node budget will get a body through it.</li>
+ *       and no amount of node budget will get a bot through it.</li>
  * </ul>
  *
  * <h2>It generates chunks, and that has to be said out loud</h2>
  *
  * Reading a block in an ungenerated column runs worldgen on the server thread. The probe therefore
- * bounds itself to {@link #SPAN} blocks around the legs it is asked about, and records the wall time
- * it spent plus the fact that it pre-generated terrain. <b>A run carrying this probe is not tick-
- * comparable with one that does not</b> — the chunks are warm afterwards — so a tick count that
+ * bounds itself to {@link #SPAN} blocks around the segments it is asked about, and records the wall
+ * time it spent plus the fact that it pre-generated terrain. <b>A run carrying this probe is not
+ * tick-comparable with one that does not</b> — the chunks are warm afterwards — so a tick count that
  * shifts between a probed and an unprobed run is the probe, not a regression. Saying so here is
  * cheaper than the round it would otherwise cost.
  *
@@ -62,18 +64,19 @@ import net.minecraft.tags.FluidTags;
 final class JourneyCorridorProbe {
     private JourneyCorridorProbe() {}
 
-    /** Half-width, in blocks, of the box probed around the legs of interest. */
+    /** Half-width, in blocks, of the box probed around the segments of interest. */
     private static final int SPAN = 10;
     /** Widest map printed. Beyond this the rows wrap in a terminal and stop being readable. */
     private static final int MAX_COLS = 56;
     private static final int Y_LO = 20;
     private static final int Y_HI = 80;
-    /** How far above the leg's band a floor still counts as a floor this leg could climb onto. */
+    /** How far above the segment's band a floor still counts as a floor this segment could climb
+     *  onto. */
     private static final int ABOVE_BAND = 4;
     /** ...and how far below. Wider than {@link #ABOVE_BAND}: dropping to a ledge is cheap, and the
      *  corridor's real routes have been running a few blocks under the surveyed line all along. */
     private static final int BELOW_BAND = 12;
-    /** A body is two cells tall; this many passable cells above the floor is what a move needs. */
+    /** A bot is two cells tall; this many passable cells above the floor is what a move needs. */
     private static final int BODY_HEIGHT = 2;
 
     /**
@@ -96,7 +99,7 @@ final class JourneyCorridorProbe {
      * eighteen at once, before a single step, for the price of eighteen block reads.
      *
      * <p>Reports three things per waypoint, because the table deliberately mixes FEET cells with
-     * FLOOR cells and no single test fits both: whether the cell itself is solid, whether a body
+     * FLOOR cells and no single test fits both: whether the cell itself is solid, whether a bot
      * could stand in it (air here, air above, something solid below), and where the nearest floor in
      * that column actually is. A reader classifies from those; this does not guess.
      *
@@ -171,7 +174,7 @@ final class JourneyCorridorProbe {
     private static final int STAND_LOOK = 8;
 
     /**
-     * The cell nearest {@code want} that a body could actually stand in — or, honestly, the fact
+     * The cell nearest {@code want} that a bot could actually stand in — or, honestly, the fact
      * that this radius did not find one.
      *
      * <h2>A cube is scanned; a SPHERE is what the answer means</h2>
@@ -187,11 +190,12 @@ final class JourneyCorridorProbe {
      * corners reach {@code 8√3 ≈ 13.9} — does the claim weaken to "nearest among the scanned cells",
      * and the row says so.
      *
-     * <p>Standable means what {@code auditWaypoints} means by it and what a 1.8-tall body needs: the
-     * cell and the one above it clear, the one below solid. {@code solid} asks the COLLISION shape,
-     * so lava is never a floor here — which is right, and is also why the floor is NAMED and asked
-     * separately about lava: a netherrack ledge with lava lapping at it is standable and lethal, and
-     * a row that printed only "standable" would send a re-bake at it. Print the value, not the verdict.
+     * <p>Standable means what {@code auditWaypoints} means by it and what a 1.8-block-tall player
+     * needs: the cell and the one above it clear, the one below solid. {@code solid} asks the
+     * COLLISION shape, so lava is never a floor here — which is right, and is also why the floor is
+     * NAMED and asked separately about lava: a netherrack ledge with lava lapping at it is standable
+     * and lethal, and a row that printed only "standable" would send a re-bake at it. Print the
+     * value, not the verdict.
      *
      * <p>The count is the SEARCH REGION's size, the same quantity {@code JourneyFireCensus.scanned}
      * reports and for the same reason: a "not found" from a search that never ran looks exactly like
@@ -239,14 +243,14 @@ final class JourneyCorridorProbe {
     /**
      * Probe the box spanning {@code from} and the next {@code legs} waypoints, and write the maps.
      *
-     * <p>Keyed {@code <what>.probe.*}. Call it once, at the leg that is failing — probing every leg
-     * would pre-generate the whole corridor and cost more wall time than the rung has.
+     * <p>Keyed {@code <what>.probe.*}. Call it once, at the segment that is failing — probing every
+     * segment would pre-generate the whole corridor and cost more wall time than the rung has.
      */
     static void record(JourneyRig rig, String what, BlockPos from, int[][] waypoints, int i, int legs) {
         int x0 = from.getX(), x1 = from.getX(), z0 = from.getZ(), z1 = from.getZ();
-        // The reference height the maps are cut at — the surveyed line this leg was walking, NOT the
-        // body's current Y. The body that triggers this probe has usually fallen; cutting the map at
-        // where it ended would map the hole it is lying in instead of the route it failed to walk.
+        // The reference height the maps are cut at — the surveyed line this segment was walking, NOT
+        // the bot's current Y. The bot that triggers this probe has usually fallen; cutting the map
+        // at where it ended would map the hole it is lying in instead of the route it failed to walk.
         int ref = waypoints[Math.min(waypoints.length - 1, i)][1];
         for (int k = i; k < Math.min(waypoints.length, i + legs); k++) {
             x0 = Math.min(x0, waypoints[k][0]); x1 = Math.max(x1, waypoints[k][0]);
@@ -300,23 +304,23 @@ final class JourneyCorridorProbe {
     }
 
     /**
-     * The highest standable floor <b>at or just above the leg's own band</b> — not the highest in
-     * the world column.
+     * The highest standable floor <b>at or just above the segment's own band</b> — not the highest
+     * in the world column.
      *
      * <h2>The first cut of this scanned from the sky down, and produced a true map of the wrong
      * thing</h2>
      *
-     * Leg 5 aims at {@code 72,42,85}. Scanning from {@code Y_HI} down, that column reports
+     * Segment 5 aims at {@code 72,42,85}. Scanning from {@code Y_HI} down, that column reports
      * {@code y=67}, and its neighbours 66–69: a massif. Read literally, the map says the waypoint is
      * buried twenty-five blocks under a mountain and the route is impossible. <b>It is not</b> — the
      * previous run stood at {@code 71,43,85}. The corridor runs through a CAVE beneath that massif,
      * and a topmost-surface scan cannot see a cave by construction.
      *
-     * <p>So the reference is the leg's band ceiling, and the scan starts a little above it. What
-     * comes back is the floor a leg could actually be routed along, which is the only question this
-     * probe was ever asked. Columns whose only floor is far below the band still read
+     * <p>So the reference is the segment's band ceiling, and the scan starts a little above it. What
+     * comes back is the floor a segment could actually be routed along, which is the only question
+     * this probe was ever asked. Columns whose only floor is far below the band still read
      * {@code Integer.MIN_VALUE} and print {@code .}, because a floor thirty blocks down is not this
-     * leg's floor either.
+     * segment's floor either.
      *
      * <p>A surveyed cell is not its column — this suite has paid for that sentence before, and the
      * probe written to end the guessing reproduced it on its first run.

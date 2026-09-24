@@ -49,13 +49,13 @@ public final class LookController {
      *  <p>That makes the WIND row below say something other than what it looks like: with
      *  no reset, {@code turns} / {@code netDrift} / {@code ticks} accumulate from the first
      *  tick {@code walkerDebug} was ever on, for the life of the JVM. A row read against
-     *  one leg, one rung or one replay is answering a question about the whole session —
+     *  one walk, one rung or one replay is answering a question about the whole session —
      *  the instrument is fine, the window is not the one a reader assumes. Correlate it by
      *  DIFFERENCING two rows, never by taking one row's value.
      *
      *  <p><b>And a caller is the wrong fix, so do not add one.</b> These accumulators are
      *  {@code static}: one copy per JVM, however many readers. A reset serves whoever called it
-     *  by zeroing the window of every other reader at the same time — two legs, two rungs or a
+     *  by zeroing the window of every other reader at the same time — two walks, two rungs or a
      *  scene and a replay reading at once would silently truncate each other, and the corruption
      *  looks exactly like a short quiet stretch. {@code futileGateBuckets} met this and chose
      *  differencing for that reason; {@code WalkerCensus} is the same shape again. A reader that
@@ -76,7 +76,7 @@ public final class LookController {
     public static void resync() { havePrev = false; }
 
     /** Clamp this tick's net camera change. Call once, at the very end of the client
-     *  tick, after every bot actuator has written the body's rotation. Takes any
+     *  tick, after every bot actuator has written the bot's rotation. Takes any
      *  {@link LivingEntity}: yaw, pitch, head and body rotation all live there, so the
      *  clamp reads the same on a driven mob as on the local player. */
     public static void apply(LivingEntity p) {

@@ -21,11 +21,11 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * A body standing on a staircase it cut, asked to get itself unstuck.
+ * A bot standing on a staircase it cut, asked to get itself unstuck.
  *
  * <p>The ladder's rung 12 digs a flight of steps down to the lava, walks it twenty times, and — when
- * a return leg cannot reach the mould — pillars its way back to the surface. That recovery towered
- * from <b>wherever the body happened to be standing</b>, and on the run of 2026-08-19 the body was
+ * a return walk cannot reach the mould — pillars its way back to the surface. That recovery towered
+ * from <b>wherever the bot happened to be standing</b>, and on the run of 2026-08-19 the bot was
  * standing on step seven of its own staircase:
  *
  * <pre>
@@ -45,13 +45,13 @@ import net.minecraft.world.level.block.Blocks;
  *
  * The ladder reaches rung 12 about half the time and costs forty minutes doing it, so this failure
  * has one reproduction per hour at best. Everything it needs, though, is local: a flight of cut
- * steps, a body on one of them, and one tower order. That fits in an arena, runs in a fraction of a
+ * steps, a bot on one of them, and one tower order. That fits in an arena, runs in a fraction of a
  * second, and is executed by every one of the six gates.
  *
  * <h2>Four arms over one staged flight, two pairs, one variable each</h2>
  *
  * Every scene here stages <b>the same flight</b>. The first pair differs in exactly one thing —
- * whether there is a standable cell beside the step the body is on — and asks what a climb REQUESTS:
+ * whether there is a standable cell beside the step the bot is on — and asks what a climb REQUESTS:
  *
  * <ul>
  *   <li>{@code wd.unwedgeRefusesTheStaircaseColumn} — a stairwell cut through rock, which is the
@@ -88,11 +88,11 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <h2>What these arms do NOT cover</h2>
  *
- * The walk from the body's cell to the column the chooser picked. That is
+ * The walk from the bot's cell to the column the chooser picked. That is
  * {@code JourneyShaft.ascendByTowering}'s drift correction, it needs the pathfinder and a rig, and
- * it has its own rows ({@code climb.N.drift*}) on every ladder run. Here the body is placed in the
+ * it has its own rows ({@code climb.N.drift*}) on every ladder run. Here the bot is placed in the
  * chosen cell directly, so a green arm says "the column chosen is a column a tower may safely build
- * in" and nothing about how the body gets there. The drift pair covers what that correction DECIDES,
+ * in" and nothing about how the bot gets there. The drift pair covers what that correction DECIDES,
  * not the walking it does to get there.
  *
  * <h2>Arena footprint</h2>
@@ -136,12 +136,12 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      *  fifteen cells of head room the tallest arm needs and stays far under the build limit. */
     private static final int BASE = 20;
 
-    /** Steps below the top landing. Six is enough for a body to stand in the MIDDLE of a flight —
+    /** Steps below the top landing. Six is enough for a bot to stand in the MIDDLE of a flight —
      *  with cut steps above it and below it — which is the only position the defect appears in: a
-     *  body on the bottom step has nothing beneath to wall up. */
+     *  bot on the bottom step has nothing beneath to wall up. */
     private static final int STEPS = 6;
 
-    /** Which step the body stands on. Three, so the tower has three steps under it to fill and two
+    /** Which step the bot stands on. Three, so the tower has three steps under it to fill and two
      *  above it to be blocked by. */
     private static final int STAND_ON = 3;
 
@@ -163,7 +163,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      *  {@code wd.serverTowers*} arms use, and these towers are shorter. */
     private static final int DRIVE_BUDGET = 400;
 
-    /** The flight's top landing — {@code cells[0]}, the cell the body was already standing in when
+    /** The flight's top landing — {@code cells[0]}, the cell the bot was already standing in when
      *  the dig started, which is why it is registered and never cut. */
     private static BlockPos top(SceneContext ctx) { return ctx.rel(0, BASE + 7, 0); }
 
@@ -197,7 +197,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                 for (int dy = BASE - 7; dy <= BASE + 10; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.STONE);
 
-        // The landing: feet and head, and nothing above — its jump clearance is the surface the body
+        // The landing: feet and head, and nothing above — its jump clearance is the surface the bot
         // arrived over, and JourneyStairs.faults exempts cells[0] from that check for that reason.
         ctx.setBlock(0, BASE + 7, 0, Blocks.AIR);
         ctx.setBlock(0, BASE + 8, 0, Blocks.AIR);
@@ -226,7 +226,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                     ctx.setBlock(dx, dy, dz, Blocks.AIR);
     }
 
-    /** The switches both arms share. Breaking is off: a body that can dig has a second way up, and
+    /** The switches both arms share. Breaking is off: a bot that can dig has a second way up, and
      *  an arm about what a tower PLACES must not be able to answer with a staircase. */
     private static void config(SceneContext ctx) {
         var pin = BotConfig.pinnedBaseline();
@@ -244,16 +244,16 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         ctx.cleanup(() -> clearBox(ctx));
     }
 
-    /** A body standing in {@code foot}, stocked and settled, with the cleanup that removes it. */
+    /** A bot standing in {@code foot}, stocked and settled, with the cleanup that removes it. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
         ServerWorldDriver driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
         fp.getInventory().items.set(0, new ItemStack(Items.COBBLESTONE, STOCK));
         fp.getInventory().selected = 0;
         ServerPlayerBody av = driver.avatar();
-        // Three physics steps with no input, so the body is flush before anything is measured —
-        // TowerProcess's READY phase refuses to jump on a body that reports onGround()==false, and a
-        // body that has never moved reports exactly that.
+        // Three physics steps with no input, so the bot is flush before anything is measured —
+        // TowerProcess's READY phase refuses to jump on a bot that reports onGround()==false, and a
+        // player that has never moved reports exactly that.
         for (int i = 0; i < 3; i++) av.step();
         return driver;
     }
@@ -300,7 +300,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      * handed back.
      *
      * <p>Its job is to make the arm's real criterion mean something. {@code faults().isEmpty()} is
-     * satisfied by a tower that never touched the flight — by an arena where the body was staged
+     * satisfied by a tower that never touched the flight — by an arena where the bot was staged
      * somewhere else, by a tower order that placed nothing, by a staircase registered with no cells
      * in it. So the arm requires the flight to come back BROKEN here first, and hard-fails naming
      * the rig if it does not: an arm that cannot break the staircase deliberately cannot report that
@@ -316,7 +316,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
     private static void controlMustBreakTheFlight(SceneContext ctx, BlockPos stand,
                                                   int ledgeBesideStep) {
         ServerLevel level = ctx.level();
-        ctx.record("control.staged", "flight " + JourneyStairs.steps() + " cell(s), body on "
+        ctx.record("control.staged", "flight " + JourneyStairs.steps() + " cell(s), bot on "
                 + stand.toShortString() + " | " + JourneyStairs.report(level));
         if (!JourneyStairs.faults(level).isEmpty())
             ctx.fail("THE RIG, not the subject: the flight is already faulty before anything ran — "
@@ -349,16 +349,16 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      * nothing else, so both neighbours of every step are the wall the flight was cut into — which is
      * why "pick a column beside it" cannot be the whole fix, and why
      * {@link JourneyShaft#towerColumnClearOfTheFlight} returns <b>null</b> rather than falling back
-     * to the body's own column. A fallback that towered anyway would be a rule bypassed by its own
+     * to the bot's own column. A fallback that towered anyway would be a rule bypassed by its own
      * escape hatch, and it would be bypassed on every single ladder run, because this shape is the
      * common case rather than the rare one.
      *
      * <h2>Criteria</h2>
      *
      * <ol>
-     *   <li>the chooser returns null for the body's own column — {@code do not tower here};</li>
+     *   <li>the chooser returns null for the bot's own column — {@code do not tower here};</li>
      *   <li>it returns null for every one of the flight's other cells too, so the answer is a
-     *       property of the geometry and not of the one cell the body happens to be on;</li>
+     *       property of the geometry and not of the one cell the bot happens to be on;</li>
      *   <li>the row the climb would record names the step it refused, so a run that took this branch
      *       can be told from one that never met a staircase.</li>
      * </ol>
@@ -648,12 +648,12 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
 
     // ------------------------------------------------- the wash-off's upstream ----
 
-    /** The channel's floor, its walls, and the body's cell, as dy offsets from {@link #BASE}. */
+    /** The channel's floor, its walls, and the bot's cell, as dy offsets from {@link #BASE}. */
     private static final int WET_FLOOR = 0, WET_FEET = 1;
 
-    /** Where the body stands and where the source sits, as dx. Two apart, so the source is inside
-     *  {@code JourneyShaft.WASHED_OFF_UPSTREAM} (4) from the body's cell AND stays inside it after the
-     *  flow has pushed the body as far west as the channel's end wall allows. A source further off
+    /** Where the bot stands and where the source sits, as dx. Two apart, so the source is inside
+     *  {@code JourneyShaft.WASHED_OFF_UPSTREAM} (4) from the bot's cell AND stays inside it after the
+     *  flow has pushed the bot as far west as the channel's end wall allows. A source further off
      *  would make the reading answer "no water source block" for a puddle that visibly has one, which
      *  is state 4 of this arm's pre-registered outcomes and a staging bug rather than a finding. */
     private static final int WET_STAND_X = 1, WET_SOURCE_X = 3;
@@ -673,18 +673,19 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
      *
      * <p><b>What the arena reproduces and what it does not.</b> The subject is the QUESTION the stall
      * asks — "the water is moving; is anything feeding it?" — and the answer it acts on. The stall's
-     * own cause is upstream of that and deliberately different here: the field's body was pushed off
-     * its pillar, this one simply has no block to place, so {@code TowerProcess} gains nothing and the
-     * course ends in the same place. Do not read this arm as evidence about WHY towers stall in water.
+     * own cause is upstream of that and deliberately different here: the field run's bot was pushed
+     * off its pillar, this one simply has no block to place, so {@code TowerProcess} gains nothing
+     * and the course ends in the same place. Do not read this arm as evidence about WHY towers stall
+     * in water.
      *
      * <p><b>The order the climb checks things in decides the staging</b>, and two of its branches
      * would swallow this one:
      *
      * <ul>
      *   <li>{@code pillarRiseBlockers} non-empty ⇒ the ceiling is mined or {@code wouldOpenFluid}
-     *       stops the climb, both before the tower runs. So the body's own column is left open.</li>
+     *       stops the climb, both before the tower runs. So the bot's own column is left open.</li>
      *   <li>{@code !onGround} ⇒ the {@code afloat} branch, which is the FLOATING case and a different
-     *       subject. So the water is one block deep over stone and the body stands in it.</li>
+     *       subject. So the water is one block deep over stone and the bot stands in it.</li>
      * </ul>
      *
      * <p>A dry control arm is deliberately absent: sourceless flowing water drains in a few dozen
@@ -703,7 +704,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                 ctx.setBlock(dx, BASE + dy, -1, Blocks.STONE);
                 ctx.setBlock(dx, BASE + dy, 1, Blocks.STONE);
             }
-        // The two end walls. The west one is what keeps the body inside the source's radius no matter
+        // The two end walls. The west one is what keeps the bot inside the source's radius no matter
         // how long the flow pushes it — see WET_STAND_X.
         for (int dy = 1; dy <= 2; dy++) {
             ctx.setBlock(WET_STAND_X - 1, BASE + dy, 0, Blocks.STONE);
@@ -719,13 +720,13 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         // cobblestone with a count of zero, `.hand` records that it could not be held, and execution
         // falls through to the tower exactly as it does in the field.
         ServerPlayerBody av = driver.avatar();
-        // The body flush on the floor. TowerProcess's READY phase refuses a body reporting
+        // The bot flush on the floor. TowerProcess's READY phase refuses a bot reporting
         // onGround()==false, and so does the climb's own afloat branch.
         for (int i = 0; i < 3; i++) av.step();
 
         JourneyRig rig = JourneyRig.forArena(ctx, JourneyStage.PORTAL_LIT, driver);
         // KEPT ON PURPOSE, and it is the reading that got this arm wrong the first time: `av.step()`
-        // steps the BODY, not the world's fluid ticks, so twenty of them left the source sitting two
+        // steps the BOT, not the world's fluid ticks, so twenty of them left the source sitting two
         // cells away with the bot's own cell still dry. The control asserted "standing in water"
         // there and went red while the subject's rows — taken two hundred ticks later, at the
         // stall — read `inWater=true` and named the source correctly. A precondition sampled long
@@ -747,7 +748,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
         });
     }
 
-    /** Ticks the world gets to carry the source the two cells to the body's own feet. Forty, which is
+    /** Ticks the world gets to carry the source the two cells to the bot's own feet. Forty, which is
      *  several times vanilla's five-ticks-per-cell spread and cheap next to the tower's own 200. */
     private static final int WET_SPREAD = 40;
 
@@ -768,7 +769,7 @@ public final class JourneyUnwedgeScenes implements SceneProvider {
                     + fp.isInWater() + ", onGround=" + fp.onGround());
 
             // B FIRST, because C and D are 0==0 without it: no upstream row means the stall never
-            // reached the flow check at all (a floating body, or a course that never stalled).
+            // reached the flow check at all (a floating bot, or a course that never stalled).
             ctx.check(upstream).as("B the climb must really have checked upstream before stopping -"
                     + " no washedOffUpstream row means this course never reached the flow check"
                     + " (afloat rows: " + afloat.size() + ")").isNotEmpty();

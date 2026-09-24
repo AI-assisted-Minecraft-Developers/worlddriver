@@ -41,7 +41,7 @@ import net.minecraft.world.phys.Vec3;
  * The {@code route} object of {@code mc.bot.goto} / {@code mc.bot.follow}, parsed into what the
  * planner consumes. A pure function of the map: no player, no level, no world — so a scene can
  * hand it a JSON object on a dedicated server and give the resulting {@link SearchProfile} to a
- * headless body, and a unit test can hold every field. The goal itself is not here (that is
+ * headless server-side player, and a unit test can hold every field. The goal itself is not here (that is
  * {@code GotoGoalResolver}, which needs the player), nor is the tool check ({@code requireTool}
  * is only read out).
  *

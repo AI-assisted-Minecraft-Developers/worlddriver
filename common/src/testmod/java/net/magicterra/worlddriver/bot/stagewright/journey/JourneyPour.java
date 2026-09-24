@@ -16,7 +16,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Where to stand to empty a bucket into the mould, and how to get the body there.
+ * Where to stand to empty a bucket into the mould, and how to get the bot there.
  *
  * <p>Moved out of {@link JourneyPortalRung} the same mechanical way that rung was moved out of
  * {@code WorldDriverJourneyScenes}, and for the same reason: the file was at its 3000-line source
@@ -36,7 +36,7 @@ final class JourneyPour {
     private JourneyPour() {}
 
     /**
-     * Get the body up to the row it is about to pour into, building the step if there is none.
+     * Get the bot up to the row it is about to pour into, building the step if there is none.
      *
      * <p>The alcove is hollow, so the only solid floor in it is the one seven cells down — and a
      * bucket aimed from there at a cell four rows up traces a line that leaves the frame's plane
@@ -50,13 +50,13 @@ final class JourneyPour {
      * <p>So the step is BUILT, out of the cobblestone the rung is already carrying, by the same
      * scripted tower that leaves the shaft — and taken down again by nothing, because the corridor
      * is where the next pours stand and {@link JourneyPortalRung#clearPourLine} owns that problem. Best-effort: a
-     * body that cannot get up says so and lets the pour's own ray gate decide, which is the only
+     * bot that cannot get up says so and lets the pour's own ray gate decide, which is the only
      * gate in this rung entitled to spend a bucket.
      *
      * <p><b>The real ray is asked before any prediction about where to stand.</b> This used to decide
      * on {@link #standToPour} alone, while {@link #aimThatLandsIn} — the shot {@code .picks} fires,
-     * from the eye the body actually has — ran afterwards, inside the pour: the authoritative test
-     * ran after the decision it was supposed to make. A raise spent for a cell the body could already pour
+     * from the eye the player actually has — ran afterwards, inside the pour: the authoritative test
+     * ran after the decision it was supposed to make. A raise spent for a cell the bot could already pour
      * into is not free, because the tower behind it builds into whatever column it is given; see
      * {@link JourneyStairs#needsOpen} and the CHANGELOG for the staircase that paid for it.
      */
@@ -111,14 +111,14 @@ final class JourneyPour {
     }
 
     /**
-     * How many rows above {@code wantY} the body may still be standing and have the raise count as
+     * How many rows above {@code wantY} the bot may still be standing and have the raise count as
      * finished. <b>A pour is served from slightly high and not from arbitrarily high</b>, and until
      * 2026-08-26 only the first half of that was written down: {@link JourneyRamp#buildTo}'s javadoc
      * says a pour "is genuinely served from any row high enough", which is true of one row and false
      * of five.
      *
      * <p>Cell ten of the real ladder of 2026-08-26 is what put a number on it. The raise asked for
-     * {@code y=59} in column {@code 2,20}; an unstick tower answered by lifting the body to the
+     * {@code y=59} in column {@code 2,20}; an unstick tower answered by lifting the bot to the
      * surface, and every gate downstream agreed it had arrived:
      *
      * <pre>
@@ -132,8 +132,8 @@ final class JourneyPour {
      * </pre>
      *
      * <p><b>{@code pitch=76.67°} is the whole account.</b> From five rows up, the only line that
-     * reaches the backing is one steep enough to hit the body's own footing first, so the pour landed
-     * in the cell the body was standing in and the rung failed with nine of ten cells cast.
+     * reaches the backing is one steep enough to hit the bot's own footing first, so the pour landed
+     * in the cell the bot was standing in and the rung failed with nine of ten cells cast.
      * One row up the same line clears; that is why this is a bound and not a flip to {@code exactRow}
      * — flipping it would also kill the tolerance {@code JourneyRamp} argues for and I have no reading
      * against.
@@ -164,9 +164,9 @@ final class JourneyPour {
                           + "; column pinned"
                         : ": no column passes the ray check; falling back to the column directly"
                           + " behind the frame, not pinned"));
-        // ALREADY IN IT — do not walk. The walk is what put the body one cell out of the column in
-        // the first place (`raiseTo.arrivedDistance=1`), and a body standing in the right column has
-        // nothing to gain from a leg that can only move it out of one. Same short-circuit the fill
+        // ALREADY IN IT — do not walk. The walk is what put the bot one cell out of the column in
+        // the first place (`raiseTo.arrivedDistance=1`), and a bot standing in the right column has
+        // nothing to gain from a walk that can only move it out of one. Same short-circuit the fill
         // and the pour both grew for the same reason.
         if (here.getX() == col.getX() && here.getZ() == col.getZ()) {
             raiseInColumn(rig, target, col, wantY, verified != null, pouring, tag, then);
@@ -183,16 +183,16 @@ final class JourneyPour {
                         + col.getX() + "," + col.getZ() + " (walkToColumn judges arrival within 5 blocks)"
                         + "; the tower's drift correction will now bring the bot back to that column");
             }
-            // AND THE ROW, which the drift correction above does NOT fix — it walks the body back to
+            // AND THE ROW, which the drift correction above does NOT fix — it walks the bot back to
             // the column and has no opinion about height. `Goal.XZ.ignoresY()` is what lets the walk
-            // arrive from any row at all, and an unstick tower is what actually carries the body up:
+            // arrive from any row at all, and an unstick tower is what actually carries the bot up:
             // see POUR_ROW_SLACK for the cell this cost. Everything downstream of here reads the row
             // as correct, so the check has to be here, before the raise commits.
             // POURS ONLY. Every reading that bought this bound is a pour — cast9's pitch=76.67°,
             // above — and the scoop side has produced none. Running it there would not merely be
             // unjustified, it would PRE-EMPT the remedy that already works: a scoop that arrives a
             // row high is handled downstream by `buildTo` with exactRow=true, which lays a
-            // staircase, costs one leg, and is what recover6 verified. A full `returnToTheForge` is
+            // staircase, costs one walk, and is what recover6 verified. A full `returnToTheForge` is
             // neither cheap nor verified, and because it runs first the working fix would never get
             // its turn again — so the scoop would look fixed while its real remedy went dead.
             int over = landed.getY() - wantY;
@@ -222,19 +222,19 @@ final class JourneyPour {
                 //
                 // A WALK BACK WAS TRIED HERE AND MEASURED WORSE. On 2026-08-26 this branch ran a 3D
                 // `Goal.Near(col at wantY, 1)` before handing over, on the theory that turning an
-                // unmeasured shortfall (4 rows, body on the surface) into the measured one (1 row,
-                // body in the alcove) would let `buildTo`'s staircase do its job. Three rehearsals:
+                // unmeasured shortfall (4 rows, bot on the surface) into the measured one (1 row,
+                // bot in the alcove) would let `buildTo`'s staircase do its job. Three rehearsals:
                 // it fired once and made the position WORSE — `scoopRowWalkedBack` went from 3,64,20
                 // to -2,66,18, 4 → 6 rows above the standing row and out of the assigned column
                 // 3,20 — never fired in the second,
                 // and was below its own bound in the third. Zero runs improved.
                 //
                 // The account is the same objection this file already makes about the pour's own 3D
-                // retry twenty lines down: that leg is well-formed because it starts PINNED AT THE
+                // retry twenty lines down: that walk is well-formed because it starts PINNED AT THE
                 // STAIR FOOT, one or two cells out. A goal issued from the surface is neither short
                 // nor well-formed, and the walker answered it by leaving the column altogether. So
                 // the remedy for arriving high is not to walk back after the fact — it is to stop
-                // `walkToColumn`'s `Goal.XZ` from delivering the body to the surface in the first
+                // `walkToColumn`'s `Goal.XZ` from delivering the bot to the surface in the first
                 // place, which is a change to the goal and not to this hand-off.
                 rig.evidence(tag + ".scoopRowHigh", landed.toShortString() + " is " + over
                         + " row(s) above the standing row y=" + wantY + "; the scoop side does not"
@@ -248,17 +248,17 @@ final class JourneyPour {
             then.run();
         };
         // A RETRY THAT ASKS THE SAME QUESTION IS NOT A RETRY. Until 2026-08-26 `raiseRowTooHigh`
-        // above walked the body all the way back to the forge and then called this method again with
-        // the same target, so the leg below re-ran with the same column, the same `walkToColumn` and
+        // above walked the bot all the way back to the forge and then called this method again with
+        // the same target, so the walk below re-ran with the same column, the same `walkToColumn` and
         // the same `Goal.XZ`. Rung 12's rehearsal that day measured both halves: the descent worked
         // — `raiseRowRetry.returnedY=57`, landing `1.83/57.00/19.52` — and the second ascent still
         // ended at `3,64,20`, `arrivedY=64` (from 57, net rise 7), on grass_block, six rows above a wantY
         // of 58. `Goal.XZ.ignoresY()` is the whole account: the surface belongs to the target column
         // too, and from a shaft floor it is that column's cheapest cell. So the retry could only ever
-        // produce the answer that sent it back — it changed the body's position and nothing else the
+        // produce the answer that sent it back — it changed the bot's position and nothing else the
         // question depended on.
         //
-        // ONLY THE RETRY, AND ONLY POURING. A first attempt starts wherever the rung left the body,
+        // ONLY THE RETRY, AND ONLY POURING. A first attempt starts wherever the rung left the bot,
         // often on the surface, and a 3D goal across that distance is a route nothing here has
         // measured. The retry starts pinned at the stair foot, one or two cells out, where a 3D goal
         // is short and well-formed. The scoop is excluded for the reason `raiseRowTooHigh` already
@@ -267,8 +267,8 @@ final class JourneyPour {
         // Goal.Near, NOT Goal.Block. `Walker.snapGoalToStandable` (Walker.java:797) pulls an
         // unstandable Goal.Block to the nearest standable cell, and when `col` at wantY is occupied
         // that cell is the surface — which would rebuild this very defect inside the goal itself.
-        // Near does no snapping. Its radius is POUR_ROW_SLACK so this leg and the `over` check above
-        // are one bar in one place; a leg that cannot get inside it spends its budget and falls
+        // Near does no snapping. Its radius is POUR_ROW_SLACK so this walk and the `over` check above
+        // are one bar in one place; a walk that cannot get inside it spends its budget and falls
         // through to `raiseRowGaveUp`, which is the honest outcome and the one that gate predicts.
         if (pouring && attempt > 0) {
             BlockPos want = new BlockPos(col.getX(), wantY, col.getZ());
@@ -287,33 +287,33 @@ final class JourneyPour {
         }
         // THE EXACT COLUMN, radius 0. It was 1, and a radius-1 disk is not a rounding allowance here
         // — it is a different ray. Worse, `walkToColumn` judges arrival against its own
-        // `ARRIVED_WITHIN` and not against the radius asked for, so the leg reports success from up
+        // `ARRIVED_WITHIN` and not against the radius asked for, so the walk reports success from up
         // to five cells out: `recover8.rise.raiseTo.arrivedDistance=1` was an ARRIVAL, and the
-        // pinned climb it handed over to then refused to place anything because the body was not in
+        // pinned climb it handed over to then refused to place anything because the bot was not in
         // the column. Asking for radius 0 at least makes the walker try for the cell the aim was
         // computed from; the tower's own drift correction is what finishes the job when it cannot.
-        // AND IT MAY NOT DIG ITS WAY IN. This leg runs inside the alcove, where the only thing between
-        // the body and the column is what this rung cut with its own pick — the same argument
+        // AND IT MAY NOT DIG ITS WAY IN. This walk runs inside the alcove, where the only thing between
+        // the bot and the column is what this rung cut with its own pick — the same argument
         // `walkTheStairs`, the water fetch, `JourneyRamp#walkTo` and the pour's own approach all make.
         // A `Goal.XZ` makes it worse than the others: it ignores Y, so from atop the staircase the
         // cheapest route into a column below is to sink a shaft, and the 2026-08-25 rehearsal shows it
         // doing exactly that through `-1,58,20` — the support of the tread at `-1,59,20`.
         // PRICE THE WAY OUT OF THE ALCOVE, because `Goal.XZ` cannot see it. The goal ignores Y — its
         // own javadoc says so — and the surface cell of the target column belongs to that column too,
-        // so from a shaft floor it is that column's CHEAPEST cell. Three bodies measured the same
-        // ending on 2026-08-26: the real ladder's rung 12 poured at `4,60,20` with the body at
+        // so from a shaft floor it is that column's CHEAPEST cell. Three kinds of run measured the same
+        // ending on 2026-08-26: the real ladder's rung 12 poured at `4,60,20` with the bot at
         // `-2,66,19`; the real-client rehearsal poured at `4,60,18` from `3,65,13`; five fake-player
         // rehearsals ended a raise at y=64..65. Every one of them is on the surface, and every one
         // fired a ray that was verified for a row inside the alcove.
         //
         // A TAX, NOT A CONSTRAINT, and for the reason JourneyTerrain#poolsLipCells already argues:
-        // when the only route to the column really is over the top — a body that starts up there —
+        // when the only route to the column really is over the top — a bot that starts up there —
         // the route must stay available. LIP_TAX is the precedent's number: a plain edge is 10, so
         // 300 is thirty blocks of detour, which is more than the whole alcove is wide.
         //
-        // The ceiling is the alcove's own, not `wantY`: legs inside the alcove legitimately move a
+        // The ceiling is the alcove's own, not `wantY`: walks inside the alcove legitimately move a
         // row or two above their target, and pricing those would tax the ordinary work. Above the
-        // alcove there is nothing this leg wants at all.
+        // alcove there is nothing this walk wants at all.
         int alcoveCeiling = JourneyRamp.floorOf(JourneyPortalRung.forgeCorridor)
                 + JourneyForge.ALCOVE_HEIGHT;
         rig.evidence(tag + ".raiseTo.ceilingTax", "every cell entered above the alcove ceiling y="
@@ -333,7 +333,7 @@ final class JourneyPour {
         Runnable done = () -> {
             BotConfig.allowPlace = false;          // the casting phase is place-free again
             // THE COLUMN AS WELL AS THE HEIGHT. `water9.raisedY=60/60` was a true statement about a
-            // body two cells out of the column its aim had been computed for, and reading it alone
+            // bot two cells out of the column its aim had been computed for, and reading it alone
             // is what made a lost raise look like a finished one.
             BlockPos now = rig.player().blockPosition();
             // AND WHICH SIDE OF THE ROW. A scoop's column is verified with the eye at wantY exactly,
@@ -352,7 +352,7 @@ final class JourneyPour {
                             : ", not the same column; the ray was computed for that column") + row + ")");
             then.run();
         };
-        // THE STAIRCASE FIRST. It is the only one of the two that puts the body in the column it was
+        // THE STAIRCASE FIRST. It is the only one of the two that puts the bot in the column it was
         // asked for by construction — a tower is pinned to a column only in the sense that it keeps
         // walking back to one — and it is the only one that works on dry alcove floor at all; see
         // JourneyRamp for the two runs where the tower gained one course of two holding 130 blocks.
@@ -365,12 +365,12 @@ final class JourneyPour {
             else JourneyShaft.climbOut(rig, wantY, tag, done);
         };
         // EXACT ROW for a scoop, "high enough" for a pour — see JourneyRamp#buildTo(…, exactRow, …).
-        // A body that walked into the column one row high used to skip the flight entirely, so the
+        // A bot that walked into the column one row high used to skip the flight entirely, so the
         // landing never got its floor and the scoop fired a ray verified for a row it was not on.
         JourneyRamp.buildTo(rig, JourneyPortalRung.forgeCorridor, new BlockPos(col.getX(), wantY, col.getZ()), !pouring,
                 tag + ".ramp", () -> {
             // Handed on rather than replaced: the tower is what carried this rung out of its own
-            // flood on 2026-08-17 (`cast9` 59/59), where the body floats and no placement is what
+            // flood on 2026-08-17 (`cast9` 59/59), where the bot floats and no placement is what
             // raises it. A flight that reached the row has nothing left for it to do.
             if (rig.player().blockPosition().getY() >= wantY) { done.run(); return; }
             footBeforeTower(rig, col, wantY, tag, tower, done);
@@ -378,7 +378,7 @@ final class JourneyPour {
     }
 
     /**
-     * The tower does not start on the flooded floor row — this leg moves the body off it first.
+     * The tower does not start on the flooded floor row — this step moves the bot off it first.
      *
      * <p><b>One key separates the two east runs of 2026-08-17</b>, and everything else in the failing
      * one hangs off it:
@@ -388,9 +388,9 @@ final class JourneyPour {
      * e8  cast8#1.fromY = 56   climb.0 = 2,56,19 onGround=false  rise 3, washedOff ×3,  FAIL
      * </pre>
      *
-     * The alcove's floor row is the row the cast's own bucket floods: the body that lands there
+     * The alcove's floor row is the row the cast's own bucket floods: a bot that lands there
      * floats ({@code cast7.fromHere} measured it at {@code y=56.41} in a cell whose floor is at
-     * {@code 57.0}), and a floating body is the easiest thing in the game to push off a one-block
+     * {@code 57.0}), and a floating player is the easiest thing in the game to push off a one-block
      * pillar. e8's tower duly placed its first block, ended the course at {@code y=56.94} — a course
      * that gained nothing — and was washed off; two failed drift corrections later it had adopted
      * {@code 2,17} for a ray computed in {@code 2,19}, and the pour's gate correctly refused the
@@ -408,22 +408,22 @@ final class JourneyPour {
      * asking the world is both cheaper and truer than keeping a list — a step that was swept, mended
      * or never laid answers correctly here for free.
      *
-     * <p>Best-effort in the same sense the rest of this leg is: a body that cannot walk out of the
+     * <p>Best-effort in the same sense the rest of this step is: a bot that cannot walk out of the
      * flood is handed to the tower exactly as before, and the row that says so names the flood rather
      * than leaving the next reader with {@code washedOff} and no upstream.
      *
      * <h2>"High enough" is not "able to stand", and this step used to accept the first for the second</h2>
      *
      * <p>The hand-off asked {@code now.getY() >= wantY} alone, so a walk that overshot into a
-     * half-floating cell counted as a finished raise — the very state the leg exists to leave. What
-     * "standing" is asked OF matters as much: <b>{@code onGround} is not usable on this body</b>. The
+     * half-floating cell counted as a finished raise — the very state this step exists to leave. What
+     * "standing" is asked OF matters as much: <b>{@code onGround} is not usable on this player</b>. The
      * baseline rehearsal recorded eight byte-identical rows of {@code onGround=true, inWater=false}
-     * for a body whose own floor cell was flowing water, and the run before it recorded
-     * {@code onGround=false} for a body at rest — it lies in both directions. So the question is put
+     * for a player whose own floor cell was flowing water, and the run before it recorded
+     * {@code onGround=false} for a player at rest — it is wrong in both directions. So the question is put
      * to the WORLD: something that {@code blocksMotion} under the feet — via
      * {@link JourneyShaft#supportUnder}, which falls back to the four corners of the footprint,
      * because a 0.6-wide box a fifth of a cell off centre rests on the cell next door — and no fluid
-     * in the body's own cell. {@code onGround} is still printed, labelled as the unreliable reading it
+     * in the bot's own cell. {@code onGround} is still printed, labelled as the unreliable reading it
      * is.
      */
     private static void footBeforeTower(JourneyRig rig, BlockPos col, int wantY, String tag,
@@ -432,7 +432,7 @@ final class JourneyPour {
         BlockPos here = rig.player().blockPosition();
         int floorY = JourneyRamp.floorOf(JourneyPortalRung.forgeCorridor);
         // THE FLOODED FLOOR ROW, both halves. A dry alcove floor is where the tower has always worked
-        // from, and a body already above the floor is e7 — this must be a no-op for both, or it is
+        // from, and a bot already above the floor is e7 — this must be a no-op for both, or it is
         // not one variable.
         if (here.getY() > floorY || level.getFluidState(here).isEmpty()) { tower.run(); return; }
         BlockPos step = footingAbove(level, floorY, wantY, col);
@@ -457,7 +457,7 @@ final class JourneyPour {
             boolean solid = level.getBlockState(under).blocksMotion();
             boolean dry = level.getFluidState(now).isEmpty();
             // WHERE IT ACTUALLY LANDED, and which of the two questions let it through. `walkTo` is
-            // best-effort like every other leg down here, and the first version of this row could
+            // best-effort like every other walk down here, and the first version of this row could
             // only show that the walk had missed — not which half of the gate then passed it.
             rig.evidence(tag + ".footedOn", now.toShortString() + " (wanted foot cell "
                     + step.toShortString() + ") high enough: "
@@ -474,7 +474,7 @@ final class JourneyPour {
             // exactly the state this whole step exists to get the bot OUT of. Measured twice,
             // byte-identical (rehearsals of 2026-08-17, A2 and A3): `footedOn = 3,60,17` with water
             // underfoot and onGround=false was accepted, the raise reported `raisedY = 60/59`, and the cell was
-            // then poured from a half-floating body on an unverified ray. That pour was luck; the
+            // then poured from a half-floating bot on an unverified ray. That pour was luck; the
             // `.picks` gate refusing two shots before it is what kept it honest.
             // THE TWO ROWS THAT TELL THE REMAINING STORIES APART — read the javadoc on #wouldLandOn
             // for why this is a query and not a wait.
@@ -499,13 +499,13 @@ final class JourneyPour {
         });
     }
 
-    /** How far down to look for the floor the body would land on. Twelve: the alcove is seven rows
+    /** How far down to look for the floor the bot would land on. Twelve: the alcove is seven rows
      *  tall and this is asked from at most one row above its top, so anything further down is outside
      *  the room and not an answer to the question. */
     private static final int FALL_SCAN = 12;
 
     /**
-     * Where this body would come to rest if it simply fell — <b>asked, never waited for</b>.
+     * Where this bot would come to rest if it simply fell — <b>asked, never waited for</b>.
      *
      * <h2>The general move: ask the world a question instead of running an experiment</h2>
      *
@@ -519,13 +519,13 @@ final class JourneyPour {
      *
      * <p>So the reading is taken from the BLOCKS instead: gravity is deterministic and the floor is
      * already in the world, so the landing can be computed without letting a single tick pass. <b>A
-     * query changes nothing, which is exactly what makes it safe to ask in the middle of a leg that a
+     * query changes nothing, which is exactly what makes it safe to ask in the middle of a walk that a
      * wait would corrupt.</b> Reach for this shape whenever the honest reading would otherwise cost
      * ticks in a system where ticks are one of the variables.
      *
      * <p>All four corners of the footprint, highest support wins, because that is what a 0.6-wide box
      * lands on — the same reason {@link JourneyShaft#supportUnder} looks there. Null when nothing
-     * within {@link #FALL_SCAN} would stop the body, which is itself an answer.
+     * within {@link #FALL_SCAN} would stop the bot, which is itself an answer.
      */
     private static BlockPos wouldLandOn(JourneyRig rig, ServerLevel level, BlockPos from) {
         var box = rig.player().getBoundingBox();
@@ -539,20 +539,20 @@ final class JourneyPour {
                         best = Math.max(best, y);
                         break;
                     }
-        // The feet land one row above whatever stopped them, in the column the body is falling down —
-        // a fall is straight, so x/z come from the body and only y comes from the support.
+        // The feet land one row above whatever stopped them, in the column the bot is falling down —
+        // a fall is straight, so x/z come from the bot and only y comes from the support.
         return best == Integer.MIN_VALUE ? null : new BlockPos(from.getX(), best + 1, from.getZ());
     }
 
     /**
-     * The highest cell above the flooded floor row, no higher than {@code wantY}, that a body can
+     * The highest cell above the flooded floor row, no higher than {@code wantY}, that a bot can
      * stand in with something solid directly under its feet.
      *
      * <p>Highest first because a course the tower does not have to build is a course the water cannot
      * wash off, and this rung's own flight often reaches {@code wantY} outright. Nearest to the pinned
      * column breaks ties, so the tower that may still follow starts as close to its own column as the
      * alcove allows — this does not CHOOSE a column and it does not move the pin; the climb is still
-     * asked for {@code col}, and {@code raisedY} still says which column the body ended in.
+     * asked for {@code col}, and {@code raisedY} still says which column the bot ended in.
      */
     private static BlockPos footingAbove(ServerLevel level, int floorY, int wantY, BlockPos col) {
         BlockPos best = null;
@@ -577,15 +577,15 @@ final class JourneyPour {
      * Which column to build the step in — one whose eye can actually see the target's backing.
      *
      * <p>It used to be arithmetic: one cell back along {@code away} from the target. That column is
-     * a good guess and it is not a checked one, and when the body cannot reach it the climb starts
+     * a good guess and it is not a checked one, and when the bot cannot reach it the climb starts
      * somewhere else and the aim silently becomes a different aim. Run 43's tenth cell went that way
-     * — the arithmetic column was {@code x=-10}, the body could only get to {@code x=-9} (there is
+     * — the arithmetic column was {@code x=-10}, the bot could only get to {@code x=-9} (there is
      * no floor at {@code y=57} anywhere else in a hollow alcove), and the tower then drifted to
      * {@code x=-8} and {@code x=-7} and adopted it.
      *
      * <p>So ask the question the BUCKET is going to ask, one row down: standing HERE at
-     * {@code wantY}, does the same clip vanilla runs do what this leg needs? Nearest wins and the
-     * body's own column is at distance zero, so a column that already works costs no walk at all —
+     * {@code wantY}, does the same clip vanilla runs do what this step needs? Nearest wins and the
+     * bot's own column is at distance zero, so a column that already works costs no walk at all —
      * which for that run is the fix, because {@code x=-9} verifies.
      *
      * <p>{@code pouring} picks WHICH clip, and it is not a stylistic parameter: a pour wants the ray
@@ -598,7 +598,7 @@ final class JourneyPour {
      * hollowed out and the head has somewhere to go. Null when none of them verify, and the caller
      * says so rather than pretending.
      *
-     * <p><b>The flight's own column comes last, not first.</b> Distance decides ties and the body is
+     * <p><b>The flight's own column comes last, not first.</b> Distance decides ties and the bot is
      * standing at the foot of the stairs when it asks — {@code returnToTheForge} just put it there —
      * so the stair column wins at distance zero every time, and that column is the one place in the
      * alcove where a raise cannot happen: {@code JourneyRamp} refuses it outright
@@ -638,7 +638,7 @@ final class JourneyPour {
                 BlockPos foot = target.relative(away.getOpposite(), back)
                         .relative(away.getClockWise(), side).above(wantY - target.getY());
                 if (!JourneyPortalRung.forgeCorridor.contains(foot) || !JourneyPortalRung.forgeCorridor.contains(foot.above())) { outside++; continue; }
-                // A LANDING HAS TO BE A PLACE A BODY CAN BE. This asked only whether the eye at that
+                // A LANDING HAS TO BE A PLACE A PLAYER CAN BE. This asked only whether the eye at that
                 // cell would see the backing, which is true of a cell full of cobblestone — and by
                 // the ninth cast some of them are: the raise for the notch one row up rests its own
                 // top step in exactly the cell the ring cell below it wants to stand in. Measured,
@@ -696,7 +696,7 @@ final class JourneyPour {
         return best != null ? best : onFlight;
     }
 
-    /** Would a body standing at {@code foot} be able to FILL from the fluid in {@code target}? The
+    /** Would a player standing at {@code foot} be able to FILL from the fluid in {@code target}? The
      *  same {@code SOURCE_ONLY} clip {@code BucketItem.use} runs — the scoop's counterpart to
      *  {@link #pourLandsFrom}, and the reason a raise has to be told which of the two it is for. */
     private static boolean scoopSeesFrom(ServerLevel level, ServerPlayer body, BlockPos foot,
@@ -711,8 +711,8 @@ final class JourneyPour {
                 && hit.getBlockPos().equals(target);
     }
 
-    /** Would a bucket emptied by a body standing at {@code foot} land in {@code target}? The same
-     *  clip {@link #standToAimAt} runs, from the eye that body WOULD have — a prediction about a
+    /** Would a bucket emptied by a player standing at {@code foot} land in {@code target}? The same
+     *  clip {@link #standToAimAt} runs, from the eye that player WOULD have — a prediction about a
      *  cell the rung is about to build a floor under, which is why it cannot ask for one. */
     private static boolean pourLandsFrom(ServerLevel level, ServerPlayer body, BlockPos foot,
                                          BlockPos target, Direction away) {
@@ -727,7 +727,7 @@ final class JourneyPour {
         // THE WHOLE CELL, exactly as a stand is judged — see JourneySight. A column is chosen once and
         // then PINNED (changing the column changes the ray, so it may not change), so a column that
         // only verifies from its own centre
-        // commits the pour to a shot the body cannot reproduce, and the pin is what stops it being
+        // commits the pour to a shot the bot cannot reproduce, and the pin is what stops it being
         // re-chosen. Measured on the east arm, twice, byte-identical: the last cell's centre eye
         // (2.5, 60.62, 19.5) crosses x=4 at z=20.00 EXACTLY — a block corner, tie-broken into the
         // target — while the eye that fired, (2.70, 60.62, 19.50), crosses at z=19.96 and stops on
@@ -746,32 +746,32 @@ final class JourneyPour {
     }
 
     /**
-     * Last resort before a pour gives up: pillar up where the body IS, rather than where it should be.
+     * Last resort before a pour gives up: pillar up where the bot IS, rather than where it should be.
      *
      * <p>{@link #standLevelWith} builds a step when the geometry says no spot can see the target, and
      * it is right about the geometry — but it is asked before the walk, and the walk is what fails.
-     * Run 40 cell six: {@code water6.stand=-9,56,37} verified, so no step was built, and the body
+     * Run 40 cell six: {@code water6.stand=-9,56,37} verified, so no step was built, and the bot
      * then ended at {@code -8,56,37} one cell east and stayed there through both retries, its ray
      * landing in {@code -9,58,38} every time. The one good cell existed and the walker could not
      * reach it, which no amount of re-choosing fixes.
      *
-     * <p>Lifting to the target's own row is what makes the backing aim horizontal wherever the body
+     * <p>Lifting to the target's own row is what makes the backing aim horizontal wherever the bot
      * happens to be standing. The cobblestone is left behind on purpose — the pours after this one
      * stand on it, and {@link JourneyRamp} is what keeps {@link JourneyPortalRung#tidyTheAlcove} from sweeping it.
      *
      * <p><b>A staircase, not a pillar, and the column is chosen by the ray.</b> Two things were
-     * wrong with towering straight up from wherever the body was. The tower does not work on this
+     * wrong with towering straight up from wherever the bot was. The tower does not work on this
      * geometry — see {@link JourneyRamp}'s note for the two verbatim reproductions of
      * {@code climb.1.stalled} on dry land with 130 cobblestone in hand — and even a tower that
-     * worked would put the eye in the BODY's column rather than in one whose ray reaches the
+     * worked would put the eye in the BOT's own column rather than in one whose ray reaches the
      * backing. The real ladder of 2026-08-16 measured exactly that second half: {@code cast6} lifted
      * in {@code x=-9} for a target in {@code x=-8}, and the diagonal that makes grazed the corner of
      * the obsidian it had cast two rows below ({@code picks=-8,58,38 obsidian → lands in -9,58,38}). So
      * the landing is {@link #raiseColumn}'s answer — the same clip the bucket will run, asked from
-     * the eye a body standing there WOULD have — and the flight is built to reach it.
+     * the eye a player standing there WOULD have — and the flight is built to reach it.
      *
      * <p>The tower is still run behind it, and only behind it: it has carried this rung before (the
-     * rehearsal of 2026-08-17 lifted {@code cast9} 59/59 out of the alcove's own flood, where a body
+     * rehearsal of 2026-08-17 lifted {@code cast9} 59/59 out of the alcove's own flood, where a bot
      * floats and a placement is not what raises it), so a flight that falls short hands over rather
      * than ending the cast.
      */
@@ -793,10 +793,10 @@ final class JourneyPour {
             then.run();
             return;
         }
-        // THE QUESTION IS THE COLUMN, NOT THE HEIGHT. This used to return whenever the body was at
+        // THE QUESTION IS THE COLUMN, NOT THE HEIGHT. This used to return whenever the bot was at
         // `wantY` or above — "already high enough, nothing to lift" — and that is a statement about
         // one axis in answer to a failure that lives in two. The caller only reaches here because the
-        // pour's ray gate REFUSED, and a body can be dead on the right row and in the wrong column.
+        // pour's ray gate REFUSED, and a bot can be exactly on the right row and in the wrong column.
         //
         // Measured, PORTAL_LIT rehearsal 2026-08-23: `water8.raisedY = 60/60`, stopped at 3,21
         // with assigned column 3,20, not the same column. The tower drifted one cell and
@@ -805,7 +805,7 @@ final class JourneyPour {
         // `clear3` and `clear2` both reporting that the pour line had no block to clear — this
         // early return is why nothing between them changed anything.
         //
-        // Ask instead whether the cell the body is IN would land the pour. When it would, a lift
+        // Ask instead whether the cell the bot is IN would land the pour. When it would, a lift
         // genuinely cannot help (the miss is sub-cell: the centre eye this predicate uses is not the
         // eye that fires — see JourneySight) and the old behaviour is kept, out loud. When it would
         // not, the lift's own `raiseColumn` already knows which column does, and at equal height that
@@ -824,8 +824,8 @@ final class JourneyPour {
                     + " is high enough (y=" + wantY + ") but this column does not pass the check for"
                     + " this pour; moving sideways to the column that does, not building upward");
         // DIRECTLY BEHIND FIRST, then whatever else verifies. `raiseColumn` ranks by distance and the
-        // body's own column is at distance zero, so on a lift it always wins — and the shot from the
-        // body's column to a target one cell sideways is the diagonal this whole rung keeps losing
+        // bot's own column is at distance zero, so on a lift it always wins — and the shot from the
+        // bot's column to a target one cell sideways is the diagonal this whole rung keeps losing
         // cells to: it crosses the frame's plane at a block CORNER, where the segment clip and the
         // fired ray tie-break opposite ways (see aimThatLandsIn). The cell one back and one down
         // from the target is the only geometry that makes the backing shot horizontal, which is what
@@ -843,8 +843,8 @@ final class JourneyPour {
                 + target.toShortString() + ")"
                 + (verified != null ? ": from there the ray lands in the target cell"
                         : ": no column passes the ray check; building in the bot's own column, not pinned"));
-        // AND SAY SO WHEN THE LIFT IS THE BODY'S OWN CELL. With no verified column and the body
-        // already on the row, `landing` is where the body is standing, so the flight has nothing to
+        // AND SAY SO WHEN THE LIFT IS THE BOT'S OWN CELL. With no verified column and the bot
+        // already on the row, `landing` is where the bot is standing, so the flight has nothing to
         // build and the approach that follows re-asks a deterministic question in an unchanged world.
         // That is the whole shape of `a-retry-that-changes-nothing`, and it costs an approach each
         // time it happens silently.
@@ -857,7 +857,7 @@ final class JourneyPour {
         }
         // COME BACK DOWN THE STAIRCASE BEFORE ASKING FOR A STAIRCASE.
         //
-        // `buildTo` plans its flight from the alcove FLOOR and then walks the body to stand beside
+        // `buildTo` plans its flight from the alcove FLOOR and then walks the bot to stand beside
         // the bottom step. That walk is "go to this coordinate", and from the surface it does not
         // arrive — measured on both failures of 2026-08-26's two client rehearsals:
         //
@@ -869,12 +869,12 @@ final class JourneyPour {
         // so headroom is not the refusal. It is that the descent has a NAMED route and this asked
         // for a coordinate instead — the same distinction JourneyStairwell#goUpToThePool's javadoc
         // draws for the ascent, and the same call `raiseRowTooHigh` already makes on the raise side,
-        // which DID get its body back into the shaft in the same run (`raiseRowRetry.returnedY=57`).
+        // which DID get its bot back into the shaft in the same run (`raiseRowRetry.returnedY=57`).
         //
         // The bound is the pour's own slack, and it separates the three cells measured: cell 8 of
         // run 1 (+5, failed), cell 9 of run 2 (+5, failed), cell 8 of run 2 (−3, PASSED and must
         // not be disturbed). ⛔ It is not a retry — there is no recursion here, the walk happens at
-        // most once per lift, and a body that is already low enough never sees it.
+        // most once per lift, and a bot that is already low enough never sees it.
         int above = here.getY() - landing.getY();
         if (above > POUR_ROW_SLACK) {
             rig.evidence(tag + ".liftTooHigh." + tries, here.toShortString() + " is " + above
@@ -890,11 +890,11 @@ final class JourneyPour {
         liftFlight(ctx, rig, target, away, wantY, landing, tries, tag, then);
     }
 
-    /** The staircase half of {@link #liftInPlace}, reached either directly or after the body has
+    /** The staircase half of {@link #liftInPlace}, reached either directly or after the bot has
      *  been walked back down to the alcove floor — see the {@code liftTooHigh} branch there. */
     private static void liftFlight(SceneContext ctx, JourneyRig rig, BlockPos target, Direction away,
                                    int wantY, BlockPos landing, int tries, String tag, Runnable then) {
-        // BOUNDED, AND PINNED TO THE COLUMN. The unbounded arm answered `liftSideways` — a body this
+        // BOUNDED, AND PINNED TO THE COLUMN. The unbounded arm answered `liftSideways` — a bot this
         // method had just found unable to fire from its own column — with "already at the landing
         // row or higher" and built nothing, so the sideways move named one row above never happened and `liftedY`
         // recorded it as a lift that finished. Both bounds are read from this rung's own evidence;
@@ -930,23 +930,23 @@ final class JourneyPour {
     }
 
     /** How many times a pour may re-walk at its cell before the rung stops. Two, plus the one it
-     *  started with: this is a few blocks inside a chamber the body just carved, so a leg that ends
-     *  out of reach three times is not a slow walk, it is a body that cannot get there. */
+     *  started with: this is a few blocks inside a chamber the bot just carved, so a walk that ends
+     *  out of reach three times is not a slow walk, it is a bot that cannot get there. */
     static final int POUR_APPROACHES = 3;
 
     /**
-     * A cell the body can STAND in and from which this pour provably lands in {@code target}.
+     * A cell the bot can STAND in and from which this pour provably lands in {@code target}.
      *
      * <p>The spot used to be arithmetic — two blocks back along {@code away}, at the target's own
      * height — and level with the target is the right idea for the ray. It is the wrong idea for the
-     * body: the alcove is hollow, so "level with a cell four rows up" is a cell with nothing under
+     * bot: the alcove is hollow, so "level with a cell four rows up" is a cell with nothing under
      * it, and asking the walker to occupy thin air is what wedged a run at {@code -9,53,20}, three
      * blocks outside the corridor it had just carved, unable to move for three identical attempts.
      *
      * <p>So both halves are asked properly. <b>Standable</b> — feet and head clear, something solid
      * underfoot — and <b>useful</b>, meaning the same clip vanilla is about to run lands on the
      * backing's near face, which is what puts the fluid in {@code target} and nowhere else. Nearest
-     * to the body wins, so a cell it is already standing in costs no walk at all.
+     * to the bot wins, so a cell it is already standing in costs no walk at all.
      */
     static PourSpot standToPour(ServerLevel level, ServerPlayer body, BlockPos target,
                                 Direction away, Map<String, Integer> why) {
@@ -961,18 +961,18 @@ final class JourneyPour {
      * QUESTION — "is there anywhere down here with a clear line to this cell" — rather than only as
      * a place to walk to. {@link #standLevelWith} asks it that way.
      *
-     * <h2>Two aims, because a floating body cannot use the first one</h2>
+     * <h2>Two aims, because a floating bot cannot use the first one</h2>
      *
      * The backing is the natural thing to aim at and it needs the eye almost exactly level with the
      * target: the ray has to cross the frame's plane inside the target's own row, and the plane is
-     * two blocks away, so a body one block too high enters the row ABOVE and the fluid lands there.
-     * That is not a hypothetical — the alcove floods with the cast's own water, a body in water
+     * two blocks away, so a bot one block too high enters the row ABOVE and the fluid lands there.
+     * That is not a hypothetical — the alcove floods with the cast's own water, a player in water
      * floats one block, and run 29's cell three recorded exactly it twice
      * (the ray stopped at {@code -11,58,38 granite}) with no verified spot left over.
      *
      * <p>So when the backing yields nothing, aim at the target's FLOOR instead and hit its top face:
      * the fluid still lands in the target, and looking down at a block one row below is precisely
-     * what a body standing a block too high can do. That the floor is solid is not an assumption —
+     * what a bot standing a block too high can do. That the floor is solid is not an assumption —
      * it is {@link JourneyForge}'s first invariant, which is why the ring is cast in the order it is.
      * The exception is the top pair, whose floor is an interior cell opened three casts earlier —
      * and that exception is why the list runs to four; see {@link #aimCandidates}. Building the step
@@ -997,7 +997,7 @@ final class JourneyPour {
     }
 
     /**
-     * Which block, aimed at from where the body is STANDING RIGHT NOW, puts the fluid in the target.
+     * Which block, aimed at from where the bot is STANDING RIGHT NOW, puts the fluid in the target.
      *
      * <p>The same candidates {@link #standToPour} weighs — both read {@link #aimCandidates}, so the
      * two questions cannot drift apart — and the answer is decided by <b>the ray the bucket is
@@ -1021,7 +1021,7 @@ final class JourneyPour {
      * </pre>
      *
      * Hand-computed from those two rows, and stated as the likely mechanism rather than as a measured
-     * one, because the rows print CELLS and the arithmetic needs the sub-cell position: a body at the
+     * one, because the rows print CELLS and the arithmetic needs the sub-cell position: a player at the
      * centre of {@code -9,56,32} has its eye at {@code (-8.5, 57.62, 32.5)}, the aim's centre is
      * {@code (-10.5, 57.5, 34.5)}, so {@code dx = -2.0} and {@code dz = +2.0} — {@code yaw} is
      * exactly 45° and the whole segment lies on the plane {@code x + z = 24}, which is the diagonal
@@ -1030,7 +1030,7 @@ final class JourneyPour {
      * Two rays that differ in that bit tie-break opposite ways, one cell apart, which is exactly the
      * shape of the recorded disagreement.
      *
-     * <p>Note what this is NOT: the fill's stale-aim trap, where the body moved between the question
+     * <p>Note what this is NOT: the fill's stale-aim trap, where the bot moved between the question
      * and the shot. Here it is one tick and one eye. The measurement that ruled quantisation out for
      * that one was taken on a much steeper aim and does not carry over — an eye-drift row of 0.00
      * says nothing about a ray riding an edge.
@@ -1123,7 +1123,7 @@ final class JourneyPour {
                 continue;
             }
             // THE SHOT, not the prediction of it. Aiming here is not a side effect to apologise for:
-            // the caller's very next act is to aim at whatever this returns, so the body ends up
+            // the caller's very next act is to aim at whatever this returns, so the bot ends up
             // pointing at the candidate either way — this only makes the decision and the aim the
             // same act.
             var fired = fire(rig.avatar(), rig.player(), aim);
@@ -1153,7 +1153,7 @@ final class JourneyPour {
     /**
      * Aim at {@code at} and take the shot the bucket would take — the ray that DECIDES, not the
      * segment that chose the candidate. See {@link #aimThatLandsIn} for why the two are not the same
-     * line even from a body standing still.
+     * line even from a bot standing still.
      *
      * <p>Two calls rather than one because both halves are read: the hit's own type is the only
      * thing that distinguishes "the ray hit no block" from a landing, and {@link #landedIn} throws that
@@ -1173,8 +1173,8 @@ final class JourneyPour {
                 ? fired.getBlockPos().relative(fired.getDirection()) : null;
     }
 
-    /** The nearest cell the body could stand in at all, ray or no ray. Kept apart from the aim scan
-     *  so a body is never left with nowhere to go because the ray test is stricter than it should be
+    /** The nearest cell the bot could stand in at all, ray or no ray. Kept apart from the aim scan
+     *  so a bot is never left with nowhere to go because the ray test is stricter than it should be
      *  — the pour's own {@code .picks} gate still refuses to spend the bucket, so falling back here
      *  cannot cause a wrong-cell pour. */
     private static BlockPos firstStandable(ServerLevel level, ServerPlayer body, BlockPos target,
@@ -1205,7 +1205,7 @@ final class JourneyPour {
      * vote to the cell that cast it.
      *
      * <p>Four back, two either side, seven rows down: the alcove is {@code push}-deep and five wide,
-     * so this is the whole of it plus the reach a body has from the rank behind.
+     * so this is the whole of it plus the reach a player has from the rank behind.
      */
     static List<BlockPos> standCandidates(BlockPos target, Direction away) {
         List<BlockPos> out = new java.util.ArrayList<>();
@@ -1240,16 +1240,16 @@ final class JourneyPour {
             why.merge("head cell occupied", 1, Integer::sum);
             return JourneySight.REFUSED;
         }
-        // A BODY IN WATER FLOATS, and the whole aim turns on one block of height.
+        // A PLAYER IN WATER FLOATS, and the whole aim turns on one block of height.
         //
         // The cast's own bucket floods the corridor - the source sits in an interior cell open to it
-        // - so by the third cell the row the pours stand in is water. The body then does not stand in
+        // - so by the third cell the row the pours stand in is water. The bot then does not stand in
         // the cell this loop picked; it bobs a block above it. Measured, cell 2:
-        // `water2.stand=-9,56,37` chosen and `water2.picks=...body -9,57,37` an instant later, and
+        // `water2.stand=-9,56,37` chosen and `water2.picks=...bot at -9,57,37` an instant later, and
         // from that extra block the ray to a backing two away enters the plane one row high -
-        // landing in `-9,58,37` for a target at `-9,57,38`. Nothing was wrong with the choice; the body was
+        // landing in `-9,58,37` for a target at `-9,57,38`. Nothing was wrong with the choice; the bot was
         // not where the choice assumed. So predict the float instead of assuming it away, and require
-        // the extra headroom the floating body actually occupies.
+        // the extra headroom the floating player actually occupies.
         boolean afloat = !level.getFluidState(foot).isEmpty();
         if (afloat) {
             BlockPos over = foot.above(2);
@@ -1258,7 +1258,7 @@ final class JourneyPour {
                 return JourneySight.REFUSED;
             }
         }
-        // THE WHOLE CELL, not the one point in it a body is never at. See JourneySight for the eye
+        // THE WHOLE CELL, not the one point in it a bot is never at. See JourneySight for the eye
         // this used to test and the eye that fired a tick later, three tenths of a block apart and
         // one column of crossings apart with it.
         return JourneySight.pourGrade(level, body, foot, afloat, backing, target, why);

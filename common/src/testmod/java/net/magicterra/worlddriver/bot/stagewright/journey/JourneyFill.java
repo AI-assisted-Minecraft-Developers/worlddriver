@@ -45,7 +45,7 @@ public final class JourneyFill {
      *  five blocks of it can be the pool's own mouth. Measured on the archived {@code south}
      *  rehearsal (2026-08-16, {@code FAIL 12595t}): every cell within five of the stairwell mouth
      *  that could see a source had lava under the line to it, so the station HAD to be the one that
-     *  drops the body in. The four that do not are seven and eight out — {@code -9,64,13},
+     *  drops the bot in. The four that do not are seven and eight out — {@code -9,64,13},
      *  {@code -9,64,14}, {@code -8,64,13}, {@code -8,64,14} — which is what this number now has to
      *  reach. It is a widening only in company with {@link #lavaUnderTheWalk}: on its own it would
      *  just offer the ranking more cells over the same hole. */
@@ -57,19 +57,19 @@ public final class JourneyFill {
      *  <p>Asked as ten it found nothing: run 39 measured 99 rejections for fewer than 10 reachable
      *  sources, ninety-nine
      *  cells that were dry, standable, near-bank and looking at the lake, all rejected, and the fills
-     *  fell back to the per-trip choice that drowns the body. A station that sees six is not a
+     *  fell back to the per-trip choice that drowns the bot. A station that sees six is not a
      *  station that fails on the seventh cast — the lake keeps flowing — and it is unconditionally
      *  better than the route it replaces. The count goes in the evidence so a run that finished on a
      *  thin one cannot read like a run that finished on a fat one. */
     private static final int STATION_SOURCES = 1;
 
     /**
-     * Cut the fetch trip down to one walk the body makes ten times, instead of ten choices.
+     * Cut the fetch trip down to one walk the bot makes ten times, instead of ten choices.
      *
      * <p>This is the staircase's lesson applied to the other end of the trip. {@link #standToFill}
-     * ranks stands by straight-line distance from the body, and the straight line from the
+     * ranks stands by straight-line distance from the bot, and the straight line from the
      * stairwell's mouth to the far bank goes over the lake — so the walker took it, and six runs
-     * running the body ended up UNDER the surface: {@code cast2.return=-10,60,20},
+     * running the bot ended up UNDER the surface: {@code cast2.return=-10,60,20},
      * {@code climb.0 above=Block{minecraft:lava} onGround=false},
      * {@code climb.0.wouldOpenFluid=-10,62,20} (mining it would release lava, so the climb did not
      * mine it), {@code exit.gained=0/6}.
@@ -91,7 +91,7 @@ public final class JourneyFill {
      *
      * <h2>Standable is not the same as standable ten times</h2>
      *
-     * The body walks here ten times, so a cell that is legal to stand in but sits in a notch over the
+     * The bot walks here ten times, so a cell that is legal to stand in but sits in a notch over the
      * lake is a cell it visits ten times and falls off once. That is measured, twice, on the
      * {@code south} rehearsal geometry ({@code station = -14, 65, 21}, whose east side is open air
      * down to the lava at {@code y=63}):
@@ -107,7 +107,7 @@ public final class JourneyFill {
      *                              cast8.returnStopped at -14, 66, 21 … air below  ← and wedged
      * </pre>
      *
-     * <p>Two runs, two different deaths, one cell. Run B's is the plainer of the two: the body ends
+     * <p>Two runs, two different deaths, one cell. Run B's is the plainer of the two: the bot ends
      * up in the cell ABOVE the station with nothing under its feet, {@code soleOnSolid} at zero, and
      * vanilla's {@code maybeBackOffFromEdge} then shrinks every horizontal move to nothing — pinned
      * on the doorstep of the stand it was pinned to. Eleven {@code footing guard} lines in run A say
@@ -115,7 +115,7 @@ public final class JourneyFill {
      *
      * <p>So a candidate is refused when the lake is a step away from it — {@link JourneyTerrain#onThePoolsLip},
      * the hazard half of the walker's own {@code lethalDropAdjacent}, asked at the cell AND at the
-     * cell above it, because the body arrives there first and run B never got any further.
+     * cell above it, because the bot arrives there first and run B never got any further.
      *
      * <p><b>A preference, not a rule</b>, the same two-pass shape and for the same reason as
      * {@link #standToFill}: a bank the strict pass empties is a bank the fills would answer by
@@ -179,7 +179,7 @@ public final class JourneyFill {
      * at the HEAD as well as at the foot — neither of which
      * {@code JourneyPortalEntry.standable} or {@code JourneyEndRungs.standingCellInTheRoom} does.
      * That is because this is not choosing somewhere to walk to or to dig into: it is choosing
-     * somewhere to STAND AND AIM A BUCKET FROM, and a cell a body can occupy but cannot work from
+     * somewhere to STAND AND AIM A BUCKET FROM, and a cell a bot can occupy but cannot work from
      * is worthless here. See {@code standable}'s note for the clause-by-clause comparison of all
      * three, and do not substitute one for another.
      */
@@ -222,7 +222,7 @@ public final class JourneyFill {
         return best;
     }
 
-    /** How many lava sources a body standing here could actually fill from — same clip vanilla runs,
+    /** How many lava sources a bot standing here could actually fill from — same clip vanilla runs,
      *  so this counts fills and not merely neighbours. */
     private static int sourcesInReachFrom(ServerLevel level, JourneyRig rig, BlockPos foot,
                                           List<BlockPos> sources) {
@@ -253,7 +253,7 @@ public final class JourneyFill {
      * <p>{@code FAIL} from an empty bucket means vanilla saw a block that is not a pickable source:
      * either the source is gone, or there is rock between the eyes and it. Those want opposite
      * responses, so the miss line records the range and what the ray actually stopped on, and the
-     * retry re-targets the nearest source to WHERE THE BODY NOW IS rather than asking the same
+     * retry re-targets the nearest source to WHERE THE BOT NOW IS rather than asking the same
      * question from the same cell — a retry that changes nothing is not a retry.
      */
     static void fillFrom(SceneContext ctx, JourneyRig rig, BlockPos src, String tag,
@@ -271,7 +271,7 @@ public final class JourneyFill {
         boolean lava = wanted == Items.LAVA_BUCKET;
         // DO NOT WALK TO THE LAKE IF THE LAKE IS ALREADY IN REACH.
         //
-        // The staircase's mouth is cut beside the pool, so a body that has just climbed it is
+        // The staircase's mouth is cut beside the pool, so a bot that has just climbed it is
         // usually two blocks from a source with a clear line to it — and the walk to a planned
         // stand on the far side crosses the pool's own rim. That crossing is not a slow route, it
         // is a drowning: measured in three consecutive runs, `lava2.spot` chose a stand at
@@ -279,18 +279,18 @@ public final class JourneyFill {
         // `cast2.return` beginning at `-10,60,20`, three blocks UNDER the surface, `climb.0
         // above=lava onGround=false`, and the scripted climb refusing to mine a ceiling with lava
         // behind it — correctly, and with nothing left to try. The trip that fetched the lava is
-        // what buried the body, and it was a trip it did not need to make.
+        // what buried the bot, and it was a trip it did not need to make.
         //
         // First approach only: a fill that has already missed once needs a different question, and
         // asking this one again would hand back the same cell.
         //
-        // ASKED WHERE THE BODY IS, NOT WHERE IT COMES TO REST — deliberately, and the other way
+        // ASKED WHERE THE BOT IS, NOT WHERE IT COMES TO REST — deliberately, and the other way
         // round has been tried. Settling first sounds strictly better (this clip is the reason the
-        // fill does not walk, so it deserves a still body) and measured worse: a ten-tick settle
+        // fill does not walk, so it deserves a stationary bot) and measured worse: a ten-tick settle
         // here gave `recover8` eight extra ticks of falling, eye y 61.65→58.06, after which
         // nothing was in view, the fill walked, and the walk mined a cast frame cell on its way back
         // up. See HoldStill for the whole chain. A wrong answer from here costs one aim, which
-        // `scoop` re-takes; a body four blocks lower costs the rung.
+        // `scoop` re-takes; a bot four blocks lower costs the rung.
         if (tries == FILL_APPROACHES) {
             BlockPos inReach = visibleSourceNear(rig, lava, FILL_RESEARCH);
             if (inReach != null) {
@@ -303,7 +303,7 @@ public final class JourneyFill {
             }
         }
         // WHERE TO STAND is chosen before the walk, not discovered after it. `Goal.Near(src, 2)` puts
-        // the body within two blocks of a source and says nothing about what is between them, so
+        // the bot within two blocks of a source and says nothing about what is between them, so
         // whether the bucket filled came down to where the climb happened to emerge: the same code
         // filled at `-12,63,21` one run and reported the ray stopping on stone at `-10,63,21` the
         // next, two runs
@@ -322,7 +322,7 @@ public final class JourneyFill {
                   + spot.stand().toShortString() + " aiming at " + spot.source().toShortString());
         Goal where = spot == null ? new Goal.Near(src, 2) : new Goal.Block(spot.stand());
         // THE WATER RECOVER MAY NOT DIG ITS WAY THERE. Its source sits inside the frame the rung is
-        // building, so the only thing between a floor-level body and it is the frame — and a walker
+        // building, so the only thing between a floor-level bot and it is the frame — and a walker
         // with `allowBreak` on treats that as terrain. Measured, single-bucket rehearsal 2026-08-17:
         // `recover8.spot` found no stand that sees a source and fell back to `Near(-9,61,38,2)`, and
         // then `frame.lost.1` reported that `-9,60,38` had been cast to obsidian and was gone again,
@@ -349,7 +349,7 @@ public final class JourneyFill {
         Intent walk = rim != null ? new Intent(where, rim.bias())
                 : new Intent(where, List.of(), CapabilityProfile.ALL, List.of(new NoBreak()));
         rig.settle(new IntentProcess(walk), 1_500, () -> {
-            // Re-ask from where the body ACTUALLY ended up. The plan above is what makes a good spot
+            // Re-ask from where the bot ACTUALLY ended up. The plan above is what makes a good spot
             // likely; this is what makes the aim correct, because a walk that stopped a cell short
             // has a different set of sources in view and only the clip from here knows which.
             // WHAT THE STATION HAS LEFT. Each fill takes a source away, so the number that matters
@@ -418,23 +418,23 @@ public final class JourneyFill {
      * <ul>
      *   <li>the rotation is float-quantised — {@code aimAtBlock} stores degrees as {@code float} and
      *       the trace re-derives the direction from them, so it is not exactly at the centre;
-     *   <li>the BODY MOVED between the two questions. {@code scoop} aims and then settles two ticks
+     *   <li>the BOT MOVED between the two questions. {@code scoop} aims and then settles two ticks
      *       (it has to: {@code pick()} traces from the previous tick's rotation), and two ticks of
-     *       falling or floating leave the stored rotation aiming from a position the body has left.
+     *       falling or floating leave the stored rotation aiming from a position the bot has left.
      * </ul>
      *
      * <p>A hundredth of a block separates those two answers, so that is what this prints. The second
      * is the same family as the two ray traps this repo has already paid for; the first is a rounding
-     * error and would show as a body that did not move at all.
+     * error and would show as a bot that did not move at all.
      */
     static String eyeNow(JourneyRig rig) {
         var fp = rig.player();
         var eye = fp.getEyePosition();
-        // AND WHETHER THE BODY IS STANDING ON ANYTHING, because a ray from an airborne eye is not
+        // AND WHETHER THE BOT IS STANDING ON ANYTHING, because a ray from an airborne eye is not
         // the ray that was verified — and no other field in these rows can see it.
         //
         // Ladder-18, rung 12, `recover6`: eye y=60.48 with `blockPosition()` reporting 3,58,19.
-        // 60.48 − 1.62 = 58.86, so the body was most of a block above the row it thought it was on,
+        // 60.48 − 1.62 = 58.86, so the bot was most of a block above the row it thought it was on,
         // still falling toward it, and the extra 0.86 put the frame cell 4,60,19 on the line to the
         // water in 4,59,19 — from a resting eye at 59.62 that cell is not on the line at all. The
         // row that DID exist, "the eye moved 0.25 blocks during the two settle ticks", cannot answer
@@ -465,11 +465,11 @@ public final class JourneyFill {
      * How far the eye travelled across the settle the aim was taken after.
      *
      * <p>The measurement this whole fix is judged on, printed where it is checkable: {@code .aimsAt}
-     * says where the ray goes and this says how much the body had moved since the question that
+     * says where the ray goes and this says how much the bot had moved since the question that
      * chose the target. Before the aim moved to AFTER the settle, that drift was the error in the
      * aim — {@code recover9} carried 0.54 blocks of it and put the ray a full cell low. Now the aim
      * is recomputed from the far side of it, so a large drift here is no longer an aiming bug; it is
-     * a body that is falling, and the row says so rather than leaving it to be inferred from two
+     * a bot that is falling, and the row says so rather than leaving it to be inferred from two
      * eye coordinates printed in different places.
      */
     private static String settleDrift(JourneyRig rig, net.minecraft.world.phys.Vec3 was) {
@@ -505,10 +505,10 @@ public final class JourneyFill {
         // unchanged.
         //
         // `aimAtBlock` stores an ANGLE, not a target: it computes yaw/pitch from where the eye is
-        // when it is called and writes them to the body. Everything downstream —
+        // when it is called and writes them to the player. Everything downstream —
         // `JourneyHands.aimedAt` here, and `Item.getPlayerPOVHitResult` inside
         // `BucketItem.use` — re-derives a direction from those angles and starts it at the LIVE eye.
-        // So a body that moves between the aim and the use fires a ray computed for a position it
+        // So a bot that moves between the aim and the use fires a ray computed for a position it
         // has left, and neither reading can see that: both print a CELL, and a cell is a metre wide.
         //
         // Measured, single-bucket rehearsal 2026-08-15. `recover9` aimed at the water in
@@ -524,16 +524,17 @@ public final class JourneyFill {
         // The two ticks are NOT owed to `pick()`, which is what the comment here used to claim: the
         // bucket never goes through `pick()`. `Item.getPlayerPOVHitResult` reads `getXRot()` /
         // `getYRot()` / `getEyePosition()` live, so an aim, a prediction and a use in ONE tick all
-        // see the same thing. What the ticks buy is physics — an unregistered body does not fall at
+        // see the same thing. What the ticks buy is physics — an unregistered bot does not fall at
         // all — so they stay, and everything that depends on the aim moves to after them.
         //
         // Spending MORE of them is not the safer version of this; it is a different bug. See
-        // HoldStill for the run where a ten-tick wait dropped the body four blocks.
+        // HoldStill for the run where a ten-tick wait dropped the bot four blocks.
         var eyeBeforeSettling = rig.player().getEyePosition();
         rig.settle(new HoldStill(2), 10, () -> {
-            // BOTH bodies, because the very next line is a PREDICTION GATE on the server one.
-            // `aimedAt(rig.player(), …)` rays the ServerPlayer; `rig.avatar()` on this topology is
-            // the client. Aim only the client and this gate reads a body nobody pointed — and it
+            // BOTH players (client and server), because the very next line is a PREDICTION GATE
+            // on the server one. `aimedAt(rig.player(), …)` rays the ServerPlayer; `rig.avatar()`
+            // on this topology is the client. Aim only the client and this gate reads a player
+            // nobody pointed — and it
             // does not merely mis-report, it ACTS: `onTarget=false` sends the run into re-aim, into
             // `mineCellOrGiveUp` on a "blocker" that was never on the line, or into
             // `stepOutOfTheFrame`. All three change the world on a reading that was never about the
@@ -674,7 +675,7 @@ public final class JourneyFill {
         // bucket that missed, which is the same trap `holdForUse` was written for.
         if (!bucketInHand(ctx, rig, tag)) return;
         // WHAT THIS USE CHANGED, not what the bag happens to hold. `carrying(id) >= 1` is the
-        // same claim as "this fill worked" only while the body can carry exactly one — and it
+        // same claim as "this fill worked" only while the bot can carry exactly one — and it
         // could, so the two were indistinguishable and the weaker one shipped. Carry two and the
         // second fill passes before it is attempted: the first bucket is already in the bag, so
         // the test is true whatever `useItemInHand` did, and a fill that missed reports success
@@ -683,7 +684,7 @@ public final class JourneyFill {
         // DELTA and that is impossible at any bucket count.
         int before = rig.carrying(id);
         // THE READING THE POUR HAS AND THE SCOOP DID NOT. {@code cast6.atUse} is what makes a pour
-        // that did nothing debuggable: both bodies' selected slot, both eyes, and the ray in BOTH
+        // that did nothing debuggable: both players' selected slot, both eyes, and the ray in BOTH
         // fluid modes, all at the instant of the use. The scoop had none of it, so ladder-18's
         // `recover6.miss.3 = minecraft:water_bucket 0→0 …`, with the ray stopping on
         // `Block{minecraft:water}` at `4, 59, 19`,
@@ -708,8 +709,8 @@ public final class JourneyFill {
         var blockAtUse = level.getBlockState(aim).getBlock();
         rig.evidence(tag + ".result", String.valueOf(rig.hands().useItemInHand()));
         // WAIT FOR THE ROUND TRIP BEFORE JUDGING — the mirror of aiming, not a contradiction of it.
-        // The aim must be adjacent to the act on the body that ACTS; the OUTCOME is produced by
-        // that client body and has to travel back before `rig.carrying` (the ServerPlayer's
+        // The aim must be adjacent to the act on the player that ACTS; the OUTCOME is produced by
+        // that client player and has to travel back before `rig.carrying` (the ServerPlayer's
         // inventory) or `ctx.level()` can see it. Judged in the use's own tick, a fill that worked
         // is byte-identical to one vanilla refused, and every branch below — retarget, and the
         // `ctx.fail` that ends the rung — then fires on a reading taken too early.
@@ -720,8 +721,8 @@ public final class JourneyFill {
         rig.settle(new HoldStill(3), 12, () -> {
             int after = rig.carrying(id);
             if (after > before) { then.run(); return; }
-            // Only trustworthy since `scoop` started aiming BOTH bodies. This rays rig.player(),
-            // the server body, and before that fix nothing had ever pointed it — so every
+            // Only trustworthy since `scoop` started aiming BOTH players. This rays rig.player(),
+            // the server-side player, and before that fix nothing had ever pointed it — so every
             // "ray stopped on ..." this row printed described a direction the use never took.
             var hit = JourneyHands.aimedAt(rig.player(), BUCKET_REACH, true);
             double range = rig.player().getEyePosition()
@@ -762,7 +763,7 @@ public final class JourneyFill {
     }
 
     /**
-     * Fill EVERY empty bucket the body is carrying, in one visit to the pool.
+     * Fill EVERY empty bucket the bot is carrying, in one visit to the pool.
      *
      * <p>The trip is what this rung fails in. Ten cells each did their own
      * {@code goUpToThePool → fillFrom → returnToTheForge}, and the three failures that have ended
@@ -784,7 +785,7 @@ public final class JourneyFill {
      * failure that gets written down as "could not cast obsidian" three inferences away from its
      * cause. Every
      * bucket after it is a bonus: it is attempted only when there is an empty bucket AND a source
-     * already in view from where the body stands, and the first attempt that does not take ends the
+     * already in view from where the bot stands, and the first attempt that does not take ends the
      * loading. Coming home with two when three were possible costs one extra trip; failing the rung
      * over it would cost the run.
      */
@@ -808,7 +809,7 @@ public final class JourneyFill {
     private static final int BUCKETS_KEPT_EMPTY_FOR_WATER = 1;
 
     /**
-     * Top the load up while the body stands where the first fill already worked.
+     * Top the load up while the bot stands where the first fill already worked.
      *
      * <p>{@link #visibleSourceNear} is the gate rather than "is there lava nearby": it runs the same
      * {@code SOURCE_ONLY} clip {@code BucketItem.use} runs, so a cell it returns is a cell this
@@ -872,7 +873,7 @@ public final class JourneyFill {
     }
 
     /**
-     * Every source of the right fluid within reach of the body, listed.
+     * Every source of the right fluid within reach of the bot, listed.
      *
      * <p>The reading that separates "the bucket missed" from "there is nothing left to fill from",
      * and this rung has spent runs unable to tell those apart. It matters most on the recover: the
@@ -909,7 +910,7 @@ public final class JourneyFill {
         return null;
     }
 
-    /** How far to look for another source when a fill did not take. Small: the body is standing at
+    /** How far to look for another source when a fill did not take. Small: the bot is standing at
      *  the pool it walked to, and a source further than this is a different walk, not a retry. */
     static final int FILL_RESEARCH = 8;
 
@@ -917,18 +918,18 @@ public final class JourneyFill {
     private record FillSpot(BlockPos stand, BlockPos source) {}
 
     /** How many sources a fill spot may be searched around. The pool has seventy-five and they are
-     *  sorted by how far the body has to walk, so the near dozen is the whole useful set. */
+     *  sorted by how far the bot has to walk, so the near dozen is the whole useful set. */
     private static final int FILL_SOURCES_TRIED = 16;
 
     /**
-     * Is the straight line from the body to this stand over the pool?
+     * Is the straight line from the bot to this stand over the pool?
      *
-     * <p>A stand is chosen by how far the BODY has to go, and straight-line distance is the only
+     * <p>A stand is chosen by how far the BOT has to go, and straight-line distance is the only
      * cheap measure of that — but a straight line across a lava lake is a route the walker will
      * genuinely try, and this rung's lake sits between the stairwell's mouth and the far bank.
      * Measured in four consecutive runs, and always the same shape: {@code lava2.spot} chose a stand
      * at {@code -13,64,21}
-     * chosen from the mouth at {@code -9,66,21}, and the very next reading is the body at
+     * chosen from the mouth at {@code -9,66,21}, and the very next reading is the bot at
      * {@code -10,60,20} — three blocks under the surface, {@code onGround=false}, with the scripted
      * climb correctly refusing to mine a ceiling that has lava behind it. There is nothing to
      * recover from down there, so the answer has to be not to go.
@@ -958,7 +959,7 @@ public final class JourneyFill {
      * A cell to stand in from which a bucket WILL fill from {@code pool}, or null when there is none.
      *
      * <p>The lava fetch has chosen its stand this way for a long time; the water scoop in rung 12
-     * never has, and j52 is what that costs. That rung fires from wherever rung 11 left the body,
+     * never has, and j52 is what that costs. That rung fires from wherever rung 11 left the bot,
      * and the two seats it lands in are not equivalent: at {@code y=63} the ray clears the bank and
      * the bucket fills (j48, j51), at {@code y=62} it stops on the terrain one block away —
      * {@code empty-bucket ray -5,62,55 minecraft:grass_block (1.05 blocks)} — and nothing
@@ -967,7 +968,7 @@ public final class JourneyFill {
      *
      * <p>Only the stand is returned. The caller re-asks {@link #visibleSourceNear} once it has
      * actually moved, rather than trusting the source this picked: between choosing and arriving
-     * the body walks, and an aim is a fact about an eye position that has since changed.
+     * the bot walks, and an aim is a fact about an eye position that has since changed.
      */
     static BlockPos standToScoop(JourneyRig rig, BlockPos pool) {
         return standToScoop(rig, pool, new java.util.LinkedHashMap<>());
@@ -994,7 +995,7 @@ public final class JourneyFill {
     }
 
     /**
-     * A cell beside the pool the body can STAND in, and a source it can provably reach from there.
+     * A cell beside the pool the bot can STAND in, and a source it can provably reach from there.
      *
      * <p>The exact counterpart of {@link JourneyPour#standToPour}, and it is missing for the same
      * reason that one was: the rung asked the walker to get NEAR a coordinate and then hoped the
@@ -1006,7 +1007,7 @@ public final class JourneyFill {
      *
      * <p>So both halves are decided before the walk: a cell that is standable (feet and head clear of
      * blocks AND of fluid — this one stands next to lava) and from which the clip vanilla is about to
-     * run lands on the source. Sources are tried nearest-first by how far the BODY must walk, so the
+     * run lands on the source. Sources are tried nearest-first by how far the BOT must walk, so the
      * answer is also the cheapest trip.
      */
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
@@ -1042,7 +1043,7 @@ public final class JourneyFill {
                 for (int dz = -1; dz <= 1; dz++) {
                     if (dx == 0 && dz == 0) continue;             // not IN the pool
                     // BELOW the source as well as level with it. Two rows down, because the cell a
-                    // bucket has to take back is usually one ABOVE the floor the body stands on: the
+                    // bucket has to take back is usually one ABOVE the floor the bot stands on: the
                     // rung's own water sits in the frame's interior at y+1, and a search that only
                     // looked at the source's own level and higher answered "no stand that sees a
                     // source was found" for a source two blocks away in a chamber the bot was
@@ -1052,8 +1053,8 @@ public final class JourneyFill {
                         double d = foot.distSqr(from);
                         if (d >= bestD) {
                             // COUNTED, because this is the branch that decides the answer and it was
-                            // the only one leaving no trace. `from` is the body's OWN cell, and the
-                            // body is usually standing in the source's 3×3 already — so the moment
+                            // the only one leaving no trace. `from` is the bot's OWN cell, and the
+                            // bot is usually standing in the source's 3×3 already — so the moment
                             // its own cell qualifies, bestD is 0 and every remaining candidate dies
                             // right here, unevaluated. A better seat one block up is never asked
                             // whether it can see the water. That is j55's rung 12: the re-seat
@@ -1069,7 +1070,7 @@ public final class JourneyFill {
                         // Water underfoot is a wet floor, not a disqualification — and refusing it
                         // is what left the recover with nowhere to stand, because the bucket the
                         // rung is trying to take BACK is the thing that flooded the alcove. Lava is
-                        // still a refusal: standing in it costs the body, not the bucket.
+                        // still a refusal: standing in it costs the bot, not the bucket.
                         if (level.getFluidState(foot).is(net.minecraft.tags.FluidTags.LAVA)) {
                             why.merge("foot cell is lava", 1, Integer::sum); continue;
                         }
@@ -1116,10 +1117,10 @@ public final class JourneyFill {
     static final double BUCKET_REACH = 4.5;
 
     /**
-     * Whether a bucket used from where the body stands RIGHT NOW would land on {@code cell}.
+     * Whether a bucket used from where the bot stands RIGHT NOW would land on {@code cell}.
      *
      * <p>The engine's own clip, from the current eye, so it cannot disagree with what fires. It does
-     * NOT need the body aimed — {@code ClipContext} takes an explicit segment, which is what makes
+     * NOT need the bot aimed — {@code ClipContext} takes an explicit segment, which is what makes
      * this askable at a planning site rather than only inside an {@code aimThenAct}.
      *
      * <p>THE SEGMENT IS TRUNCATED AT {@code BUCKET_REACH}, NOT REJECTED BY DISTANCE TO THE CENTRE.
@@ -1154,7 +1155,7 @@ public final class JourneyFill {
      * for every non-water fluid, empties there unconditionally. So the two predicates look alike and
      * one of them must add the face — do not "unify" them back.
      *
-     * <p>Measured: ladder-1 lost rung 11 to exactly this. The body stood two rows BELOW the target
+     * <p>Measured: ladder-1 lost rung 11 to exactly this. The bot stood two rows BELOW the target
      * water, its ray hit the bed `3,61,62` on its `south` face, the block-only check said "right
      * block", the run's one bucket poured, and obsidian appeared at `3,61,63` while the assertion
      * read `3,62,62` and found water. A pour into the wrong cell is worse than a pour that never
@@ -1185,7 +1186,7 @@ public final class JourneyFill {
     }
 
     /**
-     * The nearest source of the right fluid whose line from the body's eyes is CLEAR.
+     * The nearest source of the right fluid whose line from the bot's eyes is CLEAR.
      *
      * <p>The question a bucket actually asks, and the one nothing was asking. {@code useItemInHand}
      * clips from the eyes with {@code Fluid.SOURCE_ONLY} and fills from whatever it lands on, so
@@ -1226,7 +1227,7 @@ public final class JourneyFill {
     }
 
     /**
-     * Fill the bucket from {@code water}, re-seating once if this body can see no source from where
+     * Fill the bucket from {@code water}, re-seating once if this bot can see no source from where
      * it stands.
      *
      * <p>Lives here rather than in the rung that calls it because every decision it makes is one
@@ -1273,14 +1274,14 @@ public final class JourneyFill {
             return;
         }
         rig.attempting("filling one bucket of water to take down - there is no water below to come back for");
-        // AFTER A RE-SEAT, DO NOT APPROACH AGAIN. The re-seat below has just walked the body onto
+        // AFTER A RE-SEAT, DO NOT APPROACH AGAIN. The re-seat below has just walked the bot onto
         // the one cell it could find that sees the pond, and `standToFill` picks that cell out of
         // the POND's neighbourhood — not out of `Goal.Near`'s radius of `water`. A perfectly good
         // seat is routinely 2.45 blocks away (the rim cell diagonally off a source is `distSqr` 6),
-        // so re-running the approach on the way back in would walk the body straight off the seat
+        // so re-running the approach on the way back in would walk the bot straight off the seat
         // it just spent its one move on, and there is no second move to recover with.
         //
-        // `Goal.Near.reached` is `distSqr <= radius²`, so naming the cell the body is standing in
+        // `Goal.Near.reached` is `distSqr <= radius²`, so naming the cell the bot is standing in
         // makes this settle end on its first tick instead of becoming a second walk. Keyed off
         // `reseats` rather than a new parameter: below the initial budget means a re-seat was spent,
         // and that is exactly the re-entry this must not undo.
@@ -1307,7 +1308,7 @@ public final class JourneyFill {
             // The same run pair proves it is the SEAT and not the coordinate: j48 aimed at the very
             // same cell from the very same 1.4 blocks and filled, because it happened to stand at
             // y=63 rather than 62 and its ray cleared the obsidian's top face. A chooser that can
-            // be right or wrong depending on which block the previous rung left the body on is not
+            // be right or wrong depending on which block the previous rung left the bot on is not
             // choosing.
             //
             // `visibleSourceNear` is that question already answered — vanilla's own clip, per
@@ -1398,7 +1399,7 @@ public final class JourneyFill {
             // moment — SUCCESS is `sidedSuccess(true)`, which for an EMPTY bucket only comes from a
             // pickup the client's own ray landed — so the scene killed a fill it had not yet let
             // finish. The dedicated-server climb of 2026-08-16 recorded `CONSUME` here, i.e.
-            // `sidedSuccess(false)`: same code, server body, no packet to wait for, PASS.
+            // `sidedSuccess(false)`: same code, server-side player, no packet to wait for, PASS.
             //
             // NOT the aim, and NOT the hand — both matter for whoever reads this next, because the
             // two rows most likely to catch their eye are exactly the two dead ends.
@@ -1418,7 +1419,7 @@ public final class JourneyFill {
             JourneyHands.aimThenAct(rig, at, () -> {
                 // Increment, for the same reason `scoop` measures one — see its own note. The
                 // short-circuit above means `before` is 0 today, so this changes nothing now and
-                // stops being a lie the moment the body arrives here already holding water.
+                // stops being a lie the moment the bot arrives here already holding water.
                 int before = rig.carrying("minecraft:water_bucket");
                 // The same key `holdForUse` already wrote, on purpose: it tells the CLIENT to
                 // select the bucket and reads the SERVER's hand in the same breath, so its row is
@@ -1429,9 +1430,9 @@ public final class JourneyFill {
                 rig.evidence("waterFill.hand", String.valueOf(BuiltInRegistries.ITEM.getKey(
                         rig.player().getMainHandItem().getItem())));
                 // THE RAY, which this site did not print and needed. j50 died here with
-                // `result=FAIL` and no way to tell a blocked line from a refused block from a body
+                // `result=FAIL` and no way to tell a blocked line from a refused block from a bot
                 // that had drifted: the hand rows were both clean, so every remaining suspect lived
-                // on a line nobody was writing down. `handsAtUse` prints BOTH bodies and BOTH fluid
+                // on a line nobody was writing down. `handsAtUse` prints BOTH players and BOTH fluid
                 // modes, and the empty bucket's mode is the one that answers here.
                 JourneyHands.handsAtUse(rig, "waterFill");
                 rig.evidence("waterFill.result", String.valueOf(rig.hands().useItemInHand()));

@@ -32,7 +32,7 @@ ScriptTest.run("51_scene_facts: flat platform -> not cornered", function (t) {
 
 // ── Test 2: cornered — all 8 neighbours are solid walls ─────────────────────
 // z=260. Stone floor at y=199. Center cell (y=200, y=201) is air.
-// 8 ring cells: stone at y=200 AND y=201 (body+head) → canStandAt fails for
+// 8 ring cells: stone at y=200 AND y=201 (feet+head) → canStandAt fails for
 // every foot candidate the scanner probes → none are standable → cornered=true.
 ScriptTest.run("51_scene_facts: walled ring -> cornered", function (t) {
     var ox = 0, oy = 200, oz = 260;
@@ -40,7 +40,7 @@ ScriptTest.run("51_scene_facts: walled ring -> cornered", function (t) {
     fill(ox - 4, oy - 2, oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
     // Stone floor across the whole 3x3 footprint at y=199.
     fill(ox - 1, oy - 1, oz - 1, ox + 1, oy - 1, oz + 1, "minecraft:stone");
-    // Fill the 8 ring cells solid at body (y=200) and head (y=201) height.
+    // Fill the 8 ring cells solid at feet (y=200) and head (y=201) height.
     // Leave the center (ox, oy, oz) and (ox, oy+1, oz) as air.
     fill(ox - 1, oy,     oz - 1, ox + 1, oy + 1, oz + 1, "minecraft:stone");
     // Carve the center column back to air (the bot's own cell must be passable).
@@ -49,7 +49,7 @@ ScriptTest.run("51_scene_facts: walled ring -> cornered", function (t) {
     var s = scene({ x: ox, y: oy, z: oz }, 1);
     t.assertEqual(s.present, true, "scene present");
     t.assertEqual(s.hazardSummary.cornered, true,
-        "all 8 neighbours solid at body+head height -> no standable exit -> cornered");
+        "all 8 neighbours solid at feet and head height -> no standable exit -> cornered");
 });
 
 // ── Test 3: byte-stable render ───────────────────────────────────────────────

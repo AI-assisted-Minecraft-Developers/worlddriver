@@ -28,7 +28,7 @@ public final class FallIntoWater extends Move {
         // drop safe and free. Cheapest possible gate, so the ~17 enumerated
         // heights cost a single block read each over a dry column.
         if (!w.isWater(to)) return false;
-        // Buoyancy: the plunging body floats back up to the water SURFACE, so the
+        // Buoyancy: the plunging player floats back up to the water SURFACE, so the
         // landing must BE the surface cell — water at the foot, AIR (not more
         // water) directly above. A deeper, submerged landing is only where the
         // plunge momentarily bottoms out, not where the bot rests; routing to it
@@ -38,7 +38,7 @@ public final class FallIntoWater extends Move {
         BlockPos head = to.offset(0, 1, 0);
         if (!w.isPassable(head) || w.isWater(head) || w.isHazard(head)) return false;
         // Clear falling column (foot AND head) from the launch lip down to the
-        // cell just above the water — an overhang anywhere catches the body.
+        // cell just above the water — an overhang anywhere catches the player.
         return clearFallColumn(w, from, dx, dz, drop);
     }
     public String name() { return "fallWater" + drop; }

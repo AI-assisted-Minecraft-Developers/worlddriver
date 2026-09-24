@@ -31,18 +31,18 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>The problem this exists for</h2>
  *
- * The ladder is one body climbing twenty rungs in sequence, and that is the whole point of it — but
+ * The ladder is one bot climbing twenty rungs in sequence, and that is the whole point of it — but
  * it makes the upper rungs almost untestable. To exercise rung 12 you must replay rungs 1–11 and be
  * lucky: measured, about half of runs reach it at all, and a run costs twenty-five minutes. The
  * consequence is not theoretical. <b>Two committed fixes to rung 12 had never once executed.</b> A
  * change you cannot run is not a fix, it is a guess with a commit hash.
  *
- * <p>So this mode exists to make one rung reproducible: put the body where that rung starts, give it
+ * <p>So this mode exists to make one rung reproducible: put the bot where that rung starts, give it
  * what the rungs below would have given it, and run the rung's own code — unmodified — against it.
  *
  * <h2>What a green rehearsal is worth, and what it is not</h2>
  *
- * <b>It is not a climb.</b> The ladder's entire claim is {@code staging.calls=0}: the body really
+ * <b>It is not a climb.</b> The ladder's entire claim is {@code staging.calls=0}: the bot really
  * played, and nothing was arranged for it. A rehearsal arranges everything, so it can never support
  * that claim and must never be mistaken for it. Four things keep the two apart, deliberately more
  * than one because the failure mode here is a human misreading a log six months from now:
@@ -64,7 +64,7 @@ import net.minecraft.world.phys.Vec3;
  * ferrying, the reach of every verb the rung calls — all of that is the rung's real code running
  * against real terrain, and a failure in it is the same failure the ladder would hit. What it cannot
  * see is anything the rungs below would have handed over in a shape this staging got wrong (a worn
- * tool, an inventory laid out differently, a body standing somewhere else), which is why a rehearsal
+ * tool, an inventory laid out differently, a bot standing somewhere else), which is why a rehearsal
  * green is a reason to run the ladder, not a substitute for having run it.
  */
 public final class JourneyRehearsal {
@@ -208,9 +208,9 @@ public final class JourneyRehearsal {
                     + "(" + target.label() + "); " + rung.name() + ", above it, does not run"));
         }
         if (rung == JourneyStage.RECON) return bare(name, 1_200, JourneyRehearsal::recon);
-        // SPAWN is the one rung below the target that is played for real: it is the only place a body
-        // may be created, and its "empty-handed at spawn" assertion is what makes everything this
-        // class then hands over visible AS staging rather than as inventory that was always there.
+        // SPAWN is the one rung below the target that is played for real: it is the only place a bot
+        // player may be created, and its "empty-handed at spawn" assertion is what makes everything
+        // this class then hands over visible AS staging rather than as inventory that was always there.
         if (rung == JourneyStage.SPAWN) return bare(name, original.budgetTicks(), original.body());
         return bare(name, 100, ctx -> placeholder(ctx, rung, target));
     }
@@ -285,12 +285,12 @@ public final class JourneyRehearsal {
      * above is that a rung added here must be argued for rather than inherit the exemption, and the
      * argument has two halves. First, it does not fit, by the same order of magnitude the dragon does
      * not: the rung is "the longest walk in the game" — a march home across the Nether and then 1745
-     * blocks of overworld terrain, at {@code MARCH_LEG_TICKS} = 4 000 a leg and up to
-     * {@code MAX_MARCH_LEGS} = 48 legs, so the walk ALONE can want 192 000. Second — and this is what
-     * separates it from {@code PORTAL_LIT}, which declares 250 000 and is deliberately left capped —
-     * <b>no rehearsal of this rung has ever run</b>, because it had no staging recipe until the same
-     * day. There is therefore no existing measurement for the floor to move, which is the exact
-     * objection that keeps PORTAL_LIT capped.
+     * blocks of overworld terrain, at {@code MARCH_LEG_TICKS} = 4 000 per march segment and up to
+     * {@code MAX_MARCH_LEGS} = 48 segments, so the walk ALONE can want 192 000. Second — and this is
+     * what separates it from {@code PORTAL_LIT}, which declares 250 000 and is deliberately left
+     * capped — <b>no rehearsal of this rung has ever run</b>, because it had no staging recipe until
+     * the same day. There is therefore no existing measurement for the floor to move, which is the
+     * exact objection that keeps PORTAL_LIT capped.
      *
      * <p>Its first run is why this is not theoretical: capped at 40 000 it recorded
      * {@code rehearse.budgetCapped} and then failed on the return, and the two readings would have
@@ -335,7 +335,7 @@ public final class JourneyRehearsal {
      * Reset the ledger, assert the seed, and adopt the lake without paying for the full survey.
      *
      * <p>The seed assertion is not ceremony: every coordinate this class bakes is a statement about
-     * seed 5471, and a rehearsal booted on another world would move the body into terrain that has
+     * seed 5471, and a rehearsal booted on another world would move the bot into terrain that has
      * never been looked at and report the rung failing there.
      */
     private static void recon(SceneContext ctx) {
@@ -461,8 +461,8 @@ public final class JourneyRehearsal {
             return;
         }
         // No recipe. Say so rather than starting the rung on whatever the placeholder rungs left
-        // behind — which is an empty body at world spawn, and a rung that fails on that reports a
-        // missing recipe as a driver bug.
+        // behind — which is an empty-handed bot at world spawn, and a rung that fails on that
+        // reports a missing recipe as a driver bug.
         JourneyLedger.staged("rehearsal: no staging recipe for " + target.name());
         ctx.record("rehearsal.recipe", "none — " + target.name()
                 + " has no staging recipe yet, so the bot starts in its freshly spawned state (the rung"
@@ -480,11 +480,11 @@ public final class JourneyRehearsal {
      * {@code weapon=minecraft:stone_sword}, so that is what a climb arrives holding and that is what
      * this hands over. Everything else a climb would also be carrying — a stone pickaxe, a stack of
      * cobblestone, a crafting table — is <b>deliberately not given</b>: none of it is consumed by a
-     * hunt, and each extra item is a second variable in the one leg under investigation. If a future
+     * hunt, and each extra item is a second variable in the one step under investigation. If a future
      * failure turns out to need one of them, hand it over then, with the row that showed it.
      *
      * <p><b>The walk is NOT staged.</b> Ladder-10 read {@code prey.distance=54}, and getting there is
-     * half of what the rung does — dropping the body next to a cow would skip the leg the user
+     * half of what the rung does — dropping the bot next to a cow would skip the walk the user
      * explicitly asked to keep under test. What the rehearsal buys here is only the forty minutes of
      * rungs 1–5, not the rung itself.
      */
@@ -505,7 +505,7 @@ public final class JourneyRehearsal {
     }
 
     /**
-     * Rung 12's starting conditions: the portal toolkit, and a body standing beside the lake.
+     * Rung 12's starting conditions: the portal toolkit, and the bot standing beside the lake.
      *
      * <p>What is handed over is what rungs 1–11 would have handed over, at the tier they reach it
      * at — a STONE pickaxe, because the ladder's iron pays for the bucket and the flint-and-steel and
@@ -530,9 +530,9 @@ public final class JourneyRehearsal {
         // Two pickaxes, not one. A stone pickaxe has 131 uses and this rung breaks about a hundred
         // (Aside on tools: the climb of 2026-08-16 arrived with `stone_pickaxe 131/131` AND
         //  `wooden_pickaxe 59/59`, so its stone head was full too — durability was not what stopped
-        //  it, and both bodies carve holding `minecraft:stone_pickaxe`. Left as two stone heads on
+        //  it, and both bots carve holding `minecraft:stone_pickaxe`. Left as two stone heads on
         //  purpose; changing it would be a second variable with no measurement behind it.)
-        // cells; one tool makes durability a hidden variable in exactly the leg under investigation,
+        // cells; one tool makes durability a hidden variable in exactly the step under investigation,
         // and a mine that silently stops because the head snapped looks identical to a mine that
         // could not reach.
         kit.put("minecraft:stone_pickaxe", 2);
@@ -540,7 +540,7 @@ public final class JourneyRehearsal {
         // reasoning that rung 12's walk to water re-tests a rung-10 capability at rung 12's expense.
         // That reasoning is sound about COST and wrong about FIDELITY, and the difference cost a round:
         // the climb of 2026-08-16 fills its own bucket here (`waterFill.hand = minecraft:bucket`,
-        // `waterFill.result = CONSUME`), and where that trip leaves the body is what decides where it
+        // `waterFill.result = CONSUME`), and where that trip leaves the bot is what decides where it
         // is standing when the carve begins — which is exactly the quantity under investigation, since
         // the rehearsal's carve fails with the bot up on the surface (`cell.0.standMissed` reported
         // it stopped at 3,64,20 on grass_block) while the climb's on the same geometry carved 67/67.
@@ -597,19 +597,19 @@ public final class JourneyRehearsal {
                         + " on this side, the search falls back to all sides; see forge.away and the"
                         + " rejection counts)");
         loadAround(level, stand, 2);
-        JourneyLedger.staged("rehearsal: moved the body to " + stand.toShortString()
+        JourneyLedger.staged("rehearsal: moved the bot to " + stand.toShortString()
                 + " beside the lake instead of walking there");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
         fp.setOnGround(true);
         ctx.record("rehearsal.stand", stand.toShortString() + ", "
                 + Math.round(Math.sqrt(stand.distSqr(lake))) + " blocks from the lake");
-        WorldDriverCommon.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the body at {}",
+        WorldDriverCommon.LOG.info("[rehearsal] staged PORTAL_LIT: gave {} and stood the bot at {}",
                 gave, stand);
     }
 
     /**
-     * Rung 11's starting conditions: an empty bucket, a pickaxe, and a body beside the lava column.
+     * Rung 11's starting conditions: an empty bucket, a pickaxe, and the bot beside the lava column.
      *
      * <p>Written for one subject and it is worth naming, because a rehearsal without a subject drifts
      * into being a second ladder: <b>the shaft</b>. Rung 11 sinks the deepest hole the ladder digs —
@@ -626,8 +626,8 @@ public final class JourneyRehearsal {
      * shaft plus a tunnel is around a hundred breaks against a stone head's 131, and a mine that
      * stops because the tool snapped looks exactly like a mine that could not reach.
      *
-     * <p>The body is stood a few blocks from the lava's own column at the SURFACE. Not on it: the
-     * step onto a checked column is part of what the shaft does, and staging the body onto the
+     * <p>The bot is placed a few blocks from the lava's own column at the SURFACE. Not on it: the
+     * step onto a checked column is part of what the shaft does, and staging the bot onto the
      * chosen column would stage the very check the descent depends on.
      */
     private static void stageObsidian(SceneContext ctx) {
@@ -665,7 +665,7 @@ public final class JourneyRehearsal {
             return;
         }
         loadAround(level, stand, 2);
-        JourneyLedger.staged("rehearsal: moved the body to " + stand.toShortString()
+        JourneyLedger.staged("rehearsal: moved the bot to " + stand.toShortString()
                 + " beside the lava column instead of walking there");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
@@ -674,16 +674,16 @@ public final class JourneyRehearsal {
                 + lava.getX() + "," + lava.getZ() + " is " + Math.round(Math.hypot(
                         stand.getX() - lava.getX(), stand.getZ() - lava.getZ())) + " blocks away, "
                 + (stand.getY() - lava.getY()) + " blocks to dig down");
-        WorldDriverCommon.LOG.info("[rehearsal] staged OBSIDIAN: gave {} and stood the body at {}",
+        WorldDriverCommon.LOG.info("[rehearsal] staged OBSIDIAN: gave {} and stood the bot at {}",
                 gave, stand);
     }
 
     /**
-     * Rung 13's starting conditions: a LIT portal, and a body standing in front of it.
+     * Rung 13's starting conditions: a LIT portal, and the bot standing in front of it.
      *
      * <p>Rung 13 is the first rung that had no recipe, which is why it had never executed a single
-     * tick: without one the rehearsal starts an empty body at world spawn, {@code nether} looks for a
-     * portal block within 24 and finds none, and the rung reports rung 12's absence rather than
+     * tick: without one the rehearsal starts an empty-handed bot at world spawn, {@code nether} looks
+     * for a portal block within 24 and finds none, and the rung reports rung 12's absence rather than
      * anything about itself.
      *
      * <p>Built and lit the way the world builds one, not by writing {@code nether_portal} blocks
@@ -692,7 +692,7 @@ public final class JourneyRehearsal {
      * accepts is a frame vanilla accepts — and if the shape were wrong the staging would say so here
      * instead of handing the rung an inert box of obsidian to walk into.
      *
-     * <p>The body is put three blocks in FRONT of the doorway, not in it. What rung 13 is for is the
+     * <p>The bot is put three blocks in FRONT of the doorway, not in it. What rung 13 is for is the
      * walk in and the dimension change; standing it in the portal would stage the very thing under
      * test.
      */
@@ -712,7 +712,7 @@ public final class JourneyRehearsal {
             return;
         }
         loadAround(level, stand, 2);
-        // The doorway's bottom-left interior cell. The frame is in the X-Y plane, so the body walks
+        // The doorway's bottom-left interior cell. The frame is in the X-Y plane, so the bot walks
         // into it along Z — the same orientation rung 12 casts.
         BlockPos door = stand.above();
         // Clear the box the frame and its doorway occupy, and floor it, so nothing of the terrain
@@ -750,28 +750,28 @@ public final class JourneyRehearsal {
                 + " instead of casting one");
         BlockPos front = door.offset(0, 0, 3);
         loadAround(level, front, 1);
-        JourneyLedger.staged("rehearsal: moved the body to " + front.toShortString()
+        JourneyLedger.staged("rehearsal: moved the bot to " + front.toShortString()
                 + " in front of the portal instead of walking there");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(front.getX() + 0.5, front.getY(), front.getZ() + 0.5, fp.getYRot(), fp.getXRot());
         fp.setOnGround(true);
         ctx.record("rehearsal.stand", front.toShortString() + ", 3 blocks from the doorway");
-        WorldDriverCommon.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the body at {}",
+        WorldDriverCommon.LOG.info("[rehearsal] staged NETHER: lit a portal at {} and stood the bot at {}",
                 door, front);
     }
 
     /**
-     * Rung 14's starting conditions: a body standing in the Nether, with the kit, and NOTHING else.
+     * Rung 14's starting conditions: the bot standing in the Nether, with the kit, and NOTHING else.
      *
      * <p>The line this recipe is careful about is the one that makes a rehearsal worthless. Rung 14
      * is "walk to the fortress, wall the spawner in, fight inside", and the walk is most of it — so
      * the fortress is <b>not</b> staged, not searched for here, and not hinted at. What is handed
-     * over is what rungs 1–13 would have handed over: a body on the other side of a portal, a sword,
+     * over is what rungs 1–13 would have handed over: the bot on the other side of a portal, a sword,
      * food, and blocks to build the room with. Finding the fortress stays the rung's own problem.
      *
      * <p>Crossed with {@code teleportTo}, which is a real cross-level move for a {@code ServerPlayer}
-     * rather than a coordinate write — the driver's own view has to follow the body across, and if it
-     * does not, that is a finding this rung should surface rather than one the staging should hide.
+     * rather than a coordinate write — the driver's own view has to follow the player across, and if
+     * it does not, that is a finding this rung should surface rather than one the staging should hide.
      */
     private static void stageBlazeRod(SceneContext ctx) {
         Map<String, Integer> kit = new LinkedHashMap<>();
@@ -806,11 +806,11 @@ public final class JourneyRehearsal {
     }
 
     /**
-     * Rung 15's starting conditions: the same body in the same Nether, one fortress richer.
+     * Rung 15's starting conditions: the same bot in the same Nether, one fortress richer.
      *
      * <p>Rung 15 hunts endermen, so the line to be careful about is a different one from rung 14's:
      * what must NOT be staged here is a mob or the ground that spawns them. No warped forest is
-     * searched for, no enderman is summoned, and the body is put where a portal would have put it —
+     * searched for, no enderman is summoned, and the bot is put where a portal would have put it —
      * exactly where rung 14 would have left it, give or take the walk to the fortress. Whether there
      * are endermen within reach of that spot is the rung's problem and one of the things it is for.
      *
@@ -858,24 +858,24 @@ public final class JourneyRehearsal {
     }
 
     /**
-     * Rung 17's starting conditions: eyes in the bag, a body deep in the Nether, and a doorway home
+     * Rung 17's starting conditions: eyes in the bag, the bot deep in the Nether, and a doorway home
      * that it has to WALK to rather than see.
      *
      * <p>This recipe exists because rung 17's return path had no way to run. The rung's first act is
      * {@code backToTheOverworld}, and on the real ladder it has only ever been reached once, before
      * the return was rewritten — so the march home, {@code stepBackThrough}, and the ledger's banked
      * doorway are all code that has never executed. Without a recipe here, {@code -Prehearse=STRONGHOLD}
-     * started the rung on an empty body at world spawn: already in the overworld, so
+     * started the rung on an empty-handed bot at world spawn: already in the overworld, so
      * {@code backToTheOverworld} returns on its FIRST branch and the whole return stays untested
      * while the scene reports a pass.
      *
      * <p><b>The doorway is put {@link #STAGED_DOOR_AWAY} blocks away on purpose.</b> Rung 17 scans 24
      * blocks for a portal first and only falls back to the banked coordinate when that misses. A
-     * doorway placed next to the body would take the fast path — the one branch that already worked —
-     * and the rehearsal would prove nothing about the branch it was built for.
+     * doorway placed next to the bot would take the fast path — the one branch that already
+     * worked — and the rehearsal would prove nothing about the branch it was built for.
      *
      * <p>Blocks are handed over for the same reason the fortress corridor needs them: the march runs
-     * under {@code generousPathfinding}, which leaves {@code allowPlace} on, and a body with nothing
+     * under {@code generousPathfinding}, which leaves {@code allowPlace} on, and a bot with nothing
      * to bridge with reports "cannot build a bridge" as "cannot reach the destination".
      */
     private static void stageStronghold(SceneContext ctx) {
@@ -890,7 +890,7 @@ public final class JourneyRehearsal {
         buildTheDoorwayAndBankIt(ctx);
     }
 
-    /** How far the staged doorway sits from the body. Past rung 17's 24-block local scan, so the
+    /** How far the staged doorway sits from the bot. Past rung 17's 24-block local scan, so the
      *  return is forced down the BANKED route — see {@link #stageStronghold}. */
     private static final int STAGED_DOOR_AWAY = 96;
 
@@ -950,8 +950,8 @@ public final class JourneyRehearsal {
                     + " exists precisely to force the route recorded in the ledger");
             return;
         }
-        // A doorway the body has to climb to is not the doorway rung 17 will meet. On the real
-        // ladder the banked cell is where the body CAME OUT, so it is at the body's own level by
+        // A doorway the bot has to climb to is not the doorway rung 17 will meet. On the real
+        // ladder the banked cell is where the bot CAME OUT, so it is at the bot's own level by
         // construction. Two rehearsals were spent on a 52-block vertical that no run will ever
         // face, and both died on the climb without reaching the crossing this staging exists to
         // exercise. Named as a STAGING failure, because that is what it is — see
@@ -971,10 +971,10 @@ public final class JourneyRehearsal {
     /**
      * Light the OTHER half of the pair — the surface portal rung 12 would have left in the overworld.
      *
-     * <p><b>A portal is not one doorway, it is two, and staging only the far one is what put a body
-     * in an aquifer.</b> Rehearsal of 2026-08-22: the crossing itself finally worked, the body left
+     * <p><b>A portal is not one doorway, it is two, and staging only the far one is what put the bot
+     * in an aquifer.</b> Rehearsal of 2026-08-22: the crossing itself finally worked, the bot left
      * the Nether and arrived {@code @minecraft:overworld} — and then stood at {@code 825,10,83}
-     * bobbing between two y values while the march burned 4238 searches on one leg, jumping on the
+     * bobbing between two y values while the march burned 4238 searches on one segment, jumping on the
      * {@code swimUp} branch. Nether y is <b>not</b> scaled by the 8:1 rule, only x and z, so a
      * doorway staged at nether y=33 asks vanilla for an overworld exit at y=33 — and with no
      * existing portal within the forcer's search radius to land on, it carved a fresh one there,
@@ -987,9 +987,9 @@ public final class JourneyRehearsal {
      *
      * <p>Placed on the heightmap at the 8:1 coordinate so the forcer finds it rather than digging:
      * its search is horizontal, so being tens of blocks higher than the requested y costs nothing,
-     * and being the nearest portal is what decides that the body comes out here.
+     * and being the nearest portal is what decides that the bot comes out here.
      *
-     * <p>Failures here are STAGING failures and say so — a body that cannot get out of the Nether
+     * <p>Failures here are STAGING failures and say so — a bot that cannot get out of the Nether
      * because this half is missing would otherwise be read as rung 17 failing to walk home.
      */
     private static void raiseTheOverworldHalf(SceneContext ctx, ServerLevel nether, BlockPos foot) {
@@ -1025,8 +1025,8 @@ public final class JourneyRehearsal {
         }
     }
 
-    /** How far above or below the body the staged doorway may sit. The real ladder's banked cell is
-     *  the one the body walked out of, so the honest number is 0; this is the slack that lets
+    /** How far above or below the bot the staged doorway may sit. The real ladder's banked cell is
+     *  the one the bot walked out of, so the honest number is 0; this is the slack that lets
      *  {@link #netherStandNear} step off a wall of netherrack without changing what is measured. */
     private static final int STAGED_DOOR_RISE = 24;
 
@@ -1057,7 +1057,7 @@ public final class JourneyRehearsal {
         // This clear used to run from dy=-1, taking the ground out from under the entire pocket,
         // and only one 4×1 strip of it was put back. Everything else the clear touched became a
         // hole — so the frame stood on a ledge over a void, which is a shape no nether portal has
-        // and which rung 17 therefore had no business being asked about. The body walked in on the
+        // and which rung 17 therefore had no business being asked about. The bot walked in on the
         // surrounding rock, arrived on top of the FRAME (the only solid thing at that height), and
         // then could not get off it: the walker's own guards refused every step, correctly —
         //
@@ -1114,7 +1114,7 @@ public final class JourneyRehearsal {
     private static final int EYES_A_CLIMB_ARRIVES_WITH = 12;
 
     /**
-     * Rung 18's starting conditions: a body standing in the stronghold's portal room, holding eyes.
+     * Rung 18's starting conditions: the bot standing in the stronghold's portal room, holding eyes.
      *
      * <p>Rung 18 is twelve {@code useOn}-only interactions and nothing else. Everything ELSE about
      * the rung is somebody else's: finding the stronghold is rung 17's, making the eyes is rung
@@ -1156,10 +1156,10 @@ public final class JourneyRehearsal {
     }
 
     /**
-     * Put the body in the stronghold's portal room, with a bag, and arrange nothing else.
+     * Put the bot in the stronghold's portal room, with a bag, and arrange nothing else.
      *
      * <p>Shared the way {@code crossToTheNether} is shared by rungs 14/15/16: what differs between
-     * rung 18 and rung 19 is the bag and what the room already contains, not how a body gets there.
+     * rung 18 and rung 19 is the bag and what the room already contains, not how the bot gets there.
      *
      * <p><b>The frames are read through {@link JourneyEndRungs#framesAround} rather than through a
      * second scan written here.</b> Two scans that disagree put "the room the staging found" and
@@ -1238,7 +1238,7 @@ public final class JourneyRehearsal {
                 + " stageEndPortal)");
 
         loadAround(level, stand, 2);
-        JourneyLedger.staged("rehearsal: put the body in the stronghold portal room at "
+        JourneyLedger.staged("rehearsal: put the bot in the stronghold portal room at "
                 + stand.toShortString() + " instead of marching there and sinking a shaft");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.moveTo(stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5, fp.getYRot(), fp.getXRot());
@@ -1246,7 +1246,7 @@ public final class JourneyRehearsal {
         ctx.record("rehearsal.stand", stand.toShortString() + ", "
                 + Math.round(Math.sqrt(stand.distSqr(centre))) + " blocks from the frame centre ("
                 + notStaged + ")");
-        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and stood the body at {} ({} frames)",
+        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and stood the bot at {} ({} frames)",
                 what, gave, stand, frames.size());
         return centre;
     }
@@ -1305,7 +1305,7 @@ public final class JourneyRehearsal {
      * <h2>Why the path matters more than the result</h2>
      *
      * Rung 18's entire subject is {@code Body.useBlock} → {@code EnderEyeItem.useOn}: that a DRIVEN
-     * BODY can spend an eye into a frame. If this staging opened the door by driving the avatar, then
+     * PLAYER can spend an eye into a frame. If this staging opened the door by driving the avatar, then
      * a rehearsal of rung 19 would be running rung 18's tested verb as scenery — and a staging that
      * performs the thing another rung is judged on has stopped being staging. Worse, it would be
      * silently load-bearing in the wrong direction: a regression in {@code useBlock} would fail rung
@@ -1389,13 +1389,13 @@ public final class JourneyRehearsal {
     private static final int BLOCKS_A_DRAGON_TRIP_NEEDS = 3_072;
 
     /**
-     * Rung 20's starting conditions: a body on the End's arrival platform, with something to bridge
+     * Rung 20's starting conditions: the bot on the End's arrival platform, with something to bridge
      * with.
      *
      * <h2>The platform is built by vanilla's own feature, not by a teleport</h2>
      *
-     * {@code EndPortalBlock.getPortalDestination} does two things when it sends a body to the End,
-     * and a staging that copies only the second one drops the body into the void:
+     * {@code EndPortalBlock.getPortalDestination} does two things when it sends a player to the End,
+     * and a staging that copies only the second one drops the bot into the void:
      *
      * <pre>
      * EndPlatformFeature.createEndPlatform(end, BlockPos.containing(END_SPAWN_POINT.getBottomCenter()).below(), true);
@@ -1407,9 +1407,9 @@ public final class JourneyRehearsal {
      * that <b>does not exist in a freshly generated End</b> — vanilla builds it at arrival time.
      *
      * <p><b>⚠️ THE PLATFORM THIS BUILDS IS RUNG 20'S PRECONDITION, NEVER RUNG 19'S OUTPUT.</b> The two
-     * read identically in a results file — a body standing on obsidian at (100, 49, 0) — and they
+     * read identically in a results file — a bot standing on obsidian at (100, 49, 0) — and they
      * mean opposite things. Rung 19 is judged on whether the CROSSING put it there; this staging puts
-     * it there so that rung 20 can start. On 2026-08-17 rung 19 passed with the body 4426 blocks down
+     * it there so that rung 20 can start. On 2026-08-17 rung 19 passed with the bot 4426 blocks down
      * the void, and a rehearsal of rung 20 would have been green over that same defect on the same
      * afternoon, because it never asks the question — it lays the floor itself. So a green
      * {@code wd.rehearse20Dragon} is evidence about the dragon and about nothing upstream of it, and
@@ -1429,9 +1429,9 @@ public final class JourneyRehearsal {
      *
      * <h2>The player list is read, not fixed</h2>
      *
-     * The other half of the same mechanism is that the body must be in {@code level.players()} at
-     * all, which every body the server seam mints is, because it joins. This records the answer
-     * rather than asserting it, on purpose: when the body is not in the list, rung 20's own
+     * The other half of the same mechanism is that the bot must be in {@code level.players()} at
+     * all, which every server-side player the driver creates is, because it joins. This records the
+     * answer rather than asserting it, on purpose: when the bot is not in the list, rung 20's own
      * {@code noDragonHere} is <b>correct</b> and costs only {@link JourneyEndRungs}
      * {@code DRAGON_WAIT_TICKS} to reach, and exercising a true diagnostic is worth more than
      * short-circuiting it here.
@@ -1459,7 +1459,7 @@ public final class JourneyRehearsal {
      * bites hardest here, because a shortfall does not report itself as a shortfall: it reports as
      * "cannot reach the centre of the main island" or a tower that stops early, i.e. as a bug in the two mechanisms this
      * rung exists to exercise. Only cobblestone is handed over so that {@code pillarBlock} is
-     * deterministic — it picks whichever of {@code PILLAR_BLOCKS} the body carries most of.
+     * deterministic — it picks whichever of {@code PILLAR_BLOCKS} the bot carries most of.
      *
      * <p><b>Every number here is PROVISIONAL and the shape of the bag is a guess</b>: no climb has
      * reached rung 16. The calibration key is a {@code stock.*} row on rung 19, which does not exist
@@ -1482,7 +1482,7 @@ public final class JourneyRehearsal {
         BlockPos platform = BlockPos.containing(ServerLevel.END_SPAWN_POINT.getBottomCenter()).below();
         loadAround(end, platform, 2);
         // Vanilla's own call, arguments included. A fresh End has no arrival platform: the 5x5 of
-        // obsidian is built at arrival time by EndPortalBlock, so a body teleported to the same
+        // obsidian is built at arrival time by EndPortalBlock, so a bot teleported to the same
         // coordinates without this falls through the void and the rung reports a walk that failed.
         EndPlatformFeature.createEndPlatform(end, platform, true);
         JourneyLedger.staged("rehearsal: built the End arrival platform at " + platform.toShortString()
@@ -1497,12 +1497,12 @@ public final class JourneyRehearsal {
         // and the bulk last, so an overflow can only ever cost blocks, which the run counts.
         Map<String, Integer> kit = new LinkedHashMap<>();
         kit.put("minecraft:iron_sword", 1);
-        // Carried for parity with the recipes below, not for a reading: this body is invulnerable and
+        // Carried for parity with the recipes below, not for a reading: this bot is invulnerable and
         // never hungers, so nothing in rung 20 consumes it.
         kit.put("minecraft:cooked_beef", 16);
         // A bow, because the dragon spends almost all of this fight out of melee reach and vanilla
         // quarters every hit that is not on the head. Measured without one: 4000 consecutive ticks
-        // with the head never inside 4.5, and the single body hit that did land moved 200.0 -> 198.8.
+        // with the head never inside 4.5, and the single hit on the dragon's body that did land moved 200.0 -> 198.8.
         // PROVISIONAL like everything else here — the real ladder would have to earn string from
         // spiders — and listed in rehearsal.gave so it can never be mistaken for something climbed.
         kit.put("minecraft:bow", 1);
@@ -1533,7 +1533,7 @@ public final class JourneyRehearsal {
 
         Vec3 land = ServerLevel.END_SPAWN_POINT.getBottomCenter().subtract(0, 1, 0);
         fp.setDeltaMovement(Vec3.ZERO);
-        // Where the body was standing WHEN IT LEFT, in the terms the swim branches read. A cross-
+        // Where the bot was standing WHEN IT LEFT, in the terms the swim branches read. A cross-
         // dimension teleport does not recompute the fluid flags — those are written by baseTick, and
         // the walker ticks BEFORE the avatar's step — so whatever is true here is what WalkerTickDrive
         // sees on its first tick in the End. Measured 2026-08-17: the swimColumn branch, with in-water
@@ -1551,20 +1551,20 @@ public final class JourneyRehearsal {
         loadAround(end, fp.blockPosition(), 2);
         // MAKE THE FIXTURE DO WHAT THE PORTAL DOES. On the real ladder the crossing happens inside
         // Entity.baseTick() — handlePortal() first, then updateInWaterStateAndDoFluidPushing() and
-        // updateFluidOnEyes() a few lines later — so a body that walks through the End portal has its
-        // fluid flags recomputed AT THE DESTINATION, in the same tick. Those two calls are the ONLY
-        // writers of wasTouchingWater/wasEyeInWater, and baseTick reaches this body only through
+        // updateFluidOnEyes() a few lines later — so a player that walks through the End portal has
+        // its fluid flags recomputed AT THE DESTINATION, in the same tick. Those two calls are the ONLY
+        // writers of wasTouchingWater/wasEyeInWater, and baseTick reaches this player only through
         // ServerPlayerBody.step(), which does not run while the driver is unregistered — which is
-        // exactly when staging runs. So a fixture teleport left the flags frozen at whatever the body
+        // exactly when staging runs. So a fixture teleport left the flags frozen at whatever the player
         // last saw: measured 2026-08-17, rung 20 arrived on the dry obsidian platform still reading
         // in-water and under-water true from an overworld pool, and WalkerTickDrive's `swimColumn` (both of whose
-        // terms are body flags, so it never reads the world when isUnderWater is set) fired a 0.42 on
-        // the platform. The body was still airborne seven ticks later when the parkour edge came up,
-        // the ground gate correctly refused it, and it walked into the void.
+        // terms are player entity flags, so it never reads the world when isUnderWater is set) fired
+        // a 0.42 on the platform. The bot was still airborne seven ticks later when the parkour edge
+        // came up, the ground gate correctly refused it, and it walked into the void.
         //
         // This is a FIXTURE bug, not a product one — the portal path recomputes and rung 20 is not
         // supposed to be testing a teleport. Refreshing here removes the artefact without hiding it:
-        // rehearsal.wetOnDeparture still records what the body carried out of the world it left.
+        // rehearsal.wetOnDeparture still records what the bot carried out of the world it left.
         // AFTER loadAround, deliberately: updateFluidHeightAndDoFluidPushing returns early on an
         // unloaded chunk, which would report "in no fluid at all" and re-freeze a wrong answer.
         //
@@ -1572,12 +1572,12 @@ public final class JourneyRehearsal {
         // and reaching them would mean widening product visibility to fix a fixture. baseTick is also
         // the FAITHFUL call — it is the one the portal crossing itself runs, and the one
         // ServerPlayerBody.step() runs every tick, so this stages no behaviour the driver does not
-        // already perform on the body once a tick.
+        // already perform on the player once a tick.
         fp.baseTick();
         ctx.record("rehearsal.wetOnDeparture", wetBefore + " → on arrival " + wetOnArrival
                 + " → after recomputing inWater=" + fp.isInWater() + " underWater=" + fp.isUnderWater()
                 + " feetBlock=" + end.getBlockState(fp.blockPosition()).getBlock());
-        // The record above is not an assertion, so make the fixture refuse to hand rung 20 a body
+        // The record above is not an assertion, so make the fixture refuse to hand rung 20 a bot
         // whose flags disagree with the world it is standing in. A rehearsal that stages a defect
         // reports it as the rung's, and this one cost a full round of investigation before the two
         // readings sat side by side.
@@ -1587,7 +1587,7 @@ public final class JourneyRehearsal {
                     + end.getBlockState(fp.blockPosition()).getBlock()
                     + ". The fixture's teleport left the fluid flags frozen — rung 20 would be"
                     + " judging a staging artefact, not the rung.");
-        JourneyLedger.staged("rehearsal: put the body on the End arrival platform at "
+        JourneyLedger.staged("rehearsal: put the bot on the End arrival platform at "
                 + fp.blockPosition().toShortString() + " instead of stepping through a portal");
         ctx.record("rehearsal.stand", fp.blockPosition().toShortString() + " @ "
                 + fp.level().dimension().location() + " (standing on "
@@ -1604,7 +1604,7 @@ public final class JourneyRehearsal {
         // look identical in the results file.
         double away = Math.sqrt(fp.distanceToSqr(0.0, 128.0, 0.0));
         // ⚠️ A STAGING-TIME MEASUREMENT, and it says so in its own text. Nothing keeps it true: the
-        // body moves, and on 2026-08-17 it moved 23 000 blocks below the island, at which point this
+        // bot moves, and on 2026-08-17 it moved 23 000 blocks below the island, at which point this
         // row still read "in range, the dragon will be created" while the range was the actual cause of
         // dragonUUID=null. The failure-time re-read is JourneyEndRungs.fightRangeNow, published as
         // dragon.rangeNow — this row must never be the one a reader uses to rule the distance out.
@@ -1617,7 +1617,7 @@ public final class JourneyRehearsal {
                 + end.players().size() + " players) — when false, EndDragonFight.tick scans an empty"
                 + " list every 20 ticks and does nothing; every bot the server creates goes through"
                 + " placeNewPlayer, so false means it was removed or is not in the End");
-        WorldDriverCommon.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, body {} inList={}",
+        WorldDriverCommon.LOG.info("[rehearsal] staged DRAGON: gave {}, platform {}, bot {} inList={}",
                 gave, platform, fp.blockPosition(), end.players().contains(fp));
     }
 
@@ -1708,16 +1708,17 @@ public final class JourneyRehearsal {
     }
 
     /**
-     * Hand over a bag and put the body where a portal would have put it.
+     * Hand over a bag and put the bot where a portal would have put it.
      *
      * <p>Shared by all three Nether rungs, because their starting condition differs only in what is
-     * in the bag. The coordinate is the overworld body's divided by eight, which is the same
+     * in the bag. The coordinate is the bot's overworld position divided by eight, which is the same
      * arithmetic rung 13 asserts — staging it anywhere else would quietly change which part of the
      * Nether the rung has to search.
      *
      * <p>Crossed with {@code teleportTo}, which is a real cross-level move for a {@code ServerPlayer}
-     * rather than a coordinate write — the driver's own view has to follow the body across, and if it
-     * does not, that is a finding these rungs should surface rather than one the staging should hide.
+     * rather than a coordinate write — the driver's own view has to follow the player across, and if
+     * it does not, that is a finding these rungs should surface rather than one the staging should
+     * hide.
      */
     private static void crossToTheNether(SceneContext ctx, String what, Map<String, Integer> kit,
                                          String notStaged) {
@@ -1751,7 +1752,7 @@ public final class JourneyRehearsal {
         }
         JourneyLedger.staged("rehearsal: gave " + gave);
         ctx.record("rehearsal.gave", gave.toString());
-        JourneyLedger.staged("rehearsal: crossed the body to the Nether at " + stand.toShortString()
+        JourneyLedger.staged("rehearsal: crossed the bot to the Nether at " + stand.toShortString()
                 + " instead of walking through a portal it lit");
         fp.setDeltaMovement(Vec3.ZERO);
         fp.teleportTo(nether, stand.getX() + 0.5, stand.getY(), stand.getZ() + 0.5,
@@ -1760,7 +1761,7 @@ public final class JourneyRehearsal {
         loadAround(nether, stand, 2);
         ctx.record("rehearsal.stand", stand.toShortString() + " @ " + fp.level().dimension().location()
                 + " (" + notStaged + ")");
-        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and crossed the body to {}",
+        WorldDriverCommon.LOG.info("[rehearsal] staged {}: gave {} and crossed the bot to {}",
                 what, gave, stand);
     }
 
@@ -1776,11 +1777,11 @@ public final class JourneyRehearsal {
      * The original reason is still sound and is still honoured below: a fixed y is as likely to be
      * inside the netherrack as on it, so the y has to be searched, not assumed. But searching it
      * downward from the roof answers a different question from the one the parameter asks, and
-     * silently: {@link #buildTheDoorwayAndBankIt} passes the BODY's own y precisely so the staged
-     * doorway sits at the body's level, and got a shelf at y=93 for a body at y=41.
+     * silently: {@link #buildTheDoorwayAndBankIt} passes the BOT's own y precisely so the staged
+     * doorway sits at the bot's level, and got a shelf at y=93 for a bot at y=41.
      *
      * <p>That is not a harder test, it is a different one. Rung 17's real return walks back to a
-     * doorway the body itself came out of, which is at the body's level by construction — so a
+     * doorway the bot itself came out of, which is at the bot's level by construction — so a
      * 52-block vertical was a staging artifact standing in for the thing being measured, and the two
      * rehearsals it produced both died on the climb without ever reaching the crossing.
      *
@@ -1860,7 +1861,7 @@ public final class JourneyRehearsal {
     }
 
     // =====================================================================================
-    // Small world helpers. Reading terrain is not staging; moving the body is, and is counted.
+    // Small world helpers. Reading terrain is not staging; moving the bot is, and is counted.
     // =====================================================================================
 
     private static void give(ServerPlayer fp, String itemId, int count) {
@@ -1937,7 +1938,7 @@ public final class JourneyRehearsal {
      * <p>Two differences REMAIN deliberate and are named in the evidence row rather than quietly
      * lived with: the bucket is handed over full (rung 12's water walk is a rung-10 capability, see
      * {@code fillWaterAtTheSurface}) and there are two pickaxes (durability must not be a hidden
-     * variable in the leg under investigation).
+     * variable in the step under investigation).
      */
     private static final int PORTAL_LIT_COBBLESTONE = 111;
 
@@ -1978,17 +1979,17 @@ public final class JourneyRehearsal {
      * Which side of the lake this rehearsal must stand on, or null for whichever comes first.
      *
      * <p><b>A rehearsal that always stands in one place tests one geometry.</b> The real ladder picks
-     * its forge orientation from wherever eleven rungs left the body relative to the pool, and it is
+     * its forge orientation from wherever eleven rungs left the bot relative to the pool, and it is
      * a different one nearly every run: two consecutive ladder runs carved {@code forge.away=east}
      * and {@code forge.away=south}, and the second failed in a way the first could not reach — the
-     * body could not walk back out of the alcove to the staircase. Thirty rehearsals had never once
+     * bot could not walk back out of the alcove to the staircase. Thirty rehearsals had never once
      * been in that geometry, so the rehearsal was structurally blind to it, which is the same
      * blindness the inventory difference had (cobblestone here, dirt on the climb).
      *
      * <p><b>The side is staged, not the direction.</b> Forcing {@code stairDir} outright would let
      * the mould be carved TOWARD the lake — the one mistake that ends a run rather than costing it a
      * retry, and a state the real ladder can never be in, so anything found that way would not be a
-     * finding. Standing the body on the requested side makes {@link JourneyPortalRung#awayFrom} return
+     * finding. Standing the bot on the requested side makes {@link JourneyPortalRung#awayFrom} return
      * that direction on its own, and every geometric invariant the rung relies on still holds. A seed
      * with no dry ground on one side simply cannot rehearse that orientation, and says so.
      *
@@ -2000,7 +2001,7 @@ public final class JourneyRehearsal {
         if (want.isEmpty()) return null;
         for (Direction d : Direction.Plane.HORIZONTAL)
             if (d.getName().equalsIgnoreCase(want)) {
-                JourneyLedger.staged("rehearsal: stood the body on the " + d
+                JourneyLedger.staged("rehearsal: stood the bot on the " + d
                         + " side of the lake so the forge faces " + d);
                 return d;
             }
@@ -2042,7 +2043,7 @@ public final class JourneyRehearsal {
             return 1;
         }
         if (n <= 1) return 1;
-        JourneyLedger.staged("rehearsal: gave the body " + n + " buckets (" + (n - 1)
+        JourneyLedger.staged("rehearsal: gave the bot " + n + " buckets (" + (n - 1)
                 + " empty + 1 of water) so the pool trips become ceil(10/" + (n - 1) + ")"
                 + " — the real ladder can only afford one");
         ctx.record("rehearsal.buckets", n + " buckets (" + (n - 1) + " empty + 1 of water) — a real"
@@ -2052,11 +2053,11 @@ public final class JourneyRehearsal {
     }
 
     /**
-     * Somewhere beside the lake a body can be set down: solid floor, two cells of air, no fluid.
+     * Somewhere beside the lake the bot can be set down: solid floor, two cells of air, no fluid.
      *
-     * <p>Rings outward from {@code min} so the body lands close enough for the rung's own walk to be
+     * <p>Rings outward from {@code min} so the bot lands close enough for the rung's own walk to be
      * short and far enough that it is not standing in the pool. The fluid checks are the whole point:
-     * dropping a body into a surface lava lake is invisible on an invulnerable avatar and turns every
+     * dropping the bot into a surface lava lake is invisible on an invulnerable avatar and turns every
      * later reading into nonsense.
      */
     private static BlockPos dryStandNear(ServerLevel level, BlockPos lake, int min, int max) {

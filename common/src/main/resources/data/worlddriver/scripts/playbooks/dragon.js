@@ -62,7 +62,7 @@
 
         crystalsCleared = true;
         // Phase 2 — engage the dragon itself (target by type: combat resolves the
-        // main EnderDragon entity, whose hurt() routes through the body part).
+        // main EnderDragon entity, whose hurt() routes through the bot part).
         if (b.perched && b.head) {
             // Perch is the prime damage window — close on the head, then melee.
             try {

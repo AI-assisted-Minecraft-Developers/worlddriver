@@ -30,7 +30,7 @@ public final class BackfillTracker {
     }
 
     /** Once per client tick, with the cells the bot's own drives broke since the last one. Never
-     *  the cells the body walked through: those were air it did not open, and filling them plugs
+     *  the cells the bot walked through: those were air it did not open, and filling them plugs
      *  its own path. A break made with the switch off is dropped, not kept for later. */
     public synchronized void onClientTick(boolean enabled, List<BlockPos> ownBreaks) {
         if (enabled) for (BlockPos cell : ownBreaks) record(cell);

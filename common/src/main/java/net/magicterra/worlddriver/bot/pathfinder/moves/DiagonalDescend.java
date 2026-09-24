@@ -14,7 +14,7 @@ import net.minecraft.core.BlockPos;
  * StepDown+Walk pair (10+10) so A* prefers cutting the descending corner.
  *
  * Both cardinal side columns must be clear at the launch band (foot+head) so
- * the body slides off the corner without wedging on the way down.
+ * the player slides off the corner without wedging on the way down.
  */
 public final class DiagonalDescend extends Move {
     public DiagonalDescend(int dx, int dz) { super(dx, -1, dz, 14); }
@@ -29,7 +29,7 @@ public final class DiagonalDescend extends Move {
         if (!w.canStandAt(to)) return false;
         // Launch head clearance.
         if (!w.isPassable(from.offset(0, 1, 0)) || w.isHazard(from.offset(0, 1, 0))) return false;
-        // Destination column at the LAUNCH head height (to + 2). The body drops one
+        // Destination column at the LAUNCH head height (to + 2). The player drops one
         // block over the move, so mid-descent it is briefly horizontally over to.xz
         // while still at the FROM height — its head then sweeps to+(0,2,0), which
         // canStandAt(to) (foot to, head to+1) never checks. An unchecked leaf /

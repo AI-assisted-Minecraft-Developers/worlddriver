@@ -27,7 +27,7 @@ import net.magicterra.worlddriver.testcontent.SceneFixture;
  *       scan: Java cannot portably list a classpath directory, and {@code JsScenes} reads the run
  *       directory's file system, not resources. A committed fixture is an ordinary scene, judged
  *       with the {@code wd.*} ones, and belongs in both {@code expected-scenes-*.txt} in the same
- *       commit — the manifest is part of the judge. A fixture that gives the body nothing to hold
+ *       commit — the manifest is part of the judge. A fixture that gives the bot nothing to hold
  *       or wear also runs on an NPC as {@code <name>.npc} ({@link SceneFixture#onNpc}), which goes
  *       in the manifests beside it.</li>
  *   <li>the local {@code config/worlddriver/scenes/} directory, only under a hold
@@ -72,7 +72,7 @@ public final class HumanScenes implements SceneProvider {
         return names;
     }
 
-    /** The fixture, and its NPC twin when the body is given nothing to hold or wear. */
+    /** The fixture, and its NPC twin when the bot is given nothing to hold or wear. */
     private static List<Scene> fromResource(String name) {
         SceneFixture fixture;
         try (InputStream in = HumanScenes.class.getResourceAsStream("/scenes/" + name + ".json")) {
@@ -131,7 +131,7 @@ public final class HumanScenes implements SceneProvider {
         return out;
     }
 
-    /** The scene's tick budget is its legs' budgets plus room for staging and the final checks. */
+    /** The scene's tick budget is its walks' budgets plus room for staging and the final checks. */
     static int budgetTicks(SceneFixture fixture) {
         int sum = 0;
         for (SceneFixture.Leg leg : fixture.legs()) sum += Math.max(1, leg.budget());

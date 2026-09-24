@@ -59,8 +59,8 @@ record of activity.
 **Finish removing the bot from the shared input path.** Two channels are left. Combat
 has no strafing, because the movement command currently forces the sideways impulse to
 zero; circling a target needs a two-dimensional command. And single-shot actuations —
-hold an item, aim, right-click, place — are routed separately from the per-tick legs,
-which means a body driven by one helm can have its aim and its held slot written by
+hold an item, aim, right-click, place — are routed separately from the per-tick process runs,
+which means a bot driven by one helm can have its aim and its held slot written by
 the other. Originating single-shot actions from the client tick chain is the coherent
 fix and is not built.
 

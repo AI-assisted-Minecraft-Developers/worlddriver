@@ -14,7 +14,7 @@ pass that improved two recorded runs once made a third dramatically worse.
 | File | What it does |
 |---|---|
 | `telemetry.py` | Parses the `[walker]` telemetry lines out of a game log into tick records. |
-| `conformance.py` | Aggregates a tick stream into a per-`Move` conformance table: how many times each move executed, and in how many of those the body churned. |
+| `conformance.py` | Aggregates a tick stream into a per-`Move` conformance table: how many times each move executed, and in how many of those the bot churned. |
 | `run_case.py` | Runs one `(archive, flags)` replay end to end and returns its peak stuck counter plus its conformance table. |
 | `corpus.py` | Loads the corpus manifest, a JSON file listing each archive with the arrival coordinate and comparison that decides whether the run finished. |
 | `gate.py` | The acceptance rule: a candidate flag combination must be a net improvement across the whole corpus with no per-archive regression. |
@@ -23,7 +23,7 @@ pass that improved two recorded runs once made a third dramatically worse.
 | `tests/` | Unit tests for the pure logic above. They need no game: `python3 -m pytest scripts/pmcs/tests` from the repository root. |
 
 `run_case.py` sets flags over the socket, calls `mc.debug.replay`, polls the game log
-until the body reaches the arrival coordinate or the timeout expires, and parses that
+until the bot reaches the arrival coordinate or the timeout expires, and parses that
 slice of the log. The archive it replays is read from the *runtime* config directory, so
 `run_case` copies an archive from the repository into the run directory if it is not
 already there.
@@ -82,7 +82,7 @@ The reading that follows:
 
 - A clean planner verdict, with regression near zero, together with executor churn, means
   the executor is fragile. Harden the executor.
-- A planner that emits a move the body cannot perform means the planner's predicates are
+- A planner that emits a move the bot cannot perform means the planner's predicates are
   too loose. Tighten the predicate.
 
 The peak stuck counter for a run can also be read straight out of a log by grepping for

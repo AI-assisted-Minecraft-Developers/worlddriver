@@ -29,17 +29,17 @@ final class WalkerTickAim {
 
     /**
      * The tangent aim never applies on the LAST node. Every earlier node is spent by crossing its
-     * plane, so a tangent that carries the body past it is fine; the last one is spent only by
+     * plane, so a tangent that carries the bot past it is fine; the last one is spent only by
      * CLOSING to within ~0.67 of its centre, and a tangent is by construction the direction that
      * does not close — it is the previous segment's heading. wd.clientGotoStartsMidAir measured
      * it: a diagonal approach at sprint, yaw 91° off the node bearing, nearest pass 0.8, then 400
-     * ticks of unstuck bursts and repaths around a goal the body had already reached.
+     * ticks of unstuck bursts and repaths around a goal the bot had already reached.
      */
     /**
      * The EMA rate for the target heading: the slow trend-camera alpha, or — under
-     * {@code walkerOrbitBreaksAimLag} — the cruise alpha once the body has spent {@code ORBIT_TICKS}
-     * moving with a mid-range heading error. Under tangent drive the body follows this EMA, and an
-     * error that neither closes nor flips while the body moves is the body circling its node one cell
+     * {@code walkerOrbitBreaksAimLag} — the cruise alpha once the bot has spent {@code ORBIT_TICKS}
+     * moving with a mid-range heading error. Under tangent drive the bot follows this EMA, and an
+     * error that neither closes nor flips while the bot moves is the bot circling its node one cell
      * out: the slow alpha can never catch a bearing that rotates at its own convergence rate. Dry
      * only — water has its own drive heading.
      */
@@ -56,10 +56,10 @@ final class WalkerTickAim {
         }
         float err = Math.abs(angleDiff(a.smoothTargetYaw, targetYaw));
         boolean moving = p.getDeltaMovement().horizontalDistanceSqr() > ORBIT_MOVE_SQ;
-        // A detour turns at its corners and then walks straight; a circling body turns the same
+        // A detour turns at its corners and then walks straight; a circling bot turns the same
         // way every tick. Winding in one direction is the signature: a direction change or a
         // standstill ends it, a tick whose error happens to dip low (the raw bearing sweeps as the
-        // body passes the node) merely does not add to it.
+        // bot passes the node) merely does not add to it.
         if (!moving || turn * a.orbitWinding < 0) {
             a.orbitTicks = 0;
             a.orbitWinding = 0;
@@ -83,10 +83,10 @@ final class WalkerTickAim {
     }
 
     /**
-     * walkerTangentPursuit: the bare tangent carries no cross-track term, so a body that is off the
+     * walkerTangentPursuit: the bare tangent carries no cross-track term, so a bot that is off the
      * path (a smoothed route whose first hop is a diagonal off the start, a shove, a corner cut)
      * walks PARALLEL to it and never rejoins — measured in {@code wd.routeStaysOutOfSkeletonSight}:
-     * perp 1.4 held for 20 cells, the body in the open while the route it was given ran in the
+     * perp 1.4 held for 20 cells, the bot in the open while the route it was given ran in the
      * wall's shadow. Past {@code PURSUIT_PERP} aim at the path's point ahead instead; on the path
      * the two bearings coincide, so the tuned tangent cruise is unchanged there.
      */
@@ -97,7 +97,7 @@ final class WalkerTickAim {
     /**
      * The case {@link #tangentOrPursuit} rejoins in, also what drops the trend camera: on a dry flat
      * walk {@code trendCam} is always on, and under tangent mode its centroid overwrite IS the drive
-     * (driveTargetYaw = aimYaw = EMA(targetYaw)), so the pursuit bearing never reached the body —
+     * (driveTargetYaw = aimYaw = EMA(targetYaw)), so the pursuit bearing never reached the bot —
      * the centroid of nodes step+2.. is no more a rejoin heading than the tangent is (measured:
      * driveYaw −93 = the far centroid, perp 1.4 held for 20 cells). Off the path, drop the trend
      * camera the way {@code recoverySnagAim} does, so the pursuit flows through the same EMA at the
@@ -106,9 +106,9 @@ final class WalkerTickAim {
      * <p>Scoped to a LEVEL stretch with a segment ahead: dry, the current and the next node at the
      * foot's Y, not the last node. A step down or a plan's last node has its own tuned handling
      * (walkerDescentNodeHold, the descent decouple), and the first cut of this — perp alone —
-     * walked the body west and off the doorway in {@code wd.serverStepsDownAPlanItSpentInOneTick}
+     * walked the bot west and off the doorway in {@code wd.serverStepsDownAPlanItSpentInOneTick}
      * and lost an ore in {@code wd.serverMineHarvestBuried}; both green with the flag off, both
-     * green again with this scope. A buoyant body rides off its nodes legitimately.
+     * green again with this scope. A buoyant bot rides off its nodes legitimately.
      */
     private static boolean offPathPursuit(Walker wk, LivingEntity p, boolean launch, BlockPos foot) {
         if (!BotConfig.walkerTangentAim || !BotConfig.walkerTangentPursuit || launch || p.isInWater()) return false;
@@ -148,16 +148,16 @@ final class WalkerTickAim {
         boolean aimAtWaypoint = (p.isInWater() ? Math.abs(wpAimDy) > 1.5 : wp.getY() != foot.getY())
                 || parkourEdge;
         // Re-centre recovery on a stuck flat walk: a 1-wide channel needs the
-        // body centred on the lane axis or the off-centre hitbox snags a corner
+        // player centred on the lane axis or the off-centre hitbox snags a corner
         // and wedges (the look-ahead carrot aims diagonally, so it never centres
         // and the bot grinds the boundary). When genuinely stuck, steer to the
         // centre of the last confirmed on-spine node (the cell we came from):
-        // that pulls the body straight onto the lane axis, after which the carrot
+        // that pulls the bot straight onto the lane axis, after which the carrot
         // — aimed at the next node, same axis — is a clean straight push. Only
         // fires when stuck (normal open walking never is), so it can't reverse a
         // healthy run.
         // Cross-axis re-centre on a stuck flat walk: a 1-wide channel flush against
-        // a wall needs the body held on the lane axis or the off-centre hitbox
+        // a wall needs the bot held on the lane axis or the off-centre hitbox
         // grazes the wall and can't slide forward. When stuck, steer PURELY along
         // the cross axis of the immediate cardinal move (correct X for a N/S lane,
         // Z for an E/W lane) — never along the lane itself, so it can't cancel the
@@ -173,7 +173,7 @@ final class WalkerTickAim {
         // drift-off case (foot no longer in the spine cell).
         boolean reCentre = false;
         double recX = 0, recZ = 0;
-        // Guard-pin stall clock: while the stride floor-guard pins the body at an unplanned
+        // Guard-pin stall clock: while the stride floor-guard pins the bot at an unplanned
         // void edge, its fire ticks DECREMENT stuckTicks by design (the pin is a hold, not a
         // stall, and recovery bursts at a lip have killed — Walker wrapper) — so every
         // stuck-gated recovery branch below starves and the pin livelocks (r29 StepTwo:
@@ -190,7 +190,7 @@ final class WalkerTickAim {
                 double rcz = (sp.getZ() + 0.5) - p.getZ();
                 // Only re-centre toward the previous node when it is NOT behind us:
                 // once the bot has progressed past sp, aiming at its centre points
-                // backward and steers the body the wrong way (a stuck spot then drags
+                // backward and steers the bot the wrong way (a stuck spot then drags
                 // the heading ~180° around — the residual backward episode the slew
                 // clamp turned from a flip into a slow reversal). Gate on the dot
                 // product with the forward (toward-waypoint) direction so reCentre only
@@ -200,7 +200,7 @@ final class WalkerTickAim {
                 double fwz = (wp.getZ() + 0.5) - p.getZ();
                 // NORMALIZED backward gate: the raw dot's >=0 cut also rejected the
                 // near-PERPENDICULAR re-centre — which is exactly the corner-resnag this
-                // branch exists for (bridge bypass trio: body pinned on the barrier's
+                // branch exists for (bridge bypass trio: the bot pinned on the barrier's
                 // face at (11.7,0.91), spine node one lane over at (11.5,1.5), dot -0.01
                 // → rejected → 1200-tick wedge). Reject only a clearly BACKWARD steer
                 // (beyond ~107° off the waypoint direction); lateral regains stay in.
@@ -222,7 +222,7 @@ final class WalkerTickAim {
             aimSrc = "wp";
             adx = (wp.getX() + 0.5) - p.getX();
             adz = (wp.getZ() + 0.5) - p.getZ();
-            // Dry +1 staircase camera-spin fix: once the bob carries the body
+            // Dry +1 staircase camera-spin fix: once the bob carries the bot
             // horizontally ON TOP of the close +1 step node, that node's bearing flips
             // ±180° each tick (it's now beside/behind the foot) and a multi-step stair
             // accumulates a full 360°+ camera swing (live 2026-06-15 z1864 yawRange 405°)
@@ -248,7 +248,7 @@ final class WalkerTickAim {
                 // heading holds inside the pivot tolerance (no per-step drive cut → no sawtooth).
                 // Stopping at a real bend keeps it from aiming across a corner (the single-far-node
                 // aim that did was reverted). Also subsumes the old close-node camera-spin swap:
-                // once the bob carries the body onto the close +1 node, the trend still points up
+                // once the bob carries the bot onto the close +1 node, the trend still points up
                 // the stair instead of flipping ±180°. Forward-only (dot>0) never reverses.
                 double tx = 0, tz = 0;
                 BlockPos prev = foot;
@@ -278,23 +278,23 @@ final class WalkerTickAim {
         // unpinned tick between pin cycles, so a 13-consecutive bar loses the race against
         // same-cell plug arming (cell-sticky, survives cycles) — r32 spent 2 dirt before
         // nodeAim ever engaged. 6 pinned ticks is already a held pin (hysteresis alone is 8).
-        // losWalkable seatbelt on the pin leg (r33: bypass trio + detourCheap all wedged at
+        // losWalkable seatbelt on the pin clause (r33: bypass trio + detourCheap all wedged at
         // the platform's east reconvergence corner, knife-edged at (16.3,2.7) to FAILED):
         // nodeAim is a straight-line aim, blind to void — engaged at a corner pin it aims
         // diagonally across the missing corner cells and re-pins forever. Only engage when
         // the straight line to the node is walkable (same check reCentre has always had);
         // otherwise fall through to the carrot, which follows the path cell-by-cell. The
-        // plain stuckTicks leg keeps its historical unguarded form.
+        // plain stuckTicks clause keeps its historical unguarded form.
         } else if (wk.stuckTicks > APPROACH_NODE_AIM_TICKS
                 || (guardPinClock > 5 && losWalkable(world, foot, wp))) {
             aimSrc = "nodeAim";
-            // FLAT-node carrot-orbit fallback (see APPROACH_NODE_AIM_TICKS). On a flat walk the body
+            // FLAT-node carrot-orbit fallback (see APPROACH_NODE_AIM_TICKS). On a flat walk the bot
             // follows the look-ahead carrot; at a turn/corner node the carrot points ~60° off the close
-            // node and the body orbits it at ~0.75 b without ever closing the within-gate (live FREEZE-
+            // node and the bot orbits it at ~0.75 b without ever closing the within-gate (live FREEZE-
             // DIAG: aimAtWp=false, driveF=1, fwdComp>0, hSpd~0.07, cur2 frozen, 26-80 ticks). reCentre
             // (previous node) and the strafe (cross-axis) don't pull onto the IMMEDIATE node, so the
             // orbit only breaks on the slow wedge timer. Aim straight at the fixed node centre so the
-            // body closes onto it (within / clean crossing → step advances) instead of circling the carrot.
+            // bot closes onto it (within / clean crossing → step advances) instead of circling the carrot.
             adx = (wp.getX() + 0.5) - p.getX();
             adz = (wp.getZ() + 0.5) - p.getZ();
         } else {
@@ -355,7 +355,7 @@ final class WalkerTickAim {
         //      (deepWaterClimboutNoBlockArena regressed when this widened unconditionally).
         // walkerOvershootReaim: a dry walk-node OVERSHOOT at a cliff base wedges hard — the foot blew PAST
         // the node (cur2 > OVERSHOOT_RESYNC_SQ) but the NEXT node is the climb (>1 up) so `passed` can't
-        // advance onto it, and the carrot/tangent aim points the body the wrong way (backward into a wall)
+        // advance onto it, and the carrot/tangent aim points the bot the wrong way (backward into a wall)
         // so it never re-centres — a ram-frozen wedge (journey 2026-06-29 -558,82: yaw -179 / yawErr -120 /
         // hCol / cur2 6.28 / 260 ticks; even safetyRepath at stuck>60 re-commits the same path). When wedged
         // there, aim BACK at the overshot node so the bot walks onto it (the slight step back it should take) and
@@ -380,7 +380,7 @@ final class WalkerTickAim {
         // the foot is FAR off the current node (dist² > DRY_REANCHOR_OFFPATH_SQ) with a sustained stall
         // (stuckTicks > DRY_REANCHOR_STUCK) on dry land, override the carrot/tangent/node aim with a FIXED
         // aim at the last cleanly-passed node centre (path[step-1]). That fixed point's bearing barely moves
-        // as the body closes, so the node-orbit yaw-thrash that paces the repath churn collapses and the bot
+        // as the bot closes, so the node-orbit yaw-thrash that paces the repath churn collapses and the bot
         // walks deterministically back ONTO the path before resuming — breaking the amplifier common to every
         // heterogeneous wedge. Excludes water (the in-water anti-spin machinery owns that) and the very first
         // node (no prior anchor). Independent of walkerOvershootReaim (this is the general off-path case; that
@@ -391,7 +391,7 @@ final class WalkerTickAim {
             double cnx = (cn.getX() + 0.5) - p.getX(), cnz = (cn.getZ() + 0.5) - p.getZ();
             // ram-while-facing-wrong extension REVERTED 2026-06-29 (§25): adding an `|| (hCol && |yawErr|>90)`
             // trigger made the live -671 diagDown stall MUCH worse (oscillating limit cycle, totStuck 6009 vs
-            // 509 slow-recover) — anchoring BACK to step-1 on a CLOSE ram just bounces the body back and forth
+            // 509 slow-recover) — anchoring BACK to step-1 on a CLOSE ram just bounces the bot back and forth
             // (pull to step-1 → re-approach → re-ram → anchor), the same oscillation that killed WallCornerNodeAim
             // (§13) and the hCol-gate (§16). A close ram is NOT fixable by aim-back. Keep the FAR-off-path-only
             // trigger (corpus-validated net-positive, §22-24); the close diagDown-ram is a separate open problem.
@@ -421,13 +421,13 @@ final class WalkerTickAim {
         // projector ran this tick (call site gates on the same flag).
         // EXCEPTION — an ASCENT to the immediate node (a dry +1 stepUp/diagUp riser). A step-up mounts by
         // driving STRAIGHT at the riser node + auto/stepUpJump; the tangent points along the path PAST the
-        // riser (often across a terrain corner), which steers the body off-axis so it bonks the riser edge
+        // riser (often across a terrain corner), which steers the bot off-axis so it bonks the riser edge
         // and never mounts (live P2: a +1 riser at -750 churned with perp drifting to 4+). For an above-foot
         // immediate node, keep the legacy node bearing so pivotForStepUp/stepUpJump align onto the block —
         // the same reason the buoyant water-mount (buoyantClimbPress) keeps its column bearing, not the trend.
-        // ...and never while a RECOVERY branch owns the aim AND the body is PINNED — by a
+        // ...and never while a RECOVERY branch owns the aim AND the bot is PINNED — by a
         // wall (horizontalCollision) or by the stride floor-guard's void-edge sneak-pin
-        // (guardSneakLatch). The tangent presumes the body is ON the lane; a pinned
+        // (guardSneakLatch). The tangent presumes the bot is ON the lane; a pinned
         // recovery fires exactly because it is not. Before this guard the tangent
         // overwrote the reCentre bearing right after the tree chose it (bridge bypass
         // trio r26: 1200-tick barrier-face pin with as=recentre and the drive still
@@ -446,11 +446,11 @@ final class WalkerTickAim {
                 && wk.path.get(wk.step).getY() <= foot.getY()) {
             targetYaw = tangentOrPursuit(wk, p, launch, foot);
             // walkerWallCornerNodeAim: the tangent steers along the path TREND, but at a CORNER where the
-            // immediate node sits well off the tangent AND a wall is on the tangent heading, the body RAMS
+            // immediate node sits well off the tangent AND a wall is on the tangent heading, the bot RAMS
             // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
             // creeps across as drift sweeps the geometry (live dry-627 start: yaw frozen 91° / node bearing
             // 122° / hCol=true / 350-tick churn, the stuck-against-a-wall signature). When ramming with the node well
-            // off the tangent, yield back to the DIRECT node bearing so the body turns off the wall onto the
+            // off the tangent, yield back to the DIRECT node bearing so the bot turns off the wall onto the
             // node. Gated on hCol so a clean trend-cruise (no wall) keeps the bob-immune tangent unchanged.
             if (BotConfig.walkerWallCornerNodeAim && p.horizontalCollision) {
                 BlockPos wn3 = wk.path.get(wk.step);
@@ -464,7 +464,7 @@ final class WalkerTickAim {
         // current-node bearing — the deadzone hold-heading band (A: aim2 inside the deadzone
         // holds a stale yaw that a stepDown node's within-gate never accepts) or a reversed
         // switchback tangent (B: tangent -180° vs node bearing 14°, corner corrector
-        // default-dead per §13) steers the body INTO a wall while the node sits elsewhere.
+        // default-dead per §13) steers the bot INTO a wall while the node sits elsewhere.
         // Under the confirmed-stall gate, snap targetYaw back to the current-node bearing so
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.
@@ -487,7 +487,7 @@ final class WalkerTickAim {
                                 String.format(Locale.ROOT, "%.0f", p.getYRot()),
                                 rn.getX(), rn.getY(), rn.getZ(), wk.stuckTicks);
                 } else if (reCentre) {
-                    // CORNER-SNAG leg: the node bearing is within 60° of the pressed yaw —
+                    // CORNER-SNAG branch: the node bearing is within 60° of the pressed yaw —
                     // i.e. the node sits BEHIND the same wall face and aiming at it keeps
                     // ramming (bridge bypass trio: yaw −89 vs node bearing −72 into the
                     // barrier's west face, every release valve gated out by the small
@@ -507,16 +507,16 @@ final class WalkerTickAim {
         // ── Overland camera/movement decouple (anti-spin) — see DESCENT_CAM_FAR_DIST ─────────
         // Point the CAMERA at a stable trend heading (no spin) while the MOVEMENT keeps driving the
         // immediate node (driveTargetYaw, below). Capture the immediate-node heading (the carrot/node
-        // bearing) BEFORE re-aiming the camera at the trend — that captured heading drives the body.
+        // bearing) BEFORE re-aiming the camera at the trend — that captured heading drives the bot.
         float descentNodeYaw = targetYaw;
         // GENERALISED from descents to FLAT + descending dry overland travel: a live 2026-06-21
         // winding-by-bucket diagnosis showed the trend camera had ALREADY smoothed descending nodes
         // (dryDesc=true: 2.5 turns over the journey) but 90% of the residual spin sat in the dry
         // NON-descending nodes (flat + ascending steps on the same hill, 7.8 turns) where the decouple
-        // wasn't engaging — a switchback's flat legs swing the per-node bearing exactly like its down
-        // legs. Driving the body off the captured node heading keeps navigation byte-identical; only
-        // the camera is trend-averaged. ASCENDING (wp.y > foot.y) is EXCLUDED: a dig+climb-mount or
-        // pillar-up needs the exact target heading, and trend-aiming it regressed tallbankdigclimb
+        // wasn't engaging — a switchback's flat segments swing the per-node bearing exactly like its
+        // descending segments. Driving the bot off the captured node heading keeps navigation
+        // byte-identical; only the camera is trend-averaged. ASCENDING (wp.y > foot.y) is EXCLUDED:
+        // a dig+climb-mount or pillar-up needs the exact target heading, and trend-aiming it regressed tallbankdigclimb
         // (the bot couldn't mount the bank).
         // Launches ride descentDecoupleLaunches (ascending leaps slew safely via commandMove).
         boolean dryDescent = BotConfig.descentCameraDecouple && !p.isInWater() && !steppingOffWaterFall
@@ -529,10 +529,10 @@ final class WalkerTickAim {
         // Averaging the look-ahead window into a steady trend kills it, exactly as on dry land. EXCLUDED:
         // climb-out (wp above foot — the bank mount needs the exact column heading) and swimDown dives
         // (they aim precisely), so the water-climb / dive arenas stay byte-unchanged. Unlike dry land the
-        // body stays COUPLED to the camera trend (driveTargetYaw=aimYaw in water, below): on an open
+        // bot's movement stays COUPLED to the camera trend (driveTargetYaw=aimYaw in water, below): on an open
         // crossing swimming toward the trend is correct, whereas driving the raw flipping node would
         // re-introduce a swim-back-and-forth.
-        // The Y gate is bob-tolerant (+1): a buoyant body bobs foot y±1 against a surface node, so a
+        // The Y gate is bob-tolerant (+1): a buoyant bot bobs foot y±1 against a surface node, so a
         // strict wp.y <= foot.y FLICKERS the trend on/off each bob and the camera still snaps to the
         // flipping node on the off-ticks (live: yaw==driveYaw on alternating ticks). +1 keeps the trend
         // latched across the bob while still excluding a real climb-OUT (+2 bank); a +1 node it might
@@ -553,7 +553,7 @@ final class WalkerTickAim {
         // targetYaw every tick — r26 pin-window: 10 consecutive as=recentre ticks (spine bearing
         // +19°) with the drive frozen at y-90, which is EXACTLY the lookahead centroid's bearing
         // (nodes (13,1),(14,0),(26,0) → centroid (18.2,0.8), atan2 = −90.7°). Under tangent mode
-        // driveTargetYaw=aimYaw=EMA(targetYaw), so the centroid — not the recovery — drove the body
+        // driveTargetYaw=aimYaw=EMA(targetYaw), so the centroid — not the recovery — drove the bot
         // into the barrier face for 1200 ticks; every aim-layer fix upstream was label-only, the
         // same way the tangent override was before its reCentre guard. While a wall-pinned recovery
         // owns the aim, drop trendCam entirely: the centroid overwrite yields AND the EMA switches
@@ -563,7 +563,7 @@ final class WalkerTickAim {
         // Dry-only: a floating bank-ram has its own recovery set (bankFollow / floatingBankBob),
         // so the water trend stays byte-identical. Two pin flavours:
         //  - WALL-pin (hCol): reCentre / §80 own the aim (bridge bypass trio, r26).
-        //  - VOID-pin (guardSneakLatch, hc=false): the guard holds the body at an unplanned
+        //  - VOID-pin (guardSneakLatch, hc=false): the guard holds the bot at an unplanned
         //    lip the centroid keeps steering it over (StepTwo dogleg r29: centroid (15.75,3.0)
         //    dead east, plan detours north; with allowPlace the bot causeway-plugged its own
         //    shortcut — 6 dirt). The pin-clock-enabled reCentre/nodeAim branches above give
@@ -573,17 +573,17 @@ final class WalkerTickAim {
                 && ((p.horizontalCollision && (reCentre || ramReleaseAim))
                     || (wk.guardSneakLatch && (reCentre || "nodeAim".equals(aimSrc))));
         boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !offPathPursuit(wk, p, launch, foot);
-        // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant body
-        // overshoots a node, so driving it raw makes the body swim-wobble (live: 52% path efficiency,
+        // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant bot
+        // overshoots a node, so driving it raw makes the bot swim-wobble (live: 52% path efficiency,
         // and the bot suddenly turning away from the target). A light EMA damps the per-tick flip while still tracking the node. WATER
         // ONLY: extending this EMA to dry descent was A/B-DISPROVEN in descentYawArena (raw backSteps=42
-        // winding=211° → ema backSteps=54 winding=370° — the dry body has traction and needs the precise
+        // winding=211° → ema backSteps=54 winding=370° — the dry bot has traction and needs the precise
         // node bearing; lagging it makes it overshoot/correct MORE). Dry back-hop's real fix is a
         // step-pointer advance, not drive-smoothing (override was also disproven — both wedge/worsen).
         if (flatWaterTrend) {
             // DRIVE the path-following CARROT (CARROT_DIST ahead), not the raw immediate-node bearing.
-            // A slow buoyant body drifts off-axis, and the immediate node's bearing rotates faster the
-            // closer it gets — within ~2 blocks it sweeps and flips ±180° as the body crosses it, so
+            // A slow buoyant bot drifts off-axis, and the immediate node's bearing rotates faster the
+            // closer it gets — within ~2 blocks it sweeps and flips ±180° as the bot crosses it, so
             // the EMA still swings ±55°/tick and the swim wobbles/crawls (live: open-water hSpd
             // collapses 0.078→0.02 at every node, the circling-around-a-node churn). The carrot is a STABLE far
             // heading (small angular sensitivity) that still ROUNDS corners (it walks the path) and
@@ -591,7 +591,7 @@ final class WalkerTickAim {
             // driving the far CENTROID did (waterFarAimBankCorner).
             // Bob-stable LOS foot: an UP-bob lifts foot.y into the air block ABOVE the water surface,
             // where carrotPoint's per-cell losWalkable (needs floor-solid / water / climbable) fails on
-            // every sample and collapses the carrot onto the body — the drive then loses its forward
+            // every sample and collapses the carrot onto the bot — the drive then loses its forward
             // heading and the swim stalls (live -1676/-1678: carrot dead, driveYaw frozen, totStuck
             // 200+). Clamp the ray's foot DOWN to the current node's surface level so it samples water,
             // not the bob's air gap.
@@ -603,7 +603,7 @@ final class WalkerTickAim {
                 LOG.info("[walker] carrot-collapse foot={} wp.y={} posY={} losRaw={} losClamp={}",
                         foot.getY(), wp.getY(), String.format("%.2f", p.getY()),
                         losWalkable(world, foot, wp), losWalkable(world, losFoot, wp));
-            // Drive source: the carrot ahead, or — when it has collapsed onto the body (a wall / path
+            // Drive source: the carrot ahead, or — when it has collapsed onto the bot (a wall / path
             // end) — the immediate node bearing as a fallback.
             float driveSrcYaw = (cdx * cdx + cdz * cdz > 1.0)
                     ? (float) Math.toDegrees(Math.atan2(-cdx, cdz)) : descentNodeYaw;
@@ -629,12 +629,12 @@ final class WalkerTickAim {
         }
         if (trendCam) {
             // Aim the CAMERA at the CENTROID of the lookahead window (see DESCENT_CAM_LOOKAHEAD):
-            // a switchback staircase's alternating cardinal legs average to the steady down-slope
+            // a switchback staircase's alternating cardinal segments average to the steady down-slope
             // trend, so the heading holds instead of chasing the ±50° per-step zigzag (the spin).
             // MOVEMENT stays on the immediate node via driveTargetYaw=descentNodeYaw below.
             // CENTROID of the look-ahead window: averaging EVERY node in the window cancels a
-            // switchback's alternating legs into the steady down-slope trend. (A chord/far-node
-            // samples only an endpoint, which itself lands on alternating legs and swings; the
+            // switchback's alternating segments into the steady down-slope trend. (A chord/far-node
+            // samples only an endpoint, which itself lands on alternating segments and swings; the
             // full average does not.) MOVEMENT stays on the immediate node via driveTargetYaw below.
             double sumX = 0, sumZ = 0; int cnt = 0;
             int lastNode = Math.min(wk.step + DESCENT_CAM_LOOKAHEAD, wk.path.size() - 1);
@@ -665,7 +665,7 @@ final class WalkerTickAim {
             // wd.bridgeStepTwoBypassNoPlace, where per-repath ±180° target flips
             // are NORMAL and must stay damped. The frozen-press deadlock is
             // released by the physical-stall valve at the spinFreeze site
-            // instead, which keys on the deadlock's true signature: zero body
+            // instead, which keys on the deadlock's true signature: zero player
             // displacement while frozen.)
             wk.aimSmooth.smoothTargetYaw = angleDiff(0f, wk.aimSmooth.smoothTargetYaw + alpha * angleDiff(wk.aimSmooth.smoothTargetYaw, targetYaw));
         }
@@ -673,15 +673,15 @@ final class WalkerTickAim {
         // ── In-place backward hop fix ───────────────────────────────────────────────
         // The decoupled descent drive rides the IMMEDIATE node (descentNodeYaw). When the bot
         // OVERSHOOTS that node on a fall landing or a step (lands a hair past it), the node is now
-        // BEHIND the body, so its bearing flips ~180° and the drive reverses — the body hops
+        // BEHIND the bot, so its bearing flips ~180° and the drive reverses — the bot hops
         // backward INTO the node, overshoots again, and oscillates. (Live 2026-06-21 telemetry: at a
         // fall2 landing descentNodeYaw flipped 177°↔-5° while the camera held steady at -5°, so the
-        // body hopped back/forth in place — the spin used to MASK this, but the now-steady trend
+        // bot hopped back and forth in place — the spin used to MASK this, but the now-steady trend
         // camera exposes it as a visible backward jump.) When the captured node lies sharply behind
         // the steady trend heading (aimYaw = the look-ahead centroid, which already points along the
-        // path), drive ALONG the trend instead of reversing: the body keeps moving forward through
+        // path), drive ALONG the trend instead of reversing: the bot keeps moving forward through
         // the overshot node, and the step pointer advances via the normal overshoot re-sync. Only
-        // a >120° gap counts as an overshoot — a switchback's legs sit ~±50° off the trend, so
+        // a >120° gap counts as an overshoot — a switchback's segments sit ~±50° off the trend, so
         // (A drive-override here — descentNodeYaw = aimYaw on a behind+close node — was tried and
         // REVERTED: overriding the heading breaks node-following and self-amplifies into a descent
         // wedge (descentYawArena onSlope 226→700, reached=false, under every gate incl. a stall gate,
@@ -739,13 +739,13 @@ final class WalkerTickAim {
         boolean spinFreeze = !launch && overWater && wk.goalSpin.repathsNoProgress > CHURN_REPATH_CAP && targetFlipping;
         // FROZEN-PRESS DEADLOCK VALVE (Mountains notch live, stuckT 720): the freeze
         // exists to steady the bot PRESSING toward a climb-out — pressing implies the
-        // body moves (or bobs while the climb machinery works, as in the vine pocket).
-        // When the frozen heading points into a wall, the body is PINNED (horizontal
+        // bot moves (or bobs while the climb machinery works, as in the vine pocket).
+        // When the frozen heading points into a wall, the bot is PINNED (horizontal
         // displacement ~0 for seconds), repaths keep failing, and the freeze's own
         // conditions self-sustain: raw target steady 180° away, EMA oscillating at the
         // antipode, stability gate never releasing. Key the release on the deadlock's
         // unique signature — zero displacement WHILE frozen — which no legitimate
-        // freeze use shows (vine-pocket / climb-out bodies keep moving). On trip:
+        // freeze use shows (in a vine pocket or a climb-out the bot keeps moving). On trip:
         // hard-snap the smooth heading to the live target and drop the freeze.
         if (spinFreeze) {
             double fdx = p.getX() - wk.aimSmooth.freezeAnchorX, fdz = p.getZ() - wk.aimSmooth.freezeAnchorZ;
@@ -780,7 +780,7 @@ final class WalkerTickAim {
                 // PIVOT FAST-TURN (stop-go sawtooth): a step-up pivot cuts forward
                 // drive entirely until the heading is inside the 40° gate, so every
                 // zigzag staircase corner stalls ~0.5 s at the 8°/tick cruise slew —
-                // the speed square-wave the path charts show. While pivoting the body
+                // the speed square-wave the path charts show. While pivoting the bot
                 // is STATIONARY (drive already zero), so a faster pan is a quick
                 // turn-in-place, not a moving-view jerk: turn at 24°/tick and the
                 // stall drops to ~0.2 s. Cruise turns keep the gentle cruise slew.
@@ -796,13 +796,13 @@ final class WalkerTickAim {
             p.yBodyRot = ny;
         }
         // DIVE to follow a submerged node under a ceiling. In water the prone swim
-        // travels along the LOOK vector, so a level pitch pins the body at the surface
+        // travels along the LOOK vector, so a level pitch pins the bot at the surface
         // — when the next node is BELOW and the bot is HORIZONTALLY BLOCKED (it rams a
         // low overhang lip: a submerged tunnel whose stone ceiling sits at the
         // DESTINATION cell's foot+1, so a fixed foot+2 check at the bot's own cell
         // misses it — the lethal stuck: hCol=true, hSpd=0, bobbing y62↔63 into the
         // lip), the bot must DIVE: pitch down + the prone-swim sprint (below) sink the
-        // ~0.6-tall body to the tunnel floor where it fits under the lip and threads on.
+        // ~0.6-tall swimming player to the tunnel floor where it fits under the lip and threads on.
         // Triggered by the real symptom — a blocked submerged descent — and LATCHED a
         // few ticks so the dive holds through the sink even as the collision flickers
         // off mid-descent (else it flip-flops upright and bobs back into the lip). An
@@ -821,7 +821,7 @@ final class WalkerTickAim {
         if (p.isInWater() && wp.getY() < foot.getY() && p.horizontalCollision && cappedDescent) wk.dive.latch = 12;
         else if (wk.dive.latch > 0) wk.dive.latch--;
         boolean diveUnderCap = p.isInWater() && wp.getY() < foot.getY() && wk.dive.latch > 0;
-        // ACTIVE dive for a submerged target ≥2 below a floating body (computed here,
+        // ACTIVE dive for a submerged target ≥2 below a floating bot (computed here,
         // before the pitch/sneak actuators that need it). Merely releasing the float
         // (the old "diving" = no jump) NEVER sinks a surface swimmer — buoyancy +
         // forward stroke hold y constant (mangrove swamp live: A* commits a riverbed
@@ -920,7 +920,7 @@ final class WalkerTickAim {
         // AT/BELOW the foot across a 1-block lip). The dominant residual is NON-DETERMINISTIC: the
         // same route lands the buoyant approach on a mountable spot (~0s, steps up) OR a dig-required
         // spot (~30s underwater dig, replay-proven 0s/0s/33s). Count sustained floating-water-rams to
-        // drive a SLIDE ALONG the bank (perpendicular strafe, see the lane-keep block) so the body
+        // drive a SLIDE ALONG the bank (perpendicular strafe, see the lane-keep block) so the bot
         // sweeps to the nearest mountable exit instead of grinding/digging the dead spot. Self-
         // terminating: any climb-out progress drops onGround/hCol → counter resets → normal mount.
         boolean bankFollowRam = atWaterBank && !p.onGround() && p.horizontalCollision;

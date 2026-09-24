@@ -135,10 +135,10 @@ ScriptTest.run("50_scene: deep water (>=2) lethal, shallow (1) not", function (t
         "1-deep water neighbour (depth 1 < deepWaterMax 2) is not lethal");
 });
 
-// ── Test 6: lava at body level renders '!' and is lethal (contactDamage fix) ──
+// ── Test 6: lava at the bot's feet level renders '!' and is lethal (contactDamage fix) ──
 // Center (0,200,250). Stone platform at y=199, air above.
-// ONE neighbour cell (x=+1, z=250) has lava placed at y=200 (the bot body level),
-// with stone still at y=199 under it so the column exists — but the body/head
+// ONE neighbour cell (x=+1, z=250) has lava placed at y=200 (the bot's feet level),
+// with stone still at y=199 under it so the column exists — but the feet/head
 // hazard check fires first and returns contactDamage=true, lethal=true.
 // Center cell itself is air at y=200 -> should still be walkable (no hazard there).
 ScriptTest.run("50_scene: lava at body level renders '!' and is lethal", function (t) {
@@ -146,7 +146,7 @@ ScriptTest.run("50_scene: lava at body level renders '!' and is lethal", functio
     // 9x9 stone platform at y=199, clear air y=200..205.
     fill(ox - 4, oy - 1, oz - 4, ox + 4, oy - 1, oz + 4, "minecraft:stone");
     fill(ox - 4, oy,     oz - 4, ox + 4, oy + 5, oz + 4, "minecraft:air");
-    // Single lava block at the neighbour's body level (y=200, dx=+1).
+    // Single lava block at the neighbour's feet level (y=200, dx=+1).
     // Stone at y=199 already present from the platform fill above.
     fill(ox + 1, oy, oz, ox + 1, oy, oz, "minecraft:lava");
 
@@ -156,10 +156,10 @@ ScriptTest.run("50_scene: lava at body level renders '!' and is lethal", functio
         render: "map"
     });
     t.assertTrue(s.hazardSummary.lethalCount >= 1,
-        "lava body-level cell is lethal (contactDamage)");
+        "lava cell at feet level is lethal (contactDamage)");
     var mapStr = s.rows.join("\n");
     t.assertTrue(mapStr.indexOf("!") >= 0,
-        "lava at body level renders as '!'");
+        "lava at feet level renders as '!'");
 });
 
 // ── Test 7: radius clamps to 32 with truncation report ───────────────────────

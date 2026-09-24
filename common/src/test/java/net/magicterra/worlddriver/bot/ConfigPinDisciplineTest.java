@@ -86,7 +86,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  *
  * <p>A pin closes through {@code ctx.cleanup(pin::close)}, which runs when the scene FAILS as well
- * as when it passes — that is the whole reason a pin beats an assignment at the end of the body.
+ * as when it passes — that is the whole reason a pin beats an assignment at the end of the bot.
  */
 class ConfigPinDisciplineTest {
 
@@ -236,7 +236,7 @@ class ConfigPinDisciplineTest {
             this.callers = callers;
         }
 
-        /** Pin in this body, or in anything it calls — the delegate case (rig.generousPathfinding). */
+        /** Pin in this bot, or in anything it calls — the delegate case (rig.generousPathfinding). */
         boolean takesPin(String m, Set<String> stack) {
             if (pins.contains(m)) return true;
             if (!stack.add(m)) return false;

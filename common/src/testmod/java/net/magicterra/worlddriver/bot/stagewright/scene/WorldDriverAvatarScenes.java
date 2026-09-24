@@ -32,7 +32,7 @@ import net.minecraft.world.phys.Vec3;
  * legacy 20 → 15, closing the wave-8 cut).
  *
  * <p><b>These are the permanent regression guards for medical records #45 (attack cooldown) /
- * #46 (equipment attributes) / #47 ({@code Player.tick} fidelity) / #48 (distinct bodies), plus the
+ * #46 (equipment attributes) / #47 ({@code Player.tick} fidelity) / #48 (distinct players), plus the
  * central ServerPlayer-avatar break/place capability claim.</b> Their assertion thresholds are
  * LOAD-BEARING GOLDEN VALUES — the iron-sword recharge {@code ceil(20/1.6)=13} ticks, cooked-beef
  * {@code beefLeft==1}, the empty-then-full recharge bar, etc. — and are translated one-for-one with
@@ -40,8 +40,8 @@ import net.minecraft.world.phys.Vec3;
  * {@link SceneContext#level()}; absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} →
  * {@code origin.y + 20} / {@code floorY=200} → {@code origin.y}; {@code ServerWorldDriver.create} →
  * {@link ServerWorldDriver#createIsolated} and {@code ServerPlayerBody.create} →
- * {@link ServerPlayerBody#createUnique} (the #48 per-scene isolated body — the shell these tests
- * were promoted to a REQUIRED regression guard on; it changes identity only, not the body physics
+ * {@link ServerPlayerBody#createUnique} (the #48 per-scene isolated player — the shell these tests
+ * were promoted to a REQUIRED regression guard on; it changes identity only, not the player physics
  * the golden numbers measure); legacy NeoForge {@code FakePlayer} → common {@link ServerPlayer};
  * {@code try/finally} config save/restore → {@link BotConfig#pinnedBaseline()}; {@code throw} →
  * {@link SceneContext#fail}. Each world-touching scene registers {@code ctx.cleanup} to discard its
@@ -86,7 +86,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.serverAgentDistinctBodies — gap#48: two agents must be two bodies (createIsolated).
+    // wd.serverAgentDistinctBodies — gap#48: two agents must be two players (createIsolated).
     // ==================================================================================
 
     private static void serverAgentDistinctBodiesScene(SceneContext ctx) {
@@ -119,7 +119,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         if (fpA == fpB)
             ctx.fail("both server agents are literally the same entity ("
                     + System.identityHashCode(fpA) + "): ServerAvatarBodies.shared(level) is a"
-                    + " per-level singleton, so agents (and concurrent arenas) fight over one body");
+                    + " per-level singleton, so agents (and concurrent arenas) fight over one player");
 
         // B is parked. A walks. Vanilla-obvious, and the whole point of having two agents.
         Vec3 bStart = fpB.position();
@@ -133,7 +133,7 @@ public final class WorldDriverAvatarScenes implements SceneProvider {
         if (aMoved < 0.5)
             ctx.fail("rig broken: agent A did not walk at all (" + aMoved + ")");
         if (bDrift > 0.01)
-            ctx.fail("driving agent A dragged idle agent B " + bDrift + " blocks: the two agents are sharing one body");
+            ctx.fail("driving agent A dragged idle agent B " + bDrift + " blocks: the two agents are sharing one player");
     }
 
     // ==================================================================================

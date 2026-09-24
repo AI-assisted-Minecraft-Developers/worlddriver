@@ -20,7 +20,7 @@ final class WalkerFinders {
         PathFinder pf = ((wk.searchMaxNodes > 0 && wk.searchMaxMs > 0)
                 ? new PathFinder(world, wk.searchMaxNodes, wk.searchMaxMs, wk.profile)
                 : new PathFinder(world, wk.profile))
-                // THIS Walker's churn clock, not a global every body writes. Read live, because the
+                // THIS Walker's churn clock, not a global every bot writes. Read live, because the
                 // escalation is a sticky TIMER and a time-sliced search outlives it: a search that
                 // starts escalated must pick the re-capped horizon back up when the clock lapses, or
                 // it grinds on easy terrain instead of stopping early.
@@ -34,11 +34,11 @@ final class WalkerFinders {
     }
 
     /**
-     * The scope source: the Walker is the one construction point that has a body, so it is where
+     * The scope source: the Walker is the one construction point that has a bot, so it is where
      * the per-search entity snapshot is wired. Gathered per Search (the finder calls it from the
-     * Search constructor), on the body's own level, with the body itself excluded. Both bodies
+     * Search constructor), on the bot's own level, with the bot itself excluded. Both bots
      * alike — a {@link Player}, never a LocalPlayer, so the server never links client types. No
-     * body yet (a scene driving the walker before its first tick) → no source, an empty scope.
+     * bot yet (a scene driving the walker before its first tick) → no source, an empty scope.
      */
     private static PathFinder scoped(Walker wk, PathFinder pf) {
         LivingEntity b = wk.body;

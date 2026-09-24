@@ -4,11 +4,11 @@
 
 The bot carries two independent models of the world. The planner has a cost model that decides
 which cells are walkable and which edges exist. The executor has real physics, which decides what
-the body can actually do. They diverge, and every divergence looks the same from outside: the bot
+the bot can actually do. They diverge, and every divergence looks the same from outside: the bot
 gets stuck.
 
 Concretely, the planner emitted two-block climbs a jump cannot make, one-block bank climbs a
-buoyant body cannot mount, and vine climbs with no check that the body could hold on.
+floating player cannot mount, and vine climbs with no check that the player could hold on.
 
 The gap being addressed is not any one of those. It is that there was no mechanism to **find**
 them. The scene suite of the time was tautological: it asserted that a path exists under the
@@ -19,9 +19,9 @@ entirely green over a bot that cannot walk.
 
 ### Two discovery layers, for the two kinds of divergence
 
-**Per-move conformance** catches a planner predicate that is looser than the body's real
+**Per-move conformance** catches a planner predicate that is looser than the bot's real
 capability. For each move type, stage the geometry the planner says it can handle and drive the
-body through it.
+bot through it.
 
 A move must be tested from **several starting states** — grounded, floating, mis-landed — because
 the starting state, not the move, is very often what decides whether it works. A move that succeeds

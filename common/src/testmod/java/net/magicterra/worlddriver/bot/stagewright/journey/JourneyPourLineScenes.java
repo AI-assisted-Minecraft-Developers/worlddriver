@@ -31,7 +31,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * <p>Rung 12's third independent failure family, and the third instance in one day of one shape: <b>a
  * recovery's placements become the next step's obstacle</b>. The first two were answered with a no-go
  * list of cells that must stay WALKABLE ({@link JourneyStairs#needsOpen}). This one needs the other
- * kind — cells that must stay clear of a LINE — because a block that cannot stop a body can still
+ * kind — cells that must stay clear of a LINE — because a block that cannot stop a bot can still
  * stop a ray.
  *
  * <h2>The run, in five rows</h2>
@@ -51,7 +51,7 @@ import net.minecraft.world.phys.BlockHitResult;
  * </pre>
  *
  * <ol>
- *   <li>A step was placed at {@code 3,58,19} <b>for this very cell</b>, so the body could stand in
+ *   <li>A step was placed at {@code 3,58,19} <b>for this very cell</b>, so the bot could stand in
  *       {@code 3,59,19} and shoot the backing along the axis.</li>
  *   <li>The WET half of the same cell needs to be one row higher ({@code 4,61,19} is the notch above
  *       the frame), so its flight filled {@code 3,59,19} to reach {@code 3,60,19}.</li>
@@ -62,8 +62,8 @@ import net.minecraft.world.phys.BlockHitResult;
  * </ol>
  *
  * <p>The rung built the blocker and then excused it. Nothing in the chain is a walker bug, a ray
- * quantisation artefact or a flooded alcove: it is one cell, contested by two legs of the same cast,
- * with no rule saying who owns it.
+ * quantisation artefact or a flooded alcove: it is one cell, contested by two stages of the same
+ * cast, with no rule saying who owns it.
  *
  * <h2>What the {@code 4, 60, 18} in row three is, and what it is not</h2>
  *
@@ -84,11 +84,11 @@ import net.minecraft.world.phys.BlockHitResult;
  * {@code wd.pourLineHasNoOtherWayUp} is that arithmetic rather than an assertion: the wet cell sits
  * one row above the frame cell, so the stand it needs is one row above the frame cell's stand, so its
  * flight's landing rests on <b>exactly</b> the cell the frame cell wants to stand in. Refuse the fill
- * and the water pour has no way up at all — which is the same defect moved one leg earlier.
+ * and the water pour has no way up at all — which is the same defect moved one stage earlier.
  *
  * <p>So the reservation is REDEEMED. {@link JourneyRamp#plan} prefers a route that keeps a pending
  * cast's line clear and says so when it has to borrow one anyway; {@link JourneySight#blockersOnTheLine}
- * hands the cell back when that cast asks for it, unless the body is resting on it. The two halves
+ * hands the cell back when that cast asks for it, unless the bot is resting on it. The two halves
  * are {@code wd.pourLineTakesBackTheStepItBorrowed}'s subject and control.
  *
  * <h2>The next run's blocker was a FINISHED ring cell, and it is a different question</h2>
@@ -112,9 +112,9 @@ import net.minecraft.world.phys.BlockHitResult;
  *       shape.</b> {@code wd.pourLineRingOrderCannotShadowAPour} stages every ring cell with all
  *       nine others already obsidian — the worst shadow ANY order can produce, so a subset argument
  *       settles all 3 628 800 orderings at once — and every one of the ten keeps columns in its own
- *       rank, at the row the raise verifies. The shadow exists only for a body one rank over, and
+ *       rank, at the row the raise verifies. The shadow exists only for a bot one rank over, and
  *       only at that row: the arm's own row-by-row reading is {@code y221:1 y223:0 y225:1}. The
- *       body was at {@code 3,60,19}; the target is at {@code z=20}.</li>
+ *       bot was at {@code 3,60,19}; the target is at {@code z=20}.</li>
  *   <li><b>The 100 "stand cell occupied" vetoes are the alcove's own rock.</b>
  *       {@code wd.pourLineOccupiedStandsAreOutsideTheAlcove} splits the vote: 100 of the 140
  *       candidates fall outside the carved corridor (the scan reaches four back and two either side
@@ -185,7 +185,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
      *  grid's y=200, like the sibling journey arenas. */
     private static final int BASE = 20;
 
-    /** How far the mould is pushed out from the shaft the body arrives down. Two, which is what
+    /** How far the mould is pushed out from the shaft the bot arrives down. Two, which is what
      *  {@code carveTheForge} settles on when the first offset is dry — and what the run this file is
      *  about used, so the corridor is the same two ranks wide. */
     private static final int PUSH = 2;
@@ -225,7 +225,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         return target(ctx).relative(AWAY.getOpposite()).below();
     }
 
-    /** The step {@code standBehind} laid so the body could stand in {@link #borrowed} and mine the
+    /** The step {@code standBehind} laid so the bot could stand in {@link #borrowed} and mine the
      *  frame cell — {@code 3,58,19}. It is what makes the borrowed cell a stand at all. */
     private static BlockPos frameCellStep(SceneContext ctx) { return borrowed(ctx).below(); }
 
@@ -315,7 +315,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         // What the earlier steps of this cast left standing.
         JourneyRamp.reset();
         JourneySight.mould(base(ctx), AWAY);
-        // The step standBehind laid so the body could stand in `borrowed` and mine the frame cell.
+        // The step standBehind laid so the bot could stand in `borrowed` and mine the frame cell.
         put(ctx, frameCellStep(ctx));
         // The dirt the raise tower left under the fallback stand. Without it `stand` has no floor and
         // every candidate there is refused for having no solid floor before any ray is fired, which
@@ -371,7 +371,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         ctx.cleanup(() -> clearBox(ctx));
     }
 
-    /** A body standing in {@code foot}, settled, holding a pickaxe and a bucket's worth of nothing. */
+    /** A bot standing in {@code foot}, settled, holding a pickaxe and a bucket's worth of nothing. */
     private static ServerWorldDriver body(SceneContext ctx, BlockPos foot) {
         ServerWorldDriver driver = SceneBody.managed(ctx, foot);
         ServerPlayer fp = driver.fakePlayer();
@@ -380,7 +380,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         fp.getInventory().items.set(0, new ItemStack(Items.STONE_PICKAXE, 1));
         fp.getInventory().selected = 0;
         ServerPlayerBody av = driver.avatar();
-        // Three physics steps with no input, so the body is flush before any eye is read.
+        // Three physics steps with no input, so the bot is flush before any eye is read.
         for (int i = 0; i < 3; i++) av.step();
         return driver;
     }
@@ -410,7 +410,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
 
     /** The nearest foot cell that grades {@link JourneySight#ANYWHERE} — a stand this pour is
      *  entitled to plan on, as opposed to one it may only walk to. Production grading, production
-     *  candidate list; the ranking is {@code standToAimAt}'s own (nearest to the body wins). */
+     *  candidate list; the ranking is {@code standToAimAt}'s own (nearest to the bot wins). */
     private static BlockPos nearestVerified(SceneContext ctx, ServerPlayer fp) {
         BlockPos best = null;
         double bestD = Double.MAX_VALUE;
@@ -440,7 +440,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
      * <h2>Criteria</h2>
      *
      * <ol>
-     *   <li><b>the control:</b> with the borrowed cell AIR the same body, from the same stand, aiming
+     *   <li><b>the control:</b> with the borrowed cell AIR the same bot, from the same stand, aiming
      *       at the same backing, puts the fluid in the target. Without this every row below is about
      *       an alcove that could not be poured into anyway;</li>
      *   <li>with the step standing, the shot stops ON it and the fluid would land in the cell behind
@@ -544,24 +544,24 @@ public final class JourneyPourLineScenes implements SceneProvider {
     }
 
     /**
-     * <b>The pour takes the borrowed step back — unless it is the floor holding the body up.</b>
+     * <b>The pour takes the borrowed step back — unless it is the floor holding the bot up.</b>
      *
      * <h2>Criteria</h2>
      *
      * <ol>
-     *   <li><b>the control:</b> the same production rule, asked with the body standing ON the step,
-     *       must refuse to offer it. One variable — where the body is — and it is the safety half of
+     *   <li><b>the control:</b> the same production rule, asked with the bot standing ON the step,
+     *       must refuse to offer it. One variable — where the bot is — and it is the safety half of
      *       the change: a remedy that mines its own floor is the mistake this exemption was written
      *       for in the first place;</li>
      *   <li>from the stand the run was actually on, the rule offers exactly the borrowed cell and
      *       nothing else;</li>
-     *   <li>the body's own swing really opens it, else the shot below measures a wall that was never
+     *   <li>the bot's own swing really opens it, else the shot below measures a wall that was never
      *       there;</li>
      *   <li>the same shot, from the same cell, now lands in the target;</li>
-     *   <li><b>what the take-back buys, stated as a before/after pair over the same body:</b> with
-     *       the step standing, the cell the body is on does not verify at all and the nearest one
+     *   <li><b>what the take-back buys, stated as a before/after pair over the same bot:</b> with
+     *       the step standing, the cell the bot is on does not verify at all and the nearest one
      *       that does is a row ABOVE the row {@code standLevelWith} asks for — so the rung has to
-     *       raise, and the raise is what spent the run. With the step gone the body's own cell
+     *       raise, and the raise is what spent the run. With the step gone the bot's own cell
      *       verifies (no walk at all), and so does the cell the step was occupying, at exactly that
      *       row. That last one is the point: <b>the flight was standing in the pour's stand.</b></li>
      * </ol>
@@ -576,7 +576,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         BlockPos stand = stand(ctx);
         BlockPos onTop = scoopLanding(ctx);
 
-        // ---- control: a body standing on the step may not be handed its own floor ----
+        // ---- control: a bot standing on the step may not be handed its own floor ----
         stage(ctx, true, CAST_SO_FAR);
         ServerWorldDriver control = body(ctx, onTop);
         List<BlockPos> refused = JourneySight.blockersOnTheLine(level, corridor(ctx), target, AWAY,
@@ -827,8 +827,8 @@ public final class JourneyPourLineScenes implements SceneProvider {
     }
 
     /**
-     * <b>No casting order can put a finished ring cell in an uncast one's way — the RANK the body
-     * stands in is what decides, and a body in the cell's own rank is never shadowed.</b>
+     * <b>No casting order can put a finished ring cell in an uncast one's way — the RANK the bot
+     * stands in is what decides, and a bot in the cell's own rank is never shadowed.</b>
      *
      * <p>Ladder run of 2026-08-20, cast 9 of 10, the last ring cell {@code 4,60,20}:
      *
@@ -838,7 +838,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
      * </pre>
      *
      * <p>That is the FIRED ray, not a histogram vote, so the blocker really is obsidian this rung
-     * cast itself — ring cell 8, one column north. But read the body: {@code 3,60,19} is at
+     * cast itself — ring cell 8, one column north. But read the bot: {@code 3,60,19} is at
      * {@code z=19} and the target is at {@code z=20}. The shot is a DIAGONAL from the next rank, and
      * a diagonal is the only shape that can reach a neighbour's cell at all. From the target's own
      * rank the line is axis-aligned in z and crosses nothing but corridor air and the target.
@@ -878,7 +878,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
         config(ctx);
         int last = JourneyForge.RING.length - 1;
         stageRingOnly(ctx, last);
-        // Parked outside the mould: pourGrade reads the eye HEIGHT and uses the body only as the
+        // Parked outside the mould: pourGrade reads the eye HEIGHT and uses the bot only as the
         // clip's shape context, so where it stands cannot move a line — but it must not be inside a
         // cell this arm is about to describe.
         ServerWorldDriver driver = body(ctx, ctx.rel(0, BASE, -2));
@@ -1089,7 +1089,7 @@ public final class JourneyPourLineScenes implements SceneProvider {
      * <h2>Why the backing is removed rather than moved out of reach</h2>
      *
      * The ladder exhausted the two-aim list by DISTANCE — the backing was solid the whole time and
-     * simply too far from anywhere the body could stand. Reproducing that needs a floor plan that
+     * simply too far from anywhere the bot could stand. Reproducing that needs a floor plan that
      * denies every standable cell within {@code BUCKET_REACH}, which makes the arm a test of this
      * arena's shape. Removing the backing exhausts the same list by SOLIDITY, in one line, and what
      * is under test is the list — not which of the two ways it runs out. The removal is recorded, so

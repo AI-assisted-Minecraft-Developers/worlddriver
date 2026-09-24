@@ -29,7 +29,7 @@ Vanilla pauses a single-player world when the window loses focus, and with verti
 enabled the client blocks in the buffer swap whenever the compositor is not presenting it.
 The second one is the nastier of the two: it can drop a client to roughly one frame per
 second, and therefore to about half the server's tick rate, which turns ordinary desktop
-behaviour into failures that look like defects in the body being driven.
+behaviour into failures that look like defects in the bot being driven.
 
 The provisioned run directories are seeded with an `options.txt` that disables both
 (`pauseOnLostFocus:false` and `enableVsync:false`, plus two accessibility keys). Minecraft

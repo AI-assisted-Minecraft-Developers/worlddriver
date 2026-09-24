@@ -53,13 +53,13 @@ final class JourneyDrownWatch {
      *
      * <p>The gate is {@code isUnderWater()} (head submerged) rather than {@code isInWater()},
      * because air only falls under the former and this instrument's whole subject is the air bar. A
-     * body wading through a flooded shaft with its head out is not drowning, and counting it would
+     * bot wading through a flooded shaft with its head out is not drowning, and counting it would
      * dilute the channel histogram with the walking process's name — which is the shape of every
      * reading in this repo that answered a question nobody asked.
      *
      * @param activeChain read lazily so the poll cost is paid only on the 5 Hz ticks, not on every
      *                    underwater tick.
-     * @param chainIsReadable false when this body's status route cannot carry a chain name at all —
+     * @param chainIsReadable false when this bot's status route cannot carry a chain name at all —
      *                    see {@link #UNREADABLE} for why that is not the same as "no chain".
      */
     void tick(ServerPlayer fp, Supplier<Object> activeChain, boolean chainIsReadable) {

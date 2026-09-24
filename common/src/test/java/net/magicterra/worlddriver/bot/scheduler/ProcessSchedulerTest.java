@@ -14,8 +14,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The bail contract: a chain that gives up sits out the bid for the cooldown it asked for, so the
- * next chain down the ladder gets the body instead of the same chain re-bidding its band next tick.
- * The scheduler is ticked with no body, as the headless matrix scenes do; the fake chains read none.
+ * next chain down the ladder gets control of the bot instead of the same chain re-bidding its band
+ * next tick. The scheduler is ticked with no {@code Body}, as the headless matrix scenes do; the fake
+ * chains read none.
  */
 class ProcessSchedulerTest {
 

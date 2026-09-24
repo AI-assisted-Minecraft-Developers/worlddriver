@@ -26,16 +26,16 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * {@code mc.bot.lookAt}, {@code holdItem}, {@code useItem} and {@code attackEntity} on a registered body,
+ * {@code mc.bot.lookAt}, {@code holdItem}, {@code useItem} and {@code attackEntity} on a registered bot,
  * run on the server thread by {@link BodyRoutes#onHost}.
  *
  * <p>The client's versions send what a click sends and leave the rest to the server's packet handlers.
- * A body on the server has no connection to send through, so these do what those handlers do with the
+ * A server-side bot has no connection to send through, so these do what those handlers do with the
  * packet, reach check included, and answer with what came of it. Two replies differ for that reason: a
  * use or an attack out of reach is refused here where the client's is ignored, and a use on an entity
  * names the open {@code menu} where the client names its {@code screen}.
  *
- * <p>A body without hands, an NPC, refuses all but {@code lookAt} with {@code no_hands}. Nothing here
+ * <p>A bot without hands, an NPC, refuses all but {@code lookAt} with {@code no_hands}. Nothing here
  * may name a client class.
  */
 final class BodyInteractions {
@@ -155,7 +155,7 @@ final class BodyInteractions {
         String refusal = self instanceof Player player && !player.canInteractWithEntity(target, REACH_SLACK)
                 ? "entity " + entityId + " is out of reach" : null;
         if (refusal == null) {
-            // Swung before the aim, so a refusal leaves the body not yet turned toward what it declined to hit.
+            // Swung before the aim, so a refusal leaves the bot not yet turned toward what it declined to hit.
             hands.attackEntity(target);
             refusal = hands.lastAttackRefusal();
         }
@@ -218,7 +218,7 @@ final class BodyInteractions {
     }
 
     private static Map<String, Object> noHands(BodyHost host) {
-        return BodyHost.refuse(BodyReady.Reason.NO_HANDS, "body " + host.id() + " has no hands");
+        return BodyHost.refuse(BodyReady.Reason.NO_HANDS, "bot " + host.id() + " has no hands");
     }
 
     private static Map<String, Object> error(String message) {

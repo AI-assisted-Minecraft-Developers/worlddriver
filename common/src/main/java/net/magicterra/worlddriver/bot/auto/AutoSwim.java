@@ -72,7 +72,7 @@ public final class AutoSwim {
      * every horizontal key this class pressed was discarded whenever a movement process was active,
      * while {@code keyJump} — which the Walker usually does not command — survived.
      *
-     * <p>Measured 2026-08-22 on the integrated (real-client) ladder: a body submerged at world spawn
+     * <p>Measured 2026-08-22 on the integrated (real-client) ladder: a bot submerged at world spawn
      * bobbed between y=61 and y=63 for 7 800 ticks with <b>zero horizontal displacement</b>, the mine
      * process re-planned 217 times from the same cell, and the rung timed out. Jump worked; swimming
      * did not. That asymmetry is exactly this bug, and it is invisible from the log because the keys
@@ -125,7 +125,7 @@ public final class AutoSwim {
             floatHeld = true;
             if (BotConfig.walkerDebug && (DBG++ % 20 == 0))
                 // blockPosition(), not (int) casts — those truncate toward zero, so at x=-9.3 the
-                // row named -9 while the body was in -10. See LavaProximityEscape's note: the same
+                // row named -9 while the bot was in -10. See LavaProximityEscape's note: the same
                 // pattern there turned "standing on a lava source" into "adjacent to one".
                 LOG.info("[drowningFloat] idle + underwater + air={} <= threshold {} → holding jump to surface at {}",
                         p.getAirSupply(), BotConfig.drownFloatAirThreshold, p.blockPosition().toShortString());
@@ -159,7 +159,7 @@ public final class AutoSwim {
         // Walker holds an active block-break this tick and air is still healthy, the
         // whole in-process backstop stands down. Before this gate, deep-ascent had NO
         // air condition — the moment the head was submerged it force-held jump and
-        // zeroed every horizontal key EVERY tick, from FULL lungs, bobbing the body
+        // zeroed every horizontal key EVERY tick, from FULL lungs, bobbing the bot
         // off the dig cell so vanilla reset destroyProgress; the dig looped to the
         // sticky-dig 4000t cap without ever finishing a single block. The Walker only
         // starts underwater digs that fit one breath (breath-feasibility gate in
@@ -194,7 +194,7 @@ public final class AutoSwim {
         int by = (int) Math.floor(p.getY());
         int bz = (int) Math.floor(p.getZ());
         // DEEP ASCENT: head still has water well above it → rise STRAIGHT up with
-        // NO horizontal input. Steering toward a bank while deep pushes the body
+        // NO horizontal input. Steering toward a bank while deep pushes the bot
         // into the column wall, wedging it so it bobs in place and burns air — the
         // 9-block spawn-column drown (fell to y53, drowned at y61 mid-climb). Pure
         // vertical beelines to air; the horizontal shore-steer below only kicks in
@@ -205,7 +205,7 @@ public final class AutoSwim {
             // commandMove(0,0) zeroes BOTH impulses, which is what the four cleared direction keys
             // were for — and unlike them it survives, because it is the same field the Walker's own
             // command writes. Sprint has no command channel and is not an input at all, so it is
-            // set on the body directly.
+            // set on the player directly.
             ai.commandMove(0f, 0f);
             p.setSprinting(false);
             // gap#80: a held sneak SINKS the bot (DrownEscapeChain.tick's own comment) — a
@@ -232,7 +232,7 @@ public final class AutoSwim {
         p.yBodyRot = yaw;
         p.setXRot(0f);                              // swim flat toward the bank
         // Raw camera-frame forward, which is what keyUp meant: the yaw was just set to point at the
-        // bank, so "along the body" IS "toward the bank" and no decoupling is wanted here.
+        // bank, so "along the player's facing" IS "toward the bank" and no decoupling is wanted here.
         AvatarInput ai = in(mc, p);
         ai.commandForward(1f);
         // Stay buoyant while escaping: hold jump until truly on dry land, so the bot
@@ -247,7 +247,7 @@ public final class AutoSwim {
      * {@link #SHORE_SCAN_R}.
      *
      * <p><b>"Standable" here is NOT {@code WorldView#canStandAt}, and the gap is on the
-     * dangerous side.</b> This is a survival reflex that STEERS A DROWNING BODY at whatever
+     * dangerous side.</b> This is a survival reflex that STEERS A DROWNING BOT at whatever
      * it returns, so what the predicate below omits is worth stating rather than leaving to
      * be re-derived. Against {@code canStandAt} it differs twice:
      * <ul>
@@ -259,7 +259,7 @@ public final class AutoSwim {
      *       reachable, not theoretical: a column of solid stone with LAVA in the foot cell
      *       satisfies every clause here — lava is not water, it does not block motion so
      *       {@code isPassable(foot)} is true, and the stone below is not a hazard. The
-     *       reflex then points a body that is already out of air at a lava pool and holds
+     *       reflex then points a bot that is already out of air at a lava pool and holds
      *       forward.</li>
      * </ul>
      *

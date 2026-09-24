@@ -2,18 +2,18 @@
 
 ## The problem
 
-A body that lands short of a cell it is climbing to — roughly 1.2 to 1.5 blocks away
+A bot that lands short of a cell it is climbing to — roughly 1.2 to 1.5 blocks away
 horizontally — sits in a gap between the walker's two step-advance tests. It is too far away
 for the arrival test, whose threshold `REACH_DIST_SQ` is 0.45, and too near for the
 overshoot re-sync, whose threshold `OVERSHOOT_RESYNC_SQ` is 4.0. A measured stall sat at
 about 1.48, squarely between them.
 
 That alone would be recoverable, except that none of the recovery machinery fires either.
-The body is short of the riser rather than pressed against it, so there is no horizontal
+The bot is short of the riser rather than pressed against it, so there is no horizontal
 collision, and most of the accumulated recovery gates require one. Each gate in that family
 was added for one observed posture and each misses this one for its own reason: one needs two
 cells of clearance above, two need a horizontal collision, one needs a vertical displacement
-greater than three blocks, and the crest patch needs the body to have already topped out.
+greater than three blocks, and the crest patch needs the bot to have already topped out.
 
 And the search cannot help, because it reported the goal as reached — so the futile-search cap
 that would otherwise stop a hopeless attempt is blind to this.
@@ -86,9 +86,9 @@ are excluded. With the flag off the legacy path is byte-identical, which is what
 below possible at all.
 
 It has been on by default since 2026-07-20. The evidence was a two-by-two replay comparison over the
-ascent-heavy part of the corpus: the only arrival in sixteen case runs was a leg with the flag on, and
+ascent-heavy part of the corpus: the only arrival in sixteen case runs was a run with the flag on, and
 it had the lowest stall peak of its four; ten watchdog fires all landed on genuine dead-zone postures
-with no false trips on a climb that was progressing; and every churn pocket on an enabled leg belonged
+with no false trips on a climb that was progressing; and every churn pocket on an enabled run belonged
 to a family that already existed with the flag off.
 
 ## Reading that evidence

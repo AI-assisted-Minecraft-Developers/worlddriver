@@ -25,7 +25,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NetherPortalBlock;
 
 /**
- * <b>The plan said step down, the pointer stepped down, and the body stayed where it was.</b>
+ * <b>The plan said step down, the pointer stepped down, and the bot stayed where it was.</b>
  *
  * <h2>The cell this is a copy of, and why it is a copy rather than an invention</h2>
  *
@@ -34,15 +34,15 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * twenty times a second. The terrain of that pocket is the whole story, so it is not described here,
  * it is <b>reproduced</b>: {@link #BOX} is a verbatim 17×17×13 block copy read out of
  * {@code fabric/run-journey/world/DIM-1/region/r.0.0.mca}, world {@code x∈[151,167] z∈[179,195]
- * y∈[48,60]}, mapped so the body's foot cell lands on the arena's own {@code (0, +5, 0)}. Every
- * netherrack wall, the shaft the body dug itself, the two-block notch its foot cell hangs over and
+ * y∈[48,60]}, mapped so the bot's foot cell lands on the arena's own {@code (0, +5, 0)}. Every
+ * netherrack wall, the shaft the bot dug itself, the two-block notch its foot cell hangs over and
  * the lava lake at {@code y=50} three cells away are the ones that were actually there. An arena for
  * a wedge whose cause is geometry cannot afford a hand-drawn approximation, and two tidyings of this
  * copy each destroyed the defect before that was believed — see {@link #BOX} and {@link #stageBox}.
  *
  * <h2>What was standing there</h2>
  *
- * The body finished a dug descent perched on {@code 159,53,187} — a cell whose OWN floor is air —
+ * The bot finished a dug descent perched on {@code 159,53,187} — a cell whose OWN floor is air —
  * held up by {@code 0.125} of {@code 0.36} of sole on the corner of {@code 158,52,187}, with the
  * column at {@code 158,·,188} dropping into lava. {@link Walker#footingGuard} sneak-pinned it and was
  * right to. A* answered with the three-node way out, {@code [158,53,187 → 159,52,187 → 159,51,188]},
@@ -67,7 +67,7 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * still for 900 ticks is exactly what the ladder did, and the footing guard's pin was correct on
  * every one of those ticks, so "it did not fall" would have scored the wedge as a pass.
  *
- * <p><b>Lava is recorded, not asserted.</b> Whether an unwedged body then routes around the fall this
+ * <p><b>Lava is recorded, not asserted.</b> Whether an unwedged bot then routes around the fall this
  * pocket opens onto is {@code wd.serverStopsAtALavaShore}'s and {@code wd.serverKeepsWalkingAtALavaRim}'s
  * subject; they drive at a lake on purpose and can say why an entry happened. A scene asserting both
  * subjects has a red that names neither. Measured: neither arm enters it.
@@ -75,7 +75,7 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * <p>A descent clause that reads "the foot cell changed" is passed by the control arm sliding
  * <b>0.30 blocks</b> west onto the very block that was holding it up — a different cell, the same
  * standstill, full marks for 260 ticks of nothing. The perch is one cell wide, so "left" was never a
- * question about position; the defect is a planned descent the pointer spent and the body never took,
+ * question about position; the defect is a planned descent the pointer spent and the bot never took,
  * and the reading is whether it was taken ({@code minY ≤ perchY − 1}).
  *
  * <h2>The arm that must go red</h2>
@@ -90,8 +90,8 @@ import net.minecraft.world.level.block.NetherPortalBlock;
  * <h2>Driven by the walker, not by the fixture</h2>
  *
  * Nothing here re-imposes a heading or an impulse after {@code walker.tick} — unlike the rim arms,
- * whose subject is a guard and whose body must therefore be pushed at it. The subject here IS the
- * step pointer, so a fixture that drove the body would be answering its own question.
+ * whose subject is a guard and whose bot must therefore be pushed at it. The subject here IS the
+ * step pointer, so a fixture that drove the bot would be answering its own question.
  *
  * <h2>Arena footprint</h2>
  *
@@ -106,24 +106,24 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static final int BOX_H = 13;
     /** The copied box's bottom layer, as a dy offset from the scene origin. */
     private static final int BOX_Y0 = 8;
-    /** Layer index within the box that holds the body's foot cell — world {@code y=53} is layer 5. */
+    /** Layer index within the box that holds the bot's foot cell — world {@code y=53} is layer 5. */
     private static final int PERCH_LAYER = 5;
 
-    /** The body's exact stance on the ladder, to three decimals: world {@code (159.092, 53.000,
+    /** The bot's exact stance on the ladder, to three decimals: world {@code (159.092, 53.000,
      *  187.700)} relative to the foot cell's corner. Both offsets are load-bearing — the {@code 0.092}
      *  is what leaves only {@code 0.208 × 0.6 = 0.125} of the footprint on the neighbouring block and
-     *  the rest over the notch, which is the whole stance. Rounding it to {@code 0.5} stands the body
+     *  the rest over the notch, which is the whole stance. Rounding it to {@code 0.5} stands the bot
      *  in mid-air. */
     private static final double PERCH_DX = 0.092, PERCH_DZ = 0.700;
 
-    /** Hop 11's goal, as an offset from the body: {@code XZ(176,204)} from {@code (159,187)}. Outside
+    /** Hop 11's goal, as an offset from the bot: {@code XZ(176,204)} from {@code (159,187)}. Outside
      *  the copied box on purpose — the crossing's goal always is, and what this measures is whether
-     *  the body leaves the pocket, not whether it arrives. */
+     *  the bot leaves the pocket, not whether it arrives. */
     private static final int GOAL_DX = 17, GOAL_DZ = 17;
     /** Hop 11's own tolerance. */
     private static final int GOAL_R = 6;
 
-    /** Ticks per arm. Two thirds of the ladder's 900-tick hop — long enough that a body which is
+    /** Ticks per arm. Two thirds of the ladder's 900-tick hop — long enough that a bot which is
      *  going to move has moved (the healthy hops of that run each covered 42 cells in 278–532), short
      *  enough that two arms fit a 600-tick scene budget with the staging. */
     private static final int DRIVE_TICKS = 260;
@@ -213,12 +213,12 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
                 + "; step advances held " + control.holds() + " -> " + subject.holds() + " times");
         // What the ladder's own governors did with those ticks, written down because the numbers are
         // a coincidence nobody would re-derive and the next reader will otherwise assume one of them
-        // caught it. walkerFutileSearchCap is 5 and is EXEMPTED while a body's stuck penalties are
+        // caught it. walkerFutileSearchCap is 5 and is EXEMPTED while a bot's stuck penalties are
         // live; the anti-churn re-charges those every CHURN_WINDOW=400 ticks precisely BECAUSE the
-        // body is not moving, and each charge lives 15 s × strength. So the fallback bound is the
+        // bot is not moving, and each charge lives 15 s × strength. So the fallback bound is the
         // whole of the defence — and NO_PATH_WAIT_CAP is 900, exactly the crossing's own per-hop tick
         // budget, so it can never be reached inside a hop. Four hops ended `end=null err=null`.
-        // NOT a clause. Whether an unwedged body then routes around the fall this pocket opens onto
+        // NOT a clause. Whether an unwedged bot then routes around the fall this pocket opens onto
         // belongs to wd.serverStopsAtALavaShore and wd.serverKeepsWalkingAtALavaRim, which drive at a
         // lake on purpose and can say why an entry happened; a scene that asserted both subjects would
         // have a red that named neither. It is recorded every run because it is a finding either way.
@@ -253,7 +253,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     /** Re-derive the perch off the LEVEL, so the staging and the guard cannot disagree about it — the
      *  same reason {@code WorldDriverThinFootingScenes#rimScanRow} exists. Prints the four readings the
      *  ladder's wedge is made of: the foot cell's own floor, how far down the first solid cell is, the
-     *  sliver that is holding the body up, and where the lava actually is. */
+     *  sliver that is holding the bot up, and where the lava actually is. */
     private static String perchRow(SceneContext ctx) {
         ServerLevel level = ctx.level();
         BlockPos foot = ctx.rel(0, BOX_Y0 + PERCH_LAYER, 0);
@@ -297,10 +297,10 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     }
 
     /**
-     * Stand the body on the perch and let the walker have it.
+     * Stand the bot on the perch and let the walker have it.
      *
-     * <p>The goal is hop 11's, at hop 11's bearing and tolerance. Nothing steers the body but the
-     * walker: this scene's subject is the step pointer, so a rig that drove the body would be
+     * <p>The goal is hop 11's, at hop 11's bearing and tolerance. Nothing steers the bot but the
+     * walker: this scene's subject is the step pointer, so a rig that drove the bot would be
      * measuring its own impulse.
      */
     private static Leg drive(SceneContext ctx, String arm, boolean hold) {
@@ -314,8 +314,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
         fp.getInventory().clearContent();
-        // The crossing arrives carrying blocks and bridges with them; a bagless body would be
-        // refused moves this one had.
+        // The crossing arrives carrying blocks and bridges with them; a bot with an empty inventory
+        // would be refused moves this one had.
         fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
         fp.getInventory().setItem(1, new ItemStack(Items.COBBLESTONE, 64));
         for (int i = 0; i < SETTLE_TICKS; i++) av.step();
@@ -344,10 +344,10 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         double moved = Math.hypot(fp.getX() - x0, fp.getZ() - z0);
         long holds = Walker.descentHolds - holds0;
         // DESCENDED, not "the foot cell changed": the perch is one cell wide, the block holding the
-        // body up is the cell west of it, and a body that slides 0.30 blocks onto that block has
+        // bot up is the cell west of it, and a bot that slides 0.30 blocks onto that block has
         // changed foot cell without going anywhere. Judging that would hand the control arm full
         // marks for standing still for 260 ticks. The defect is a planned step DOWN
-        // that the pointer spent and the body never took, so the reading is whether it was taken.
+        // that the pointer spent and the bot never took, so the reading is whether it was taken.
         boolean descended = minY <= foot.getY() - 1.0;
         String ended = String.format(Locale.ROOT,
                 "walkerDescentNodeHold=%s -> %d ticks, bot=(%.2f,%.2f,%.2f) cell=%s, lowest y=%.2f (perch y=%d),"
@@ -432,7 +432,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private static final int STAIR_STEPS = 8;
     /** The staircase's top tread, as a dy offset from the scene origin. */
     private static final int STAIR_TOP = 20;
-    /** Ticks per staircase arm. A body that walks eight treads and does not is the whole reading, and
+    /** Ticks per staircase arm. Whether the bot walks the eight treads is the whole reading, and
      *  the healthy hops of the ladder covered 42 cells in as few as 278. */
     private static final int STAIR_TICKS = 200;
 
@@ -441,10 +441,10 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * difference — and the two arms must AGREE.
      *
      * <p>This is the arm the fix had to earn separately. Holding the step pointer on a node below the
-     * feet is right at a perch the body has to step off; done indiscriminately it would hold at every
+     * feet is right at a perch the bot has to step off; done indiscriminately it would hold at every
      * tread of every descent and make walking downhill crawl or stall outright. A hold that only ever
      * fires is not distinguishable from the defect by {@code wd.serverStepsDownAPerchItPlanned} alone,
-     * which passes on any change that gets the body off that one cell.
+     * which passes on any change that gets the bot off that one cell.
      *
      * <p>Both arms must reach the bottom, and the subject may not take materially longer than the
      * control — measured as ticks-to-bottom rather than as a bare "it arrived", because a hold that
@@ -562,13 +562,13 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      *  and spent, short enough that the row stays readable. */
     private static final int TRACE_TICKS = 8;
 
-    /** Ticks per arm. The whole move is one cell; the ladder's own legs were over in 11. Kept well
-     *  under the 80-tick portal delay so a staged, LIT portal two cells away cannot take the body to
+    /** Ticks per arm. The whole move is one cell; the ladder's own walks were over in 11 ticks. Kept
+     *  well under the 80-tick portal delay so a staged, LIT portal two cells away cannot take the bot to
      *  the Nether in the middle of a measurement. */
     private static final int DOOR_TICKS = 60;
 
     /**
-     * One verbatim copy of rung 13's doorway, and where the body stood in it.
+     * One verbatim copy of rung 13's doorway, and where the bot stood in it.
      *
      * <p>Two runs of that rung produced two different doorways — the casting's slag lands somewhere
      * new every time — and they defeat different halves of the same guard, so both are here rather
@@ -580,13 +580,13 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      *              world {@code y=55} first) then {@code dz} then {@code dx}. {@code .} air,
      *              {@code #} stone, {@code d} dirt, {@code c} cobblestone, {@code o} obsidian,
      *              {@code p} nether_portal, {@code g} granite, {@code a} andesite, {@code u} copper
-     * @param z0    dz of the copy's north row — {@code 16 - worldZ} of the body's own cell
-     * @param layer layer holding the body's foot cell, {@code worldY - 55}
-     * @param dx    the body's exact offset inside its foot cell, x. Load-bearing to three decimals:
+     * @param z0    dz of the copy's north row — {@code 16 - worldZ} of the bot's own cell
+     * @param layer layer holding the bot's foot cell, {@code worldY - 55}
+     * @param dx    the bot's exact offset inside its foot cell, x. Load-bearing to three decimals:
      *              {@code within}'s horizontal clause is {@code cur2 < REACH_DIST_SQ = 0.45}, and the
      *              cell centre puts {@code cur2} outside it, where the arena reproduces nothing
      * @param dz    ditto, z
-     * @param stepDz the doorstep's dz from the body's own cell; it is always one row DOWN
+     * @param stepDz the doorstep's dz from the bot's own cell; it is always one row DOWN
      * @param sole  the {@code soleOnSolid} the ladder printed for this stance — the rig's premise
      * @param when  which run this was read out of
      */
@@ -598,7 +598,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      *
      * <p>Read out of {@code fabric/run-journey/world/region/r.0.0.mca} after that run, so the one
      * cobblestone the rung mined ({@code 3,59,19}) is already air, exactly as it was when the walk
-     * began. Body cell {@code 3,59,18}; stance {@code (3.463, 59.000, 18.939)}, which is what makes
+     * began. The bot's cell is {@code 3,59,18}; stance {@code (3.463, 59.000, 18.939)}, which is what makes
      * {@code cur2} exactly {@code 0.316}.
      */
     private static final Doorway DOOR_A = new Doorway(
@@ -609,8 +609,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     /**
      * The 15:20 doorway: the doorstep is STRAIGHT DOWN, and A* answers with TWO nodes.
      *
-     * <p>Same rung, same portal plane, different slag. Body cell {@code 3,58,20} — a cell whose own
-     * floor {@code 3,57,20} is air; the body is held up by {@code 0.056} of sole on the north lip of
+     * <p>Same rung, same portal plane, different slag. The bot's cell is {@code 3,58,20} — a cell whose
+     * own floor {@code 3,57,20} is air; the bot is held up by {@code 0.056} of sole on the north lip of
      * the cobblestone at {@code 3,57,21}. The doorstep {@code 3,57,20} is directly beneath it, so A*
      * routes sideways onto {@code 3,58,21} first and then down, and the walker spent both nodes in
      * ONE tick. That second node is why a pointer-index scope could not see this one.
@@ -624,7 +624,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     private record Door(int ticks, int noPlan, double minY, double moved, boolean onDoorstep,
                         long holds, String end, String ended) {}
 
-    /** The cell the body starts perched on — the copy's own origin. */
+    /** The cell the bot starts perched on — the copy's own origin. */
     private static BlockPos doorPerch(SceneContext ctx, Doorway dw) {
         return ctx.rel(0, DOOR_Y0 + dw.layer(), 0);
     }
@@ -642,7 +642,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * <h2>What the ladder did</h2>
      *
      * Journey rung 13 (2026-08-20 13:44) lit its portal, found the one way in that cost a single
-     * cobblestone, mined it, and then could not walk the last cell. Its two terminal legs are
+     * cobblestone, mined it, and then could not walk the last cell. Its last two walks are
      * byte-identical:
      *
      * <pre>
@@ -659,7 +659,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * }</pre>
      *
      * A* answered with the one-step plan {@code [3,59,18 → 3,58,19]}; {@code within} accepted its only
-     * node while the body stood a full block above it, the pointer reached {@code path.size()}, and
+     * node while the bot stood a full block above it, the pointer reached {@code path.size()}, and
      * the segment ended {@code path-consumed} without a tick of walking. Asking again is asking the
      * same question.
      *
@@ -673,7 +673,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * exclusion is re-litigated by whichever rung next walks into it.
      *
      * <p>The final-node case is now held under two further clauses, and this arm is what they were
-     * tuned against: the plan's end must satisfy the goal while the body does not, and the plan must
+     * tuned against: the plan's end must satisfy the goal while the bot does not, and the plan must
      * be ONE step. Dropping either put a different scene red — see that helper's javadoc, which names
      * both and what each cost.
      *
@@ -747,7 +747,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
         // Registered before anything is built: a LIT portal left standing in the shared dogfood world
-        // would take the next scene's body to the Nether.
+        // would take the next scene's bot to the Nether.
         ctx.cleanup(() -> clearDoorway(ctx, dw));
 
         stageDoorway(ctx, dw);
@@ -816,10 +816,10 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
     }
 
     /**
-     * Stand the body on the ladder's perch and let the walker have the one-step plan.
+     * Stand the bot on the ladder's perch and let the walker have the one-step plan.
      *
      * <p>Nothing here re-imposes a heading or an impulse after {@code walker.tick} — the subject IS
-     * the step pointer, so a fixture that drove the body would be answering its own question.
+     * the step pointer, so a fixture that drove the bot would be answering its own question.
      */
     private static Door doorDrive(SceneContext ctx, Doorway dw, String arm, boolean hold) {
         ServerLevel level = ctx.level();
@@ -833,8 +833,8 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
         ctx.cleanup(fp::discard);
         LevelWorldView w = new LevelWorldView(level, fp);
         fp.getInventory().clearContent();
-        // Rung 13 walks at the doorway with a bag: a body carrying nothing is refused moves this one
-        // had, and the difference would be the arena's, not the walker's.
+        // Rung 13 walks at the doorway with blocks in its inventory: a bot carrying nothing is refused
+        // moves this one had, and the difference would be the arena's, not the walker's.
         fp.getInventory().setItem(0, new ItemStack(Items.COBBLESTONE, 64));
         for (int i = 0; i < SETTLE_TICKS; i++) av.step();
         double settledY = fp.getY();
@@ -872,7 +872,7 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
             av.step();
             minY = Math.min(minY, fp.getY());
             if (fp.blockPosition().equals(step)) { onDoorstep = true; t++; break; }
-            // Belt and braces: the portal two cells east is LIT, and a body that reached it would be
+            // As a second safeguard: the portal two cells east is LIT, and a bot that reached it would be
             // in the Nether eighty ticks later — after this scene's cleanup has aired the box.
             if (level.getBlockState(fp.blockPosition()).is(Blocks.NETHER_PORTAL)) { t++; break; }
         }
@@ -909,12 +909,12 @@ public final class WorldDriverDescentNodeScenes implements SceneProvider {
      * then the six {@code nether_portal} cells through {@code setBlockAndUpdate}. A portal block whose
      * frame vanilla does not accept is removed by {@code NetherPortalBlock.updateShape} on the next
      * neighbour update, so setting them last is what lets the rig CHECK the doorway rather than assume
-     * it — an arm that walked a body up to six cells of air would pass everything it asks.
+     * it — an arm that walked a bot up to six cells of air would pass everything it asks.
      *
      * <p><b>The seal stands one cell OUTSIDE the copy, and never touches a copied cell.</b> Every face
      * of the copy is already solid except a two-column pocket at its west edge — the alcove rung 12
      * drained — which is itself floored. The top is deliberately left open: the ladder's doorway has
-     * sky over it, and a ceiling one cell above the body's head is a different arena for anything that
+     * sky over it, and a ceiling one cell above the player's head is a different arena for anything that
      * jumps.
      */
     private static void stageDoorway(SceneContext ctx, Doorway dw) {

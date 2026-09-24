@@ -121,7 +121,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
     }
 
     /** JUMP-noRise observer rig: a clean +1 step-up course is PLANNED first; once the
-     *  body closes on the riser a bedrock CEILING is slammed over the launch cell, so
+     *  bot closes on the riser a bedrock CEILING is slammed over the launch cell, so
      *  every step-up jump is height-capped (peak < +0.75 in the 8-tick watch) —
      *  JUMP-noRise fires ({@link WalkerExpectAlarms#FIRED}); the ceiling is then lifted
      *  and the walker must still finish ARRIVED on the plateau. Three prior shapes were
@@ -130,7 +130,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *  unharvestable break edges (no dig ever starts); (v3) plank wall → DEDICATED-server
      *  avatar digs are INSTANT (1 tick, no hold), so the DIG-hold observers
      *  (DIG-slow/DIG-dropped) are structurally unfireable in this topology — they remain
-     *  live/client-body sensors (see the task#95b exemption list). A blocked JUMP is the
+     *  live/client-player sensors (see the task#95b exemption list). A blocked JUMP is the
      *  observer this topology can pin: the jump press is real, the ceiling is real, and
      *  the 8-tick arc watch fires on physics alone. */
     private static void expectAlarmBlockedJump(SceneContext ctx) {
@@ -165,7 +165,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         boolean lifted = false;
         for (; t < 600 && s == Walker.Step.WALKING; t++) {
             if (!capped && fp.getX() > cx - 1.5) {
-                // Route committed, body closing on the riser — cap the launch cells so the
+                // Route committed, bot closing on the riser — cap the launch cells so the
                 // step-up jump cannot rise (ceiling right above head across the approach).
                 for (int dz = -5; dz <= 5; dz++)
                     for (int dx = -1; dx <= 0; dx++)
@@ -864,7 +864,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      *
      * <p><b>The gate is about the POINTER, not about the climb.</b> Whether a fake player's buoyancy
      * lifts it is a physics question this arena does not settle; whether the walker may declare the
-     * step finished while the support cell is still open water is not. So a body that simply fails
+     * step finished while the support cell is still open water is not. So a player that simply fails
      * to rise leaves the run {@code WALKING} and is REPORTED — that is a different finding and must
      * not print as this one.
      */
@@ -881,7 +881,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             level.setBlockAndUpdate(new BlockPos(cx, standY + dy, cz), Blocks.WATER.defaultBlockState());
         level.setBlockAndUpdate(new BlockPos(cx, standY + 2, cz), Blocks.AIR.defaultBlockState());
 
-        final BlockPos foot = new BlockPos(cx, standY, cz);        // where the body starts
+        final BlockPos foot = new BlockPos(cx, standY, cz);        // where the bot starts
         final BlockPos dest = new BlockPos(cx, standY + 1, cz);    // path.get(step) — the waypoint
         final BlockPos support = foot;                             // edge.toPlace.get(0)
 
@@ -926,12 +926,12 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
 
         // TWO pillar steps, not one, and the second is what makes the first observable.
         //
-        // A pillarUp fills the cell the body is standing in and rises one, so its destination is
-        // ALWAYS support+1. Vanilla will not place into a cell the body's AABB still overlaps
+        // A pillarUp fills the cell the player is standing in and rises one, so its destination is
+        // ALWAYS support+1. Vanilla will not place into a cell the player's AABB still overlaps
         // (Level#isUnobstructed), so the placement needs p.getY() >= support.getY()+1.0 — and that
-        // is the same inequality as "the body's block position is the destination", i.e. ARRIVAL.
+        // is the same inequality as "the player's block position is the destination", i.e. ARRIVAL.
         // Walker.tickInner runs WalkerTickProgress (2373) BEFORE WalkerTickClimb (2374) and returns
-        // on the first non-null, so on the first tick the body is high enough to place, Progress
+        // on the first non-null, so on the first tick the player is high enough to place, Progress
         // returns ARRIVED and the climb phase does not run at all. A plan ENDING at the pillar's
         // destination therefore cannot ever witness its own placement — not because of buoyancy or
         // water, but by construction. Continuing one cell past it is what buys the climb a tick.
@@ -950,7 +950,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // the first version of this scene died on tick one with an NPE and never reached a single
         // one of the vacuity gates above — a scene that compiles and asserts nothing.
         // The goal is the CREST, not dest. Goal.Block.reached is exact cell equality, so a goal of
-        // dest would terminate the run on the very tick the body first rises clear of the support —
+        // dest would terminate the run on the very tick the player first rises clear of the support —
         // the one tick the placement becomes legal — and WalkerTickClimb would never get to run it.
         walker.setGoal(new Goal.Block(crest));
         // goalReached=TRUE, and it is not cosmetic: the 4-arg seam says best-effort, a best-effort
@@ -1008,7 +1008,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 + " (now " + level.getBlockState(support).getBlock() + ")");
         ctx.record("rise.startY", startY);
         // Two different lines, and conflating them is what made the first three runs unreadable:
-        // the body must clear support+1.0 for vanilla to ACCEPT the placement at all, and reach
+        // the player must clear support+1.0 for vanilla to ACCEPT the placement at all, and reach
         // the crest row for the run to finish. WalkerTickClimb:895 gates the click at +0.9, which
         // is looser than the physics — see the note beside the criterion below.
         ctx.record("rise.peakY", maxY + " (placement threshold " + (support.getY() + 1.0)

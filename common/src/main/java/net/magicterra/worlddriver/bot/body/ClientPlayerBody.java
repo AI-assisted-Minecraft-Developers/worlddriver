@@ -38,8 +38,8 @@ public final class ClientPlayerBody implements Body, Hands, Containers {
     private AvatarInput ai() { return p != null && p.input instanceof AvatarInput a ? a : null; }
 
     @Override public LocalPlayer entity() { return p; }
-    /** The client this body lives on — what the reflex layer reaches for after the scheduler
-     *  hands it the body, since the chains read the local player, the client level and the
+    /** The client this player lives on — what the reflex layer reaches for after the scheduler
+     *  hands it this {@code Body}, since the chains read the local player, the client level and the
      *  client-only helpers through it. */
     public Minecraft mc() { return mc; }
     /** A player always has hands and menus; this class is both. */

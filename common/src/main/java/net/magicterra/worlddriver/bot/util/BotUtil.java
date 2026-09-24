@@ -34,12 +34,12 @@ public final class BotUtil {
     private BotUtil() {}
 
     /**
-     * The cell an entity's position floors into — the bot's answer to "which cell is the body in".
+     * The cell an entity's position floors into — the bot's answer to "which cell is the bot in".
      *
      * <p>This exact expression was written out inline in a dozen places (BotApiImpl,
      * ClutchController ×2, WalkerTickPrelude, Backfill/Bridge/Farm/Mine ×3/Sleep, RetreatChain)
      * while this helper already existed — a dozen hand-written floors is a dozen chances for the
-     * next one to be written differently, and "the cell the body is in" is precisely the quantity
+     * next one to be written differently, and "the cell the bot is in" is precisely the quantity
      * this repo has been bitten by having two answers to.
      *
      * <p><b>⛔ A caller holding a CLIENT-ONLY reference must take the three-double overload.</b>
@@ -168,7 +168,7 @@ public final class BotUtil {
     );
 
     /**
-     * Does this block state damage a body that stands in it — the SINGLE author of that policy for
+     * Does this block state damage a bot that stands in it — the SINGLE author of that policy for
      * every {@link net.magicterra.worlddriver.bot.pathfinder.WorldView} backed by a real level
      * ({@code ClientWorldView}, {@code bot.world.ServerWorldView}, {@code bot.world.LevelWorldView}).
      * All three carried their own copy; the three copies happened to agree, which is precisely the
@@ -196,7 +196,7 @@ public final class BotUtil {
      *       {@link BlockTags#FIRE} but drops BOTH the lava clause and
      *       {@code extraHazardBlocks}. That reflex exists for CONTACT damage (cactus, magma,
      *       sweet berries) and lava has its own dedicated escape beside it, so folding lava in
-     *       would make the two reflexes fight over the same body. The user list is omitted
+     *       would make the two reflexes fight over the same bot. The user list is omitted
      *       because {@code blocksToAvoid} means "route around", not "I am being hurt".</li>
      * </ul>
      * Both are narrower than this method on purpose; widening either one is a behaviour change,
@@ -230,15 +230,15 @@ public final class BotUtil {
     }
 
     /**
-     * Can a body stand with its feet in {@code foot}: a floor that blocks motion under it, and
-     * both body cells clear of anything that does, with a water exception.
+     * Can a bot stand with its feet in {@code foot}: a floor that blocks motion under it, and
+     * both cells the player occupies clear of anything that does, with a water exception.
      *
      * <p>That exception reaches less than it reads. {@code Blocks.WATER.blocksMotion()} is
      * {@code false}, so a plain water cell is already clear and never tests the
      * {@code !is(Fluids.WATER)} clause at all. The clause only ever fires for a WATERLOGGED
      * SOLID — a waterlogged slab, stairs or fence, which blocks motion AND reports fluid
-     * WATER — and its effect there is to admit that cell as body space. So this is not "a body
-     * wades"; it is "a waterlogged block does not count as an obstruction".
+     * WATER — and its effect there is to admit that cell as space the player may occupy. So this
+     * is not "a bot wades"; it is "a waterlogged block does not count as an obstruction".
      *
      * <p><b>The answer for most of the process family — not yet all of it.</b>
      * {@code BboxFillProcess}, {@code FarmProcess} and {@code MineProcess} each carried a
@@ -257,9 +257,9 @@ public final class BotUtil {
      * happily walk to. Left as-is deliberately: adopting this method there LOOSENS two placement
      * paths, which is the direction that needs a measurement, not a tidy-up.
      *
-     * <p>Cell-shaped, deliberately: this decides where to SEND a body, before it is there. Whether
-     * a body already standing somewhere is actually supported is a different question with a
-     * different answer — the body is 0.6 wide and can be held by a neighbour cell — and it belongs
+     * <p>Cell-shaped, deliberately: this decides where to SEND a bot, before it is there. Whether
+     * a bot already standing somewhere is actually supported is a different question with a
+     * different answer — the bot is 0.6 wide and can be held by a neighbour cell — and it belongs
      * to {@code WalkerGeometry.soleOnSolid}. Do not use one for the other.
      *
      * <p><b>It has no hazard clause, and the paragraphs above account for every divergence except
@@ -297,11 +297,11 @@ public final class BotUtil {
     }
 
     /**
-     * First horizontal direction a body at {@code foot} can be shoved into: both body cells
-     * {@code open}, no {@code hazard} in the foot, head OR floor cell, preferring a direction that
-     * also has a floor (a cell whose {@code open} test FAILS one below the feet) so an escape does
-     * not trade a hazard for a ledge. Null when every cardinal is refused — the caller decides what
-     * a fully ringed body does.
+     * First horizontal direction a bot at {@code foot} can be shoved into: both cells the player
+     * would occupy {@code open}, no {@code hazard} in the foot, head OR floor cell, preferring a
+     * direction that also has a floor (a cell whose {@code open} test FAILS one below the feet) so
+     * an escape does not trade a hazard for a ledge. Null when every cardinal is refused — the
+     * caller decides what a fully ringed bot does.
      *
      * <p>Both escape reflexes ask this, each from its own copy until now. The copies had already
      * drifted once, in the clause that matters most: {@code hazard(f.below())} was in
@@ -338,7 +338,7 @@ public final class BotUtil {
     }
 
     /**
-     * The nearest {@code block} this body could use from where it stands: the closest one in a
+     * The nearest {@code block} this bot could use from where it stands: the closest one in a
      * {@code radiusH}×{@code radiusV} box around the feet whose CENTRE is inside {@code reach}
      * of the eye, or null.
      *
@@ -380,9 +380,9 @@ public final class BotUtil {
     }
 
     /**
-     * Where the eye WOULD be if a body stood with its feet in {@code foot} — the cell centre,
-     * 1.62 up. For deciding, before the body is there, whether a candidate stand can reach a
-     * block; a body that is already somewhere has {@code p.getEyePosition()} and must use it.
+     * Where the eye WOULD be if a bot stood with its feet in {@code foot} — the cell centre,
+     * 1.62 up. For deciding, before the bot is there, whether a candidate stand can reach a
+     * block; a bot that is already somewhere has {@code p.getEyePosition()} and must use it.
      *
      * <p>The three literals were written out twice ({@code MineProcess.findReachStand},
      * {@code BboxFillProcess.withinReach}) — the same hypothetical eye, so one place.
@@ -419,12 +419,12 @@ public final class BotUtil {
      * </table>
      *
      * <p>The two 4.3s are a RANKING cutoff, not a release gate: they pick which already-placed
-     * station to walk up to, and the body then re-approaches it. Being a hair tighter than the
+     * station to walk up to, and the bot then re-approaches it. Being a hair tighter than the
      * authority costs at most one extra {@code PlaceNearby} call, which is why they were never
      * a defect — only never written down.
      *
      * <p>The three short radii are margin bought on purpose, and buying margin on the way IN is
-     * the safe direction: two of them pick a cell to WALK TO (the body will not be standing on
+     * the safe direction: two of them pick a cell to WALK TO (the bot will not be standing on
      * that centre when it arrives) and the third fires mid-leap off an already-stale eye. The two
      * that gate a LIVE interaction take the authority's number, because for those margin is not
      * safety — it is a false refusal.
@@ -440,18 +440,18 @@ public final class BotUtil {
 
     /**
      * Is the centre of {@code block} within {@code reach} of {@code eye}? The one place that
-     * decides "can this body operate on that cell", so the five call sites differ only in the
+     * decides "can this bot operate on that cell", so the five call sites differ only in the
      * radius each passes — which is a visible number rather than a second opinion.
      *
      * <p><b>From the eye, never the feet.</b> The two are not the same measurement and swapping
-     * them is not a rounding difference: a cell 5 BELOW the body is 5.0 from the feet but 6.6
+     * them is not a rounding difference: a cell 5 BELOW the bot is 5.0 from the feet but 6.6
      * from the eye, and a cell 5 ABOVE is 5.0 from the feet but only 3.4 from the eye. A
      * feet-based gate is therefore LOOSE downward and TIGHT upward — and tight-upward is exactly
      * the case {@code MineProcess.findReachStand} scans {@code dy} down to −5 to support (stand
      * under an overhead block and mine straight up, which its own comment calls "within the 4.5
      * reach" precisely because it measures from the eye).
      *
-     * @param eye the eye position — {@code p.getEyePosition()} for a body that is already there,
+     * @param eye the eye position — {@code p.getEyePosition()} for a bot that is already there,
      *            {@link #standingEye} for a candidate cell it has not walked to yet
      */
     public static boolean eyeWithin(Vec3 eye, BlockPos block, double reach) {
@@ -459,13 +459,13 @@ public final class BotUtil {
                 <= reach * reach;
     }
 
-    /** {@link #eyeWithin(Vec3, BlockPos, double)} for a body that is already standing somewhere. */
+    /** {@link #eyeWithin(Vec3, BlockPos, double)} for a bot that is already standing somewhere. */
     public static boolean eyeWithin(LivingEntity p, BlockPos block, double reach) {
         return eyeWithin(p.getEyePosition(), block, reach);
     }
 
     /**
-     * The reach the GAME grants this body, measured to a block CENTRE — the number every
+     * The reach the GAME grants this bot, measured to a block CENTRE — the number every
      * "can I still operate on that cell" gate should be comparing against.
      *
      * <p>{@code blockInteractionRange()} is the player's own attribute and is measured to the
@@ -476,7 +476,7 @@ public final class BotUtil {
      *
      * <p>Only players carry {@code BLOCK_INTERACTION_RANGE} in their attribute map, and asking
      * {@code getAttributeValue} for an attribute the entity's supplier never registered throws.
-     * A non-player body is therefore given the attribute's vanilla default rather than a lookup.
+     * A non-player is therefore given the attribute's vanilla default rather than a lookup.
      */
     public static double blockReachToCentre(LivingEntity p) {
         double faceReach = p instanceof Player pl ? pl.blockInteractionRange() : 4.5;
@@ -486,7 +486,7 @@ public final class BotUtil {
     // === Aiming (the process family) =========================================
 
     /**
-     * Point the body's yaw, head, body and pitch at an exact world point.
+     * Point the bot's yaw, head, body and pitch at an exact world point.
      *
      * <p>The four rotation setters and the two {@code atan2} calls were copied into six process
      * classes; an aim that is written out by hand at every call site is how "which point is aimed at" quietly
@@ -512,11 +512,11 @@ public final class BotUtil {
     }
 
     /**
-     * The face of {@code block} pointing back at this body's eye — the side a ray from the eye
+     * The face of {@code block} pointing back at this bot's eye — the side a ray from the eye
      * would land on, for callers that were not told which face to click.
      *
      * <p>The dominant axis of eye−centre wins, ties going to the earlier test ({@code y}, then
-     * {@code x}); every {@code >=} below is load-bearing for a body standing exactly on an axis,
+     * {@code x}); every {@code >=} below is load-bearing for a bot standing exactly on an axis,
      * which is the common case for a bot that walks to a cell centre before interacting.
      *
      * <p><b>Here rather than in {@code BotInteract}, where it used to live alone.</b> Two
@@ -529,7 +529,7 @@ public final class BotUtil {
      * is where the process family's aiming already lives, and every one of those callers runs
      * under the dedicated-server gate today.
      *
-     * <p>So: the parameter is {@link Player} and the body names no {@code net.minecraft.client}
+     * <p>So: the parameter is {@link Player} and the bot names no {@code net.minecraft.client}
      * type, not even as a local — that is the property that lets a server-side caller reach it,
      * and it is the property to preserve if this method ever grows.
      * {@code BotInteract.pickFaceTowardsPlayer} is now a one-line delegate, so its
@@ -551,9 +551,9 @@ public final class BotUtil {
 
     /**
      * Walk the last fraction of a cell to the stand's centre before placing, or report that the
-     * body is already centred enough to click.
+     * bot is already centred enough to click.
      *
-     * <p>{@code WalkerConstants.REACH_DIST_SQ = 0.45} lets a leg ARRIVE ~0.67 short of the stand cell's
+     * <p>{@code WalkerConstants.REACH_DIST_SQ = 0.45} lets a walk ARRIVE ~0.67 short of the stand cell's
      * centre. Even sneaking — hull half-width 0.3 — that is not enough clearance from the placement
      * target when the stand is adjacent to it, and vanilla's {@code Level.isUnobstructed} refuses.
      * So the last quarter of a block is walked here, by the placer, rather than asked of the
@@ -604,8 +604,8 @@ public final class BotUtil {
      * <p><b>Not {@link Direction#toYRot()}, on purpose.</b> That returns {@code 270f} for EAST
      * where this returns {@code -90f}. The two are the same angle and are NOT the same number,
      * and {@code setYRot} stores the number: rendering interpolates between the previous yaw and
-     * this one by difference, so swapping {@code -90} for {@code 270} makes the body spin a full
-     * turn where it used to snap. This body was identical in three processes; it was moved here
+     * this one by difference, so swapping {@code -90} for {@code 270} makes the bot spin a full
+     * turn where it used to snap. This bot was identical in three processes; it was moved here
      * unchanged rather than replaced with the vanilla helper for exactly that reason.
      */
     public static float yawFor(Direction d) {

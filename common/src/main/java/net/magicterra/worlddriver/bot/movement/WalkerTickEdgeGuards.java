@@ -53,14 +53,14 @@ final class WalkerTickEdgeGuards {
         boolean placingEdge = (edge != null && !edge.toPlace.isEmpty())
                 || (nextEdge != null && !nextEdge.toPlace.isEmpty());
         // VINE traversal (user insight 2026-06-06): vines are CLIMBABLE, so when the
-        // walker fights a stale waypoint while the body is clinging to a vine it wedges
+        // walker fights a stale waypoint while the bot is clinging to a vine it wedges
         // for seconds (the jungle cling-freeze: suspended off-ground, hCol, hSpd≈0, while
         // the waypoint sat 3 blocks BELOW). Don't fight it — a vine is a fixed climb
-        // sub-path. Once the body is suspended ON a vine (!onGround), take over: face the
+        // sub-path. Once the bot is suspended ON a vine (!onGround), take over: face the
         // path-ahead bearing and, if the path ahead is up/level ("direction correct"),
         // CLIMB the vine (forward+jump); the offPath(>3) / stuck repath then re-routes
         // from the new elevation (correcting the path). If the path ahead is BELOW (we over-climbed),
-        // release the climb keys so the body slides back down the vine to be re-planned.
+        // release the climb keys so the bot slides back down the vine to be re-planned.
         // Gated on !onGround so it never hijacks normal ground-walking through a vine-
         // draped cell; ladders are excluded by isClimbable's caller using vines in jungle.
         // fix Q (re-applied 2026-06-25, now A/B-validatable via the DETERMINISTIC vineOverWaterClimbArena
@@ -99,7 +99,7 @@ final class WalkerTickEdgeGuards {
             BlockPos ahead = wk.path.get(Math.min(wk.step + 2, wk.path.size() - 1));
             // Vanilla vine ASCENT (LivingEntity.travel) only fires while
             // (horizontalCollision || jumping) && onClimbable, and SUSTAINS only while the
-            // body keeps colliding with a wall — proven by vineClingFidelityProbe (the avatar
+            // player keeps colliding with a wall — proven by vineClingFidelityProbe (the avatar
             // climbs the full 5-block column when it presses FORWARD into the backing wall).
             // So aim the heading at the vine's SOLID BACKING WALL (forward = into the wall =
             // sustained horizontalCollision), NOT at the overhead path node. The old aim used
@@ -127,19 +127,19 @@ final class WalkerTickEdgeGuards {
             // with ZERO XZ progress toward the actual node (live -672,64,311 inlet bob ~10 s). If the
             // IMMEDIATE committed node `wp` is at/below the foot it is NOT a climb (a genuine ascent always
             // has wp ABOVE the foot — the free-hang -711 curtain + vineOverWaterClimbArena both ascend, so
-            // wp.y > foot.y there, untouched). Force the slide-down so the body drops off the vine onto the
+            // wp.y > foot.y there, untouched). Force the slide-down so the bot drops off the vine onto the
             // bank / into the inlet and the normal walk/stepDown resumes (it grounds → the !onGround gate
             // ends the cling). Strict ADD: inert when OFF or when wp.y > foot.y (a real climb).
             if (BotConfig.walkerVineDescentDrop && wp.getY() <= foot.getY()) climbUp = false;
             // FREE-HANGING vine sustain (walkerVineFreeHangClimb). A wall-less vine (wallYaw==null:
             // no solid horizontal neighbour of the foot column) cannot be climbed by ramming a wall —
             // vanilla's (horizontalCollision||jumping) ascent has no wall to keep horizontalCollision
-            // live, and the path-ahead forward press WALKS the buoy-free body horizontally OUT of the
+            // live, and the path-ahead forward press WALKS the buoy-free bot horizontally OUT of the
             // vine and it runs out of climbable / DROPS into the pocket (live -711: 65.02→65.20→detach→
             // 61.9 inW, totStuck 2400+). Sustain it by (a) holding JUMP every tick (jumping → vy=+0.2,
-            // the only wall-less ascent drive) and (b) driving the body via the CAMERA-DECOUPLED impulse
+            // the only wall-less ascent drive) and (b) driving the bot via the CAMERA-DECOUPLED impulse
             // straight at the immediate climb target wp — the live -711 vine is a WIDE curtain whose top
-            // reaches the dismount ONLY on the exit side, so the body must keep advancing UP-AND-TOWARD
+            // reaches the dismount ONLY on the exit side, so the bot must keep advancing UP-AND-TOWARD
             // the exit (a deadzone that goes pure-vertical when "aligned" stalls the exit advance and the
             // bot wedges — live-verified). commandMove tracks wp exactly while the camera slews, so the
             // off-axis drift is corrected without the camera lag mis-aiming a raw forward press. Wall-
@@ -150,10 +150,10 @@ final class WalkerTickEdgeGuards {
             boolean freeHangDrive = false;          // true → horizontal driven by commandMove (decoupled)
             float fhBearing = 0f;                   // radians; world bearing to the climb target
             if (freeHang) {
-                // Steer toward the immediate next node `wp` (this is the LIVE-validated target: the body
+                // Steer toward the immediate next node `wp` (this is the LIVE-validated target: the bot
                 // climbs the curtain up-and-across toward each successive node). `wp` can flip ±180° when
                 // the pure-pursuit `step` advances under the foot, so the heading is SLEW-LIMITED below to
-                // keep that from circling the body off a narrow column.
+                // keep that from circling the bot off a narrow column.
                 double tx = (wp.getX() + 0.5) - p.getX();
                 double tz = (wp.getZ() + 0.5) - p.getZ();
                 if (tx * tx + tz * tz < 0.04) {
@@ -165,7 +165,7 @@ final class WalkerTickEdgeGuards {
                 } else {
                     // SLEW-LIMIT the drive heading: turn a persistent heading at most ~30°/tick toward the
                     // bearing to wp. When `step` advances and wp flips, the heading averages the flip into
-                    // a smooth arc rather than walking the body in CIRCLES off the column (the arena's
+                    // a smooth arc rather than walking the bot in CIRCLES off the column (the arena's
                     // narrow-column flake). On the live -711 curtain the bearing is steady (the climb tracks
                     // the exit) so the slewed value just hugs it — the proven up-and-across path is intact.
                     float target = (float) Math.toDegrees(Math.atan2(-tx, tz));
@@ -200,12 +200,12 @@ final class WalkerTickEdgeGuards {
             p.setXRot(smoothAngle(p.getXRot(), 0f));
             // Horizontal drive: free-hang uses the camera-DECOUPLED impulse toward the climb target
             // (exact bearing regardless of the slewing camera); otherwise the raw forward press (into
-            // the wall / along the camera). A modest forward magnitude keeps the body advancing toward
+            // the wall / along the camera). A modest forward magnitude keeps the bot advancing toward
             // the exit column without overshooting off the curtain (the climbable clamp caps it ≤0.15).
             if (freeHangDrive) {
-                // Drive the body toward wp via the impulse channel (vanilla travel() rotates it by the
+                // Drive the bot toward wp via the impulse channel (vanilla travel() rotates it by the
                 // camera yaw). Empirically LIVE-tuned: the world-bearing impulse + the camera slewing
-                // toward fhBearing converges the body onto a steady up-and-toward-the-exit climb across
+                // toward fhBearing converges the bot onto a steady up-and-toward-the-exit climb across
                 // the wide -711 curtain (in-pocket→0, tops out, advances). A "fully decoupled" Δ-form was
                 // tried and REGRESSED live (it wedged the bot in the pocket — the wide-curtain climb needs
                 // THIS trajectory, not a geometrically-pure one), so do NOT change it without a live A/B.
@@ -230,7 +230,7 @@ final class WalkerTickEdgeGuards {
             return Walker.Step.WALKING;
         }
         // Stepping off into an MLG fall: walk off at WALK speed (no sprint) so
-        // the body drops near-vertically and lands in the water we place under
+        // the bot drops near-vertically and lands in the water we place under
         // it — a sprint launch carries horizontal momentum that drifts the bot
         // off the placed source and it clips the edge (partial fall damage).
         // Do NOT sneak though: sneak is ledge-protection and would stop the bot
@@ -253,7 +253,7 @@ final class WalkerTickEdgeGuards {
             // Commit to the MLG fall while still on the launch lip, recording
             // the planned landing column so the airborne clutch can damp drift
             // back toward it: a walk-off's residual horizontal momentum (zero
-            // air friction) otherwise carries the body past a 1-wide landing
+            // air friction) otherwise carries the bot past a 1-wide landing
             // before it descends, and the water gets placed on whatever happens
             // to be below the drifted-into column instead.
             BlockPos land = (edge != null && edge.move != null && edge.move.startsWith("fallBucket"))

@@ -17,7 +17,8 @@ import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * The precondition in front of every body verb ({@code BodyReady}), on the client's real player:
+ * The precondition in front of every verb that moves or acts through the player ({@code BodyReady}),
+ * on the client's real player:
  * a dead player is refused with {@code {ok:false, reason:"dead"}} instead of {@code started:true},
  * a read ({@code mc.bot.status}) still answers, and the same order is taken again once the player
  * has respawned. The lab world found this the hard way — a player that died on joining sat on its

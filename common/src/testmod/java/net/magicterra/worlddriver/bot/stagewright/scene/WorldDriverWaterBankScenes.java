@@ -49,11 +49,11 @@ import net.minecraft.world.level.block.state.BlockState;
  *       knob, {@link ServerPlayerBody#faithfulBreak} (a static field, not covered by the
  *       pin), is saved/restored via its own {@code ctx.cleanup} in {@link #tallBankDigClimb};</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene body, #48) + {@code ctx.cleanup(() -> fp.discard())}. In the ISOLATED
- *       per-scene body model the legacy shared-FakePlayer parking / anti-contamination
+ *       (per-scene player, #48) + {@code ctx.cleanup(() -> fp.discard())}. In the ISOLATED
+ *       per-scene player model the legacy shared-FakePlayer parking / anti-contamination
  *       finally blocks (e.g. {@code vineOverWaterClimbArena}'s {@code cleanupFp} re-park, the
  *       legacy per-arena isolation batches) become dead weight and are DROPPED —
- *       the createUnique body cannot bleed into another scene, so those guards had nothing
+ *       the createUnique player cannot bleed into another scene, so those guards had nothing
  *       left to protect;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects}
  *       (the common single source);</li>
@@ -79,13 +79,13 @@ import net.minecraft.world.level.block.state.BlockState;
  *       (walkerVineFreeHangClimb OFF) it MUST FAIL, and that optional-FAIL is the proof it
  *       reproduces the live wall-less-vine detach. Its RED stays VISIBLE (reported per-run),
  *       never tuned away — marking it required would RED the whole suite. See its own javadoc.</li>
- *   <li>{@code wd.deepWaterClimboutNoBlock} is the gap #48 shared-body lottery member
- *       (solo-GREEN proven this phase, full-run flaky in the OLD shared-body suite). In the
- *       createUnique isolated body the shared-body flake mechanism is GONE, so it runs
+ *   <li>{@code wd.deepWaterClimboutNoBlock} is the gap #48 shared-player lottery member
+ *       (solo-GREEN proven this phase, full-run flaky in the OLD shared-player suite). With the
+ *       createUnique isolated player the shared-player flake mechanism is GONE, so it runs
  *       DETERMINISTICALLY GREEN (observed ×2×2) — kept {@code required=true}; the determinism
- *       is the expected outcome of body isolation (a shell difference), NOT a rebaseline of
+ *       is the expected outcome of player isolation (a shell difference), NOT a rebaseline of
  *       thresholds.</li>
- *   <li>{@code wd.riverSheerBank} → <b>required</b> (task#91 CLOSED). The gap #48 shared-body
+ *   <li>{@code wd.riverSheerBank} → <b>required</b> (task#91 CLOSED). The gap #48 shared-player
  *       false-green this wave surfaced was a REAL executor gap, now fixed structurally: A* always
  *       routed the correct far-lateral exit (the low bank +5 EAST across open water), but the
  *       climb-out executor misread that laterally-distant, only-+1-higher waypoint as a climb-here
@@ -120,7 +120,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 Scene.of("wd.deepWaterClimboutNoBlock", 200, WorldDriverWaterBankScenes::deepWaterClimboutNoBlock),
                 Scene.of("wd.deepWaterClimboutDrift", 200, WorldDriverWaterBankScenes::deepWaterClimboutDrift),
                 Scene.of("wd.waterFarAimBankCorner", 200, WorldDriverWaterBankScenes::waterFarAimBankCorner),
-                // J31, a pair. Neither is about whether the body climbs — both are about what the
+                // J31, a pair. Neither is about whether the bot climbs — both are about what the
                 // place-futility ledger counts. The positive one cannot pass while the counter is
                 // zeroed by the CLICK; the negative one cannot pass if the counter is made to
                 // increment unconditionally, which is the regression the positive one invites.
@@ -147,7 +147,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     }
 
     /** Ported from {@code AgentGameTestWaterBank#waterPhysicsParity}: water-physics-parity gate for
-     *  {@link ServerPlayerBody} — a body driven by manual step() in a deep water column must
+     *  {@link ServerPlayerBody} — a player driven by manual step() in a deep water column must
      *  reproduce vanilla fluid movement: (1) submerged no-input SINKS SLOWLY (not free-fall),
      *  (2) holding jump BOBS UP, (3) forward swims (slow). */
     private static void waterPhysicsParity(SceneContext ctx) {
@@ -396,7 +396,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
      * Ported from {@code AgentGameTestWaterBank#vineOverWaterClimbArena} (legacy required=false, the live
      * −711,67 bug). A free-hanging vine curtain over a 1-deep water pocket; A* routes a parkourAscend2
      * ONTO the vine then a climb up it. On a WALL-LESS vine the path-ahead forward press walks a buoy-free
-     * body horizontally OUT of the column → it detaches into the pocket (the live bob-churn). The fix
+     * bot horizontally OUT of the column → it detaches into the pocket (the live bob-churn). The fix
      * ({@code walkerVineFreeHangClimb}) holds JUMP + CENTER-SEEKS the column so it re-centres and tops out.
      *
      * <p><b>{@code .withRequired(false)} BY DESIGN.</b> Against the CLEAN baseline (walkerVineFreeHangClimb
@@ -738,13 +738,13 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     /**
      * Ported from {@code AgentGameTestWaterBank#riverSheerBankArena}: live-faithful OPEN-WATER +5 sheer-bank
      * wedge (2026-06-09). The bot floats in an open river whose SOUTH bank is a uniform +5 SHEER wall; the
-     * only climb-out is a LOW (+1) bank far EAST, goal diagonally SE. No flanking walls pin the body onto a
+     * only climb-out is a LOW (+1) bank far EAST, goal diagonally SE. No flanking walls pin the bot onto a
      * pillar — the buoyant drift is free, as on the real river. Break+place ON. Asserts the bot gets ashore.
      *
-     * <p><b>required — task#91 CLOSED (structural fix).</b> The gap #48 shared-body false-green this
+     * <p><b>required — task#91 CLOSED (structural fix).</b> The gap #48 shared-player false-green this
      * scene surfaced was a REAL executor gap. Config, geometry and start pose are byte-identical to the
      * legacy twin, which ran green only because concurrent GameTest batches shoved the shared singleton
-     * ashore; this scene's serial createUnique body has no such helper and, under the authored default-OFF
+     * ashore; this scene's serial createUnique player has no such helper and, under the authored default-OFF
      * baseline {@code pinnedBaseline()} zeroes (walkerBankDig*, walkerBuoyantSearchFromSurface,
      * walkerSwimAshorePillarDespiteDeepDig, walkerFloatingBankBobFreeze, …), it wedged (step=FAILED,
      * wallPressTicks≈51 — pressing the +5 face, never sliding east).
@@ -826,7 +826,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
-        // earlier version of this scene put the body — the takeover's entry gate
+        // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -915,7 +915,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
-        // earlier version of this scene put the body — the takeover's entry gate
+        // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -931,7 +931,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BlockPos surfaceCell = new BlockPos(cx + 4, surface, cz);   // top water cell, air above
         if (new FallIntoWater(1, 0, depth - 1).valid(w, surfaceCell))
             ctx.fail("deepWaterCross: FallIntoWater to a SUBMERGED bed cell must be invalid"
-                    + " (buoyancy floats the body back to the surface)");
+                    + " (buoyancy floats the player back to the surface)");
         if (new Fall(1, 0, 2).valid(w, surfaceCell))
             ctx.fail("deepWaterCross: Fall to a SUBMERGED bed cell must be invalid");
 
@@ -955,8 +955,8 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                     + ") maxX=" + maxX + " step=" + s);
     }
 
-    /** Ported from {@code AgentGameTestWaterBank#deepWaterClimboutNoBlockArena} (gap #48 shared-body lottery
-     *  member — solo-GREEN this phase; deterministic in the createUnique isolated body). Block-LESS deep-water
+    /** Ported from {@code AgentGameTestWaterBank#deepWaterClimboutNoBlockArena} (gap #48 shared-player lottery
+     *  member — solo-GREEN this phase; deterministic with the createUnique isolated player). Block-LESS deep-water
      *  +2 bank climb-out: the bot holds only SAND (FallingBlock → no pillar), so the ONLY escape is the
      *  block-less bank-DIG fallback. Asserts the floating Walker reaches dry land within a bounded budget. */
     private static void deepWaterClimboutNoBlock(SceneContext ctx) {
@@ -1011,7 +1011,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
-        // earlier version of this scene put the body — the takeover's entry gate
+        // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1025,9 +1025,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         Walker walker = new Walker();
         walker.setGoal(new Goal.Block(goal));
         Walker.Step s = Walker.Step.WALKING;
-        // Block-less, the +2 bank is a dig on both bodies now that the planner no longer swims into
-        // the air cell above the surface; 200 ticks (10 s) still fails loudly on a bob-stall
-        // regression. The body arrives airborne off the last dug step, so the walk is followed for
+        // Block-less, the +2 bank is a dig for both the server-side and the client player now that
+        // the planner no longer swims into the air cell above the surface; 200 ticks (10 s) still
+        // fails loudly on a bob-stall regression. The bot arrives airborne off the last dug step, so the walk is followed for
         // a few settle ticks after ARRIVED before its landing is judged.
         int ashoreTick = -1;
         int settle = 0;
@@ -1105,7 +1105,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
-        // earlier version of this scene put the body — the takeover's entry gate
+        // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1207,17 +1207,17 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     }
 
     // ─────────────────────────────────────────────────────────────────────────────────────────
-    // The place-futility LEDGER (J31). Two scenes, and neither is about whether the body climbs.
+    // The place-futility LEDGER (J31). Two scenes, and neither is about whether the bot climbs.
     //
     // WalkerTickClimb's climb-out place branch resets `pillarNoPlaceTicks` on the tick it CLICKS,
     // not on the tick the block LANDS — and `Body.place` is `void`, so the click has no verdict
-    // to record. The window that makes this fatal is real: the crest gate admits the body at
+    // to record. The window that makes this fatal is real: the crest gate admits the player at
     // `cell.y + 0.9`, while vanilla's Level#isUnobstructed refuses any placement whose cell still
-    // intersects the body's AABB, i.e. until `cell.y + 1.0`. Inside that 0.1-block band every
+    // intersects the player's AABB, i.e. until `cell.y + 1.0`. Inside that 0.1-block band every
     // click is refused and every refusal zeroes the counter, so `placeFutile` can never become
     // true and the dig fallback behind it can never take the bank.
     //
-    // ⚠️ Both scenes PIN the body's Y rather than letting it bob. That is deliberate: the subject
+    // ⚠️ Both scenes PIN the player's Y rather than letting it bob. That is deliberate: the subject
     // is the LEDGER, and a bob that has to land inside a 0.1-block band on its own would make the
     // arena a coin toss. The pin is staging, not the thing under test — which is also why neither
     // scene asserts anything about height gained.
@@ -1226,7 +1226,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     /**
      * The +2 low bank the two ledger scenes both use — deliberately the same shape as
      * {@code wd.waterLowBank}, because that is the geometry the climb-out takeover is KNOWN to
-     * engage on. An earlier version of these scenes built its own basin and parked the body three
+     * engage on. An earlier version of these scenes built its own basin and parked the bot three
      * blocks off the bank; the takeover never engaged, both scenes reported {@code engages=0}, and
      * the vacuity guard below is what caught it. Returns the goal on the dry land behind the bank.
      */
@@ -1264,7 +1264,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         return new BlockPos(cx, bankTop + 1, cz + 4);
     }
 
-    /** Topmost water cell of the column the body floats in, or null once the column is filled. */
+    /** Topmost water cell of the column the bot floats in, or null once the column is filled. */
     private static BlockPos topWater(LevelWorldView w, int cx, int cz, int floorY, int surface) {
         for (int y = surface; y > floorY; y--) {
             BlockPos c = new BlockPos(cx, y, cz);
@@ -1275,7 +1275,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
 
     /**
      * J31 POSITIVE: every place is refused, so the ledger must reach futility and hand the bank to
-     * the dig. Pins the body inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says
+     * the dig. Pins the player inside the {@code [cell.y+0.9, cell.y+1.0)} band — the crest gate says
      * "go", vanilla says "no" — and asserts {@code pillarNoPlaceTicks} climbs past
      * {@link WalkerConstants#PILLAR_FUTILE_TICKS} anyway.
      *
@@ -1304,10 +1304,11 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.walkerPillarSurfacePlace = false;
         // TRUE, explicitly, because the pinned baseline turns it off and the takeover never engages
         // without it. With it off, `deepDig` sends the bank to the dig at stall 21, nine ticks before
-        // the pillar may engage at 30. The hand-integrated body bobbed low enough that the dig was
-        // judged infeasible and the pillar got its turn anyway; the pumped body rides the bank to feet
-        // 208.99 over a 208 surface, as the client does, the dig becomes feasible, takes the riser and
-        // walks out (`climb-ctx … stall=20 deepDig=true` → `block-less bank dig`, ARRIVED in 55 ticks).
+        // the pillar may engage at 30. The hand-integrated player bobbed low enough that the dig was
+        // judged infeasible and the pillar got its turn anyway; the pumped server-side player rides
+        // the bank to feet 208.99 over a 208 surface, as the client does, the dig becomes feasible,
+        // takes the riser and walks out (`climb-ctx … stall=20 deepDig=true` → `block-less bank dig`,
+        // ARRIVED in 55 ticks).
         // It is also the production default, so this pins the order the walker ships with.
         BotConfig.walkerFootholdBeforeBankDig = true;
         // The climb-ctx rows are what told that staging failure apart from a ledger one; keep them.
@@ -1316,7 +1317,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
-        // earlier version of this scene put the body — the takeover's entry gate
+        // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1348,9 +1349,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             s = walker.tick(av, w);
             av.step();
             if (walker.pillarPlaceFutile()) sawFutile = true;
-            // TWO PHASES, and the order is the whole staging. Let the body swim and bob FREELY
+            // TWO PHASES, and the order is the whole staging. Let the bot swim and bob FREELY
             // until the takeover actually engages — its entry gate wants a bob-stall below a bank
-            // it cannot mount, and a body held still never accumulates one. Only then start
+            // it cannot mount, and a bot held still never accumulates one. Only then start
             // holding the band. Pinning from tick 0 is what made the first version of this scene
             // report engages=0.
             if (!pinning && Walker.waterPillarEngages > engages0) pinning = true;
@@ -1365,7 +1366,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 pinnedAt = top;
                 fp.setPos(cx + 0.5, top.getY() + 0.95, cz + 1.5);
                 fp.setDeltaMovement(0, 0, 0);
-                // Where the body sat RELATIVE to the cell it was meant to fill. The pin makes this
+                // Where the player sat RELATIVE to the cell it was meant to fill. The pin makes this
                 // constant by construction, and recording it is how the arena proves the constant
                 // is the one it meant: 0.95 is inside the old crest gate (0.9) and below vanilla's
                 // acceptance line (1.0), which is the whole point of the staging.
@@ -1400,7 +1401,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             ctx.fail("pillarLedger: the pinned cell " + pinnedAt.toShortString() + " became solid — a"
                     + " height of 0.95 should have been refused by Level#isUnobstructed, so the test setup"
                     + " did not produce the band in which every placement is refused.");
-        // THE BAND, self-proved. Without this the scene can go green for the opposite reason: a body
+        // THE BAND, self-proved. Without this the scene can go green for the opposite reason: a bot
         // that never rose at all also never places, so the counter also climbs and placeFutile also
         // fires — a PASS that says nothing about the refusal band. Asserting both edges pins the
         // staging to the one geometry the defect lived in.
@@ -1431,9 +1432,9 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     }
 
     /**
-     * J31 REVERSE: a place that really lands must NOT be counted as futile. Pins the body at
+     * J31 REVERSE: a place that really lands must NOT be counted as futile. Pins the player at
      * {@code cell.y + 0.95} holding MUD — inside the crest band and above mud's 0.875 collision top,
-     * the one combination vanilla accepts while the body is still in the cell — and asserts the cell
+     * the one combination vanilla accepts while the player is still in the cell — and asserts the cell
      * actually filled BEFORE asserting the ledger stayed under the futility line.
      *
      * <p>It used to pin at {@code cell.y + 1.05} holding a full cube, on the belief that clearing the
@@ -1463,14 +1464,14 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         // ledger — the one route that would let this scene see a fill it is not measuring.
         BotConfig.walkerPillarSurfacePlace = false;
         // TRUE for the same reason as the positive scene: off, the bank dig beats the takeover to the
-        // bank and the pumped body walks out before a single place is clicked.
+        // bank and the pumped server-side player walks out before a single place is clicked.
         BotConfig.walkerFootholdBeforeBankDig = true;
         BotConfig.walkerDebug = true;
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         // Adjacent to the bank (cz+2), the way wd.waterLowBank spawns. Three blocks out — where an
-        // earlier version of this scene put the body — the takeover's entry gate
+        // earlier version of this scene put the bot — the takeover's entry gate
         // (WalkerTickClimb:455-457) never fires and the arena measures nothing.
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, surface - 1, cz + 1.5);
         ServerPlayer fp = av.fakePlayer();
@@ -1478,10 +1479,10 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         SimProbes.grantWaterEffects(fp);
         fp.getInventory().clearContent();
         // MUD, and this scene is unstageable without it. What it needs is a click vanilla ACCEPTS
-        // while the body is inside the very cell being filled — the positive scene next door is the
+        // while the player is inside the very cell being filled — the positive scene next door is the
         // one that needs a refusal. isUnobstructed tests the collision shape of the state being
         // PLACED, and mud's is 14/16 = 0.875 tall (MudBlock.SHAPE; its getBlockSupportShape is the
-        // full cube, a different shape), so a body pinned at fill.y + 0.95 clears it by 0.075 and
+        // full cube, a different shape), so a player pinned at fill.y + 0.95 clears it by 0.075 and
         // the placement lands. With a full cube in hand — this scene held cobblestone until
         // 2026-08-24 — NO pin height works: the crest gate wants ≥ 0.9 into the cell and vanilla
         // wants ≥ 1.0 above it, and at 1.0 the foot cell moves up and the fill cell moves with it,
@@ -1529,7 +1530,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
                 // reset left and the assertion below is about it alone.
                 // INSIDE the top water cell, inside the crest band. surface + 0.95 keeps colFoot a
                 // WATER cell, so fillCell stays the locked column's top cell instead of degenerating
-                // to the body's own foot cell one row higher. The old pin (surface + 1.05) lifted the
+                // to the player's own foot cell one row higher. The old pin (surface + 1.05) lifted the
                 // feet out of the water, which made the gate ask for surface + 2.0 — a height the pin
                 // itself forbade — so the click could never fire and this scene could only ever fail.
                 fp.setPos(cx + 0.5, surface + 0.95, cz + 1.5);
@@ -1595,7 +1596,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
             ctx.fail("pillarLedgerReal: the takeover was no longer engaged when the reset was read — every"
                     + " bail path zeroes the same counter, so this 0 does not identify its own cause, and"
                     + " this run cannot prove that the fill reset the counter.");
-        // (b) MUST NOT BE THE EXPLANATION. The body is held at one absolute height, so foot.getY()
+        // (b) MUST NOT BE THE EXPLANATION. The player is held at one absolute height, so foot.getY()
         // is constant and the high-water half of the reset rule cannot refresh after the first
         // tick. If this range is wider than one cell the pin failed, and a green run below would be
         // ambiguous between "the landing cleared it" and "the rise cleared it" — the scene would no

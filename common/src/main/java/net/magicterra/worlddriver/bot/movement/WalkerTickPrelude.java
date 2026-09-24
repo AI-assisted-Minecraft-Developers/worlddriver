@@ -90,7 +90,7 @@ final class WalkerTickPrelude {
                     || ++wk.stickyDig.ticks > STICKY_DIG_ABS_CAP_TICKS;
         }
         // Out of mining reach — measured EYE to block centre against the range the game grants
-        // this body, which is the same question ServerPlayerBody.canBreakFromHere asks before
+        // this bot, which is the same question ServerPlayerBody.canBreakFromHere asks before
         // it lets a dig happen at all. This used to be `distToCenterSqr(p.position()) > 20`,
         // i.e. from the FEET at a hardcoded ~4.47, and the two are different measurements: a
         // cell 5 below is 5.0 from the feet but 6.6 from the eye (so the latch outlived reach
@@ -116,7 +116,7 @@ final class WalkerTickPrelude {
         wk.jumpTag = null;
         wk.aimTag = null;
         wk.driveTag = null;
-        // AvatarInput install (client) is handled inside the Body implementation.
+        // AvatarInput install (client) is handled inside the {@code Body} implementation.
 
         // Steep-barrier planner escalation: a confirmed boxed churn (below) arms a sticky
         // timer; while it's live, route the planner's horizon/soft-commit/depth-penalty
@@ -148,7 +148,7 @@ final class WalkerTickPrelude {
         // waypoints frictionlessly, and spins in place re-aiming — then
         // times out hovering. Re-applied each tick so re-toggling flight
         // mid-path can't strand the bot.
-        Player flyer = a.asPlayer();   // creative flight is a player's; a mob body has no abilities to end
+        Player flyer = a.asPlayer();   // creative flight is a player's; a mob has no abilities to end
         if (flyer != null && flyer.getAbilities().flying) {
             flyer.getAbilities().flying = false;
             flyer.onUpdateAbilities();
@@ -194,10 +194,10 @@ final class WalkerTickPrelude {
         // descend to, those cells sit behind/below the bot, the waypoint never leaves them and the
         // climb-out dig aims BACKWARD (live -733→-540: yaw-locked west digging a wall while the goal
         // is east) → permanent churn (replay: 20 repaths, identical y61-prefix path). Anchor ONLY the
-        // search start to the surface cell so the plan extends FORWARD from where the body floats.
+        // search start to the surface cell so the plan extends FORWARD from where the bot floats.
         // Global `foot` (actuators/sampling) is untouched. Gated to surface-floating (eye above water)
         // so deep underwater navigation is unaffected.
-        // Also for a body still UNDER the surface but within a couple of cells of it: it is on its
+        // Also for a bot still UNDER the surface but within a couple of cells of it: it is on its
         // way up (buoyancy, or a fresh drop into the pool) and every plan from the submerged cell
         // starts with a dig it will never make — wd.clientFlushBankClimbOutEmptyHanded planned a
         // bare-hand break of the stone pool wall from one cell under, wedged three times on it,
@@ -208,7 +208,7 @@ final class WalkerTickPrelude {
         if (BotConfig.walkerBuoyantSearchFromSurface && p.isInWater() && !p.onGround()) {
             int sy = foot.getY();
             while (world.isWater(new BlockPos(foot.getX(), sy, foot.getZ()))) sy++;
-            // sy = first non-water cell above the column; the top water cell (sy-1) is where the body
+            // sy = first non-water cell above the column; the top water cell (sy-1) is where the bot
             // floats. Clamp >= foot.y so this only ever LIFTS the start, never sinks it.
             int lifted = Math.max(foot.getY(), sy - 1);
             if (!p.isUnderWater() || lifted - foot.getY() <= SURFACE_SEARCH_LIFT_MAX)

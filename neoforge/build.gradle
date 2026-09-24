@@ -262,8 +262,9 @@ loom {
             client()
             property 'stagewright.autorun', 'true'
             // ⚠️ THIS TOPOLOGY NO LONGER VARIES ONLY THE RUN, and that is now on purpose. The
-            // 2026-08-20 body-selection instruction puts JoinedBody on the DEDICATED server only, so
-            // `SceneBody` refuses to mint one here and every scene that needs a headless body is a
+            // 2026-08-20 rule on which player type a scene runs on puts JoinedBody on the DEDICATED
+            // server only, so `SceneBody` refuses to create one here and every scene that needs a
+            // headless server-side player is a
             // recorded skip until its family is converted to the client helm.
             // The old doctrine "a topology must vary the RUN, never the subject" still applies to
             // every OTHER pair of topologies, and it is why the skips have to be reconciled against

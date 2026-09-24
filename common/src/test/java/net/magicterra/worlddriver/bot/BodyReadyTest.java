@@ -18,7 +18,7 @@ class BodyReadyTest {
     @Test
     void aBodyThatCanActIsNotRefused() {
         assertNull(BodyReady.judge(ready()));
-        // A screen that neither pauses nor kills nor loads (chat, inventory) does not block the body.
+        // A screen that neither pauses nor kills nor loads (chat, inventory) does not block the bot.
         assertNull(BodyReady.judge(new BodyReady.Facts(true, true, "ChatScreen", false, false, false, false, true)));
     }
 

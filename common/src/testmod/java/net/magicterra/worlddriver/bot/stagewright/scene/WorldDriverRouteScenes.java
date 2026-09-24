@@ -38,8 +38,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 
 /**
- * The constraint layer of route selection on a headless body: a {@code route} object goes through
- * {@link RouteParams#parse} exactly as {@code mc.bot.goto} would send it, the resulting
+ * The constraint layer of route selection on a headless server-side player: a {@code route} object
+ * goes through {@link RouteParams#parse} exactly as {@code mc.bot.goto} would send it, the resulting
  * {@link SearchProfile} is searched with the same {@link SearchScope#gather} snapshot the walker
  * takes, and the assertions read the route. Runs on every topology (the verb layer above it,
  * {@code wd.clientRoute*}, only where the client half is), which is why the parser is covered here
@@ -90,7 +90,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
         ctx.await(() -> level.getEntitiesOfClass(Mob.class, box).size() >= n).within(200).then(then);
     }
 
-    /** A finder over {@code profile} with the walker's own snapshot source, the body excluded. */
+    /** A finder over {@code profile} with the walker's own snapshot source, the bot excluded. */
     private static PathFinder finder(ServerLevel level, ServerPlayer body, LevelWorldView w, SearchProfile profile) {
         return new PathFinder(w, profile)
                 .withScopeSource((s, g, p) -> SearchScope.gather(level, body.getId(), s, g, p))
@@ -156,7 +156,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
      * {@code sight: avoid} the route hugs the wall's shadow, no ray budget is spent out; with
      * {@code sight: forbid} a goal in the shadow is still reached (not best-effort — a spent
      * budget reruns without sight and would pass that check by the wrong failure mode, so the
-     * flag is asserted too). Then the body WALKS the avoid route and {@code ThreatScanner} counts
+     * flag is asserted too). Then the bot WALKS the avoid route and {@code ThreatScanner} counts
      * the ticks the skeleton could see it.
      */
     private static void staysOutOfSkeletonSight(SceneContext ctx) {
@@ -205,7 +205,7 @@ public final class WorldDriverRouteScenes implements SceneProvider {
             ctx.check(held.goalReached() && !held.sightBudgetExhausted())
                     .as("D: forbid mode reaches the goal in the wall's shadow (not best-effort) without exhausting the budget").isTrue();
 
-            // Now walk it: the body drives the avoid route while the skeleton's view is sampled.
+            // Now walk it: the bot drives the avoid route while the skeleton's view is sampled.
             Intent intent = new Intent(List.of(new Goal.Block(goal)), avoid.profile().bias(),
                     avoid.profile().capability(), avoid.profile().constraints(), null);
             driver.runProcess(new IntentProcess(intent));

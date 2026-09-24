@@ -37,13 +37,13 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.walkerPlace;
  * momentarily dips, then holds the pocket until the surface clears, at which
  * point it releases the channel so the user/other chains can dig back out. A site it
  * cannot dig (water, a hazard, an unbreakable floor) is given up with a scheduler bail,
- * so the chains below it get the body for {@link #BAIL_COOLDOWN_TICKS}.
+ * so the chains below it get control of the bot for {@link #BAIL_COOLDOWN_TICKS}.
  * Gated on {@link BotConfig#autoBunker} (off by default — it modifies the world).
  */
 public final class BunkerChain implements Chain {
 
     /** How long a bail keeps this chain out of the bid: ten seconds, enough for the retreat reflex
-     *  to carry the body off the failed site (re-bidding sooner preempts the flee, which drops its
+     *  to carry the bot off the failed site (re-bidding sooner preempts the flee, which drops its
      *  path), and short enough that a bot still cornered on dry ground can dig in there. */
     static final int BAIL_COOLDOWN_TICKS = 200;
 
@@ -182,7 +182,7 @@ public final class BunkerChain implements Chain {
 
     /** Give the site up and leave the bid. {@link #priority} reads only health and hostiles, which
      *  a bad site does not change, so without the bail it re-bids 300 next tick and retreat (100)
-     *  and combat (60) never get the body. */
+     *  and combat (60) never get control of the bot. */
     void giveUp(String reason) {
         ClientIntents.holdDig(false);
         a.reset();

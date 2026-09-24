@@ -17,7 +17,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 
 /**
- * Getting a body down a shaft it digs and back up the one it dug.
+ * Getting the bot down a shaft it digs and back up the one it dug.
  *
  * <p>Split out of the rung file because it is used by five rungs and belongs to none of them: the
  * stone, iron, portal-kit, obsidian and portal rungs all sink a shaft to something they can only
@@ -26,7 +26,7 @@ import net.minecraft.util.Mth;
  * was measured failing — see the two method notes for the numbers.
  *
  * <p>State is static and there is one field of it ({@code exitFromY}/{@code exitRise}), which is
- * safe for the same reason the rest of this package's state is: a journey is one body, one run, one
+ * safe for the same reason the rest of this package's state is: a journey is one bot, one run, one
  * scene at a time.
  */
 public final class JourneyShaft {
@@ -100,7 +100,7 @@ public final class JourneyShaft {
      * pin now means <b>prefer, and say so when you leave</b>: the correction still runs, an adopted
      * column is recorded as {@code driftKeptPinned} naming the column the aim was computed for, and
      * three independent readings ({@code driftKeptPinned}, {@code raisedY}, the pour's own
-     * {@code .picks}) stand between a drifted body and a bucket.
+     * {@code .picks}) stand between a drifted bot and a bucket.
      *
      * <h2>The last refusal went the same way, and for a reason the first audit could not see</h2>
      *
@@ -134,7 +134,7 @@ public final class JourneyShaft {
      *
      * <p>So a pinned climb falls back too, and the one thing its fallback may not do is DIG. Its
      * source sits inside the frame the rung is building, which is the only thing down there tall
-     * enough to be in a walker's way — the same reason the recover's fill leg carries {@link NoBreak}.
+     * enough to be in a walker's way — the same reason the recover's fill walk carries {@link NoBreak}.
      *
      * <h2>And the pin survives only as long as the column it was taken out for</h2>
      *
@@ -224,7 +224,7 @@ public final class JourneyShaft {
         rig.evidence(climbName + ".fromY", rig.player().blockPosition().getY());
         rig.evidence(climbName + ".rise", rise + " block(s), cap " + cap + " course(s)");
         // OFF THE STAIRCASE BEFORE A SINGLE BLOCK IS PLACED. See JourneyStairs#stepInColumn: a tower
-        // fills the cell the body jumped FROM, so a climb started in a flight column walls that
+        // fills the cell the bot jumped FROM, so a climb started in a flight column walls that
         // flight up course by course without ever choosing a cell — which is how rung 12 filled
         // 0,58,19 and 1,58,19 and then could not walk back down past its own cobblestone.
         // Unconditional row: a climb nowhere near a staircase has to say so too, or a results file
@@ -260,7 +260,7 @@ public final class JourneyShaft {
             //
             // NoBreak, and only for the pinned path. The unpinned exits cross rock this rung dug and
             // ordinary terrain; a pinned raise stands inside the mould, where the tallest thing on
-            // any route is the frame the rung is there to build. The fill leg beside it already
+            // any route is the frame the rung is there to build. The fill walk beside it already
             // carries NoBreak for exactly that, after a walk mined a cast cell to climb back up
             // (`frame.lost.1`, lost during the step where recover8 reclaimed the water from
             // -9, 61, 38).
@@ -278,16 +278,16 @@ public final class JourneyShaft {
             // The tower gave up. Hand the rest to the walker — the route
             // wd.serverPillarsOutOfAPit measured at 46 ticks — and RECORD that it was needed, so
             // a run whose exit depended on the fallback cannot be read as one where the scripted
-            // ascent worked. Two ways up is belt-and-braces; hiding which one carried the body is
-            // how a capability quietly stops being tested.
+            // ascent worked. Two ways up is a deliberate redundancy; hiding which one carried the bot
+            // is how a capability quietly stops being tested.
             rig.evidence(climbName + ".walkerFallback", true);
-            // AND IT MAY NOT LEAVE THE BODY LOWER THAN IT FOUND IT. `Goal.YLevel` is column-blind, so
-            // a route to it may descend first, and when the search then fails the body keeps whatever
+            // AND IT MAY NOT LEAVE THE BOT LOWER THAN IT FOUND IT. `Goal.YLevel` is column-blind, so
+            // a route to it may descend first, and when the search then fails the bot keeps whatever
             // the partial path gave it. Measured 2026-08-19: `vein2.exit#3` reported
             // `walkerFallback=true`, `gained=-3/20` and `endedIn=100,83` while the tower column was
             // 94,83 — three blocks DEEPER than the climb started, in a different column, and nothing read that
             // as anything but a short climb. The rung after it then failed for want of a free cell to
-            // put a crafting table in, which is what a body still down a shaft has.
+            // put a crafting table in, which is what a bot still down a shaft has.
             //
             // One more scripted ascent from wherever the walker stopped, and it is a genuinely
             // different attempt rather than the same question asked twice: a different column, and a
@@ -301,12 +301,12 @@ public final class JourneyShaft {
     /**
      * The way out for a climb that may not tower where it stands: the staircase itself.
      *
-     * <p>Reached only from {@link #towerColumnClearOfTheFlight} returning null, which means "the body
+     * <p>Reached only from {@link #towerColumnClearOfTheFlight} returning null, which means "the bot
      * is in a flight column and there is nowhere beside it to stand". A stairwell cut through rock is
      * exactly that shape — the cells either side of a step are the wall — so this is the branch the
      * ladder actually takes, and "tower anyway" is not an alternative to it: that is the defect.
      *
-     * <p><b>Nothing is placed and nothing is broken.</b> A body standing on a step is already ON the
+     * <p><b>Nothing is placed and nothing is broken.</b> A bot standing on a step is already ON the
      * route out; the flight is walkable by construction, and a flight that has stopped being one is
      * what {@code walkTheFlight}'s own audit and mend answer. Placing here is what filled the steps in
      * the first place, and breaking here is how a walk eats the mould the rung is building — the same
@@ -326,7 +326,7 @@ public final class JourneyShaft {
         });
     }
 
-    /** How far from the body a climb looks for a column the flight does not run through. Three: a
+    /** How far from the bot a climb looks for a column the flight does not run through. Three: a
      *  stairwell is one cell wide with rock either side, so what is reachable is either the room it
      *  opens into or nothing at all — and a column further out than this is a walk, not a step
      *  aside. */
@@ -336,14 +336,14 @@ public final class JourneyShaft {
      * The column a tower may build in without walling up the staircase.
      *
      * <p>Three answers, and the third is the one that matters: <b>null is not "nothing found, carry
-     * on" — it is "do not tower here at all"</b>. A helper that fell back to the body's own column
+     * on" — it is "do not tower here at all"</b>. A helper that fell back to the bot's own column
      * would be a rule with a fallback that ignores it, which is the shape {@link JourneyStairs}
      * already records losing a run to, and the ladder's own geometry makes that fallback the common
      * case rather than the rare one: a flight cut into rock has solid stone on both sides, so there IS
      * no neighbouring column to stand in and the honest answer is to walk the flight.
      *
      * <p>Standability is {@link #footholdInColumn}'s question — something solid under the feet, feet
-     * and head clear — so a column the body could not stand in is never offered, and the drift
+     * and head clear — so a column the bot could not stand in is never offered, and the drift
      * correction that has to walk there is being asked for a cell it can actually reach.
      *
      * @return {@code at} when the flight does not run through {@code at}'s column (nothing to avoid),
@@ -381,7 +381,7 @@ public final class JourneyShaft {
      * of the pour's own ray, and moving it would be answering a different question from the one the
      * caller asked — so {@link #climbFrom} records the collision and leaves the column alone. That
      * reasoning has exactly one premise: <b>the column is still the one the ray chose</b>. The moment
-     * the drift correction gives up and adopts wherever the body ended, the premise is gone — the
+     * the drift correction gives up and adopts wherever the bot ended, the premise is gone — the
      * ray's column has already been abandoned — and "changing the column means changing the ray"
      * stops being a reason to skip the check and becomes the reason to run it.
      *
@@ -402,15 +402,15 @@ public final class JourneyShaft {
      *
      * <p>Column {@code 1,19} was never put through {@link #towerColumnClearOfTheFlight} by anybody:
      * it was not requested, it was adopted by a drift, and it is a flight column too. Two dirt went
-     * into it and the body finished standing on the second of them, which is the one cell
-     * {@code lava9.up}'s tread audit cannot mend — a body cannot mine the block under its own feet,
+     * into it and the bot finished standing on the second of them, which is the one cell
+     * {@code lava9.up}'s tread audit cannot mend — a player cannot mine the block under its own feet,
      * and that audit runs once and never re-asks.
      *
      * <p><b>The tread audit is not where this belongs.</b> It ran on that very trip and mended the two
-     * treads it could see; what it could not do is un-place the block holding the body up. A repair
-     * that has to reach through the body is the wrong repair — the placement must not happen.
+     * treads it could see; what it could not do is un-place the block holding the bot up. A repair
+     * that has to reach through the bot is the wrong repair — the placement must not happen.
      *
-     * @param want       the column a tower is about to build in, at the height the body is at
+     * @param want       the column a tower is about to build in, at the height the bot is at
      * @param pinned     the caller pinned the column to a ray ({@link #climbPinned})
      * @param driftMoved the correction ended somewhere other than that column, so the pin's premise
      *                   is already void
@@ -449,16 +449,16 @@ public final class JourneyShaft {
     }
 
     /**
-     * A leg whose whole point was to ascend must not END lower than it started.
+     * A climb whose whole point was to ascend must not END lower than it started.
      *
-     * <p>Runs after the walker fallback, which is the only part of a climb that can move the body
-     * DOWN: a tower cannot, and the mine legs only cut upward. Re-enters the scripted ascent through
+     * <p>Runs after the walker fallback, which is the only part of a climb that can move the bot
+     * DOWN: a tower cannot, and the mine steps only cut upward. Re-enters the scripted ascent through
      * the {@code int washedOff} overload so the climb keeps its own name and its own rows — the
      * {@code String tag} entry bumps {@code climbSeq}, and a rescue that renamed the climb would
      * file its evidence under a key no reader of the first half would look for. (Both overloads
      * take six arguments; counting them names neither.)
      *
-     * <p>The column is re-chosen from where the body actually is, and the pin is deliberately not
+     * <p>The column is re-chosen from where the bot actually is, and the pin is deliberately not
      * honoured here: a pinned climb that has fallen back has already adopted another column two
      * courses earlier (see {@link #climbPinned}), and the one thing this rescue must not do is walk
      * BACK down to a column it cannot stand in.
@@ -495,7 +495,7 @@ public final class JourneyShaft {
     static void recordExit(JourneyRig rig, Runnable then) {
         rig.evidence(climbName + ".toY", rig.player().blockPosition().getY());
         // WHICH COLUMN IT ENDED ON, not only how high. A tower that drifts still gains height, so
-        // `exit.gained=3/3` is true of a body three cells from where the caller asked for it — and
+        // `exit.gained=3/3` is true of a bot three cells from where the caller asked for it — and
         // for a caller that wants a ray rather than an altitude those are different outcomes with
         // identical readings. See climbPinned for the run this cost.
         BlockPos end = rig.player().blockPosition();
@@ -506,14 +506,14 @@ public final class JourneyShaft {
         //
         // The exit's completion test is `y >= surfaceY`, which has no opinion about the medium — the
         // same shape as `Goal.YLevel` being column-blind, one axis further. Measured 2026-08-22: a
-        // climb reported `toY=64`, `gained=20/20`, and left the body FLOATING at the water's surface.
+        // climb reported `toY=64`, `gained=20/20`, and left the bot FLOATING at the water's surface.
         // Nothing was standing under it, so over the next 65 ticks-times-twenty of the smelt wait it
         // sank at exactly −0.025 blocks/tick (vanilla's water terminal velocity, −0.005/(1−0.8)) from
         // y=64 to y=39 with no plan driving it at all. The rung above then failed to walk to its
         // gravel column, 25 blocks underwater, and was investigated as a pathfinding bug for a while.
         //
         // The proof it was afloat rather than merely wet is in the same second of that log: the
-        // furnace was placed at `93,63,95` while the body stood at `93,64,95` — the station went into
+        // furnace was placed at `93,63,95` while the bot stood at `93,64,95` — the station went into
         // the cell directly beneath the feet, so that cell was replaceable and there was no floor.
         //
         // Recording only. The obvious "fix" — refuse to finish while in water — falls straight
@@ -561,8 +561,8 @@ public final class JourneyShaft {
                   + " would report this climb as a success");
         // A CLIMB THAT ENDED LOWER IS NOT A SHORT CLIMB. `gained=-3/20` reads as a fraction like any
         // other, and on 2026-08-19 it went past every reader between `vein2.exit#3` and the rung that
-        // failed two legs later for want of a free cell to stand a crafting table in. A negative
-        // gain has exactly one meaning — the body is further from daylight than the leg found it —
+        // failed two steps later for want of a free cell to stand a crafting table in. A negative
+        // gain has exactly one meaning — the bot is further from daylight than the climb found it —
         // and it gets its own key so a results file can be grepped for it.
         if (gained < 0)
             rig.evidence(climbName + ".lost", "this climb ended " + (-gained)
@@ -578,14 +578,14 @@ public final class JourneyShaft {
         then.run();
     }
 
-    /** How many courses a scripted exit gets, at least. One course is at most two legs (mine,
+    /** How many courses a scripted exit gets, at least. One course is at most two steps (mine,
      *  tower), and the deepest shaft the ladder dug when this was written was the iron rung's —
      *  sized with room to spare, because the cost of being wrong here is a rung that reads as a
      *  mining failure. It stopped being enough the moment a rung dug to the seed's lava. */
     static final int MAX_CLIMB_STEPS = 40;
 
     /** The course cap for a climb of a known height. Two per block: a course that has to break
-     *  its own ceiling first spends one leg mining and one towering, and a body still falling
+     *  its own ceiling first spends one step mining and one towering, and a bot still falling
      *  after the mine spends another settling before it may jump. */
     static int climbCoursesFor(int rise) {
         return Math.max(MAX_CLIMB_STEPS, rise * 2 + 20);
@@ -594,17 +594,17 @@ public final class JourneyShaft {
     /**
      * How many courses a climb may lose to moving water before it gives up.
      *
-     * <p>Flowing water PUSHES entities, and a body on top of a one-block pillar is the easiest thing
+     * <p>Flowing water PUSHES entities, and a player on top of a one-block pillar is the easiest thing
      * in the game to push off one. Measured on the portal rung, whose alcove is flooded by the very
      * bucket the cast needs: {@code climb.1.stalled=done (placed=1, feetY=53)} — the tower placed its
-     * block and the body did reach y=53 — beside {@code climb.1.state=onGround=false inWater=true
+     * block and the bot did reach y=53 — beside {@code climb.1.state=onGround=false inWater=true
      * y=51.63}. It rose two blocks and was washed back down, and the climb then stopped for good on
      * that single lost course while forty-two of its forty-four remained.
      *
      * <p>This is not "a retry that changes nothing": the water is flowing, so each attempt starts
      * from a different current, and two courses is all it takes to get above the flood. Losing a
      * course on DRY land still ends the climb immediately — there the state does not change, and
-     * forty identical no-op legs is the failure this cap was written to prevent.
+     * forty identical no-op steps is the failure this cap was written to prevent.
      */
     static final int WASHED_OFF_RETRIES = 8;
 
@@ -613,10 +613,10 @@ public final class JourneyShaft {
      * bookkeeping itself.
      *
      * <p>{@code climbColX/Z} and {@link #climbPinned} are static, which is safe for the reason the
-     * rest of this package's state is (one body, one run, one scene at a time) and only while every
+     * rest of this package's state is (one bot, one run, one scene at a time) and only while every
      * entry point SETS them. This one did not: the obsidian rung's climb-back-to-the-gallery reached
      * the drift branch carrying whichever column the previous rung's exit had left behind, so the
-     * correction walked toward a cell that had nothing to do with where the body was. Inheriting a
+     * correction walked toward a cell that had nothing to do with where the bot was. Inheriting a
      * PIN would be worse still — a pin belongs to the caller that asked for one, and this caller
      * wants the ordinary "any column that rises will do" policy.
      */
@@ -642,15 +642,15 @@ public final class JourneyShaft {
      * Rise one course: clear whatever is overhead, then pillar into the space.
      *
      * <p>The mirror of {@link #descendByMining}, and recursive for the same reason — a course is
-     * two await legs and the body has to actually move between them.
+     * two await steps and the bot has to actually move between them.
      *
-     * <p>{@link net.magicterra.worlddriver.bot.process.TowerProcess} cannot break, so a body that
+     * <p>{@link net.magicterra.worlddriver.bot.process.TowerProcess} cannot break, so a bot that
      * mined sideways and is standing under its own ceiling would jump into rock forever and report
      * "stuck (no Y gain)". Clearing {@code feet+2} first is what makes the tower legal: that is the
      * cell the head moves into once the feet rise one.
      *
      * <p>Best-effort, but not silently: a course that gains nothing with a clear ceiling stops the
-     * climb and records the builder's own reason, because forty identical no-op legs report a
+     * climb and records the builder's own reason, because forty identical no-op steps report a
      * missing capability where "no placeable block in the hotbar" is the actual answer.
      */
     static void ascendByTowering(JourneyRig rig, int surfaceY, int budget, int cap, int washedOff,
@@ -666,7 +666,7 @@ public final class JourneyShaft {
         // it had drifted two cells into the FRAME'S OWN PLANE and then rose straight up through it,
         // mining the mould's cells out and filling the hole with cobblestone. The rung's ten casts
         // were being poured into a frame the exit had just eaten. `TowerProcess` places under the
-        // body and jumps; where the body lands after that is not pinned to anything, so a course
+        // bot and jumps; where the bot lands after that is not pinned to anything, so a course
         // that ends a cell over is normal and only the next course makes it permanent.
         if (at.getX() != climbColX || at.getZ() != climbColZ) {
             // Captured BEFORE the correction, because both writes below move `climbCol` and the
@@ -675,13 +675,13 @@ public final class JourneyShaft {
             final int wasColZ = climbColZ;
             rig.evidence(climbKey(step, ".drift"), at.toShortString() + " has drifted off the tower column "
                     + climbColX + "," + climbColZ + "; walking back before the next course");
-            // THE COLUMN, AT WHATEVER HEIGHT IT CAN BE ENTERED — not the cell level with the body.
+            // THE COLUMN, AT WHATEVER HEIGHT IT CAN BE ENTERED — not the cell level with the bot.
             //
             // `Goal.Block(climbColX, at.getY(), climbColZ)` is only the right cell on flat ground.
             // The portal rung's raise asks for a column inside a HOLLOW alcove, so the cell at the
-            // body's own height is air over air and no route exists to it; the column's only
+            // bot's own height is air over air and no route exists to it; the column's only
             // standable cell is its floor, several rows down. Measured, the rehearsal of 2026-08-16
-            // cell eight: `recover8.rise.raise` chose the column `-9,37` and the body was at
+            // cell eight: `recover8.rise.raise` chose the column `-9,37` and the bot was at
             // `-9,58,38`, one cell out; the correction asked for `-9,58,37` — air with air under it
             // — failed, and the pinned climb (which then STOPPED — see climbPinned for why it no
             // longer does) ended WITHOUT PLACING A SINGLE BLOCK, which the row
@@ -695,7 +695,7 @@ public final class JourneyShaft {
             walkBackToColumn(rig, step, DRIFT_ATTEMPTS, () -> {
                 BlockPos back = rig.player().blockPosition();
                 // The correction is over. Adopt — a bounded number of attempts must not become the
-                // whole climb: forty courses of walking back to a cell the body cannot reach is the
+                // whole climb: forty courses of walking back to a cell the bot cannot reach is the
                 // same wedge in a different costume, and the climb still has to happen.
                 //
                 // A PINNED CLIMB ADOPTS TOO, and says louder that it did. Refusing was tried, for one
@@ -705,7 +705,7 @@ public final class JourneyShaft {
                 // correction descends into the column's only foothold and the refusal then forbids
                 // the tower that would have paid it back. What the pin is entitled to is that nobody
                 // downstream may mistake the result for the raise that was asked for, and that is a
-                // job for a row and for the pour's gate, not for a body left standing in a puddle.
+                // job for a row and for the pour's gate, not for a bot left standing in a puddle.
                 boolean adopted = back.getX() != climbColX || back.getZ() != climbColZ;
                 if (adopted) {
                     rig.evidence(climbKey(step, climbPinned ? ".driftKeptPinned" : ".driftKept"),
@@ -746,18 +746,18 @@ public final class JourneyShaft {
                 }
                 // TWO WRITES THAT UNDO EACH OTHER ARE NOT A CORRECTION.
                 //
-                // `driftKept` adopts the column the body is standing in precisely BECAUSE the leg
+                // `driftKept` adopts the column the bot is standing in precisely BECAUSE the walk
                 // could not reach the old one; the flight check then rejects that column for being a
-                // staircase column and names another. When the other one is the column the leg just
+                // staircase column and names another. When the other one is the column the walk just
                 // failed to reach, the two writes are inverses: the course ends in the exact state it
                 // began in, and the next course asks the identical question. Rung 12's rehearsal of
                 // 2026-08-26 spent its whole forty-course cap that way — `climb.0` through
-                // `climb.39` byte-identical, the body pinned at 1,57,19 with `driftGoto` timing out
+                // `climb.39` byte-identical, the bot pinned at 1,57,19 with `driftGoto` timing out
                 // toward 2,56,18, `driftKept` naming 1,19 and `driftOffTheFlight` naming 2,18, forty
                 // times over. MAX_CLIMB_STEPS was the only thing that ended it.
                 //
                 // Bounded by the shape and not by a counter, because only this shape is a loop. A
-                // body that MOVED has changed the question even without arriving — the flight is
+                // bot that MOVED has changed the question even without arriving — the flight is
                 // then choosing between columns it has not been refused — and a flight naming a
                 // THIRD column has changed it too. Both keep the old behaviour. Only the exact
                 // inverse pair is refused, and it takes `driftOntoTheFlight`'s exit for the same
@@ -784,11 +784,11 @@ public final class JourneyShaft {
             });
             return;
         }
-        // WHAT THE BODY HAS TO LIFT ITSELF THROUGH, not what its block coordinate names.
-        // `at.above(2)` is ONE column — the one `floor(x), floor(z)` picks out — and a body is 0.6
+        // WHAT THE PLAYER HAS TO LIFT ITSELF THROUGH, not what its block coordinate names.
+        // `at.above(2)` is ONE column — the one `floor(x), floor(z)` picks out — and a player is 0.6
         // wide, so one standing within 0.3 of a cell boundary also lifts a corner of itself through
         // the NEIGHBOUR's cell. This loop makes that shape by hand: it opens the ceiling over the
-        // body's own column, the body gains its block and comes back down a fraction of a cell over,
+        // bot's own column, the bot gains its block and comes back down a fraction of a cell over,
         // and the next course jumps into rock its own check has just reported clear. That is
         // `vein2.exit#3` on 2026-08-19 — `climb.1.stalled = stuck (no Y gain in 60t: placed=0,
         // holding=64, phase=JUMPING)` on course ONE, after course zero had gained — and
@@ -815,17 +815,17 @@ public final class JourneyShaft {
             // `-7,54,21 = lava`, in an alcove twelve blocks BELOW it, with the corridor cells around
             // it turned to stone where the lava met the cast's own water. The rung then read the next
             // frame cell as "canBreak=false, all six neighbours solid" and reported a mining failure.
-            // The shaft the body came
+            // The shaft the bot came
             // down is already open, so a climb that needs to mine at all is a climb that has
             // wandered — stopping here is the honest answer, and climbOut's walker fallback is what
-            // still gets the body out.
+            // still gets the bot out.
             //
             // ASKED ONLY WHEN THERE IS SOMETHING TO OPEN, and that ordering is the whole point.
             // `fluidTouching` answers for the six NEIGHBOURS as well as the cell, so an EMPTY
             // ceiling beside the rung's own water refuses a course that would not have broken
             // anything at all. Measured on the portal rung, run 43's `cast8`: `climb.0=-9,57,36
-            // above=Block{minecraft:air}` and, the same leg, `climb.0.wouldOpenFluid=-9,59,36
-            // opening it would release -9,59,37 = water`. The pour needs the body one row under a cell at y=60
+            // above=Block{minecraft:air}` and, in the same course, `climb.0.wouldOpenFluid=-9,59,36
+            // opening it would release -9,59,37 = water`. The pour needs the bot one row under a cell at y=60
             // and the climb stopped at y=58 (`cast8.raisedY=58/59`) over water the cast had poured
             // itself, in a column with nothing but air between the feet and the target.
             String wet = fluidTouching(lvl, ceiling);
@@ -839,12 +839,12 @@ public final class JourneyShaft {
             return;
         }
         // Land before jumping. TowerProcess's READY phase waits for onGround and its stuck counter
-        // runs from tick zero, so a body still settling after the mine that preceded it burns its
+        // runs from tick zero, so a bot still settling after the mine that preceded it burns its
         // whole 60-tick patience falling and reports "stuck (no Y gain — out of blocks?)" while
         // holding thirty cobblestone. HoldStill is the same non-steering settle the descent uses.
         if (!rig.player().onGround()) {
             // FLOATING IS NOT SETTLING, and the descent already learned this the expensive way:
-            // "no number of settles fixes floating". A body in water never becomes `onGround`, so
+            // "no number of settles fixes floating". A player in water never becomes `onGround`, so
             // this branch recurses on itself for as long as the budget lasts and every course is a
             // no-op. Measured on the portal rung, 2026-08-15: `climb.4` through `climb.39` —
             // THIRTY-SIX identical courses of `-7,56,36 above=air onGround=false water=true`, the
@@ -852,17 +852,17 @@ public final class JourneyShaft {
             //
             // Bounded by the washed-off allowance rather than refused outright, because that is the
             // same phenomenon seen one tick earlier and it already carries a measured number: the
-            // water is moving, so a few courses genuinely can end with the body back on a block.
+            // water is moving, so a few courses genuinely can end with the bot back on a block.
             // Past that it is a flood, not a stumble, and climbOut's walker fallback is what gets
-            // the body out.
+            // the bot out.
             if (rig.player().isInWater()) {
                 if (washedOff <= 0) {
                     // WHY IT NEVER LANDS, not only that it did not. `HoldStill` releases the inputs
                     // and nothing else, so gravity still runs — eight settles of sixty ticks is ample
-                    // for a body to sink several blocks. A row that only says "afloat in water, not
+                    // for a player to sink several blocks. A row that only says "afloat in water, not
                     // grounded in 8 tries" therefore fits three different worlds and cannot pick
                     // between them: the floor under the feet is missing (nothing to land ON), the
-                    // water is deep enough that buoyancy holds the body up, or the body IS resting
+                    // water is deep enough that buoyancy holds the bot up, or the bot IS resting
                     // and `onGround` is simply false in a fluid. They want three different remedies,
                     // and this rung has spent two rounds on "the tower does not get high" readings
                     // that turned out to be "the bot never landed".
@@ -883,7 +883,7 @@ public final class JourneyShaft {
         String pillar = pillarBlock(rig);
         rig.evidence(climbKey(step, ".with"), pillar + " ×" + rig.carrying(pillar));
         // Put the block in the HAND before the tower asks for it. `Body.holdPlaceable` scans slots
-        // 0..8 and gives up; `Body.holdItem` scans all 36 and swaps one up. So a body four rungs
+        // 0..8 and gives up; `Body.holdItem` scans all 36 and swaps one up. So a bot four rungs
         // deep — whose hotbar is pickaxes, a bucket, flint, food — reports "no placeable block in
         // hotbar" while carrying 110 cobblestone, which is what the obsidian rung's exit did: 36
         // blocks of rise, one block gained.
@@ -894,9 +894,9 @@ public final class JourneyShaft {
         // `reachIntoBag` opt-in at the settle below. Kept here because the two do different jobs —
         // this one also sets the SERVER's hand and records the failure to do so as `.hand`.
         var pillarItem = BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(pillar));
-        // BOTH BODIES. `TowerProcess` places through `gameMode.useItemOn`, and what lands is decided
-        // by the hand the SERVER has — which the mine that preceded this course moved to a pickaxe
-        // without telling anyone (see JourneyHands.holdBoth). A pickaxe's `useOn` against
+        // BOTH PLAYERS, CLIENT AND SERVER. `TowerProcess` places through `gameMode.useItemOn`, and
+        // what lands is decided by the hand the SERVER has — which the mine that preceded this
+        // course moved to a pickaxe without telling anyone (see JourneyHands.holdBoth). A pickaxe's `useOn` against
         // a block face does nothing at all, silently, and the three rows this course writes report it
         // as an ordinary stall: `climb.2.stalled=null` (NOT "the builder reported no error" — that
         // row read the SERVER's BotState, which nothing writes once the process went to the client
@@ -907,7 +907,7 @@ public final class JourneyShaft {
         // `climb.2.stock=minecraft:cobblestone ×137` — the server count NEVER MOVING, which is the
         // same signature the pour had as `spent 1→1`. One course with no Y gain ends the whole tower
         // (the height test after this method's own TowerProcess settle recurses on a rise, and
-        // otherwise only for a body a MOVING flow washed off — a dry stall hands back to `then`),
+        // otherwise only for a bot a MOVING flow washed off — a dry stall hands back to `then`),
         // so a wrong hand costs the entire raise: rung 12's ninth cell got
         // `pinnedShort` on dry ground with 137 cobblestone in the bag.
         //
@@ -918,8 +918,8 @@ public final class JourneyShaft {
                     + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
         }
         // Land before judging, and that is a bug fix rather than politeness: a jump is not a gain.
-        // The body is a block higher for the few ticks it is in the air, so a check taken at the end
-        // of the tower's own leg reads a REFUSED PLACE as a successful course. Measured on the stone
+        // The bot is a block higher for the few ticks it is in the air, so a check taken at the end
+        // of the tower's own step reads a REFUSED PLACE as a successful course. Measured on the stone
         // rung: forty courses of 55 → 56 → 55, the cobblestone count never moving off 30, and the
         // stall branch below — the one whose whole job is to say why — never firing once, because
         // every course "gained" a block it did not keep.
@@ -935,7 +935,7 @@ public final class JourneyShaft {
                 return;
             }
             // "stuck (no Y gain)" has two very different causes and the message cannot tell them
-            // apart: the tower never JUMPED (its READY phase requires onGround, and a body floating
+            // apart: the tower never JUMPED (its READY phase requires onGround, and a bot floating
             // in the groundwater that seeped into its own shaft never is), or it jumped and the
             // place was rejected. The state at the moment it gave up is what separates them —
             // measured once already as `climb.0.stalled` with a clear ceiling and zero blocks spent.
@@ -967,14 +967,14 @@ public final class JourneyShaft {
             // ⚠️ "Washed off" NAMES A MECHANISM, so ask whether the mechanism happened. The only
             // test used to be isInWater(), which a STILL pool passes forever — and ladder-15 spent
             // ten courses here on one, every one with placed=0 and the eye at a byte-identical
-            // position. Nothing washed anything; the body was simply floating, and a floating body
+            // position. Nothing washed anything; the bot was simply floating, and a floating bot
             // can never finish this tower at all (TowerProcess's READY phase requires onGround), so
             // the retry asked a question whose answer could not change ([[a-retry-that-changes-nothing]]).
             // Still water is therefore a REASON TO STOP, not a reason to try eight more times: the
-            // caller's fallback leg is the thing that can still work, and ten courses of holding
+            // caller's fallback walk is the thing that can still work, and ten courses of holding
             // still is ten courses it does not get.
-            // The BODY's level, deliberately not the enclosing `lvl` (= rig.ctx().level(), the
-            // SCENE's): after rung 19 the body is in another dimension and the two are different
+            // The BOT's level, deliberately not the enclosing `lvl` (= rig.ctx().level(), the
+            // SCENE's): after rung 19 the bot is in another dimension and the two are different
             // worlds. A fluid read taken from the scene's level would answer about overworld water
             // at nether coordinates — the same mismatch J24 records for `supportUnder`.
             ServerLevel bodyLvl = (ServerLevel) rig.player().level();
@@ -1032,15 +1032,15 @@ public final class JourneyShaft {
         }));
     }
 
-    /** How far around the body's own column to look for a source that could be feeding the water it
-     *  is standing in. Four, matching the re-column leg that asks the same question of the same kind
+    /** How far around the bot's own column to look for a source that could be feeding the water it
+     *  is standing in. Four, matching the re-column step that asks the same question of the same kind
      *  of puddle — a pour reaches about that far, and a source further off than this is feeding some
      *  other cell. Deliberately its own constant and not a reach across into the scene file: the two
      *  sites answer for different columns and are entitled to disagree later. */
     private static final int WASHED_OFF_UPSTREAM = 4;
 
     /** The cells a one-block rise is blocked by, named, or {@code air} when it is clear — the
-     *  {@code above=} half of every course row. Plural because a straddling body has more than one,
+     *  {@code above=} half of every course row. Plural because a straddling player has more than one,
      *  and the whole point of the reading is that the caller used to see only its own column. */
     private static String overheadRow(ServerLevel lvl, List<BlockPos> overhead) {
         if (overhead.isEmpty()) return "air";
@@ -1054,11 +1054,11 @@ public final class JourneyShaft {
     }
 
     /**
-     * What to pillar with: whichever of the shaft's own spoil the body is actually carrying.
+     * What to pillar with: whichever of the shaft's own spoil the bot is actually carrying.
      *
      * <p>It was {@code minecraft:cobblestone}, hard-coded, and that was right for exactly as long as
      * every shaft in the ladder stopped above y=0. Below that the spoil is cobbled deepslate, and a
-     * tower asked for a block the body does not hold reports <b>"stuck (no Y gain — out of blocks?)"</b>
+     * tower asked for a block the bot does not hold reports <b>"stuck (no Y gain — out of blocks?)"</b>
      * while the inventory is full — a message that names the wrong problem so convincingly that the
      * first reading is always "the builder is broken".
      *
@@ -1075,7 +1075,7 @@ public final class JourneyShaft {
      * <p>The list is the parameter and the argmax is not, because the two are not equally
      * portable. {@code JourneyEndRungs} carried a byte-identical copy of this loop over a list
      * that includes {@code minecraft:end_stone} — a legitimate fork, since a shaft never yields
-     * end stone and a body on the outer islands has little else. Folding the two LISTS together
+     * end stone and a bot on the outer islands has little else. Folding the two LISTS together
      * would have taken a block away from the end rungs; folding the two LOOPS together takes
      * nothing from anyone. The same file's {@code bestWeapon} pair drifted apart before anyone
      * noticed, which is what this is avoiding.
@@ -1096,7 +1096,7 @@ public final class JourneyShaft {
             "minecraft:tuff", "minecraft:andesite", "minecraft:diorite", "minecraft:granite");
 
     /** How many ATTEMPTS a scripted shaft gets, at least. Not blocks: a block costs two or three
-     *  passes, because the body needs settle ticks to actually fall in after the floor is gone.
+     *  passes, because the bot needs settle ticks to actually fall in after the floor is gone.
      *  Twelve was sized as blocks and bought exactly one block of descent before giving up; thirty
      *  covered a nine-deep shaft with nothing to spare, and the second iron vein is eleven deep. */
     static final int MAX_SHAFT_BLOCKS = 60;
@@ -1106,11 +1106,11 @@ public final class JourneyShaft {
      *
      * <p>A constant was fine while every shaft in the ladder was nine or eleven deep. The obsidian
      * rung digs to whatever depth the seed's lava sits at, and a cap that does not know how far it
-     * is going reports "the block broke but the body did not sink" for a shaft that was simply
+     * is going reports "the block broke but the bot did not sink" for a shaft that was simply
      * longer than the number somebody typed. That failure names a driver bug and means a budget, and
      * telling those apart afterwards costs a whole run.
      *
-     * <p>Three, because the settle-and-retry path costs an attempt of its own whenever the body has
+     * <p>Three, because the settle-and-retry path costs an attempt of its own whenever the bot has
      * not dropped in yet, and a shaft that hits gravel or water spends several.
      */
     static final int SHAFT_ATTEMPTS_PER_BLOCK = 3;
@@ -1121,13 +1121,13 @@ public final class JourneyShaft {
     }
 
     /**
-     * Dig the block under the body, let it fall in, repeat until its feet reach {@code targetY}.
+     * Dig the block under the bot, let it fall in, repeat until its feet reach {@code targetY}.
      *
-     * <p>Recursive rather than looped because each block is its own {@code await} leg — the body
+     * <p>Recursive rather than looped because each block is its own {@code await} step — the bot
      * has to actually fall between them, and a loop inside one scene tick would break twelve blocks
-     * in a world that never advanced and leave the body standing on air.
+     * in a world that never advanced and leave the bot standing on air.
      *
-     * <p>The step cap is not belt-and-braces. A mine that finishes without the body descending —
+     * <p>The step cap is not a redundant safeguard. A mine that finishes without the bot descending —
      * the block broke but something is holding it up — would otherwise recurse forever registering
      * new await steps, which reads as a hung suite rather than as the failure it is.
      */
@@ -1160,22 +1160,22 @@ public final class JourneyShaft {
      * unlucky again.
      *
      * <p><b>A lens, not a plug, and the first version got that wrong in a way worth keeping.</b> It
-     * flooded three cells in the one column — the support, the body's cell and its head — and the
+     * flooded three cells in the one column — the support, the bot's cell and its head — and the
      * descent walked straight past it: {@code shaft.4 … below=stone}, {@code shaft.sabotage}, then
      * {@code shaft.5 = -4,58,56 below=-4,57,56 stone} and no guard at all. Two reasons, both
      * structural. {@code player.isInWater()} is set by the entity's own tick, so on the tick the
-     * blocks change it is still false; and by the next pass the body had SUNK into the water it was
+     * blocks change it is still false; and by the next pass the bot had SUNK into the water it was
      * given, which put dry rock back under it. The guard needs the support to be fluid too, and
      * {@link #supportUnder} falls back to the corners of the bounding box — so a one-cell-wide
-     * flood leaves a solid corner holding the body up.
+     * flood leaves a solid corner holding the bot up.
      *
      * <p><b>And DEEP, which the second version got wrong.</b> A three-wide lens four cells deep
      * still did nothing: {@code shaft.4 … below=stone}, {@code shaft.sabotage}, then
-     * {@code shaft.5 = -4,57,56 below=-4,56,56 stone}. The body sank through all four cells inside
+     * {@code shaft.5 = -4,57,56 below=-4,56,56 stone}. The bot sank through all four cells inside
      * one 60-tick settle and came to rest on the dry rock underneath, so the pass that followed saw
      * a SOLID support and the guard's first condition was never met. The state the guard is written
-     * for is a body still inside the water with more water under it, and the only way to hold a
-     * sinking body in that state for a whole pass is to give it further to sink. Eight cells below
+     * for is a bot still inside the water with more water under it, and the only way to hold a
+     * sinking bot in that state for a whole pass is to give it further to sink. Eight cells below
      * the support is what an aquifer looks like anyway — the natural failure read
      * {@code below=-4,61,56 water} with every corner of the footprint gone too.
      */
@@ -1205,7 +1205,7 @@ public final class JourneyShaft {
      *  happen, and a second flood would only test the swap's own budget. */
     private static boolean flooded;
 
-    /** How deep the descent must already be before the flood is staged. Four blocks, so the body is
+    /** How deep the descent must already be before the flood is staged. Four blocks, so the bot is
      *  in a shaft it dug rather than standing at the mouth — which is where the real failures were
      *  ({@code shaft.8}, eight passes in). */
     private static final int FLOOD_AFTER = 4;
@@ -1213,22 +1213,22 @@ public final class JourneyShaft {
     /**
      * How far below the support the staged lens reaches.
      *
-     * <p>Twenty, and the number is measured rather than generous. A body in water SINKS — it does
+     * <p>Twenty, and the number is measured rather than generous. A player in water SINKS — it does
      * not float unless something makes it swim — and the descent's own settle is 60 ticks, which is
      * long enough for it to fall <b>nine blocks</b>: with the lens eight deep the run recorded
-     * {@code shaft.4 = -4,59,56} and then {@code shaft.5 = -4,50,56 below=-4,49,56 stone}, the body
-     * having crossed the whole pocket and landed on its dry floor inside one leg. The guard's state
-     * is a body still IN the water with more water under it, so the lens has to be deeper than one
+     * {@code shaft.4 = -4,59,56} and then {@code shaft.5 = -4,50,56 below=-4,49,56 stone}, the bot
+     * having crossed the whole pocket and landed on its dry floor inside one pass. The guard's state
+     * is a bot still IN the water with more water under it, so the lens has to be deeper than one
      * settle's fall or the run never passes through that state at all.
      *
      * <p>Which is also why the natural failure is random: it is the same race, decided by where the
-     * groundwater's floor happens to be relative to how far the body got that leg.
+     * groundwater's floor happens to be relative to how far the bot got in that pass.
      */
     private static final int FLOOD_DEPTH = 20;
 
 
     /**
-     * The still-solid cell under the body's footprint — the one actually holding it up.
+     * The still-solid cell under the bot's footprint — the one actually holding it up.
      *
      * <p>Prefers the centre cell so an ordinary shaft stays a straight one-wide hole, and falls
      * back to whichever corner of the bounding box is still standing. Returns the centre cell when
@@ -1238,16 +1238,16 @@ public final class JourneyShaft {
      * and the difference cost a whole run: a shaft broke its centre cell, groundwater filled the
      * hole, and from then on this method answered "the support is the water" for twenty-eight
      * consecutive passes — mining a fluid is a no-op, so the digger reported "the block broke but
-     * the body did not sink" while the corner cell actually carrying the body was never touched.
+     * the bot did not sink" while the corner cell actually carrying the bot was never touched.
      *
-     * <p>The footprint is 0.6 wide, so a body standing near a cell edge rests on TWO cells and
+     * <p>The footprint is 0.6 wide, so a player standing near a cell edge rests on TWO cells and
      * breaking only the centre one leaves it on the neighbour — that is what the corner fallback is
      * for, and it is why the caller has to print WHICH cell it got back rather than only what the
      * cell is made of.
      *
-     * <p><b>It reads the SCENE's level, not the body's</b>, and {@link #sceneLevel} is where that
+     * <p><b>It reads the SCENE's level, not the bot's</b>, and {@link #sceneLevel} is where that
      * choice is stated. Its twin {@code JourneyEndRungs.supportUnder} is otherwise the same method
-     * and reads the body's level instead, because its body is in the end. The two are not mergeable
+     * and reads the bot's level instead, because its bot is in the End. The two are not mergeable
      * as they stand: folding this one onto the twin's rule would be a behaviour change here, and
      * folding the twin onto this one would point an end rung at overworld terrain.
      */
@@ -1274,8 +1274,8 @@ public final class JourneyShaft {
      * "no route": the walker planned, walked one block of it, and reported the path CONSUMED. That
      * is this repo's own {@code wd.serverWalkerArrivedShort} — {@code IntentProcess} reports its
      * goal reached for a partial path — and the answer to it everywhere else in this suite is to
-     * ask again from where the body now is, which {@link WorldDriverJourneyScenes#walkToColumn}
-     * has done for cross-country legs since the iron rung ended one 88 blocks short.
+     * ask again from where the bot now is, which {@link WorldDriverJourneyScenes#walkToColumn}
+     * has done for cross-country walks since the iron rung ended one 88 blocks short.
      *
      * <p>One attempt was therefore not a policy, it was a bug: a correction that could have been
      * made in two walks reported that the bot could not walk back to the assigned column and ended a
@@ -1285,15 +1285,15 @@ public final class JourneyShaft {
     static final int DRIFT_ATTEMPTS = 3;
 
     /**
-     * Walk back onto the pinned column, re-planning from wherever each leg ends.
+     * Walk back onto the pinned column, re-planning from wherever each walk ends.
      *
      * <p>Two guards keep this from becoming the wedge the single attempt was protecting against.
-     * It is bounded at {@link #DRIFT_ATTEMPTS}; and <b>a leg that did not move the body ends it
+     * It is bounded at {@link #DRIFT_ATTEMPTS}; and <b>a walk that did not move the bot ends it
      * immediately</b> — three identical questions get three identical answers, which is the
      * measured lesson behind {@code walkToColumn}'s own wedge check.
      *
      * <p>It may not BREAK its way there. The casting phase runs with {@code allowBreak} on, and a
-     * correction that mines is how a cast frame cell gets eaten by the body's own repositioning —
+     * correction that mines is how a cast frame cell gets eaten by the bot's own repositioning —
      * the failure {@code frame.lost.1} recorded twice. Walking inside a room the rung just hollowed
      * out needs no digging.
      */
@@ -1304,7 +1304,7 @@ public final class JourneyShaft {
         // A 3D GOAL, NOT AN XZ ONE, whenever the column has a cell to name. `Goal.XZ` reports
         // `ignoresY`, and the pathfinder's own contract says what that costs: the descend-tax
         // applies ONLY to Y-ignoring goals, because for them going down reads as free progress.
-        // Here going down is most of the move — the column's foothold is its floor, under a body
+        // Here going down is most of the move — the column's foothold is its floor, under a bot
         // standing rows above it on the frame — so the one goal shape that is taxed for descending
         // was the one being used. `Goal.Block` carries a real 3D heuristic and is not taxed.
         BlockPos into = footholdInColumn(lvl, climbColX, climbColZ, at.getY());
@@ -1319,13 +1319,13 @@ public final class JourneyShaft {
         boolean couldBreak = BotConfig.allowBreak;
         BotConfig.allowBreak = false;
         // Longer than the 120 ticks the same-height cell needed, because the column's foothold can
-        // be several rows under the body in a hollow alcove and the leg now includes that descent.
+        // be several rows under the bot in a hollow alcove and the walk now includes that descent.
         rig.settle(new IntentProcess(new Intent(goal)), 200, () -> {
             BotConfig.allowBreak = couldBreak;
             BlockPos back = rig.player().blockPosition();
             if (back.getX() == climbColX && back.getZ() == climbColZ) { then.run(); return; }
             // WHY it did not get there, from the walker itself. `pinnedLost` and `driftKept` both
-            // used to report only that the body was somewhere else, which is the same sentence for
+            // used to report only that the bot was somewhere else, which is the same sentence for
             // "no route exists", "the search ran out of time" and "it walked part of a plan and
             // stopped" — three findings needing three different answers, and it was the third.
             rig.evidence(climbKey(step, ".driftGoto." + n),
@@ -1345,7 +1345,7 @@ public final class JourneyShaft {
     }
 
     /**
-     * The highest cell in one column, at or below {@code fromY}, that a body could stand in.
+     * The highest cell in one column, at or below {@code fromY}, that a player could stand in.
      *
      * <p>Standable in the walker's own terms — something solid under the feet, feet and head both
      * clear of collision — and highest first, so a correction descends as little as it has to.
@@ -1367,28 +1367,28 @@ public final class JourneyShaft {
         return null;
     }
 
-    /** How far below the body a drift correction will look for a foothold in its own column. Seven:
-     *  the portal rung's alcove is seven cells tall, so a body on its top row and a column whose
+    /** How far below the bot a drift correction will look for a foothold in its own column. Seven:
+     *  the portal rung's alcove is seven cells tall, so a bot on its top row and a column whose
      *  only floor is the bottom one are the extremes this has to span. */
     static final int COLUMN_FOOTHOLD_DROP = 7;
 
     /**
-     * Is a body standing at {@code at} FLOATING — fluid at its feet and fluid under them?
+     * Is a player standing at {@code at} FLOATING — fluid at its feet and fluid under them?
      *
-     * <p>Two cells, and the second one is the whole test. Wet is not afloat: a body standing on rock
-     * in a knee-deep puddle has a floor and stays where it was put, while a body with fluid under it
-     * has nothing holding it up and sinks at water's terminal velocity for as long as nothing drives
+     * <p>Two cells, and the second one is the whole test. Wet is not afloat: a player standing on
+     * rock in a knee-deep puddle has a floor and stays where it was put, while a player with fluid
+     * under it has nothing holding it up and sinks at water's terminal velocity for as long as nothing drives
      * it — measured on 2026-08-22 as a 25-block fall over one smelt wait, from a climb that had just
      * reported {@code toY=64, gained=20/20}.
      *
      * <p>It was written twice, byte for byte: here in {@link #recordExit}, which prints
      * {@code endedOn}, and again in {@code JourneyCast.standOnDryGround}, the one caller that took
-     * {@code recordExit}'s hand-off and walks the body ashore. Two copies of a predicate whose
+     * {@code recordExit}'s hand-off and walks the bot ashore. Two copies of a predicate whose
      * failure mode is "it looked wet enough" is how the second caller ends up asking one cell instead
      * of two, so the question now has one implementation and the remaining callers can be counted.
      *
      * <p><b>Not the same question as {@code JourneyPour.pourLandsFrom}'s {@code afloat}</b>, which
-     * asks only about the FEET cell and feeds an eye-height decision — a body swimming with rock
+     * asks only about the FEET cell and feeds an eye-height decision — a player swimming with rock
      * under it still aims from the swimming eye. Same word, different quantity; do not merge them.
      */
     static boolean afloat(ServerLevel level, BlockPos at) {
@@ -1400,7 +1400,7 @@ public final class JourneyShaft {
      *
      * <p>Not the same question as {@link #afloat}, and the difference is a whole cell.
      * {@code afloat} needs the FOOT cell to be fluid too, so it flips to false the moment a head
-     * clears the surface — while a body treading water at the surface still has nothing to stand on,
+     * clears the surface — while a player treading water at the surface still has nothing to stand on,
      * cannot place, and cannot work. Measured by {@code wd.journeyGetsAshoreBeforePouring}, which
      * watched a recovery step from {@code y=220} to {@code y=221}, report that the bot was no longer
      * afloat, and end with water below its feet: every row read like an arrival at the bank and the
@@ -1416,9 +1416,9 @@ public final class JourneyShaft {
     /**
      * The three readings that separate the three worlds a floating climb can be in.
      *
-     * <p>How far the fluid reaches ABOVE the first solid floor under the body (a body cannot be
+     * <p>How far the fluid reaches ABOVE the first solid floor under the bot (a player cannot be
      * pushed up by water that is not there), what that floor actually is and how far below the feet
-     * it sits, and the body's own sub-cell height. A body resting on a floor reads an integer
+     * it sits, and the bot's own sub-cell height. A player resting on a floor reads an integer
      * {@code y}; a buoyed one does not, and the distinction is the whole question.
      */
     static String afloatWhy(JourneyRig rig, BlockPos at) {
@@ -1446,10 +1446,10 @@ public final class JourneyShaft {
 
     /**
      * The SCENE's level — the arena this scene was laid out in — and deliberately not the level
-     * the body is standing in. Every block read in this file goes through here so the choice is
+     * the bot is standing in. Every block read in this file goes through here so the choice is
      * made in ONE place, with the single exception below.
      *
-     * <p><b>The two are the same world only until the body changes dimension.</b> The sibling
+     * <p><b>The two are the same world only until the bot changes dimension.</b> The sibling
      * helper next door, {@code JourneyEndRungs.levelOf}, is a near-homograph that returns the
      * OTHER one ({@code (ServerLevel) rig.player().level()}), and the two files' method bodies are
      * otherwise line-for-line twins — so "there is a level helper, use it" is not enough to tell
@@ -1458,10 +1458,10 @@ public final class JourneyShaft {
      *
      * <p><b>One site in this file deliberately does NOT use this</b> — the washed-off fluid read in
      * {@code ascendByTowering}, which takes {@code rig.player().level()} because a fluid state is a
-     * fact about where the BODY is. Its comment says so at the call. Everything else here runs on
-     * rungs whose body is still in the scene's own world, which is what makes the choice moot
+     * fact about where the BOT is. Its comment says so at the call. Everything else here runs on
+     * rungs whose bot is still in the scene's own world, which is what makes the choice moot
      * today; the day any method here appears in a nether or end rung's call graph, the reads that
-     * should follow the body have to be split out of this one, not switched underneath it.
+     * should follow the bot have to be split out of this one, not switched underneath it.
      */
     static ServerLevel sceneLevel(JourneyRig rig) { return rig.ctx().level(); }
 
@@ -1486,7 +1486,7 @@ public final class JourneyShaft {
 
     /**
      * @param onWetColumn what to do when the column turns out to be wet PART WAY DOWN, given the
-     *        cell the body was floating in. Null means there is no alternative column here and the
+     *        cell the bot was floating in. Null means there is no alternative column here and the
      *        descent fails — which is the honest answer for a rung digging a surveyed ore column,
      *        and the wrong one for a rung that chose its column at runtime and can choose again.
      *
@@ -1506,37 +1506,37 @@ public final class JourneyShaft {
                     + at + " after " + cap + " attempts (the block broke but the bot did not sink)");
             return;
         }
-        // The block under the body's CENTRE is not necessarily the block holding it up. A player
-        // box is 0.6 wide, so a body standing near a cell edge is supported by TWO cells, and
+        // The block under the bot's CENTRE is not necessarily the block holding it up. A player
+        // box is 0.6 wide, so a player standing near a cell edge is supported by TWO cells, and
         // breaking only the centre one leaves it resting on the neighbour: measured, the shaft
         // broke cleanly and then read `below=air` at an unchanged y for three passes in a row.
         // That is the whole of this rung's run-to-run flakiness — same code, same coordinates, and
         // it descends or does not depending on where in the cell the walk happened to stop.
         BlockPos below = supportUnder(rig, at);
         // Per-step evidence, because the first version of this failed and could not say why: the
-        // body sat at the same y for twelve legs and "the block broke but nothing fell" and "the
+        // bot sat at the same y for twelve passes and "the block broke but nothing fell" and "the
         // block was never solid to begin with" read identically from the outside.
         int step = cap - budget;
-        // WHICH cell is holding the body up, not just what it is made of. `supportUnder` falls back
+        // WHICH cell is holding the bot up, not just what it is made of. `supportUnder` falls back
         // to a corner of the bounding box, so "below=stone" can name a different cell every pass —
         // and without its coordinates fifty identical lines read as one block that will not break
-        // rather than as a body shuffling between two of them. Measured: 55 passes of
-        // `-9,52,21 below=stone` → `broke=air` with the body never sinking, and nothing in the run
+        // rather than as a bot shuffling between two of them. Measured: 55 passes of
+        // `-9,52,21 below=stone` → `broke=air` with the bot never sinking, and nothing in the run
         // said where "below" was.
         rig.evidence("shaft." + step,
                 String.format("%d,%d,%d below=%s %s onGround=%s", at.getX(), at.getY(), at.getZ(),
                         below.toShortString(), sceneLevel(rig).getBlockState(below).getBlock(),
                         rig.player().onGround()));
         floodTheColumnOnce(rig, at, below, step);
-        // Already open — the previous pass broke it and the body has not dropped in yet. Mining
+        // Already open — the previous pass broke it and the bot has not dropped in yet. Mining
         // air is a no-op that still costs an attempt, and three of those in a row is how a shaft
         // with budget for four blocks ran out after one. Fluid counts as open for the same reason
         // it does not count as support: there is nothing here left to break.
         if (!sceneLevel(rig).getBlockState(below).blocksMotion()) {
-            // …unless it is fluid and the body is IN it, which is not "about to fall" — it is
+            // …unless it is fluid and the bot is IN it, which is not "about to fall" — it is
             // floating, and no number of settles fixes floating. Measured: the obsidian rung picked
             // a column under a swamp pond and spent all 122 of its attempts here, then reported
-            // "the block broke but the body did not sink" about a body that was swimming. A shaft
+            // "the block broke but the bot did not sink" about a bot that was swimming. A shaft
             // that cannot start says so in one line instead of after seven thousand ticks.
             if (!sceneLevel(rig).getFluidState(below).isEmpty() && rig.player().isInWater()) {
                 if (onWetColumn != null) {
@@ -1557,24 +1557,24 @@ public final class JourneyShaft {
             return;
         }
         rig.mineBlock(below, 2_000, () -> {
-                // The reading that splits the two failures apart. "The body did not sink" is either
+                // The reading that splits the two failures apart. "The bot did not sink" is either
                 // "the block is still there" (the mine did not break it) or "the block is gone and
-                // the body stayed up" (the walker will not step into its own hole), and from the
+                // the bot stayed up" (the walker will not step into its own hole), and from the
                 // outside those are the same sentence.
                 rig.evidence("shaft." + step + ".broke",
-                        String.format("%s body=%s", sceneLevel(rig).getBlockState(below).getBlock(),
+                        String.format("%s bot=%s", sceneLevel(rig).getBlockState(below).getBlock(),
                                 rig.player().blockPosition().toShortString()));
-                // Breaking the floor is not falling through it. This body has no free-running
-                // physics: it is stepped only while a driver is ticking it, and the single-block
-                // mine ends on the tick the block turns to air — one `avatar.step()` per leg, which
-                // is a tenth of a block of gravity. So the descent needs a leg that keeps ticking
-                // until the body has settled.
+                // Breaking the floor is not falling through it. This server-side player has no
+                // free-running physics: it is stepped only while a driver is ticking it, and the
+                // single-block mine ends on the tick the block turns to air — one `avatar.step()` per
+                // task, which is a tenth of a block of gravity. So the descent needs a step that keeps
+                // ticking until the bot has settled.
                 //
                 // The goal is the CELL just emptied, not a height. Goal.YLevel(targetY) was tried
                 // and it descends — to the wrong place: "be at y=60" is satisfied anywhere, and the
                 // walker took the shortest way down it could find, landing at 77,83 with the ore
                 // still under 83,75. A shaft is a column, and only a goal that names the column
-                // keeps the body over its own hole.
+                // keeps the bot over its own hole.
                 rig.settle(new HoldStill(40), 60,
                         () -> descendByMining(rig, targetY, budget - 1, cap, then, onWetColumn));
         });
