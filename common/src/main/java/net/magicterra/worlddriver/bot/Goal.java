@@ -46,6 +46,10 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      */
     default boolean ignoresY() { return false; }
 
+    /** True for the open goals {@link Inverted} and {@link StrictDirection}: {@link #reached} never
+     *  fires for them, so a walk toward one is done when it stops, not when it arrives. */
+    default boolean open() { return false; }
+
     /**
      * The concrete block this goal converges on, or {@code null} for "open" /
      * column / direction goals that have no single target cell (XZ, YLevel,
@@ -211,6 +215,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * origin's heuristic, i.e. the farthest-from-target reachable cell.
      */
     record Inverted(Goal origin) implements Goal {
+        @Override public boolean open() { return true; }
         public boolean reached(BlockPos p) { return false; }
         public double estimate(BlockPos p) { return -origin.estimate(p); }
     }
@@ -223,6 +228,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * that direction (Baritone "thisway"/tunnel without a fixed endpoint).
      */
     record StrictDirection(BlockPos origin, int dx, int dz) implements Goal {
+        @Override public boolean open() { return true; }
         public boolean reached(BlockPos p) { return false; }
         public double estimate(BlockPos p) {
             int forward = (p.getX() - origin.getX()) * dx + (p.getZ() - origin.getZ()) * dz;

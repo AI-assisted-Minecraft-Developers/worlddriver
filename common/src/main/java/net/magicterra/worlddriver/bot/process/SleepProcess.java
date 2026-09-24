@@ -75,6 +75,9 @@ public final class SleepProcess implements BotProcess {
                     return giveUp(st, "no path to bed @" + bedPos);
                 }
                 if (s == Walker.Step.ARRIVED) {
+                    // A give-up also stops as ARRIVED. The bed may still be in reach from there, so
+                    // click anyway, but a click that never lands is then the approach's fault.
+                    approachShortfall = walker.shortfall(s);
                     a.releaseInputs();
                     useTicks = 0;
                     sinceLastClick = CLICK_INTERVAL_TICKS;  // click immediately on first USE tick
@@ -104,7 +107,9 @@ public final class SleepProcess implements BotProcess {
                     hands.placeOn(bedPos, Direction.UP);
                 }
                 if (++useTicks > USE_TIMEOUT_TICKS) {
-                    return giveUp(st, "bed click did not start sleep (wrong time / monsters / occupied)");
+                    return giveUp(st, approachShortfall != null
+                            ? "did not reach bed @" + bedPos + ": " + approachShortfall
+                            : "bed click did not start sleep (wrong time / monsters / occupied)");
                 }
             }
             case DONE -> { return true; }
@@ -120,6 +125,7 @@ public final class SleepProcess implements BotProcess {
     }
 
     private String failure;
+    private String approachShortfall;
 
     @Override public String failure() { return failure; }
 

@@ -23,7 +23,6 @@ import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * The generic navigation process for the LLM navigation intent layer: drives the
@@ -187,10 +186,12 @@ public final class IntentProcess implements BotProcess {
         if (s == Walker.Step.WALKING) return false;
         // A waypoint reached: on to the next goal. setGoal resets the walker's path and every
         // per-goal latch, so the next leg plans afresh from where the body stands; the search
-        // profile (the route's conditions) carries over untouched. A FAILED leg ends the whole
-        // intent — a waypoint the body cannot reach is the caller's condition unmet, not a
-        // detour to take silently.
-        if (s == Walker.Step.ARRIVED && leg < intent.targets().size() - 1) {
+        // profile (the route's conditions) carries over untouched. A leg that fell short ends the
+        // whole intent, a give-up that stopped as ARRIVED included — a waypoint the body did not
+        // reach is the caller's condition unmet, not a detour to take silently.
+        String shortfall = walker.shortfall(s);
+        int last = intent.targets().size() - 1;
+        if (shortfall == null && leg < last) {
             leg++;
             WorldDriverCommon.LOG.info("[IntentProcess] via {} reached, leg {}/{} → {}",
                     intent.targets().get(leg - 1), leg + 1, intent.targets().size(), intent.targets().get(leg));
@@ -203,17 +204,9 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.endReason = walker.lastEndReason;
         st.mc_goto.finalDist = walker.lastFinalDist;
         st.mc_goto.reset();
-        failure = walkFailure(s, walker.lastError, walker.lastGoalReached, walker.lastEndReason, walker.lastFinalDist);
+        failure = shortfall == null || leg == last ? shortfall
+                : "waypoint " + (leg + 1) + " of " + last + ": " + shortfall;
         return true;
-    }
-
-    /** The walker's give-ups (churn, frontier, a consumed best-effort path) return ARRIVED, so the
-     *  step alone reads them as success; only the goal test at the foot tells them apart. */
-    static String walkFailure(Walker.Step s, String walkerError, boolean goalReached, String endReason,
-                              double finalDist) {
-        if (s == Walker.Step.FAILED) return walkerError != null ? walkerError : "walk failed";
-        if (goalReached) return null;
-        return String.format(Locale.ROOT, "goal not reached (%s, %.1f blocks short)", endReason, finalDist);
     }
 
     private String failure;
