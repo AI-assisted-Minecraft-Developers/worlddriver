@@ -14,11 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the give-up, the exception or the cancel. A goto whose leg to a `route.via` waypoint gives up
   now ends there instead of walking on to the next one. The auto-backfill no longer counts as a
   user task, so it cannot overwrite the ending of the one before it, and a named body's status
-  (`player:…`, `npc:…`) now carries its own `lastProcessEnd`. The per-slot `lastError` keeps its success summaries
-  and now also names the give-ups it used to leave blank: an elytra flight whose wing closed short
-  of its target, and a smelt whose ingredient ran out short of the batch. The `skipped` count of
-  a fill or a farm now includes the cells it could not reach or break, not only those it could
-  not place. `BotApi.userTaskLeg()` carries the same `error`.
+  (`player:…`, `npc:…`) now carries its own `lastProcessEnd`. The per-slot `lastError` keeps its
+  success summaries and now also names the give-ups it used to leave blank: an elytra flight whose
+  wing closed short of its target, and a smelt that ran out of ingredient before the batch was
+  done. The `skipped` count of a fill or a farm now includes the cells it could not reach or
+  break, not only those it could not place; a farm counts harvested crops it could not replant
+  apart, as `unplanted`, and an explore reports the chunks it could not reach as `missed`.
+  `BotApi.userTaskLeg()` carries the same `error`.
 - **A chase keeps its running search when the quarry moves.** `mc.bot.follow` and the combat
   approach re-aim the walker whenever their target changes block, and each re-aim dropped the
   full search in flight. A target that changes block faster than a search lands, like a mob

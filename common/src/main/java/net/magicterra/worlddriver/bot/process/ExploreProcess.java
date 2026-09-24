@@ -46,15 +46,17 @@ public final class ExploreProcess implements BotProcess {
         // other exit in this file already stamps; this one was the hole.
         if (p == null) { failure = st.explore.lastError = "player vanished"; st.explore.reset(); return true; }
         if (visitedCount >= maxChunks) {
-            st.explore.lastError = "done (visited=" + visitedCount + ")";
+            st.explore.lastError = "done (visited=" + visitedCount + ", missed=" + missed + ")";
             st.explore.reset();
+            failure = incomplete();
             return true;
         }
         if (currentChunkCenter == null) {
             Long next = pickNextChunk();
             if (next == null) {
-                st.explore.lastError = "no more chunks to explore (visited=" + visitedCount + ")";
+                st.explore.lastError = "no more chunks to explore (visited=" + visitedCount + ", missed=" + missed + ")";
                 st.explore.reset();
+                failure = incomplete();
                 return true;
             }
             currentChunkX = (int) (next >> 32);
@@ -69,12 +71,21 @@ public final class ExploreProcess implements BotProcess {
         if (s != Walker.Step.WALKING) {
             visited.add(chunkKey(currentChunkX, currentChunkZ));
             visitedCount++;
+            if (walker.shortfall(s) != null) missed++;
             currentChunkCenter = null;
         }
         return false;
     }
 
-    /** Running out of chunks is a finished exploration, not a failure: every chunk in range was tried. */
+    /** Chunks tried whose walk fell short of the centre column; {@link #visitedCount} counts every try. */
+    private int missed;
+
+    /** Running out of chunks ends an exploration like the budget does; either is short only by the
+     *  chunks it tried and did not reach. */
+    private String incomplete() {
+        return missed == 0 ? null : "incomplete: " + missed + " of " + visitedCount + " chunks not reached";
+    }
+
     private String failure;
 
     @Override public String failure() { return failure; }

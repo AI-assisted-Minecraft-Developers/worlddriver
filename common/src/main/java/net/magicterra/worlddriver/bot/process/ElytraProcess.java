@@ -191,10 +191,10 @@ public final class ElytraProcess implements BotProcess {
             double goalDist = goal.distanceTo(pos);
             double goalH = Math.hypot(goal.x - pos.x, goal.z - pos.z);
 
-            // Failsafe 1 — durability: abort to a gentle descent before the
-            // wing breaks (a mid-air snap would just drop the bot).
+            // Failsafe 1 — durability: glide down before the wing breaks. Not during the flare, which
+            // already is that descent; a stamp there would fail the touch-down at the target.
             ItemStack chest = p.getItemBySlot(EquipmentSlot.CHEST);
-            if (!aborting && chest.is(Items.ELYTRA) && chest.getMaxDamage() > 0
+            if (!aborting && !landing && chest.is(Items.ELYTRA) && chest.getMaxDamage() > 0
                     && chest.getDamageValue() >= chest.getMaxDamage() - DURABILITY_MARGIN) {
                 aborting = true; landing = true; landMinDist = Double.POSITIVE_INFINITY;
                 st.elytra.lastError = "elytra durability low — gliding down";
@@ -372,7 +372,8 @@ public final class ElytraProcess implements BotProcess {
      * {@code scripts/check_source_budget.py}, which fails on growth rather than on size here.
      */
     private boolean outOfBudget(Body a, BotState st) {
-        st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
+        // A glide with no target has nothing to arrive at; its budget is the flight it was asked for.
+        if (target != null) st.elytra.lastError = "flight budget exhausted (" + maxTicks + " ticks, never arrived)";
         if (BotConfig.elytraDebug) logSummary();
         a.releaseInputs();
         st.elytra.reset();
