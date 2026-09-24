@@ -201,7 +201,7 @@ public interface BotApi {
      * "already finished".
      *
      * <p>{@code error} is non-null when the process did not do what it was asked: it gave up
-     * ({@link net.magicterra.worlddriver.bot.process.BotProcess#failure()}), it threw, or a
+     * ({@link BotProcess#failure()}), it threw, or a
      * higher-priority chain (panic / dodge / combat) cancelled it. A caller that ignores this
      * cannot tell a leg a creeper interrupted from a leg that finished, because {@code busy}
      * goes false for both.
