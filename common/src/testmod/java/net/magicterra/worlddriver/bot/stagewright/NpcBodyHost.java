@@ -52,6 +52,8 @@ public final class NpcBodyHost implements BodyHost, BodyDriver {
         return !finished && held.process() != null && ServerAvatarManager.isRegistered(this);
     }
 
+    @Override public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
+
     @Override public void start(BotProcess p) {
         held.start(p);
         finished = false;
