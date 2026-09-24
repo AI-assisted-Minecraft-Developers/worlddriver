@@ -48,7 +48,8 @@ public final class FarmProcess implements BotProcess {
     private BlockPos currentTarget;
     private String currentCropId;
     private int breakingTicks, placeTicks;
-    private int harvested, replanted, skipped;
+    /** {@code skipped} counts crops never harvested; {@code unplanted} those harvested whose replant failed. */
+    private int harvested, replanted, skipped, unplanted;
     /** Mature crops the latest scan found with no stand beside them. Not blacklisted, because a
      *  cleared neighbour can open one; whatever the final scan still counts was never harvested. */
     private int stranded;
@@ -89,9 +90,9 @@ public final class FarmProcess implements BotProcess {
                 if (found == null) {
                     skipped += stranded;
                     st.builder.lastError = "done (harvested=" + harvested +
-                            ", replanted=" + replanted + ", skipped=" + skipped + ")";
+                            ", replanted=" + replanted + ", skipped=" + skipped + ", unplanted=" + unplanted + ")";
                     st.builder.reset();
-                    if (skipped > 0) failure = "incomplete: " + skipped + " crops skipped";
+                    failure = incomplete(skipped, unplanted);
                     return true;
                 }
                 currentTarget = found[0];
@@ -161,7 +162,7 @@ public final class FarmProcess implements BotProcess {
                 String seedId = SEED_FOR.get(currentCropId);
                 if (seedId == null || !HeldItem.holdById(hands, seedId)) {
                     // No seed in hand — skip this cell rather than spin.
-                    skipped++;
+                    unplanted++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
@@ -184,7 +185,7 @@ public final class FarmProcess implements BotProcess {
                     currentTarget = null;
                     phase = Phase.SEARCH;
                 } else if (placeTicks > PLACE_TIMEOUT_TICKS) {
-                    skipped++;
+                    unplanted++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
@@ -192,6 +193,14 @@ public final class FarmProcess implements BotProcess {
             }
         }
         return false;
+    }
+
+    /** The verdict of a finished sweep: null when every crop was harvested and every replant took. */
+    static String incomplete(int skipped, int unplanted) {
+        if (skipped == 0 && unplanted == 0) return null;
+        if (unplanted == 0) return "incomplete: " + skipped + " crops not harvested";
+        if (skipped == 0) return "incomplete: " + unplanted + " harvested crops not replanted";
+        return "incomplete: " + skipped + " crops not harvested, " + unplanted + " not replanted";
     }
 
     /** Scan the bbox for the nearest mature, in-filter, reachable crop. */

@@ -79,6 +79,9 @@ public final class SmeltProcess implements BotProcess {
     private int waited;
     private int smeltWaitBudget;
     private String error;
+    /** Set when SMELT_WAIT moves to COLLECT short of {@link #targetOut}: the parenthesised cause,
+     *  empty for a timeout. Null when the batch reached its target. */
+    private String shortCause;
 
     /** A partial smelt ends in DONE with {@link #error} set, and it is still short of what was asked. */
     @Override public String failure() { return error; }
@@ -318,7 +321,7 @@ public final class SmeltProcess implements BotProcess {
         // used to reset `waited` every tick and spin silently forever.
         if (!in.isEmpty() && fuel.isEmpty() && !fm.isLit()) {
             if (pickFuelMenuSlot(menu, fuelId) < 0) {
-                if (!out.isEmpty()) { error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut + "（燃料耗尽）"; st = St.COLLECT; }
+                if (!out.isEmpty()) { shortCause = "（燃料耗尽）"; st = St.COLLECT; }
                 else fail(s, "燃料耗尽且背包无可续装燃料");
                 return;
             }
@@ -354,13 +357,9 @@ public final class SmeltProcess implements BotProcess {
                     + "）——方块实体没在 tick，或这个原料没有熔炼配方，或出料槽被占");
             return;
         }
-        // Input exhausted and something cooked → take what we got. Reaching here means the full
-        // batch check above failed, so this is a shortfall: LOAD shift-clicks one stack only.
-        if (in.isEmpty() && !out.isEmpty()) {
-            error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut + "（原料用完）";
-            st = St.COLLECT;
-            return;
-        }
+        // Input exhausted and something cooked → take what we got. LOAD shift-clicks one stack
+        // only, so this can be a real shortfall; COLLECT judges it by what it actually takes.
+        if (in.isEmpty() && !out.isEmpty()) { shortCause = "（原料用完）"; st = St.COLLECT; return; }
         // The ore never went in. LOAD's QUICK_MOVE can be refused outright (the ingredient has no
         // smelting recipe so quickMoveStack routes it nowhere, the menu id went stale), and that
         // used to burn the entire batch budget before reporting a fuel problem. The bag reading is
@@ -379,7 +378,7 @@ public final class SmeltProcess implements BotProcess {
             return;
         }
         if (++waited > smeltWaitBudget) {
-            if (!out.isEmpty()) { error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut; st = St.COLLECT; }
+            if (!out.isEmpty()) { shortCause = ""; st = St.COLLECT; }
             // The timeout used to end in a question mark. It now ends in the four readings that
             // answer it: what is in the three slots, whether the fire is lit, how far the current
             // item has cooked (getBurnProgress is cookingProgress/cookingTotalTime straight off
@@ -423,6 +422,11 @@ public final class SmeltProcess implements BotProcess {
         // have nowhere to go. From the rung's side that is byte-identical to a smelt that never
         // happened, which is exactly how it was read ("mined is not collected", one container
         // along). Nothing here can invent space; what it can do is stop calling it success.
+        // A shortfall is judged by what the result slot holds here, not where SMELT_WAIT stopped: the
+        // ingredient slot's update can land a tick before the result's, so the last item shows late.
+        if (shortCause != null && made < targetOut) {
+            error = "部分完成：只炼出 " + made + "/" + targetOut + shortCause;
+        }
         int stranded = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem().getCount();
         if (made > 0 && stranded >= made) {
             error = "炼好的 " + made + " 个 " + madeId + " 取不回背包（背包空格 " + freeBefore
