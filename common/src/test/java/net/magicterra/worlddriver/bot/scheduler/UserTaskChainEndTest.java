@@ -66,4 +66,19 @@ class UserTaskChainEndTest {
         chain.cancel("user-cancel");
         assertEquals("user-cancel", chain.lastEnd().get("error"));
     }
+
+    @Test
+    void anAmbientProcessLeavesTheCallersEndingInPlace() {
+        endOf(new Ender(null, "goal not reached (churn-giveup, about 6.0 blocks short)"));
+        chain.setAmbientProcess(new Ender("backfill done", "incomplete: 2 cells could not be filled"));
+        chain.tick(null, null, st);
+        assertEquals("goal not reached (churn-giveup, about 6.0 blocks short)", chain.lastEnd().get("error"));
+    }
+
+    @Test
+    void supersedingAnAmbientProcessRecordsNothing() {
+        chain.setAmbientProcess(new Ender(null, null));
+        chain.setProcess(new Ender(null, null));
+        assertNull(chain.lastEnd(), "the auto-backfill's cancel is not the caller's ending");
+    }
 }
