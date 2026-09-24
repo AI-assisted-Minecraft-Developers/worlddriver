@@ -68,7 +68,7 @@ GRANDFATHERED = {
     "DriverApi.java::DriverApi": 272,
     "ClientTools.java::tools": 250,
     "WalkerTickPrelude.java::run": 245,
-    "ElytraProcess.java::tick": 243,
+    "ElytraProcess.java::tick": 228,
     "WalkerTickEdgeGuards.java::run": 241,
     "BotApiImpl.java::clientTick": 239,
     "ObserveActionTools.java::tools": 234,

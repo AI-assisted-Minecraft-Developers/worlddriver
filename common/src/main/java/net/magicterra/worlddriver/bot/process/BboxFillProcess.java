@@ -42,6 +42,9 @@ public final class BboxFillProcess implements BotProcess {
     private int placeTicks;
     private String breakStartId = "";
     private int broken, placed, skipped;
+    /** Cells the latest scan found work for but no stand to work from. Not blacklisted, because
+     *  clearing a neighbour can open a stand; whatever the final scan still counts was never done. */
+    private int stranded;
     private String failure;
 
     @Override public String failure() { return failure; }
@@ -80,6 +83,7 @@ public final class BboxFillProcess implements BotProcess {
                 if (found == null) {
                     // Nothing left to act on. Stamp counters into lastError
                     // so the status snapshot surfaces them.
+                    skipped += stranded;
                     st.builder.lastError = "done (broken=" + broken + ", placed=" + placed + ", skipped=" + skipped + ")";
                     st.builder.reset();
                     if (skipped > 0) failure = "incomplete: " + skipped + " cells skipped";
@@ -95,6 +99,7 @@ public final class BboxFillProcess implements BotProcess {
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
+                    skipped++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
@@ -152,6 +157,7 @@ public final class BboxFillProcess implements BotProcess {
                         phase = Phase.SEARCH;
                     }
                 } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
+                    skipped++;
                     blacklist.add(currentTarget);
                     hands.breakHold(false);
                     currentTarget = null;
@@ -225,6 +231,7 @@ public final class BboxFillProcess implements BotProcess {
      *  blacklisted + (in replace mode) non-matching cells; in clear/fill
      *  modes also skips cells that already hold fillId (idempotent). */
     private BlockPos[] scanNextCell(Level lvl) {
+        stranded = 0;
         for (int y = minP.getY(); y <= maxP.getY(); y++) {
             for (int x = minP.getX(); x <= maxP.getX(); x++) {
                 for (int z = minP.getZ(); z <= maxP.getZ(); z++) {
@@ -253,7 +260,7 @@ public final class BboxFillProcess implements BotProcess {
                         continue;
                     }
                     BlockPos stand = findStandableAdjacent(lvl, bp);
-                    if (stand == null) continue;
+                    if (stand == null) { stranded++; continue; }
                     return new BlockPos[]{bp, stand};
                 }
             }

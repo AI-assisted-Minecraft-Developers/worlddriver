@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for every ending the process reached by itself, so a goto that gave up short of its goal, a
   build that skipped blocks and a follow that lost its target all read as successes. Each process
   now reports its own verdict: `error` is null only when the task was done, and otherwise names
-  the give-up, the exception or the cancel. The per-slot `lastError` is unchanged, success
-  summaries included. `BotApi.userTaskLeg()` carries the same `error`.
+  the give-up, the exception or the cancel. The per-slot `lastError` keeps its success summaries
+  and now also names the give-ups it used to leave blank: an elytra flight whose wing closed short
+  of its target, and a smelt whose ingredient ran out short of the batch. The `skipped` count of
+  a fill or a farm now includes the cells it could not reach or break, not only those it could
+  not place. `BotApi.userTaskLeg()` carries the same `error`.
 - **A chase keeps its running search when the quarry moves.** `mc.bot.follow` and the combat
   approach re-aim the walker whenever their target changes block, and each re-aim dropped the
   full search in flight. A target that changes block faster than a search lands, like a mob

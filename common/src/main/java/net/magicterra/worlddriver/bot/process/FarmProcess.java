@@ -49,6 +49,9 @@ public final class FarmProcess implements BotProcess {
     private String currentCropId;
     private int breakingTicks, placeTicks;
     private int harvested, replanted, skipped;
+    /** Mature crops the latest scan found with no stand beside them. Not blacklisted, because a
+     *  cleared neighbour can open one; whatever the final scan still counts was never harvested. */
+    private int stranded;
     private String failure;
 
     @Override public String failure() { return failure; }
@@ -84,6 +87,7 @@ public final class FarmProcess implements BotProcess {
             case SEARCH -> {
                 BlockPos[] found = scanNextMature(lvl, p);
                 if (found == null) {
+                    skipped += stranded;
                     st.builder.lastError = "done (harvested=" + harvested +
                             ", replanted=" + replanted + ", skipped=" + skipped + ")";
                     st.builder.reset();
@@ -102,6 +106,7 @@ public final class FarmProcess implements BotProcess {
                 st.builder.pathLen = walker.pathLen();
                 st.builder.pathStep = walker.pathStep();
                 if (s == Walker.Step.FAILED) {
+                    skipped++;
                     blacklist.add(currentTarget);
                     currentTarget = null;
                     phase = Phase.SEARCH;
@@ -141,6 +146,7 @@ public final class FarmProcess implements BotProcess {
                         phase = Phase.SEARCH;
                     }
                 } else if (breakingTicks > BREAK_TIMEOUT_TICKS) {
+                    skipped++;
                     blacklist.add(currentTarget);
                     hands.breakHold(false);
                     currentTarget = null;
@@ -194,6 +200,7 @@ public final class FarmProcess implements BotProcess {
         BlockPos foot = blockPosOf(p);
         BlockPos bestCrop = null, bestStand = null;
         long bestD2 = Long.MAX_VALUE;
+        stranded = 0;
         for (int y = minP.getY(); y <= maxP.getY(); y++) {
             for (int x = minP.getX(); x <= maxP.getX(); x++) {
                 for (int z = minP.getZ(); z <= maxP.getZ(); z++) {
@@ -201,7 +208,7 @@ public final class FarmProcess implements BotProcess {
                     if (blacklist.contains(bp)) continue;
                     if (!stillMature(lvl, bp)) continue;
                     BlockPos stand = standBesideCrop(lvl, bp);
-                    if (stand == null) continue;
+                    if (stand == null) { stranded++; continue; }
                     long d2 = (long) bp.distSqr(foot);
                     if (d2 < bestD2) {
                         bestD2 = d2; bestCrop = bp; bestStand = stand;
