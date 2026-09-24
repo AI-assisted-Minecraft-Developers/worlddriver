@@ -5,6 +5,8 @@ import net.magicterra.worlddriver.bot.body.BodyHost;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 import net.minecraft.world.entity.LivingEntity;
 
+import java.util.Map;
+
 /**
  * A joined server player under a {@link ServerWorldDriver}, addressable as {@code player:<name>}.
  *
@@ -35,6 +37,8 @@ public final class ServerBodyHost implements BodyHost {
     @Override public boolean busy() {
         return driver.activeKind() != null && ServerAvatarManager.isRegistered(driver);
     }
+
+    @Override public Map<String, Object> lastProcessEnd() { return driver.lastProcessEnd(); }
 
     @Override public void start(BotProcess process) {
         driver.runProcess(process);

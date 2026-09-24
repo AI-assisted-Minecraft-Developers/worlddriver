@@ -221,6 +221,7 @@ final class BodyRoutes {
         String active = host.botState().activeName();
         if (active != null) out.put("activeProcess", active);
         out.putAll(host.botState().snapshot());
+        out.put("lastProcessEnd", host.lastProcessEnd());
         return out;
     }
 

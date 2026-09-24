@@ -10,6 +10,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.Map;
+
 /**
  * Phase 2: a fully server-side agent driver — the real {@link Walker} steering a
  * {@link ServerPlayerBody} (a headless {@link ServerPlayer} body) with no client. Each call to
@@ -180,6 +182,9 @@ public class ServerWorldDriver implements BodyDriver {
         return current;
     }
     public Walker.Step lastStep() { return last; }
+    /** The last ending of a process this driver ran, with its own verdict. {@link #lastStep()} says
+     *  ARRIVED for any process that stopped by itself, so this is what says whether it did the job. */
+    public Map<String, Object> lastProcessEnd() { return held.lastEnd(); }
     public boolean finished() { return finished; }
     public BotState botState() { return botState; }
 

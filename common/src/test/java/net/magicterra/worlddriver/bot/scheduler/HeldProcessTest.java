@@ -48,6 +48,31 @@ class HeldProcessTest {
     private final BotState st = new BotState();
     private final HeldProcess held = new HeldProcess(st);
 
+    /** Ends when ticked, reporting {@code failure} as its verdict. */
+    private static final class GiveUp implements BotProcess {
+        final String failure;
+        GiveUp(String failure) { this.failure = failure; }
+        @Override public String kind() { return "goto"; }
+        @Override public String failure() { return failure; }
+        @Override public void attach(BotState st) { st.mc_goto.active = true; }
+        @Override public boolean tick(Body a, WorldView w, BotState st) { return true; }
+    }
+
+    @Test
+    void aFinishedProcessLeavesItsOwnVerdictAsTheLastEnding() {
+        held.start(new GiveUp("goal not reached (churn-giveup, about 10.0 blocks short)"));
+        held.finished();
+        assertEquals("goto", held.lastEnd().get("kind"));
+        assertEquals("goal not reached (churn-giveup, about 10.0 blocks short)", held.lastEnd().get("error"));
+    }
+
+    @Test
+    void aCancelLeavesItsReasonAsTheLastEnding() {
+        held.start(new GiveUp(null));
+        held.cancel("user-cancel");
+        assertEquals("user-cancel", held.lastEnd().get("error"));
+    }
+
     @Test
     void cancellingASleepSwitchesTheGotoSlotOff() {
         SlotBorrower sleep = sleepLike();

@@ -3,6 +3,9 @@ package net.magicterra.worlddriver.bot.scheduler;
 import net.magicterra.worlddriver.bot.BotState;
 import net.magicterra.worlddriver.bot.process.BotProcess;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * The single process a server-side body runs, and the status slots it switched on: the part of
  * {@link UserTaskChain} a driver without a scheduler needs, so that both release exactly the slots
@@ -41,13 +44,34 @@ public final class HeldProcess {
         process = null;
         prev.onCancelled(reason);
         release(reason);
+        end = new End(prev.kind(), reason);
         return prev;
     }
 
-    /** The held process reported itself finished: its slots go inactive, keeping what it wrote. */
+    /** The held process reported itself finished: its slots go inactive, keeping what it wrote, and
+     *  its own verdict becomes the last ending. */
     public void finished() {
+        BotProcess prev = process;
         process = null;
         release(null);
+        if (prev != null) end = new End(prev.kind(), prev.failure());
+    }
+
+    // One immutable value, for the same reason as UserTaskChain's: a status read may run on
+    // another thread, and must not pair one ending's kind with another's error.
+    private record End(String kind, String error) {}
+
+    private volatile End end;
+
+    /** {@code {kind, error}} of the last ending, the shape of {@code UserTaskChain.lastEnd()}, or
+     *  null if nothing has ended. {@code error} is null only when the process did what it was asked. */
+    public Map<String, Object> lastEnd() {
+        End e = end;
+        if (e == null) return null;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("kind", e.kind());
+        m.put("error", e.error());
+        return m;
     }
 
     private void release(String error) {

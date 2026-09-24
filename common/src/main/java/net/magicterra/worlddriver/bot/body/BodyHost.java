@@ -37,6 +37,10 @@ public interface BodyHost {
     /** Whether a process is running. */
     boolean busy();
 
+    /** {@code {kind, error}} of the last process ending, or null: the body's {@code lastProcessEnd},
+     *  with {@code error} null only when the process did what it was asked. */
+    Map<String, Object> lastProcessEnd();
+
     /** Run {@code process}, superseding whatever was running. */
     void start(BotProcess process);
 

@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   now reports its own verdict: `error` is null only when the task was done, and otherwise names
   the give-up, the exception or the cancel. A goto whose leg to a `route.via` waypoint gives up
   now ends there instead of walking on to the next one. The auto-backfill no longer counts as a
-  user task, so it cannot overwrite the ending of the one before it. The per-slot `lastError` keeps its success summaries
+  user task, so it cannot overwrite the ending of the one before it, and a named body's status
+  (`player:…`, `npc:…`) now carries its own `lastProcessEnd`. The per-slot `lastError` keeps its success summaries
   and now also names the give-ups it used to leave blank: an elytra flight whose wing closed short
   of its target, and a smelt whose ingredient ran out short of the batch. The `skipped` count of
   a fill or a farm now includes the cells it could not reach or break, not only those it could
