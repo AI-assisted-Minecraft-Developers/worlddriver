@@ -217,6 +217,7 @@ wd.bridgeHurdleSlabBypass
 wd.bridgeHurdle2Bypass
 wd.bridgeHeadBlockBypass
 wd.bridgeHeadBlockStop
+wd.bridgeHeadBlockStopShipped
 wd.bridgeFootBlockStop
 wd.bridgeStairUp
 wd.bridgeStairDown

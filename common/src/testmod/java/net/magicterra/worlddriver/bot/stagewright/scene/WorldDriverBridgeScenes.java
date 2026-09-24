@@ -64,6 +64,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 Scene.of("wd.bridgeHurdle2Bypass", 700, WorldDriverBridgeScenes::bridgeHurdle2Bypass),
                 Scene.of("wd.bridgeHeadBlockBypass", 700, WorldDriverBridgeScenes::bridgeHeadBlockBypass),
                 Scene.of("wd.bridgeHeadBlockStop", 900, WorldDriverBridgeScenes::bridgeHeadBlockStop),
+                Scene.of("wd.bridgeHeadBlockStopShipped", 900, WorldDriverBridgeScenes::bridgeHeadBlockStopShipped),
                 Scene.of("wd.bridgeFootBlockStop", 900, WorldDriverBridgeScenes::bridgeFootBlockStop),
                 Scene.of("wd.bridgeStairUp", 700, WorldDriverBridgeScenes::bridgeStairUp),
                 Scene.of("wd.bridgeStairDown", 700, WorldDriverBridgeScenes::bridgeStairDown),
@@ -456,10 +457,22 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
      *  cell, hold there (or fail the goto), and NEVER leave the deck. */
     private static void bridgeHeadBlockStop(SceneContext ctx) {
         liveStack(ctx);
+        headBlockStop(ctx, "bridgeHeadBlockStop");
+    }
+
+    /** The same stop on the shipped walker, whose from-end discard is OFF: the journey must still
+     *  reach the barrier and hold there instead of ping-ponging at the start pad. */
+    private static void bridgeHeadBlockStopShipped(SceneContext ctx) {
+        liveStack(ctx);
+        BotConfig.walkerFromEndNoProgressDiscard = false;
+        headBlockStop(ctx, "bridgeHeadBlockStopShipped");
+    }
+
+    private static void headBlockStop(SceneContext ctx, String scene) {
         BlockPos goal = frame(ctx, 24);
         ctx.setBlock(12, DECK + 2, 0, Blocks.STONE);
         Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 1500, goal, DECK + 1);
-        assertHeldAtBarrier(ctx, "bridgeHeadBlockStop", r, goal, 12, DECK + 1);
+        assertHeldAtBarrier(ctx, scene, r, goal, 12, DECK + 1);
     }
 
     /** 挡脚且无路径: 1-high hurdle UNDER a low ceiling (deck+3 roof spans the hurdle) —
