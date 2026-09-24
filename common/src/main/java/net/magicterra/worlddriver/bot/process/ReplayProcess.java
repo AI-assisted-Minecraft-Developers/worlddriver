@@ -64,8 +64,7 @@ public final class ReplayProcess implements BotProcess {
         if (s == Walker.Step.WALKING) return false;
         if (s == Walker.Step.FAILED) st.mc_goto.lastError = walker.lastError;
         st.mc_goto.reset();
-        failure = IntentProcess.walkFailure(s, walker.lastError, walker.lastGoalReached,
-                walker.lastEndReason, walker.lastFinalDist);
+        failure = walker.shortfall(s);
         return true;
     }
 

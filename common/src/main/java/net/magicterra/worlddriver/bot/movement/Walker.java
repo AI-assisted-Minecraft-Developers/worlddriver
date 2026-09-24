@@ -614,6 +614,12 @@ public final class Walker {
      *  drove at, so the two can be judged separately. */
     public boolean goalSnapped() { return goalSnapped; }
 
+    /** Why the step {@link #tick} just returned fell short of the goal, or null when it did not. */
+    public String shortfall(Step s) {
+        return WalkVerdict.shortfall(s, lastError, lastGoalReached, lastEndReason, lastFinalDist,
+                goal != null && goal.open());
+    }
+
     /** The water climb-out's place-futility ledger, for scenes that assert on the FALLBACK rather
      *  than on the climb: {@code > PILLAR_FUTILE_TICKS} is what hands the bank over to the dig.
      *  Exposed because the counter is the subject — a scene that could only watch the body would
@@ -2412,7 +2418,7 @@ public final class Walker {
      *  Public like the sibling {@code RetreatChain.shouldEnter}/{@code shouldRelease}
      *  static gates — the neoforge matrix gametest calls it cross-package/cross-module. */
     public static String classifyArrival(boolean bestEffort, boolean reachedFoot, boolean snapped) {
-        if (snapped && reachedFoot) return "goal-snapped";
+        if (snapped && reachedFoot) return WalkVerdict.GOAL_SNAPPED;
         if (reachedFoot) return "arrived";
         return bestEffort ? "best-effort-consumed" : "path-consumed";
     }
