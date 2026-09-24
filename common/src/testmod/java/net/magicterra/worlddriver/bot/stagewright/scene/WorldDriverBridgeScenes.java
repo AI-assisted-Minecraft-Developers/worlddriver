@@ -50,7 +50,8 @@ import net.minecraft.world.level.block.Blocks;
  * <p>Rig notes: bypass branches sit at |dz|=3 from the mainline (outside the carrot
  * wall-snap adoption radius — iron rule #1) and junctions are open-air right angles
  * on flat deck (no wall corners to catch the drive — iron rule #2). All strips are
- * genuinely 1 block wide: lateral-drift shedding is part of what this family guards.
+ * genuinely 1 block wide: lateral-drift shedding is part of what this family guards. The one
+ * wider floor, {@code bridgeLongFlatWalk}'s, measures pace rather than footing.
  */
 public final class WorldDriverBridgeScenes implements SceneProvider {
 
@@ -77,9 +78,9 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
                 Scene.of("wd.bridgeDigShortcut", 900, WorldDriverBridgeScenes::bridgeDigShortcut),
                 Scene.of("wd.bridgeDetourCheap", 900, WorldDriverBridgeScenes::bridgeDetourCheap),
                 Scene.of("wd.bridgeLongFlatWalk", 1600, WorldDriverBridgeScenes::bridgeLongFlatWalk)
-                        .withChunkRadius(6),
+                        .withChunkRadius(4),
                 Scene.of("wd.bridgeCausewayOverWater", 1600, WorldDriverBridgeScenes::bridgeCausewayOverWater)
-                        .withChunkRadius(6));
+                        .withChunkRadius(4));
     }
 
     // ---------------------------------------------------------------- rig helpers ----
@@ -140,7 +141,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
 
     private record Run(Walker.Step step, int ticks, double minY, double maxX,
                        Walker walker, ServerPlayer fp, String breach, String journey,
-                       String pinWindow, String invEvents) {}
+                       String pinWindow, String invEvents, boolean walkedBestEffort) {}
 
     private static int bagCount(ServerPlayer fp) {
         int n = 0;
@@ -188,10 +189,12 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         // with position + the walker probe so the fail message carries the attribution.
         java.util.List<String> invEvents = new java.util.ArrayList<>();
         int invCount = bagCount(fp);
+        boolean walkedBestEffort = false;
         int t = 0;
         for (; t < n && s == Walker.Step.WALKING; t++) {
             s = walker.tick(av, w);
             av.step();
+            if (!walkedBestEffort) walkedBestEffort = walker.progressProbe().contains(" bestEffort");
             minY = Math.min(minY, fp.getY());
             maxX = Math.max(maxX, fp.getX() - ctx.origin().getX());
             var vel = fp.getDeltaMovement();
@@ -237,7 +240,7 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         }
         return new Run(s, t, minY, maxX, walker, fp, breach, String.join(" ;; ", journey),
                 pinWindow == null ? "-" : pinWindow,
-                invEvents.isEmpty() ? "-" : String.join(" ;; ", invEvents));
+                invEvents.isEmpty() ? "-" : String.join(" ;; ", invEvents), walkedBestEffort);
     }
 
     private static boolean atGoal(SceneContext ctx, Run r, BlockPos goal) {
@@ -314,65 +317,64 @@ public final class WorldDriverBridgeScenes implements SceneProvider {
         BotConfig.applyCompiledDefaults();
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
-        // Per-scene opt-in of a default-OFF planner-flow mechanism this battery depends on
-        // (pending its own replay A/B, see the BotConfig javadoc): the from-end no-progress
-        // discard ends a sealed-goal journey cleanly at the farthest reachable point instead
-        // of ping-ponging the deck.
+        // Default-OFF, but the sealed-goal scenes need it to end at the farthest reachable point
+        // instead of ping-ponging the deck; see its BotConfig javadoc for why it is not shipped.
         BotConfig.walkerFromEndNoProgressDiscard = true;
     }
 
     // ---------------------------------------------------------------- scenes ----
 
-    /** A straight walk must not crawl: at least 2.2 blocks per second, half a plain walk's pace. */
-    private static void assertPace(SceneContext ctx, String scene, Run r, int blocks) {
+    /** Walk from the pad at {@code -half} to the one at {@code +half} and hold the walk to
+     *  arriving, on the deck, at no less than half a plain walk's pace (2.2 blocks/s). */
+    private static void walkStraight(SceneContext ctx, String scene, int half) {
+        BlockPos goal = ctx.rel(half, DECK + 1, 0);
+        Run r = drive(ctx, spawn(ctx, -half, DECK + 1, 0), 1400, goal, DECK + 1);
+        ctx.record("walk.ticks", r.ticks());
+        assertNeverFell(ctx, scene, r, DECK + 1);
+        assertArrived(ctx, scene, r, goal);
+        int blocks = 2 * half;
         if (r.ticks() > blocks * 9)
             ctx.fail(scene + ": " + blocks + " blocks took " + r.ticks() + " ticks (limit " + blocks * 9
                     + ") | journey: " + r.journey());
+        // Only a best-effort partial has a tail to consume; a search that reaches the goal
+        // outright would pass whatever the tail consume does.
+        if (!r.walkedBestEffort())
+            ctx.fail(scene + ": rig broken: no segment was a best-effort partial | journey: " + r.journey());
     }
 
-    /** Open floor, 5 wide, 100 blocks: the plainest walk there is. The goal lies beyond the
-     *  planner's 48-block horizon plus the 25-block quick-start stub, so no search from the start
-     *  reaches it and every segment is a best-effort partial; the floor is straight, so
-     *  string-pulling leaves each segment two nodes with the tail far ahead of the feet. A tail
-     *  consumed on distance alone is spent on the first tick, and the walk churns at the start pad
-     *  until the walker gives up. Radius 6: x spans -6..106. */
+    /** Open floor, 5 wide, 104 blocks: the plainest walk there is. The goal lies beyond the
+     *  planner's 48-block horizon plus the 25-block quick-start stub, so every segment is a
+     *  best-effort partial that string-pulling reduces to [start, far tail]. */
     private static void bridgeLongFlatWalk(SceneContext ctx) {
         liveStack(ctx);
-        final int run = 100;
-        for (int x = -4; x <= run + 4; x++)
+        final int half = 52;   // centred on the origin so radius 4 holds the course
+        for (int x = -half - 2; x <= half + 2; x++)
             for (int z = -2; z <= 2; z++)
                 ctx.setBlock(x, DECK, z, Blocks.STONE);
-        catchFloor(ctx, -6, run + 6, DECK - CATCH_DROP, -8, 8);
-        BlockPos goal = ctx.rel(run + 2, DECK + 1, 0);
-        Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 1400, goal, DECK + 1);
-        assertNeverFell(ctx, "bridgeLongFlatWalk", r, DECK + 1);
-        assertArrived(ctx, "bridgeLongFlatWalk", r, goal);
-        assertPace(ctx, "bridgeLongFlatWalk", r, run + 4);
+        catchFloor(ctx, -half - 4, half + 4, DECK - CATCH_DROP, -8, 8);
+        walkStraight(ctx, "bridgeLongFlatWalk", half);
     }
 
-    /** A 1-wide causeway flush with two-deep water on both sides, 100 blocks: the walk must stay on
-     *  the deck the whole way. Water rather than void, because a bot that steps off here swims
-     *  instead of falling, and the failure this guards against ended with it in the water.
-     *  Radius 6: x spans -5..105. */
+    /** The same walk on a 1-wide causeway flush with two-deep water on both sides. Water rather
+     *  than void, because a bot that steps off here swims instead of falling, and the failure this
+     *  guards against ended with it in the water. */
     private static void bridgeCausewayOverWater(SceneContext ctx) {
         liveStack(ctx);
-        final int run = 100;
-        for (int x = -5; x <= run + 5; x++)
+        final int half = 52;
+        final int end = half + 3;
+        for (int x = -end; x <= end; x++)
             for (int z = -5; z <= 5; z++) {
                 ctx.setBlock(x, DECK - 2, z, Blocks.STONE);
-                boolean rim = x == -5 || x == run + 5 || z == -5 || z == 5;
+                boolean rim = x == -end || x == end || z == -5 || z == 5;
                 for (int y = DECK - 1; y <= DECK; y++)
                     ctx.setBlock(x, y, z, rim ? Blocks.STONE : Blocks.WATER);
             }
-        strip(ctx, -4, run + 4, DECK, 0);
-        strip(ctx, -4, run + 4, DECK - 1, 0);
-        pad(ctx, -2, DECK, 0);
-        pad(ctx, run + 2, DECK, 0);
-        BlockPos goal = ctx.rel(run + 2, DECK + 1, 0);
-        Run r = drive(ctx, spawn(ctx, -2, DECK + 1, 0), 1400, goal, DECK + 1);
-        assertNeverFell(ctx, "bridgeCausewayOverWater", r, DECK + 1);
-        assertArrived(ctx, "bridgeCausewayOverWater", r, goal);
-        assertPace(ctx, "bridgeCausewayOverWater", r, run + 4);
+        strip(ctx, -end + 1, end - 1, DECK, 0);
+        strip(ctx, -end + 1, end - 1, DECK - 1, 0);
+        pad(ctx, -half, DECK, 0);
+        pad(ctx, half, DECK, 0);
+        catchFloor(ctx, -end - 2, end + 2, DECK - CATCH_DROP, -8, 8);
+        walkStraight(ctx, "bridgeCausewayOverWater", half);
     }
 
     /** 长条单宽独木桥跑酷: 32-block 1-wide run, end to end, no shed. */
