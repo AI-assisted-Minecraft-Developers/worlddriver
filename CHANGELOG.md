@@ -29,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   up with "no route progress". A 140-block `mc.bot.goto` over flat ground failed this way, and so
   did a one-wide causeway between two bodies of water. The tail is now consumed only once the bot
   is past it along the segment, or has stopped closing on it (`walkerTailConsumeDirectional`,
-  now on by default).
+  now on by default). A tail reached by climbing or swimming straight up has no direction to be
+  past, so it is still consumed once the bot is far from it.
 - **A chase keeps its running search when the quarry moves.** `mc.bot.follow` and the combat
   approach re-aim the walker whenever their target changes block, and each re-aim dropped the
   full search in flight. A target that changes block faster than a search lands, like a mob
