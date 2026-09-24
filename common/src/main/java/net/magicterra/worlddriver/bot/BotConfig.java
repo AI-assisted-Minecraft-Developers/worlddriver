@@ -106,10 +106,9 @@ public final class BotConfig {
      *  (bridge stop-family livelock, t0 2026-07-20). When ON, overshoot also requires
      *  the foot to be beyond the tail along the incoming leg's direction (while step
      *  progress is healthy; a stalled approach falls back to the distance consume).
-     *  <p>ON because OFF fails any straight walk to a goal beyond the planner's horizon: the
-     *  segment is string-pulled to [start, far tail], the tail is consumed on the first tick,
-     *  and the walk churns at its start until the walker gives up ({@code wd.bridgeLongFlatWalk},
-     *  {@code wd.bridgeCausewayOverWater}). */
+     *  <p>ON because OFF spends the far tail of every straight walk past the planner's horizon on
+     *  its first tick, and the walk churns at its start until the walker gives up
+     *  ({@code wd.bridgeLongFlatWalk}, {@code wd.bridgeCausewayOverWater}). */
     public static volatile boolean walkerTailConsumeDirectional = true;
 
     /** Corner-clearance repulsion in the walk drive: pure-pursuit cuts corners by design,
