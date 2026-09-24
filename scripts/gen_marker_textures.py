@@ -38,7 +38,7 @@ GLYPHS = {
         "...CC...",
         "...CC...",
     ],
-    "start": [  # play triangle, pointing the way the body faces
+    "start": [  # play triangle, pointing the way the player faces
         "CC......",
         "CCCC....",
         "CCCCCC..",

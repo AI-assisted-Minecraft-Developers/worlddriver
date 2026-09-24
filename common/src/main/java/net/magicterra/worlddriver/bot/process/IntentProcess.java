@@ -28,7 +28,7 @@ import java.util.List;
  * The generic navigation process for the LLM navigation intent layer: drives the
  * {@link Walker} toward an {@link Intent}'s target. Supersedes the old
  * {@code GotoProcess} — the {@code mc.bot.goto} verb, replay installs, and the
- * server Body proof all build an {@link Intent} and start this process. Phase A1
+ * server-side {@code Body} proof all build an {@link Intent} and start this process. Phase A1
  * handles a static target (behavior-identical to the old goto); later phases add
  * dynamic/derived targets, cost modifiers, capability profiles, and constraints.
  *
@@ -38,7 +38,7 @@ import java.util.List;
 public final class IntentProcess implements BotProcess {
 
     /**
-     * {@code endReason} for a run that ended because the body left the world its goal was set in.
+     * {@code endReason} for a run that ended because the bot left the world its goal was set in.
      *
      * <p><b>Distinct from both of the two verdicts it used to be indistinguishable from</b>, which is
      * the whole reason it is a third value rather than a flavour of {@code path-consumed}: "arrived",
@@ -50,13 +50,13 @@ public final class IntentProcess implements BotProcess {
     private final Intent intent;
     private final Walker walker = new Walker("goto");
     /** The walker driving this intent, for its {@link Walker#tallies()}: a scene that holds the
-     *  process reads the counts of the body it handed the process to, on either helm. */
+     *  process reads the counts of the player it handed the process to, on either helm. */
     public Walker walker() { return walker; }
     /** Which of {@link Intent#targets()} the walker is on. The waypoints ({@code route.via}) come
      *  first; arriving at one moves to the next, and only the last one ends the process. */
     private int leg;
-    /** The dimension the goal's coordinates belong to, latched on the first tick that has a body.
-     *  Not taken in {@link #attach} because that is handed a {@link BotState} and no Body. */
+    /** The dimension the goal's coordinates belong to, latched on the first tick that has a player.
+     *  Not taken in {@link #attach} because that is handed a {@link BotState} and no {@code Body}. */
     private ResourceKey<Level> plannedIn;
     /** The route events of this intent (null when the route declared nothing to report on),
      *  judged once per finished deep search: {@link #searchesJudged} is the walker's count the
@@ -121,9 +121,9 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.finalDist = -1;
     }
 
-    /** Body-migrated: drives the client LocalPlayer (via the BotProcess bridge)
+    /** Written against {@code Body}: drives the client LocalPlayer (via the BotProcess bridge)
      *  or a server FakePlayer (ServerWorldDriver) identically — pure movement, so
-     *  it just hands the Walker the same Body. */
+     *  it just hands the Walker the same {@code Body}. */
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         LivingEntity body = a.entity();
         ResourceKey<Level> here = body == null ? null : body.level().dimension();
@@ -159,7 +159,7 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.pathLen = walker.pathLen();
         st.mc_goto.pathStep = walker.pathStep();
         // LATCH THE FIRST PLAN, ONCE. See BotState.ProcessSlot.firstPlan: everything else in this
-        // slot is a live value, and a leg that ends where the body should never have been reports
+        // slot is a live value, and a walk that ends where the bot should never have been reports
         // the planning of THAT place. Latched on the first tick that actually holds a path, so it
         // records the plan the run started from rather than the one it died in.
         if (st.mc_goto.firstPlan == null && walker.pathLen() > 0) {
@@ -185,15 +185,15 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.jumpTag = walker.jumpTag;
         if (s == Walker.Step.WALKING) return false;
         // A waypoint reached: on to the next goal. setGoal resets the walker's path and every
-        // per-goal latch, so the next leg plans afresh from where the body stands; the search
-        // profile (the route's conditions) carries over untouched. A leg that fell short ends the
-        // whole intent, a give-up that stopped as ARRIVED included — a waypoint the body did not
+        // per-goal latch, so the next segment plans afresh from where the bot stands; the search
+        // profile (the route's conditions) carries over untouched. A segment that fell short ends
+        // the whole intent, a give-up that stopped as ARRIVED included — a waypoint the bot did not
         // reach is the caller's condition unmet, not a detour to take silently.
         String shortfall = walker.shortfall(s);
         int last = intent.targets().size() - 1;
         if (shortfall == null && leg < last) {
             leg++;
-            WorldDriverCommon.LOG.info("[IntentProcess] via {} reached, leg {}/{} → {}",
+            WorldDriverCommon.LOG.info("[IntentProcess] via {} reached, segment {}/{} → {}",
                     intent.targets().get(leg - 1), leg + 1, intent.targets().size(), intent.targets().get(leg));
             walker.setGoal(intent.targets().get(leg));
             st.mc_goto.goal = intent.targets().get(leg).toString();
@@ -214,32 +214,32 @@ public final class IntentProcess implements BotProcess {
     @Override public String failure() { return failure; }
 
     /**
-     * The body changed worlds under a goal that was set in the old one: stop, and say which of the
+     * The bot changed worlds under a goal that was set in the old one: stop, and say which of the
      * three things happened.
      *
      * <h2>Why a walk must not survive a portal</h2>
      *
      * A {@link Goal}'s coordinates are dimension-scoped. Nothing in the walker knows that, so a
      * process that keeps ticking after a transfer plans a route across the NEW world's terrain toward
-     * the OLD world's numbers — and then drives the body along it. Measured on rung 19,
+     * the OLD world's numbers — and then drives the bot along it. Measured on rung 19,
      * 2026-08-17: the End crossing happened inside a 1200-tick {@code settle} aimed at the
-     * stronghold's portal cell {@code -1092,25,1314}. Vanilla delivered the body correctly onto the
+     * stronghold's portal cell {@code -1092,25,1314}. Vanilla delivered the bot correctly onto the
      * 5x5 arrival platform at {@code 100,49,0} — {@code platform.obsidian = 25/25} proves the
      * platform was there — and the walker, still pushing toward an overworld coordinate a thousand
      * blocks away, walked it straight off the edge. Two runs, {@code arrived.at = 87,-4376,-1} and
-     * {@code 84,-4290,4}: different landing spots, which is what a body that WALKED off looks like
+     * {@code 84,-4290,4}: different landing spots, which is what a bot that WALKED off looks like
      * and not what a mis-delivered teleport looks like.
      *
      * <h2>Why it is stopped rather than re-aimed or waited out</h2>
      *
-     * Re-aiming would mean this class deciding where the body should go in a world it was never
+     * Re-aiming would mean this class deciding where the bot should go in a world it was never
      * told about — the caller set that goal, and only the caller knows what it meant. Waiting
      * "a few more ticks" waits for an event that cannot happen: the goal will never become reachable
      * because it does not exist here. So the honest move is to end the run, and to end it with a
      * verdict the caller can act on.
      *
      * <p><b>{@code finalDist} stays −1 deliberately.</b> {@code goal.estimate(foot)} would happily
-     * return a number here, and that number would be the distance from this world's body to another
+     * return a number here, and that number would be the distance from the bot in this world to another
      * world's coordinates — an evidence row asserting a quantity that does not exist. There is no
      * distance to report, so none is reported.
      */
@@ -250,7 +250,7 @@ public final class IntentProcess implements BotProcess {
         st.mc_goto.goalReached = false;
         st.mc_goto.endReason = DIMENSION_CHANGED;
         st.mc_goto.lastError = "goal was set in " + plannedIn.location()
-                + ", the body is now in " + here.location()
+                + ", the bot is now in " + here.location()
                 + " — those coordinates mean nothing here, so the walk was stopped rather than "
                 + "re-aimed (a goal belongs to whoever set it)";
         st.mc_goto.finalDist = -1;

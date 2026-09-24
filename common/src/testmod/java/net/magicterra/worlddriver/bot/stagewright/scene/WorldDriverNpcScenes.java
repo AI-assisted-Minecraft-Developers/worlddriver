@@ -34,17 +34,17 @@ import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * The NPC body on five terrains: down a staircase, over a one-block gap, across open water, out of
+ * The NPC bot on five terrains: down a staircase, over a one-block gap, across open water, out of
  * the water onto a bank, and up a ladder. A sixth scene orders it the work that needs hands.
  *
  * <p><b>Two arms on one terrain.</b> The driven piglin walks the course first. Where a headless
- * player body may be minted (the dedicated server), a {@code ServerPlayerBody} then walks the same
- * course with the same walker, so a red on the NPC arm arrives with the player's reading beside it:
- * both failing is the rig, only the NPC failing is a difference between the bodies. On a server a
- * client hosts the NPC arm runs alone; the player arm's coverage is the dedicated gate's.
+ * server-side player may be created (the dedicated server), a {@code ServerPlayerBody} then walks the
+ * same course with the same walker, so a red on the NPC arm arrives with the player's reading beside
+ * it: both failing is the rig, only the NPC failing is a difference between the two driven entities.
+ * On a server a client hosts the NPC arm runs alone; the player arm's coverage is the dedicated gate's.
  *
  * <p>Break and place are off under the pinned baseline. The NPC has no hands, so a course that
- * needed either would measure the refusal rather than the legs.
+ * needed either would measure the refusal rather than the movement.
  */
 public final class WorldDriverNpcScenes implements SceneProvider {
 
@@ -141,9 +141,9 @@ public final class WorldDriverNpcScenes implements SceneProvider {
     }
 
     /**
-     * Work a body without hands cannot do, ordered of the NPC: each order has to end on its first tick
-     * with {@code no_hands}, before it has changed a block. Break and place are switched on, so the
-     * refusal is the body's and not the config's.
+     * Work an entity without hands cannot do, ordered of the NPC: each order has to end on its first
+     * tick with {@code no_hands}, before it has changed a block. Break and place are switched on, so
+     * the refusal comes from the NPC and not from the config.
      */
     private static void refusesWorkThatNeedsHands(SceneContext ctx) {
         ServerLevel level = ctx.level();

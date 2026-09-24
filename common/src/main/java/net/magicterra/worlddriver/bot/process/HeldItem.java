@@ -31,7 +31,7 @@ import net.minecraft.world.item.Items;
  * {@code ServerPlayerBody} by swapping the stacks directly.
  *
  * <p><b>Do not "fix" that by pointing this method at {@code a.holdItem}.</b> That looks like the
- * obvious repair — "a body holding 110 cobblestone in slots 9..35 is not out of blocks" is a
+ * obvious repair — "a bot holding 110 cobblestone in slots 9..35 is not out of blocks" is a
  * recorded defect against the ANY-block scan, and this is the specific-id twin of it — and for one
  * of the five callers it is measurably the WRONG repair. {@code TowerProcess} passes its caller's
  * block id here, and {@code wd.serverTowersWithAFullBackpack} stages exactly this shape (nine
@@ -53,7 +53,7 @@ import net.minecraft.world.item.Items;
  * {@code inv.selected}" — so on a FULL hotbar they take turns evicting each other. A tower that
  * breaks its overhead cell therefore loses the block it was handed: the tool swap puts the pickaxe
  * in the held slot and the cobblestone back in the bag, and the next course asks this scan and is
- * told "no placeable block in hotbar" while the body carries 105 of them.
+ * told "no placeable block in hotbar" while the bot carries 105 of them.
  *
  * <p>Eviction on a full hotbar is the physics of nine slots, not a bug — no destination rule can
  * know what the NEXT consumer will want. What is asymmetric is REACH: the tool side fetches its
@@ -94,8 +94,9 @@ final class HeldItem {
      * have said in their own constructor that they want the wider reach.
      *
      * <p>Delegates to {@link Hands#holdItem} rather than growing a fourth copy of "scan the bag,
-     * SWAP one up": that seam is already implemented per body — the client sends a real SWAP click
-     * through {@code BotInteract.swapFromMainInv}, the server exchanges the two stacks in place —
+     * SWAP one up": that seam is already implemented by each {@code Body} implementation — the
+     * client sends a real SWAP click through {@code BotInteract.swapFromMainInv}, the server
+     * exchanges the two stacks in place —
      * and a copy here would be the fourth spelling of a rule that has already diverged once.
      *
      * <p>Callers must opt in. {@code wd.serverTowersWithAFullBackpack} asserts the narrow reach for

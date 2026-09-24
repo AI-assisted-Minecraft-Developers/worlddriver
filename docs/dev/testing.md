@@ -42,10 +42,10 @@ Three shapes on two loaders. Each shape exercises something the others cannot:
   recorded as a pass.
 - **Integrated server.** One client JVM that opens its own single-player world, so the
   server logic runs inside a client process. This is where client-side physics, the real
-  render thread and the client's own body are in play.
+  render thread and the client's own player are in play.
 - **Dedicated server with client.** Two game JVMs from one command: a dedicated server and
   a client that joins it over the network. This is the shape a user actually runs, and it
-  is the only one that puts a process boundary between the driver and the body. The client
+  is the only one that puts a process boundary between the driver and the player it drives. The client
   half writes its own results file, named by `companionResultsFile` in the topology
   declaration, and the gate judges that file too — without it, a client that never joined
   would still read as a pass.
@@ -71,7 +71,7 @@ its siblings — skips that step and reuses whatever the previous run left behin
 
 The resulting failures look exactly like real bot defects and are not. Blocks a previous
 run bridged are still standing, so a scene asserting that a gap must require a placement
-reports that the body arrived without consuming anything. A shaft a previous run dug
+reports that the bot arrived without consuming anything. A shaft a previous run dug
 changes the terrain a later scene walks over. Which scenes fail varies from run to run,
 which reads as flakiness. It is residue.
 
@@ -163,7 +163,7 @@ The `human.*` family is not written as Java. Each one is a situation built by ha
 live world and captured as a fixture: a `.json` and an `.nbt` committed side by side under
 `common/src/testmod/resources/scenes/`, with the fixture's name listed in `index.txt` next
 to them. `HumanScenes` reads that index and registers one scene per name. A fixture that
-gives the body nothing to hold or wear also runs on a non-player body as `<name>.npc`,
+gives the bot nothing to hold or wear also runs on a non-player mob as `<name>.npc`,
 which needs its own manifest entry beside the first. How to record one is in
 [`../guide/human-verification.md`](../guide/human-verification.md).
 
@@ -296,7 +296,7 @@ Several development tools recover bot state by matching regular expressions agai
 the tick path, and nothing connects the two. Renaming a field there compiles, passes every
 scene, and turns each of those tools into a no-op — a regular expression that matches
 nothing does not raise, it yields an empty result, and the tool reports "no ticks" as
-though the body had never moved. The emitters are `WalkerTickClimb` and `WalkerTickDrive`; the
+though the bot had never moved. The emitters are `WalkerTickClimb` and `WalkerTickDrive`; the
 consumers are `scripts/forensic.py`, `scripts/pmcs/telemetry.py`, `scripts/pmcs/run_case.py` and
 `scripts/accept_cycle.py`. The check imports the consumers' own patterns rather than copying
 them, so it cannot pass while the tool it protects is broken.

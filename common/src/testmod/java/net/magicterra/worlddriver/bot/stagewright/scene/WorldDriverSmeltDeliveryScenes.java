@@ -50,21 +50,21 @@ public final class WorldDriverSmeltDeliveryScenes {
      * says so in its own javadoc. That is the whole of the suite's smelting coverage, and it means
      * every assertion stops at the furnace door. This one waits on real server ticks — 200 per item
      * — so the block entity cooks, and it asks the question the journey's iron rung asks: how many
-     * ingots are in the body's inventory.
+     * ingots are in the bot's inventory.
      *
      * <p><b>Phase 2 is the bug this scene was written for.</b> {@code SmeltProcess.collect()} takes
      * the result back with a shift-click, and {@code AbstractFurnaceMenu.quickMoveStack} →
      * {@code moveItemStackTo(stack, 3, 39, true)} moves NOTHING and returns false when every player
      * slot is taken. The process then reported DONE with {@code lastError} null: ingots made, ingots
      * stranded in the furnace, caller told nothing. Intermittent live for a reason that is not about
-     * smelting at all — the body stands beside the furnace for a thousand ticks with
+     * smelting at all — the bot stands beside the furnace for a thousand ticks with
      * {@code ServerPlayerBody}'s pickup loop running, so the slot its own ore vacated at LOAD
      * refills with whatever the mining rung left on the ground. So phase 2 plugs every free slot at
      * the moment the ore enters the furnace — deterministically, and before the first ingot exists,
      * which is what keeps it out of a race with COLLECT — and requires the run to come back with a
      * reason instead of a silent success.
      *
-     * <p>The furnace is PLACED by the body from its own bag rather than staged by the scene, so the
+     * <p>The furnace is PLACED by the bot from its own bag rather than staged by the scene, so the
      * place → open → load → cook → collect path is exercised whole; phase 2 then reuses the furnace
      * left standing.
      */
@@ -112,16 +112,16 @@ public final class WorldDriverSmeltDeliveryScenes {
             ctx.record("phase1.lastError", String.valueOf(driver.botState().smelt.lastError));
             ctx.record("phase1.furnaceHolds", fpos == null ? "-" : containerSummary(level, fpos));
             ctx.expect(WorldDriverProcessScenes.countItem(fp, Items.IRON_INGOT))
-                    .as("iron ingots in the BODY'S BAG after a smelt that really cooked "
+                    .as("iron ingots in the BOT'S BAG after a smelt that really cooked "
                             + "(see phase1.furnaceHolds: a furnace still holding them is the bug)")
                     .isAtLeast(2);
-            ctx.expect(fpos).as("the body placed its own furnace and it is still standing").isNotNull();
+            ctx.expect(fpos).as("the bot placed its own furnace and it is still standing").isNotNull();
 
             // ---- phase 2: the same smelt with nowhere to put the result ----
             // Phase 1's ingots have to GO. A full bag is not full for an item it already holds a
             // partial stack of — moveItemStackTo merges before it looks for an empty slot — so
             // leaving them here made the plug below leak: measured, 35 slots plugged and the third
-            // ingot still landed, on top of the two. The body that hits this live is smelting its
+            // ingot still landed, on top of the two. The bot that hits this live is smelting its
             // first iron, which is exactly this arrangement.
             takeAll(fp, Items.IRON_INGOT);
             fp.getInventory().add(new ItemStack(Items.RAW_IRON, 1));

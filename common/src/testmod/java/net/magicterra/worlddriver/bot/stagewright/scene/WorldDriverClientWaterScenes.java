@@ -17,12 +17,12 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Water legs driven on the client's REAL player — the walker, the physics and the reflexes that
+ * Water walks driven on the client's REAL player — the walker, the physics and the reflexes that
  * actually ship. Every scene here is red until the engine can do the thing; none is softened to
  * what the walker can already satisfy.
  *
  * <p>Each arena is a flat slab with a pool cut INTO it (water piled above the surface flows away
- * between staging and measuring), a body in the water, and one leg to a cell on dry ground.
+ * between staging and measuring), the bot in the water, and one walk to a cell on dry ground.
  */
 public final class WorldDriverClientWaterScenes implements SceneProvider {
 
@@ -59,8 +59,8 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     private static final int LEG_TICKS = 1_200;
 
     /**
-     * A body floating in a pool whose rim is FLUSH with the water surface walks the leg to a cell on
-     * the rim and ends standing on it. Staged with dirt in hand, as the ladder's body always has.
+     * A bot floating in a pool whose rim is FLUSH with the water surface walks to a cell on the rim
+     * and ends standing on it. Staged with dirt in hand, as the ladder's bot always has.
      *
      * <p>This is TODO J47 on the real client: the headless twin ends {@code end=path-consumed} one
      * cell short with water under its feet, and the ladder's landing scene stands red on it.
@@ -69,14 +69,14 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
         climbOut(ctx, "dirt", 0, Blocks.STONE, 400, new ItemStack(Items.DIRT, 30));
     }
 
-    /** The same leg with nothing to place: the bank is flush, so nothing should NEED placing. */
+    /** The same walk with nothing to place: the bank is flush, so nothing should NEED placing. */
     private static void flushBankClimbOutEmptyHanded(SceneContext ctx) {
         climbOut(ctx, "empty", 0, Blocks.STONE, 400);
     }
 
     /**
      * The rim stands ONE block above the water surface: vanilla's swim-out boost cannot mount it, so
-     * the body must place a foothold (it holds dirt). Digging the dirt rim instead is not a failure
+     * the bot must place a foothold (it holds dirt). Digging the dirt rim instead is not a failure
      * of geometry but of judgment, and the budget is what says so: a swim to the wall, thirty ticks
      * of stall, one placement and one hop fit in 150 ticks; the shortest floating dig does not.
      */
@@ -86,7 +86,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
 
     /**
      * The same rim with nothing to place: the only way up is to dig the DIRT rim down to flush. A
-     * floating body mines at a fifth of a fifth of its grounded speed (vanilla: off the ground, eyes
+     * floating player mines at a fifth of a fifth of its grounded speed (vanilla: off the ground, eyes
      * in water), which is exactly why this arm has a budget of its own.
      */
     private static void oneHighBankDigOut(SceneContext ctx) {
@@ -116,11 +116,11 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     }
 
     /**
-     * A ONE-DEEP pool with a dirt rim one above the surface, dirt in hand. The body stands on the
+     * A ONE-DEEP pool with a dirt rim one above the surface, dirt in hand. The player stands on the
      * floor with its eyes out of the water, yet vanilla still swims it (fluid over 0.4 high), so a
      * ground jump onto the rim is not available; the exit is the swim boost against the rim or a
-     * foothold. The old planner called this cell a floor and jumped; this leg measures what the
-     * real body does with the honest plan.
+     * foothold. The old planner called this cell a floor and jumped; this walk measures what the
+     * real player does with the honest plan.
      */
     private static void shallowPoolStepOut(SceneContext ctx) {
         climbOut(ctx, "dirt", 1, Blocks.DIRT, 1, 200, new ItemStack(Items.DIRT, 30));
@@ -134,16 +134,16 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     /**
      * A STONE rim one above the surface and an iron pickaxe in the hand: the dig must pick the
      * tool and still finish afloat. Bare-handed this rim is hopeless (the walker poisons it), so
-     * a body that ends up digging by hand has not selected its tool.
+     * a bot that ends up digging by hand has not selected its tool.
      */
     private static void oneHighStoneBankPickaxeOut(SceneContext ctx) {
         climbOut(ctx, "pickaxe", 1, Blocks.STONE, 400, new ItemStack(Items.IRON_PICKAXE));
     }
 
     /**
-     * A one-deep channel fed by a single source, so the water the body stands in is FLOWING toward
-     * the far end; the east bank is one course above the water. The body holds dirt. Getting out
-     * means placing a block into a flowing cell while the current pushes the body off its column,
+     * A one-deep channel fed by a single source, so the water the bot stands in is FLOWING toward
+     * the far end; the east bank is one course above the water. The bot holds dirt. Getting out
+     * means placing a block into a flowing cell while the current pushes the bot off its column,
      * which is the river-edge shape the ladder's towers kept losing blocks to.
      */
     private static void flowingChannelPlaceOut(SceneContext ctx) {
@@ -151,7 +151,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     }
 
     /**
-     * The same current at the bottom of a trench two deep: the body stands on the trench floor in
+     * The same current at the bottom of a trench two deep: the bot stands on the trench floor in
      * one block of flowing water (a deeper FLOWING river is not a vanilla shape — water over water
      * does not spread), and the east bank is three above its feet. Three rungs in a current, or a
      * staircase dug wet; the budget is the rungs.
@@ -238,8 +238,8 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     private static final int FLOW_DRY_BY = 200;
 
     /**
-     * A body in a long, deep lake swims its whole length to a cell on the far bank, flush with the
-     * water. Nothing to climb, nothing to avoid: the leg measures how the planner and the walker
+     * A bot in a long, deep lake swims its whole length to a cell on the far bank, flush with the
+     * water. Nothing to climb, nothing to avoid: the walk measures how the planner and the walker
      * handle open water by itself — how many ticks a straight crossing costs and how many times the
      * plan is redone on the way.
      */
@@ -317,13 +317,13 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
     /**
      * @param rimRaise how many blocks the slab around the pool rises above the water surface cell
      * @param rim      the block the slab's top course is made of (what a dig arm has to chew)
-     * @param dryBy    tick by which the body must first stand on dry ground
+     * @param dryBy    tick by which the bot must first stand on dry ground
      */
     private static void climbOut(SceneContext ctx, String arm, int rimRaise, Block rim, int dryBy, ItemStack... hand) {
         climbOut(ctx, arm, rimRaise, rim, POOL_DEPTH, dryBy, hand);
     }
 
-    /** As above with the pool {@code poolDepth} cells deep; a one-deep pool stands the body on
+    /** As above with the pool {@code poolDepth} cells deep; a one-deep pool stands the bot on
      *  the floor with its eyes out of the water, the shape the planner used to treat as a floor
      *  it could jump off. */
     private static void climbOut(SceneContext ctx, String arm, int rimRaise, Block rim, int poolDepth, int dryBy, ItemStack... hand) {
@@ -334,7 +334,7 @@ public final class WorldDriverClientWaterScenes implements SceneProvider {
                 for (int dy = 1; dy <= rimRaise; dy++) ctx.setBlock(dx, GROUND + dy, dz, Blocks.AIR);
             }
         int goalY = GROUND + 1 + rimRaise;
-        // One cell under the surface where the pool allows it, so the body starts wet either way.
+        // One cell under the surface where the pool allows it, so the bot starts wet either way.
         BlockPos start = ctx.rel(0, GROUND - Math.min(poolDepth - 1, 1), 0);
         BlockPos goal = ctx.rel(POOL_HALF + 2, goalY, 0);
         ctx.record("test setup", "water surface cell y=" + GROUND + ", bank top " + rimRaise

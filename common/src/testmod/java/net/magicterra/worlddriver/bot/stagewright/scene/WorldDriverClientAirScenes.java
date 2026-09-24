@@ -16,7 +16,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Legs that begin with the client's REAL player in the air — falling off something, knocked
+ * Walks that begin with the client's REAL player in the air — falling off something, knocked
  * back, or simply asked to go somewhere before it has landed. The walker's search starts from a
  * foot cell that has nothing under it, and everything downstream of that (the first path, the
  * first step-advance, the first stall clock) has to survive the landing.
@@ -35,8 +35,8 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
 
     /**
      * A two-wide chasm across the only way to the goal, deep enough to hurt and with nothing to
-     * place. The leg is a run-up, one leap and a landing; the budget is that plus a walk, and the
-     * floor of the chasm is the line the body must never reach.
+     * place. The walk is a run-up, one leap and a landing; the budget is that plus a short walk,
+     * and the floor of the chasm is the line the player must never reach.
      */
     private static void parkourOverChasm(SceneContext ctx) {
         stageSlab(ctx);
@@ -84,7 +84,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
     }
 
     /**
-     * The body stands at the bottom of a one-wide shaft six deep with dirt in hand; the goal is on
+     * The player stands at the bottom of a one-wide shaft six deep with dirt in hand; the goal is on
      * the surface three cells from the mouth. The only way out is six pillar rungs. Each rung is a
      * jump and a placement, a dozen ticks; the budget is those plus the walk, not a search that
      * rediscovers the shaft every rung.
@@ -140,16 +140,16 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
 
     private static final int GROUND = 20;
     private static final int HALF = 12;
-    /** Blocks of air under the body's feet at the start — a fall that hurts but does not kill. */
+    /** Blocks of air under the player's feet at the start — a fall that hurts but does not kill. */
     private static final int DROP = 5;
     private static final int LEG_TICKS = 600;
     private static final int SETTLE_TICKS = 10;
 
     /**
-     * The leg is ordered while the body is still five blocks up over flat stone. It must land,
+     * The walk is ordered while the player is still five blocks up over flat stone. It must land,
      * plan from where it landed and walk the six cells to the goal — inside 200 ticks, which is
      * the fall plus a plain walk with room for one repath, not for a search that keeps starting
-     * from a cell the body has already left.
+     * from a cell the player has already left.
      */
     private static void gotoStartsMidAir(SceneContext ctx) {
         stageSlab(ctx);
@@ -158,7 +158,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
 
     /**
      * The same drop over a pool: the landing is a splash, the first dry cell is the far rim, and
-     * the leg ends only when the body stands on it. A body that treats the splash as the end of
+     * the walk ends only when the player stands on it. A bot that treats the splash as the end of
      * the fall and then hunts for the exit is what the budget is against.
      */
     private static void gotoStartsMidAirOverWater(SceneContext ctx) {
@@ -187,7 +187,7 @@ public final class WorldDriverClientAirScenes implements SceneProvider {
         BotConfig.walkerSurfaceSprintSwim = true;
         ServerPlayer body = helm.player();
 
-        // Two ticks, not the usual thirty: the body is falling, and the point is to order the leg
+        // Two ticks, not the usual thirty: the player is falling, and the point is to order the walk
         // while it still is. The teleport reaches the client within one.
         helm.sync(2, () -> {
             ctx.record("start after sync", helm.where());

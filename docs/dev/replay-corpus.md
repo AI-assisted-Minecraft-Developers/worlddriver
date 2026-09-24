@@ -4,7 +4,7 @@ The mod can record a `goto` session — the routes the planner produced, the ter
 planned over, and the trajectory the walker actually flew — into a single JSON file, and
 replay that file later to reproduce the run. A corpus of such recordings is the regression
 check for movement and pathfinding changes: replay all of them before and after a change,
-and compare how badly the body churned.
+and compare how badly the bot churned.
 
 This document covers what a recording holds, where the corpus is kept, how to record,
 replay and analyse a run, what the regression check compares, and where replay stops being
@@ -34,7 +34,7 @@ A **segment** carries the search result — nodes expanded, milliseconds spent, 
 whether the goal was reached — the node coordinates, one edge record per step (the move
 kind, its cost, and the cells it planned to break or place), and one physics record per
 node. That physics record is the planner's own belief about the node, and it is the reason
-the archive exists: whether the body fits there standing, crouching or crawling, whether
+the archive exists: whether the player fits there standing, crouching or crawling, whether
 the standing hitbox collides, what pose a ceiling forces, whether the foot cell is in water
 and the eye submerged, whether the block underfoot is solid, what hazard the foot cell is,
 how far the fall from the previous node is and whether it is survivable, and whether a jump
@@ -50,7 +50,7 @@ so restoring an archive into an otherwise flat or empty world leaves the bot sta
 contiguous ground instead of a one-block shell it falls straight through.
 
 A **trajectory** sample carries the tick, position, yaw, which step of the plan was current,
-the move kind, whether the body was on the ground and in water, its pose, whether its hitbox
+the move kind, whether the bot was on the ground and in water, its pose, whether its hitbox
 overlapped geometry, and — on a replay capture only — how far it was from the plan at that
 tick.
 
@@ -59,7 +59,7 @@ tick.
 The archive is terrain and trajectory, and nothing else:
 
 - **No entities.** No mobs, no dropped items, no other players, no projectiles.
-- **No body state.** No inventory, health, hunger, effects or equipment.
+- **No player state.** No inventory, health, hunger, effects or equipment.
 - **No world state outside the blocks.** No time of day, no weather, no random tick state.
 - **No world outside the corridor.** Roughly five blocks wide, six tall, along the route.
 - **No driver configuration.** The settings in force while the run was recorded are not
@@ -133,7 +133,7 @@ the running game's directory. To replay it:
 mc.debug.replay {"file": "replay-0001-1718400000000.json", "restoreBlocks": true}
 ```
 
-That restores the recorded terrain, teleports the body to the recorded start, and runs the
+That restores the recorded terrain, teleports the bot to the recorded start, and runs the
 route again, capturing the result as `replay-run-*.json` beside the archive. To read either
 file without a game:
 
@@ -173,7 +173,7 @@ The modules divide as follows.
   directory if it is not there, sets the candidate settings over the websocket — together
   with the telemetry switch `walkerDebug`, which has to be on for any of this to be
   measurable and is not part of what is being tested — issues `mc.debug.replay`, then polls
-  the game log for walker telemetry until the body crosses the arrival coordinate or the
+  the game log for walker telemetry until the bot crosses the arrival coordinate or the
   timeout expires, and parses that slice of the log.
 - `telemetry.py` parses the `[walker]` lines into tick records.
 - `conformance.py` aggregates those ticks per move kind.
@@ -189,7 +189,7 @@ x and the comparison direction, tracks the live log, and prints a verdict.
 The measured quantity is **`maxStuck`**: the peak of the walker telemetry's running stall
 counter over the run, in ticks. Twenty ticks is a second. A run whose peak stays under the
 silky threshold of 120 ticks — about six seconds — never visibly stalled. The comparison is
-per archive against a baseline matrix, plus a boolean for whether the body arrived, where
+per archive against a baseline matrix, plus a boolean for whether the bot arrived, where
 arrival means its x crossing the manifest's coordinate in the manifest's direction.
 
 A candidate is accepted only when all three of these hold:
@@ -220,7 +220,7 @@ The harness recovers everything from log lines a format string in the walker's t
 emits. Nothing in the compiler connects the two. Renaming a field, adding one, or moving one
 compiles, passes every scene, and silently turns every scraper into a no-op — a regex that
 matches nothing does not raise, it yields an empty iterator, and the tool then reports "no
-ticks" exactly as if the body had never moved. `scripts/check_log_contract.py` is the only
+ticks" exactly as if the bot had never moved. `scripts/check_log_contract.py` is the only
 thing that pins the two ends together: it feeds a real run log to the same regexes and fails
 if any of them stops matching. Run it after touching either side. It reads a log that a gate
 run is actively writing, so do not run it while one is in progress.
@@ -232,11 +232,11 @@ conformance aggregation, the gate rule — with no game involved.
 
 **Replay drives the client's player, and only that.** The installer hops onto the client
 thread and takes the local player; there is no headless replay. A replay therefore says
-nothing about the server-side body, whose actuator and physics differ — see
+nothing about the server-side player, whose actuator and physics differ — see
 [fake-player-parity.md](fake-player-parity.md).
 
 **Only blocks are restored.** No mobs, no dropped items, no weather, no time of day, no
-effects on the body. A live failure whose cause was outside the block corridor does not
+effects on the player. A live failure whose cause was outside the block corridor does not
 reproduce, and its absence in a replay is not evidence that it was fixed.
 
 **The corridor is narrow.** Two blocks out in x and z from the planned nodes. A run that
@@ -277,4 +277,4 @@ the purpose.
   conformance loop this corpus feeds.
 - [movement-tick-phases.md](movement-tick-phases.md) — what the telemetry line is reporting.
 - [fake-player-parity.md](fake-player-parity.md) — why a client-side replay cannot speak for
-  a headless body.
+  a headless server-side player.

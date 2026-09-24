@@ -24,21 +24,22 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
 /**
- * The {@code mc.bot.*} verbs on bodies named by {@code body}, called through {@code DriverApi.route}
- * the way every transport calls it. A server player body and an NPC are registered on a flat stone
+ * The {@code mc.bot.*} verbs on bots named by {@code body}, called through {@code DriverApi.route}
+ * the way every transport calls it. A server-side player and an NPC are registered on a flat stone
  * course and addressed by name:
  *
  * <ul>
  *   <li>{@code goto}, {@code cancel}, {@code status}: listed, refused the goal forms only {@code self}
  *       takes, walked down the course, the NPC's second walk cancelled, and a fly order it has no
  *       elytra for walked back instead;</li>
- *   <li>the hand verbs: the player body takes a stack up and turns, the NPC refuses the three that
+ *   <li>the hand verbs: the server-side player takes a stack up and turns, the NPC refuses the three that
  *       need hands;</li>
  *   <li>the verbs that start a process: a bad order refused before anything starts, the NPC's mine
- *       ended by the process for want of hands, the player body run away from where it stands.</li>
+ *       ended by the process for want of hands, the server-side player run away from where it
+ *       stands.</li>
  * </ul>
  *
- * <p>Runs where a headless player body may be minted. {@code SceneBody.managed} skips it on a server
+ * <p>Runs where a headless server-side player may be minted. {@code SceneBody.managed} skips it on a server
  * a client hosts, and an NPC alone would prove the route without the player host.
  */
 public final class WorldDriverBodyRouteScenes implements SceneProvider {
@@ -61,7 +62,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
                         WorldDriverBodyRouteScenes::startProcessesByName));
     }
 
-    /** The two bodies on the staged course, registered under {@link #NAME}; null when the scene failed. */
+    /** The two bots on the staged course, registered under {@link #NAME}; null when the scene failed. */
     private record Bodies(ServerWorldDriver driver, ServerBodyHost player, LivingBody npcBody, NpcBodyHost npc) {}
 
     private static Bodies stage(SceneContext ctx, BlockPos o, BlockPos playerStart, BlockPos npcStart) {
@@ -72,7 +73,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         BotConfig.allowBreak = false;
         BotConfig.allowPlace = false;
         // The shipped arrival rule, which the pinned baseline turns off: without it the walker spends the
-        // last node from 0.67 out, and a player body ended path-consumed a cell short (x=…329.984,
+        // last node from 0.67 out, and a server-side player ended path-consumed a cell short (x=…329.984,
         // finalDist 10) on both loaders while the NPC arrived.
         BotConfig.walkerHoldLastNodeUntilStanding = true;
         fill(level, lo, hi, AIR);
@@ -85,7 +86,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         NpcBodyHost npc = new NpcBodyHost(NAME, npcBody);
         ctx.cleanup(() -> ServerAvatarManager.unregister(npc));
         for (BodyHost h : List.of(player, npc)) {
-            if (!BodyRegistry.register(h)) { ctx.fail(h.id() + " is already taken: the previous scene did not unregister its body from BodyRegistry"); return null; }
+            if (!BodyRegistry.register(h)) { ctx.fail(h.id() + " is already taken: the previous scene did not unregister its bot from BodyRegistry"); return null; }
             ctx.cleanup(() -> BodyRegistry.unregister(h.id()));
         }
         for (int i = 0; i < SETTLE_STEPS; i++) { npcBody.step(); driver.avatar().step(); }
@@ -106,7 +107,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         Map<String, Object> listed = call(api, "mc.bot.status", Map.of());
         ctx.record("status.bodies", String.valueOf(listed.get("bodies")));
         ctx.check(ids(listed).containsAll(List.of(player.id(), npc.id())))
-                .as("status.bodies lists both registered bodies: " + listed.get("bodies")).isTrue();
+                .as("status.bodies lists both registered bots: " + listed.get("bodies")).isTrue();
 
         Map<String, Object> waypoint = call(api, "mc.bot.goto", Map.of("body", npc.id(), "waypoint", "home"));
         Map<String, Object> tool = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcGoal),
@@ -144,7 +145,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
                     .as("cancelling the NPC's second goto by name: " + cancelled + ", afterwards busy=" + after.get("busy") + " goto=" + slot)
                     .isTrue();
 
-            // route.mode fly on another body is elytraFly's order; the NPC wears no elytra, so it walks,
+            // route.mode fly on another bot is elytraFly's order; the NPC wears no elytra, so it walks,
             // and the reply names the goto slot the walk lives in.
             Map<String, Object> fly = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcStart),
                     "route", Map.of("mode", List.of("fly"))));
@@ -179,7 +180,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ctx.check(Boolean.FALSE.equals(empty.get("ok")) && "blocks list required".equals(empty.get("error")) && !player.busy())
                 .as("a mine order with empty blocks is refused before it starts and the server-side player stays idle: " + empty).isTrue();
 
-        // The hand verbs: the player body takes a stack up from its hotbar and turns; the NPC has no
+        // The hand verbs: the server-side player takes a stack up from its hotbar and turns; the NPC has no
         // hands to hold, use or swing with, and says so before anything happens.
         b.driver().fakePlayer().getInventory().items.set(5,
                 new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.STONE, 4));

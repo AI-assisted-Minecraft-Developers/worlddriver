@@ -98,16 +98,16 @@ dedicated server it fails immediately and tells you which side you are on withou
 effects. `mc.system.version` works on both sides, so a `version` that answers and a
 `screen.info` that errors is a dedicated server.
 
-**What still works.** `mc.bot.status` answers on a dedicated server, listing the bodies the
-server holds. Most `mc.bot.*` verbs also take a `body` parameter, and with a body that is not
-`self` they take a code path that names no client class, so they drive server-side bodies
-there. See [Capabilities](capabilities.md) for which verbs take `body` and which do not.
+**What still works.** `mc.bot.status` answers on a dedicated server, listing the bot players
+the server holds. Most `mc.bot.*` verbs also take a `body` parameter, and when it names a bot
+other than `self` they take a code path that names no client class, so they drive server-side
+players there. See [Capabilities](capabilities.md) for which verbs take `body` and which do not.
 
 ## The bot accepts a command and does not move
 
 **Symptom.** The call returns `{ok: true, started: true}` and nothing happens in the world.
 
-Start by separating this from the case where the call *did* tell you. A body that cannot act
+Start by separating this from the case where the call *did* tell you. A bot that cannot act
 right now refuses before the verb runs, and the reply is `{ok: false, error, reason}` with
 `reason` one of `no_player`, `loading`, `dead`, `paused`, `sleeping` or `chunk_unloaded`,
 and `error` a sentence saying what to do about it. If you got `ok: true`, none of those

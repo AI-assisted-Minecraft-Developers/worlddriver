@@ -28,7 +28,7 @@ final class JourneyDrain {
     private JourneyDrain() {}
 
     /**
-     * The cells a body ends the descent in — the bottom step, its head room, and the clearance the
+     * The cells a bot ends the descent in — the bottom step, its head room, and the clearance the
      * climb back out jumps through.
      *
      * <p>The same three cells {@code digStairsDown} cuts for every step, named here because two
@@ -71,9 +71,9 @@ final class JourneyDrain {
                 + " last step), so the only option is to wait for it to recede";
     }
 
-    /** How long to let the alcove empty after the water is taken back, and how many such legs.
-     *  Water without a source is gone in under a second, so five legs of forty ticks is generous —
-     *  it is sized to be long enough that "still wet" means the SOURCE is still there. */
+    /** How long to let the alcove empty after the water is taken back, and how many such waiting
+     *  rounds. Water without a source is gone in under a second, so five rounds of forty ticks is
+     *  generous — it is sized to be long enough that "still wet" means the SOURCE is still there. */
     private static final int DRAIN_TICKS = 40;
     private static final int DRAIN_LEGS = 5;
 
@@ -105,7 +105,7 @@ final class JourneyDrain {
      */
     private static final int DRAIN_UPSTREAM = 8;
 
-    /** The legs the caller starts with. Here rather than at the call site so the wait's length and
+    /** The number of waiting rounds the caller starts with. Here rather than at the call site so the wait's length and
      *  the sentences that quote it cannot drift apart. */
     static int legs() {
         return DRAIN_LEGS;
@@ -122,7 +122,7 @@ final class JourneyDrain {
      * read as a mining failure.
      *
      * <p>Flowing water with no source disappears on its own, so this is a wait and not a repair. If
-     * it is still wet after all the legs, something is still feeding it — a different failure, and
+     * it is still wet after all the rounds, something is still feeding it — a different failure, and
      * since j51 this names the feeder rather than letting the next cell report it second-hand.
      */
     static void drainTheAlcove(SceneContext ctx, JourneyRig rig, int i, int legs, Runnable then) {

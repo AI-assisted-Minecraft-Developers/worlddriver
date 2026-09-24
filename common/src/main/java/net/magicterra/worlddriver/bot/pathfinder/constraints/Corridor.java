@@ -17,7 +17,7 @@ import net.minecraft.world.phys.Vec3;
  * per-cell work of getting over the ditch and up the step.
  *
  * <p>Rejoin, as {@link LeashHardRadius}: from outside the corridor only edges that strictly
- * close the distance to the line are allowed, so a body pushed out walks back in instead of
+ * close the distance to the line are allowed, so a bot pushed out walks back in instead of
  * having no successors.
  *
  * @param points the polyline's vertices in order; one point is a degenerate line

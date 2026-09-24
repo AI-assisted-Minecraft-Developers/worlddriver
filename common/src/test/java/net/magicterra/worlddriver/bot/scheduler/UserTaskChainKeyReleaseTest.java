@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The movement keybinds are the human's too, so clearing them is only right when the bot pressed
  * them. A process that ends on the very tick it first runs (nothing to backfill, no bed in range)
- * never drove the body, and releasing on its ending dropped whatever the human was holding; so did
+ * never drove the player, and releasing on its ending dropped whatever the human was holding; so did
  * the idle handover that follows it.
  */
 class UserTaskChainKeyReleaseTest {

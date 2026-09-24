@@ -15,20 +15,20 @@ import net.minecraft.world.level.levelgen.Heightmap;
  * Reading the ground the journey's mining rungs work in.
  *
  * <p>Split out of the rung file, which is at its line budget, and split along a seam that is real
- * rather than convenient: <b>nothing here touches the body</b>. Every method is a question about the
+ * rather than convenient: <b>nothing here touches the bot</b>. Every method is a question about the
  * world, answered from a {@link ServerLevel} and a coordinate, and that is what makes them safe to
- * call from RECON — before there is a body at all — as well as from the rung that will act on the
+ * call from RECON — before there is a bot at all — as well as from the rung that will act on the
  * answer. The one exception, {@link #shallowWaterNear}, takes a rig only to learn where to centre.
  *
  * <p><b>Reading terrain is not staging.</b> The ladder's premise is a caller who knows this seed, and
- * these are how it knows: no method here changes a block, spawns anything, or moves the body.
+ * these are how it knows: no method here changes a block, spawns anything, or moves the bot.
  * {@code JourneyLedger.stagingCalls()} stays empty across every one of them.
  */
 public final class JourneyTerrain {
 
     private JourneyTerrain() {}
 
-    /** Lava SOURCE cells within {@code r} of {@code around}, ordered by how far the BODY has to walk
+    /** Lava SOURCE cells within {@code r} of {@code around}, ordered by how far the BOT has to walk
      *  to each. Two centres because they are two different questions: where the pool is, and which
      *  of its cells is cheapest to spend next. */
     public static List<BlockPos> lavaSourcesNear(ServerLevel level, BlockPos around, int r,
@@ -74,7 +74,7 @@ public final class JourneyTerrain {
     /**
      * Where the lava is down the WHOLE column, in 8-block bands.
      *
-     * <p>Every probe above scans {@code dy ∈ [-6,4]} — eleven blocks around the body. So their
+     * <p>Every probe above scans {@code dy ∈ [-6,4]} — eleven blocks around the bot. So their
      * answer, however wide the radius, is <b>"none at this depth"</b> and never "none here": a
      * lava sea eighty blocks lower reddens exactly the same row, and reading it as absence sends
      * the next round at the radius, which is not the dimension that is wrong. Widening x/z was
@@ -108,16 +108,16 @@ public final class JourneyTerrain {
      * there to the surface.
      *
      * <p>Checked over the whole 3×3 around the candidate, not the one column, because the walk that
-     * puts the body over it lands within about a block and a shaft that starts one cell off is a
+     * puts the bot over it lands within about a block and a shaft that starts one cell off is a
      * shaft nobody checked. Rings outward from two cells: one cell would put the tunnel's first
      * break directly into the pool's wall.
      *
      * <p>The ring goes out to eight rather than four because DRYNESS is the strong filter here, and
      * it was the constraint the first version forgot. It picked a column two cells from the pool,
      * stepped correctly off the lava's own column onto it, scaled its attempt cap to the 34-block
-     * descent — and then floated: the column was under a swamp pond, so the support under the body
-     * was water 122 times running and the rung reported "the block broke but the body did not sink"
-     * about a body that was swimming. Every ore landmark on this ladder is surveyed for exactly this
+     * descent — and then floated: the column was under a swamp pond, so the support under the bot
+     * was water 122 times running and the rung reported "the block broke but the bot did not sink"
+     * about a bot that was swimming. Every ore landmark on this ladder is surveyed for exactly this
      * and this column is chosen at runtime, so it has to make the same check itself.
      */
     public static BlockPos pickDigColumn(ServerLevel level, BlockPos lava, int surfaceY,
@@ -145,7 +145,7 @@ public final class JourneyTerrain {
      * turns the mould.
      *
      * <p><b>Written because the lever that claimed to do this did not.</b> A rehearsal could already
-     * stage which side of the lake the BODY starts on ({@code -PforgeAway}), and its evidence row
+     * stage which side of the lake the BOT starts on ({@code -PforgeAway}), and its evidence row
      * promised "the staircase and the mould will both face this way". It cannot keep that promise,
      * and three directed rehearsals on 2026-08-16 proved it in one line each: {@code east},
      * {@code south} and {@code west} produced three different {@code rehearsal.stand} values and
@@ -212,7 +212,7 @@ public final class JourneyTerrain {
         return false;
     }
 
-    /** Whether the column the body is actually standing on will do. */
+    /** Whether the column the bot is actually standing on will do. */
     public static boolean columnIsSafeToSink(ServerLevel level, BlockPos floor, int surfaceY) {
         return whyNotDiggable(level, floor, surfaceY) == null;
     }
@@ -230,8 +230,8 @@ public final class JourneyTerrain {
      * question a cave answers: a lava pool sits IN a cave, so the cells around it at its own level
      * are pool, cave floor, and cave air in whatever proportion the terrain chose. What the eight
      * neighbours must be is <b>dry at the top</b> — that is the failure this exists to prevent, a
-     * body starting the shaft afloat in a pond — and <b>free of lava</b>, because the walk that puts
-     * the body over a column is only good to about a block and a shaft one cell off that breaks into
+     * bot starting the shaft afloat in a pond — and <b>free of lava</b>, because the walk that puts
+     * the bot over a column is only good to about a block and a shaft one cell off that breaks into
      * the pool is the one outcome the whole rung is arranged to avoid.
      */
     public static String whyNotDiggable(ServerLevel level, BlockPos floor, int surfaceY) {
@@ -242,7 +242,7 @@ public final class JourneyTerrain {
         // rule, it is a broken one, and it took a one-minute recon probe to say so instead of a
         // twenty-five-minute run per guess.
         //
-        // The two places dryness actually decides the outcome are the ENDS. At the top the body has
+        // The two places dryness actually decides the outcome are the ENDS. At the top the bot has
         // to stand on ground to start the shaft, or it floats and never falls in. At the bottom it
         // has to land on ground beside the pool rather than in water. What happens in between is the
         // descent's problem, and it now has a guard that reports floating in one line.
@@ -266,7 +266,7 @@ public final class JourneyTerrain {
     }
 
     /** How many blocks below the mouth of a shaft must be fluid-free — enough that the first courses
-     *  are cut in rock and the body is on ground, not afloat, while it learns to fall. */
+     *  are cut in rock and the bot is on ground, not afloat, while it learns to fall. */
     public static final int DRY_HEADROOM = 12;
 
     /** How many blocks above the landing must be fluid-free, so the shaft ends on ground beside the
@@ -293,7 +293,7 @@ public final class JourneyTerrain {
      *
      * <p>Every mining rung records a {@code surfaceY} on arrival and climbs back to it afterwards,
      * and until this existed that number was {@code player().blockPosition().getY()}: <b>wherever
-     * the body happened to be standing</b>. That is the surface only if the previous rung left it
+     * the bot happened to be standing</b>. That is the surface only if the previous rung left it
      * on the surface, and mining rungs do not.
      *
      * <p>Measured, and it is the whole of a rung failing two rungs later. The portal kit walked to
@@ -304,14 +304,14 @@ public final class JourneyTerrain {
      * walking failure. A rung that climbs out to a number nobody checked has not climbed out.
      *
      * <p>The heightmap answers the question that was actually being asked, and it does not care
-     * where the body is.
+     * where the bot is.
      */
     public static int daylightAt(ServerLevel level, BlockPos at) {
         return level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, at).getY();
     }
 
-    /** Standing room, not swimming room: no fluid in the few cells a body occupies at this column's
-     *  own surface. This is the cell the descent's first course is taken from, and a body floating
+    /** Standing room, not swimming room: no fluid in the few cells a player occupies at this column's
+     *  own surface. This is the cell the descent's first course is taken from, and a bot floating
      *  in a swamp pond never falls into the hole it just dug. */
     public static boolean dryUnderfoot(ServerLevel level, int x, int z) {
         int surface = daylightAt(level, new BlockPos(x, 0, z));
@@ -327,9 +327,9 @@ public final class JourneyTerrain {
      *  neighbour. */
     public static final int LIP_DEPTH = 8;
 
-    /** The eight cells a body can drift into from a stand — four cardinals and four diagonals, the
+    /** The eight cells a bot can drift into from a stand — four cardinals and four diagonals, the
      *  same set {@code WalkerGeometry.EDGE_NEIGHBOURS} pins and for the same reason: the drift that
-     *  takes a body off a lip is as often sideways along it as forward over it. */
+     *  takes a bot off a lip is as often sideways along it as forward over it. */
     private static final int[][] EDGE_NEIGHBOURS = {
             {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
 
@@ -347,13 +347,13 @@ public final class JourneyTerrain {
      * {@link #LIP_DEPTH}. Water is a splash, not a drop, exactly as the walker treats it.
      *
      * <p>It is asked of a cell that is EMPTY, so it is a question about the cell rather than about
-     * the body in it, which is what makes it usable before any body is standing there. The reading
-     * it is a proxy for is {@code soleOnSolid}, and that one needs a body: a dead stop printed
+     * the bot in it, which is what makes it usable before any bot is standing there. The reading
+     * it is a proxy for is {@code soleOnSolid}, and that one needs a bot: a dead stop printed
      * {@code Block{minecraft:air}} below the feet at {@code -14,66,21}, which is this predicate's answer taken
      * the expensive way, eleven trips too late.
      *
      * <p>It lives here rather than beside the first caller because it turned out to answer for two:
-     * {@code JourneyFill.pinTheFillStation} picks a cell the body visits ten times, and
+     * {@code JourneyFill.pinTheFillStation} picks a cell the bot visits ten times, and
      * {@link #bankStandNear} picks the cell rung 12's opening walk ENDS on, and both were choosing
      * cells on the same rim.
      */
@@ -372,8 +372,8 @@ public final class JourneyTerrain {
         return null;
     }
 
-    /** The cell itself when nothing in it would hold a body up; null when something would. Water
-     *  holds one up for this purpose — a body that lands in it has not fallen into the lake. */
+    /** The cell itself when nothing in it would hold a player up; null when something would. Water
+     *  holds one up for this purpose — a bot that lands in it has not fallen into the lake. */
     private static BlockPos openToFallThrough(ServerLevel level, BlockPos c) {
         if (level.getBlockState(c).blocksMotion()) return null;
         return level.getFluidState(c).is(net.minecraft.tags.FluidTags.WATER) ? null : c;
@@ -385,7 +385,7 @@ public final class JourneyTerrain {
      * <p>Because the destination was never the thing that killed this approach: the ROUTE is.
      * Measured on the {@code east} rehearsal of 2026-08-17, with the walk already re-aimed at a
      * chosen bank cell one block from the pool ({@code lava.bank = -8, 66, 19}) rather than at the
-     * lake's own column, the walker put the body on the rim anyway and all three legs died there:
+     * lake's own column, the walker put the bot on the rim anyway and all three walks died there:
      *
      * <pre>
      * [walker] footing guard: sole 0.0362 &lt; 0.18 at -14,66,21 beside a lethal drop → sneak-pin
@@ -395,8 +395,8 @@ public final class JourneyTerrain {
      * </pre>
      *
      * <p>Those three cells are consecutive steps of ONE planned route, and the last of them holds a
-     * body that can then never move: vanilla's sneak refuses every horizontal move that would take a
-     * body off its support, and at {@code sole = 0.0000} there is no support to keep. So the reading
+     * bot that can then never move: vanilla's sneak refuses every horizontal move that would take a
+     * player off its support, and at {@code sole = 0.0000} there is no support to keep. So the reading
      * that picks stands has to reach the cells BETWEEN them too, and the pathfinder is the only
      * thing that chooses those.
      *
@@ -414,7 +414,7 @@ public final class JourneyTerrain {
             for (int dz = -radius; dz <= radius; dz++)
                 for (int y = lava.getY() + 1; y <= lava.getY() + rise; y++) {
                     BlockPos c = new BlockPos(lava.getX() + dx, y, lava.getZ() + dz);
-                    // Only cells a body could be standing in: a solid cell is not a step and the
+                    // Only cells a bot could be standing in: a solid cell is not a step and the
                     // tax on it would only make the set bigger for nothing.
                     if (level.getBlockState(c).blocksMotion()) continue;
                     if (onThePoolsLip(level, c) != null) out.add(c.immutable());
@@ -439,8 +439,8 @@ public final class JourneyTerrain {
      *
      * <p>Every caller on the lava round trip needs this and until 2026-08-24 exactly one of the
      * three had it. The approach ({@code JourneyPortalRung.descendToTheForge}) built the set inline;
-     * the walk to the fill station and every leg of the stairwell flight passed {@code List.of()},
-     * so the two legs that run <b>after</b> the lake has been opened up were the two that priced it
+     * the walk to the fill station and every walk of the stairwell flight passed {@code List.of()},
+     * so the two walks that run <b>after</b> the lake has been opened up were the two that priced it
      * at nothing. Ladder j39 died on the second of those: {@code cast1.return} left the fill station
      * at {@code -8,64,14} for the stairwell mouth five blocks away at {@code -8,66,19}, went north
      * along the crater instead, and took {@code lava −4.0×3; onFire −1.0×2} at {@code -8,66,10}.
@@ -453,7 +453,7 @@ public final class JourneyTerrain {
      * between the eye and -9, 63, 18 and broke it, one cell from a confirmed source). A set built at
      * the approach and reused would price
      * the lake the rung <i>found</i>, not the one it <i>made</i>. The cost is one pass over
-     * {@code (2r+1)² × rise} cells per search, milliseconds on the server thread, against a leg that
+     * {@code (2r+1)² × rise} cells per search, milliseconds on the server thread, against a walk that
      * costs the run.
      *
      * <p>Returns an empty list — not a modifier that always answers zero — when the pool has no rim,
@@ -474,7 +474,7 @@ public final class JourneyTerrain {
      * One rim scan, handed to the search and to the evidence together.
      *
      * <p>A record rather than two calls because the scan is the expensive half and both halves want
-     * the same one — and because {@code cells} is a measurement worth keeping per leg, not just per
+     * the same one — and because {@code cells} is a measurement worth keeping per walk, not just per
      * rung: the rim GROWS as the rung works the lake, and a flight-by-flight count is the only thing
      * that shows it. A row that reads 613 → 641 → 688 across one rung's returns is the recompute
      * earning its keep; one that never moves says the snapshot would have done.
@@ -485,7 +485,7 @@ public final class JourneyTerrain {
      * The nearest column within {@code r} whose surface is dry, or null.
      *
      * <p>Hoisted out of {@code JourneyCast} on 2026-08-24 when a second caller appeared and the two
-     * occasions turned out to be one question. The first was a body that surfaced from a lava dive
+     * occasions turned out to be one question. The first was a bot that surfaced from a lava dive
      * still swimming; the second was the furnace rung failing in three ticks on
      * the error "a crafting table is needed (there is one in the inventory, but no free spot beside
      * the feet to place it)" after the bed rung's walk home stopped three blocks short at
@@ -496,7 +496,7 @@ public final class JourneyTerrain {
      * than a proxy for it: {@link #dryUnderfoot} refuses any column with fluid anywhere in the five
      * rows around its surface, so what is left is solid ground with open air over it.
      *
-     * <p>Ranked by squared horizontal distance from the body, and the y it returns is the surface's
+     * <p>Ranked by squared horizontal distance from the bot, and the y it returns is the surface's
      * own — a caller that walks to the column arrives standing on it.
      */
     public static BlockPos nearestDryColumn(ServerLevel level, BlockPos from, int r) {
@@ -528,30 +528,30 @@ public final class JourneyTerrain {
     private static final int BANK_RISE = 8;
 
     /**
-     * Where an approach to the pool should END — a cell beside it a body can stand on.
+     * Where an approach to the pool should END — a cell beside it a bot can stand on.
      *
      * <p>Rung 12 opens by walking to {@code XZ(lava.x, lava.z)}: the lake's own centre column, a
-     * destination no body can ever occupy. Every archived rehearsal leg says so in one row —
+     * destination no bot can ever occupy. Every archived rehearsal walk says so in one row —
      * {@code lava.gotoEnd.1 = end=failed:…} in <b>six runs of six</b>, not one arrival among them —
      * because the walker plans INTO the crater and then either is pinned on its rim
      * ({@code footing guard: sole 0.0000 … beside a lethal drop}, ending
      * {@code failed:no progress for 1200 ticks} at {@code -13,66,21}) or gets all the way in
      * ({@code failed:no path (expanded=1)} from {@code -12,63,20} at the lava's own row, which is
      * the signature of a start node the pathfinder judges lethal). {@code ARRIVED_WITHIN} then reads
-     * the wreck as an arrival — the leg is inside five blocks of a goal it never reached — and the
-     * rung carries on from wherever the body came to rest. Both of that arm's failure shapes are
-     * downstream of this one line: a body on the lip cannot walk at all, and a body in the pool
+     * the wreck as an arrival — the walk is inside five blocks of a goal it never reached — and the
+     * rung carries on from wherever the bot came to rest. Both of that arm's failure shapes are
+     * downstream of this one line: a bot on the lip cannot walk at all, and a bot in the pool
      * cannot even be planned for.
      *
      * <p>So the destination becomes a cell that was CHOSEN rather than one that was survived: the
      * column's own daylight cell — one candidate per column, which is what "walk overland to the
      * bank" means — standable, dry, no higher than {@link #BANK_RISE} over the fluid, and with
      * {@link #onThePoolsLip} answering null at the foot AND at the cell above it, the same pair the
-     * loading station asks and for the same reason (the body arrives in the upper cell first).
+     * loading station asks and for the same reason (the bot arrives in the upper cell first).
      *
      * <p>Ranked by how close it is to the pool, because everything the rung does next is sized off
-     * that distance, and tie-broken by how far the BODY has to walk — which on a ring around a lake
-     * is what keeps the answer on the side the body is already standing on.
+     * that distance, and tie-broken by how far the BOT has to walk — which on a ring around a lake
+     * is what keeps the answer on the side the bot is already standing on.
      *
      * @param refuseTheLip false runs the same scan without the lip rule, so a bank that has no clear
      *        cell at all is no worse off than it is today — a preference, not a rule, the two-pass
@@ -690,9 +690,9 @@ public final class JourneyTerrain {
      *
      * <p>The level it reads is the SCENE's ({@code rig.ctx().level()}), which is the right one for
      * every current caller and is the thing to look at first if a rung above 19 ever asks — after
-     * that one the body is in another dimension and the scene's level answers about overworld
+     * that one the bot is in another dimension and the scene's level answers about overworld
      * terrain at nether coordinates. {@code JourneyShaft.ascendByTowering}'s washed-off branch is
-     * the one place that already takes the body's level instead, and says why.
+     * the one place that already takes the bot's level instead, and says why.
      */
     public static int daylightY(JourneyRig rig, BlockPos at) {
         return daylightAt(rig.ctx().level(), at);

@@ -24,7 +24,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * {@link Body} over a server {@link ServerPlayer} body. The driver writes what a client's input
+ * {@link Body} over a server {@link ServerPlayer}. The driver writes what a client's input
  * would hold — impulse, jump, sneak, sprint, yaw — and {@link #step()} hands that to
  * {@code JoinedBody.pump}, which ticks the player through vanilla's own chain the way a connected
  * player is ticked: {@code baseTick}, the jump gate and its cooldown, {@code travel}, item use, food,
@@ -42,20 +42,20 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>MIGRATION (P1.6 Task 1): moved verbatim from
  * {@code net.magicterra.worlddriver.neoforge.sim.ServerPlayerBody}; the ONLY
- * substantive change is that the body type is now vanilla {@link ServerPlayer}
- * (was NeoForge {@code FakePlayer}) and the body is obtained through the
+ * substantive change is that the player type is now vanilla {@link ServerPlayer}
+ * (was NeoForge {@code FakePlayer}) and the player is obtained through the
  * {@link ServerAvatarBodies} seam instead of {@code FakePlayerFactory} directly.
  *
  * <p><b>Who calls this.</b> The testmod's scenes take a bare avatar from {@code SceneBody.avatar},
  * or one wrapped in a {@link ServerWorldDriver} from {@code SceneBody.mint}/{@code managed}/
- * {@code bare}; three call sites instead construct one directly over a body they already hold —
+ * {@code bare}; three call sites instead construct one directly over a player they already hold —
  * {@code JourneyRig}'s adopted real player, the same wrapper rebuilt in
  * {@code WorldDriverActuatorSplitScenes}, and the joined column of {@code wd.bodyParityCensus}. In
  * production the caller is {@code /worlddriver server} ({@link ServerAvatarCommand}). The class
  * stays {@code non-final} because it is extension surface for other mods; the NeoForge shim that
- * used to subclass it was deleted with the fake bodies.
+ * used to subclass it was deleted with the fake players.
  *
- * <p>See {@link ServerAvatarBodies} for where the body comes from: always a player that has joined.
+ * <p>See {@link ServerAvatarBodies} for where the player comes from: always a player that has joined.
  */
 public class ServerPlayerBody implements Body, Hands, Containers {
 
@@ -117,7 +117,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     public ServerPlayerBody(ServerPlayer fp) {
         this.fp = fp;
         // Attach vanilla's own inventory-menu listener. A real player gets this from
-        // PlayerList.placeNewPlayer; a body that was never placed through the player list has an
+        // PlayerList.placeNewPlayer; a player that was never placed through the player list has an
         // inventoryMenu with NO listeners at all, and it is that listener — not the packets it
         // sits next to — which fires CriteriaTriggers.INVENTORY_CHANGED and thereby awards
         // story/root, story/mine_stone, story/upgrade_tools and story/smelt_iron. Without it a
@@ -129,21 +129,21 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     }
 
     /**
-     * Build a body at {@code pos} in {@code level}, ready to drive.
+     * Build a bot player at {@code pos} in {@code level}, ready to drive.
      *
-     * <p>⚠️ SHARED BODY (gap #48): {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
-     * caller of THIS factory in a level shares one body. Production never rides it
-     * ({@code /worlddriver server} → {@link #createUnique}, one body per agent, guarded by the required
+     * <p>⚠️ SHARED PLAYER (gap #48): {@link ServerAvatarBodies#shared} is a per-LEVEL SINGLETON — every
+     * caller of THIS factory in a level shares one player. Production never rides it
+     * ({@code /worlddriver server} → {@link #createUnique}, one player per agent, guarded by the required
      * {@code wd.serverAgentDistinctBodies} scene).
      *
      * <p><b>Nothing else rides it either: this factory has no caller left in the tree.</b> Its one
      * caller is {@code ServerWorldDriver.create}, which itself has none. The GameTest arenas that
-     * used to share a body — the reason this javadoc gave for keeping it — were retired in
-     * P4-final, and the scenes that replaced them mint per-scene bodies through
+     * used to share a player — the reason this javadoc gave for keeping it — were retired in
+     * P4-final, and the scenes that replaced them create per-scene players through
      * {@code SceneBody.avatar}/{@code bare}, i.e. {@link #createUnique}. Both halves of the dead
      * pair are still here only because deleting them changes bytecode; the NeoForge twins are
      * already gone. What the sharing cost while it lasted, kept as the reason not to reintroduce
-     * it: a concurrent arena could steal/teleport this body, so a solo-RED arena could ride a
+     * it: a concurrent arena could steal/teleport this player, so a solo-RED arena could ride a
      * neighbour's shove to a full-suite false green (proven twice: descentOvershootResync,
      * descentDrift).
      */
@@ -154,24 +154,24 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         return init(ServerAvatarBodies.shared(level), x, y, z);
     }
 
-    /** Like {@link #create} but with a body of its OWN — a fresh unique GameProfile, so this
+    /** Like {@link #create} but with a player of its OWN — a fresh unique GameProfile, so this
      *  avatar can never be steered/teleported through another driver's shared singleton
      *  (gap #48). <b>This is the live factory:</b> {@code /worlddriver server} agents use it (two agents =
-     *  two bodies), and so do the testmod's scenes — most of them through
-     *  {@code SceneBody.avatar} / {@code SceneBody.bare}, which are also where the refusal to mint
-     *  a headless body on a topology that has a real client to drive lives.
-     *  ({@code wd.bodyParityCensus} reaches past them on purpose, to hold the loader body and the
-     *  joined body side by side; {@code JourneyRig} calls {@code createIsolated} itself.)
+     *  two players), and so do the testmod's scenes — most of them through
+     *  {@code SceneBody.avatar} / {@code SceneBody.bare}, which are also where the refusal to create
+     *  a headless player on a topology that has a real client to drive lives.
+     *  ({@code wd.bodyParityCensus} reaches past them on purpose, to hold the loader's player and
+     *  the joined player side by side; {@code JourneyRig} calls {@code createIsolated} itself.)
      *
      *  <p>This javadoc used to say the GameTest arenas stayed on the shared {@link #create} because
-     *  per-arena bodies made the suite's other cross-arena couplings (shared world regions,
+     *  per-arena players made the suite's other cross-arena couplings (shared world regions,
      *  server-thread load) surface as drifting failures (measured 2026-07-12: 3 isolated runs →
      *  failure sets {leash,descentdrift,rpcsmoke}/{leash,descentdrift}/{leash,descentdrift,horizon,
      *  rpcsmoke}, 139s vs 41s). That determinism problem was handed to the test-framework rework
-     *  and the arenas are gone; the reading is kept because it is what per-body isolation costs, not
+     *  and the arenas are gone; the reading is kept because it is what per-player isolation costs, not
      *  because anything still shares.
      *
-     *  <p>NOTE: the seam caches bodies per profile per level, and each call here mints a new
+     *  <p>NOTE: the seam caches players per profile per level, and each call here mints a new
      *  profile, so each call joins one more player that stays until it is discarded. Fine for the
      *  single-demo-agent command; revisit if agents get spawned in bulk. */
     public static ServerPlayerBody createUnique(ServerLevel level, double x, double y, double z) {
@@ -200,7 +200,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     @Override public void commandForward(float forward) { pendingForward = forward; pendingLeft = 0; }
     @Override public void commandJump(boolean v) { pendingJump = v; }
     @Override public void commandSneak(boolean v) { pendingSneak = v; }
-    /** The flag itself, as the client body sets it. The pump's stop rules can clear it again within
+    /** The flag itself, as the client player sets it. The pump's stop rules can clear it again within
      *  the same step, as {@code LocalPlayer.aiStep} does on the client. */
     @Override public void commandSprint(boolean v) { fp.setSprinting(v); }
     @Override public void commandUseItem(boolean hold) {
@@ -221,10 +221,11 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * Move the hand AND publish it — the one and only way this class may write {@code selected}.
      *
      * <p><b>Why publishing is not optional.</b> Every write site here used to carry the comment
-     * "server-authoritative, so no packet: this body's connection swallows them anyway". That is
-     * true of the headless body and <b>false of the adopted one</b> — the integrated-server
+     * that the write was server-authoritative and needed no packet, because this player's
+     * connection swallows packets anyway. That is true of the headless player and <b>false of the
+     * adopted one</b> — the integrated-server
      * topology adopts the client's real {@code ServerPlayer} and wraps it in this avatar, and that
-     * body's connection reaches a live {@code LocalPlayer}. Nothing on the client can notice the
+     * player's connection reaches a live {@code LocalPlayer}. Nothing on the client can notice the
      * drift on its own: the driver's own {@code BotInteract.ensureHolding} opens with
      * {@code if (inv.getSelected().getItem() == item) return true;}, and vanilla's
      * {@code MultiPlayerGameMode.ensureHasSentCarriedItem} compares against {@code carriedIndex},
@@ -242,8 +243,8 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * block, so the only reading that could have told the truth was the server's stock, which never
      * moved. One course with no Y gain ends a whole raise.
      *
-     * <p><b>No topology test, deliberately.</b> The joined body's packets end in
-     * {@code SilentConnection.send}, an empty method, so for the headless body this is one
+     * <p><b>No topology test, deliberately.</b> The joined player's packets end in
+     * {@code SilentConnection.send}, an empty method, so for the headless player this is one
      * allocation and a short chain of virtual calls. An {@code if (isARealPlayer)} would be a branch that
      * can be written backwards.
      *
@@ -265,8 +266,8 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         var inv = fp.getInventory();
         if (slot < 0 || slot > 8 || inv.selected == slot) return;
         inv.selected = slot;
-        // Null only for a body nobody installed a listener on; both of today's are covered
-        // (placeNewPlayer for the joined body, a real login for the adopted one).
+        // Null only for a player nobody installed a listener on; both of today's are covered
+        // (placeNewPlayer for the joined player, a real login for the adopted one).
         if (fp.connection != null) fp.connection.send(new ClientboundSetCarriedItemPacket(slot));
     }
 
@@ -277,12 +278,12 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         for (int slot = 0; slot < 9; slot++) {
             if (isSupport(inv.items.get(slot))) { carryTo(slot); return true; }
         }
-        // The bag counts, and this scan not reaching it is a defect with a measured price. A body
+        // The bag counts, and this scan not reaching it is a defect with a measured price. A bot
         // holding 110 cobblestone in slots 9..35 is not out of blocks; it is out of reach of a scan
         // that stops at 8. Two arms of wd.serverWidens* differ by exactly that and nothing else:
         // stack in slot 0 -> the footing remedy spends a block and the sole goes 0.168 -> 0.360;
-        // the same stack in slot 20 -> zero blocks spent, sole 0.168 -> 0.184, body off the ledge.
-        // Rung 20 walks its End legs with the haul wherever picking it up put it, which is why the
+        // the same stack in slot 20 -> zero blocks spent, sole 0.168 -> 0.184, bot off the ledge.
+        // Rung 20 walks its End segments with the haul wherever picking it up put it, which is why the
         // ladder logged five footing pins and not one support placement. Swapping up from the bag is what the
         // tool selector below has always done for exactly the same reason.
         for (int slot = 9; slot < inv.items.size(); slot++) {
@@ -408,17 +409,17 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     // Both early returns below used to be invisible: no log, no counter, no return value. A caller
     // that watched its own inventory could see that no block had been spent and could not see WHY —
     // and the two causes want opposite fixes. Measured 2026-08-17 on the End arrival platform: a
-    // 7-node `bridgePlace` plan, 1024 cobblestone carried, and zero blocks placed while the body
+    // 7-node `bridgePlace` plan, 1024 cobblestone carried, and zero blocks placed while the bot
     // fell 23 000 blocks into the void.
     //
-    // The FIRSTs matter more than the totals and are kept separately for that reason. A body that
+    // The FIRSTs matter more than the totals and are kept separately for that reason. A bot that
     // falls keeps asking for thousands of ticks with nothing solid anywhere near it, so the totals
     // are dominated by the aftermath; the first call, and the first refusal, are the only samples
     // taken while there was still ground under the question.
     private int placeCalls, placeNoFace, placeNoBlock;
     private String firstCallAt, firstNoFaceAt, firstNoBlockAt;
 
-    /** Where this body was and what it was aiming at, for the place tally's first-sample rows. */
+    /** Where this bot was and what it was aiming at, for the place tally's first-sample rows. */
     private String placeSample(BlockPos cell) {
         return "bot at " + fp.blockPosition().toShortString() + " → target " + cell.toShortString();
     }
@@ -441,7 +442,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
             BlockPos against = cell.relative(d);
             if (w.isSolid(against)) { placeOn(against, d.getOpposite()); return; }
         }
-        // NOTHING TO CLICK. Not an error and not a no-op worth hiding: this body places by clicking a
+        // NOTHING TO CLICK. Not an error and not a no-op worth hiding: this player places by clicking a
         // face, so a cell with six non-solid neighbours cannot be placed into at all, however much
         // the inventory holds and however firmly the planner intended it.
         placeNoFace++;
@@ -494,11 +495,11 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     }
 
     /**
-     * Break the aimed cell, and say so once if the body was standing on it.
+     * Break the aimed cell, and say so once if the bot was standing on it.
      *
      * <p>Asked with {@code soleOnSolid}, the reading the walker's footing guards use, before and
      * after, so there is no second notion of "standing" to keep in sync: sole area {@code > 0} then
-     * {@code 0} means the block that vanished was the one carrying this body. That is a real invariant break — a body may dig its
+     * {@code 0} means the block that vanished was the one carrying this bot. That is a real invariant break — a bot may dig its
      * own floor deliberately (a descent, a shaft), but it must then FALL, and what the log records is
      * the tick the fall becomes owed.
      *
@@ -586,7 +587,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * playthrough. Neither gap was visible to the 222 scenes that were green over them, because none
      * of them asserted that an item reached the inventory; the one named for it,
      * {@code wd.serverCombatCollectDrops}, passes when the bot merely ends within two blocks of a
-     * drop it did not have to collect. The wood leg of the journey ladder asked for one log and got
+     * drop it did not have to collect. The wood stage of the journey ladder asked for one log and got
      * zero.
      *
      * <p><b>Blast radius, stated rather than hidden.</b> Every arena where the avatar digs now
@@ -624,12 +625,12 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * Raw {@code useItemOn} (no holdPlaceable gate): places a held block OR triggers the block's
      * use, and a station's use opens its menu through vanilla's own {@code openMenu}.
      *
-     * <p>There is deliberately no fallback when that declines. One existed while the server bodies
+     * <p>There is deliberately no fallback when that declines. One existed while the server-side bots
      * were fake players whose {@code openMenu} returned empty: it built the station's menu by hand
-     * so a server craft could reach the 3×3 grid. On a joined body it never fired once across
+     * so a server craft could reach the 3×3 grid. On a joined player it never fired once across
      * both loaders' dedicated gates, sixteen menu scenes included, and the only places left for it
-     * to fire are the ones vanilla refuses on purpose (a sneaking body holding a block, a blocked
-     * chest), where opening the menu anyway would give this body what a player cannot have.
+     * to fire are the ones vanilla refuses on purpose (a sneaking player holding a block, a blocked
+     * chest), where opening the menu anyway would give this bot what a player cannot have.
      */
     @Override public void useBlock(BlockPos cell, Direction face) {
         Vec3 hit = new Vec3(
@@ -643,11 +644,11 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     @Override public void placeRecipe(int containerId, net.minecraft.world.item.crafting.RecipeHolder<?> recipe, boolean placeAll) {
         // Mirror ServerGamePacketListenerImpl.handlePlaceRecipe: fill the open menu's
         // grid from inventory. Works for the always-present 2×2 inventory grid and for whatever
-        // table menu the body has open.
+        // table menu the player has open.
         if (fp.containerMenu instanceof net.minecraft.world.inventory.RecipeBookMenu<?, ?> rbm
                 && fp.containerMenu.containerId == containerId) {
             // ServerPlaceRecipe.recipeClicked gates on getRecipeBook().contains(recipe);
-            // a freshly minted body's recipe book is empty (nothing unlocked), so without this the
+            // a newly joined player's recipe book is empty (nothing unlocked), so without this the
             // placement silently no-ops. Unlock the recipe first (a real player has it).
             fp.getRecipeBook().add(recipe);
             rbm.handlePlacement(placeAll, recipe, fp);
@@ -694,7 +695,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     }
 
     /** Why the last swing was declined by {@code Hands.attackEntity}'s footing guard, or null.
-     *  Unlike the client's, this body outlives the tick — so a stale reading here would be a lie
+     *  Unlike the client's, this object outlives the tick — so a stale reading here would be a lie
      *  the next tick; {@code attackEntity} therefore writes it on EVERY call, pass or refuse. */
     private String lastAttackRefusal;
 
@@ -712,15 +713,15 @@ public class ServerPlayerBody implements Body, Hands, Containers {
     }
 
     /**
-     * Advance this body one tick, after the driver has set this tick's input.
+     * Advance this player one tick, after the driver has set this tick's input.
      *
-     * <p>Vanilla ticks the body ({@code JoinedBody.pump}); this only hands it the input. The jump ask
+     * <p>Vanilla ticks the player ({@code JoinedBody.pump}); this only hands it the input. The jump ask
      * keeps the shape it always had: an edge on land, released after one step unless the caller asks
      * again, and held in water, where a swim upward keeps rising until the caller lets go.
      *
      * <p><b>Why a chunk-map move is part of every step.</b> {@code handleMovePlayer} ends in
-     * {@code ChunkSource.move} for every movement packet, and a driven body sends none, so without it
-     * the chunk map keeps the section the body joined in: its chunk tickets, its entity tracking and
+     * {@code ChunkSource.move} for every movement packet, and a driven player sends none, so without it
+     * the chunk map keeps the section the player joined in: its chunk tickets, its entity tracking and
      * {@code DistanceManager.hasPlayersNearby}, the gate in front of {@code NaturalSpawner}. Measured
      * on the ladder's nether rungs before the move was added: 107 monsters within 128 blocks beside
      * the portal, 2 at a fortress 360 blocks away, 0 for 7200 ticks in a warped forest. The pump does
@@ -732,7 +733,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      */
     public void step() {
         if (!(fp instanceof JoinedPlayerBodies.JoinedBody joined)) {
-            throw new IllegalStateException("step() pumps a body this server joined; "
+            throw new IllegalStateException("step() pumps a player this server joined; "
                     + fp.getGameProfile().getName() + " is ticked by its own connection");
         }
         joined.pump(pendingLeft, pendingForward, pendingJump, pendingSneak);

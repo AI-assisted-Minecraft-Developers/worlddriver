@@ -94,8 +94,8 @@ public final class MineProcess implements BotProcess {
      * whole purpose is to chew through a tree: reaching the fifth log of a trunk means breaking the
      * four under it, and at 3× those paths price out. Measured on the ladder's wood rung, same seed,
      * one variable: 13 logs / 2 914 ticks at 1.0 against 6 logs / 13 899 ticks at 3.0, with 49 rows
-     * of {@code [mine] no approach to stand} naming the mechanism. So the tax is waived for the leg
-     * that goes to fetch a log, and left at 3.0 for every leg that is merely travelling.
+     * of {@code [mine] no approach to stand} naming the mechanism. So the tax is waived for the walk
+     * that goes to fetch a log, and left at 3.0 for every walk that is merely travelling.
      *
      * <p><b>Do not grep for that string</b> — it no longer exists. The row that records this
      * failure is {@link #retireTarget}'s unconditional {@code [mine] blacklist <pos> (<why>)}, and
@@ -213,7 +213,7 @@ public final class MineProcess implements BotProcess {
     private int collectStuckTicks;
     /** How long "arrived" may coexist with "the item is still on the ground" before the drop is
      *  written off. A handful of ticks, because vanilla's magnet fires on the very next tick when
-     *  the body really is on top of the item — anything longer is the body being somewhere it
+     *  the bot really is on top of the item — anything longer is the bot being somewhere it
      *  cannot reach from. */
     private static final int COLLECT_STUCK_TICKS = 10;
     private static final int MAX_COLLECT_TICKS = 240;       // ~12 s @ 20 tps — long enough to walk to all 8 break spots
@@ -257,7 +257,8 @@ public final class MineProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         if (a.entity() == null) { st.mine.lastError = "player vanished"; finish(st, null, null, "player vanished"); return true; }
-        // The drops go into a player's inventory: a body that is not a player has no hands for this.
+        // The drops go into a player's inventory: a controlled entity that is not a player has no
+        // hands for this.
         Player p = a.asPlayer();
         hands = a.hands().orElse(null);
         if (hands == null || p == null) { st.mine.lastError = BodyReady.Reason.NO_HANDS; finish(st, null, null, BodyReady.Reason.NO_HANDS); return true; }
@@ -428,7 +429,7 @@ public final class MineProcess implements BotProcess {
                 }
             }
             case BREAKING -> {
-                // Release walking keys, hold the break action via the Body:
+                // Release walking keys, hold the break action via the bot interface:
                 //  - CLIENT: the dig latch PLUS a direct continueDestroy on the same block.
                 //    The latch drives nothing (see Hands#breakHold); the direct call is what
                 //    advances the break, and it makes vanilla's own attack pass stand aside for
@@ -467,7 +468,7 @@ public final class MineProcess implements BotProcess {
                 // exists for leaves occluding a log — it does not count toward the quota, it does
                 // not seed COLLECT, and finishing it re-SEARCHes so the now-exposed block below is
                 // picked up normally. Peeling one block per pass is what a player does, and it is
-                // also what keeps every drop at the bottom of a hole the body can enter.
+                // also what keeps every drop at the bottom of a hole the bot can enter.
                 BlockPos overburden = currentTargetClearing ? null : firstBreakableToward(hands, lvl, p, currentTarget);
                 if (overburden != null) {
                     aimAt(overburden, lvl);
@@ -568,7 +569,7 @@ public final class MineProcess implements BotProcess {
                     collectStuckTicks = 0;
                     // Stand ON the drop's own cell, which is what a player does. An adjacency goal
                     // was tried and is subtly wrong: "adjacent" is measured to the CELL while the
-                    // magnet reaches from the body to the ITEM, and vanilla's reach is only about
+                    // magnet reaches from the player to the ITEM, and vanilla's reach is only about
                     // 1.4 blocks (bounding box inflated 1.0). Measured on the three-ore rig, the
                     // sweep reported ARRIVED standing 1.6 blocks from a drop and then stood there
                     // for the whole collect budget: a goal satisfied and an item not picked up.
@@ -590,7 +591,7 @@ public final class MineProcess implements BotProcess {
                 lastCollectStep = step;
                 // Two ways this drop is not going to happen, and both used to be silently ignored:
                 // the walker says it cannot path there, or it says it has ARRIVED and the item is
-                // still lying there anyway (arrived-but-out-of-reach — a shaft bottom the body
+                // still lying there anyway (arrived-but-out-of-reach — a shaft bottom the bot
                 // cannot enter). Either way, stop pouring the budget into it. Without a skip list
                 // findCollectGoal hands back the same nearest drop every tick, so ONE dead drop
                 // used to shadow every reachable one behind it: three ores mined, three drops on
@@ -600,10 +601,10 @@ public final class MineProcess implements BotProcess {
                 // computed runs out, and when A* cannot reach the goal it returns a best-effort
                 // partial path — so a sweep can report success standing four blocks from the drop
                 // (measured: `retired 2 drop(s): 0 unpathable + 2 arrived-but-short`, distances 4.1
-                // and 6.4). Retiring on that throws away drops the body never went to.
+                // and 6.4). Retiring on that throws away drops the bot never went to.
                 //
                 // So an ARRIVED that is not actually AT the cell re-plans, a bounded number of
-                // times: the world changes while a mine runs — blocks fall, the body's own shaft
+                // times: the world changes while a mine runs — blocks fall, the bot's own shaft
                 // opens routes — and the second search often reaches what the first could not.
                 // Only after those are spent is the drop genuinely out of reach.
                 boolean arrivedShort = step == Walker.Step.ARRIVED
@@ -1140,7 +1141,7 @@ public final class MineProcess implements BotProcess {
      * (see {@code findReachStand}), which is up to ~0.87 further for the same block, so
      * 4.4-to-centre is roughly 3.9-to-face: about 0.6 TIGHTER than vanilla, not "a hair
      * inside" it. Kept deliberately conservative — a stand that only just reaches works
-     * until the body's own bob moves the eye — but do not raise it toward 4.5 believing
+     * until the player's own bob moves the eye — but do not raise it toward 4.5 believing
      * that merely restores parity; the two numbers measure different distances.
      */
     private static final double MAX_REACH = 4.4;
@@ -1203,7 +1204,7 @@ public final class MineProcess implements BotProcess {
         if (!canStandHereStatic(lvl, foot)) return false;
         // Never stand where lava touches the foot or head cell — a freshly-dug
         // pocket can flow into an adjacent cell and roast us. Reject the whole
-        // 1-block shell around both body cells.
+        // 1-block shell around both of the bot's cells.
         return !lavaTouching(lvl, foot) && !lavaTouching(lvl, foot.offset(0, 1, 0));
     }
 

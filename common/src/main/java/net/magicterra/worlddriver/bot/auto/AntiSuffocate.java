@@ -72,10 +72,10 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
  *
  * <p><b>final-review M1:</b> {@code shouldTrigger}'s ~40-tick damage-window can
  * outlive the actual suffocation by up to 40 ticks after the bot is freed. That is
- * harmless for the eye/above legs in {@link #resolveHead} (they just re-check an
- * already-air cell), but the foot/horizontal fallback legs are a last-resort guess
+ * harmless for the eye/above steps in {@link #resolveHead} (they just re-check an
+ * already-air cell), but the foot/horizontal fallback steps are a last-resort guess
  * that degenerates into digging the bot's own foot or a shaft/bunker wall during
- * that stale tail. Those two legs are additionally gated on
+ * that stale tail. Those two steps are additionally gated on
  * {@link AntiSuffocateGate#allowProximityFallback} — see its javadoc and
  * {@link #resolveHead}.
  */
@@ -139,9 +139,9 @@ public final class AntiSuffocate {
      *
      *  <p><b>final-review M1:</b> {@code shouldTrigger} rides vanilla's ~40-tick last-
      *  damager window, which outlives the actual suffocation by up to 40 ticks after
-     *  the bot is freed (eye/above legs clear harmlessly during that tail — at worst a
-     *  redundant air check). The foot/horizontal legs do NOT degrade harmlessly: once
-     *  freed, eye/above read air too, so these legs fall through to the bot's OWN foot
+     *  the bot is freed (eye/above steps clear harmlessly during that tail — at worst a
+     *  redundant air check). The foot/horizontal steps do NOT degrade harmlessly: once
+     *  freed, eye/above read air too, so these steps fall through to the bot's OWN foot
      *  cell or the first solid neighbour of the eye — typically the shaft/bunker wall —
      *  and chew it for the trailing ~2s (a bunker-wall breach on every successful
      *  rescue). Gate them on {@link AntiSuffocateGate#allowProximityFallback}

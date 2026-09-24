@@ -24,7 +24,7 @@ import net.minecraft.core.BlockPos;
  *       {@code radius} ({@code rangedRadius} for one that shoots) — the curve of
  *       {@link ThreatAvoidance#cost}, which is what {@code ClientWorldView.dangerCost} used to
  *       apply from its own client-only snapshot. Costs add, so three mobs together are dearer
- *       than one, and the server body avoids mobs now too.</li>
+ *       than one, and the server-side player avoids mobs now too.</li>
  *   <li><b>Cluster threshold</b> (the constraint, optional): a cell with {@code cluster.count} or
  *       more hostiles within {@code cluster.radius} is a cluster cell. {@code forbid} prunes it;
  *       {@code avoid} adds {@code cluster.penalty} flat. This is the qualitative step the ramp

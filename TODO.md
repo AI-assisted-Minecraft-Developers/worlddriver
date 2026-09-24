@@ -15,7 +15,7 @@ checked against the current tree. Read the code before acting on one.
 
 ## Engine and mod code
 
-### The shore scan can aim a drowning body at lava
+### The shore scan can aim a drowning bot at lava
 
 `AutoSwim.nearestShore` tests `isHazard` on the block below a candidate foot cell only, while
 `WorldView.canStandAt` tests all three cells. Lava is passable and is not water, so a lava foot
@@ -81,20 +81,20 @@ two governors on one loop race — and reuse the existing cap rather than adding
 the recorded corpus offline first: a new counting rule has to catch the two known cases without
 firing on an ordinary detour around a tree.
 
-### The lava reflex hands control back while the body is still burning
+### The lava reflex hands control back while the bot is still burning
 
 `LavaProximityEscape` decides it is clear from the environment alone — a nearby threat or being in
-lava — and never asks `isOnFire()` or `getRemainingFireTicks()`. Leaving lava does not put a body
-out, so the reflex releases control with the body still alight. Adding the fire test to that
+lava — and never asks `isOnFire()` or `getRemainingFireTicks()`. Leaving lava does not put a bot
+out, so the reflex releases control with the bot still alight. Adding the fire test to that
 condition is not by itself the fix: the reflex's action is to walk away from lava, and a burning
-body with no lava left near it does not benefit from walking further.
+bot with no lava left near it does not benefit from walking further.
 
-### Every reflex is off on the body that drives the survival run
+### Every reflex is off on the bot that drives the survival run
 
 `autoRetreat`, `autoFight`, `autoDodge`, `autoHeal`, `autoShield` and `autoEquip` are all false by
 default. That default is deliberate and is documented beside the field: a quiet bot stays quiet so a
 scripted scenario is not overridden. The survival run is the case that wants them on. The shape is
-decided — arm them for that body only, healing before retreat, because retreat preempts the walker
+decided — arm them for that bot only, healing before retreat, because retreat preempts the walker
 and healing only contends for the use key — but it is blocked on a health-loss distribution, because
 arming them is a change that touches every rung at once.
 
@@ -108,7 +108,7 @@ changes how fallbacks and processes arbitrate, on every topology.
 ### Four routes reach the same `AvatarInput`
 
 The `Body` interface, the retired `BotInput`, a copy inside `AutoSwim`, and the two surviving uses
-of the vanilla key mappings. Only `Body` can drive a server-side body. Moving the other three onto
+of the vanilla key mappings. Only `Body` can drive a server-side player. Moving the other three onto
 it is an architecture decision, not a tidying pass.
 
 ### A process's `attach()` does not clear the previous run's terminal fields
@@ -137,7 +137,7 @@ The two `Move.hasRunway` overloads require zero or two clear cells behind the ju
 inside the ascending move requires one. The four longest leaps all use the zero-cell version. Same
 check as the hazard test above.
 
-### The smelt wait does not verify the body is present
+### The smelt wait does not verify the bot is present
 
 It reads the furnace block every tick and never reads distance, and a collect has succeeded from
 sixty blocks away. Beyond interaction range it should record an error or fail.
@@ -153,11 +153,11 @@ The floating-water family and the water-cell, submerged, climb-out and descend s
 unreachable once the surface-water-nodes flag is on. Run both models side by side for a while, then
 delete one; the design note is in the water-model document.
 
-### A body that climbs out of a trench walks back into it
+### A bot that climbs out of a trench walks back into it
 
 After reaching the top, the search routes around the trench end with a two-dimensional parkour move,
 lands short and falls back in, then climbs again. The parkour landing rule takes no account of the
-pillar the body has just placed or of the trench mouth. **Unverified.**
+pillar the bot has just placed or of the trench mouth. **Unverified.**
 
 ### Digging a bank block by hand while afloat costs about 370 ticks
 
@@ -167,7 +167,7 @@ family as the one-high and two-high bank dig-outs. **Unverified.**
 ### A straightened edge longer than three blocks on dry land re-plans every tick
 
 The stall detector measures three-dimensional distance to the far end of a straightened edge, so the
-moment a flat run is pulled into one long edge the body counts as knocked off it and re-searches
+moment a flat run is pulled into one long edge the bot counts as knocked off it and re-searches
 every tick until the last few cells. Water already limits the span; dry land still takes the full
 storm. Measuring to the edge rather than to its end removes the searches, but four scenes covering
 leashes and shore takeover depend on the current cadence and turn red. Decouple those first.
@@ -245,10 +245,10 @@ In the craft and smelt processes.
 
 ### The lava reflex prints a cell with an integer cast
 
-Truncation toward zero, so at negative coordinates it prints a cell the body is not standing in.
+Truncation toward zero, so at negative coordinates it prints a cell the bot is not standing in.
 Three places repository-wide. **Unverified.**
 
-### Configuration is a global singleton holding per-body, per-tick state
+### Configuration is a global singleton holding per-bot, per-tick state
 
 The fields are `public static volatile`, so scenes cannot safely run in parallel. Same file and the
 same split as the size-budget work below.
@@ -296,9 +296,9 @@ such executable and a connection to a closed port always throws.
 
 ---
 
-## Body equivalence
+## Bot equivalence
 
-These belong to the body-equivalence role and are bounded by the parity document.
+These belong to the bot-equivalence role and are bounded by the parity document.
 
 ### The selected-slot section has three residues
 
@@ -308,7 +308,7 @@ the same change. **Unverified.**
 
 ### A furnace menu sixty blocks away is never closed
 
-A real player's tick closes containers; the joined body drifted that far with the menu still open.
+A real player's tick closes containers; the joined player drifted that far with the menu still open.
 The symptom is observed and the cause is not. **Unverified.**
 
 ### Aiming is still split between the two sides
@@ -324,7 +324,7 @@ The earlier count of three places was wrong. **Unverified.**
 Bare-handed obsidian breaks, silk touch does not apply, and tools take no durability.
 **Unverified.**
 
-### The joined body's tick is an empty implementation
+### The joined player's tick is an empty implementation
 
 The second half of the join work is to drive it by writing inputs rather than by copying a player's
 tick. **Unverified.**
@@ -383,7 +383,7 @@ count beside it.
 
 ### An advancement says not earned while the bag holds the item
 
-The blaze-rod advancement. Measure whether the inventory-changed trigger fires for a joined body
+The blaze-rod advancement. Measure whether the inventory-changed trigger fires for a joined player
 before believing either side of it. **Unverified.**
 
 ---
@@ -401,9 +401,9 @@ the build still exited zero. Two separate things: a run that did not finish must
 and the disconnection needs a cause of its own. Nothing about the fourteenth rung can be verified
 until the first half is fixed, because the corridor has never been run end to end.
 
-### The fourteenth rung's fifth leg is the current wall
+### The fourteenth rung currently stops on its fifth segment
 
-The body retreats westward, falls repeatedly and dies of accumulated fall damage with food low and
+The bot retreats westward, falls repeatedly and dies of accumulated fall damage with food low and
 no regeneration. The destination is reachable — one search solved it — but the cost is the problem:
 three of four full-budget searches hit the node ceiling, and the one that solved used most of the
 budget. The fix is to shorten the hops by inserting intermediate waypoints, not to move the
@@ -412,13 +412,13 @@ been arrived at. Choosing the intermediate points needs the corridor terrain map
 
 ### The corridor terrain map has never been written
 
-`JourneyCorridorProbe.record` is wired to the paths where a leg is abandoned, and not to the path
-where the body dies — and both corridor runs ended in death. Wire the death path too.
+`JourneyCorridorProbe.record` is wired to the paths where a segment is abandoned, and not to the path
+where the bot dies — and both corridor runs ended in death. Wire the death path too.
 
 ### The full-budget search tier has no clock
 
 It runs effectively without a time bound, at several seconds per call. Two questions: whether that
-tier should have one at all, and why a thirteen-block leg over open lava takes tens of thousands of
+tier should have one at all, and why a thirteen-block segment over open lava takes tens of thousands of
 nodes, which says the heuristic is not converging there.
 
 ### There is no eating anywhere on the fourteenth rung
@@ -426,7 +426,7 @@ nodes, which says the heuristic is not converging there.
 `JourneyFeed.eatIfLow` has exactly one call site in the whole project, on the gravel rung, and the
 raw beef is all eaten there. Two halves that are useless apart: cook the beef, placed after the iron
 smelt where a furnace is already down and the sequence has been exercised, and add one eat call in
-the corridor, between legs rather than mid-leg. Before writing the cooking half, check what the
+the corridor, between segments rather than partway through one. Before writing the cooking half, check what the
 smelt process burns and where the fuel is drawn from when its third argument is null — iron and meat
 draw on the same pool.
 
@@ -439,7 +439,7 @@ both loaders' expected-scene manifests in one commit.
 ### The corridor fire needs a replan trigger, not a surcharge
 
 Decided; not yet built. Pricing the cells next to fire is withdrawn and should not be picked up
-again, and so is the per-tick comparison of the body's cell against the path node, which existed
+again, and so is the per-tick comparison of the bot's cell against the path node, which existed
 only to take the surcharge approach apart.
 
 ### Who lights the corridor fire is unknown
@@ -449,7 +449,7 @@ are both unexcluded. The replan trigger does not depend on the answer.
 
 ### The quick-start pathfinder stub could be lengthened in the corridor
 
-It is a writable setting, currently a few hundred nodes, and raising it gives the body a longer stub
+It is a writable setting, currently a few hundred nodes, and raising it gives the bot a longer stub
 to walk during the seconds a full search takes. Deliberately kept out of the corridor change set so
 that a run's outcome stays attributable.
 
@@ -467,33 +467,33 @@ It correctly detects that two successive rewrites undo each other and stops, whi
 behaviour, but that fact never reaches the return value — the caller sees only a height. Same
 occasion and same reopen condition as the entry above.
 
-### A "gained N of N" reading can be true with the body airborne and off the column
+### A "gained N of N" reading can be true with the bot airborne and off the column
 
 It measures a height difference. It must never stand alone as a success criterion: success needs
 the ending cell to be the named column and the cell below it to be solid. The climb's closing step
 should combine the three into one verdict instead of leaving a reader to cross-check them.
 
-### Aiming happens while the body is still falling
+### Aiming happens while the bot is still falling
 
-The settle judgement uses cell numbers and the aim uses exact coordinates, so a body most of a block
+The settle judgement uses cell numbers and the aim uses exact coordinates, so a bot most of a block
 above its cell fires a ray that clips the frame. The reading has landed — footing height and
 on-ground are printed beside each aim — and the fix has not. The draft criterion is to keep waiting
-while the body is airborne and to stop waiting once the foot drops below the starting row, and it is
+while the bot is airborne and to stop waiting once the foot drops below the starting row, and it is
 known not to hold for one case, which needs a second branch that re-picks the stance rather than
-aiming from where it is. Waiting longer is not the fix: a body in the air only falls further. After
+aiming from where it is. Waiting longer is not the fix: a bot in the air only falls further. After
 landing the aim must be recomputed, because what is stored is an angle and not a target.
 
-### The arrival leg answers a zero-block question with a five-block tolerance
+### The arrival walk answers a zero-block question with a five-block tolerance
 
-Both remedies it names fire, and both report success by their own criteria, while the body is still
-off the named column — because those criteria count how many steps were laid, not where the body
+Both remedies it names fire, and both report success by their own criteria, while the bot is still
+off the named column — because those criteria count how many steps were laid, not where the bot
 ended.
 
 ### The fill stance scan runs twice and the first pass discards its reason map
 
 The flag that makes the two passes differ applies only to lava, so for water they are equivalent and
 the first pass always answers — which means the reason map the caller reads is permanently empty,
-exactly in the failure shape where the answer is "the only stance found is the cell the body is
+exactly in the failure shape where the answer is "the only stance found is the cell the bot is
 already in". Give the first pass a real map, merge whichever pass answered, and name in the evidence
 which one it was.
 
@@ -509,10 +509,10 @@ which evidence keys are allowed to change.
 
 First, the five silent `continue`s in the aim search write nothing, so "re-asked, refused, fired
 anyway" leaves no trace. Second, the failure verdict reports geometry when the truth is that the
-body is not standing on the stance it chose for itself, which sends the next reader to the wrong
-place. Third — the only behavioural change — record the stances the body could not reach and exclude
+bot is not standing on the stance it chose for itself, which sends the next reader to the wrong
+place. Third — the only behavioural change — record the stances the bot could not reach and exclude
 them on retry, clearing the set per pour; today the retry is byte-for-byte identical to the first
-attempt because the stance chooser cannot know the body failed to get there. Do not widen the
+attempt because the stance chooser cannot know the bot failed to get there. Do not widen the
 blocker scan to start at the target's own column: that column is the mould's frame.
 
 ### The daylight height expression is hand-written nine times
@@ -538,9 +538,9 @@ a run with no lava deaths.
 Both descent columns were ruined by fluid; the code diagnosed and decided correctly, and what ate
 the run was the exit climb being washed off each time it placed a block. What is needed first is
 provenance for each water cell encountered — natural, left by an earlier rung, or self-poured — in
-the same form the pour side already records. Neither leg should be changed before that has a
+the same form the pour side already records. Neither path should be changed before that has a
 distribution, and "tower started in flowing water" and "not enough column retries" must not be
-merged into one fix: they are two legs.
+merged into one fix: they are two separate defects.
 
 ### Water reaches the stairwell floor and the family is not yet named
 
@@ -572,36 +572,36 @@ both; do not add fields.
 
 The pass advances monotonically and never returns to a cell it could not open. Separately, the
 arrival radius it uses is provably tighter than the interaction limit, so "arrived but out of range"
-cannot happen — which means a failure there is a leg that did not arrive. The fix direction is to
+cannot happen — which means a failure there is a walk that did not arrive. The fix direction is to
 sweep until no progress is made, not to widen the arrival radius and not to relax the no-break
-constraint on that leg.
+constraint on that walk.
 
 ### An enderman fight sometimes never ends
 
 About one NeoForge run in four fails here. Every fight either finishes quickly or burns exactly the
 tick ceiling, with no value in between across two dozen fights, so this is a hang rather than
 slowness. Add one row per ceiling-burning fight carrying four fields: whether the target is still
-alive, how far the body is from it, the largest jump in the target's position during the fight, and
+alive, how far the bot is from it, the largest jump in the target's position during the fight, and
 how many combat searches ran. Those three families — target lost, re-search storm, neither —
 partition the answer. Do not lower the pass criterion: it is already equivalent to winning three
 fights out of six, which is the floor.
 
 ### There is no reading for who wrote a cell
 
-A guard refused to mine a cell because it would release the water behind it, and the body later
+A guard refused to mine a cell because it would release the water behind it, and the bot later
 drowned standing in that water. Nothing can say who opened it — the walker's fallback pathing
 carries its own permission to break, and is the first candidate. What is needed is a
 who-wrote-this-cell attribution row, not another round of inference.
 
 ### The pit-rim band is scanned above the lava only
 
-It does not protect a body already down in the pit. The leg-attribution reading has landed; collect
+It does not protect a bot already down in the pit. The segment-attribution reading has landed; collect
 samples before deciding whether to extend the band downward.
 
 ### The stranded branch of the walk home does not settle onto ground
 
-The arrived branch does; the stranded branch records only where it stranded and moves on. The lost
-body is the one that most needs the reading.
+The arrived branch does; the stranded branch records only where it stranded and moves on. The stranded
+bot is the one that most needs the reading.
 
 ### The tower-reclaim row records only the count after dismantling
 
@@ -612,24 +612,24 @@ loss.
 
 The shared walk-to-column helper feeds the caller's tolerance to the goal and then judges arrival
 against a hard-coded five-block radius. Eight of fourteen call sites pass zero, so tightening all of
-them at once turns eight legs red simultaneously and nothing is attributable. Do this in order: add
+them at once turns eight walks red simultaneously and nothing is attributable. Do this in order: add
 an evidence row that fires when arrival fell between the caller's tolerance and the hard-coded
 radius, and run once to see who is relying on the slack; then give the callers that need precision
 their own path; then handle the rest one at a time. The first step changes no criterion and cannot
 change any scene's colour.
 
-### A floating body cannot walk onto a bank at its own level
+### A floating bot cannot walk onto a bank at its own level
 
 This is what keeps `wd.journeyGetsAshoreBeforePouring` failing, and that scene is the only standing
-witness to the engine-side defect. A scripted step that places a block under the body is
-geometrically impossible here — the bank is one row above the body and the cell below it is one row
-lower still, and placing into the body's own cell is refused by vanilla.
+witness to the engine-side defect. A scripted step that places a block under the bot is
+geometrically impossible here — the bank is one row above the bot and the cell below it is one row
+lower still, and placing into the bot's own cell is refused by vanilla.
 
 The engine-side half: the walker's final node is accepted by the horizontal proximity clause with
-zero footing under the body, and the existing airborne-climb guard cannot be reused, because it is
-scoped to mid-path nodes and it excludes bodies in water for a measured reason. A second judgement
+zero footing under the bot, and the existing airborne-climb guard cannot be reused, because it is
+scoped to mid-path nodes and it excludes bots in water for a measured reason. A second judgement
 sits above it on the test side, so two layers each call this an arrival; a fix has to account for
-both. Reopen the scripted step only if the walker starts delivering the body to the bank's column
+both. Reopen the scripted step only if the walker starts delivering the bot to the bank's column
 and the scene is still failing.
 
 ### A retry in the ramp changes nothing, and the instrument cannot say why
@@ -646,10 +646,10 @@ It appears in two places with the same shape, so changing one immediately runs i
 Reopen when a profile names the wall cell and the raise still reports a column other than the one it
 pinned.
 
-### Nothing records who lifted the body above the alcove
+### Nothing records who lifted the bot above the alcove
 
 A placement row carrying coordinates would answer both that and who filled the wall cell that blocks
-the descent leg. Without it the failure can be described but not attributed.
+the descent segment. Without it the failure can be described but not attributed.
 
 ### The seat for a fill is judged from the cell centre, not the eye that fires
 
@@ -741,8 +741,8 @@ reopen one without that observation.
   when a run's failure or exhausted budget is charged to repeated refusals.
 - **Reporting a mid-flight elytra exit through the error field.** That exit is the only consumer's
   sole path and the late rungs do not use elytra at all. Reopen if elytra enters the main line.
-- **The shaft support helper reading the context's level rather than the body's.** Latent — every
-  caller is currently in the overworld. Its twin in the End rungs has a byte-identical body and
+- **The shaft support helper reading the context's level rather than the bot's.** Latent — every
+  caller is currently in the overworld. Its twin in the End rungs has a byte-identical method body and
   reads a different level, so merging the two would break the late rungs. This family raises no
   error of its own, so the reopen condition has to be executed by a person: the first time any of
   the shaft's methods appears in a Nether or End rung's call graph, which is the first step of
@@ -761,19 +761,19 @@ reopen one without that observation.
   pass, so writing anything else would turn every skip into a required failure. What needs stating
   is the protocol for reading the results file. Reopen if a coverage line ever disagrees with the
   number of skipped records in the results file.
-- **Adding a fifth remedial leg to the portal rung**, and **changing the raise-in-column or ramp
+- **Adding a fifth remedial step to the portal rung**, and **changing the raise-in-column or ramp
   logic on the strength of an off-column reading**: those readings appear byte-identical in passing
   runs, so they are necessary-but-insufficient at best.
 - **The nine placement refusals during staging.** They occur outside the scored region, consume
   nothing, and the tower they belong to was built anyway. Reopen when at least five refusals on one
   cell coincide with a failing outcome in the same segment; the fix direction is then to recompute
-  the clicked cell from the body's current position rather than reusing the one chosen when the leg
+  the clicked cell from the bot's current position rather than reusing the one chosen when the walk
   began.
-- **Adding no-break constraints to the five remaining legs inside the mould.** Two legs were given
+- **Adding no-break constraints to the five remaining walks inside the mould.** Two walks were given
   one each on three-way evidence; these five have none, and adding the constraint has a measured
-  cost — one of the five is the recovery leg that climbs out of the pit, which may have no route at
+  cost — one of the five is the recovery walk that climbs out of the pit, which may have no route at
   all if it cannot dig. Add one only when a run shows a broken stair step, a dig on the staircase's
-  supporting diagonal, and a segment whose search owner and goal match that specific leg.
+  supporting diagonal, and a segment whose search owner and goal match that specific walk.
 - **Extending the drain scan to the pour line.** The two scans read the same set by construction —
   the "inside the alcove" label is membership in the corridor the drain scans. Reopen if a pour-line
   water row is ever labelled outside the alcove while the drain reports the alcove clear.
@@ -788,7 +788,7 @@ as over the size budget was comfortably under it when measured. Before acting on
 line the code itself would write, read the production code, and measure the file.
 
 - Escape and descend disagree on their reset conventions.
-- There is no lava self-rescue at all, and a body that falls in burns the remainder of the segment's
+- There is no lava self-rescue at all, and a bot that falls in burns the remainder of the segment's
   budget walking.
 - A parkour take-off gate: refuse the jump when less than one block of horizontal room remains. The
   fatal and surviving samples separate cleanly with no overlap, so the predicate is already known to
@@ -805,7 +805,7 @@ line the code itself would write, read the production code, and measure the file
 - A third way of dying on the eleventh rung: over-digging by a dozen blocks.
 - Two more buckets are needed on the ninth rung; the code half has landed and the iron half has not,
   because the amount mined is below what the bill requires.
-- The fifteenth rung cannot reach the warped forest, with the body sitting in lava.
+- The fifteenth rung cannot reach the warped forest, with the bot sitting in lava.
 - The lava lake is a cave lake with a one-block-thick ceiling; two candidate fixes, neither tried.
 - On the fourteenth and fifteenth rungs, the walker's exit is the next step, and one expansion
   is walled in with nobody digging it out.

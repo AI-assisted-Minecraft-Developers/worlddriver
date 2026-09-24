@@ -40,7 +40,7 @@ For someone adding or changing code here.
 | [Architecture](dev/architecture.md) | How a verb travels from a socket to the game and back: the single dispatch point, the registration seams, the boot invariant, the thread discipline. |
 | [The `bot/` layers](dev/bot-layering.md) | The autonomous layer behind `mc.bot.*` — the seams between facade, scheduler, process, walker and pathfinder, and the invariants across them. |
 | [The movement tick phases](dev/movement-tick-phases.md) | How the per-tick walker decision is decomposed into phase classes, and what crosses a tick boundary. |
-| [Body parity](dev/fake-player-parity.md) | Where a driven body matches a real player and where it does not, behaviour by behaviour, and which body a given scene should run on. |
+| [Fake-player parity](dev/fake-player-parity.md) | Where a driven player matches a real player and where it does not, behaviour by behaviour, and which kind of player a given scene should run on. |
 | [Testing](dev/testing.md) | Running the checks, reading a result, adding a scene, and the failures that are not a failing scene. |
 | [Coverage exemptions](dev/coverage-exemptions.md) | Branch families the scene arenas structurally cannot reach, and why each is left uncovered on purpose. |
 | [Pathfinding conformance](dev/pathfinding-conformance.md) | Measuring whether a change to the planner or the walker actually helps. |
@@ -55,7 +55,7 @@ Each document states a problem, the decision taken, what that rules out, and whe
 the source. They are named for the decision rather than the date, and each says up front
 whether the design is implemented.
 
-[`design/`](design/) currently holds seventeen: the ascent dead-zone watchdog, the body
+[`design/`](design/) currently holds seventeen: the ascent dead-zone watchdog, the `Body`
 abstraction, boss playbooks as scripts, conformance and corpus gating, drowning escape, entity
 interaction, human-built scenes, navigation as an intent, observing a long traversal, the
 perception and decision layers, recipes from the game's own table, route selection under

@@ -134,8 +134,8 @@ public final class BotTools {
                     .prop("cluster", object().prop("count", integer()).prop("radius", number())
                         .prop("mode", stringEnum("forbid", "avoid")).prop("penalty", number()))
                     .prop("types", array(string()))
-                .desc("Berth around hostile mobs seen when the search starts (both bodies): cost ramps "
-                    + "from penalty at the mob to 0 at radius / rangedRadius (defaults: the mobAvoid* "
+                .desc("Berth around hostile mobs seen when the search starts (client and server-side bots "
+                    + "alike): cost ramps from penalty at the mob to 0 at radius / rangedRadius (defaults: the mobAvoid* "
                     + "settings). cluster: a cell with count+ mobs within its radius is pruned (forbid) or "
                     + "charged penalty (avoid). types: only these ids (default all hostiles)."))
             .prop("sight", object()
@@ -170,9 +170,9 @@ public final class BotTools {
     private static List<ToolSchema> withBody(List<ToolSchema> tools) {
         for (ToolSchema t : tools) {
             if (VERBS_A_BODY_TAKES.contains(t.name()) && t.schema() instanceof Schema.Obj o) {
-                o.prop("body", bodyId().desc("Which body: 'self' (default, this client's player) or an id from "
-                        + "mc.bot.status bodies. Another body has no reflexes and an NPC no hands; out of reach "
-                        + "is refused there, combat's force lifts nothing, and useItem on an entity answers menu, not screen."));
+                o.prop("body", bodyId().desc("Which bot player: 'self' (default, this client's player) or an id "
+                        + "from the bodies list of mc.bot.status. Any other bot player has no reflexes and an NPC "
+                        + "no hands; out of reach is refused there, combat's force lifts nothing, and useItem on an entity answers menu, not screen."));
             }
         }
         return tools;
@@ -229,7 +229,7 @@ public final class BotTools {
                 "skeleton 1203's sight'. Each preview spends a whole search budget beside the walk: tighten the " +
                 "conditions and converge in two or three rounds. Then goto {planId} walks exactly that route " +
                 "(reply adopted:true; adopted:false + adoptReason falls back to a normal search: expired after 60 s, " +
-                "bestEffort, or the body moved away). plan:'score' prices the polyline in route.corridor.points " +
+                "bestEffort, or the bot moved away). plan:'score' prices the polyline in route.corridor.points " +
                 "as if walked (no search, no planId).",
                 object()
                     .prop("pos", pos())
@@ -272,8 +272,9 @@ public final class BotTools {
                         .desc("With plan:true, also return the route's cells as [x,y,z]."))
                     .prop("awaitMs", awaitMs())
                     .prop("body", bodyId()
-                        .desc("Which body walks: 'self' (default) or an id from mc.bot.status bodies. Another body "
-                            + "refuses waypoint, plan and planId, and route.requireTool unless it is a player."))
+                        .desc("Which bot player walks: 'self' (default) or an id from the bodies list of "
+                            + "mc.bot.status. Any other bot player refuses waypoint, plan and planId, and "
+                            + "route.requireTool unless it is a player."))
                 ),
 
             wrTool("mc.bot.waypoint",
@@ -665,7 +666,7 @@ public final class BotTools {
                 ),
 
             wrTool("mc.bot.equip",
-                "Equip the best armor on every body slot and (unless armorOnly) the best weapon in the " +
+                "Equip the best armor on every armor slot and (unless armorOnly) the best weapon in the " +
                 "main hand (Phase F). Synchronous. Scans the inventory, scoring material tier first " +
                 "(netherite>diamond>iron>chainmail>gold>leather) then enchantments; swaps each piece in via " +
                 "inventory slot-clicks. Swords are preferred over axes/tridents for the main hand. Returns " +
@@ -750,8 +751,8 @@ public final class BotTools {
                 "pathStep, lastError?, goal?, target?, startedAtMs?}. lastPath = stats from the " +
                 "most recent A* run: {expanded, ms, goalReached, finalCost, pathLen} — useful for " +
                 "debugging 'why isn't it moving' (low expanded + goalReached=false = unreachable). " +
-                "bodies: [{id, kind, entityId?, pos?, busy}] lists the other bodies `body` can name; " +
-                "with body, returns that body's {id, busy, activeProcess?} and its slots instead.",
+                "bodies: [{id, kind, entityId?, pos?, busy}] lists the other bot players `body` can name; " +
+                "with body, returns that player's {id, busy, activeProcess?} and its slots instead.",
                 object()
                     .prop("body", bodyId())
                 ),
@@ -775,8 +776,9 @@ public final class BotTools {
                             "'combat') targets that chain's internal episode, and a process KIND " +
                             "also reaches a process held inside a reflex chain."))
                     .prop("body", bodyId()
-                        .desc("Which body: 'self' (default) or an id from mc.bot.status bodies. Another body holds "
-                            + "one process and no reflex chains, so a named cancel matches its process kind or nothing."))
+                        .desc("Which bot player: 'self' (default) or an id from the bodies list of mc.bot.status. "
+                            + "Any other bot player holds one process and no reflex chains, so a named cancel "
+                            + "matches its process kind or nothing."))
                 )
         );
         return withBody(all);

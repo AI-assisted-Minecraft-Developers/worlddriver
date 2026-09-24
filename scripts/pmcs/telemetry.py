@@ -64,7 +64,7 @@ def _yaw_delta(a, b):
 def water_yaw_thrash(ticks):
     """Mean |Δyaw| per tick across consecutive IN-WATER ticks = the signature of repeated side-to-side swerving in water that
     totStuck is BLIND to (in-water progress is horizontal-only/bob-immune, so a thrashing-yaw swim
-    that drifts forward keeps totStuck low while the camera/body swings wildly — the dominant water
+    that drifts forward keeps totStuck low while the camera and the player's heading swing wildly — the dominant water
     jank on the 2026-06-29 journey, REGRESSION.md §14). Consecutive = adjacent ticks both inW with
     yaw present and t increasing by 1 (same uninterrupted swim). Returns (mean_abs_dyaw, samples)."""
     total, n = 0.0, 0

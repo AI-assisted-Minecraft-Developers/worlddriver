@@ -101,7 +101,7 @@ public final class ClientWorldView implements WorldView {
      *  otherwise (Walker per-tick reads). When false, {@link #state} bypasses the
      *  cache entirely so live reads stay fresh.
      *  <p>Every slice starts empty. The map used to live for the whole search, and a search
-     *  from a tunnel spans tens to hundreds of ticks while the body digs: the cells it dug
+     *  from a tunnel spans tens to hundreds of ticks while the bot digs: the cells it dug
      *  stayed solid in the search's eyes, and cells it placed stayed air. A slice is a few
      *  milliseconds of a static world; a search is not. */
     @Override public void cacheActive(boolean on) {
@@ -355,7 +355,7 @@ public final class ClientWorldView implements WorldView {
      *  placed blocks.
      *
      *  <p><b>This list said PillarUp too, and for PillarUp the reason is false.</b> A
-     *  pillar sets its block on the solid rung the body is standing on, so nothing
+     *  pillar sets its block on the solid rung the bot is standing on, so nothing
      *  drops away — {@code BotConfig#isUsablePillarBlock} exists precisely to say so
      *  ("that hazard does not exist for an in-place pillar") and accepts sand/gravel.
      *  Two separate things follow, and only the first is a real divergence:
@@ -363,7 +363,7 @@ public final class ClientWorldView implements WorldView {
      *    <li>{@code PillarUp.eval} gates on {@link #canPlace()}, i.e. on THIS scan, while
      *        the walker's pillar actuators gate on {@code net.magicterra.worlddriver.bot.body.Hands#holdPillarBlock} →
      *        {@code BotInteract.ensureHoldingPillarBlock}, which accepts falling blocks
-     *        AND reaches menu slots 9-35 through {@code swapFromMainInv}. So a body
+     *        AND reaches menu slots 9-35 through {@code swapFromMainInv}. So a bot
      *        carrying only sand — deserts, beaches, rivers — gets zero planned PillarUp
      *        edges for a climb its own recovery path would pillar out of.
      *        {@code WalkerTickDrive} and {@code WalkerTickStallDetect} both already say
@@ -414,7 +414,7 @@ public final class ClientWorldView implements WorldView {
             { 1, 1, 0}, {-1, 1, 0}, {0, 1, 1}, {0, 1, -1},   // head ring
             { 1,-1, 0}, {-1,-1, 0}, {0,-1, 1}, {0,-1, -1},   // below-feet ring
             // Diagonals + straight-up: a swim route hugging a lava shore kept its
-            // nodes legal (canStandAt rejects lava-in-head) yet the 0.6-wide body
+            // nodes legal (canStandAt rejects lava-in-head) yet the 0.6-wide player
             // drifted into the DIAGONALLY adjacent lava cell mid-stroke — live ×3
             // (round31: enteredLava at (-689,63,566) and (-804/-805,63,478), fire
             // res masked what would kill a naked bot). Charging the diagonal and
@@ -545,8 +545,9 @@ public final class ClientWorldView implements WorldView {
         dig = CellRules.DigSnapshot.of(Minecraft.getInstance().player, Minecraft.getInstance().level);
         // Mobs are no longer snapshotted here. The per-mob berth lives in the profile's MobCluster
         // component (route.mobs, or the avoidMobs default that RouteParams expands), fed by the
-        // SearchScope the Walker gathers per search — one snapshot for both bodies, so the server
-        // body avoids mobs too and nothing is priced twice. dangerCost below is terrain only.
+        // SearchScope the Walker gathers per search — one snapshot for both the client player and
+        // the server-side player, so the server-side bot avoids mobs too and nothing is priced
+        // twice. dangerCost below is terrain only.
         // Walker stuck-node blacklist: prune expired entries, then snapshot the
         // live ones so dangerCost applies a consistent penalty for the whole run.
         {
@@ -635,7 +636,7 @@ public final class ClientWorldView implements WorldView {
                 // is the fix for pathfinding that walked into the sea and drowned.
                 if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
                     penalty += BotConfig.waterDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
-                    // SUBMERGED layer extra: a cell the body floats fully under moves at
+                    // SUBMERGED layer extra: a cell the bot floats fully under moves at
                     // ~2 b/s vs ~5.6 b/s surface sprint-swim, yet Walk prices both 10, so
                     // A* hugs the lake bed whenever the floor undulates and the executor
                     // see-saws jump/sneak chasing waypoints that alternate bed/surface
@@ -650,7 +651,7 @@ public final class ClientWorldView implements WorldView {
                     // the offset was and is foot+2 — one cell apart, and the stricter one.
                     // A cell with water at the head and air above it is NOT taxed here, by
                     // design: isSubmergedFoot's javadoc derives foot+2 from what a buoyant
-                    // body can still do (jump-mount a bank from within one cell of the
+                    // player can still do (jump-mount a bank from within one cell of the
                     // surface), so anyone tuning waterDangerPenalty off the old sentence was
                     // tuning a gate one cell tighter than they thought.
                     if (isSubmergedFoot(foot)) {
@@ -658,7 +659,7 @@ public final class ClientWorldView implements WorldView {
                     }
                 }
                 // FLOWING water (a current) costs extra on top of the still-water
-                // penalty: a current drifts the body off the planned line, so A*
+                // penalty: a current drifts the bot off the planned line, so A*
                 // should minimise time in it (prefer a bridge / the narrowest crossing
                 // / still water). Flat + omnidirectional here (drift risk); the
                 // upstream-specific cost is in directionalCost. Scaled by flow
@@ -678,7 +679,8 @@ public final class ClientWorldView implements WorldView {
                     penalty += BotConfig.leafSnagPenalty;
                 }
                 // (Vine-cling A/B-DISPROVEN 2026-06-06: a blanket dangerCost penalty on
-                // vine body-cells inflated A* 6k→21k nodes / cost 315→1715 in dense jungle
+                // cells with a vine in the player's space inflated A* 6k→21k nodes / cost
+                // 315→1715 in dense jungle
                 // — every cell near a vine curtain got penalised, gutting the heuristic and
                 // producing winding paths — WITHOUT fixing the freeze, since the dominant
                 // stall there is solid LEAVES/trunks, not vines. Vine-cling needs a

@@ -17,7 +17,7 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 
 /**
  * Contact-damage escape reflex (death #14, live 2026-07-20). A {@code goto y=16}
- * across desert hugged a cactus cluster; the executor's body drift overlapped the
+ * across desert hugged a cactus cluster; the bot's drift under the executor overlapped the
  * neighbouring cactus and contact damage re-landed every ~10 ticks — HP 11→0 in
  * ~20 s. The LLM controller reacted "correctly" (cancel at HP 5, run_away at 2)
  * and still lost: its 1–6 s turn latency can never beat a 2 Hz damage tick. And
@@ -105,7 +105,7 @@ public final class ContactDamageEscape {
         // Forward along the yaw just set, on the channel that OUTRANKS the walker's own per-tick
         // command — which is what this class's "overrides an active walker's keys" contract has
         // always claimed and never delivered. Two channels failed it in turn: the SHARED keybind
-        // never reached the body at all (AvatarInput.tick runs vanilla's key pass and then
+        // never reached the player at all (AvatarInput.tick runs vanilla's key pass and then
         // overwrites forwardImpulse), and commandForward is itself discarded whenever the Walker
         // commands a move that tick. Both failures land on exactly the ticks this reflex is for —
         // an active `goto` is what pressed the hull into the cactus in the first place (death #14
@@ -152,7 +152,7 @@ public final class ContactDamageEscape {
         return BotUtil.HAZARD_BLOCKS.contains(s.getBlock()) || s.is(BlockTags.FIRE);
     }
 
-    /** This reflex's notion of a cell a body fits through, handed to
+    /** This reflex's notion of a cell the player fits through, handed to
      *  {@link BotUtil#stepAwayCardinal} as its {@code open} test. Stricter than the lava
      *  sibling's {@code !blocksMotion()}: a carpet or a pressure plate is refused here and
      *  stepped over there. Kept as it was — the picker they now share takes the test as a

@@ -58,7 +58,7 @@ class ServerThreadGuardTest {
                 "invoke", "mc.events", "params", Map.of("op", "list"), "field", "nope", "timeoutMs", 5000)));
     }
 
-    /** A named body, because the client's own bot does not exist in a JVM test; both reach the same await. */
+    /** A named bot player, because the client's own bot does not exist in a JVM test; both reach the same await. */
     @Test
     void anAwaitMsOrderIsRefusedBeforeItStarts() {
         DriverApi api = new DriverApi();

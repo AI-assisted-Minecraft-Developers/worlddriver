@@ -147,7 +147,7 @@ def preflight(label):
 def live_journey(label):
     ensure_alive()
     # §89 rig fix: the previous journey's 14-block arrive circle can end ON a jungle
-    # canopy, so the next leg starts treetop-airborne — jump-ram bounce there hops
+    # canopy, so the next journey starts airborne on the treetops — jump-ram bounce there hops
     # 3-4 blocks and resets the physical stall anchor, burning the whole timeout at
     # the start (C106-J3: churn 12 blocks from start). A real journey never starts
     # on a treetop; step down to solid ground before goto.
@@ -176,7 +176,7 @@ def live_journey(label):
     rpc('mc.client.chat.send', {'text': '/clear'}); time.sleep(0.3)
     for c in ['/give @p water_bucket', '/give @p diamond_pickaxe', '/give @p diamond_shovel', '/give @p cobblestone 192']:
         rpc('mc.client.chat.send', {'text': c}); time.sleep(0.3)
-    rpc('mc.client.chat.send', {'text': '/effect clear @p'}); time.sleep(0.2)   # live legs stay mortal (§76)
+    rpc('mc.client.chat.send', {'text': '/effect clear @p'}); time.sleep(0.2)   # live journeys stay mortal (§76)
     rpc('mc.client.chat.send', {'text': '/effect give @p minecraft:night_vision infinite 0 true'}); time.sleep(0.2)   # keep night vision through the clear (user directive; also de-noises the dark-cave video watcher)
     p = rpc('mc.client.player', {})['pos']
     sx, sz = p['x'], p['z']
@@ -354,7 +354,7 @@ if '--self-test' in sys.argv:
 # spreadplayers can drop the bot INSIDE a cave/ravine opening (C18: y37 start,
 # journey churned at y8 in the cave network) — retry until surfaced (y>=60).
 # PEACEFUL for the whole cycle (§75): pathfinding acceptance, not combat — hostiles
-# pinned the C63-J2 replay bot (spider, maxStuck 1200) and have bled hp in live legs.
+# pinned the C63-J2 replay bot (spider, maxStuck 1200) and have drained health in live journeys.
 rpc('mc.client.chat.send', {'text': '/difficulty peaceful'}); time.sleep(0.3)
 for _try in range(4):
     cx, cz = random.randint(-400, 400), random.randint(-400, 400)
@@ -411,7 +411,7 @@ for j in range(1, 4):
     rpc('mc.client.chat.send', {'text': '/difficulty peaceful'}); time.sleep(0.3)
     # Replays also run damage-immune (§76): a replan drifting off the archived corridor
     # walks the bot off a cliff / into lava (C70: three replay deaths — fall, lava x2),
-    # which is rig noise, not a pathfinding regression. Live legs stay mortal.
+    # which is rig noise, not a pathfinding regression. Live journeys stay mortal.
     rpc('mc.client.chat.send', {'text': '/effect give @p minecraft:resistance infinite 255 true'}); time.sleep(0.2)
     for i in range(3):
         ensure_alive()

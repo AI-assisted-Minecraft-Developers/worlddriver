@@ -13,7 +13,7 @@ import net.minecraft.core.BlockPos;
  * actuator change is needed. Cost 19 ≈ diagonal (14) + jump premium (5), so
  * a flat Walk+StepUp pair (10+15=25) is dearer and A* prefers the cut.
  *
- * Clearance is stricter than a flat {@link Diagonal}: because the body
+ * Clearance is stricter than a flat {@link Diagonal}: because the player
  * <em>rises</em> through the corner it can clip either side, so BOTH cardinal
  * side columns must be clear at the destination-foot band (and their heads).
  */
@@ -58,14 +58,14 @@ public final class DiagonalAscend extends Move {
         // Jump clearance over the launch head (foot.y + 2).
         if (!w.isPassable(from.offset(0, 2, 0)) || w.isHazard(from.offset(0, 2, 0))) return false;
         // Both corners open at the destination-foot level (y+1) and its head
-        // (y+2) — a rising body sweeps the whole corner, so one-side is not
+        // (y+2) — a rising player sweeps the whole corner, so one-side is not
         // enough here.
         BlockPos sideA = from.offset(dx, 1, 0);
         BlockPos sideB = from.offset(0, 1, dz);
         // Both corners over the void → nothing under the crossing. Same rule as Diagonal, applied
-        // to the same family: the body aims at the destination centre, so its hitbox passes over
-        // both corner columns whatever the height change, and a rising body sweeps MORE of them.
-        // The corners here are at y+1, so the void test is asked of the columns the body actually
+        // to the same family: the bot aims at the destination centre, so its hitbox passes over
+        // both corner columns whatever the height change, and a rising player sweeps MORE of them.
+        // The corners here are at y+1, so the void test is asked of the columns the bot actually
         // crosses, not of the launch row. Gating only the flat Diagonal was an exemption written
         // narrower than its family — the third such in two days; rung 20 kept leaving the world
         // from island rims (-15,60,36 / -16,61,34 / -18,61,36 / -35,62,-6) after the flat one closed.

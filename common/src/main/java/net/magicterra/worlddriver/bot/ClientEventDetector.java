@@ -178,7 +178,7 @@ final class ClientEventDetector {
         // One-shot on the rising edge of stepping into water / lava — the "I fell
         // in" warning so the Agent can react (swim/escape ashore, or that it's
         // burning in lava) without polling observe.player every tick. isInWater()
-        // and isInLava() are the vanilla body-in-fluid flags (true while any part
+        // and isInLava() are the vanilla entity-in-fluid flags (true while any part
         // of the hitbox is in the fluid), matched against last tick so leaving and
         // re-entering re-fires.
         boolean inWater = pl.isInWater();

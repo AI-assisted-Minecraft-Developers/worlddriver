@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
  * sprint-jump across a 2-3 block cardinal gap that lands one block HIGHER
  * than the launch. (A 1-block ascend is just a {@link StepUp}; ascends
  * taller than 3 are not reachable by vanilla sprint-jump physics.) The
- * rising body sweeps a taller corridor than a flat parkour, so each gap
+ * rising player sweeps a taller corridor than a flat parkour, so each gap
  * column must be clear 3 tall (foot, head, head+1) -- a ceiling at y+2
  * clips the jump apex. There must also be no stand-able floor at launch
  * level in the gap, or a cheaper Walk/StepUp chain would win. Distance-2 is
@@ -63,7 +63,7 @@ public final class ParkourAscend extends Move {
         // thin-lip crest (staircase drops away behind) is forbidden so A* substitutes a makeable stepUp climb.
         if (BotConfig.pathfinderParkourAscendNeedRunway && !w.canStandAt(from.offset(-sx, 0, -sz))) return false;
         for (int i = 1; i < dist; i++) {
-            // 3-tall clear corridor: the body rises from y to y+1 across the
+            // 3-tall clear corridor: the player rises from y to y+1 across the
             // gap, so foot/head/head+1 must all be open.
             for (int dyOff = 0; dyOff <= 2; dyOff++) {
                 BlockPos c = from.offset(sx * i, dyOff, sz * i);
@@ -73,7 +73,7 @@ public final class ParkourAscend extends Move {
             if (w.canStandAt(from.offset(sx * i, 0, sz * i))) return false;
             // Water-bottomed gap DROP-ZONE (pathfinderForbidParkourOverWaterGap): an UNDERSHOT rising leap
             // drops ~1 below the launch into the gap column; if that drop-zone is DEEP water (>=2) the buoyant
-            // body can't climb out and bob-stalls against the far wall (live -665,64: parkourAscend2 from a
+            // player cannot climb out and bob-stalls against the far wall (live -665,64: parkourAscend2 from a
             // y63 launch over an air gap with water below falls to y62 water, hCol, ~3.7 s repath-bounce — a
             // route-variance stall the executor layer structurally can't A/B-recover). A buoyant bot should
             // SWIM a water crossing, not sprint-jump it, so forbid the leap and let A* route around / swim.

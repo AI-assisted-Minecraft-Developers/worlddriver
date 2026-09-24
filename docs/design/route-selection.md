@@ -50,9 +50,9 @@ because a component can be both a constraint and a cost modifier and must be tol
 
 `SearchScope` holds the start, the goal, a `ThreatSnapshot` — one record per observer, with its
 entity id, registered name, eye position, whether it is a ranged attacker, and its effective range
-— and a line-of-sight function. It deliberately holds **no entity and no body**. Handing a client
+— and a line-of-sight function. It deliberately holds **no entity and no `Body`**. Handing a client
 type to a parameter declared as something wider is what stops a class loading on a dedicated
-server, and a scope object with a body in it would be exactly that bomb. `WorldView` is untouched
+server, and a scope object holding a `Body` would cause exactly that failure. `WorldView` is untouched
 and still does not know what a `Level` is.
 
 The scope is supplied to the pathfinder through a function set at the one legitimate construction
@@ -68,7 +68,7 @@ reports verbatim. Mobs in the truncated remainder are reported on the way by the
 than being pretended into the snapshot.
 
 The snapshot does not change during a search, so a search sliced across several ticks stays
-self-consistent, and both ends behave the same — a body on a dedicated server avoids mobs, which it
+self-consistent, and both ends behave the same — a bot on a dedicated server avoids mobs, which it
 did not before.
 
 ### Hard and soft are two different requests
@@ -82,7 +82,7 @@ multiplier below one would let the straight-line heuristic overestimate. A hard 
 
 ### Counting constraints need a potential as well as a count
 
-A hard constraint can be violated at the moment the search starts — the body gets shoved into a
+A hard constraint can be violated at the moment the search starts — the bot gets pushed into a
 forbidden region, surrounded, or knocked out of its corridor — and if every outgoing edge is pruned
 the search has no successors at all and the bot freezes. The existing leash and column constraints
 solve this with a rejoin rule: while the destination violates the constraint, admit only edges that
@@ -157,7 +157,7 @@ which observers see this stretch and for how many cells, how far the nearest mob
 Coordinates are opt-in. The model reads "the first thirty-one cells are clear, the next twenty-one are in one
 skeleton's line of sight for nine of them".
 
-A preview costs a whole search budget, and a preview with waypoints costs one per leg, and an exhausted ray
+A preview costs a whole search budget, and a preview with waypoints costs one per segment between waypoints, and an exhausted ray
 budget costs another. The tool description says so, because the natural model behaviour — tighten and preview
 again — is priced per round and should converge in two or three.
 
@@ -168,17 +168,17 @@ the straightened route, but adoption must not use it: the adoption path straight
 best-effort, and fast-forwards over the prefix already walked, so handing it a straightened route straightens
 twice.
 
-Adoption also already anchors to the nearest prefix node, absorbing the drift the body accumulated while the
+Adoption also already anchors to the nearest prefix node, absorbing the drift the bot accumulated while the
 preview ran, and already truncates the route at the first edge the current world no longer accepts — which
-means a preview whose first leg has gone stale yields an empty route and a refusal, falling through to an
+means a preview whose first segment has gone stale yields an empty route and a refusal, falling through to an
 ordinary search, which is the right outcome.
 
 There is deliberately no separate "must be within N cells of the start" knob: adoption has its own distance gate
 already, and two knobs governing one thing will disagree eventually.
 
-Adoption guarantees only that the first leg is the previewed one. Replanning happens on the way as it always did.
+Adoption guarantees only that the first segment is the previewed one. Replanning happens on the way as it always did.
 That guarantee is still worth having, because between two independent searches there are at least three variables
-— the body's position, the decay of stuck penalties, and straightening — so without adoption there is no mechanism
+— the bot's position, the decay of stuck penalties, and straightening — so without adoption there is no mechanism
 at all that makes preview and execution agree.
 
 ### Three events, and only for conditions that were asked for
@@ -222,21 +222,21 @@ Preferring to break cannot be expressed as a discount on breaking, only as a sur
 break price is computed in the world view and multiplied by a global factor that the search profile cannot reach —
 and because a multiplier below one breaks admissibility. Only-add, so A* stays optimal.
 
-Flight is a single mode that takes over the whole journey rather than a leg. The elytra planner is a separate
-three-dimensional search and does not go through A*; mixing a flown leg with a walked one was left until a scene
+Flight is a single mode that takes over the whole journey rather than one segment of it. The elytra planner is a separate
+three-dimensional search and does not go through A*; mixing a flown segment with a walked one was left until a scene
 needs it.
 
-Preview, scoring and adoption belong to the client's body. The `route` object itself reaches any named body —
+Preview, scoring and adoption belong to the client's player. The `route` object itself reaches any named bot —
 `mc.bot.goto` dispatches through `api/BodyRoutes` when a `body` other than `self` is given, and the conditions and
-the parser work there — but `plan`, `planId` and waypoints are refused by name on any other body, because a waypoint
+the parser work there — but `plan`, `planId` and waypoints are refused by name on any other bot, because a waypoint
 lives in the client's memory and a preview is the client's planner. `route.requireTool` reads an inventory and is
-refused on a body that has none.
+refused on a bot that has none.
 
 ## How it is verified
 
 The condition-parsing and constraint layer is pure and runs headless on a dedicated server (`wd.route*`): a scene
-hands a route object to the parser, gives the resulting profile to a server-side body, and asserts on the resulting
-route. The preview, the plan identifier, the awaits and the events exist only on the client's body, so they run on a
+hands a route object to the parser, gives the resulting profile to a server-side player, and asserts on the resulting
+route. The preview, the plan identifier, the awaits and the events exist only on the client's player, so they run on a
 topology with a real client (`wd.clientRoute*`).
 
 Two of those scenes are worth knowing about because of what they had to avoid asserting. The skeleton-sight scene

@@ -50,20 +50,20 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
  * <p>Behaviour while holding the channel: PURE VERTICAL float — hold jump,
  * zero horizontal input, zero turning (the same idle-passivity boundary gap#70
  * drew: a survival float is a reflex, not autonomous movement). If something is
- * in the way of the rise — asked by sweeping the body's own box up, see
+ * in the way of the rise — asked by sweeping the player's own box up, see
  * {@code BotInteract#riseBlockedCell}, NOT by naming one cell above one column — break it,
  * {@code allowBreak} permitting, in the {@link BunkerChain} aim+attack style
  * ({@code AntiSuffocate} owns the eye-cell case; the lid here is above it).
  *
  * <p>The lateral arm steers only along a route it has walked in the scan — see
  * {@link #lateralEscapeScan}. Until 2026-08-26 it steered at any column that could
- * surface within five cells, whether or not the body could get there, and a body that
- * cannot get there is a body denied the lid-break as well.
+ * surface within five cells, whether or not the bot could get there, and a bot that
+ * cannot get there is a bot denied the lid-break as well.
  *
  * <p>The one horizontal exception to "zero horizontal", and it is smaller than the
- * lateral arm's: when the rise is blocked but the body's own column is clear to
- * air, the body drifts to that column's CENTRE. A player box is 0.6 wide, so a
- * body pressed against a cell boundary carries 0.3 of itself into the next
+ * lateral arm's: when the rise is blocked but the bot's own column is clear to
+ * air, the bot drifts to that column's CENTRE. A player box is 0.6 wide, so a
+ * player pressed against a cell boundary carries 0.3 of itself into the next
  * column, and one solid cell there pins it — while {@code halt}, the very thing
  * this arm presses to stay passive, holds that pose. Measured 2026-08-23
  * (`wd.drownEscapeClientPinnedByNeighbourColumn`): 200 ticks, 0.000 blocks
@@ -95,7 +95,7 @@ public final class DrownEscapeChain implements Chain {
     /** The hysteresis latch — non-false IS the episode (see class doc). */
     private boolean latched;
     /** Air supply seen on the previous evaluation, for the head-out-and-
-     *  recovering release leg. Sentinel -1 = no previous reading. */
+     *  recovering release condition. Sentinel -1 = no previous reading. */
     private int prevAir = -1;
     /** True while OUR tick() is holding client keys, so interrupt/cancel release
      *  exactly our hold and the release path never touches client classes on a
@@ -196,7 +196,7 @@ public final class DrownEscapeChain implements Chain {
                 ClientPlayerBody a = new ClientPlayerBody(mc);
                 a.commandJump(true);                // stay buoyant crossing under the lid
                 // Raw camera-frame forward: the yaw was just set at the open column, so "along
-                // the body" IS "toward open water". commandForward also forces leftImpulse to 0,
+                // the player" IS "toward open water". commandForward also forces leftImpulse to 0,
                 // which is what the keyDown/keyLeft/keyRight clears were for.
                 a.commandForward(1f);               // swim toward open water
                 a.commandSprint(false);
@@ -206,7 +206,7 @@ public final class DrownEscapeChain implements Chain {
                 // UNCONDITIONAL, throttled — deliberately the same gate its vertical sibling
                 // (`dbgV++ % 10 == 0`, no flag) has always had. This row used to be behind
                 // `walkerDebug`, and the asymmetry cost a run: the ladder of 2026-08-23 latched
-                // this chain at 00:56:21 and the body drowned 15 s later at an unchanged
+                // this chain at 00:56:21 and the bot drowned 15 s later at an unchanged
                 // 76,42,60 — 300 ticks in which the ONLY thing the log said was the PREEMPT
                 // line. Not one vertical row printed, which is itself how we know it was THIS
                 // arm (the only path that returns before the vertical one), and this arm said
@@ -214,7 +214,7 @@ public final class DrownEscapeChain implements Chain {
                 // the last thing that should go quiet while it holds it.
                 //
                 // The horizontal speed is on the row because it is the whole question here: this
-                // arm holds `forward` and claims to swim, and a body that held forward for 300
+                // arm holds `forward` and claims to swim, and a bot that held forward for 300
                 // ticks without moving reads identically to one that was never asked. Bounded by
                 // the drowning episode itself, so the volume is ten rows per near-death.
                 if (dbg++ % 10 == 0)
@@ -264,18 +264,18 @@ public final class DrownEscapeChain implements Chain {
         BlockPos lid = riseBlockedCell(mc, p, RISE_PROBE);
         boolean lidBlocksRise = lid != null;
         boolean breaking = false;
-        // RECENTRE, before reaching for a pick. When the rise is blocked but the body's OWN column
+        // RECENTRE, before reaching for a pick. When the rise is blocked but the bot's OWN column
         // is clear all the way to air, the obstruction is in a neighbour and the fix is ≤0.3 blocks
-        // of drift, not a dig — a body pressed against a boundary can simply stop pressing.
+        // of drift, not a dig — a bot pressed against a boundary can simply stop pressing.
         // `commandMove(0,0)` is what HELD that pose: the pin was being maintained by this very method.
         // Note the pure-vertical contract this bends is smaller than the lateral arm's, which swims
-        // whole blocks: this never leaves the cell the body already stands in.
+        // whole blocks: this never leaves the cell the bot already stands in.
         if (lidBlocksRise && w != null
                 && breathableColumn(w, Mth.floor(p.getX()), Mth.floor(p.getY()), Mth.floor(p.getZ()))) {
             double cx = Mth.floor(p.getX()) + 0.5, cz = Mth.floor(p.getZ()) + 0.5;
             double off = Math.sqrt((cx - p.getX()) * (cx - p.getX()) + (cz - p.getZ()) * (cz - p.getZ()));
             // Eased by the remaining offset: a full press across 0.2 blocks of water carries the
-            // body to the OPPOSITE boundary, trading one pinning neighbour for the other one.
+            // bot to the OPPOSITE boundary, trading one pinning neighbour for the other one.
             a.commandToward(cx, cz, (float) Math.min(1.0, off * 5.0));
         } else {
             a.commandMove(0f, 0f);
@@ -289,15 +289,15 @@ public final class DrownEscapeChain implements Chain {
             // in this chain's own bytecode, and this chain is constructed on a dedicated server by
             // the gate's matrix scenes. See BotInteract#continueDestroy — the drive is what breaks
             // the lid, and it also makes vanilla's attack pass stand aside (ClientIntents). A
-            // drowning body under a lid has one breath, and a break that never starts spends all of it.
+            // drowning bot under a lid has one breath, and a break that never starts spends all of it.
             continueDestroy(mc, p, lid);
             breaking = true;
         }
         if (!breaking) ClientIntents.holdDig(false);
-        // STAND UP TO DIG. Vanilla's Player#getDestroySpeed divides the rate by 5 when the body is
+        // STAND UP TO DIG. Vanilla's Player#getDestroySpeed divides the rate by 5 when the player is
         // off the ground and by 5 AGAIN when its eyes are in water, and this arm was paying both:
-        // the jump above is held every tick, so the body hovers instead of resting on whatever it
-        // is standing over. Measured 2026-08-27 on the real client body
+        // the jump above is held every tick, so the player hovers instead of resting on whatever it
+        // is standing over. Measured 2026-08-27 on the real client player
         // (wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff, integrated topology):
         // one dirt lid cost 380 ticks, the bot was on the ground for 3 of those 380 ticks, and the
         // floor was RIGHT THERE — stone underfoot, with the bot parked at y=208.235 over a floor
@@ -313,9 +313,9 @@ public final class DrownEscapeChain implements Chain {
         // grounded. That gap is what the fix closes.
         //
         // GUARDED BY THE FLOOR, and the guard is geometry rather than caution. `RISE_PROBE` is 0.5
-        // and it lifts the body's OWN box: feet at y, box top y+1.8, probe reaching y+2.3 — so in a
-        // two-tall pocket a GROUNDED body still finds the lid, and the release costs nothing. In a
-        // deeper pocket the body would sink away from the lid, `riseBlockedCell` would return null,
+        // and it lifts the player's OWN box: feet at y, box top y+1.8, probe reaching y+2.3 — so in a
+        // two-tall pocket a GROUNDED player still finds the lid, and the release costs nothing. In a
+        // deeper pocket the player would sink away from the lid, `riseBlockedCell` would return null,
         // the jump would go straight back on, and the pair would oscillate with the break progress
         // reset every cycle. Asking whether the cell under the feet can be stood on separates the
         // pocket this helps from the pocket it would wreck.
@@ -332,7 +332,7 @@ public final class DrownEscapeChain implements Chain {
         // a flag is a reading the run that needs it never takes, and the zero it leaves cannot be told
         // apart from "the arm never ran".
         // Same lesson, same day, as BotInteract's [place] row. The %10 throttle stays: this arm
-        // only ticks while a body is actually drowning, so the volume is an episode, not a stream.
+        // only ticks while the bot is actually drowning, so the volume is an episode, not a stream.
         // Through BotInteract for the same reason continueDestroy above goes through it: the row
         // reads p.input, which only LocalPlayer has, and a method DECLARED here with LocalPlayer in
         // its descriptor stops this class loading on a dedicated server. An invokestatic resolves
@@ -341,15 +341,15 @@ public final class DrownEscapeChain implements Chain {
     }
 
     /** How far up the bot's own box is swept to ask "will this rise hit something". Half a block: far
-     *  enough to see the face a rising body is about to meet (terminal rise in water is ~0.175 per
-     *  tick), short enough that it never nominates something the body would have drifted clear of.
+     *  enough to see the face a rising player is about to meet (terminal rise in water is ~0.175 per
+     *  tick), short enough that it never nominates something the player would have drifted clear of.
      *  A lid a whole block higher is not in the way YET, and this arm re-asks every tick. */
     private static final double RISE_PROBE = 0.5;
 
     /**
-     * The cell that stops this body from rising, or null if nothing does.
+     * The cell that stops this player from rising, or null if nothing does.
      *
-     * <p>The question every column scan in this class approximates, asked exactly: sweep the body's
+     * <p>The question every column scan in this class approximates, asked exactly: sweep the player's
      * OWN bounding box up by {@link #RISE_PROBE} and see what it hits. Right for a neighbouring
      * column, a slab, a stair, a lily pad and a mangrove root alike, because it asks the same
      * geometry vanilla's own collision does rather than re-deriving it from one {@code BlockPos}.
@@ -361,12 +361,12 @@ public final class DrownEscapeChain implements Chain {
      * every non-cubic block (a fence's bounds are a full cell, its collision is not).
      *
      * <p>The list comes back lowest-first and the lowest is what this arm wants: that is the face
-     * actually bearing on the body.
+     * actually bearing on the player.
      *
-     * <p><b>BODY IN {@code BotInteract#riseBlockedCell}, and it must stay there.</b> The scan takes
-     * a {@code Player}; this arm has a {@code LocalPlayer}. Handing one to the other is a WIDENING,
-     * and a widening is what forces the verifier to LOAD {@code LocalPlayer} to prove the subtype
-     * relation — which a dedicated server cannot do, and the gate's matrix scenes construct this
+     * <p><b>METHOD BODY IN {@code BotInteract#riseBlockedCell}, and it must stay there.</b> The
+     * scan takes a {@code Player}; this arm has a {@code LocalPlayer}. Handing one to the other is
+     * a WIDENING, and a widening is what forces the verifier to LOAD {@code LocalPlayer} to prove
+     * the subtype relation — which a dedicated server cannot do, and the gate's matrix scenes construct this
      * chain on one. Keeping the widening inside a client-only class costs nothing: an
      * {@code invokestatic} resolves its owner, and that owner is never loaded on a server because
      * {@code tick} returns at {@code mc == null} first.
@@ -381,17 +381,17 @@ public final class DrownEscapeChain implements Chain {
      * could be printed. The lesson is the method, not just the answer: when a message names a
      * missing CLASS it is telling you what could not load, never who asked.
      */
-    // (body moved — see above)
+    // (method body moved — see above)
 
     /*
-     * The execution-layer row for the pure-vertical arm — BODY IN BotInteract#drownVerticalRow.
+     * The execution-layer row for the pure-vertical arm — METHOD BODY IN BotInteract#drownVerticalRow.
      * Deliberately a plain comment, not javadoc: there is no member here to attach it to, and a
      * javadoc block with nothing under it silently documents whatever comes next.
      *
      * <p>Before this existed the arm printed <b>nothing</b> per tick, and the lid-break sub-arm
      * printed nothing ever. The log it left behind therefore could not tell apart the three ways a
-     * body can hold jump in water and not move: the intent never reached {@code Input.jumping},
-     * buoyancy applied but a collision face pinned the body, or the break arm ran and never
+     * bot can hold jump in water and not move: the intent never reached {@code Input.jumping},
+     * buoyancy applied but a collision face pinned the player, or the break arm ran and never
      * finished. Measured 2026-08-22 on the integrated ladder (BED rung, {@code -28,61,79}): 261
      * ticks holding jump, zero rise, air monotonically down to death — and the only in-window rows
      * in the whole log were the two scheduler handovers.
@@ -423,7 +423,7 @@ public final class DrownEscapeChain implements Chain {
      *   <li>{@code breakingLid} makes the break arm visible at all.</li>
      * </ul>
      *
-     * <p><b>The body lives in {@code BotInteract#drownVerticalRow}, not here.</b> It reads
+     * <p><b>The method body lives in {@code BotInteract#drownVerticalRow}, not here.</b> It reads
      * {@code p.input}, which only {@code LocalPlayer} has, and a method DECLARED in this class with
      * {@code LocalPlayer} in its descriptor stops the class loading on a dedicated server — see
      * {@link #blockedAbove} for the measurement that established it.
@@ -470,9 +470,9 @@ public final class DrownEscapeChain implements Chain {
      * only the log wants.
      *
      * @param step        {dx,dz} of the FIRST step of a route to open water, or null if there
-     *                    is none. Always one cell and always axis-aligned: a 0.6-wide body does
+     *                    is none. Always one cell and always axis-aligned: a 0.6-wide player does
      *                    not fit through the diagonal gap between two solid cells, so a diagonal
-     *                    "step" is a direction no body can travel.
+     *                    "step" is a direction no player can travel.
      * @param unreachable a column that CAN surface, within range, that no route reaches — or
      *                    null when the scan found nothing at all. Both fields null is "boxed in,
      *                    nothing anywhere"; this one set is "open water is right there, behind
@@ -492,22 +492,22 @@ public final class DrownEscapeChain implements Chain {
      *
      * <p><b>A route, not a radius.</b> This used to be "scan outward in Chebyshev rings, take the
      * first column that can surface" — a test on the DESTINATION alone, with nothing anywhere
-     * asking whether the body can get there. It killed the ladder of 2026-08-26 at rung 9: body in
+     * asking whether the bot can get there. It killed the ladder of 2026-08-26 at rung 9: the bot in
      * a 1×1 pocket at 81,59,82 under a dirt lid; the scan picked 81,59,80, which genuinely can
-     * surface; 81,59,81, the one cell between them, is stone. The body held {@code forward} into
+     * surface; 81,59,81, the one cell between them, is stone. The bot held {@code forward} into
      * that stone for 532 ticks at a horizontal speed of exactly 0.0000 and drowned. The picked
      * column was not even standable — its head cell 81,60,80 is stone too, so "can surface there"
-     * was answered for a body that could never have been there.
+     * was answered for a player that could never have been there.
      *
      * <p>Worse than useless: {@code step == null} is what sends the caller to the lid-break, the
      * arm the class doc calls always-escapable. A false-positive lateral target does not merely
      * fail to help — it withholds the fallback. See {@code a-fix-that-cannot-reach-its-own-occasion}.
      *
-     * <p>So: breadth-first over the body's own level, four-way, bounded to
-     * {@link #LATERAL_SCAN_R}, through cells the BODY fits in — foot AND head, water or passable,
+     * <p>So: breadth-first over the bot's own level, four-way, bounded to
+     * {@link #LATERAL_SCAN_R}, through cells the PLAYER fits in — foot AND head, water or passable,
      * non-hazard. Asking only the foot is how a one-block-high crack reads as a corridor.
      *
-     * <p>Deliberately 2-D. A route that needs the body to change level is a swim this reflex does
+     * <p>Deliberately 2-D. A route that needs the bot to change level is a swim this reflex does
      * not steer (it holds jump the whole time), so admitting one would put a target behind a
      * manoeuvre the arm cannot perform — the same class of promise this method was just fixed for.
      */
@@ -529,7 +529,7 @@ public final class DrownEscapeChain implements Chain {
                 seen[dx + o][dz + o] = true;
                 if (!bodyFits(w, bx + dx, by, bz + dz)) continue;   // the cell the old scan never asked about
                 // The first step of the route that reached here: our own step when we came
-                // straight off the body's cell, otherwise whatever got us to the cell we came from.
+                // straight off the bot's cell, otherwise whatever got us to the cell we came from.
                 int[] step = (cur[0] == 0 && cur[1] == 0) ? s : firstStep[cur[0] + o][cur[1] + o];
                 firstStep[dx + o][dz + o] = step;
                 if (breathableColumn(w, bx + dx, by, bz + dz))
@@ -540,8 +540,8 @@ public final class DrownEscapeChain implements Chain {
         return new LateralEscape(null, firstBreathableInRange(w, bx, by, bz));
     }
 
-    /** A cell this BODY can occupy at this level: foot and head both open and neither a hazard.
-     *  Two cells, because the body is two tall — see {@code the-collision-box-is-not-the-cell}. */
+    /** A cell this PLAYER can occupy at this level: foot and head both open and neither a hazard.
+     *  Two cells, because the player is two tall — see {@code the-collision-box-is-not-the-cell}. */
     private static boolean bodyFits(WorldView w, int x, int y, int z) {
         return cellOpen(w, new BlockPos(x, y, z)) && cellOpen(w, new BlockPos(x, y + 1, z));
     }
@@ -550,7 +550,7 @@ public final class DrownEscapeChain implements Chain {
         return !w.isHazard(c) && (w.isWater(c) || w.isPassable(c));
     }
 
-    /** The old scan, kept for exactly one purpose: naming the column the body could see and not
+    /** The old scan, kept for exactly one purpose: naming the column the bot could see and not
      *  reach, so a death record says which of the two dead ends it was. Never steers anything. */
     private static BlockPos firstBreathableInRange(WorldView w, int bx, int by, int bz) {
         for (int r = 1; r <= LATERAL_SCAN_R; r++)

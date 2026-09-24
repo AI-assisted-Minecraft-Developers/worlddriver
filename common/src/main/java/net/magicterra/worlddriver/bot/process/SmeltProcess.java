@@ -417,7 +417,7 @@ public final class SmeltProcess implements BotProcess {
         // quickMoveStack calls moveItemStackTo(stack, 3, 39, true), which returns false and moves
         // NOTHING when every player slot is taken, and this method then reported DONE with
         // lastError null. Measured shape, and it is intermittent for a reason that has nothing to
-        // do with smelting: the body stands beside the furnace for 200 ticks per item with
+        // do with smelting: the bot stands beside the furnace for 200 ticks per item with
         // ServerPlayerBody's pickup loop running, so the slot its own ore vacated at LOAD fills
         // back up with whatever the mining rung left lying around — and the ingots it just made
         // have nowhere to go. From the rung's side that is byte-identical to a smelt that never

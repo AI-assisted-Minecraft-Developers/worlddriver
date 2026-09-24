@@ -26,7 +26,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 
 /**
- * The {@code mc.bot.*} verbs that take {@code body}, for the bodies {@link BodyRegistry} names. An
+ * The {@code mc.bot.*} verbs that take {@code body}, for the bots {@link BodyRegistry} names. An
  * absent, blank or {@code self} {@code body} leaves the call to the client's {@link BotApi}, as before
  * the param existed.
  *
@@ -53,8 +53,8 @@ final class BodyRoutes {
     }
 
     /**
-     * {@code verb} on the registered body {@code params} names, on the server thread. An unknown id and
-     * a body that cannot act now answer before the verb runs.
+     * {@code verb} on the registered bot {@code params} names, on the server thread. An unknown id and
+     * a bot that cannot act now answer before the verb runs.
      */
     Map<String, Object> onHost(Map<String, Object> params, BiFunction<BodyHost, Params, Map<String, Object>> verb) {
         String id = bodyId(params);
@@ -69,7 +69,7 @@ final class BodyRoutes {
 
     /**
      * A verb that starts a process: the order {@code self} would take, read by the same
-     * {@link VerbOrders} builder, started on the host. Whether the body can do the work is the
+     * {@link VerbOrders} builder, started on the host. Whether the bot can do the work is the
      * process's to say; one that needs hands ends on its first tick with {@code no_hands} on an NPC,
      * in the slot {@code awaitMs} waits on.
      */
@@ -89,9 +89,9 @@ final class BodyRoutes {
      * waypoint lives in its memory, and a preview and {@code planId} are its planner.
      */
     static Map<String, Object> mcGoto(BodyHost host, Params p) {
-        if (p.get("waypoint") != null) return error("waypoint is only accepted on body self");
-        if (p.get("planId") != null) return error("planId is only accepted on body self");
-        if (planned(p.get("plan"))) return error("plan is only accepted on body self");
+        if (p.get("waypoint") != null) return error("waypoint is only accepted with body=self");
+        if (p.get("planId") != null) return error("planId is only accepted with body=self");
+        if (planned(p.get("plan"))) return error("plan is only accepted with body=self");
         LivingEntity self = host.entity();
         Goal goal;
         RouteParams.Parsed route;
@@ -101,12 +101,12 @@ final class BodyRoutes {
         } catch (IllegalArgumentException e) {
             return error(e.getMessage());
         }
-        if (planned(route.plan())) return error("route.plan is only accepted on body self");
+        if (planned(route.plan())) return error("route.plan is only accepted with body=self");
         if (goal == null) return error("missing goal — provide pos|xz|y|block|entity|entityId|direction");
         String tool = route.requireTool();
         if (tool != null && !tool.isBlank()) {
             if (!(self instanceof Player player)) {
-                return error("route.requireTool reads an inventory, and body " + host.id() + " has none");
+                return error("route.requireTool reads an inventory, and bot " + host.id() + " has none");
             }
             try { GotoGoalResolver.checkRequiredTool(tool, player); }
             catch (IllegalArgumentException e) { return error(e.getMessage()); }
@@ -131,7 +131,7 @@ final class BodyRoutes {
 
     /**
      * {@code route.mode} fly: {@code mc.bot.elytraFly}'s order for the goal's cell, walking there when the
-     * body wears no usable elytra, as on {@code self}. The reply names the slot the order lives in, so
+     * bot wears no usable elytra, as on {@code self}. The reply names the slot the order lives in, so
      * {@code awaitMs} waits on {@code elytra} for a flight and on {@code goto} for the walk.
      */
     private static Map<String, Object> fly(BodyHost host, Goal goal) {
@@ -153,7 +153,7 @@ final class BodyRoutes {
         return plan != null && !Boolean.FALSE.equals(plan);
     }
 
-    /** The nearest loaded entity of {@code typeId} in the body's level: for another body, what the
+    /** The nearest loaded entity of {@code typeId} in the bot's level: for another bot, what the
      *  client's scan of rendered entities is for {@code self}. */
     private static Entity nearestOfType(Entity self, String typeId) {
         if (!(self.level() instanceof ServerLevel level)) return null;
@@ -168,9 +168,9 @@ final class BodyRoutes {
     }
 
     /**
-     * {@code mc.bot.cancel} on a registered body. A host holds one process, so a named cancel matches
+     * {@code mc.bot.cancel} on a registered bot. A host holds one process, so a named cancel matches
      * its kind or nothing; {@code all} answers ok whatever was running, as it does on {@code self}.
-     * A body that cannot act can still be cancelled, so no refusal is asked first.
+     * A bot that cannot act can still be cancelled, so no refusal is asked first.
      */
     Map<String, Object> cancel(Map<String, Object> params) {
         String id = bodyId(params);
@@ -186,7 +186,7 @@ final class BodyRoutes {
     }
 
     /**
-     * {@code mc.bot.status}. With a registered {@code body}: that body's id, {@code busy} and slots.
+     * {@code mc.bot.status}. With a registered {@code body}: that bot's id, {@code busy} and slots.
      * Otherwise the client's status when there is a client bot, with {@code bodies} added; a
      * dedicated server has no client bot and answers with {@code bodies} alone.
      */
@@ -204,7 +204,7 @@ final class BodyRoutes {
         return out;
     }
 
-    /** What {@code awaitMs} polls for a registered body: its slots, or none once it is unregistered,
+    /** What {@code awaitMs} polls for a registered bot: its slots, or none once it is unregistered,
      *  which the poll reads as done. */
     Supplier<Map<String, Object>> slotsOf(Map<String, Object> params) {
         String id = bodyId(params);
@@ -226,7 +226,7 @@ final class BodyRoutes {
     }
 
     /**
-     * {@code [{id, kind, entityId, pos, busy}]} in registration order; a body whose entity is gone
+     * {@code [{id, kind, entityId, pos, busy}]} in registration order; a bot whose entity is gone
      * has no {@code entityId} or {@code pos}. Nothing registered answers without a hop, which matters
      * on a client joined to a remote server: there is no server thread there to hop to.
      */

@@ -13,10 +13,11 @@ import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.entity.monster.piglin.Piglin;
 
 /**
- * The testmod's NPC bodies. One so far, {@link DrivenPiglin}, registered with a vanilla piglin's
- * dimensions and attributes so that what differs from a piglin is only who holds the legs.
+ * The testmod's NPC entities for the bot to drive. One so far, {@link DrivenPiglin}, registered with
+ * a vanilla piglin's dimensions and attributes so that what differs from a piglin is only who
+ * controls its movement.
  *
- * <p>{@code noSave()}: a scene spawns the body and discards it, and an entity type that serializes
+ * <p>{@code noSave()}: a scene spawns the NPC and discards it, and an entity type that serializes
  * asks the data fixer for a schema this id does not have.
  */
 public final class NpcContent implements TestContent {

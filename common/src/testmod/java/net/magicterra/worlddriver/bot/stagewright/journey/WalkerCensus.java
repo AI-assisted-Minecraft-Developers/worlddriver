@@ -16,8 +16,8 @@ import net.magicterra.worlddriver.bot.movement.Walker;
  * move it. Four correct answers and no legal move.
  *
  * <p>Naming WHICH refuser needs the executor's own counters, and every existing home for them
- * missed that rung. {@code death.strideGuard} writes only when the body dies;
- * {@code body.leftTheWorld} only when it falls out of the world; {@link JourneyFlight}'s per-leg
+ * missed that rung. {@code death.strideGuard} writes only when the bot dies;
+ * {@code body.leftTheWorld} only when it falls out of the world; {@link JourneyFlight}'s per-walk
  * deltas only on the {@code walkToColumn} path — while rung 6 hands an {@code IntentProcess} to
  * {@code drive} and ends in TIMEOUT. That intersection — driven directly, timed out, still
  * standing — had no executor-side row at all, so a rung could be pinned for its entire budget
@@ -48,13 +48,13 @@ final class WalkerCensus {
     }
 
     /**
-     * One line naming who did and did not refuse to move the body on this rung.
+     * One line naming who did and did not refuse to move the bot on this rung.
      *
      * <p><b>Fires plus skips IS the tick count the stride guard ran over</b> — its own doc promises
      * exactly one bucket moves per tick — so a total far below the rung's ticks is not a small
      * share, it is the guard never having been asked, and the line says which it is rather than
      * leaving a zero to be read as a verdict. That distinction is the whole point of the row: a
-     * pinned body with a silent stride guard means the refuser is one of the OTHER two
+     * pinned bot with a silent stride guard means the refuser is one of the OTHER two
      * ({@code SearchGovernors} names the footing guard and the recovery hop), and the next round
      * should instrument those instead of re-reading this one.
      *

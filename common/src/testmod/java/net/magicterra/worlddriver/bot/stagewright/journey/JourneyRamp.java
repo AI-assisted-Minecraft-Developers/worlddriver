@@ -31,12 +31,12 @@ import net.minecraft.world.phys.AABB;
  * {@code standBehind}'s {@code .noStand}, the pour's stand search and the fill's — all of them
  * ending in <i>"cannot place a support: … nothing holds it up; a single block would float"</i>.
  * One brick placed two rows up rests on
- * nothing the body can then walk onto; what the top rows need is a FLIGHT, each step resting on the
+ * nothing the bot can then walk onto; what the top rows need is a FLIGHT, each step resting on the
  * step before it, walked up one course at a time.
  *
  * <p>The scripted tower ({@code JourneyShaft.ascendByTowering} → {@code TowerProcess}) is the tool
  * that already existed for gaining height, and on this geometry it does not work. Measured twice,
- * verbatim, on the real ladder — the run of 2026-08-16 and the one before it — with the body on dry
+ * verbatim, on the real ladder — the run of 2026-08-16 and the one before it — with the bot on dry
  * land, standing, holding the blocks:
  *
  * <pre>
@@ -50,13 +50,13 @@ import net.minecraft.world.phys.AABB;
  *
  * <p>Sixty ticks, six jump-and-place cycles, and the stock never moves: the placement is refused
  * every time and the builder's own guess ("out of blocks?") names the wrong thing, as it has three
- * times before in this repo. The one course it did gain, {@code climb.0}, was the course the body
- * spent IN WATER — where buoyancy lifts a body whether or not a block goes under it.
+ * times before in this repo. The one course it did gain, {@code climb.0}, was the course the bot
+ * spent IN WATER — where buoyancy lifts a player whether or not a block goes under it.
  *
  * <p>So this does not jump. Each step is placed by hand through {@code useItemOn} — the same call
  * {@link JourneyStairs#placeInto} makes, which this rung has already measured working in this very
  * alcove ({@code cell.4.step} placed one block at {@code -8,56,37} and the cell became standable on
- * cobblestone) — and then the body WALKS up one ordinary +1 step. Nothing here is a
+ * cobblestone) — and then the bot WALKS up one ordinary +1 step. Nothing here is a
  * {@code setBlock}, and every course reads its result back off the world: a placement can be refused
  * for reasons the caller cannot see, and a step that was never there is exactly the "the climb gains
  * no height" row this rung has been misled by twice.
@@ -75,7 +75,7 @@ import net.minecraft.world.phys.AABB;
  * ({@link JourneyStairs#needsOpen} — the step, its head room and the clearance a climb jumps through,
  * three per step and not the one {@link JourneyStairs#cells} lists). That flight is the only way back
  * up to the lava, and a step built into it does not merely seal the route home: the flight's own audit
- * finds it, mends it with the pick, and takes this raise out from under the body standing on it.
+ * finds it, mends it with the pick, and takes this raise out from under the bot standing on it.
  *
  * <h2>The flight carries its own wall</h2>
  *
@@ -93,7 +93,7 @@ import net.minecraft.world.phys.AABB;
  * </pre>
  *
  * <p>A refusal here is not a fallback. The two things behind it are the scripted tower, which stalls
- * on this geometry, and the walker's own Y-level goal, which on the same run put the body seven
+ * on this geometry, and the walker's own Y-level goal, which on the same run put the bot seven
  * columns out of the one its aim had been computed for ({@code water8#3.endedIn = 0,19}, while the
  * tower started in column 6,19, not the same column) — so the pour or the scoop that follows fires
  * a ray nobody verified.
@@ -129,7 +129,7 @@ final class JourneyRamp {
      * {@code standBehind}'s litter clear still honour it unconditionally — they are looking for
      * blocks nobody meant to place. {@link JourneySight#blockersOnTheLine} does not: a step standing
      * in the line of a pour that is due now was BORROWED from that pour, and it goes back unless the
-     * body is resting on it. The run that named the difference is quoted in JourneySight; in one
+     * bot is resting on it. The run that named the difference is quoted in JourneySight; in one
      * sentence, the flight filled the cell the next cast had to stand in, and the exemption then
      * stopped anyone taking it out again.
      */
@@ -165,11 +165,11 @@ final class JourneyRamp {
     private static final int STEP_WALK_TICKS = 300;
 
     /**
-     * Build a flight up to {@code landing} and walk the body onto it.
+     * Build a flight up to {@code landing} and walk the bot onto it.
      *
-     * <p>{@code landing} is where the body's FEET should end up — the caller has already decided
+     * <p>{@code landing} is where the bot's FEET should end up — the caller has already decided
      * that, usually by asking which column's eye can see the cell it is about to pour into. Best
-     * effort, and loudly: the body ends wherever the flight got to, {@code .rampedY} says how far
+     * effort, and loudly: the bot ends wherever the flight got to, {@code .rampedY} says how far
      * that was, and the caller's own ray gate is what decides whether it was far enough. This never
      * refuses to pour, and it never claims a course it did not build.
      */
@@ -181,22 +181,22 @@ final class JourneyRamp {
     /**
      * As above, with {@code exactRow} deciding what "already there" means.
      *
-     * <p><b>A body ABOVE its landing is not a body on it, and only the caller knows whether that
+     * <p><b>A bot ABOVE its landing is not a bot on it, and only the caller knows whether that
      * matters.</b> A POUR aims at the target's backing and is genuinely served from any row high
      * enough, so it keeps the {@code >=}. A SCOOP is not: its column is verified by
      * {@code JourneyPortalRung#raiseColumn} for ONE row — the eye is placed at exactly that row's
-     * foot — so a body one row up fires a line nobody checked.
+     * foot — so a bot one row up fires a line nobody checked.
      *
      * <p>Measured on the real ladder of 2026-08-16, cell six of an {@code east} mould. The column
      * {@code 3,19} verified for {@code wantY=58}; {@code walkToColumn} is a {@code Goal.XZ}, whose
      * heuristic ignores Y — see {@link net.magicterra.worlddriver.bot.Goal#ignoresY()}, which carries
      * the other half of this account: the same property that lets A* dive for free is what makes such
-     * a goal ARRIVE without an opinion about the row. So it delivered the body to {@code y=59}
+     * a goal ARRIVE without an opinion about the row. So it delivered the bot to {@code y=59}
      * ({@code recover6.rise.raisedY = 59/58}); this method then returned on {@code >=} without
      * building anything, which is why <b>no {@code .ramp.*} row exists in that run at all</b>. From one
      * row up, the line into the water at {@code 4,59,19} enters the frame cell {@code 4,60,19} and the
      * fill correctly refuses to break a frame — so the run reported {@code frameStuck} and the frame
-     * took the blame for a row the body should never have been standing on. The landing itself was
+     * took the blame for a row the bot should never have been standing on. The landing itself was
      * free and merely floorless ({@code standToFill} vetoed 13 candidates for having no solid floor
      * underfoot against 17 for having the foot cell occupied), which is exactly the work this flight
      * exists to do.
@@ -209,9 +209,9 @@ final class JourneyRamp {
     /**
      * As above, with the {@code >=} arm bounded and optionally pinned to {@code landing}'s column.
      *
-     * <p><b>Both bounds exist because the unbounded arm answered a body that had not moved.</b> Cell
+     * <p><b>Both bounds exist because the unbounded arm answered a bot that had not moved.</b> Cell
      * eight of the real ladder of 2026-08-26 is the reading. {@code liftInPlace} had already decided
-     * the body's own column could not fire this pour and said so — {@code water8.liftSideways.2}
+     * the bot's own column could not fire this pour and said so — {@code water8.liftSideways.2}
      * reported that {@code 0,65,15} was high enough (y=60) but that column did not pass the check for
      * this pour, and that it would move sideways to a column that does rather than build upward — then
      * picked {@code 3,60,20} and asked for it. This method compared rows only, found {@code 65 >= 60},
@@ -228,7 +228,7 @@ final class JourneyRamp {
      * <p>The sideways move the caller asked for never happened, and {@code liftedY} recorded the
      * non-move as a lift that finished. From three columns out and five rows up the only line to the
      * backing is the steep one {@link JourneyPour#POUR_ROW_SLACK} already accounts for, so the pour
-     * then picked the body's own footing: {@code water8.picks.1 = 4,63,20 grass_block face=up → lands
+     * then picked the bot's own footing: {@code water8.picks.1 = 4,63,20 grass_block face=up → lands
      * in 4,64,20}.
      *
      * <p><b>Neither bound is on by default, because one caller legitimately depends on the skip.</b>
@@ -314,20 +314,20 @@ final class JourneyRamp {
     /**
      * Stand BESIDE the bottom step before laying it.
      *
-     * <p>A block cannot be placed into the cell a body is standing in — vanilla's own
+     * <p>A block cannot be placed into the cell a player is standing in — vanilla's own
      * {@code isUnobstructed} refuses it — and the first version of this walked onto each step before
-     * laying the next, which put the body in exactly that cell often enough to lose a course.
+     * laying the next, which put the bot in exactly that cell often enough to lose a course.
      * Measured, rehearsal 2026-08-16: {@code cell.6.ramp.step.1} reported that {@code -8,57,37} could
      * not be placed (it was air, apparently with no solid face among its six neighbours) with the bot
-     * at {@code -8,57,37} — the body WAS the obstruction, and the row it printed blamed the walls.
+     * at {@code -8,57,37} — the bot WAS the obstruction, and the row it printed blamed the walls.
      *
-     * <p>So the body works from the floor: {@link #lay} places every step it can reach from where it
+     * <p>So the bot works from the floor: {@link #lay} places every step it can reach from where it
      * stands and only then climbs. Nothing here is a walk the flight needs; it is a walk that makes
      * the flight buildable.
      *
      * <p><b>Off the WHOLE flight, not just its bottom step.</b> The first version asked only that the
-     * body not be standing in the cell it was about to fill, and that is one cell of a footprint with
-     * many. Measured twice on the pinned east arm, 2026-08-17, byte-identical both runs: the body
+     * bot not be standing in the cell it was about to fill, and that is one cell of a footprint with
+     * many. Measured twice on the pinned east arm, 2026-08-17, byte-identical both runs: the bot
      * stood at {@code 6,56,18} — the cell directly under the second course's step — so the loop broke
      * out, climbed onto the course below, and from there its own box reached into the very cell it
      * was placing:
@@ -340,7 +340,7 @@ final class JourneyRamp {
      * cell.6.ramp.laid   = 1/2 steps laid
      * </pre>
      *
-     * <p>A player's box is 0.6 wide, so 0.28 off centre is enough — and the walker leaves a body
+     * <p>A player's box is 0.6 wide, so 0.28 off centre is enough — and the walker leaves a bot
      * wherever the last edge ended, not in the middle of a cell. The remedy is therefore not a
      * tolerance anywhere: it is to stand somewhere the flight does not pass through at all, which in
      * a five-wide corridor is an ordinary floor cell one rank over.
@@ -348,7 +348,7 @@ final class JourneyRamp {
      * <p><b>It says where it went, which it did not until 2026-08-20.</b> Cast nine of that run
      * printed {@code cast9.ramp.flight = 3 steps: 2, 56, 20 → … (bot at 2, 56, 20)} and then
      * {@code cast9.ramp.laid = 0/3 steps laid (bot at 2, 56, 20)} — two readings, the same cell, the
-     * body on the flight's own bottom support both times. So this method either found nothing to
+     * bot on the flight's own bottom support both times. So this method either found nothing to
      * walk to or walked and did not arrive, and the run could not say which: it wrote no row at all.
      * Both rows below are unconditional for that reason. They cost two lines of a results file and
      * they are the difference between "the loop gave up" and "the walk never moved", which want
@@ -395,15 +395,15 @@ final class JourneyRamp {
                         + (onTheFlight(flight, now) || onTheFlight(flight, now.above())
                                 ? "; still on the footprint" : ""));
                 // WHAT STOOD IN THE WAY, not merely that the walk fell short. The rehearsal of
-                // 2026-08-26 spent a whole round on this row: it reported the body stopping at
+                // 2026-08-26 spent a whole round on this row: it reported the bot stopping at
                 // 3,64,18 en route to 2,56,18, the walker logged `MOVE-noMove … hCol=true` at
                 // 2.3,64.0,19.4 — and the cell it collided with has ZERO mentions anywhere in the
                 // run, so the obstruction could only be guessed at. A guess picked the water eight
                 // rows below, which cannot produce a collision at y=64.
                 //
                 // Cheap because it is rare: `.stand` fires ~15 times a run and reaches here twice,
-                // both on the alcove's descending leg. Two waypoints, since this is one leg; the
-                // probe cuts its bands at the FIRST waypoint's row, which is where the body still
+                // both on the alcove's descending segment. Two waypoints, since this is one segment;
+                // the probe cuts its bands at the FIRST waypoint's row, which is where the bot still
                 // is and therefore where the obstruction has to be.
                 rig.evidence(tag + ".standShort.rows", rowsBetween(level, now, from));
                 JourneyCorridorProbe.record(rig, tag + ".standShort", now,
@@ -415,13 +415,13 @@ final class JourneyRamp {
     }
 
     /**
-     * The three questions a walk that fell short leaves open, in one row: can the body descend its
+     * The three questions a walk that fell short leaves open, in one row: can the bot descend its
      * own column, is the target buried, and what is it pressed against right now.
      *
      * <p><b>This exists because the corridor maps cannot answer any of them.</b>
      * {@link JourneyCorridorProbe} cuts at the HIGHEST standable face in its band
      * ({@code standY} walks down from {@code ref + 4} and returns the first solid-with-air-above),
-     * so a body standing on surface at y=63 hides an alcove at y=56 completely — the run of
+     * so a bot standing on the surface at y=63 hides an alcove at y=56 completely — the run of
      * 2026-08-26 read {@code n} (=63) for the target's own column and learned nothing about the
      * seven rows under it. The maps still earn their place for the lie of the land; this row is for
      * the vertical question they flatten away.
@@ -444,8 +444,8 @@ final class JourneyRamp {
                 .append('=').append(rowsOf(level, target.getX(), target.getZ(), lo, hi))
                 .append(solidNames(level, target.getX(), target.getZ(), lo, hi));
         // The horizontal neighbours are the ones a `hCol=true` actually reports against — the walk
-        // that produced this row stopped with the body pressed into one of them, and until now no
-        // reading said which. Feet and head separately: a body stopped by head clearance and one
+        // that produced this row stopped with the bot pressed into one of them, and until now no
+        // reading said which. Feet and head separately: a bot stopped by head clearance and one
         // stopped by a wall read identically from the outside.
         sb.append("; horizontal neighbours (feet/head)");
         for (Direction d : Direction.Plane.HORIZONTAL) {
@@ -494,7 +494,7 @@ final class JourneyRamp {
 
     /**
      * A floor cell to build from: solid underfoot, clear for feet and head, and not a cell this
-     * flight needs — neither a step nor a shoulder nor a cell the body will walk through.
+     * flight needs — neither a step nor a shoulder nor a cell the bot will walk through.
      *
      * <p>Nearest to the bottom step wins, because reach is what decides how much of the flight one
      * stand can lay and {@link JourneyStairs#MEND_REACH} is only five. Null when the corridor has no
@@ -509,12 +509,12 @@ final class JourneyRamp {
      * The same search with one cell struck out — the cell a step-aside is trying to LEAVE.
      *
      * <p><b>Nearest-then-veto is a different search, and a worse one.</b> {@link #stepAsideFor} used
-     * to take the plain nearest stand and hand back null when it turned out to be the cell the body
+     * to take the plain nearest stand and hand back null when it turned out to be the cell the bot
      * already stood in, throwing away every other legal stand in the corridor. In this alcove the
-     * body's own cell and two or three of its neighbours all sit one cell from the bottom step, so
+     * bot's own cell and two or three of its neighbours all sit one cell from the bottom step, so
      * which of them "nearest" named was decided by {@code Set} iteration order, and
      * {@code Set.copyOf} salts that per JVM. {@code wd.rampSeesABodyOnlyPartlyInTheCell} measured
-     * the result as a coin flip — nine runs, five red, with the staged body and the step it was
+     * the result as a coin flip — nine runs, five red, with the staged bot and the step it was
      * blocking byte-identical in all nine.
      */
     static BlockPos builderStand(ServerLevel level, Set<BlockPos> corridor,
@@ -540,10 +540,10 @@ final class JourneyRamp {
     }
 
     /** Is this cell part of the flight's own footprint — a step, a shoulder, a stand or its head
-     *  room? The one question {@link #approach} and {@link #lay} both have to ask about the body's
+     *  room? The one question {@link #approach} and {@link #lay} both have to ask about the bot's
      *  position, and asking it about only the step is what cost a course a run.
      *
-     *  <p>Package-private because an arena that wants to seal the cells tied with the body's own has
+     *  <p>Package-private because an arena that wants to seal the cells tied with the bot's own has
      *  to leave the flight's cells alone, and a second copy of this definition in a scene would be a
      *  second place for it to drift. */
     static boolean onTheFlight(List<BlockPos> flight, BlockPos c) {
@@ -553,7 +553,7 @@ final class JourneyRamp {
         return false;
     }
 
-    /** One leg of ordinary walking inside the alcove. NoBreak throughout: the tallest thing on any
+    /** One short walk of the ordinary kind inside the alcove. NoBreak throughout: the tallest thing on any
      *  route down here is the mould this rung is building, and a walker sent at a cell it cannot
      *  reach eats it — see {@code reopen}'s note for the run that lost three cast cells that way.
      *
@@ -588,17 +588,17 @@ final class JourneyRamp {
      * <p>The first pair is the SAME cell refused from two stands nine blocks apart — the {@code #2}
      * suffix is the rig's own duplicate-key marker — and it is the rule earning its keep: the walk
      * between them changed nothing about six air neighbours, and a third stand would not have
-     * either. The second pair is the body standing on {@code flight.get(0).below()}, where one cell
+     * either. The second pair is the bot standing on {@code flight.get(0).below()}, where one cell
      * sideways is the whole fix, and the rule refused to take it: {@code 0/3}, and the raise that
      * depended on it ended in the wrong column.
      */
     enum Stop {
         /** Every course is solid. Nothing left to lay from anywhere. */
         FINISHED,
-        /** The next support is a cell the body's own box reaches into — see
+        /** The next support is a cell the bot's own box reaches into — see
          *  {@link #bodyIsInTheWay}, which is vanilla's question and NOT "the cell it stands in".
          *  Asking the narrower one cost the ring its tenth cell on 2026-08-26. Vanilla's
-         *  {@code isUnobstructed} refuses a placement into it, and a body is the one obstacle that
+         *  {@code isUnobstructed} refuses a placement into it, and a bot is the one obstacle that
          *  can walk away. */
         BODY_IN_THE_WAY,
         /** The next support is further than {@link JourneyStairs#MEND_REACH}. */
@@ -606,15 +606,15 @@ final class JourneyRamp {
         /** A placement was attempted and the world did not take it. Named by {@code .step.N}. */
         REFUSED,
         /**
-         * A placement was attempted and the cell is not solid <b>yet</b> — which on a client-driven
-         * body is not the same statement as {@link #REFUSED}, and until 2026-08-25 this code could
+         * A placement was attempted and the cell is not solid <b>yet</b> — which for a client-driven
+         * bot is not the same statement as {@link #REFUSED}, and until 2026-08-25 this code could
          * not tell them apart.
          *
          * <p>{@code placeOn} on a {@code LocalPlayer} goes to {@code gameMode.useItemOn}, which
          * <b>predicts locally and sends a packet</b>. The server has not run a tick yet, so a
          * {@code ServerLevel} read in the next statement is false by construction. On a
          * {@code JoinedBody} the same call lands server-side and the read is true — one helper, two
-         * bodies, one of them silently mis-judged since the ladder switched to a real client.
+         * kinds of player, one of them silently mis-judged since the ladder switched to a real client.
          *
          * <p>Measured on ladder j54, cell {@code 3, 56, 18}:
          * <pre>
@@ -648,19 +648,19 @@ final class JourneyRamp {
      * already settled this number by measurement — its failure row reads
      * {@code water_bucket 0→0} after already waiting a 3-tick round trip. An integrated server's
      * client and server share a
-     * process and the packet lands on the very next tick; the margin is for the day this body places
+     * process and the packet lands on the very next tick; the margin is for the day this bot places
      * through {@code mc.execute} instead of straight off the calling thread.
      */
     private static final int PLACE_ROUND_TRIP = 4;
 
     /**
-     * Lay every step within arm's length of wherever the body is standing right now — one pass, no
+     * Lay every step within arm's length of wherever the bot is standing right now — one pass, no
      * walking, no rig.
      *
      * <p><b>The whole loop, split off from its driver so an arena can run it.</b> Everything above
      * this line was measured on the real ladder and nothing could be measured anywhere else: the
      * loop needed a {@link JourneyRig} for four services and only two of them were real. The two
-     * that were not are a level and a body, which any scene has; {@code holdItem} and
+     * that were not are a level and a player, which any scene has; {@code holdItem} and
      * {@code placeOn} come off the {@link Hands} the rig hands out; and the evidence sink
      * is a {@link BiConsumer} the rig satisfies by method reference. What is left in {@link #lay} is
      * walking and recursion — see that method's note for the two lines a scene cannot reach.
@@ -668,7 +668,7 @@ final class JourneyRamp {
      * <p>Arm's length is the same {@link JourneyStairs#MEND_REACH} the stair mend and the backing
      * mend run on, and for the same reason: {@code placeOn} goes straight to
      * {@code gameMode.useItemOn}, which has no reach gate on this avatar, so without it a flight
-     * could be built through ten blocks of rock and read as one the body earned.
+     * could be built through ten blocks of rock and read as one the bot earned.
      */
     static Pass layWhereItStands(ServerLevel level, ServerPlayer player, Hands av,
                                  Set<BlockPos> corridor, List<BlockPos> flight, int from,
@@ -680,8 +680,8 @@ final class JourneyRamp {
      * The same, with the choice of whether an unconfirmed placement may be deferred.
      *
      * <p>{@code settled=true} is the historic behaviour and what every scene gets: judge now, and an
-     * attempted placement that did not land is {@link Stop#REFUSED}. That is correct for a body that
-     * places server-side, which is the body a scene drives.
+     * attempted placement that did not land is {@link Stop#REFUSED}. That is correct for a bot that
+     * places server-side, which is the kind of bot a scene drives.
      *
      * <p>{@code settled=false} is for {@link #lay}, which has a rig and can therefore let ticks pass.
      * It reports {@link Stop#PENDING} instead — <b>without</b> writing a {@code .step.N} row, because
@@ -702,7 +702,7 @@ final class JourneyRamp {
             // THE SHOULDER FIRST, and only when the world offers nothing else. It is the cell under
             // the step, which lies in the previous course's own row — so it is the one cell of this
             // flight that can be clicked against what the flight has already built. Laid on its own
-            // terms: it is floor, not a step, so it is not what the body walks on, and a shoulder
+            // terms: it is floor, not a step, so it is not what the bot walks on, and a shoulder
             // that fails is not a course lost — the placement below reads the world either way.
             BlockPos shoulder = support.below();
             if (!placeable(level, support) && fillable(level, corridor, shoulder)
@@ -720,7 +720,7 @@ final class JourneyRamp {
             // identical row to one that was.
             //
             // BUT THE WORLD HAS TO HAVE HEARD ABOUT IT FIRST. Asking `level` — the ServerLevel — in
-            // the placement's own tick answers a question about the past when the body places over
+            // the placement's own tick answers a question about the past when the bot places over
             // the wire. That is Stop.PENDING's whole subject; the deferral belongs to `lay`, which
             // owns the ticks, so all this can do is decline to call it a refusal.
             if (!level.getBlockState(support).blocksMotion()) {
@@ -754,34 +754,34 @@ final class JourneyRamp {
      * rule this replaces was written for one shape and applied to two. It is kept, exactly, for
      * {@link Stop#REFUSED}: a placement the world would not take was refused for a reason a stand
      * does not change, and {@code cell.9.ramp.step.2}/{@code #2} is that measured twice from two
-     * stands. It never held for {@link Stop#BODY_IN_THE_WAY}, where the obstruction is the body's
+     * stands. It never held for {@link Stop#BODY_IN_THE_WAY}, where the obstruction is the bot's
      * own 0.6-wide box and one cell sideways removes it — and that is the case the run of
      * 2026-08-20 died on, silently, at {@code 0/3}.
      *
      * <p><b>Once.</b> The step-aside is spent the moment a pass makes no progress, and only a pass
      * that DOES make progress hands it back ({@link #lay} passes {@code alreadyAside} as
-     * "this pass laid nothing"). So a body that cannot get off the flight asks twice and stops,
+     * "this pass laid nothing"). So a bot that cannot get off the flight asks twice and stops,
      * which is one more question than before and not a loop — the shape "a retry that changes
      * nothing" warns about is a retry with no bound, not a second attempt at a question whose
      * premise changed.
      *
      * <p>{@link Stop#OUT_OF_REACH} keeps the old answer on purpose. {@link #approach} has already
-     * stood the body at {@link #builderStand}'s nearest cell, so a reach failure means that cell was
+     * stood the bot at {@link #builderStand}'s nearest cell, so a reach failure means that cell was
      * not near enough — and walking back to the same cell is the retry with no new information.
      */
     static BlockPos stepAsideFor(ServerLevel level, ServerPlayer player, Set<BlockPos> corridor,
                                  List<BlockPos> flight, Pass pass, int from, boolean alreadyAside) {
         if (pass.stop() == Stop.FINISHED) return null;
         BlockPos body = player.blockPosition();
-        // Struck out rather than vetoed afterwards: a step aside has to end somewhere the body is
+        // Struck out rather than vetoed afterwards: a step aside has to end somewhere the bot is
         // not, so the cell it stands in is not a candidate at all. Vetoing the winner instead threw
-        // away the rest of the corridor whenever the tie fell on the body's own cell.
+        // away the rest of the corridor whenever the tie fell on the bot's own cell.
         BlockPos aside = builderStand(level, corridor, flight, body);
         if (pass.laid() > from) {
-            // STEP ASIDE RATHER THAN CLIMB. Climbing onto the course below is what put the body's own
+            // STEP ASIDE RATHER THAN CLIMB. Climbing onto the course below is what put the bot's own
             // box inside the next step's cell — see approach's note for the two runs that measured
             // it. A stand off the footprint is still legal — the same cell approach chose, unless
-            // approach chose the one the body is in; the climb stays only as the fallback for a
+            // approach chose the one the bot is in; the climb stays only as the fallback for a
             // corridor that has no such cell, where doing nothing would be worse than doing the
             // thing that sometimes works.
             return aside != null ? aside : flight.get(pass.laid() - 1);
@@ -794,11 +794,11 @@ final class JourneyRamp {
      * Drive {@link #layWhereItStands}, walking between passes until it has nothing left to try.
      *
      * <p>Two lines here are covered by reading the diff and not by a test, and they are named rather
-     * than glossed: the {@link #walkTo} that carries the body to the cell
+     * than glossed: the {@link #walkTo} that carries the bot to the cell
      * {@link #stepAsideFor} names, and the recursion that re-enters with the pass's own
      * {@code laid}. {@code wd.rampStepsAsideWhenTheBodyIsInItsOwnStep} drives every other line of
      * this method — the pass, the decision, the one-shot latch — with the walk replaced by putting
-     * the body in the named cell, because a scene cannot host a {@link JourneyRig} and a settle
+     * the bot in the named cell, because a scene cannot host a {@link JourneyRig} and a settle
      * needs one. That substitution is also why {@link #approach} now prints where it went: if the
      * WALK is what fails here, only the run can say so, and until 2026-08-20 it said nothing.
      */
@@ -855,7 +855,7 @@ final class JourneyRamp {
      * <p>Asked only of the shoulder, and it is not defensive. A flight may turn back on itself: the
      * planner picks each course's direction independently, so two courses that go out and back leave
      * {@code support(i).below()} sitting exactly in {@code stand(i-2)}, and a longer fold puts it in
-     * that stand's head room. Filling either seals the staircase the body is about to climb, from
+     * that stand's head room. Filling either seals the staircase the bot is about to climb, from
      * underneath, after it has been paid for — the same shape of mistake as the sweep that took back
      * its own steps. The step above the shoulder then falls back to needing a real face, and a
      * refusal there costs a course rather than the route home.
@@ -867,16 +867,16 @@ final class JourneyRamp {
     }
 
     /**
-     * Whether the body's own box reaches into {@code cell} — vanilla's question, not a cell name.
+     * Whether the bot's own box reaches into {@code cell} — vanilla's question, not a cell name.
      *
-     * <p><b>A body is 0.6 wide and a cell is 1.0, so the two questions are different questions.</b>
+     * <p><b>A player is 0.6 wide and a cell is 1.0, so the two questions are different questions.</b>
      * {@code isUnobstructed} refuses a placement whose block shape intersects an entity's bounding
-     * box; for the full cube this lays, that is exactly "box ∩ cell ≠ ∅". A body standing at
+     * box; for the full cube this lays, that is exactly "box ∩ cell ≠ ∅". A player standing at
      * {@code x=2.88} has its box over {@code x∈[2.58, 3.18]} and is therefore inside the cell at
      * {@code x=3} while {@code blockPosition()} still says {@code x=2}.
      *
      * <p>This predicate was already here, and only {@link #whyNotLaid} — an evidence STRING — asked
-     * it. {@link #layWhereItStands} classified with {@code support.equals(body)} instead, so a body
+     * it. {@link #layWhereItStands} classified with {@code support.equals(body)} instead, so a bot
      * a fifth of a cell off centre was reported {@link Stop#REFUSED}, and {@link #stepAsideFor}
      * spends its one step-aside on {@link Stop#BODY_IN_THE_WAY} and nothing else. The remedy was
      * present, correct, and unreachable from the case it was written for. Measured, rehearsal
@@ -894,7 +894,7 @@ final class JourneyRamp {
      * one that did not is the one whose obstruction was 0.18 of a block outside its own cell.
      *
      * <p>The box is 1.8 tall, so this subsumes the {@code body.above()} term the cell test carried
-     * separately — a standing body's box always reaches its head cell.
+     * separately — a standing player's box always reaches its head cell.
      */
     static boolean bodyIsInTheWay(ServerPlayer fp, BlockPos cell) {
         return fp.getBoundingBox().intersects(new AABB(cell));
@@ -907,14 +907,14 @@ final class JourneyRamp {
      * wrong often enough to end three rounds of this rung in the wrong place:
      * {@code cell.6.ramp.step.1}, reporting that {@code -8, 57, 37} could not be placed (apparently no
      * solid face among its six neighbours) with the bot at {@code -8, 57, 37}, was printed about a
-     * cell the BODY WAS STANDING IN,
+     * cell the BOT WAS STANDING IN,
      * where the walls had nothing to do with it. Nine of the ten archived {@code .step.N} rows name a
-     * cell face-adjacent to the body at its own feet row, which is where vanilla's
+     * cell face-adjacent to the bot at its own feet row, which is where vanilla's
      * {@code isUnobstructed} refuses a placement it has every face it needs for — a player's box is
-     * 0.6 wide, so a body a fifth of a cell off centre is inside the cell next door.
+     * 0.6 wide, so a player a fifth of a cell off centre is inside the cell next door.
      *
      * <p>So both states are measured and named separately. They want opposite work: no face wants a
-     * shoulder or a different route, a body in the way wants one step sideways.
+     * shoulder or a different route, a bot in the way wants one step sideways.
      */
     private static String whyNotLaid(ServerLevel level, ServerPlayer fp, BlockPos cell) {
         String now = "now " + level.getBlockState(cell).getBlock();
@@ -956,9 +956,9 @@ final class JourneyRamp {
         // WHICH FACES placeInto would have clicked, so "no face to click" and "clicked but refused"
         // stop reading alike.
         //
-        // TWO TABLES, NEVER ONE. A face that exists and a face this body can hit are different
+        // TWO TABLES, NEVER ONE. A face that exists and a face this bot can hit are different
         // findings wanting opposite work — no face at all means take another route, a face the eye
-        // cannot reach means move the body — and folding them into one row is what let
+        // cannot reach means move the bot — and folding them into one row is what let
         // `wet.8.ramp.step.3`, which listed "down" as a face to place against, read as "there was a
         // face" about a support whose only
         // solid neighbour was the block directly BELOW it, whose top face is invisible from
@@ -980,7 +980,7 @@ final class JourneyRamp {
 
     /**
      * Would a click at the face between {@code cell} and its neighbour toward {@code d} actually land
-     * on that neighbour, from where this body's eye is right now?
+     * on that neighbour, from where this bot's eye is right now?
      *
      * <p>The same clip a placement runs — {@code OUTLINE}/{@code Fluid.NONE} — and it accepts only a
      * hit on THAT block and THAT face. Anything else means the ray stopped somewhere first, which is
@@ -994,10 +994,10 @@ final class JourneyRamp {
      * ray reaches ANY point of it, where a real click aims at one point. That is the right side to be
      * coarse on for a post-mortem, and it is stated rather than left to be discovered.
      *
-     * <p>Asked of the body's CURRENT eye, because this is a post-mortem on the placement that just
+     * <p>Asked of the bot's CURRENT eye, because this is a post-mortem on the placement that just
      * failed and not a search for somewhere better to stand. {@link JourneyStairs#standToPour} and
      * friends do the second job; a row that quietly answered it instead would say a face is reachable
-     * from a cell the body is not in.
+     * from a cell the bot is not in.
      */
     static boolean canClick(ServerLevel level, ServerPlayer body,
                             net.minecraft.world.phys.Vec3 eye, BlockPos cell, Direction d) {
@@ -1023,10 +1023,10 @@ final class JourneyRamp {
      * The flight, bottom step first — or null when the corridor cannot hold one.
      *
      * <p>Searched DOWN from the landing, because the landing is the one cell that is not negotiable.
-     * Each entry is a cell the body STANDS in; the block that has to go under it is its
+     * Each entry is a cell the bot STANDS in; the block that has to go under it is its
      * {@code below()}. Consecutive entries are face-adjacent horizontally and one row apart, which is
      * exactly an ordinary walked step-up — no jump, no tower, nothing that needs {@code onGround} to
-     * be trustworthy on this body.
+     * be trustworthy on this player.
      */
     private static List<BlockPos> plan(ServerLevel level, Set<BlockPos> corridor, int floorY,
                                        BlockPos landing) {
@@ -1073,7 +1073,7 @@ final class JourneyRamp {
      * <p><b>A FLIGHT CAN SEAL ITSELF, and the planner reads a world where none of it exists yet.</b>
      * {@link #standable} asks whether {@code stand} and {@code stand.above()} are clear, of a world
      * where every course is still air — so it can never see that the head room it just approved is
-     * where a course two rows up is about to put its own support. The body then cannot enter its own
+     * where a course two rows up is about to put its own support. The bot then cannot enter its own
      * staircase at course 0, and A* is right to route around it.
      *
      * <p>Measured, ladder {@code journey-n3} 2026-08-25, rung 12 cell {@code wet.8}. Landing
@@ -1099,9 +1099,9 @@ final class JourneyRamp {
                 || !supportable(level, corridor, stand.below(), keepLinesClear))
             return false;
         if (stand.getY() == floorY + 1) {
-            // The bottom course. Its own support rests on the rock under the alcove, and the body
+            // The bottom course. Its own support rests on the rock under the alcove, and the bot
             // steps onto it from the floor — so the only thing left to ask is whether the floor
-            // beside it is a cell the body can be standing in when it does. Beside the SUPPORT, not
+            // beside it is a cell the bot can be standing in when it does. Beside the SUPPORT, not
             // beside the standing cell: a step up starts from the row the block is in, and asking
             // one row too high finds air over air everywhere in a hollow alcove and refuses every
             // flight there is.
@@ -1120,7 +1120,7 @@ final class JourneyRamp {
         return false;
     }
 
-    /** Can a body stand here — inside the corridor, feet and head clear? Fluid is allowed: the
+    /** Can a bot stand here — inside the corridor, feet and head clear? Fluid is allowed: the
      *  alcove floods with the cast's own water and a step under a puddle is still a step. */
     private static boolean standable(ServerLevel level, Set<BlockPos> corridor, BlockPos c) {
         return corridor.contains(c) && corridor.contains(c.above())
@@ -1132,7 +1132,7 @@ final class JourneyRamp {
      * Can a step go here — already solid, or a corridor cell one cobblestone would fill?
      *
      * <p>Two exclusions, and neither is caution. The descent flight is the rung's only route back to
-     * the lava, so a step built into it would wall the body into the mould it is casting. And a
+     * the lava, so a step built into it would wall the bot into the mould it is casting. And a
      * fluid SOURCE is never buried: the alcove floods with the cast's own bucket, and that bucket
      * has to be scooped back before the next cell — a cobblestone dropped on the source is a water
      * bucket the rung can no longer recover, which surfaces four steps later as "no water bucket in hand".
@@ -1198,8 +1198,8 @@ final class JourneyRamp {
         return false;
     }
 
-    /** Is there a floor cell beside the bottom step for the body to step up FROM? Asked about the
-     *  row the SUPPORT is in — that is the row the body walks in before the first step. */
+    /** Is there a floor cell beside the bottom step for the bot to step up FROM? Asked about the
+     *  row the SUPPORT is in — that is the row the bot walks in before the first step. */
     private static boolean entrance(ServerLevel level, Set<BlockPos> corridor, BlockPos support) {
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos n = support.relative(d);
@@ -1231,7 +1231,8 @@ final class JourneyRamp {
                     + whySupport(level, corridor, support);
         // THE FOLD CLAUSE IS ASKED FIRST AND BY MEASUREMENT, not by argument: re-plan with the rule
         // dropped and see whether a flight appears. It is a separate finding wanting separate work —
-        // a route that only folds wants the top courses handed to the raise-with-body path, while a
+        // a route that only folds wants the top courses handed to the path that raises the bot
+        // along with the blocks, while a
         // route that has no wall wants a wider alcove — and answering both with the sentence below is
         // the same shape of mistake this method's note already records five instances of.
         if (planKeeping(level, corridor, floorY, landing, false, true) != null)
@@ -1287,7 +1288,7 @@ final class JourneyRamp {
      * this rung places and the ones a {@code [place]} row can be lined up against.
      *
      * <p>Named because the difference costs a round every time. {@link #plan} says each entry is a
-     * cell the body stands in and it is right; this prints {@code below()} of each, so
+     * cell the bot stands in and it is right; this prints {@code below()} of each, so
      * {@code wet.8.ramp.flight = … → 3, 59, 20} is course 3's SUPPORT and its stand is
      * {@code 3,60,20}. Reading the row as stands puts every headroom question one row off, which is
      * exactly the reasoning that has to be right for {@link #walkDown}'s fold rule to be checkable
@@ -1309,17 +1310,17 @@ final class JourneyRamp {
     /**
      * The courses still to be walked, in order — <b>the decision {@link #climbTheFlight} makes</b>,
      * separated out so a scene can drive it. Returns the tail of {@code flight} above the highest
-     * course the body is already standing on, and an EMPTY list when it is already on the last one.
+     * course the bot is already standing on, and an EMPTY list when it is already on the last one.
      *
      * <p>Package-private and pure for the reason {@link #stepAsideFor} is: a settle needs a
-     * {@link JourneyRig} and a scene cannot host one, so the only part of this leg a scene can judge
+     * {@link JourneyRig} and a scene cannot host one, so the only part of this climb a scene can judge
      * is the part that decides. {@code wd.rampClimbsTheFlightItJustLaid} asserts against this.
      *
-     * <p>Exact-cell matching, deliberately, and not "every course at or below the body's row". The
+     * <p>Exact-cell matching, deliberately, and not "every course at or below the bot's row". The
      * bot that this climb exists for is one row up and several columns OUT — {@code cast8.lift.rampedY
      * = 57/59} (stopped at 1, 57, 19, wanted foot cell 3, 59, 19, not the same column) — so a row
      * test would skip course 0
-     * ({@code 2,57,18}, the same row) and send the body at the course above it, which is the one cell
+     * ({@code 2,57,18}, the same row) and send the bot at the course above it, which is the one cell
      * it cannot reach in a single step. The cell it is in is the only thing that says it is on the
      * staircase.
      */
@@ -1333,7 +1334,7 @@ final class JourneyRamp {
     /**
      * Walk UP the staircase this rung just built, one course at a time.
      *
-     * <h2>The flight was complete and the body never got on it</h2>
+     * <h2>The flight was complete and the bot never got on it</h2>
      *
      * <p>{@link #lay} finishes by issuing one {@code Goal.Block(landing)} at the TOP of the flight.
      * That goal is answered by A*, which is free to route anywhere — and out of a hollow alcove the
@@ -1355,7 +1356,7 @@ final class JourneyRamp {
      *                         underfoot, not a floor
      * </pre>
      *
-     * <p>Every course went in and the body did not move one cell. The escalation to a tower that
+     * <p>Every course went in and the bot did not move one cell. The escalation to a tower that
      * follows is downstream of that: the tower drifted into {@code 0,19}, deadlocked on two mutually
      * inverse column rewrites, and the pour that inherited it fired from four cells outside the
      * alcove — three times, all three correctly refused by the pour's own ray gate.
@@ -1400,7 +1401,7 @@ final class JourneyRamp {
         for (BlockPos c : courses)
             route.append(route.isEmpty() ? "" : " → ").append(c.toShortString());
         // THE STANDS, not `supports()`. That printer takes `below()` of each entry because a
-        // `[place]` row can be lined up against a support, and these are the cells the body walks
+        // `[place]` row can be lined up against a support, and these are the cells the bot walks
         // INTO — reading one row off is the mistake `supports`'s own javadoc says costs a round.
         rig.evidence(tag + ".climbFlight", now.toShortString() + " is not on the foot cell "
                 + landing.toShortString() + ", and all " + flight.size()

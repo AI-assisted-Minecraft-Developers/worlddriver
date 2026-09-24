@@ -1,4 +1,4 @@
-"""water_yaw_thrash: the in-water body-yaw swing metric."""
+"""water_yaw_thrash: the in-water player-yaw swing metric."""
 from scripts.pmcs.telemetry import water_yaw_thrash, _yaw_delta, WalkerTick
 
 

@@ -115,7 +115,8 @@ public final class CombatProcess implements BotProcess {
 
     @Override public boolean tick(Body a, WorldView w, BotState st) {
         if (a.entity() == null || a.entity().level() == null) { failure = "player vanished"; cleanup(a); return true; }
-        // The swing and its cooldown are a player's: a body that is not a player has no hands for them.
+        // The swing and its cooldown are a player's: a controlled entity that is not a player has
+        // no hands for them.
         Player p = a.asPlayer();
         hands = a.hands().orElse(null);
         if (hands == null || p == null) {
@@ -290,13 +291,13 @@ public final class CombatProcess implements BotProcess {
         // A DIFFERENT ENTITY IS A DIFFERENT PURSUIT, and this is the only place that knows it —
         // the walker sees cells, not quarries. Getting this wrong is worse than the bug below it:
         // a futile latch earned chasing an unreachable blaze would ride retargetGoal into the walk
-        // toward a zombie the body could plainly reach, and nothing would ever start a search
+        // toward a zombie the bot could plainly reach, and nothing would ever start a search
         // again (the tick budget can't save it either — every re-goal clears totalTicks, so it
         // never fills). Silent freeze, no terminal, no log.
         boolean newQuarry = lastQuarryId != target.getId();
         if (newQuarry || lastGoalBlock == null || !lastGoalBlock.equals(tb)) {
             // Same quarry, new cell: retargetGoal, NOT setGoal. A flying quarry changes block every
-            // couple of ticks, and setGoal clears the futile-search governor each time — so a body
+            // couple of ticks, and setGoal clears the futile-search governor each time — so a bot
             // chasing something it can never reach runs one full A* per tick forever (measured:
             // 240 ticks, 240 searches, counter never past 1 against a cap of 5).
             Goal.Near g = new Goal.Near(tb, radius);

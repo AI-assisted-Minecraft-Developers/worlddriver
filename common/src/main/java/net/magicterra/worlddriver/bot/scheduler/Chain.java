@@ -28,8 +28,8 @@ public interface Chain {
      * wins. The value should be a function of the live situation (HP, nearby
      * threats, hazards) so activation/deactivation is automatic.
      *
-     * @param body the body the scheduler is steering this tick; null in the headless matrix
-     *             scenes, which tick the scheduler with no body to exercise the bidding alone
+     * @param body the player the scheduler is steering this tick; null in the headless matrix
+     *             scenes, which tick the scheduler with no player to exercise the bidding alone
      */
     float priority(Body body, WorldView w, BotState st);
 
@@ -37,15 +37,16 @@ public interface Chain {
     void tick(Body body, WorldView w, BotState st);
 
     /**
-     * The client a reflex chain runs on, or null when {@code body} is not the client player's.
+     * The client a reflex chain runs on, or null when {@code body} is not the client player.
      *
-     * <p>The scheduler talks bodies, so a process it hands the channel to can be any body; the
+     * <p>The scheduler works in terms of the {@code Body} interface, so a process it hands the
+     * channel to can drive any controlled player; the
      * chains themselves still read the local player, the client level and the client-only
      * helpers ({@code ThreatScanner}, {@code BotInteract}, the {@code auto} reflexes) through
      * {@code Minecraft}, so each one downcasts here at the top of {@link #priority} and
-     * {@link #tick}. Whether the reflex layer should run over a server body at all is open;
-     * until it is decided, a chain over a body that is not the client's sees the same null it
-     * sees in the headless matrix scenes and sits the bid out.
+     * {@link #tick}. Whether the reflex layer should run over a server-side player at all is
+     * open; until it is decided, a chain over a player that is not the client's sees the same
+     * null it sees in the headless matrix scenes and sits the bid out.
      */
     static Minecraft clientOf(Body body) {
         return body instanceof ClientPlayerBody c ? c.mc() : null;
@@ -104,7 +105,7 @@ public interface Chain {
      * this; a chain whose held state is not a BotProcess (BunkerChain's anchor)
      * keeps the default and is reached by chain NAME via {@link #episodePhase}/
      * {@link #cancelEpisode} instead. {@code UserTaskChain} also keeps the default:
-     * the user slot is cancel's own first routing leg. A hit is cancelled through
+     * the user slot is cancel's own first routing step. A hit is cancelled through
      * {@link #cancelEpisode}, i.e. the unified {@link ChainProcessLifecycle} drop.
      */
     default String heldProcessKind() { return null; }

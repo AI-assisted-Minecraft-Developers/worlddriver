@@ -25,7 +25,7 @@ import net.minecraft.world.level.block.Blocks;
  * has to be answered is "when it happens, does the recovery work".
  *
  * <p><b>What the first version of this scene found, which is why it is now about lily pads.</b> It
- * staged the body over deep water and asserted a recovery that had just been added to the craft.
+ * staged the bot over deep water and asserted a recovery that had just been added to the craft.
  * The scene went red on that assertion and green on everything else, and the evidence said why:
  * {@code station.steppingOff.0 = …219 → …216} then {@code furnace.crafted = 1}. The job already
  * belonged to {@code JourneyStation.makeRoomForAStation}, which runs earlier and is strictly more
@@ -46,9 +46,9 @@ import net.minecraft.world.level.block.Blocks;
  * the recovery use — and its top face holds nothing. The rung then reported "no spot" about a bot
  * that had a spot it could not use.
  *
- * <p><b>The staging is taken from the body, not predicted.</b> A body dropped into water settles at
+ * <p><b>The staging is taken from the bot, not predicted.</b> A player dropped into water settles at
  * whatever row the surface puts it in, and the whole point of this arena is that the pad sits in the
- * body's OWN row. So the pool is built first, the body is dropped and stepped, and only then is the
+ * bot's OWN row. So the pool is built first, the bot is dropped and stepped, and only then is the
  * pad placed beside where it actually came to rest. Predicting that row is how a scene ends up
  * asserting on geometry it does not have.
  */
@@ -71,10 +71,10 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
     /** How far along z this arm's ground sits from the pool the other arm floods. */
     private static final int DIG_Z = 24;
 
-    /** How far the positive control sits from the body, in cells. Twenty-four: well outside
+    /** How far the positive control sits from the bot, in cells. Twenty-four: well outside
      *  {@code Body.canBreak}'s reach — which is the ONLY gate {@code breakItWhereItStands} has, as
      *  the bedrock version of this arm proved by removing bedrock — and about three times what
-     *  {@link #DIG_TICKS} buys a walking body, so the budget cannot expire "nearly" in reach and make
+     *  {@link #DIG_TICKS} buys a walking bot, so the budget cannot expire "nearly" in reach and make
      *  this control depend on pathfinding luck. Not further: a cell several chunks out is one whose
      *  staging depends on what the arena's ticket keeps loaded, and that is a different bug to debug. */
     private static final int DIG_FAR = 24;
@@ -94,15 +94,15 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
      * It staged bedrock, on the reasoning that unbreakable-by-construction beats unbreakable-by-
      * circumstance. The arm went red and {@code subject.after} said why: {@code …100024=air} — the
      * bedrock was gone. {@code breakItWhereItStands} goes through {@code destroyBlock}, which honours
-     * neither hardness nor reach for this body, so "can never be mined" is not a property this arena
+     * neither hardness nor reach for this bot, so "can never be mined" is not a property this arena
      * can buy with a block id.
      *
-     * <p>That failure is also a reading about the case this instrument was added for: a body whose
+     * <p>That failure is also a reading about the case this instrument was added for: a bot whose
      * dig removes BEDROCK did not leave rung 12's doorway cobblestone standing because it was too
      * hard. It never got within reach of it. So the positive here is a cell far enough away that the
      * give-up budget expires first — which is the real failure mode rather than a substitute for it.
      *
-     * <p>Plain stone at the body's elbow is the negative, and the two assertions take opposite
+     * <p>Plain stone at the bot's elbow is the negative, and the two assertions take opposite
      * values, so a scene-global leaking between them could not satisfy both.
      */
     private static void namesTheCellADigCouldNotOpen(SceneContext ctx) {
@@ -189,7 +189,7 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
     private static final int SURFACE = 20;
 
     /** How deep the pool is. Four: the placer probes {@code dy} of 0, −1 and +1, so two would already
-     *  leave every support wet — this is double that, so a body that settles a row lower than
+     *  leave every support wet — this is double that, so a bot that settles a row lower than
      *  expected is still over water on every side. */
     private static final int DEPTH = 4;
 
@@ -301,8 +301,8 @@ public final class JourneyWorkableSpotScenes implements SceneProvider {
             for (int dz = -POOL; dz <= POOL; dz++)
                 for (int dy = SURFACE - DEPTH; dy <= SURFACE; dy++)
                     ctx.setBlock(dx, dy, dz, Blocks.WATER);
-        // The shore, and the rim that lets the body wade out rather than climb: this scene is about
-        // the craft, and a body that cannot leave the pool would fail it for the wrong reason.
+        // The shore, and the rim that lets the bot wade out rather than climb: this scene is about
+        // the craft, and a bot that cannot leave the pool would fail it for the wrong reason.
         for (int dx = POOL + 1; dx <= SHORE_FAR; dx++)
             for (int dz = -3; dz <= 3; dz++)
                 for (int dy = SURFACE - DEPTH; dy <= SURFACE; dy++)

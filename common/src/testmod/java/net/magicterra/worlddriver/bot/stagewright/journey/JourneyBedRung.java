@@ -133,7 +133,7 @@ final class JourneyBedRung {
 
         // Colour first, distance second. `flock` arrives distance-sorted and the comparison is
         // strict, so among colours the bag holds equally much of, the nearest sheep wins — but two
-        // white wool in the bag will send the body past a brown sheep standing right next to it,
+        // white wool in the bag will send the bot past a brown sheep standing right next to it,
         // which is exactly the point: the brown one is worth nothing at all.
         JourneyRig.Woolly pick = flock.get(0);
         int pickScore = -1;
@@ -148,7 +148,7 @@ final class JourneyBedRung {
         // picking the same ID is not. Rounds 2–6 of 2026-08-22 all chose white @ -16,64,73 and all
         // reported a kill while the flock size never moved off 6, which one id would have explained
         // in a single glance. The corpse count beside it is the other half: it says whether the
-        // scan was ever offering bodies at all.
+        // scan was ever offering dead sheep at all.
         rig.evidence(r + ".flock", flock.size() + " woolly (plus "
                 + rig.deadSheepNearby(radius) + " dead), chose " + target.colour() + " id=" + target.entityId()
                 + " @ " + target.where().toShortString() + " (" + Math.round(target.distance()) + " blocks, "

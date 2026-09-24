@@ -7,13 +7,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The single process a server-side body runs, and the status slots it switched on: the part of
+ * The single process a server-side player runs, and the status slots it switched on: the part of
  * {@link UserTaskChain} a driver without a scheduler needs, so that both release exactly the slots
  * a process claimed (see {@link SlotClaim} for why a lookup by kind cannot). {@code SlotClaim} itself
  * stays package-private: a claim kept past its process's ending would switch off a slot that a later
  * process has claimed since, and only this class and the chain decide when a process ends.
  *
- * <p>Like {@link UserTaskChain}, it is driven from one thread, the one that ticks the body.
+ * <p>Like {@link UserTaskChain}, it is driven from one thread, the one that ticks the player.
  */
 public final class HeldProcess {
     private final BotState state;

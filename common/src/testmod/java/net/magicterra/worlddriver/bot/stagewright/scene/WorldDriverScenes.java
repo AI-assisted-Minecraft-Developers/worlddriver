@@ -67,7 +67,7 @@ import net.minecraft.world.phys.AABB;
  *       {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after
  *       the avatar discard) then the SAME explicit key set the legacy body flipped;</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-profile body, #48) + {@code ctx.cleanup(() -> fp.discard())} (the legacy
+ *       (per-profile player, #48) + {@code ctx.cleanup(() -> fp.discard())} (the legacy
  *       self-shaft-dig-up body never discarded its avatar at all — the port closes
  *       that leak, matching every other migrated scene);</li>
  *   <li>{@code throw new GameTestAssertException(msg)} → {@link SceneContext#fail(String)};</li>
@@ -97,8 +97,8 @@ import net.minecraft.world.phys.AABB;
  *       {@code reached=true finished=true} — leash geometry byte-identical on both shells.</li>
  * </ul>
  * The ascend trio, gearScope, buriedOre, descentYaw and selfShaftDigUp are thus dual-loader
- * goldens with a SINGLE value each (no fabric/neoforge split — unlike the descentYaw
- * body-vs-body split below, which is a different-isolation artifact, not a loader artifact).
+ * goldens with a SINGLE value each (no fabric/neoforge split — unlike the descentYaw split
+ * between two player setups below, which is a different-isolation artifact, not a loader artifact).
  *
  * <p><b>Sole variance — {@code wd.entityLeash} await tick count (timing, not outcome).</b>
  * The one non-byte-identical quantity is {@code wd.entityLeash}'s TOTAL scene-tick count
@@ -138,8 +138,8 @@ import net.minecraft.world.phys.AABB;
  *   <li>{@code ServerWorldDriver.create(level, x, y, z)} →
  *       {@link ServerWorldDriver#createIsolated} — the sanctioned #48 deviation
  *       (same {@code create}→{@code createUnique} precedent as the raw-avatar scenes:
- *       an isolated per-body FakePlayer, so a shared singleton can no longer make the
- *       suite a lottery). {@code create} would reintroduce the shared body; NEVER use
+ *       an isolated FakePlayer per driver, so a shared singleton can no longer make the
+ *       suite a lottery). {@code create} would reintroduce the shared player; NEVER use
  *       it in a scene.</li>
  *   <li>legacy {@code ServerAvatarManager.clear()} teardown →
  *       {@code ctx.cleanup(() -> { ServerAvatarManager.unregister(driver); fp.discard(); })}
@@ -230,7 +230,7 @@ public final class WorldDriverScenes implements SceneProvider {
 
     /**
      * P2a verb-pipeline regression net — the SPI's own dogfood gate. A pure-function
-     * assertion scene (no world ops: it never spawns an avatar or edits blocks, so the body
+     * assertion scene (no world ops: it never spawns an avatar or edits blocks, so the bot
      * is cheap and position-invariant — auto slot, default radius, {@code required=true}).
      * It pins the #280 root fix ({@link SettingsRegistry} single-source + closed
      * {@code mc.bot.setting} schema) AND the paired verb-registration SPI ({@code mc.test.reset}
@@ -256,7 +256,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *       render ({@link Schemas#render}) and must equal {@code knownKeys().size()}.</li>
      *   <li>{@code mc.test.reset} is registered: the route exists ({@code DriverApi.methods()}
      *       contains it) AND its schema resolves ({@code ToolCatalog.schemaByName()} has it) —
-     *       the paired registration held. This is the leg that goes RED on a loader whose boot
+     *       the paired registration held. This is the assertion that goes RED on a loader whose boot
      *       path never called the registration hook.</li>
      * </ol>
      */
@@ -346,7 +346,7 @@ public final class WorldDriverScenes implements SceneProvider {
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
         BotConfig.allowBreak = false; BotConfig.allowPlace = false;
-        BotConfig.walkerAscendMovement = false;             // OFF leg → machine must be inert
+        BotConfig.walkerAscendMovement = false;             // OFF arm → machine must be inert
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2; BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx - 9 + 0.5, baseY + 1, cz + 0.5);
@@ -544,16 +544,16 @@ public final class WorldDriverScenes implements SceneProvider {
      * broke, before it silently corrupts every walker scene.
      *
      * <p><b>Golden values (migration-time measurement, 2026-07-16).</b> This
-     * isolated-body + pinned-slot run measures {@code sumAbsDyaw=871°}/
+     * isolated-player + pinned-slot run measures {@code sumAbsDyaw=871°}/
      * {@code backSteps=53}, byte-identical across three independent runs (legacy
      * solo GREEN + this new shell ×3, same numbers every time) — the first
-     * confirmation of the isolated-body+pinned-slot hypothesis. This sits
+     * confirmation of the isolated-player+pinned-slot hypothesis. This sits
      * alongside, and does not replace, the historic {@code 993°}/{@code 67}
      * figures carried by the legacy {@code AgentGameTestTerrain#descentYawArena}
-     * twin (that body is a differently-isolated run — shared GameTest-server body
-     * vs this scene's own {@code createUnique} body — so the two numbers are not
-     * expected to match; both are golden references for their own body/isolation
-     * combination, not for each other). <b>Dual-loader confirmation (P1.6 Task 4,
+     * twin (that twin is a differently-isolated run — a player shared across the
+     * GameTest server vs this scene's own {@code createUnique} player — so the two
+     * numbers are not expected to match; both are golden references for their own
+     * player/isolation combination, not for each other). <b>Dual-loader confirmation (P1.6 Task 4,
      * 2026-07-17):</b> the fabric loader measures the SAME {@code 871°}/{@code 53},
      * byte-identical to neoforge across fabric ×3 + neoforge ×3 — so this golden is a
      * single value for both loaders (see the class-level dual-loader matrix javadoc).
@@ -705,7 +705,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *
      * <p><b>task#86 FIXED (strict gate) — 2026-07-19.</b> This scene was a required
      * <i>golden-failure signature gate</i> while the gap #53 defect was open: under
-     * true isolation ({@link ServerPlayerBody#createUnique} body) the walk
+     * true isolation (a {@link ServerPlayerBody#createUnique} player) the walk
      * deterministically fell {@code worstBackslide=20.252203415101263} back down the
      * shaft it dug (byte-identical across slots and both loaders, fabric×3 + neoforge×3
      * — see git history / task-1-report for the signature-gate rationale). <b>Root
@@ -714,7 +714,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * pillar TOP onto the slab (cheaper than 2 more pillars); a stationary 1-wide
      * pillar top has no run-up, so the executor launches into the void and free-falls
      * ~20 blocks straight down its own hollow column — a fall {@code strideFloorGuard}
-     * structurally cannot arrest (an airborne body has no adjacent face to place a
+     * structurally cannot arrest (an airborne player has no adjacent face to place a
      * floor against). <b>Fix:</b> {@link BotConfig#pathfinderParkourAscendNeedRunway}
      * flipped default ON — {@code ParkourAscend.valid} now requires the cell BEHIND the
      * launch to be {@code canStandAt} (a real run-up), so A* rejects the runway-less
@@ -782,7 +782,7 @@ public final class WorldDriverScenes implements SceneProvider {
         //   worstBackslide bound = pathfinderMaxDryFall + 1 (= 5): the planner-unplannable
         //   fall floor. The post-fix run measures worstBackslide=1.2522034151012633 — the
         //   normal pillar-jump-ARC settle (the jump apex sits ~1.25 above the freshly-placed
-        //   rung before the body lands on it; inherent to EVERY pillar rung, not a shaft
+        //   rung before the player lands on it; inherent to EVERY pillar rung, not a shaft
         //   fall) — comfortably under the bound (margin ~3.75). A real backslide down the
         //   hollow column (the gap #53 death) is >=20 and blows the bound loudly.
         if (worstBackslide > BotConfig.pathfinderMaxDryFall + 1)
@@ -842,7 +842,7 @@ public final class WorldDriverScenes implements SceneProvider {
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
+        // createIsolated (NOT create) — sanctioned #48 deviation, the driver's own FakePlayer.
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc).
@@ -960,12 +960,12 @@ public final class WorldDriverScenes implements SceneProvider {
      *       away. This half is the bulk of the run and nothing in the arena announces it.</li>
      * </ol>
      * Half 2's green was, until 2026-08-18, riding a defect. Measured with the ground-gate
-     * disagreement reading: at {@code t=260} the body stood flush at {@code y=223.0000} with
+     * disagreement reading: at {@code t=260} the player stood flush at {@code y=223.0000} with
      * a sole-support reading of {@code 0.0000} and a fall speed of {@code -0.0784} — one tick of gravity from rest, so it had been
      * resting on that support the tick before and the support was gone this tick — while vanilla's
      * {@code onGround}, which describes the PREVIOUS move, still said true. {@code ServerPlayerBody}
-     * gated its ground jump on that bit and handed the body a {@code +0.42} it had no standing to
-     * take; that jump is what got it up the staircase. Gating the jump on the body's own sole (which
+     * gated its ground jump on that bit and handed the player a {@code +0.42} it had no standing to
+     * take; that jump is what got it up the staircase. Gating the jump on the player's own sole (which
      * {@code wd.airborneJumpInert} now requires) removes it, and the climb stalls one riser short.
      *
      * <p>So a RED here is ambiguous by construction, and the two readings want opposite fixes. It is
@@ -1015,7 +1015,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
+        // createIsolated (NOT create) — sanctioned #48 deviation, the driver's own FakePlayer.
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). Unlike
@@ -1051,7 +1051,7 @@ public final class WorldDriverScenes implements SceneProvider {
         String stairs = buriedOreStairAudit(level, cx, cz, floorY);
         // The audit that reads the cells the PLANNER chose, not the cells this scene's author
         // expected it to choose: {@code stairs} above is seven hand-derived cells all at z=cz, and
-        // the node the body could not reach sat at z=cz−1, so that fragment was blind to the one
+        // the node the bot could not reach sat at z=cz−1, so that fragment was blind to the one
         // column under investigation. Both are kept — the fixed window is the arena's shape, this
         // one is the plan's.
         String planCells = mine.approachPlanAudit(level);
@@ -1099,7 +1099,7 @@ public final class WorldDriverScenes implements SceneProvider {
      *       precisely that snapped goal's FLOOR. {@code Move.eval} reads only the CURRENT world and
      *       has no model of the world after the digging, so a first search can hand out exactly this
      *       self-contradicting staircase.</li>
-     *   <li><b>SOLID ⇒ the body never got up the second step at all</b> and the defect is on the
+     *   <li><b>SOLID ⇒ the bot never got up the second step at all</b> and the defect is on the
      *       FIRST riser; the self-destruction hypothesis is dead and the search reopens there.</li>
      * </ul>
      * Same family as "the staircase fought itself" but NOT the same shape — that one was two rungs
@@ -1190,7 +1190,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * The driver's own {@code WorldDriverEvents} server-tick handler
      * calls {@code ServerAvatarManager.tickAll()} EVERY server tick (before the testkit
      * harness advances the scene). In the other driver scenes the driver is registered
-     * and fully driven+unregistered inside ONE synchronous body tick, so the platform
+     * and fully driven+unregistered inside ONE synchronous scene tick, so the platform
      * loop never sees it mid-flight. Here the scene spans multiple ticks (the await
      * waits), so a driver left registered across an await would be driven UNCONTROLLED by
      * the platform loop — corrupting the phase-1 "leash held" experiment (bot driven
@@ -1236,7 +1236,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * (legacy {@code floorY=220}, a hardcoded ABSOLUTE) the legacy leash arena's
      * {@code floorY} is {@code helper.absolutePos(BlockPos.ZERO).getY()} — a
      * HELPER-relative floor, not a fixed constant. It therefore maps directly to
-     * {@code origin.getY()} with NO offset. Every vertical quantity in the body is
+     * {@code origin.getY()} with NO offset. Every vertical quantity in the method is
      * already {@code floorY}-relative ({@code floorY}, {@code floorY+1},
      * {@code floorY+dy}), so the geometry is byte-identical; only x/z (and the floor's
      * absolute y) relocate to the grid cell, which the leash math is invariant to.
@@ -1283,7 +1283,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // parking is a walker trait, not this arena's gate (run-e evidence: reached=true
         // ±1.5 but the exact cell never latched → finished=false forever).
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
-        // createIsolated (NOT create) — sanctioned #48 deviation, own per-body FakePlayer.
+        // createIsolated (NOT create) — sanctioned #48 deviation, the driver's own FakePlayer.
         final ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         final ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). This scene

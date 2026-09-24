@@ -203,7 +203,7 @@ public final class RetreatChain implements Chain {
      *  ({@link #hurtByAnyone}) used to fire at ANY hp unconditionally, so a HEALTHY bot
      *  deliberately brawling via {@code mc.bot.combat} fled on the very first connected
      *  counter-hit — retreat outbids COMBAT (100 > 60), so an explicit fight order can
-     *  livelock (approach → hit → flee → repeat). gap#68's evidence book (legs ⑨⑪⑫)
+     *  livelock (approach → hit → flee → repeat). gap#68's evidence book (cases ⑨⑪⑫)
      *  is all hit-while-goto/digging, never hit-while-brawling — taking hits mid-fight
      *  is normal, and Task 7's frail gate ({@link CombatChain#frailBlocked}) is the
      *  designed handoff once HP actually drops. So the hurt-entry term now only latches
@@ -223,7 +223,7 @@ public final class RetreatChain implements Chain {
      *  no-enter. {@link #shouldEnter} delegates here, so the telemetry line in
      *  {@link #priority} can never disagree with the gate itself (single source).
      *
-     *  <p>On the "hurt" leg: being HIT by a ranged attacker (gap#55's attackedMe
+     *  <p>On the "hurt" condition: being HIT by a ranged attacker (gap#55's attackedMe
      *  attribution) latches the flee at ANY hp and regardless of LoS — {@code charging}
      *  goes blind in exactly the stair/corner geometry where arrows still arc in
      *  (canSee is an eye-to-eye ray, arrows are ballistic); waiting for hp<=thr there
@@ -243,7 +243,7 @@ public final class RetreatChain implements Chain {
     }
 
     /** Back-compat 3-arg gate (existing matrix tests + call sites): maxHp=20,
-     *  combatEngaged=false (models the not-engaged scenario — leg ① / case (g)). */
+     *  combatEngaged=false (models the not-engaged scenario — case ① / case (g)). */
     public static boolean shouldEnter(float hp, float thr, ThreatScanner.Scan scan) {
         return shouldEnter(hp, thr, 20f, scan, false);
     }

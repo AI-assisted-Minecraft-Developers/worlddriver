@@ -1,11 +1,11 @@
 package net.magicterra.worlddriver.testcontent;
 
 /**
- * A mob whose legs a driver can take. It has to be the mob's own class that implements this: see
- * {@link DrivenPiglin} for what a driver has to switch off and why only a subclass can.
+ * A mob whose movement a driver can take over. It has to be the mob's own class that implements
+ * this: see {@link DrivenPiglin} for what a driver has to switch off and why only a subclass can.
  */
 public interface DrivenMob {
-    /** Take the legs ({@code true}) or hand them back to the mob's own AI. */
+    /** Take over the mob's movement ({@code true}) or hand it back to the mob's own AI. */
     void setDriven(boolean driven);
 
     boolean isDriven();

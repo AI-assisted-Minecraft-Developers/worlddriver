@@ -61,7 +61,7 @@ public final class WorldDriverMobFightScenes {
                 Scene.of("wd.serverBreaksAnEndCrystal", 4_000,
                         WorldDriverMobFightScenes::serverBreaksAnEndCrystal),
                 // wd.serverFightsAFlyingBlaze produces this situation only when the blaze happens to
-                // fly the body off its floor — once in three runs, and each run is forty minutes.
+                // lure the bot off its floor — once in three runs, and each run is forty minutes.
                 // This stages the same reset loop on purpose, without a blaze, so the futile-search
                 // gate's census can be read EVERY run instead of whenever the dice agree.
                 Scene.of("wd.serverFutileGateUnderACreepingGoal", 4_000,
@@ -74,18 +74,18 @@ public final class WorldDriverMobFightScenes {
     }
 
     /**
-     * Kill a blaze with a driven body and pick up the rod — the drop, not the kill, is the question.
+     * Kill a blaze with a driven bot and pick up the rod — the drop, not the kill, is the question.
      *
      * <p>A blaze rod is one of the very few things on the road to the dragon that vanilla will not
      * give to just anything that lands the killing blow: the loot table carries a
-     * {@code killed_by_player} condition, satisfied from {@code lastHurtByPlayer}. A body that hits
+     * {@code killed_by_player} condition, satisfied from {@code lastHurtByPlayer}. A bot that hits
      * hard enough to kill and does not register as a player kills the blaze and gets <b>nothing</b>,
      * and the failure is silent in the same way the advancement one was — the mob dies, the fight
      * looks won, and the eye of ender is never craftable.
      *
      * <p><b>What this scene deliberately does NOT cover: flight.</b> The blaze here is pinned the
      * way {@code wd.serverCombat}'s zombie is — no AI, knockback-resistant, re-pinned each tick — so
-     * that a red result means "the drop does not reach a driven body" and cannot also mean "it flew
+     * that a red result means "the drop does not reach a driven bot" and cannot also mean "it flew
      * away". Whether the melee loop can reach a blaze that is actually hovering is a separate
      * question and needs its own scene; saying so here is the point, because a green row that
      * quietly meant "we never fought a flying mob" is the shape of coverage this suite exists to
@@ -102,7 +102,7 @@ public final class WorldDriverMobFightScenes {
         SceneArena.buildFloor(level, cx, cz, floorY);
 
         // The gamerule first, because it is the one explanation for "nothing dropped" that has
-        // nothing to do with the body — and it is cheaper to read than to infer from eight kills.
+        // nothing to do with the bot — and it is cheaper to read than to infer from eight kills.
         ctx.record("gamerule.doMobLoot", String.valueOf(
                 level.getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_DOMOBLOOT)));
 
@@ -163,16 +163,16 @@ public final class WorldDriverMobFightScenes {
         ctx.record("blaze.killed", killed + "/" + kills);
         ctx.record("rods.perKill", tally.toString());
         ctx.record("rods.total", rods + "");
-        ctx.expect(killed).as("a driven body can kill a blaze at all").isEqualTo(kills);
+        ctx.expect(killed).as("a driven bot can kill a blaze at all").isEqualTo(kills);
         // The whole point: vanilla gates the rod on killed_by_player, read from lastHurtByPlayer.
-        // A body that kills without registering as a player clears fortresses and crafts no eyes.
+        // A bot that kills without registering as a player clears fortresses and crafts no eyes.
         ctx.expect(rods).as("the kills count as PLAYER kills, so rods actually drop").isAtLeast(1);
         ctx.passNote("an iron sword killed " + killed + " blazes, dropping " + rods
                 + " rods (blazes pinned; flight not tested)");
     }
 
     /**
-     * Can a driven body hurt the ender dragon at all?
+     * Can a driven bot hurt the ender dragon at all?
      *
      * <p>The summit's own question, and the one verb on the road to it that is not shaped like any
      * other fight. <b>A dragon does not take damage as itself.</b> {@code EnderDragon.hurt} refuses
@@ -182,14 +182,14 @@ public final class WorldDriverMobFightScenes {
      * position is aiming at something with no hittable hitbox there, and would report a fight it is
      * winning while the boss bar never moves.
      *
-     * <p>This scene therefore measures the SEAM rather than the strategy: it puts the body beside a
+     * <p>This scene therefore measures the SEAM rather than the strategy: it puts the bot beside a
      * pinned dragon and asks whether the driver's own attack path can take health off it. What it
      * deliberately does not cover is the fight — crystals, perching, the flight pattern — none of
      * which is worth designing before knowing whether the hit lands.
      *
      * <p>Staged: the arena, and the dragon is pinned with no AI and no phase, because a dragon that
      * flies is measuring navigation. A red here means the attack path cannot reach a multipart
-     * entity; it cannot also mean the body could not catch up.
+     * entity; it cannot also mean the bot could not catch up.
      */
     private static void serverDamagesTheDragon(SceneContext ctx) {
         ServerLevel level = ctx.level();
@@ -285,7 +285,7 @@ public final class WorldDriverMobFightScenes {
      * hovers, drifts, and shoots from above; a melee loop that can only hit what is standing next to
      * it wins the pinned fight and loses every real one.
      *
-     * <p><b>The body is invulnerable</b> ({@code JoinedBody.isInvulnerableTo} → true), so this
+     * <p><b>The bot is invulnerable</b> ({@code JoinedBody.isInvulnerableTo} → true), so this
      * cannot say whether a real run survives the fireballs — only whether the fight can be WON. That
      * limit is recorded on the green row rather than left for a reader to discover.
      *
@@ -332,8 +332,8 @@ public final class WorldDriverMobFightScenes {
         // WHY THIS CENSUS IS HERE, AND WHY IT HAD TO COME FIRST.
         //
         // The futile-search gate (WalkerTickSearch, walkerFutileSearchCap) exists precisely to stop
-        // a body re-asking a question it cannot answer. On the 2026-08-24 J60-C run it never fired
-        // in this scene: the body chased the blaze off this 11x11 floor, fell 282 blocks to the
+        // a bot re-asking a question it cannot answer. On the 2026-08-24 J60-C run it never fired
+        // in this scene: the bot chased the blaze off this 11x11 floor, fell 282 blocks to the
         // world bottom, and then spent >=29 s of the scene's 48 s in 29 consecutive searches that
         // each burned ~64k nodes toward a goal 267 blocks straight up — with zero "no route
         // progress" rows to show for it.
@@ -343,7 +343,7 @@ public final class WorldDriverMobFightScenes {
         // gate demonstrably fails has never been able to say which door. Reading the code turns up
         // two candidate doors — bucket 5 (no path while stuck-penalties are live, so the gate never
         // judged the search at all) and bucket 7 (CombatProcess re-goals on every blaze block-move,
-        // Walker.setGoal wipes searchGov, and a null futileFoot reads as "the body moved") — and
+        // Walker.setGoal wipes searchGov, and a null futileFoot reads as "the bot moved") — and
         // code alone cannot choose between them. This census chooses.
         //
         // ANSWERED 2026-08-25, AND BY NEITHER CANDIDATE — the door is bucket 9, "seeded after a
@@ -360,7 +360,7 @@ public final class WorldDriverMobFightScenes {
         //
         // This row stays anyway: it is the in-situ reading, and the creeping-goal scene is a proxy.
         //
-        // It was written to go in BEFORE a rim that would stop the body leaving the floor, on the
+        // It was written to go in BEFORE a rim that would stop the bot leaving the floor, on the
         // grounds that such a rim "removes the only occasion this defect has anywhere in the suite".
         // That premise is no longer true — the creeping-goal scene is now that occasion, every run —
         // but the rim is still not the fix here, because it would alter the fight being measured.
@@ -408,7 +408,7 @@ public final class WorldDriverMobFightScenes {
                 // is about the ROOM; the open number is the reason the room is in the plan, and it
                 // lives in the evidence where a human reads it.
                 ctx.expect(roofed.dead)
-                        .as("in a closed room a driven body kills a blaze that is free to fly")
+                        .as("in a closed room a driven bot kills a blaze that is free to fly")
                         .isTrue();
                 ctx.passNote("under open sky the blaze was not killed in " + open.ticks + " ticks ("
                         + String.format(java.util.Locale.ROOT, "%.1f", open.hp)
@@ -427,19 +427,19 @@ public final class WorldDriverMobFightScenes {
      * only produces by accident.
      *
      * <p><b>What this reproduces.</b> On the 2026-08-24 run that fight chased its blaze off an 11x11
-     * floor; the body fell 282 blocks to the world bottom and then spent 29 consecutive searches,
+     * floor; the bot fell 282 blocks to the world bottom and then spent 29 consecutive searches,
      * each ~64k nodes and over a second, on a goal 267 blocks straight up. The gate that exists to
      * stop exactly that ({@code BotConfig.walkerFutileSearchCap}) never fired, and the log carried no
      * "no route progress" row to explain why. Two candidate doors survive a code read and cannot be
      * told apart by one: the gate may never have judged those searches at all (bucket 5), or the
      * counter may have been wiped from OUTSIDE — {@code CombatProcess.approach} re-goals whenever the
      * target changes block, {@code Walker.setGoal} is the only caller of {@code searchGov.reset()},
-     * and a reset leaves {@code futileFoot} null, which the next judged search reads as "the body
+     * and a reset leaves {@code futileFoot} null, which the next judged search reads as "the bot
      * moved" (bucket 7).
      *
-     * <p><b>Why a scene rather than another run of the fight.</b> Whether the blaze flies the body
+     * <p><b>Why a scene rather than another run of the fight.</b> Whether the blaze lures the bot
      * off the floor is a coin toss taken once per forty-minute gate. The situation itself is three
-     * facts — a body that cannot move, a goal it cannot reach, and a goal that creeps a block closer
+     * facts — a bot that cannot move, a goal it cannot reach, and a goal that creeps a block closer
      * every other tick — and all three can simply be staged. That is the hardcoded-steps rule
      * applied to a defect instead of to a rung: do not add an engine capability to observe something
      * a room can be built for.
@@ -455,14 +455,14 @@ public final class WorldDriverMobFightScenes {
      * is the recorded baseline, still calling {@code setGoal} on each change, because that contract is
      * still live for callers that need a terminal cleared. {@code creepRetarget} calls
      * {@code retargetGoal} — {@code CombatProcess.approach}'s idiom after the fix, at the blaze's exact
-     * descent rate. {@code chase} is the reverse: a quarry the body CAN reach, re-goaled at the same
+     * descent rate. {@code chase} is the reverse: a quarry the bot CAN reach, re-goaled at the same
      * rate, where the guard must stay silent.
      *
      * <p><b>Every arm runs its full 240 ticks and ignores the walker's verdict</b>, exactly as
      * {@code approach} does. An arm that stopped at the first terminal would report a tidy
      * "6 searches, FAILED" and miss the expensive half: {@code terminal()} stores nothing, so a
      * latched cap re-reports itself by running another full search every tick until something moves
-     * the body. That is why the assertion counts searches over the whole arm rather than looking for
+     * the bot. That is why the assertion counts searches over the whole arm rather than looking for
      * the failure row.
      */
     private static void serverFutileGateUnderACreepingGoal(SceneContext ctx) {
@@ -481,7 +481,7 @@ public final class WorldDriverMobFightScenes {
         });
 
         BotConfig.walkerDebug = false;
-        // The goal has to be UNREACHABLE, not merely far. With either of these left on, the body
+        // The goal has to be UNREACHABLE, not merely far. With either of these left on, the bot
         // pillars up to it or digs its way somewhere, the search succeeds, and the gate is never
         // asked the question this scene exists to ask.
         BotConfig.allowBreak = false;
@@ -521,7 +521,7 @@ public final class WorldDriverMobFightScenes {
                         + " cannot be used to judge anything: " + arm.line());
 
         // The claim the fix makes, stated as a number the arm can miss. A cap of 5 admits one
-        // unjudged seeding search plus the five it counts; anything past that means the body is
+        // unjudged seeding search plus the five it counts; anything past that means the bot is
         // still paying for a goal it cannot reach — either the counter is being wiped from outside
         // again, or the latched terminal is re-searching every tick.
         int cap = BotConfig.walkerFutileSearchCap;
@@ -533,7 +533,7 @@ public final class WorldDriverMobFightScenes {
                     + " nor built to produced no 'no route progress' within 240 ticks: " + retargetArm.line());
 
         // The reverse. A guard that fires on a healthy pursuit is worse than one that never fires,
-        // and "the body stayed put" is exactly what a body walking toward a moving quarry does NOT do.
+        // and "the bot stayed put" is exactly what a bot walking toward a moving quarry does NOT do.
         if (chase.noRoute())
             ctx.fail("the gate fired on a healthy chase: the goal is 8 blocks away on the same floor and"
                     + " the bot kept walking, yet 'no route progress' was reported: " + chase.line());
@@ -544,9 +544,9 @@ public final class WorldDriverMobFightScenes {
     /**
      * The latch must not outlive the pursuit that earned it.
      *
-     * <p>The latch's only key is body displacement, which is right while the pursuit is the same
-     * one — "unreachable from here" stops being true when "here" changes. It is WRONG across
-     * pursuits, and {@code CombatProcess} now depends on that: a body latched on an unreachable
+     * <p>The latch's only key is the bot's displacement, which is right while the pursuit is the
+     * same one — "unreachable from here" stops being true when "here" changes. It is WRONG across
+     * pursuits, and {@code CombatProcess} now depends on that: a bot latched on an unreachable
      * flying blaze would carry the latch into the walk toward a zombie it could plainly reach, and
      * never start a search again. The tick budget cannot save it either — every re-goal clears
      * {@code totalTicks}, so it never fills. Silent freeze, no terminal, no log.
@@ -554,8 +554,8 @@ public final class WorldDriverMobFightScenes {
      * <p>What holds the two apart is that {@code setGoal} means "new journey" and clears everything,
      * while {@code retargetGoal} means "same journey, the cell moved". The caller decides which,
      * because only the caller knows whether the quarry is the same entity. This arm asserts the
-     * engine half of that contract: latch, DON'T move the body, then set a genuinely new goal within
-     * easy reach — searches must resume and the body must go.
+     * engine half of that contract: latch, DON'T move the bot, then set a genuinely new goal within
+     * easy reach — searches must resume and the bot must go.
      */
     private static void recoverArm(SceneContext ctx, ServerPlayerBody av, ServerPlayer fp,
                                    LevelWorldView w, BlockPos high, int cx, int floorY, int cz) {
@@ -606,12 +606,12 @@ public final class WorldDriverMobFightScenes {
     }
 
     /**
-     * The reverse arm: a quarry the body CAN reach, re-goaled at the same rate as the creeping one.
+     * The reverse arm: a quarry the bot CAN reach, re-goaled at the same rate as the creeping one.
      *
      * <p>The futile guard's whole job is to distinguish "unreachable from here" from "still walking",
      * and the fix hands it two new ways to be wrong — a counter that survives a re-goal, and a latch
-     * that suppresses searches until the body moves. Both would show up here as a {@code no route
-     * progress} on a body that is plainly making progress. Same floor, same re-goal call, same tick
+     * that suppresses searches until the bot moves. Both would show up here as a {@code no route
+     * progress} on a bot that is plainly making progress. Same floor, same re-goal call, same tick
      * budget; the only thing that changed is that the goal is eight blocks away instead of two
      * hundred straight up.
      */
@@ -660,7 +660,7 @@ public final class WorldDriverMobFightScenes {
     private static final int ARM_TICKS = 240;
 
     /**
-     * One arm: re-seat the body, hand the walker an unreachable goal, and tick.
+     * One arm: re-seat the bot, hand the walker an unreachable goal, and tick.
      *
      * <p>{@code regoalEvery} is the whole experiment. Zero means the goal is set once and never
      * touched, so {@code searchGov} is reset exactly once, at the start. Two means the goal drops a
@@ -765,8 +765,8 @@ public final class WorldDriverMobFightScenes {
      * vs 0.45 ms). It is <i>not</i> one runaway search either: a guard that reports any single
      * pathfinder expansion over 100 ms printed nothing at all during a tick that lasted 60 seconds.
      * What is left is the sum. {@code BotConfig.pathfinderIdleSliceMs} is 30 ms and
-     * {@code WalkerTickSearch} deliberately spends that idle slice on a tick where the body has no
-     * walkable path — which is every tick of a body chasing a blaze hovering out of reach. 3000
+     * {@code WalkerTickSearch} deliberately spends that idle slice on a tick where the bot has no
+     * walkable path — which is every tick of a bot chasing a blaze hovering out of reach. 3000
      * iterations x ~20 ms lands exactly on the 60 s the watchdog measured. The slice cap was working
      * the whole time; the loop calling it had no clock budget at all.
      *
@@ -798,13 +798,13 @@ public final class WorldDriverMobFightScenes {
      * <p>What closed it is {@link #noteTheFall()}, and the shape matters: capping the search
      * outright was rejected here on the grounds that it "changes the fight being measured", and
      * that objection is right — but it only applies while a fight is being measured. Every one of
-     * these overruns happens after the body has walked off the floor and is re-planning from the
+     * these overruns happens after the bot has walked off the floor and is re-planning from the
      * world bottom toward a goal 250 blocks up, which is not the fight. So the cap is armed by
      * the fall, not by the clock: the healthy arm never executes a byte of it, and the pathological
      * arm gets a real budget, sixty bounded iterations of census, and an ending.
      *
      * <p>The {@code blaze.tick()} / {@code tickAll()} interleaving is preserved exactly, because it
-     * is a real requirement rather than an artifact: the mob and the body must advance in lockstep
+     * is a real requirement rather than an artifact: the mob and the bot must advance in lockstep
      * or the fight being measured is not the fight the field sees.
      */
     private static final class BlazeFightRun {
@@ -824,22 +824,22 @@ public final class WorldDriverMobFightScenes {
 
         /**
          * How far under the floor counts as "no longer in this arena". Six blocks is well past any
-         * step-down or knockback on an 11x11 slab and well short of the ~280-block drop the body
+         * step-down or knockback on an 11x11 slab and well short of the ~280-block drop the bot
          * actually takes, so the reading is not sensitive to the number.
          *
-         * <p>The floor, not the body's own start height: a body that walks off is measured against
+         * <p>The floor, not the bot's own start height: a bot that walks off is measured against
          * the thing it walked off, and that is what makes this a staging predicate rather than a
          * physics one.
          */
         private static final int FALL_MARGIN = 6;
 
         /**
-         * Iterations to keep feeding the futile-gate census AFTER the body has left the floor,
+         * Iterations to keep feeding the futile-gate census AFTER the bot has left the floor,
          * under a real pathfinder budget.
          *
          * <p>The pathological phase is the only interesting one — a search from the world bottom
          * toward a goal 250 blocks up is what the gate is supposed to stop — so ending the round
-         * the instant the body falls would throw away the evidence along with the cost. Sixty
+         * the instant the bot falls would throw away the evidence along with the cost. Sixty
          * iterations at a 6 ms slice is ~0.4 s, three orders under the watchdog.
          */
         private static final int FALL_PROBE_ITERS = 60;
@@ -856,7 +856,7 @@ public final class WorldDriverMobFightScenes {
         private long worstIter, workNanos, worstPump;
         private int worstAt = -1, serverTicks;
 
-        /** Census + budgets at the moment the body left, so the probe's share can be differenced. */
+        /** Census + budgets at the moment the bot left, so the probe's share can be differenced. */
         private long[] futileAtFall;
         private long sliceWas, maxWas;
         private int fellAt = -1;
@@ -892,16 +892,16 @@ public final class WorldDriverMobFightScenes {
         }
 
         /**
-         * The body walked off the floor — end this round, but take evidence on the way out.
+         * The bot walked off the floor — end this round, but take evidence on the way out.
          *
          * <p>This is the whole of J73. Until it existed the open round had no upper bound at all:
-         * once the body is at the world bottom every re-plan is a search toward a goal 250 blocks
+         * once the bot is at the world bottom every re-plan is a search toward a goal 250 blocks
          * straight up, and with {@code pathfinderSliceMs/MaxMs} at {@code MAX_VALUE / 2} a single
          * one of those costs seconds. Bounded iterations times unbounded cost per iteration is
          * unbounded, and it killed a Fabric gate at 176/325 scenes on 2026-08-25 after twice
          * getting within 12 s of the watchdog (48062 ms and 35567 ms runs, both PASS).
          *
-         * <p><b>The healthy arm is untouched by construction.</b> Nothing here runs until the body
+         * <p><b>The healthy arm is untouched by construction.</b> Nothing here runs until the bot
          * is six blocks under the floor, which on a healthy run never happens — so this cannot be
          * the reason a future open round reads differently. That is the answer to the objection
          * the class note raises against simply capping the search ("changes the fight being
@@ -921,7 +921,7 @@ public final class WorldDriverMobFightScenes {
             BotConfig.pathfinderSliceMs = 6;
             BotConfig.pathfinderMaxMs = 500;
             net.magicterra.worlddriver.WorldDriverCommon.LOG.warn(
-                    "[blazefight] {} BODY LEFT THE ARENA at iter={} — y={} is {} below floor {};"
+                    "[blazefight] {} BOT LEFT THE ARENA at iter={} — y={} is {} below floor {};"
                             + " blaze at y={}. Ending the round after {} probe iterations under a"
                             + " REAL pathfinder budget (slice {}->6 ms, max {}->500 ms).",
                     tag, fellAt, String.format(java.util.Locale.ROOT, "%.1f", fellY),
@@ -946,7 +946,7 @@ public final class WorldDriverMobFightScenes {
         /** Iterations completed so far — the clock a staging step schedules itself against. */
         int iterations() { return t; }
 
-        /** The iteration the body left the floor on, or -1 if it never did. */
+        /** The iteration the bot left the floor on, or -1 if it never did. */
         int fellAt() { return fellAt; }
 
         /** Worst single {@link #pump()}, in ms. The quantity the hang watchdog actually measures. */
@@ -1062,12 +1062,12 @@ public final class WorldDriverMobFightScenes {
      * for the dice is not a test plan. The same reasoning already produced
      * {@code wd.serverFutileGateUnderACreepingGoal}; this is its sibling for the other half.
      *
-     * <p><b>The fall is staged, not simulated.</b> The body is dropped onto a real pad 200 blocks
+     * <p><b>The fall is staged, not simulated.</b> The bot is dropped onto a real pad 200 blocks
      * under the arena AFTER the fight has been running for a while, so the combat process is
-     * carrying the same live re-planning state it carries in the field — a body posed at the
+     * carrying the same live re-planning state it carries in the field — a bot posed at the
      * bottom from tick zero would be a different subject, and a fight that never started would
      * make the assertions read 0 == 0. The pad is built rather than trusting the terrain: 200
-     * blocks under an arena that itself floats is not a place with a documented floor, and a body
+     * blocks under an arena that itself floats is not a place with a documented floor, and a bot
      * still falling is not the geometry the tail was measured in (it sat at y=-60.00, steady).
      *
      * <p>What is asserted is the BOUND, not the outcome of the fight: that the guard fired, that
@@ -1175,7 +1175,7 @@ public final class WorldDriverMobFightScenes {
      * getaway. A real stronghold is not a box, and that difference is stated here rather than
      * discovered later.
      *
-     * <p>Like the blaze scene, the body is invulnerable, so this says the fight can be won and not
+     * <p>Like the blaze scene, the bot is invulnerable, so this says the fight can be won and not
      * that it can be survived.
      */
     private static void serverEarnsAnEnderPearl(SceneContext ctx) {
@@ -1271,7 +1271,7 @@ public final class WorldDriverMobFightScenes {
         //
         // Two REDs out of eight, neither traceable to any change — the same run that failed at 3/6
         // passed every other scene, and the 1/6 run's only new commits could not reach this arena
-        // (the body carries a sword and nothing else, so the planner change touching placeable
+        // (the bot carries a sword and nothing else, so the planner change touching placeable
         // counts is inert here). A threshold drawn through the middle of the distribution it
         // measures is a coin flip wearing a gate's clothes, and every flip costs a gate run to
         // re-read. The bar is now what the claim actually is: kill it more than once, so a single
@@ -1291,13 +1291,13 @@ public final class WorldDriverMobFightScenes {
      *
      * <p>The dragon heals from every crystal still standing, so the fight does not begin until they
      * are gone. Breaking one is a single hit on an entity with 5 health and no armour; what makes it
-     * interesting is that it <b>explodes</b>, and the body doing the hitting is standing next to it.
+     * interesting is that it <b>explodes</b>, and the bot doing the hitting is standing next to it.
      *
-     * <p>Two readings, because they are different questions: the crystal dies, and the body is still
+     * <p>Two readings, because they are different questions: the crystal dies, and the bot is still
      * there afterwards. The second is weakened by this avatar being invulnerable — recorded on the
      * row so nobody reads it as "the explosion is survivable".
      *
-     * <p>Scoped: the crystal is placed at the body's own level. On a real pillar it sits 20–40 blocks
+     * <p>Scoped: the crystal is placed at the bot's own level. On a real pillar it sits 20–40 blocks
      * up, and getting there is {@code ascendByTowering}'s problem, which has its own coverage and its
      * own known trouble. This is the verb, not the climb.
      */
@@ -1338,8 +1338,8 @@ public final class WorldDriverMobFightScenes {
             ctx.record("crystal.alive", String.valueOf(crystal.isAlive()));
             ctx.record("body.alive", String.valueOf(fp.isAlive()));
             ctx.record("body.invulnerable", "true — so the \"still standing after the explosion\" reading is weak");
-            ctx.expect(!crystal.isAlive()).as("a driven body can break an end crystal").isTrue();
-            ctx.expect(fp.isAlive()).as("the body is still there after the explosion").isTrue();
+            ctx.expect(!crystal.isAlive()).as("a driven bot can break an end crystal").isTrue();
+            ctx.expect(fp.isAlive()).as("the bot is still there after the explosion").isTrue();
             ctx.passNote("broke an end crystal at melee range and the bot is still present (crystal placed at"
                     + " the bot's level; climbing the pillar not tested)");
         });

@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * {@code autoBackfill} puts back only what the bot itself broke, as Baritone's BackfillProcess
- * does. A cell the body merely walked through was natural air — a cave, a cliff edge, the tunnel
+ * does. A cell the bot merely walked through was natural air — a cave, a cliff edge, the tunnel
  * a human dug — and filling it plugs the bot's own path with cobblestone.
  */
 class BackfillOwnBreaksTest {
@@ -25,7 +25,7 @@ class BackfillOwnBreaksTest {
         ClientIntents.takeOwnBreaks();
     }
 
-    /** One client tick with the switch on. The recorder is not told where the body is. */
+    /** One client tick with the switch on. The recorder is not told where the bot is. */
     private void tick() {
         tracker.onClientTick(true, ClientIntents.takeOwnBreaks());
     }
@@ -33,7 +33,7 @@ class BackfillOwnBreaksTest {
     @Test
     void walkingThroughAirRecordsNothing() {
         for (int x = 0; x < 8; x++) tick();
-        assertEquals(0, tracker.size(), "every cell the body passed was air it did not open");
+        assertEquals(0, tracker.size(), "every cell the bot passed was air it did not open");
     }
 
     @Test

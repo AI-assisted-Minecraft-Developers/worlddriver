@@ -18,7 +18,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
  * (apex y+1 down to the landing level) so neither the jump apex nor the
  * descending arc clips, with no stand-able floor at launch level (else a
  * cheaper Walk/StepDown chain wins); the column above the landing must be
- * clear for the body to fall through. Distance-2 is always in the catalog;
+ * clear for the bot to fall through. Distance-2 is always in the catalog;
  * distance-3 shares the {@link net.magicterra.worlddriver.bot.BotConfig#allowParkour4}
  * gate like the other long leaps. Cost = flat-parkour + 4/drop (falling is
  * cheap, as in {@link Fall}). The {@code parkourDescend} name starts with
@@ -38,7 +38,7 @@ public final class ParkourDescend extends Move {
         // Only the shallow drop-1 descend lands reliably on a 1-wide block:
         // the extra airtime of a deeper drop (or a longer dist-3 gap) carries
         // the bot horizontally past the narrow pad before it touches down (the
-        // landing-brake can't recover a body still well above the pad), so those
+        // landing-brake cannot recover a bot still well above the pad), so those
         // ride the allowParkour4 "marginal physics" tier -- same contract as the
         // dist-3 ascend, which also needs a boost to land.
         if ((dist >= 3 || drop >= 2) && !BotConfig.allowParkour4) return false;
@@ -77,7 +77,7 @@ public final class ParkourDescend extends Move {
             // Real gap at launch level (a mid floor -> cheaper Walk/StepDown).
             if (w.canStandAt(from.offset(sx * i, 0, sz * i))) return false;
         }
-        // Column above the landing: the body falls through it from launch
+        // Column above the landing: the bot falls through it from launch
         // level down to the landing head (canStandAt already cleared foot+head).
         for (int dyOff = 0; dyOff > -drop + 1; dyOff--) {
             BlockPos c = from.offset(sx * dist, dyOff, sz * dist);

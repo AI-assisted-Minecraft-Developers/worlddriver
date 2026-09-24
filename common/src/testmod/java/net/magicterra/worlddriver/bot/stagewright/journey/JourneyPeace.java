@@ -83,7 +83,7 @@ final class JourneyPeace {
      *
      * <p><b>{@code discard()} and not a kill.</b> A kill drops items and plays a sound; those drops
      * would sit in the world for the rest of the climb and land in the {@code dropCensus} rows that
-     * later rungs read to decide whether a hunt banked anything. Removing a body silently is the
+     * later rungs read to decide whether a hunt banked anything. Removing a mob silently is the
      * only removal that does not change a reading somewhere else.
      *
      * <p><b>Bounded to this box on purpose.</b> Rungs 14 and 15 call {@code rig.liveWorld(true)} and
@@ -115,7 +115,7 @@ final class JourneyPeace {
         rig.settle(new HoldStill(40), 100, () -> {
             // EVERY loaded overworld monster, not a box around the hut, and the reason is that a
             // witch WALKS. `setPersistenceRequired` stops her despawning; it does not pin her to the
-            // hut, and the body that died on 2026-08-22 died at -51,62,67 — wherever she had got to
+            // hut, and the bot that died on 2026-08-22 died at -51,62,67 — wherever she had got to
             // by rung 7, which no radius chosen at SPAWN can predict. With `doMobSpawning=false` the
             // only monsters an overworld can hold are the ones generation placed, so a sweep this
             // wide cannot take anything the ladder needs: the rungs that DO need mobs turn spawning

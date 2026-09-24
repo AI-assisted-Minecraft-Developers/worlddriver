@@ -35,11 +35,11 @@ import org.jetbrains.annotations.Nullable;
 /**
  * The one marker block; {@link #ROLE} says what a placed one means. It has no collision box,
  * does not block motion, and can be replaced like grass, so a marker put in the wrong place never
- * changes what the body can do — {@code wd.markerBlockNeverBlocksMotion} holds that. The outline
+ * changes what the bot can do — {@code wd.markerBlockNeverBlocksMotion} holds that. The outline
  * shape is still the full cube so a tester can aim at and break it.
  *
  * <p>{@link #FLUID} keeps the water or lava source a marker was put into. Without it the cell
- * would read as air (a hole in the lake for the body, and for the file the scene is saved to)
+ * would read as air (a hole in the lake for the bot, and for the file the scene is saved to)
  * and, because the block does not block motion, the neighbouring water would flow back in and
  * wash the marker away within a tick. Holding the fluid makes the cell answer as that fluid and
  * refuses the neighbours' flow, the way a waterlogged slab does.

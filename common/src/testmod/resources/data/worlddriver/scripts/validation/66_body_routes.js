@@ -1,6 +1,6 @@
-// The mc.bot.* verbs that take `body` address a body by it. An id nothing is registered under must
-// refuse with the same bytes on every transport, and status must list the registered bodies the same
-// way on each. Needs no body of its own, so it runs on every topology; driving a registered body is the
+// The mc.bot.* verbs that take `body` use it to address a bot. An id nothing is registered under must
+// refuse with the same bytes on every transport, and status must list the registered bots the same
+// way on each. Needs no bot of its own, so it runs on every topology; driving a registered bot is the
 // dedicated-server scenes' job.
 
 function jsonStable(v) {
@@ -53,12 +53,12 @@ ScriptTest.run("66_body_routes: status lists the same bodies on every transport"
         t.assertTrue(Array.isArray(r[i].bodies),
             "transport " + i + " must answer bodies as an array, got: " + JSON.stringify(r[i].bodies));
     }
-    // Ids and kinds only: a body another scene drives may move or finish between the three reads.
+    // Ids and kinds only: a bot another scene drives may move or finish between the three reads.
     function names(s) {
         return jsonStable(s.bodies.map(function(b) { return [b.id, b.kind]; }));
     }
-    t.assertEqual(names(r[0]), names(r[1]), "in-JVM and TCP must list the same bodies");
-    t.assertEqual(names(r[0]), names(r[2]), "in-JVM and MCP must list the same bodies");
+    t.assertEqual(names(r[0]), names(r[1]), "in-JVM and TCP must list the same bots");
+    t.assertEqual(names(r[0]), names(r[2]), "in-JVM and MCP must list the same bots");
 });
 
 ScriptTest.run("66_body_routes: a verb that does not route by body rejects it as an unknown key", function(t) {

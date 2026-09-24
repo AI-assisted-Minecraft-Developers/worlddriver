@@ -53,7 +53,7 @@ public final class BunkerProcess implements BotProcess {
     private int startY = Integer.MIN_VALUE;
     private int lastDepth = 0, digTicks = 0, actTicks = 0;
     /** Separate place-attempt timer for PLUG. Kept distinct from {@link #actTicks}
-     *  (which the body-overlap shuffle branch burns up to breakTimeoutTicks*2) so a
+     *  (which the player-overlap shuffle branch burns up to breakTimeoutTicks*2) so a
      *  long shuffle can't make the FIRST real placement instantly trip the place
      *  timeout and abort the bunker DONE-but-UNSEALED. */
     private int plugTicks = 0;
@@ -379,7 +379,7 @@ public final class BunkerProcess implements BotProcess {
         if (p.getBoundingBox().intersects(new AABB(target))) {
             p.setYRot(yawFor(nicheDir));
             a.commandForward(1f);
-            dbg("PLUG body overlaps target={} pos=({},{}) → shuffle deeper", target, fmt(p.getX()), fmt(p.getZ()));
+            dbg("PLUG player overlaps target={} pos=({},{}) → shuffle deeper", target, fmt(p.getX()), fmt(p.getZ()));
             if (++actTicks > BotConfig.breakTimeoutTicks * 2) {
                 dbg("PLUG give up (still overlapping) → DONE UNSEALED");
                 phase = Phase.DONE; a.releaseInputs();

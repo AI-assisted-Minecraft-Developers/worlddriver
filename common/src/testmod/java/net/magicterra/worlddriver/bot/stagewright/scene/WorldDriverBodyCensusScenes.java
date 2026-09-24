@@ -36,16 +36,16 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>Why a scene that can never go red is worth having</h2>
  *
- * {@code docs/dev/fake-player-parity.md} classifies the ways the driven body differs from a real
- * player by subsystem, and every one of those rows was derived by <b>reading code</b>: this override
- * is empty, that field is only decremented on a tick path nothing calls, this handler has no verb
- * on our side. Reading is how the list was found; it is not how the list gets confirmed. A row that
- * says "this player entity only ever picks up one experience orb in its lifetime" is a prediction
- * about a running game, and the repo's own standing rule is "measure first: prove that the
- * difference is real and actually affects a test result before discussing a change".
+ * {@code docs/dev/fake-player-parity.md} classifies the ways the bot's player entity differs from a
+ * real player by subsystem, and every one of those rows was derived by <b>reading code</b>: this
+ * override is empty, that field is only decremented on a tick path nothing calls, this handler has
+ * no verb on our side. Reading is how the list was found; it is not how the list gets confirmed. A
+ * row that says "this player entity only ever picks up one experience orb in its lifetime" is a
+ * prediction about a running game, and the repo's own standing rule is "measure first: prove that
+ * the difference is real and actually affects a test result before discussing a change".
  *
- * <p>So this scene measures. It writes down what the body actually reports, for each of the
- * quantities the boundary table makes a claim about, and it <b>asserts nothing at all</b>. That is
+ * <p>So this scene measures. It writes down what the player entity actually reports, for each of
+ * the quantities the boundary table makes a claim about, and it <b>asserts nothing at all</b>. That is
  * deliberate and it is the only shape that can work here:
  *
  * <ul>
@@ -65,17 +65,18 @@ import net.minecraft.world.phys.Vec3;
  *
  * <h2>The time window this scene exists inside</h2>
  *
- * The 2026-08-20 body-selection instruction retires NeoForge's {@code FakePlayer}, puts
- * {@code JoinedBody} on the dedicated test server, and drives the integrated/joining topologies
+ * The 2026-08-20 instruction on the choice of player entity retires NeoForge's {@code FakePlayer},
+ * puts {@code JoinedBody} on the dedicated test server, and drives the integrated/joining topologies
  * with a {@code LocalPlayer}. That reshuffles the boundary table around one question, asked of
- * every row: <b>is this difference specific to {@code FakePlayer} (it disappears when that body
- * does), or is it caused by this driver never going through the real packet handlers (changing the
- * body will not help)?</b> §6.5 of the doc answers that for all 39 rows — <i>by reading</i>.
+ * every row: <b>is this difference specific to {@code FakePlayer} (it disappears when that player
+ * class does), or is it caused by this driver never going through the real packet handlers
+ * (changing the player class will not help)?</b> §6.5 of the doc answers that for all 39 rows —
+ * <i>by reading</i>.
  *
  * <p><b>Two columns made that answer checkable, and the first one is gone.</b> Until the
- * fake-player factories were deleted, this scene measured the same quantities on BOTH bodies in
- * the same run: the factory body ({@code FakePlayer} on NeoForge, {@code AvatarFakePlayer} on
- * Fabric) and a {@code JoinedBody}, side by side. Every row where the two columns agreed is a
+ * fake-player factories were deleted, this scene measured the same quantities on BOTH player
+ * classes in the same run: the factory-made player ({@code FakePlayer} on NeoForge,
+ * {@code AvatarFakePlayer} on Fabric) and a {@code JoinedBody}, side by side. Every row where the two columns agreed is a
  * difference the retirement did not fix; every row where they differed is one it did. Those runs
  * are the archive this scene existed to leave behind. Since the deletion the {@code factory}
  * column records {@code unavailable} and only {@code joined} is measured.
@@ -118,8 +119,8 @@ import net.minecraft.world.phys.Vec3;
  * null.</b> This is not politeness. In this repo {@code 0} and {@code null} have repeatedly meant
  * "not computed yet" rather than "computed, and the result is zero", and a census whose misses are
  * indistinguishable from its
- * zeroes would manufacture exactly the wrong conclusions — it would report a body that never got
- * built as a body with no fall distance.
+ * zeroes would manufacture exactly the wrong conclusions — it would report a player entity that
+ * never got built as one with no fall distance.
  *
  * <h2>Footprint (stated by hand, because the gate cannot see it)</h2>
  *
@@ -152,7 +153,7 @@ import net.minecraft.world.phys.Vec3;
  *       {@code invulnerableTime} and {@code fallDistance} live in {@code ServerPlayer.tick()},
  *       which {@code avatar.step()} never calls, so a synchronous probe reads zero whether the
  *       channel is severed or merely unhurried. Those three are taken again in <b>phase 2</b>
- *       ({@code ServerTickWatch}), which stops driving the body and waits out
+ *       ({@code ServerTickWatch}), which stops driving the player and waits out
  *       {@link #SERVER_TICK_SAMPLES} real server ticks through {@code ctx.await} — still never
  *       calling {@code level.tick()} itself. Read the {@code serverTickCount} /
  *       {@code serverInvulnerableTime} / {@code serverFallDistance} keys ALONGSIDE their
@@ -189,7 +190,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      *
      * <p>Six, not one, and the reason is the whole point of phase 2. {@code tickCount},
      * {@code invulnerableTime} and {@code fallDistance} are the three readings the synchronous phase
-     * takes and cannot interpret: it drives the body with {@code avatar.step()} inside a SINGLE
+     * takes and cannot interpret: it drives the player with {@code avatar.step()} inside a SINGLE
      * {@code tickServer()}, so a zero there has two readings — "channel one is dead" and "not
      * enough time has passed yet" — and 0 has meant "not computed yet" rather than "computed, and
      * the result is zero" too often in this repo for that to be left ambiguous. Six ticks of real
@@ -204,25 +205,25 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         final int floorY = ctx.origin().getY() + FLOOR_LIFT;
 
         ctx.record("census.topology", topology(ctx));
-        // The switch this row used to print was deleted with the fake bodies. The key stays, so an
+        // The switch this row used to print was deleted with the fake players. The key stays, so an
         // archived row and a new one line up and the run's premise is still written down.
         ctx.record("census.armProperty", "retired (the server-side player entity is always a JoinedBody; the switch was removed)");
 
-        // ---- column A: the fake-player factory body — gone, and recorded as gone ----
+        // ---- column A: the fake-player factory's player — gone, and recorded as gone ----
         //
-        // Both loaders' fake-player factories were deleted when the server seam went to joined
-        // bodies only, so this column can no longer be taken. It still goes through measureColumn:
+        // Both loaders' fake-player factories were deleted when the server seam went to JoinedBody
+        // players only, so this column can no longer be taken. It still goes through measureColumn:
         // its pad is built and cleaned as before, and body.factory.identity says unavailable instead
         // of going missing, which would read like a census that lost a column. The two-column runs
         // from before the deletion are the archive this scene was built to leave.
         ctx.record("census.factoryColumnSource", "unavailable/the fake-player factories were deleted (the server-side player entity is always a JoinedBody)");
         ServerPlayerBody factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () -> {
-            throw new IllegalStateException("the fake-player body factories were deleted");
+            throw new IllegalStateException("the fake-player factories were deleted");
         });
 
         // ---- column B: a JoinedBody, minted directly rather than through the seam ----
         // Directly, from a JoinedPlayerBodies of its own, exactly as it was minted while column A
-        // still existed: the census body never shares the seam's cache with the scene bodies, and
+        // still existed: the census player never shares the seam's cache with the scene players, and
         // its readings stay comparable with the archived two-column runs.
         final int jx = ox + COLUMN_GAP;
         ServerPlayerBody joinedAvatar = measureColumn(ctx, "joined", level, jx, floorY, oz, () -> {
@@ -241,7 +242,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         ServerTickWatch factoryWatch = ServerTickWatch.arm("factory", factoryAvatar, ox, floorY, oz);
         ServerTickWatch joinedWatch = ServerTickWatch.arm("joined", joinedAvatar, jx, floorY, oz);
         ctx.await(() -> {
-            // Both, every tick, and NOT `&&` — short-circuiting would stop pumping the second body
+            // Both, every tick, and NOT `&&` — short-circuiting would stop pumping the second player
             // the moment the first finished, and its series would silently be the shorter one.
             boolean a = factoryWatch.pump();
             boolean b = joinedWatch.pump();
@@ -253,15 +254,15 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     }
 
     /**
-     * Take the whole reading set for one body, or say why it could not be taken.
+     * Take the whole reading set for one player entity, or say why it could not be taken.
      *
-     * <p>The factory is a supplier rather than a body because minting is itself one of the things
+     * <p>The factory is a supplier rather than a player because minting is itself one of the things
      * that can fail — {@code placeNewPlayer} runs a great deal of code that assumes a socket, and a
      * census that let that throw would lose the OTHER column too. A column that cannot be built
      * records {@code unavailable/<exception>} for its identity and stops, and the run still carries
      * the column that did build.
      *
-     * @return the body that was measured, so phase 2 can go on asking it questions across real
+     * @return the player that was measured, so phase 2 can go on asking it questions across real
      *         server ticks, or {@code null} if this column could not be minted at all.
      */
     private static ServerPlayerBody measureColumn(SceneContext ctx, String column, ServerLevel level,
@@ -286,8 +287,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             try {
                 fp.discard();
             } catch (RuntimeException ignored) {
-                // A body that cannot leave is a leak worth nothing here: the scene has already
-                // recorded everything it came for, and throwing from a cleanup would convert a
+                // A player that cannot be discarded is a leak worth nothing here: the scene has
+                // already recorded everything it came for, and throwing from a cleanup would convert a
                 // finished census into a failure of the NEXT scene.
             }
         });
@@ -334,11 +335,11 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     }
 
     /**
-     * One body, watched across {@link #SERVER_TICK_SAMPLES} REAL server ticks.
+     * One player entity, watched across {@link #SERVER_TICK_SAMPLES} REAL server ticks.
      *
      * <p><b>What makes this different from every other probe in this file, and why it had to be.</b>
-     * The rest of the census drives the body itself — {@code avatar.step()} in a loop — which is the
-     * right shape for anything the DRIVER is responsible for, and the wrong shape for anything the
+     * The rest of the census drives the player itself — {@code avatar.step()} in a loop — which is
+     * the right shape for anything the DRIVER is responsible for, and the wrong shape for anything the
      * SERVER is responsible for. {@code tickCount}, {@code invulnerableTime} and {@code fallDistance}
      * are all in the second category: they move in {@code ServerPlayer.tick()}, which the server
      * calls from {@code ServerLevel.tickNonPassenger}, and which {@code avatar.step()} never calls.
@@ -348,8 +349,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      *
      * <p>So this phase does the one thing that separates them: it <b>stops driving</b> and lets real
      * ticks pass. Nothing here calls {@code avatar.step()} — deliberately. If the numbers move, the
-     * server is ticking the body and the synchronous zero merely meant "not enough time"; if they
-     * stay at zero through six ticks the body is not on channel one at all, and the empty
+     * server is ticking the player and the synchronous zero merely meant "not enough time"; if they
+     * stay at zero through six ticks the player is not on channel one at all, and the empty
      * {@code tick()} override is the reason. That is the reading the decision on whether that
      * override can be removed needs, and it
      * is the one reading the old shape could never produce.
@@ -381,10 +382,10 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         }
 
         /**
-         * Park the body where the three quantities all have room to move, and latch their start.
+         * Park the player where the three quantities all have room to move, and latch their start.
          *
          * <p>Lifted into the air on purpose: {@code fallDistance} can only be read through an actual
-         * fall, and a body already standing on the pad would give the honest-looking zero that means
+         * fall, and a player already standing on the pad would give the honest-looking zero that means
          * nothing. The lift is 8, which puts the FEET on the top layer of the {@code PAD+1} clear box
          * and the head just above it — the horizontal hull in the header is unchanged, which is the
          * part {@code check_scene_arena.py} scores, and the couple of blocks of headroom sit 20+
@@ -484,7 +485,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     }
 
     /**
-     * The body's class, name, player-list membership, and whether NeoForge would call it a fake.
+     * The player entity's class, name, player-list membership, and whether NeoForge would call it a
+     * fake.
      *
      * <p>{@code isFakePlayer} is asked <b>reflectively against the class name</b> rather than with
      * {@code instanceof}: {@code net.neoforged.neoforge.common.util.FakePlayer} is not on the Fabric
@@ -510,10 +512,10 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     }
 
     /**
-     * Which tick path is actually driving this body — the coordinate a reading cannot be attributed
-     * without.
+     * Which tick path is actually driving this player entity — the coordinate a reading cannot be
+     * attributed without.
      *
-     * <p>The three paths a real player rides are independent, and this body may be on any subset:
+     * <p>The three paths a real player rides are independent, and this player may be on any subset:
      * {@code ServerLevel} → {@code ServerPlayer.tick()} (channel 1), the connection's
      * {@code doTick()} (channel 2), and the packet handlers (channel 3). Membership in
      * {@code level.players()} tells us the level would tick it; whether {@code tick()} is an empty
@@ -538,22 +540,22 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     // ---------------------------------------------------------------- probes
 
     /**
-     * Whether this body's advancement store will accept a write — <b>the retirement's single most
+     * Whether this player's advancement store will accept a write — <b>the retirement's single most
      * load-bearing reading</b>.
      *
      * <p>Asked by actually awarding a criterion and reading the return value, not by inspecting the
-     * body's type. NeoForge's {@code PlayerAdvancements.award} returns {@code false} outright for a
+     * player's type. NeoForge's {@code PlayerAdvancements.award} returns {@code false} outright for a
      * {@code FakePlayer}; the prediction is that a {@code JoinedBody} gets {@code true} from the
      * same call because it is a plain {@code ServerPlayer}. Asking the store is what makes that a
      * measurement rather than a restatement of the prediction.
      *
      * <p>Revoked immediately afterwards: an advancement earned by a census would otherwise leak into
-     * whatever the next scene asserts about progression, and this body's whole point is that it
+     * whatever the next scene asserts about progression, and this player's whole point is that it
      * shares a world with them.
      */
     private static String advancementsWritable(ServerPlayer fp) {
         MinecraftServer server = fp.getServer();
-        if (server == null) return "unavailable/no server on this body";
+        if (server == null) return "unavailable/no server on this player";
         AdvancementHolder holder =
                 server.getAdvancements().get(ResourceLocation.parse("minecraft:story/root"));
         if (holder == null) return "unavailable/story/root not registered in this runtime";
@@ -572,7 +574,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * <p>Five, not one. A single reading cannot tell "never assigned" from "assigned but never
      * decremented", and it is precisely the decrement that is predicted missing: {@code LivingEntity.baseTick} excludes
      * {@code ServerPlayer} from the decrement explicitly, leaving {@code ServerPlayer.tick()} as its
-     * only home — and that is the override this body empties. A flat series is the defect; a
+     * only home — and that is the override this player class empties. A flat series is the defect; a
      * counting-down series is its absence.
      */
     private static String invulnerableTimeSeries(ServerPlayer fp, ServerPlayerBody avatar) {
@@ -615,12 +617,12 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     }
 
     /**
-     * How many of three experience orbs this body actually absorbs.
+     * How many of three experience orbs this player actually absorbs.
      *
      * <p>Three, not one — and that count is the entire design of this probe. {@code
      * ExperienceOrb.playerTouch} only pays out when {@code takeXpDelay == 0} and then sets it back
-     * to 2, while the only decrement lives on a tick path this body does not ride. One orb would be
-     * collected by a healthy body and by a broken one alike, because the first orb is exactly the
+     * to 2, while the only decrement lives on a tick path this player does not ride. One orb would be
+     * collected by a healthy player and by a broken one alike, because the first orb is exactly the
      * one the defect lets through; the difference only appears from the second orb onwards.
      */
     private static String experienceOrbs(ServerLevel level, ServerPlayer fp,
@@ -644,7 +646,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * The pose and hitbox height with sneak off, then held on.
      *
      * <p>The height is recorded rather than only the pose enum, because the pose is a label and the
-     * height is what collides. A body whose pose flips to {@code CROUCHING} while its box stays 1.8
+     * height is what collides. A player whose pose flips to {@code CROUCHING} while its box stays 1.8
      * tall still cannot fit under a slab, and those two readings are what tell that story apart.
      */
     private static String poseSeries(ServerPlayer fp, ServerPlayerBody avatar) {
@@ -672,14 +674,14 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         // is safe, and this probe cannot know that speed — that is one of the things it is here to
         // measure, and the two columns may not share it. The first version of this probe asserted
         // "~0.11 blocks/tick" from nothing; vanilla walking is roughly twice that, which would have
-        // walked the body straight off the pad it measures from. A body that falls reports a
+        // walked the player straight off the pad it measures from. A player that falls reports a
         // displacement that is mostly vertical, AND leaves the next probe (jumpApex) reading its
         // start height in mid-air — two readings corrupted by a rig that walked off its own floor.
         //
         // WALK_TARGET = 2.0 against a pad of solid cells cx-3..cx+3: from the centre at cx+0.5 the
         // last supported foot position is about +3.2, so this stops with a full block of margin.
-        // WALK_TICK_CAP only stops a body that is not moving at all — reaching it is a READING
-        // (recorded below), not a failure, and it is exactly what a body off the tick channel looks
+        // WALK_TICK_CAP only stops a player that is not moving at all — reaching it is a READING
+        // (recorded below), not a failure, and it is exactly what a player off the tick channel looks
         // like. Both columns walk to the same distance, so their walk_one_cm deltas stay comparable
         // in a way that equal tick counts at unequal speeds would not be.
         int ticks = 0;
@@ -705,7 +707,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     }
 
     /** Horizontal distance from the pad centre, ignoring height — the walk probe is bounded on
-     *  this and not on 3D distance, so a body that is falling cannot spend its budget going down. */
+     *  this and not on 3D distance, so a player that is falling cannot spend its budget going down. */
     private static double horiz(ServerPlayer fp, int cx, int cz) {
         double dx = fp.getX() - (cx + 0.5), dz = fp.getZ() - (cz + 0.5);
         return Math.sqrt(dx * dx + dz * dz);
@@ -715,7 +717,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      *  speed — see {@link #walkStat}. */
     private static final double WALK_TARGET = 2.0;
 
-    /** Ceiling on the walk probe, so a body that never moves still ends the probe. Reaching it is
+    /** Ceiling on the walk probe, so a player that never moves still ends the probe. Reaching it is
      *  a recorded reading, not an error. */
     private static final int WALK_TICK_CAP = 60;
 
@@ -772,7 +774,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
     }
 
     /**
-     * How high one commanded jump actually goes, from a body that is standing still.
+     * How high one commanded jump actually goes, from a player that is standing still.
      *
      * <p>Only the plain-block arm is taken here. The honey-block and Jump-Boost arms that would
      * expose the hardcoded {@code 0.42} belong to a scene that asserts, and this one does not: three
@@ -873,7 +875,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
 
     // ---------------------------------------------------------------- rig
 
-    /** A stone pad with clear air over it. Built before the body arrives so nothing generated by
+    /** A stone pad with clear air over it. Built before the player arrives so nothing generated by
      *  the world can be mistaken for the rig. */
     private static void pad(ServerLevel level, int cx, int floorY, int cz) {
         SceneArena.clearBox(level, cx, floorY + 1, cz, PAD + 1, 8);

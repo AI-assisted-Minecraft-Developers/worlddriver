@@ -310,7 +310,7 @@ public final class BboxFillProcess implements BotProcess {
 
     /** Vanilla survival block reach is 4.5 to the nearest face (≈5.0 to the centre, which is what
      *  {@code ServerPlayerBody.canBreakFromHere} asks the game for). This selector buys a whole
-     *  block of margin on purpose: it picks a cell to WALK TO, and the body will not be standing
+     *  block of margin on purpose: it picks a cell to WALK TO, and the bot will not be standing
      *  exactly on that centre when it gets there. Choosing a stand the actuator can only just
      *  reach is how a fill reports a cell placed from a stand it then cannot place from.
      *  (Sneaking would cost another 0.35 of eye height — this process does not sneak, but

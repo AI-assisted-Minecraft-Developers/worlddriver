@@ -266,11 +266,11 @@ public final class WorldDriverCommon {
 
     /**
      * Runs every {@link TestContent} on the classpath. Called by each loader entry during mod
-     * construction, after the body factory is installed and after {@link WorldDriverEvents}
-     * subscribed, so test content registers its registries and events in the same window the
-     * driver's own do. The published jar has no implementation and the loop is empty there.
-     * Discovery goes through this class's loader: on both platforms the testmod is folded into
-     * the driver's own mod, so its service file is visible to exactly this loader.
+     * construction, after the server-side player factory is installed and after
+     * {@link WorldDriverEvents} subscribed, so test content registers its registries and events in
+     * the same window the driver's own do. The published jar has no implementation and the loop is
+     * empty there. Discovery goes through this class's loader: on both platforms the testmod is
+     * folded into the driver's own mod, so its service file is visible to exactly this loader.
      */
     public static void installTestContent() {
         int n = 0;
@@ -316,7 +316,7 @@ public final class WorldDriverCommon {
      * which McpServer converts to a tool isError.
      */
     public static void onServerStopping() {
-        // Every addressable body wraps an entity of the stopping server.
+        // Every addressable bot player wraps an entity of the stopping server.
         net.magicterra.worlddriver.bot.body.BodyRegistry.clear();
         if (api != null) {
             api.detachServer();

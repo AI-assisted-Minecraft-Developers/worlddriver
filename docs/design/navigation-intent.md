@@ -21,7 +21,7 @@ water is a known way to drown.
   Subtracting would let the straight-line heuristic overestimate and A* would stop returning
   optimal paths.
 - **A hard rule** is a `Constraint`, evaluated per edge in the neighbour loop, pruning successors.
-- **What the body is allowed to do** is a capability profile, checked against each move type's
+- **What the bot is allowed to do** is a capability profile, checked against each move type's
   declared requirement.
 - **When to stop and when to replan** belong to the process and the walker.
 
@@ -35,10 +35,10 @@ replaced the per-scenario processes rather than joining them.
 
 A capability gates whole **move types** at the catalogue level: each move declares what it requires,
 and a profile that does not grant it removes that move from consideration everywhere. A constraint
-prunes individual **edges** by position. They look similar and are not interchangeable: "this body
+prunes individual **edges** by position. They look similar and are not interchangeable: "this bot
 cannot parkour" is a statement about the move catalogue, while "do not go into that box" is a
 statement about geometry. Conflating them would mean either expressing a geometric rule as a move
-type or re-checking a body limitation at every cell.
+type or re-checking a limitation of the bot at every cell.
 
 This generalised what had previously been an ad-hoc boolean for suppressing block placement.
 
@@ -63,7 +63,7 @@ to be able to say which it means. That distinction is the reason every route con
 `docs/design/route-selection.md` comes in both strengths.
 
 Hard rules that can be violated at the start of a search all carry a rejoin rule, because otherwise
-a body shoved into a forbidden region has no legal outgoing edge at all. The distance-based ones
+a bot pushed into a forbidden region has no legal outgoing edge at all. The distance-based ones
 measure to the **cell centre**, so that the soft and hard forms of the same rule measure the same
 geometry and do not disagree at the boundary.
 

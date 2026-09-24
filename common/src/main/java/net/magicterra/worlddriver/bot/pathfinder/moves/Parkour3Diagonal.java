@@ -11,7 +11,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
  * {@link net.magicterra.worlddriver.bot.BotConfig#allowParkour4} switch as
  * {@link Parkour4} since this is an even longer reach (~4.24 blocks
  * horizontal) at the absolute edge of sprint-jump physics. Cost 47.
- * Body sweeps the entire 2×2 corner column at foot+head; no stand-able
+ * The player sweeps the entire 2×2 corner column at foot+head; no stand-able
  * cell along the diagonal interior or A* should pick a cheaper
  * walk-and-diagonal chain.
  */
@@ -42,7 +42,7 @@ public final class Parkour3Diagonal extends Move {
         int sx = Integer.signum(dx), sz = Integer.signum(dz);
         // Check every cell in the 2x2 trapezoidal sweep between launch
         // and landing: the diagonal interior cells (1,1) (1,2) (2,1)
-        // (2,2) (2,3) (3,2) — but the corners-only check (cells the body
+        // (2,2) (2,3) (3,2) — but the corners-only check (cells the player
         // physically passes through) is the 3 sequential diagonals
         // (1,1), (2,2), (3,3-skip-it's-dest) plus their adjacent cardinals.
         // Cheap conservative check: every cell in the 3×3 block between

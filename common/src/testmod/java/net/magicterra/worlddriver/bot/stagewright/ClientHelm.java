@@ -21,9 +21,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 
 /**
- * A scene's handle on the client's REAL player: the body the integrated topology exists to test.
+ * A scene's handle on the client's REAL player: the player the integrated topology exists to test.
  *
- * <p>{@link SceneBody} mints headless bodies and refuses to on an integrated server; {@code JourneyRig}
+ * <p>{@link SceneBody} creates headless bot players and refuses to on an integrated server; {@code JourneyRig}
  * adopts the real player but only for the ladder. This is the third shape: an arena scene that stages
  * terrain, puts the real player in it, and drives it through the client's own user-task chain
  * ({@link BotApi#runProcess}) — so the walker under test is the client walker, on the client thread,
@@ -73,9 +73,9 @@ public final class ClientHelm {
         }
         ServerPlayer body = humans.get(0);
         // A dead player is still in the player list until it respawns, and setHealth below does not
-        // revive it: the client stays on its death screen and every leg runs against a body that
+        // revive it: the client stays on its death screen and every walk runs against a player that
         // cannot move. Judged from the server's own view (no client-thread wait), and a failure
-        // rather than a skip — the run set out to drive this body and it is not there to drive.
+        // rather than a skip — the run set out to drive this player and it is not there to drive.
         if (body.isDeadOrDying() || body.isRemoved()) {
             ctx.fail("the client's player is dead (on the death screen) — respawn before running a scene on it");
         }
@@ -129,11 +129,11 @@ public final class ClientHelm {
     }
 
     /**
-     * {@link #sync(int, Runnable)} with a per-tick reader. The server's copy of the body trails the
+     * {@link #sync(int, Runnable)} with a per-tick reader. The server's copy of the player trails the
      * client by however many move packets the server thread has not consumed yet — measured at six
-     * ticks on this box while a scene was staging — so a leg can report itself over before the
-     * server has seen the body land. A watcher that keeps reading through the settle window sees
-     * the landing the leg's own watcher missed. {@code tick} continues from {@code from}.
+     * ticks on this machine while a scene was staging — so a walk can report itself over before the
+     * server has seen the player land. A watcher that keeps reading through the settle window sees
+     * the landing the walk's own watcher missed. {@code tick} continues from {@code from}.
      */
     public void sync(int ticks, int from, TickWatcher watcher, Runnable then) {
         final int[] waited = { 0 };
@@ -147,13 +147,13 @@ public final class ClientHelm {
         sync(ticks, 0, watcher, then);
     }
 
-    /** Something that reads the body on every tick of a leg. */
+    /** Something that reads the player on every tick of a walk. */
     public interface TickWatcher { void tick(int tick); }
 
     /**
      * Run {@code process} on the client's user-task chain and continue when the chain lets go of it
-     * or {@code ticks} run out, whichever is first. One evidence row per leg: where the body stopped,
-     * how far from {@code goal} (when the leg has a point goal), and what the process said about
+     * or {@code ticks} run out, whichever is first. One evidence row per walk: where the player
+     * stopped, how far from {@code goal} (when the walk has a point goal), and what the process said about
      * its ending — never a bare null.
      */
     public void leg(String tag, BotProcess process, BlockPos goal, int ticks, TickWatcher watcher, Runnable then) {
@@ -186,7 +186,7 @@ public final class ClientHelm {
         leg(tag, new IntentProcess(new Intent(goal)), goalFoot, ticks, watcher, then);
     }
 
-    /** Where the body is, with the block under its feet, as one string. */
+    /** Where the player is, with the block under its feet, as one string. */
     public String where() {
         BlockPos at = player.blockPosition();
         return String.format(Locale.ROOT, "stopped at %.2f,%.2f,%.2f (block %s, below feet=%s, onGround=%s, inWater=%s)",
@@ -200,7 +200,7 @@ public final class ClientHelm {
                 goal.toShortString(), flatDistance(goal), player.getY() - goal.getY());
     }
 
-    /** Horizontal distance from the body's centre to the centre of {@code cell}. */
+    /** Horizontal distance from the player's centre to the centre of {@code cell}. */
     public double flatDistance(BlockPos cell) {
         return Math.hypot(player.getX() - (cell.getX() + 0.5), player.getZ() - (cell.getZ() + 0.5));
     }

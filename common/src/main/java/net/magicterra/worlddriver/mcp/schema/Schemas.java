@@ -60,11 +60,12 @@ public final class Schemas {
             "If set, block until the bot slot goes idle (or this many ms elapse), then return "
             + "the final status snapshot. Omit for fire-and-forget.");
     }
-    /** Typed {@code body} option: which body a bot verb addresses. Only the verbs that route by it
-     *  declare it, so the rest reject it as an unknown key. */
+    /** Typed {@code body} option: which bot player a bot verb addresses. Only the verbs that route
+     *  by it declare it, so the rest reject it as an unknown key. */
     public static Schema.Str bodyId() {
         return string().desc(
-            "Which body: 'self' (default, this client's player) or an id from mc.bot.status bodies, "
+            "Which bot player: 'self' (default, this client's player) or an id from the bodies list of "
+            + "mc.bot.status, "
             + "e.g. 'player:alex' or 'npc:guard'.");
     }
     /** A parameterless tool's input schema. */

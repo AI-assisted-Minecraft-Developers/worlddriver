@@ -49,12 +49,12 @@ public final class BotInteract {
 
     private BotInteract() {}
 
-    /** {@link net.magicterra.worlddriver.model.Params#toHand}, which a body on the server reads too. */
+    /** {@link net.magicterra.worlddriver.model.Params#toHand}, which a bot on the server reads too. */
     public static InteractionHand parseHand(Object o) {
         return net.magicterra.worlddriver.model.Params.toHand(o);
     }
 
-    /** {@link net.magicterra.worlddriver.model.Params#toFace}, which a body on the server reads too. */
+    /** {@link net.magicterra.worlddriver.model.Params#toFace}, which a bot on the server reads too. */
     public static Direction parseFace(Object o) {
         return net.magicterra.worlddriver.model.Params.toFace(o);
     }
@@ -80,7 +80,7 @@ public final class BotInteract {
      *  player would naturally hit if they ray-cast at the block. Used when the
      *  caller didn't specify a face.
      *
-     *  <p>The body moved to {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
+     *  <p>The bot moved to {@link BotUtil#faceTowardEye} so the two PROCESSES that need the
      *  same answer can have it without naming this client-only class — see that method for why
      *  their private copies existed and why deleting them did not put a client type on a
      *  dedicated server's class path. This name stays because its callers are all
@@ -141,7 +141,7 @@ public final class BotInteract {
     }
 
     /**
-     * The lowest cell that would stop this body rising {@code rise} blocks, or null if none does.
+     * The lowest cell that would stop this bot rising {@code rise} blocks, or null if none does.
      *
      * <p><b>Here, not in the chain, because of the WIDENING.</b> The scan itself is
      * {@link net.magicterra.worlddriver.bot.movement.WalkerGeometry#riseBlockers}, which takes a
@@ -440,7 +440,7 @@ public final class BotInteract {
         // searches slots 0-8 AND menu slots 9-35 and swaps; ClientWorldView#breakCost
         // reads 0-8 only. Its baseline is bare hand (1f, not-correct); this one's is
         // whatever is currently held. So the planner's estimate is the pessimistic
-        // one, never the optimistic one, and a body with a bag pickaxe out-mines what
+        // one, never the optimistic one, and a bot with a bag pickaxe out-mines what
         // A* budgeted for it. The third member of this family, AutoTool#tick, drops
         // Efficiency entirely and adds a +0.01f anti-oscillation epsilon, so an
         // Efficiency-V wood pick wins here and loses there — deliberate there (it
@@ -547,7 +547,7 @@ public final class BotInteract {
      * bill was 8 — the walker was building its scaffolding out of the very thing the rung existed to
      * collect, and the rung then failed for being two short.
      *
-     * <p>Two passes rather than a ban, because a body holding nothing but logs must still be able to
+     * <p>Two passes rather than a ban, because a bot holding nothing but logs must still be able to
      * place: a fix for waste that can strand a bot on a ledge has bought one bug with another. The
      * hard refusal is still available and still correct where the caller wants it — that is what
      * {@code ensureHoldingPlaceableAny(mc, true)} is for.
@@ -601,7 +601,7 @@ public final class BotInteract {
      * survival {@code swapFromMainInv} tail sits inside the parameterised method, so pass 1 sees
      * cobble sitting in slot 9 exactly as pass 2 would. Its sibling
      * {@link #ensureHoldingPlaceableAny(Minecraft, boolean)} has no such tail at all — in survival
-     * it only ever looks at the nine hotbar slots — so a body whose hotbar holds nothing but logs
+     * it only ever looks at the nine hotbar slots — so a bot whose hotbar holds nothing but logs
      * will fail pass 1 there and spend a log on pass 2 even with cobble in the bag. That asymmetry
      * predates the two passes and is left alone deliberately: giving that method main-inventory
      * reach widens where a survival bot may place, which is a behaviour change wanting its own

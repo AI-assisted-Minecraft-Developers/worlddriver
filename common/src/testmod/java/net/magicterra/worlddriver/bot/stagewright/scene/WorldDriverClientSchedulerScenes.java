@@ -70,8 +70,8 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
     /**
      * Low health, two hostiles in reach and one block of water at a shoreline: the bunker reflex is
      * cornered and bids 300, but will not dig a shaft it stands in water over. It must bail out of
-     * the bid so the retreat reflex (100) gets the body, instead of re-bidding 300 on every tick and
-     * holding the bot still in front of the mobs.
+     * the bid so the retreat reflex (100) gets control of the bot, instead of re-bidding 300 on
+     * every tick and holding the bot still in front of the mobs.
      */
     private static void bunkerBailHandsToRetreat(SceneContext ctx) {
         for (int dx = -12; dx <= 12; dx++)

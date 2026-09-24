@@ -30,7 +30,7 @@ import net.minecraft.world.level.block.Blocks;
  * rather than private.
  *
  * <p>{@link JourneyForge} holds the mould's geometry and the rules about where it may go; this
- * holds the body's half of it — hollow an alcove under the lake, then make ten round trips between
+ * holds the bot's half of it — hollow an alcove under the lake, then make ten round trips between
  * a pool twelve blocks up and a cell that is cut open one at a time.
  *
  * <p>The route those trips are walked on is no longer here: {@link JourneyStairwell} cuts the
@@ -147,7 +147,7 @@ public final class JourneyPortalRung {
         return lava.getY() - JourneyForge.BELOW_LAVA;
     }
 
-    /** Every cell the alcove was hollowed out of — the space the body walks in, and nothing else.
+    /** Every cell the alcove was hollowed out of — the space the bot walks in, and nothing else.
      *  {@link #clearPourLine} is allowed to break inside this and nowhere else, which is what stops
      *  a blocked pour from answering by digging a hole in the mould's own floor. */
     static Set<BlockPos> forgeCorridor = Set.of();
@@ -180,7 +180,7 @@ public final class JourneyPortalRung {
     /**
      * Where the opening walk aims — the bank, not the pool.
      *
-     * <p>This leg used to be handed {@code XZ(lava.x, lava.z)}, the lake's own centre column, and
+     * <p>This walk used to be handed {@code XZ(lava.x, lava.z)}, the lake's own centre column, and
      * <b>it has never once arrived</b>: every archived rehearsal that carries the row reads
      * {@code lava.gotoEnd.1 = end=failed:…}, six of six, and {@code ARRIVED_WITHIN} passed each of
      * them off as an arrival because the wreck was inside five blocks of the goal. The two shapes
@@ -192,16 +192,16 @@ public final class JourneyPortalRung {
      * </pre>
      *
      * <p>The first is the crater's lip: {@code footing guard: sole 0.0000 … beside a lethal drop}
-     * sneak-pins the body and vanilla then shrinks every horizontal move to nothing, so the three
-     * legs of {@code stepOntoDiggableColumn} that follow are three identical questions from one
+     * pins the bot in a sneak and vanilla then shrinks every horizontal move to nothing, so the three
+     * walks of {@code stepOntoDiggableColumn} that follow are three identical questions from one
      * cell. The second is worse and needs no guard to explain it — {@code expanded=1} is a start
      * node the pathfinder judges lethal, at the lava's own row, so nothing downstream can plan at
      * all: that run died 206 ticks in with the back-off itself unable to move
      * ({@code shaft.backOff.2} recorded -12, 63, 20: it tried to back off to -16,24 and got no
      * further than that).
      *
-     * <p>Both are the same mistake, and it is not a tolerance: <b>the destination was a cell no body
-     * can occupy</b>, so where the leg ended was decided by how the walker gave up. Naming a bank
+     * <p>Both are the same mistake, and it is not a tolerance: <b>the destination was a cell no player
+     * can occupy</b>, so where the walk ended was decided by how the walker gave up. Naming a bank
      * cell instead makes the landing a choice, and {@link JourneyTerrain#bankStandNear} makes it
      * with the same lip rule the loading station is already chosen by.
      *
@@ -249,7 +249,7 @@ public final class JourneyPortalRung {
         BlockPos bank = pinTheApproach(ctx, rig, lava);
         JourneyStairwell.lavaPool = lava;
         // THE ROUTE, not only its end. See JourneyTerrain#poolsLipCells: a chosen bank cell did not
-        // stop the walker planning along the rim and pinning the body on it, because a destination
+        // stop the walker planning along the rim and pinning the bot on it, because a destination
         // cannot steer a path. The set is built on the server thread; the search's own thread only
         // ever does a hash lookup against an immutable set.
         JourneyTerrain.RimTax tax = JourneyTerrain.avoidTheRim(ctx.level(), lava);
@@ -266,7 +266,7 @@ public final class JourneyPortalRung {
             Map<String, Integer> rejected = new java.util.LinkedHashMap<>();
             // The rehearsal's staged column/side, both null on every climb — see
             // JourneyRehearsal#stagedShaftColumn. The mould's orientation is decided HERE and nowhere
-            // earlier, which is why staging the body's stand never turned it. A pinned column bypasses
+            // earlier, which is why staging the bot's stand never turned it. A pinned column bypasses
             // the search outright, because the column a ladder actually used can be one this search
             // cannot reach: it rings outward from r=2 and the climb of 2026-08-16 used r=1.
             BlockPos pinned = JourneyRehearsal.stagedShaftColumn;
@@ -332,7 +332,7 @@ public final class JourneyPortalRung {
     /**
      * Hollow the alcove the casting is done from, and the twelve cells of the frame in its far wall.
      *
-     * <p>The face is put on the side of the body AWAY from the pool, so that nothing carved opens
+     * <p>The face is put on the side of the bot AWAY from the pool, so that nothing carved opens
      * into lava — the one mistake down here that ends the run rather than costing it a retry.
      */
     private static void carveTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava, int surfaceY) {
@@ -343,8 +343,8 @@ public final class JourneyPortalRung {
                                       int deepenings) {
         BlockPos at = rig.player().blockPosition();
         // The staircase's own direction, not a fresh guess. They are the same axis by construction —
-        // the stairs ran away from the pool and the body is standing at their foot — but saying so
-        // once removes the case where a body that stopped a cell short computes the OTHER axis and
+        // the stairs ran away from the pool and the bot is standing at their foot — but saying so
+        // once removes the case where a bot that stopped a cell short computes the OTHER axis and
         // carves the mould back across its own way home.
         Direction away = JourneyStairwell.stairDir;
         rig.evidence("forge.away", away + " (the staircase's direction; seen from the lava, this"
@@ -460,7 +460,7 @@ public final class JourneyPortalRung {
                       + " would not break — see carve.stuck; the alcove is incomplete");
             // HOW MANY NEEDED A ROUTE AT ALL. `forge.carved` counts cells and cannot tell a carve
             // that walked to all of them from one that walked to none, and those are different
-            // machines with different failure modes — the walk is what pillared the body onto the
+            // machines with different failure modes — the walk is what pillared the bot onto the
             // surface on 2026-08-16. A run where this number is near zero has NOT taken the fix.
             rig.evidence("forge.swung", (rig.swungInPlace() - swungBefore) + "/" + todo.size()
                     + " cells were broken in place (canBreak was already true, so no walk was needed)");
@@ -562,16 +562,16 @@ public final class JourneyPortalRung {
      * Why the first corridor cell that would not open did not open.
      *
      * <p>{@code carve.stuck} has counted these for several runs and cannot say a word about the
-     * cause: a cell the body never got near, a cell it stood next to and ran out of budget on, and a
+     * cause: a cell the bot never got near, a cell it stood next to and ran out of budget on, and a
      * cell walled in on all six faces all arrive as the same coordinate in the same list. They want
      * completely different work — a different carve ORDER, a bigger number, a different standing spot
      * — so the list on its own can only support guesses, and this rung has paid for guesses before.
      *
      * <p>Three readings separate them, and they are the same three {@link #noteCellDig} uses on the
-     * frame: how far the body was, what {@code canBreak} said, and how many of the six neighbours are
-     * full solid faces. {@code canBreak=false} with 6/6 solid is the walled-in clause and an ordering
-     * problem; {@code canBreak=false} at range is a body that never arrived; {@code canBreak=true}
-     * beside the cell is a budget that ran out.
+     * frame: how far away the bot was, what {@code canBreak} said, and how many of the six neighbours
+     * are full solid faces. {@code canBreak=false} with 6/6 solid is the walled-in clause and an
+     * ordering problem; {@code canBreak=false} at range is a bot that never arrived;
+     * {@code canBreak=true} beside the cell is a budget that ran out.
      *
      * <p>The first only. Twelve of these would bury the one that matters, and they are consecutive
      * cells of one wall — whatever stopped the first almost certainly stopped its neighbours.
@@ -596,7 +596,7 @@ public final class JourneyPortalRung {
                 BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()), around));
     }
 
-    /** Stuck cells summarised by height above the body's floor — the shape of the failure matters
+    /** Stuck cells summarised by height above the bot's floor — the shape of the failure matters
      *  more than the coordinates, because "everything above y+3" and "one awkward corner" want
      *  completely different fixes. */
     private static String describeStuck(JourneyRig rig, List<BlockPos> stuck) {
@@ -628,10 +628,10 @@ public final class JourneyPortalRung {
      */
     private static void castTheFrame(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
                                      BlockPos lava, int surfaceY) {
-        // Searched around the SURVEYED lava, not around the body — and that is the fix for a run
+        // Searched around the SURVEYED lava, not around the bot — and that is the fix for a run
         // that reported zero sources while standing in a chamber it had just carved. The shaft column is
         // chosen up to eight cells clear of the pool (it must not open into it), and then the alcove
-        // is carved further away again, so by the time the casting starts the body can be a dozen
+        // is carved further away again, so by the time the casting starts the bot can be a dozen
         // blocks from the lava it came down for. The caller knows where the pool is; ask there.
         BlockPos here = rig.player().blockPosition();
         List<BlockPos> pool = JourneyTerrain.lavaSourcesNear(ctx.level(), lava, 16, here);   // may be widened below
@@ -640,7 +640,7 @@ public final class JourneyPortalRung {
                         + Math.round(Math.sqrt(pool.get(0).distSqr(here))) + " blocks from the bot"));
         // Widen before giving up. firstLava is the OBSIDIAN rung's fill point and a bucket takes the
         // source block itself, so the surveyed cell can simply be gone by now — measured, zero
-        // sources within sixteen of it. The body is already standing at lava level with its chunks
+        // sources within sixteen of it. The bot is already standing at lava level with its chunks
         // loaded, which is the one moment a wider look is cheap, so ask again from here before
         // declaring the rung impossible.
         if (pool.size() < RING.length) {
@@ -789,7 +789,7 @@ public final class JourneyPortalRung {
         rig.evidence("frame.roll." + i, "starting " + cell.toShortString() + " (water cell "
                 + wet.toShortString() + "); cast so far " + frameCast.size() + "/" + RING.length
                 + ", lost after casting " + frameLosses);
-        // What the rung has left to dig with, per cell. A snapped pickaxe and a cell the body cannot
+        // What the rung has left to dig with, per cell. A snapped pickaxe and a cell the bot cannot
         // reach produce the same line — `opened.N=…=stone` — and they want opposite fixes. The kit is
         // two stone pickaxes (262 uses) on purpose, and this rung breaks roughly a hundred cells plus
         // whatever the ten descents re-mine, so "the tool ran out on cast eight" is a live possibility
@@ -854,7 +854,7 @@ public final class JourneyPortalRung {
      * {@code FallingBlock} and nothing fell; the dig simply failed, and the line named a mechanism
      * instead of saying so.
      *
-     * <p><b>The body stands in the corridor first.</b> {@code ServerWorldDriver.mine} is
+     * <p><b>The bot stands in the corridor first.</b> {@code ServerWorldDriver.mine} is
      * {@code walker.setGoal(Near(cell, 2))} with breaking on, and a walker asked to get near a cell
      * in a wall will happily tunnel through the wall — which here is the mould. That is what the same
      * run did: it ended at {@code -10,59,34}, and {@code -10,59,34} is not a corridor cell at all, it
@@ -907,7 +907,7 @@ public final class JourneyPortalRung {
      * during the step that opened water cell -10,61,38 ({@code wet.9}), with the bot at -10,57,38.
      * The step is a dig of the NOTCH; the cell it cost is the
      * top-left ring cell two rows below it; and {@code -10,57,38} is not a corridor cell at all, it
-     * is an interior cell of the portal's own doorway. The body was inside the mould, having eaten
+     * is an interior cell of the portal's own doorway. The bot was inside the mould, having dug
      * its way up through it, exactly as {@link #reopen}'s note describes — and the audit is what
      * turned that from "four cells are missing" into one instruction with a coordinate.
      *
@@ -927,7 +927,7 @@ public final class JourneyPortalRung {
     }
 
     /**
-     * Put the body in the corridor cell directly behind {@code cell} before digging it.
+     * Put the bot in the corridor cell directly behind {@code cell} before digging it.
      *
      * <p>Behind, because that cell is in {@link #forgeCorridor} by construction — the corridor is the
      * two ranks between the shaft and the frame plane, and every frame cell's own dx is inside the
@@ -939,7 +939,7 @@ public final class JourneyPortalRung {
      * The corridor is hollowed from the alcove floor to its ceiling, so the cell behind a frame cell
      * is standable for the BOTTOM row and for nothing above it: behind {@code -11,58,38} is
      * {@code -11,58,37}, which is air over {@code -11,57,37}, which is corridor and therefore also
-     * air. Sending the body there anyway is what the first version did, and it measurably made the
+     * air. Sending the bot there anyway is what the first version did, and it measurably made the
      * rung worse — the rehearsal that had been reaching cast 9 stopped at cell 5, having spent the
      * walk's whole budget failing to stand in mid-air and then digging from wherever that left it.
      *
@@ -954,16 +954,16 @@ public final class JourneyPortalRung {
      * both corridor cells for every row above the floor. Whichever of the two already has something
      * under it is walked to. When neither does, a single cobblestone goes into the lower one's own
      * support, which is a corridor cell resting on the untouched rock below the alcove floor, and the
-     * body steps up exactly one block onto it — ordinary walking, no tower, no drift.
+     * bot steps up exactly one block onto it — ordinary walking, no tower, no drift.
      *
      * <p>That covers the frame's bottom three rows and stops there, on purpose. A cell four or five
      * rows up would need two or three blocks arranged as STAIRS, not stacked: a filled column is a
-     * wall the body cannot climb, and building a staircase in a corridor is a different piece of work
+     * wall the bot cannot climb, and building a staircase in a corridor is a different piece of work
      * from placing one block. Those rows keep {@code mine}'s own goal and get told, by name, how many
      * blocks short they were — which is the reading the next attempt should start from rather than
      * the silence that was there before.
      *
-     * <p>Best effort throughout. A body that cannot get there still gets its dig attempted from
+     * <p>Best effort throughout. A bot that cannot get there still gets its dig attempted from
      * wherever it is, and {@link #noteCellDig} reports the geometry if it was not.
      */
     private static void standBehind(JourneyRig rig, String tag, BlockPos cell, Direction away,
@@ -984,20 +984,20 @@ public final class JourneyPortalRung {
         // THE JUDGE'S RADIUS, NOT ONLY THE EXECUTOR'S. {@code withinDigReach} is the executor's:
         // DIG_ARRIVE exists to match the {@code Goal.Near(cell, 2)} that mineCellOrGiveUp walks.
         // But what decides whether a swing lands is {@code Body.canBreak}, an eye-distance test
-        // with a ceiling of 5.0 — so asking only the tighter number sends a body that could already
+        // with a ceiling of 5.0 — so asking only the tighter number sends a bot that could already
         // swing off to build a staircase it does not need.
         //
         // Measured, rung 12's client rehearsal of 2026-08-26. The stand for the ninth cell was
         // refused at 2,58,20 for being 3.00 from 4,60,19 — an eye distance of roughly 2.4, well
-        // inside canBreak. The ramp that followed then skipped its own flight (the body was already
+        // inside canBreak. The ramp that followed then skipped its own flight (the bot was already
         // six rows up, in a different column), so every later swing came from the surface:
         // three attempts at 0,65,19 / 4,64,19 / 3,65,18, eye distances 7.36 / 5.13 / 6.61 against a
         // ceiling of 5.00, all canBreak=false, and the cell never opened. The nearest miss was
         // 0.13 blocks. Walking is what turned 2.4 into 5.13 — the same shape as the carve's own
-        // finding that its walking leg opened ZERO cells (see JourneyRig#mineCellOrGiveUp).
+        // finding that its walking step opened ZERO cells (see JourneyRig#mineCellOrGiveUp).
         //
         // The server avatar on purpose: it is the one breakItWhereItStands itself asks, so this
-        // gate and the swing it green-lights cannot disagree. Costless when it refuses — the body
+        // gate and the swing it green-lights cannot disagree. Costless when it refuses — the bot
         // falls through to exactly the stand-finding it would have done anyway.
         if (rig.body().avatar().canBreak(cell)) {
             rig.evidence(tag + ".swingFromHere", cell.toShortString() + " is reachable in place: bot at "
@@ -1014,7 +1014,7 @@ public final class JourneyPortalRung {
         // TAKE BACK WHAT THE DIG ITSELF PUT HERE, one cell, before deciding this stand is impossible.
         //
         // `MineProcess` reaches a cell above head height by pillaring, and it pillars with
-        // `JourneyShaft.pillarBlock` — whichever of seven spoils the body carries MOST of. Every
+        // `JourneyShaft.pillarBlock` — whichever of seven spoils the bot carries MOST of. Every
         // rehearsal is handed `cobblestone×64`, so for thirty runs that was cobblestone and
         // `tidyTheAlcove` swept it. A real climb arrives with what eleven rungs left: the ladder run
         // of 2026-08-15 arrived holding DIRT, and its first frame cell then read `canBreak=false`
@@ -1045,7 +1045,7 @@ public final class JourneyPortalRung {
 
         // One block, and only where it can rest on something. `lower`'s own support is the corridor
         // cell at the alcove's floor level, whose floor is the untouched rock the alcove was cut
-        // into — so this is a step, not the first course of a pillar the body would then have to
+        // into — so this is a step, not the first course of a pillar the bot would then have to
         // climb. Anywhere else and the honest answer is "not enough blocks", which is what it says.
         BlockPos step = lower.below();
         String whyStep = whyNotStep(level, step, here);
@@ -1064,7 +1064,8 @@ public final class JourneyPortalRung {
                     () -> walkToStand(rig, tag, cell, lower, then));
             return;
         }
-        // Both bodies — `placeInto` places through the server. See JourneyHands.holdBoth.
+        // Both players (client and server-side) — `placeInto` places through the server. See
+        // JourneyHands.holdBoth.
         boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, step);
         // THE WORLD, not the call. A placement can be refused for reasons the caller cannot see, and
@@ -1080,7 +1081,7 @@ public final class JourneyPortalRung {
         walkToStand(rig, tag, cell, lower, then);
     }
 
-    /** Walk to a chosen stand and say where the body actually ended up — a walk that fell short and
+    /** Walk to a chosen stand and say where the bot actually ended up — a walk that fell short and
      *  a walk that arrived produce identical digs otherwise, and only one of them is a bug. */
     private static void walkToStand(JourneyRig rig, String tag, BlockPos cell, BlockPos spot,
                                     Runnable then) {
@@ -1112,7 +1113,7 @@ public final class JourneyPortalRung {
     }
 
     /**
-     * Why the body cannot stand in {@code spot}, in the words of the clause that refused it — or
+     * Why the bot cannot stand in {@code spot}, in the words of the clause that refused it — or
      * null when it can.
      *
      * <p>Four clauses, and the message used to name one of them for all four:
@@ -1200,7 +1201,7 @@ public final class JourneyPortalRung {
     }
 
     /**
-     * Take the body's own scaffolding back out of the alcove before it pours into it.
+     * Take the bot's own scaffolding back out of the alcove before it pours into it.
      *
      * <p>{@code allowPlace} is off for the whole casting phase and the alcove fills with cobblestone
      * anyway, because the placer is not the pathfinder: {@code MineProcess} reaches a cell above head
@@ -1227,7 +1228,7 @@ public final class JourneyPortalRung {
      * {@code -9,56,36=gravel}, {@code -8,57,36=gravel}, and from cast six onward
      * {@code drain.6} reported fluid still present after waiting 200 ticks, with -7,56,36 = water —
      * the very cell the gravel had been
-     * cleared from. With the alcove wet three casts earlier than before, the body then floated in it
+     * cleared from. With the alcove wet three casts earlier than before, the bot then floated in it
      * ({@code climb.4…10 = -7,56,36 onGround=false water=true}) and the top-row pours failed on their
      * own flooded line. The two runs before the widening reported {@code drain.0…6} as the alcove
      * having drained.
@@ -1237,7 +1238,7 @@ public final class JourneyPortalRung {
      * {@link #forgeStuck} baseline and without touching the floor. See its note for the ladder run
      * that could not open its first frame cell because {@code 7,56,19} had been pillared full of dirt.
      *
-     * <p>Top down, so each cell is adjacent to air when its turn comes and the body simply rides the
+     * <p>Top down, so each cell is adjacent to air when its turn comes and the bot simply rides the
      * column down as it goes.
      */
     private static void tidyTheAlcove(SceneContext ctx, JourneyRig rig, String tag, Runnable then) {
@@ -1255,7 +1256,7 @@ public final class JourneyPortalRung {
                 litter.add(c.immutable());
         if (litter.isEmpty()) { then.run(); return; }
         litter.sort((a, b) -> b.getY() - a.getY());
-        // WITH THE BLOCK, now that it is no longer cobblestone by definition. What the body pillars
+        // WITH THE BLOCK, now that it is no longer cobblestone by definition. What the bot pillars
         // with is whatever it happens to be carrying most of, so the id is the reading that says
         // which spoil this climb arrived on — and it is the one that would have named `dirt` in the
         // run above instead of leaving the corridor silently full of it.
@@ -1304,7 +1305,7 @@ public final class JourneyPortalRung {
      * run, from somewhere else entirely. On the ladder run of 2026-08-12 it printed
      * {@code end=collect swept everything it could reach (broke 64/64 …)} beside a cell that had
      * never been touched, which reads as a dig that succeeded 64 times and failed once. What replaces
-     * it is the geometry of THIS dig: where the body stood, and whether that was even a cell the rung
+     * it is the geometry of THIS dig: where the bot stood, and whether that was even a cell the rung
      * hollowed — the run above ended inside the portal's own doorway and the line could not say so.
      */
     private static void noteCellDig(JourneyRig rig, String tag, BlockPos cell, Direction away) {
@@ -1363,7 +1364,7 @@ public final class JourneyPortalRung {
             return;
         }
         // A water bucket is what this cell is about to spend. Say so before spending the walk: the
-        // recover fill one cell back is best-effort, so a body that lost the water arrives here with
+        // recover fill one cell back is best-effort, so a bot that lost the water arrives here with
         // an empty bucket, places nothing, pours lava into a dry cell and reports "cast.missed" —
         // which reads as a casting bug and is really a fill that failed a cell ago.
         if (rig.carrying("minecraft:water_bucket") < 1) {
@@ -1535,7 +1536,8 @@ public final class JourneyPortalRung {
             then.run();
             return;
         }
-        // Both bodies — `placeInto` places through the server. See JourneyHands.holdBoth.
+        // Both players (client and server-side) — `placeInto` places through the server. See
+        // JourneyHands.holdBoth.
         boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
         if (held) JourneyStairs.placeInto(level, rig, backing);
         // THE WORLD, not the call. Same reason the step and the stair mend read it back: a placement
@@ -1556,14 +1558,14 @@ public final class JourneyPortalRung {
      *
      * <p>A cast pours water into {@code wet} from a row {@link JourneyPour#standLevelWith} verified, then
      * fetches lava and pours THAT into the cell below — and the pour's own walk is free to drop the
-     * body to whatever cell has a floor, which in a hollow alcove is seven rows down. From there the
+     * bot to whatever cell has a floor, which in a hollow alcove is seven rows down. From there the
      * line to the water goes straight through the obsidian that was just cast into the cell between
      * them, and the fill's answer to a blocked line used to be to mine the blocker: measured,
      * {@code recover9.clearedLine.3} reported obsidian at -10,60,38 standing between the eye and
      * -10,61,38, and broke it. {@link JourneyFill} no longer does that; this is the other half, which is giving
      * it a line that is not blocked in the first place.
      *
-     * <p><b>Only when the body cannot already see water</b>, and that is a measurement rather than a
+     * <p><b>Only when the bot cannot already see water</b>, and that is a measurement rather than a
      * geometry rule. The same {@code SOURCE_ONLY} clip the bucket runs is asked first, so on every
      * cell whose recover already works this is a no-op and cannot perturb it — which matters,
      * because a single-bucket rehearsal casts all ten today and the top pair is the only geometry
@@ -1572,7 +1574,7 @@ public final class JourneyPortalRung {
      * <p>It raises through {@link JourneyPour#raiseTo} and <b>not</b> through {@link JourneyPour#standLevelWith}, and that
      * distinction cost a run's worth of confusion on its own: {@code standLevelWith}'s gate is
      * {@code standToPour}, so it answered "a pour spot exists" to a question about a scoop and
-     * skipped the raise, leaving a {@code recover8.rise} row above a body that never moved.
+     * skipped the raise, leaving a {@code recover8.rise} row above a bot that never moved.
      *
      * <h2>A height is not a column</h2>
      *
@@ -1582,18 +1584,18 @@ public final class JourneyPortalRung {
      * {@link JourneyFill#fillFrom} prints when the identical {@code SOURCE_ONLY} clip finds a source
      * in reach, and {@code recover6} printed {@code .spot} instead — the not-in-reach branch — from a
      * call made in the same tick, through {@code then.run()}, with nothing in between that could move
-     * the body. So the clip above answered <i>null</i> for cell six, the raise was skipped anyway, and
+     * the bot. So the clip above answered <i>null</i> for cell six, the raise was skipped anyway, and
      * the only remaining exit is the height one. No {@code .rise} row exists in that run at all.
      *
-     * <p>What the height gate could not see is that the body was in the WRONG COLUMN. Cell six casts
+     * <p>What the height gate could not see is that the bot was in the WRONG COLUMN. Cell six casts
      * {@code 4,59,18} and its water sits in the interior cell beside it, {@code 4,59,19}; the pour's
-     * own flight left the body at {@code 3,58,18} — {@code wantY} exactly, one column north of the
+     * own flight left the bot at {@code 3,58,18} — {@code wantY} exactly, one column north of the
      * water — and from there the line to the water is a DIAGONAL that has to squeeze past the cell
      * the cast has just turned to obsidian. It does not:
      * {@code recover6.aimsAt} recorded obsidian at 4,59,18, not a source block, while aiming for
      * 4,59,19; and {@code standToFill} refuted the very same cell from its centre, counting one ray
      * stopped by obsidian — so this is not an artefact of where in its cell
-     * the body happened to be standing.
+     * the bot happened to be standing.
      *
      * <p>The column that works is the one directly behind the water, {@code 3,·,19}: from there the
      * ray is axis-aligned and cannot clip a neighbour. {@code standToFill} cannot offer it, because it
@@ -1720,7 +1722,7 @@ public final class JourneyPortalRung {
                 // SETTLE FIRST, THEN AIM, THEN PREDICT AND USE — all from one eye. The order was the
                 // other way round here long after `JourneyFill.scoop` was fixed for exactly this, and
                 // the pour is where it still cost cells. `aimAtBlock` stores an ANGLE computed from
-                // wherever the eye was; these two ticks are the ticks a body falls in.
+                // wherever the eye was; these two ticks are the ticks a player falls in.
                 //
                 // Measured, single-bucket rehearsal 2026-08-17, cell ten, approach three:
                 // `cast9.fromHere.3` aimed in place from -9,57,36 at -10,60,39 with the fluid due to
@@ -1728,7 +1730,7 @@ public final class JourneyPortalRung {
                 // of eye height between the
                 // decision and the shot, and the ray duly entered the frame's plane one row low.
                 // Approach two then repeated it inside one cell: same block position both times, the
-                // body floating in the alcove's own water, and the two rays still disagreed — sub-cell
+                // bot floating in the alcove's own water, and the two rays still disagreed — sub-cell
                 // motion, which is why the eye is now printed to the centimetre on both rows.
                 //
                 // So the aim is decided here, after the last settle, by the same closed loop
@@ -1737,7 +1739,7 @@ public final class JourneyPortalRung {
                 BlockPos settled = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away,
                         tag + "." + tries + ".settled");
                 BlockPos at = settled != null ? settled : planned;
-                // BOTH bodies: the gate below rays the CLIENT one, but the server's aim is owed to
+                // BOTH players: the gate below rays the CLIENT one, but the server's aim is owed to
                 // every other server-side predicate this rung runs (see JourneyHands.aimBoth), and
                 // the stakes are the same, because this gate's failure branch runs clearPourLine,
                 // which mines.
@@ -1748,9 +1750,9 @@ public final class JourneyPortalRung {
                 // the wrong cell is indistinguishable from a pour that did not work, which is the
                 // shape of the last three rounds of this rung's investigation. `pourInto` has had
                 // this instrument for a while; the ten casts that matter never did.
-                // THE CLIENT'S RAY, because the client is the body that fires. This read
+                // THE CLIENT'S RAY, because the client player is the one that fires. This read
                 // `aimedAt(rig.player(), …)` — the SERVER's — until ladder5, and rung 12 cell 4 is what
-                // that cost: the bodies stood 0.06 blocks apart, the two rays picked different faces
+                // that cost: the two players stood 0.06 blocks apart, the two rays picked different faces
                 // (client `4,56,21 west`, server `4,56,22 up`), the gate cleared the server's, and the
                 // cell check afterwards read `air`. The outcome names the client's line — the server's
                 // would have dropped lava into `4,57,22` beside the water source at `4,57,21` and made
@@ -1779,13 +1781,13 @@ public final class JourneyPortalRung {
                 // clip vanilla is about to do, so it is a PREDICTION and not a heuristic — which is
                 // why it replaced a distance test: "within arm's length of the backing's centre" was
                 // the first guard here and it rejected a pour at 4.4 m that would have worked, three
-                // times, from a body that never moved between attempts. What actually decides the
+                // times, from a bot that never moved between attempts. What actually decides the
                 // outcome is which cell the fluid lands in, and that is knowable exactly.
                 if (lands == null || !lands.equals(target)) {
                     if (tries > 1) {
                         // Clear the line before asking again, because asking again on its own is a
                         // retry that changes nothing: standToPour is deterministic in the world it
-                        // reads, so three approaches from a body that only moved a block or two get
+                        // reads, so three approaches from a bot that only moved a block or two get
                         // three identical answers. What changes is the world — and the thing in the
                         // way is a block in a corridor the rung hollowed out itself.
                         clearPourLine(ctx, rig, target, away, tag + ".clear" + tries,
@@ -1797,13 +1799,13 @@ public final class JourneyPortalRung {
                     // differ whenever the settled re-ask moved the aim, and quoting the stale one
                     // sends the reader to a geometry that was never fired.
                     //
-                    // WHERE THE BODY IS RELATIVE TO THE STAND IT CHOSE, first, because that is the
+                    // WHERE THE BOT IS RELATIVE TO THE STAND IT CHOSE, first, because that is the
                     // answer in every run this verdict has been read in and it was the one thing the
                     // verdict did not say. It used to open with the pour line, and a pour line is a
                     // list of what is in the way — so a reader who trusts it goes looking for who put
                     // a block there. Rung 12 of the 2026-08-27 ladder cost a full round exactly that
                     // way: the line named dirt at `1,60,20`, the dirt turned out to be native terrain,
-                    // and the actual story was that the body stood at `0,59,20` while the stand it had
+                    // and the actual story was that the bot stood at `0,59,20` while the stand it had
                     // picked was `3,59,20` — three cells and two rows away, so no geometry computed at
                     // the stand described the shot that was fired. The line stays, at the end, where a
                     // secondary reading belongs.
@@ -1854,8 +1856,8 @@ public final class JourneyPortalRung {
                 java.util.function.Supplier<Integer> stock = () -> rig.carrying(
                         BuiltInRegistries.ITEM.getKey(held).toString());
                 int before = stock.get();
-                // Both bodies, at the instant of the use — the only moment at which the two halves
-                // of a use can be compared. Everything else this rung records is one body at one
+                // Both players, at the instant of the use — the only moment at which the two halves
+                // of a use can be compared. Everything else this rung records is one player at one
                 // moment: `.picks` is the SERVER's ray (and it was right all along), `.result` is
                 // the CLIENT's own return value, `.spent` is the SERVER after a round trip. The
                 // question they could not answer between them is what the SERVER was holding when
@@ -1863,7 +1865,7 @@ public final class JourneyPortalRung {
                 // THE HAND, RE-ASSERTED AFTER THE LAST SETTLE — for the same reason the aim is.
                 // `holdForUse` ran forty lines and ten ticks ago, upstream of the plant clearing and
                 // of the settle, and ladder-11 cell six is the run where that gap mattered: both
-                // bodies read `lava_bucket` at the hold and both read `dirt` at the use. See
+                // players read `lava_bucket` at the hold and both read `dirt` at the use. See
                 // JourneyHands.actingHolds for the mechanism (the raise's tower holds dirt, which
                 // pushes the bucket out of the hotbar and turns the next hold into a two-author swap).
                 //
@@ -2045,7 +2047,7 @@ public final class JourneyPortalRung {
 
     /** How far back along its own line a pour may look. Three, which is one more than the usual
      *  {@code push} and one less than {@code standToPour}'s reach — far enough to cover the cells a
-     *  body standing in the corridor sees through, short of the alcove's back wall. */
+     *  bot standing in the corridor sees through, short of the alcove's back wall. */
     static final int POUR_LINE = 3;
 
     /** The cells the ray goes through on its way to the backing, and what is standing in them.
@@ -2053,8 +2055,8 @@ public final class JourneyPortalRung {
      *  <p><b>Four rows</b> ({@code dy} −1..+2), the same window {@link #clearPourLine} clears and
      *  for the same reason — this row has to name every cell that method could be asked about, or a
      *  blocker at {@code dy=+2} shows up as a clear line here and an unexplained refusal there. One
-     *  below the target is where the body's feet go, the target's own is where the ray travels, and
-     *  TWO above because the cast's own water floats the body a block higher by the third cell.
+     *  below the target is where the bot's feet go, the target's own is where the ray travels, and
+     *  TWO above because the cast's own water floats the bot a block higher by the third cell.
      *
      *  <p>Naming which cell is not clear is the difference between "the pour does not work" and
      *  "there is a cobblestone at -9,52,22". */
@@ -2196,7 +2198,7 @@ public final class JourneyPortalRung {
         rig.evidence("frame.obsidian", cast + "/" + RING.length);
         // Reported on the way past whether or not it ever fired. A guard that only speaks when it
         // trips cannot be told apart from a guard that was never wired up, and this one has to
-        // survive twenty legs of a rung nobody watches.
+        // survive twenty steps of a rung nobody watches.
         rig.evidence("stairs.audit", "self-check " + JourneyStairs.tally()
                 + ", at the end of casting " + JourneyStairs.report(level));
         if (cast < RING.length) {
@@ -2249,7 +2251,7 @@ public final class JourneyPortalRung {
             for (int iy = 1; iy <= 3; iy++) interior.add(frameCell(base, away, ix, iy));
 
         // DAM FIRST. Clearing a cell that something is still pouring into buys one tick of air.
-        // Both bodies — see JourneyHands.holdBoth.
+        // Both players (client and server-side) — see JourneyHands.holdBoth.
         boolean held = JourneyHands.holdBoth(rig, Items.COBBLESTONE);
         StringBuilder dammed = new StringBuilder();
         for (BlockPos c : interior) {
@@ -2340,8 +2342,8 @@ public final class JourneyPortalRung {
             // JourneyHands#aimThenAct. This was the last aim-then-settle-then-use pair
             // left on the ladder, and it sits on the tick that lights the portal: on the dedicated
             // topology nothing rewrites a fake player's rotation between the two, so it has always
-            // worked there and would have failed here for a reason belonging to the body, not the
-            // strike.
+            // worked there and would have failed here for a reason belonging to the player's
+            // rotation, not the strike.
             JourneyHands.aimThenAct(rig, hearth, () -> {
                 rig.hands().useBlock(hearth, Direction.UP);
                 rig.settle(new HoldStill(5), 20, () -> {
@@ -2352,7 +2354,7 @@ public final class JourneyPortalRung {
                     // portal.cells=0/6: every row right, and not one row saying what was in the other
                     // five cells. Those two upstream rows are also STALE by the time the flint moves —
                     // both are taken in clearTheDoorway, which then hands off to strike(), and strike()
-                    // walks the body to the hearth on a budget of 1500 ticks. This rung's mould is full
+                    // walks the bot to the hearth on a budget of 1500 ticks. This rung's mould is full
                     // of water by design and its alcove leaks into the doorway from behind (see this
                     // class's own note on portal.dam), so "six cells of air" a thousand ticks ago is not
                     // evidence about the tick that lit. Re-read both adjacent to the strike.

@@ -17,12 +17,12 @@ import net.minecraft.tags.FluidTags;
 import net.minecraft.world.level.block.Blocks;
 
 /**
- * Did the body actually RISE — asked of the real client, because nothing else can ask it.
+ * Did the player actually RISE — asked of the real client, because nothing else can ask it.
  *
  * <h2>The hole these fill</h2>
  *
  * The drowning family had four members before this file and every one of them stopped short of the
- * thing that kills bodies:
+ * thing that kills players:
  *
  * <ul>
  *   <li>{@code wd.drowningFloatShouldFloatMatrix} — PURE, four boolean rows over
@@ -47,16 +47,16 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <h2>Why the pinned arm is the one that matters</h2>
  *
- * The kinematics of that death already exclude two of the three candidate causes. The body neither
- * rose nor sank for 261 ticks, while the corpse — the same body one tick later, with the reflex
- * released — sank at ~0.02/tick. A body with no lift sinks; a body with lift and a clear path
+ * The kinematics of that death already exclude two of the three candidate causes. The player neither
+ * rose nor sank for 261 ticks, while the corpse — the same player one tick later, with the reflex
+ * released — sank at ~0.02/tick. A player with no lift sinks; a player with lift and a clear path
  * surfaces and its air recovers. Neither happened, so buoyancy was applying and <b>a collision face
  * was in the way</b> — and every scan in {@code DrownEscapeChain} ({@code cappedColumn}, the
  * {@code lid} cell, {@code nearestBreathable}) looks at exactly one column, the one
  * {@code blockPosition()} names.
  *
- * <p>A body at {@code x=-27.716} has its bounding box edge at {@code -28.016}: 0.016 of it is in the
- * NEXT column, which no scan here ever asks about. {@link #pinnedByNeighbourColumn} stages that
+ * <p>A player at {@code x=-27.716} has its bounding box edge at {@code -28.016}: 0.016 of it is in
+ * the NEXT column, which no scan here ever asks about. {@link #pinnedByNeighbourColumn} stages that
  * geometry deliberately and with a large margin, so a failure means the blindness is real and a
  * pass means the neighbour column is not the mechanism and the search moves on. An open-water
  * arm alone could not tell those apart: it would go green today and go on being green through the
@@ -105,8 +105,8 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
     private static final int BUDGET = 200;
 
     /** Ticks between staging the blocks and using them. The blocks are written on the SERVER and the
-     *  body that must be submerged in them is the CLIENT's; the chunk packets take a round trip, and
-     *  a body judged before they land is judged against water it cannot see. */
+     *  player that must be submerged in them is the CLIENT's; the chunk packets take a round trip,
+     *  and a player judged before they land is judged against water it cannot see. */
     private static final int SYNC_TICKS = 20;
 
     /** Air to stage. Below {@code drownEscapeAirThreshold} (100) so the latch engages on the first
@@ -116,7 +116,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
 
     // ------------------------------------------------------------------ the three arms
 
-    /** Open column, nothing overhead: the body must reach air. This is the arm that says the
+    /** Open column, nothing overhead: the bot must reach air. This is the arm that says the
      *  actuation path works at all — command channel, scheduler, client physics, end to end. */
     private static void risesInOpenWater(SceneContext ctx) {
         run(ctx, false, true);
@@ -131,12 +131,12 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
     }
 
     /**
-     * The counter-arm: with the reflex disarmed the body must NOT reach air.
+     * The counter-arm: with the reflex disarmed the bot must NOT reach air.
      *
      * <p>Both flags, not one. {@code autoDrownEscape} switches off the chain; {@code
      * autoFloatWhenDrowning} switches off {@code AutoSwim.drowningSentinel}, which holds jump on an
-     * IDLE body — and a body parked in a test column with no process is exactly idle. Disarming only
-     * the chain would leave the sentinel to surface the body, and this arm would then fail while
+     * IDLE bot — and a bot parked in a test column with no process is exactly idle. Disarming only
+     * the chain would leave the sentinel to surface the bot, and this arm would then fail while
      * describing the wrong subject. Its whole job is to prove the other two arms' green is not free.
      */
     private static void staysDownDisarmed(SceneContext ctx) {
@@ -144,24 +144,24 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
     }
 
     /** Ticks the lid arm gets. Dirt is ~15 ticks bare-handed, ×5 for a submerged head and ×5 again
-     *  for a body with no ground under it — call it ~375, and a budget that cannot outlast the thing
-     *  it measures would report the measurement as a failure. */
+     *  for a player with no ground under it — call it ~375, and a budget that cannot outlast the
+     *  thing it measures would report the measurement as a failure. */
     private static final int LID_BUDGET = 600;
 
     /** Air held under {@link BotConfig#drownEscapeAirThreshold} for the whole lid arm, so the latch
-     *  stays engaged without the body ever drowning. The other arms can let air fall because they
+     *  stays engaged without the bot ever drowning. The other arms can let air fall because they
      *  finish in tens of ticks; this one runs for hundreds, and killing the human's client to
      *  measure a dig time is not a trade this suite makes. It also means the tick count this arm
      *  records is a DIG time, never a survival result — see the failure text. */
     private static final int PINNED_AIR = 90;
 
     /**
-     * Capped pocket, open water walled off: the body must turn to the LID.
+     * Capped pocket, open water walled off: the bot must turn to the LID.
      *
-     * <p>Live death #31, the real ladder of 2026-08-26 rung 9. The body sat in a 1×1 pocket at
+     * <p>Live death #31, the real ladder of 2026-08-26 rung 9. The bot sat in a 1×1 pocket at
      * 81,59,82 under a dirt lid. {@code nearestBreathable} chose 81,59,80 — a column that genuinely
      * surfaces — and 81,59,81, the one cell between, is stone. The reflex held {@code forward} into
-     * that stone for 532 ticks at a horizontal speed of exactly 0.0000 and the body drowned without
+     * that stone for 532 ticks at a horizontal speed of exactly 0.0000 and the bot drowned without
      * moving one block. The lid was never touched, because a non-null lateral target is precisely
      * what skips the lid-break.
      *
@@ -174,7 +174,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      * number against ~290 ticks (100 of air, then 19 HP at 2 per 20), and it is recorded as such —
      * this scene deliberately asserts nothing about it, because nobody has measured it.
      *
-     * @param underFoot how many water cells sit BELOW the pocket's foot cell. Zero puts the body on
+     * @param underFoot how many water cells sit BELOW the pocket's foot cell. Zero puts the bot on
      *        rock and lets the dig ground itself; three puts it over water, where the stand-up
      *        guard must decline and the arm must behave exactly as it did before the guard existed.
      */
@@ -198,12 +198,12 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         final int ox = o.getX(), oz = o.getZ();
         final int y0 = o.getY() + 8;                     // the pocket's floor
 
-        // Shell first, then carve — an unwalled pocket drains and the body is judged in air it made
+        // Shell first, then carve — an unwalled pocket drains and the bot is judged in air it made
         // itself. Same order as the other arms.
         // Same footprint as run()'s basin (±4, y0-1..y0+7) on purpose: the arenas sit side by side
         // and a scene that reaches further than its neighbours is a scene that stages theirs.
         // Deep enough to hold the variant's own water column — the shell has to reach BELOW the
-        // deepest water cell or the pocket drains out of its own floor and the body is judged in
+        // deepest water cell or the pocket drains out of its own floor and the bot is judged in
         // air it made itself.
         for (int dx = -4; dx <= 4; dx++)
             for (int dz = -4; dz <= 4; dz++)
@@ -211,7 +211,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
 
         // The pocket: 1×1, two cells of water, so the eye is submerged with the feet on the floor.
-        // `underFoot` extends it DOWNWARD only: the lid, the bait and the body's entry cell are the
+        // `underFoot` extends it DOWNWARD only: the lid, the bait and the bot's entry cell are the
         // same in both variants, so the one thing that differs between them is what the stand-up
         // guard reads under the feet.
         final BlockPos foot = new BlockPos(ox, y0, oz);
@@ -376,7 +376,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         BlockPos o = ctx.origin();
         final int ox = o.getX(), oz = o.getZ();
         final int y0 = o.getY() + 8;            // the water's floor
-        // Shell first, then carve: an unwalled pool drains sideways and the body would be judged in
+        // Shell first, then carve: an unwalled pool drains sideways and the bot would be judged in
         // air it made itself. Same order as wd.drownEscapeSurface's basin.
         for (int dx = -4; dx <= 4; dx++)
             for (int dz = -4; dz <= 4; dz++)
@@ -393,7 +393,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                     level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.AIR.defaultBlockState());
             }
 
-        // Where the body stands. Centred for the open arms; for the pinned arm, deliberately hard
+        // Where the bot stands. Centred for the open arms; for the pinned arm, deliberately hard
         // against a cell boundary so the bounding box (width 0.6) straddles TWO columns: at
         // x = ox-0.98 the box runs [ox-1.28, ox-0.68], i.e. into column ox-2, while
         // blockPosition() still answers ox-1. Every scan in DrownEscapeChain asks about ox-1.
@@ -402,8 +402,8 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         final BlockPos scanned = new BlockPos(pinNeighbour ? ox - 1 : ox, y0 + 2, oz);
         final BlockPos straddled = new BlockPos(ox - 2, y0 + 2, oz);
         if (pinNeighbour) {
-            // The lid the body actually hits, in the column nobody reads. Its height is footY+2:
-            // a body on the floor has its top at y0+1.8, so it is pinned from the first tick rather
+            // The lid the player actually hits, in the column nobody reads. Its height is footY+2:
+            // a player on the floor has its top at y0+1.8, so it is pinned from the first tick rather
             // than after a climb — the accident's own pose, where the corpse sat at 61.159 with its
             // top face at 62.959 against a face at 63.0.
             level.setBlockAndUpdate(straddled, Blocks.STONE.defaultBlockState());
@@ -421,7 +421,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         BotConfig.walkerDebug = true;            // the arm's per-tick row is gated on it
         BotConfig.allowBreak = true;             // so a lid the scan DOES see would be broken
 
-        // ---- the body, restored on the way out ----------------------------------------
+        // ---- the player, restored on the way out --------------------------------------
         final double homeX = body.getX(), homeY = body.getY(), homeZ = body.getZ();
         final int homeAir = body.getAirSupply();
         ctx.cleanup(() -> {

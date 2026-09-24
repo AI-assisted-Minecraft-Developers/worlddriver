@@ -7,11 +7,12 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * The entities one search knows about, frozen when the search begins. Plain data: no entity
- * references, so a scope can be built for a client body, a server body, or a unit test alike,
+ * references, so a scope can be built for a client player, a server-side player, or a unit test
+ * alike,
  * and every {@link SearchAware} component reads the same list for the whole search — a mob that
  * moves between two slices of a time-sliced search does not change what the search prices.
  *
- * @param threats every living entity in the scan box except the body itself
+ * @param threats every living entity in the scan box except the bot itself
  */
 public record ThreatSnapshot(List<Threat> threats) {
     public static final ThreatSnapshot EMPTY = new ThreatSnapshot(List.of());

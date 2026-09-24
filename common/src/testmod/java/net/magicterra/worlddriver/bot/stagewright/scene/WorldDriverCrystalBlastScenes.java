@@ -106,7 +106,7 @@ import net.minecraft.world.phys.AABB;
  *       relocation performed inside that call is invisible to the anchor and reads as a fall. A rig
  *       that wants to grade stand-choosing has to drive the X1 process tick by tick instead of
  *       calling the verb itself.</li>
- *   <li><b>X3 — the staging must contain a blast-proof stand the body can REACH.</b> In vanilla's
+ *   <li><b>X3 — the staging must contain a blast-proof stand the bot can REACH.</b> In vanilla's
  *       caged spike there is exactly one — the 3x3 obsidian floor inside the cage — and it is sealed
  *       under a solid 5x5 iron lid, four blocks below a bot standing on that lid. Every blast-proof
  *       sole row in this arena is at {@code y = pillar top}, i.e. {@code standing y at the swing − 4},
@@ -123,16 +123,16 @@ import net.minecraft.world.phys.AABB;
  * <h2>Two limits stated on the row rather than left to be discovered</h2>
  *
  * <ul>
- *   <li><b>Whether the blast can knock this body depends on whether the body joined — and every
- *       server body joins now.</b> {@code Explosion.explode} collects victims with
- *       {@code level.getEntities(source, aabb)}, which reads the level's entity index. A body that
- *       never joined is absent from that index and takes no launch; a {@code JoinedBody} is present
- *       and is thrown. The ladder and the six gates all use joined bodies, so there is no clean
- *       footing-only reading: the first run on joined bodies threw the bot {@code dx=+5} and
- *       {@code dy=−31} off a sole that was still obsidian.
+ *   <li><b>Whether the blast can knock this player back depends on whether the player joined the
+ *       level — and every server-side player joins now.</b> {@code Explosion.explode} collects
+ *       victims with {@code level.getEntities(source, aabb)}, which reads the level's entity index.
+ *       A player that never joined is absent from that index and takes no launch; a
+ *       {@code JoinedBody} is present and is thrown. The ladder and the six gates all use joined
+ *       players, so there is no clean footing-only reading: the first run on joined players threw
+ *       the bot {@code dx=+5} and {@code dy=−31} off a sole that was still obsidian.
  *
- *       <p>Clause B therefore exempts a fall whose sole stayed blast-proof AND whose body moved
- *       horizontally — that combination is knockback, and knockback is not what B grades. The
+ *       <p>Clause B therefore exempts a fall whose sole stayed blast-proof AND in which the player
+ *       moved horizontally — that combination is knockback, and knockback is not what B grades. The
  *       exemption is narrow on purpose: dissolve the footing and {@code soleSurvived} goes false, so
  *       no amount of launch can buy a green. <b>The ballistics are real, and this scene still does
  *       not measure them</b> — there is no staging for it and no criterion on it, so a green pillar
@@ -140,7 +140,7 @@ import net.minecraft.world.phys.AABB;
  *       on every run which of the three outcomes this run was.</li>
  *   <li><b>No Walker, no goal, no {@code LevelWorldView}.</b> The sibling void scenes drive a Walker
  *       because their subject is a leap; here the subject is which block is under the feet, and
- *       steering would put a second variable between the two arms. The body is created and stepped
+ *       steering would put a second variable between the two arms. The player is created and stepped
  *       exactly the way {@code wd.parkourVoidShortRunway} creates and steps its own —
  *       {@link ServerPlayerBody#createUnique} plus a synchronous {@code av.step()} loop — with
  *       every input released each tick.</li>
@@ -152,7 +152,7 @@ import net.minecraft.world.phys.AABB;
  *   <li><b>The staging copies vanilla's caged spike, not a convenient approximation.</b>
  *       {@code SpikeFeature} guards exactly the two spikes with {@code radius 2}, at heights 79 and
  *       82 — which is why the ladder's crystal sat at {@code y=83} with its cage lid at {@code 85}
- *       and the body at {@code 86}. The obsidian is placed where {@code dx²+dz² <= radius²+1}, the
+ *       and the bot at {@code 86}. The obsidian is placed where {@code dx²+dz² <= radius²+1}, the
  *       centre block under the crystal is bedrock, the cage is {@code |dx|==2 || |dz|==2 || dy==3}
  *       over {@code [-2,2]²×[0,3]}, and the crystal sits one block above the standing surface. Get
  *       this wrong in the generous direction — a wider top, a shorter cage — and the arms stop being
@@ -192,7 +192,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     private static final int CAGE_HALF = 2;
 
     /** Height of the cage: walls at {@code dy 0..2}, lid at {@code dy == 3}, measured from the
-     *  standing surface. The lid is what the ladder's body was standing on. */
+     *  standing surface. The lid is what the ladder's bot was standing on. */
     private static final int CAGE_LID_DY = 3;
 
     /** Clear cells between the pillar's ring and the catch floor. Past
@@ -213,7 +213,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     private static final double MELEE_REACH = 4.5;
 
     /** Ticks the loop runs. The first swing lands at {@code t == SWING_EVERY - 1}; the rest is enough
-     *  for a body that lost its footing to finish falling {@value #VOID_DEPTH} blocks. */
+     *  for a player that lost its footing to finish falling {@value #VOID_DEPTH} blocks. */
     private static final int TICKS = 200;
 
     /** Top solid block of the pillar. Standing surface is one above; the catch floor is
@@ -252,11 +252,11 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     }
 
     /**
-     * The shared body of both arms. {@code standDy} — how far above the pillar's standing surface the
-     * body is placed — is the ONLY input, so any difference between the two rows can only be the
-     * block under the feet.
+     * The shared implementation of both arms. {@code standDy} — how far above the pillar's standing
+     * surface the player is placed — is the ONLY input, so any difference between the two rows can
+     * only be the block under the feet.
      *
-     * @param standDy 0 puts the body on the pillar-top obsidian; {@code CAGE_LID_DY + 1} puts it on
+     * @param standDy 0 puts the player on the pillar-top obsidian; {@code CAGE_LID_DY + 1} puts it on
      *                the cage lid
      */
     private static void smashFrom(SceneContext ctx, String name, int standDy) {
@@ -330,13 +330,13 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     }
 
     /**
-     * Put a body on {@code standAt}, let it settle, hit the crystal on vanilla's own cadence, and
+     * Put a player on {@code standAt}, let it settle, hit the crystal on vanilla's own cadence, and
      * watch what the blast did to the block it was standing on.
      *
-     * <p>The loop is deliberately the dumbest thing that can produce the measurement: every input is
-     * released on every tick, so the only forces acting on the body are gravity, collision and the
-     * explosion. {@code av.step()} runs the body's own vanilla {@code aiStep}, the same
-     * gravity-then-{@code move()} pipeline the client runs — so a body whose footing has been
+     * <p>The loop is deliberately the simplest thing that can produce the measurement: every input is
+     * released on every tick, so the only forces acting on the player are gravity, collision and the
+     * explosion. {@code av.step()} runs the player's own vanilla {@code aiStep}, the same
+     * gravity-then-{@code move()} pipeline the client runs — so a player whose footing has been
      * deleted falls, and one whose footing survived does not.
      */
     private static void swingAndWatch(SceneContext ctx, String name, ServerLevel level,
@@ -345,7 +345,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 1.5, standAt, cz + 0.5);
         ServerPlayer fp = av.fakePlayer();
         ctx.cleanup(fp::discard);
-        SimProbes.grantWaterEffects(fp);   // inert here — the body is already invulnerable
+        SimProbes.grantWaterEffects(fp);   // inert here — the player is already invulnerable
         fp.getInventory().clearContent();
         fp.getInventory().add(new ItemStack(Items.IRON_SWORD));
         fp.getInventory().selected = 0;
@@ -415,15 +415,15 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         boolean soleSurvived = tried
                 && level.getBlockState(swingStand.below()).getBlock().getExplosionResistance()
                         >= BlastFooting.blastProofResistance(BlastFooting.CRYSTAL_BLAST_POWER);
-        // AND WAS THE BODY LAUNCHED OFF IT? Horizontal displacement is the signature of knockback:
-        // Explosion.explode applies an impulse along the vector from the blast, and a body whose
+        // AND WAS THE PLAYER LAUNCHED OFF IT? Horizontal displacement is the signature of knockback:
+        // Explosion.explode applies an impulse along the vector from the blast, and a player whose
         // footing was removed falls STRAIGHT down. Measured on the flipped gates, 2026-08-22:
         // dx=+5 dz=0 dy=−31 with obsidian still under the feet after the swing — the sole was there
         // the whole time.
         boolean launchedSideways = tried
                 && (Math.abs(fp.getX() - (swingStand.getX() + 0.5)) > 1.5
                  || Math.abs(fp.getZ() - (swingStand.getZ() + 0.5)) > 1.5);
-        // Clause B grades FOOTING. A body that lost height while its sole stood firm and its
+        // Clause B grades FOOTING. A player that lost height while its sole stood firm and its
         // trajectory carried it sideways was thrown, not dropped, and ballistics is a mechanism this
         // scene does not stage for or measure — see the class note. Exempting it keeps the clause
         // falsifiable by the thing it names: remove the obsidian's resistance and `soleSurvived`
@@ -508,7 +508,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                 level.getEntity(fp.getId()) != null);
 
         // Soft checks, so both verdicts are always reported: "the crystal survived unexplained" and
-        // "the body was dropped" are different failures and one merged line prints them the same.
+        // "the bot was dropped" are different failures and one merged line prints them the same.
         ctx.check(broke || namedTheFooting).as("A: either break the crystal or refuse with a reason: the crystal is "
                 + (broke ? "broken" : "intact")
                 + ", the driver " + (refusal == null ? "gave no refusal reason" : "refused " + refused + " times")
