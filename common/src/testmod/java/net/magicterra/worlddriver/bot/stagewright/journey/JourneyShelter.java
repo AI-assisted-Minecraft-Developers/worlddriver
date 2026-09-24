@@ -70,10 +70,10 @@ final class JourneyShelter {
         List<BlockPos> shell = roomShell(spawner);
         int open = 0;
         for (BlockPos cell : shell) if (!nether.getBlockState(cell).blocksMotion()) open++;
-        rig.evidence("room.shell", shell.size() + " 格外壳，其中 " + open + " 格是空的（"
-                + (2 * ROOM_RADIUS - 1) + "×" + (2 * ROOM_RADIUS - 1) + "×" + ROOM_HEIGHT + " 的屋子）");
+        rig.evidence("room.shell", shell.size() + " shell cells, " + open + " of them empty ("
+                + (2 * ROOM_RADIUS - 1) + "×" + (2 * ROOM_RADIUS - 1) + "×" + ROOM_HEIGHT + " room)");
         rig.evidence("room.stockBefore", stock(rig));
-        rig.attempting("先补齐石料，再按 先墙后顶 的顺序把刷怪笼围起来");
+        rig.attempting("gather enough stone first, then enclose the spawner, walls before ceiling");
         Set<BlockPos> keepOut = new HashSet<>(shell);
         quarryUntilStocked(rig, keepOut, open, MAX_QUARRY_LEGS, MAX_QUARRY_LEGS,
                 () -> layTheShell(rig, spawner, shell, then));
@@ -123,14 +123,15 @@ final class JourneyShelter {
                                            int need, int legsLeft, int legsTotal, Runnable then) {
         if (placeableCount(rig) >= need || legsLeft <= 0) {
             rig.evidence("quarry.legs", (legsTotal - legsLeft) + "/" + legsTotal);
-            rig.evidence("quarry.stock", stock(rig) + "，需要 " + need + " 格");
+            rig.evidence("quarry.stock", stock(rig) + ", " + need + " blocks needed");
             then.run();
             return;
         }
         BlockPos rock = quarryCell(rig, keepOut);
         if (rock == null) {
-            rig.evidence("quarry.legs", (legsTotal - legsLeft) + "/" + legsTotal + "（身边挖不到更多石料）");
-            rig.evidence("quarry.stock", stock(rig) + "，需要 " + need + " 格");
+            rig.evidence("quarry.legs", (legsTotal - legsLeft) + "/" + legsTotal
+                    + " (no more minable stone nearby)");
+            rig.evidence("quarry.stock", stock(rig) + ", " + need + " blocks needed");
             then.run();
             return;
         }
@@ -175,11 +176,12 @@ final class JourneyShelter {
         int stillOpen = 0;
         for (BlockPos cell : shell) if (!nether.getBlockState(cell).blocksMotion()) stillOpen++;
 
-        rig.evidence("room.placed", placed + " 格（墙 " + walls + "，顶 " + roof + "）");
-        rig.evidence("room.refused", refused + " 格放不上（没有可贴的面，或者格子并不是空的）");
-        rig.evidence("room.ranOut", ranOut + " 格没石料了");
-        rig.evidence("room.bodyInTheWay", occupied + " 格是身体自己占着的");
-        rig.evidence("room.stillOpen", stillOpen + " 格仍然是通的");
+        rig.evidence("room.placed", placed + " cells (walls " + walls + ", ceiling " + roof + ")");
+        rig.evidence("room.refused", refused + " cells could not be placed (no face to place against,"
+                + " or the cell was not empty)");
+        rig.evidence("room.ranOut", ranOut + " cells skipped for lack of stone");
+        rig.evidence("room.bodyInTheWay", occupied + " cells occupied by the bot itself");
+        rig.evidence("room.stillOpen", stillOpen + " cells still open");
         rig.evidence("room.stockAfter", stock(rig));
         // Recorded, never asserted. "The room is not finished" is a reason the FIGHT may go badly,
         // and the fight is what the rung claims; failing here would replace a measurement of the
@@ -229,10 +231,10 @@ final class JourneyShelter {
             int n = rig.carrying(id);
             if (n <= 0) continue;
             total += n;
-            if (what.length() > 0) what.append('，');
+            if (what.length() > 0) what.append(", ");
             what.append(id.substring(id.indexOf(':') + 1)).append('×').append(n);
         }
-        return total + " 个可放置方块（" + (what.length() == 0 ? "空" : what) + "）";
+        return total + " placeable blocks (" + (what.length() == 0 ? "none" : what) + ")";
     }
 
     /**

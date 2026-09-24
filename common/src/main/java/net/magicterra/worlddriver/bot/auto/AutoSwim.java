@@ -126,7 +126,7 @@ public final class AutoSwim {
             if (BotConfig.walkerDebug && (DBG++ % 20 == 0))
                 // blockPosition(), not (int) casts — those truncate toward zero, so at x=-9.3 the
                 // row named -9 while the body was in -10. See LavaProximityEscape's note: the same
-                // pattern there turned「standing on a lava source」into「adjacent to one」.
+                // pattern there turned "standing on a lava source" into "adjacent to one".
                 LOG.info("[drowningFloat] idle + underwater + air={} <= threshold {} → holding jump to surface at {}",
                         p.getAirSupply(), BotConfig.drownFloatAirThreshold, p.blockPosition().toShortString());
         } else if (floatHeld) {

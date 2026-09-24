@@ -307,7 +307,7 @@ final class WalkerTickDrive {
         // Vertical recovery (execution hardening): the bot is BELOW the next node by more
         // than it can jump — it slid/fell below the committed climb path, and a plain stepUp
         // here just RAMS the wall (jump is suppressed for an unreachable height) → the
-        // "被面前的高方块挡住不动" stall. If we carry blocks, PILLAR UP in place to regain
+        // stall where a tall block in front holds the bot in place. If we carry blocks, PILLAR UP in place to regain
         // the height instead of ramming: look down, jump off the ground, and place a support
         // in the feet cell once risen clear of it — the same actuation as a planned pillarUp.
         // Latched across the jump's airborne phase (overJump needs onGround, so one tick
@@ -337,7 +337,7 @@ final class WalkerTickDrive {
             p.setShiftKeyDown(false);
             // Clear the ceiling FIRST: a block where the head rises (tree-canopy leaves at
             // rung+2, a dirt overhang) makes the recovery jump RAM it — the bot can't gain
-            // height, can't place, and wedges ("树下 pillar-up 撞树叶卡死", bug#1). The planned
+            // height, can't place, and wedges (a pillar-up under a tree stuck against the leaves). The planned
             // pillarUp actuator clears its toBreak the same way; this recovery path had none.
             // Only with allowBreak, and only the single head cell, so it digs no more than the
             // one block needed to rise this rung (re-checked each rung as pillarRecover.cell rises).
@@ -404,7 +404,7 @@ final class WalkerTickDrive {
             double sideDist = zA * Math.abs((wp.getX() + 0.5) - p.getX()) + xA * Math.abs((wp.getZ() + 0.5) - p.getZ());
             Vec3 vel = p.getDeltaMovement();
             double lateralMotion = xA * vel.z + zA * vel.x;
-            // SPRINT-BUNNY-HOP a cardinal +1 step (丝滑 stair climb). The deterministic
+            // SPRINT-BUNNY-HOP a cardinal +1 step (a smooth stair climb). The deterministic
             // ascentSpeedArena shows a gentle staircase costs ~40% speed: each step drops
             // sprint + the in-place jump rams the riser + the body re-accelerates from ~0.
             // Two levers were each A/B-disproven IN ISOLATION (2026-06-06): sprint + a LATE
@@ -559,14 +559,14 @@ final class WalkerTickDrive {
         // (forward + lane-keep strafe) from the desired travel heading (aimYaw) into the
         // camera frame by Δ = aimYaw − cameraYaw, so vanilla travel()'s rotate-by-yaw moves
         // the body ALONG the heading even while the camera is still slewing toward it — the
-        // body no longer rams a wall waiting for the look to catch up (动态纠偏). At Δ=0
+        // body no longer rams a wall waiting for the look to catch up (dynamic heading correction). At Δ=0
         // (camera caught up) the impulse equals the old keyed (dL,dF), so steady-state walking
         // is byte-identical; only the slew transient changes. Special branches above return
         // before here, so they keep their own key-based actuation (AvatarInput falls back to
         // keys uncommanded).
         //
         // The DRIVE always targets aimYaw — even while the camera is frozen by the anti-wind
-        // spinFreeze. The freeze exists ONLY to stop the visual 转圈 (camera chasing a ~180°-
+        // spinFreeze. The freeze exists ONLY to stop the visual spinning (camera chasing a ~180°-
         // flipping target winds one way); it must NOT also freeze the body's travel. The old
         // `spinFreeze ? 0` here drove the body along the STALE frozen camera heading — in a
         // badlands water basin that heading pointed straight at the bank, so the body rammed it
@@ -600,7 +600,7 @@ final class WalkerTickDrive {
         // height but, with forward zeroed by pivotForStepUp (aim not yet aligned) and the
         // drive pointed at a CHURNING aimYaw, never translates ONTO the ledge — it falls
         // back and bob-stalls (live 2026-06-20 sand slope: py peaked 64.17 at the y64 bank
-        // with z frozen at 3572.30, then the dig/anti-stuck burst kicked in, ~30 s + 镜头甩).
+        // with z frozen at 3572.30, then the dig/anti-stuck burst kicked in, ~30 s of camera whipping).
         // The whole shoreline is a deep-water-base slope (planner can't route around it), so
         // the mount MUST be actuated: press forward HARD and STEADILY straight at the target
         // column (not the oscillating aimYaw), so vanilla's swim-step carries the bob peak up
@@ -628,7 +628,7 @@ final class WalkerTickDrive {
         float driveTargetYaw = BotConfig.walkerTangentAim ? aimYaw
                 : flatWaterTrend ? wk.aimSmooth.smoothWaterDriveYaw
                 : trendCam ? descentNodeYaw : aimYaw;
-        // Dry diagDown SLOPE back-hop damping (the visible "雪山横跳" jitter). On a continuous
+        // Dry diagDown SLOPE back-hop damping (the visible side-to-side hopping on snowy slopes). On a continuous
         // diagonal descent the decoupled drive rides the IMMEDIATE node (descentNodeYaw); each time
         // the foot overshoots that node it sits BEHIND the body and the bearing reverses ~180°, so
         // the drive hops backward for a few ticks until `passed` advances the pointer. The discrete
@@ -649,7 +649,7 @@ final class WalkerTickDrive {
                 // ...and fall / stepDown edges off a ledge: same overshoot back-hop. Live 2026-06-24
                 // journey4 at -857,70 (move=fall4, bot overshot a stepUp up to y75 then the path falls
                 // back to y71): FREEZE-DIAG showed dTgtYaw flip -148↔+32 with fwdComp +1↔-1 (the drive
-                // ran FORWARD then BACKWARD = the "moving-backward jump"/略微后退), while camYaw held
+                // ran FORWARD then BACKWARD = the "moving-backward jump", a slight retreat), while camYaw held
                 // steady at -148 — i.e. the camera trend was fine, only the drive chased the flipping
                 // below-node bearing. Holding the trend lets it commit forward off the edge and drop.
                 && (edge.move.startsWith("diagDown") || edge.move.startsWith("parkourDescend")
@@ -778,7 +778,7 @@ final class WalkerTickDrive {
         // edge, so if the brake stays on while the path needs to descend (a lethal
         // drop in some OTHER direction, e.g. a mountainside, while the safe planned
         // step is down-and-across), the bot DEADLOCKS — sneak on, hCol=false, creeping
-        // at ~0 b/s on a ridge forever (the "速度陡降 / blocked" stall). The PathFinder
+        // at ~0 b/s on a ridge forever (the sudden-slowdown or blocked stall). The PathFinder
         // caps every planned step-down at survivableFall, so releasing sneak for the
         // intended descent is safe. Same-level lip-walking keeps the full pin (death #8),
         // and sprint stays OFF whenever a lethal edge is near (see sprint below) so the
@@ -901,8 +901,8 @@ final class WalkerTickDrive {
                 && (!BotConfig.walkerDeepWaterDriftBrake || world.isFloatingWater(wp))) wk.driveLatch.deepWaterDriftLatch = 0;
         else if (wk.driveLatch.deepWaterDriftLatch > 0) wk.driveLatch.deepWaterDriftLatch--;
         boolean deepWaterDriftNear = deepWaterEdgeRaw || wk.driveLatch.deepWaterDriftLatch > 0;
-        // DYNAMIC fall-correction while bridging (user: 动态纠偏防止跌落,而不是一直蹲着牺
-        // 牲速度). A 1-wide place-bridge has void on BOTH sides, so the lethal-edge pin
+        // DYNAMIC fall-correction while bridging: correct the heading to prevent falls rather than
+        // crouching the whole time at the cost of speed. A 1-wide place-bridge has void on BOTH sides, so the lethal-edge pin
         // (edgeBrake) AND the old blanket bridge-sneak BOTH held shift for the ENTIRE
         // span — crouch-walking the whole bridge at a ~0.9 b/s crawl. Instead, walk the
         // already-placed blocks at full speed and brake (sneak — its ledge-guard pins the
@@ -916,7 +916,7 @@ final class WalkerTickDrive {
         // any pin — see the long edgeBrake note above). Sprint is OFF during bridging
         // (below), so a non-braked tick can't build enough momentum to overshoot a whole
         // block before the next look-ahead check brakes it.
-        // Generalised beyond bridging (出桥 2 格 crawl): right after a bridge — or on
+        // Generalised beyond bridging (the 2-block crawl after leaving a bridge): right after a bridge — or on
         // any cliff-lip walk — `edgeBrake` re-pinned the body the moment `bridging`
         // dropped, crouch-crawling until the void left the 8-neighbourhood. The SAME
         // dynamic gate is the cert'd fix for the same risk on a 1-wide span (the
@@ -1278,9 +1278,9 @@ final class WalkerTickDrive {
         }
         if (jump && vetoJumpOnAGraze(wk, world, p, parkourEdge)) jump = false;
         if (jump) {
-            wk.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"     // 其它 = this chain is stale, see Walker#avatarJump
+            wk.jumpTag = stepUpJump ? "stepUp" : parkourEdge ? "parkour"     // "other" = this chain is stale, see Walker#avatarJump
                     : stepUpFreeze && p.onGround() ? "stepUpFreeze" : levelRiserJump ? "levelRiser"
-                    : wiggle ? "wiggle" : swimUp ? "swimUp" : swimColumn ? "swimColumn" : deepWaterRise ? "deepWaterRise" : "其它";
+                    : wiggle ? "wiggle" : swimUp ? "swimUp" : swimColumn ? "swimColumn" : deepWaterRise ? "deepWaterRise" : "other";
         }
         if (parkourEdge) wk.noteParkourTakeoff(world, a, p, jump, foot);  wk.avatarJump(a, jump);  // latch: Walker.parkourTakeoff()
         // Sprint in water ONLY on a FLAT crossing (flatWaterWalk: wp.y==foot.y). The
@@ -1485,8 +1485,8 @@ final class WalkerTickDrive {
      *
      * <p>Every gate above rules on the PLAN; this one rules on the BODY, which is why closing all
      * seven planner leap moves and all three diagonals still left rung 20 falling — the jump that
-     * did it was the executor's own step-up: 「跳标=stepUpFreeze 身体=-42.70,102.00,5.30 速度h=0.528
-     * 脚底=0.000」. Called after the whole decision chain so no branch can route around it, and it
+     * did it was the executor's own step-up: {@code jumpTag=stepUpFreeze pos=-42.70,102.00,5.30
+     * speedH=0.528 sole=0.000}. Called after the whole decision chain so no branch can route around it, and it
      * tags the refusal rather than vetoing silently: a jump that does not happen and a jump that was
      * never considered look identical in a log, and this run has already paid for that confusion.
      *
@@ -1495,20 +1495,20 @@ final class WalkerTickDrive {
      */
     private static boolean vetoJumpOnAGraze(Walker wk, WorldView world, LivingEntity p, boolean parkour) {
         if (Walker.grazingBesideTheVoid(world, p)) {
-            wk.jumpTag = "被虚空脚感否决";
+            wk.jumpTag = "vetoed: grazing beside the void";
             return true;
         }
         // A leap priced at the sprint-jump maximum, launched from a standstill. The runway rule
         // added earlier is a PLANNER gate — it asks whether the cells behind the launch could be run
         // along, never whether the body actually ran along them. Measured:
-        // 「跳标=parkour 身体=-32.71,18.00,37.28 速度h=0.024 脚底=0.339 节点=-34,21,37」 —— two
+        // "jumpTag=parkour pos=-32.71,18.00,37.28 speedH=0.024 sole=0.339 node=-34,21,37" — two
         // across and three up, fired at a twentieth of walking speed, over the void. Refusing costs
         // a few ticks of walking, which is how the momentum gets there; taking it costs the run.
         if (parkour && p != null
                 && p.getDeltaMovement().horizontalDistance() < PARKOUR_MIN_TAKEOFF_SPEED
                 && Walker.voidBeside(world,
                         net.minecraft.core.BlockPos.containing(p.getX(), p.getY() - 0.5, p.getZ()))) {
-            wk.jumpTag = "被起跳速度否决";
+            wk.jumpTag = "vetoed: takeoff speed too low";
             return true;
         }
         return false;
@@ -1531,8 +1531,8 @@ final class WalkerTickDrive {
      *
      * <p>{@link BotConfig#walkerFutileSearchCap} structurally cannot cover it: that counter is gated
      * on the search NOT reaching the goal, and here the search reaches it every time — the plan is
-     * fine and the body cannot perform it. That is what the message says, because「no route
-     * progress」would be a lie about which half failed.
+     * fine and the body cannot perform it. That is what the message says, because "no route
+     * progress" would be a lie about which half failed.
      *
      * <p>The counter advances only while BOTH the foot cell and the target node are unchanged, so a
      * body that genuinely shifts keeps its full allowance and a transient dead-zone still re-routes.
@@ -1549,7 +1549,7 @@ final class WalkerTickDrive {
             wk.searchGov.deadZoneNode = node;
             wk.searchGov.deadZoneRepeats = 1;
         }
-        LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) 连续={} → re-route (task#82)",
+        LOG.info("[walker] ascend dead-zone UNREACHABLE move={} node={} foot={} pos=({},{},{}) repeats={} → re-route",
                 edge.move, node, foot, p.getX(), p.getY(), p.getZ(), wk.searchGov.deadZoneRepeats);
         if (BotConfig.walkerAscendDeadZoneCap <= 0
                 || wk.searchGov.deadZoneRepeats < BotConfig.walkerAscendDeadZoneCap) return null;
@@ -1580,24 +1580,24 @@ final class WalkerTickDrive {
      * </ul>
      *
      * <p><b>Two cells, both named.</b> This line used to print {@code foot} alone, under the words
-     * 「creeping past lava at …」— wording that reads as the HAZARD's position and is the BODY's.
+     * "creeping past lava at …" — wording that reads as the HAZARD's position and is the BODY's.
      * On 2026-08-26 that cost a rung-12 post-mortem its first pass: the body died at
-     * {@code -11,63,19} and the brake row said「lava at -11,63,19」, so it was read as「the brake
-     * saw lava ahead of the body」when what it actually said was「the body is already standing
-     * in it」. The two readings point at opposite defects. Naming both cells ends it.
+     * {@code -11,63,19} and the brake row said "lava at -11,63,19", so it was read as "the brake
+     * saw lava ahead of the body" when what it actually said was "the body is already standing
+     * in it". The two readings point at opposite defects. Naming both cells ends it.
      *
-     * <p>And two numbers, because「braked」is not「stopped」: sneak still creeps ~0.9 b/s, and
-     * sprint is gated on {@code !hazardAhead} — so a run that wants to ask「was it carrying sprint
-     * momentum?」needs the answer printed here. A full ladder log of 2026-08-26 contained the word
+     * <p>And two numbers, because "braked" is not "stopped": sneak still creeps ~0.9 b/s, and
+     * sprint is gated on {@code !hazardAhead} — so a run that wants to ask "was it carrying sprint
+     * momentum?" needs the answer printed here. A full ladder log of 2026-08-26 contained the word
      * "sprint" zero times, which made that question unanswerable rather than answered no.
      */
     private static void announceLavaBrake(Walker wk, boolean lavaBrake, BlockPos foot,
                                           BlockPos hazard, BlockPos wp, LivingEntity p) {
         if (lavaBrake && !wk.driveLatch.lavaBrakeLogged)
             // BODY and HAZARD as two named cells, plus the two numbers that decide whether the
-            // sneak can hold: speed (sneak still creeps ~0.9 b/s, so「braked」is not「stopped」)
-            // and sprint (gated on !hazardAhead above — printing it is what turns「was it
-            // sprinting?」from a hypothesis into a reading; the 2026-08-26 post-mortem had to
+            // sneak can hold: speed (sneak still creeps ~0.9 b/s, so "braked" is not "stopped")
+            // and sprint (gated on !hazardAhead above — printing it is what turns "was it
+            // sprinting?" from a hypothesis into a reading; the 2026-08-26 post-mortem had to
             // withdraw that question because the word never appeared in a full ladder log).
             LOG.info("[walker] hazard-ahead brake: body {} sneaking past hazard {} "
                             + "(wp {}, speed h={} sprint={} onGround={})",

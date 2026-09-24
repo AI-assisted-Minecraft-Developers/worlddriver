@@ -185,8 +185,8 @@ public final class PathSmoothing {
     /** What {@link #auditEmit} has seen. A count of zero unwalkable emits is the load-bearing half:
      *  it says the smoother is not the source, which is the harder claim to establish. */
     public static String smoothingAudit() {
-        return "收段=" + emits + " 其中不可走=" + unwalkableEmits
-                + "（最后一条 " + (lastUnwalkableEmit == null ? "无" : lastUnwalkableEmit) + "）";
+        return "segmentsEmitted=" + emits + " unwalkable=" + unwalkableEmits
+                + " (last: " + (lastUnwalkableEmit == null ? "none" : lastUnwalkableEmit) + ")";
     }
 
     /** True if the straight horizontal line from {@code a} to {@code b} is

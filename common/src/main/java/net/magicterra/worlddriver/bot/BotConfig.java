@@ -117,13 +117,13 @@ public final class BotConfig {
     public static volatile float walkerYawHysteresisDeg = 5f;
 
     /** Decouple camera from movement on a dry descent: aim the CAMERA at a stable far-ahead
-     *  path heading (kills the 下山转圈 yaw-wind) while the body keeps driving the immediate node.
+     *  path heading (kills the yaw wind-up that spins the camera going downhill) while the body keeps driving the immediate node.
      *  See {@code WalkerConstants.DESCENT_CAM_FAR_DIST} (not a {@code Walker} member). A/B toggle. */
     public static volatile boolean descentCameraDecouple = true;
 
     /** Extend {@link #descentCameraDecouple} to ALL dry launches (parkourDescend / parkour / fall):
      *  the camera SLEWS smoothly through the turn instead of snapping ~180° to the landing node
-     *  (the 下落/起跳转圈). Safe because main-block leaps drive via commandMove (camera-decoupled),
+     *  (the spin while falling or jumping). Safe because main-block leaps drive via commandMove (camera-decoupled),
      *  so the slewing camera never misses the landing — parkourPlace (commandForward) keeps its snap.
      *  Ground-truth replay A/B on the RENDERED camera (LookController): render-snaps≥30° 13→0,
      *  ≥90° 7→0; both runs reach the goal + all parkour/fall GameTest arenas pass. */
@@ -420,7 +420,7 @@ public final class BotConfig {
     /** Per-tick compute slice (ms) used ONLY while the bot is IDLE waiting for a path (segment
      *  consumed, or no path yet). {@link #pathfinderSliceMs} (~6 ms) protects the frame-rate WHILE
      *  WALKING, but at a far-goal segment boundary that thin slice drags a 3 s CPU search out to
-     *  ~27 s of wall-clock with the bot FROZEN ("行动→冻住→重算→行动"). With nothing to keep smooth,
+     *  ~27 s of wall-clock with the bot FROZEN (act → freeze → re-plan → act). With nothing to keep smooth,
      *  a few frame hitches are cheaper than the wait: finish ~5× sooner, still rendering between slices. */
     public static volatile long pathfinderIdleSliceMs = 30;
     /** Per-tick slice (ms) of a route PREVIEW ({@code PreviewSearch}): it runs beside a walk and must not steal its frames. */
@@ -466,14 +466,14 @@ public final class BotConfig {
      *  on {@code ClientWorldView.canStandOn}), and a cell is PASSABLE
      *  if the player's body column doesn't intersect
      *  the collision shape (so a cocoa pod offset to one side, panes, etc. stop being
-     *  treated as full-cube walls). Fixes the jungle "cocoa 挡路 / phantom foothold on a
+     *  treated as full-cube walls). Fixes the jungle "cocoa blocks the path / phantom foothold on a
      *  pod → walker can't execute → stuck/oscillation" class of bugs. Off = legacy
      *  {@code blocksMotion()} model. */
     public static volatile boolean collisionAwarePathing = true;
 
     /** Only the SURFACE water cell (water at the foot, none at the head) is a lateral node; a
      *  submerged cell is reached only through swimUp/swimDown chains. Water exits are the honest
-     *  {@code climbOutPlace} edge instead of swimUp「into the air」. Off = every water cell is a floor. */
+     *  {@code climbOutPlace} edge instead of swimUp "into the air". Off = every water cell is a floor. */
     public static volatile boolean pathfinderSurfaceWaterNodes = true;
 
     /** Deep water is priced by the water taxes, not charged the HazardField's 10 000 lethal
@@ -494,7 +494,7 @@ public final class BotConfig {
      *  field over the loaded region and uses it (max'd with the Euclidean
      *  estimate) as the A* heuristic, so the fine search routes AROUND a concave
      *  pinch instead of expanding into the wall and committing a backward
-     *  best-effort segment (the "走回头路" oscillation). Degrades to the plain
+     *  best-effort segment (the backtracking oscillation). Degrades to the plain
      *  Euclidean heuristic wherever the field has no value, so it can never be
      *  worse than off. Phase-0 premise test: default OFF until A/B-validated. */
     public static volatile boolean pathfinderGoalField = false;
@@ -542,7 +542,7 @@ public final class BotConfig {
      *  Unlike {@link #pathfinderDepthPenalty} (a heuristic bias that only reorders
      *  the search and cannot change which reachable path is cheapest), this adds to
      *  the edge cost, so it actually makes a path that dives down COST MORE than one
-     *  that climbs ashore. It fixes the deep-water-bowl "卡上岸" root cause: at a
+     *  that climbs ashore. It fixes the root cause of getting stuck climbing ashore from a deep-water bowl: at a
      *  sheer-walled water pit an XZ (Y-agnostic) goal let A* reach the target column
      *  more cheaply by SwimDown-ing to the bottom and break-tunnelling DOWN into the
      *  ground (end Y 50-53) than by break-climbing the +6 bank — so the bot drilled
@@ -575,7 +575,7 @@ public final class BotConfig {
      *  mount a diagonal +1 riser: the cardinal sprint-bunny-hop (early-jump ≤1.7 + sprint, Walker:4194) was
      *  A/B-DISPROVEN for diagonals (Walker:4198), and diagAscent drops sprint (Walker:4810), so a diagUp
      *  mounts only by a slow late-jump grind that bistably WEDGES on steep terrain (live -711, REGRESSION.md
-     *  §30 — the "上坡跳不上方块" residual). A cardinal stepUp+walk L-shape covers the same ascent and the
+     *  §30: the residual case of failing to jump up onto a block on a slope). A cardinal stepUp+walk L-shape covers the same ascent and the
      *  executor mounts it reliably (the proven sprint-bunny-hop). When >0, this penalty makes A* prefer that
      *  L-shape on dry land, routing AROUND the unmountable diagUp instead of committing it. Validate on the
      *  steep corpus (878/815) with the hardened K≥6 P(wedge) gate; too high over-charges + lengthens paths. */
@@ -601,7 +601,7 @@ public final class BotConfig {
      *  #minecraft:leaves) or pushes the head INTO leaves. Leaves are full-collision, so A* treats a
      *  leaf top as ordinary standable ground and routes the bot UP onto a tree canopy as a climb
      *  shortcut — where a buoy-free bot bobs/slides on the irregular leaf surfaces and rams the dense
-     *  head-height leaves forward (hCol): the "树下撞树叶" canopy-climb jank (live 2026-06-24 at
+     *  head-height leaves forward (hCol): the canopy-climb jank of colliding with leaves under a tree (live 2026-06-24 at
      *  -810,87 oak canopy — foot on oak_leaves, forward leaves blocking the climb, a ~52-tick / 2.6 s
      *  bob-thread). A human weaves between trunks on the GROUND instead of climbing the canopy; this
      *  SOFT per-cell tax tips A* onto the ground route around/under the tree. A sole canopy route is
@@ -629,7 +629,7 @@ public final class BotConfig {
      *  so an ordinary surface crossing is unchanged. This biases A* to keep a water
      *  route ON THE SURFACE instead of dropping onto the seafloor / a seagrass corridor
      *  it then can't climb out of (live round75: an XZ goal routed the bot along the
-     *  seabed through tall seagrass and it churned ~80 s "未能上浮" — the per-cell water
+     *  seabed through tall seagrass and it churned ~80 s unable to surface — the per-cell water
      *  tax alone is uniform with depth, so once submerged there was no incentive to
      *  surface). Same TRIPLE-GATE as {@link #pathfinderWaterCellCost}: Y-agnostic XZ
      *  goals only (a seabed dive uses a Y-aware goal and pays nothing), water cells
@@ -693,7 +693,7 @@ public final class BotConfig {
      *  thin breakable obstruction — canonically a SINGLE SPARSE lily pad over deep OPEN water. The existing
      *  {@code padCellTax} ({@link #pathfinderLilyPadCellCost}) prices this same geometry, BUT it is gated to
      *  XZ ({@code goal.ignoresY()}) goals — it mirrors {@code waterCellTax}'s triple-gate so it fires only on
-     *  a bare-column swim goal (the dense 睡莲池 pool A/B that validated it used an XZ crossing). A real
+     *  a bare-column swim goal (the dense lily-pad pool A/B that validated it used an XZ crossing). A real
      *  {@code mc.bot.goto x,y,z} resolves to a Y-AWARE goal ({@code Goal.Block}/{@code Goal.Near}), for which
      *  {@code padCellTax} returns 0 — so over an OPEN-water corridor dotted with sparse single pads, A* prices
      *  a 1-pad instabreak dig (cheaper than a 1-block detour) and threads a crossing node STRAIGHT THROUGH
@@ -745,7 +745,8 @@ public final class BotConfig {
      *  smoother one: a buoyant bot at the surface caps its swim-up at ~surface+0.2 and
      *  CANNOT step onto a +1/+2 ledge without a foothold, so every such exit forces the
      *  Walker's bank-dig climb-out (functional but bob-stuttery, ~1-2 s of mining + the
-     *  occasional anti-stuck burst — the live "卡在土墙 / 反复挖同一土块 / 横跳" windows). Pricing
+     *  occasional anti-stuck burst — the live windows of the bot stuck at a dirt wall, digging the
+     *  same block repeatedly, or hopping side to side). Pricing
      *  the climb-out ∝ its RISE biases A* toward the LOWEST available exit: a surface-level
      *  bank (rise 0, a plain Walk/StepDown — taxed nothing) is preferred over a +1, which is
      *  preferred over a +2. It does NOT forbid tall exits (a shoreline with only +2 banks
@@ -782,7 +783,7 @@ public final class BotConfig {
      *  so it must be a LAST resort, not a casual default: when it is too cheap the
      *  planner happily commits a ~30-block aerial bridge straight over a deep valley
      *  instead of descending and crossing the floor — a route the Walker can barely
-     *  execute, so the bot freezes (the "速度陡降 / 被挡" stall on mountain terrain).
+     *  execute, so the bot freezes (the sudden-slowdown or blocked stall on mountain terrain).
      *  A high cost makes A* prefer any ground route (descend a valley, go around) and
      *  bridge only a genuinely unavoidable short gap. Does NOT touch the depth penalty,
      *  so basin-dive protection is unchanged. Old hard-coded value was 30 (walk 10 +
@@ -793,7 +794,7 @@ public final class BotConfig {
      *  (was the hard-coded {@code Move.PILLAR_COST} 30). Placement consumes inventory,
      *  and the old price made a single pillar rung BEAT a ~6-walk stair detour — the
      *  bot spent build blocks where a free walk route existed (wd.bridgeStepTwoBypassNoPlace,
-     *  2026-07-20; the 独木桥 battery's "bypass exists → don't spend materials" contract).
+     *  2026-07-20; the single-plank bridge battery's "bypass exists → don't spend materials" contract).
      *  150 prices in material scarcity AND execution reality the way
      *  {@link #pathfinderBridgeCost} does for horizontal bridging: a pillar rung live
      *  is a failure-prone jump-place (deep-water takeovers measured ~27s) plus a spent
@@ -806,7 +807,7 @@ public final class BotConfig {
      *  <b>Default 4 — one block PAST Baritone's no-damage cap of 3</b>, so {@code Fall(4)} is live
      *  on every default run and only {@code Fall(5)} is inert; set 3 for damage-free routing.
      *  Raising it (≤5) buys a small-damage drop (vanilla charges {@code ceil(distance-3)} HP:
-     *  4 = 1 HP = 0.5♥, 5 = 2 HP = 1♥) instead of a dirt "天梯" staircase with
+     *  4 = 1 HP = 0.5♥, 5 = 2 HP = 1♥) instead of a dirt staircase with
      *  {@code BridgePlace} — the smooth-jungle-descent lever. A higher fall is
      *  cheaper than a place-bridge (Fall(5)=35 vs BridgePlace≈80), so once enabled
      *  A* prefers the natural drop. Survival-sensitive (the bot takes the damage).
@@ -816,14 +817,14 @@ public final class BotConfig {
      *  <p>Default raised 3→4 (2026-06-09): a 4-block fall is the MINIMUM non-zero
      *  fall (0.5♥, what a vanilla player takes constantly) and an A/B over a vine
      *  jungle canopy HALVED place-bridges (23→11) and cleared a descent the cap-3
-     *  bot wedged on for 90 s — the dirt "天梯" was the long-haul start wedge. fall5
+     *  bot wedged on for 90 s — the dirt staircase was the long-haul start wedge. fall5
      *  (1♥) stays catalogued-but-inert at 4 (raise to 5 to enable). autoEat/regen
      *  absorb the small drip; survival can lower it back to 3 via mc.bot.setting. */
     public static volatile int pathfinderMaxDryFall = 4;
 
     /** Max collision-box height (blocks) of a floor-resting obstacle the body
      *  STEPS or SWIMS over, so the pathfinder treats it as passable rather than a
-     *  wall. Fixes "被浮萍/荷叶挡住": a lily pad (collision ≈0.094 high) — and other
+     *  wall. Fixes being blocked by duckweed or lily pads: a lily pad (collision ≈0.094 high) — and other
      *  thin water-surface plants — sits as a low slab at the bottom of the surface
      *  (head) cell over water; the collision-aware {@link
      *  net.magicterra.worlddriver.bot.ClientWorldView#isPassable} otherwise intersects it
@@ -868,7 +869,7 @@ public final class BotConfig {
      *  spawn mountains) a far XZ goal grinds the entire {@link #pathfinderMaxNodes}
      *  budget (~60k nodes / ~3.6 s CPU) only to commit a tiny ~5-block best-effort
      *  segment — then re-searches at the next boundary, so the bot walks ~5 blocks and
-     *  FREEZES ~seconds, over and over ("行动→冻住→重算→冻住"). With a horizon set, the
+     *  FREEZES ~seconds, over and over (act → freeze → re-plan → freeze). With a horizon set, the
      *  search STOPS the instant A* pops a node that has reduced the goal heuristic by
      *  ≥ this many blocks (A* pops by f, so that node is ~optimal to the horizon),
      *  committing a long forward segment cheaply (a few hundred–thousand nodes) and
@@ -918,7 +919,7 @@ public final class BotConfig {
      *  is frozen anyway while the bot has nothing to walk. */
     public static volatile int pathfinderQuickNodes = 600;
 
-    /** PROGRESSIVE PATHFINDING (渐进式寻路): when ON, the Walker overlaps search with
+    /** PROGRESSIVE PATHFINDING: when ON, the Walker overlaps search with
      *  movement more aggressively at the start-of-segment gap — in addition to the
      *  water bee-line stub it greedily marches over safe STANDABLE land toward the
      *  goal as a zero-search coarse-direction stub, so the bot starts moving almost
@@ -1072,8 +1073,8 @@ public final class BotConfig {
 
     /** Proactive idle-only dusk shelter (DuskSecureChain, priority IDLE_SECURE=40):
      *  when the bot is sky-exposed at dusk/night, idle (no user task running), and
-     *  no threat is within 12 blocks, dig a "挖三填一" bunker (BunkerProcess) after a
-     *  short debounce. OFF by default — 挖三填一 stays predominantly an Agent-invoked
+     *  no threat is within 12 blocks, dig a "dig three, fill one" bunker (BunkerProcess) after a
+     *  short debounce. OFF by default — the bunker stays predominantly an Agent-invoked
      *  action (mc.bot.bunker); enable only for fully autonomous survival runs. When it
      *  DOES auto-fire it pushes a warning-level {@code duskSecure.triggered} event so an
      *  unattended dig is never silent. Below the USER band, so any active task suppresses it. */
@@ -1086,7 +1087,7 @@ public final class BotConfig {
      *  so the new preemption path can be observed before it is allowed to act. */
     public static volatile boolean duskUrgentDryRun = false;
 
-    /** Emergency "挖三填一" bunker reflex (BunkerChain): when cornered — low HP
+    /** Emergency "dig three, fill one" bunker reflex (BunkerChain): when cornered — low HP
      *  AND several hostiles right next to the bot, where fleeing just runs into
      *  more mobs — dig straight down a couple of blocks and seal the roof with the
      *  dug blocks, making a 1×1 pocket mobs can't reach. The canonical no-gear
@@ -1535,7 +1536,7 @@ public final class BotConfig {
      *  their momentum (gated off, like {@code steepDescentNear}). Drop-sprint only, so it is a
      *  byte-identical no-op on any tick that wouldn't have sprinted, and a legitimate flush
      *  shore-walk / river crossing is merely walked (not sprinted) along the deep edge.
-     *  <p>Default decided by live A/B at the replay-0008台. Flip via {@code mc.bot.setting}. */
+     *  <p>Default decided by live A/B on the replay-0008 test bench. Flip via {@code mc.bot.setting}. */
     public static volatile boolean walkerDeepWaterDriftBrake = true;
 
     /** DRY sibling of {@link #walkerDeepWaterDriftBrake} (task#36): latches the
@@ -1579,7 +1580,8 @@ public final class BotConfig {
      *  arming half. */
     public static volatile boolean walkerDescentStepSkipBrake = true;
 
-    /** Walker drive fix for the "移动中向后跳 / 下坡往回看" backward lurch on a DISCRETE drop.
+    /** Walker drive fix for the backward lurch (jumping backwards while moving, looking back while
+     *  going downhill) on a DISCRETE drop.
      *  The dry descent flip-rejection holds the steady trend heading while a fall/stepDown node
      *  sits sharply (&gt;120°) behind the body, but every {@code WATER_DRIVE_MAX_REJECT+1}=5th tick
      *  it ESCAPES by driving the real (backward) node for one tick to guard against a stale-heading
@@ -1599,7 +1601,7 @@ public final class BotConfig {
      *  STRICT extension: only the backward-escape tick of a discrete-descent rejection changes; on
      *  any other tick (and with the flag OFF) the drive is byte-identical.
      *  <p><b>Default OFF.</b> The mechanism is code-confirmed (the t= telemetry above shows the
-     *  recurring backward-escape drive), and the live A/B at the -746→-706 controlled climb台
+     *  recurring backward-escape drive), and the live A/B at the -746→-706 controlled climb bench
      *  trended the peak drive-flip DOWN (maxDriveDYaw 176-178° OFF → 142/153/151° ON in 3 of 4
      *  runs), BUT it was NOT a CLEAN win: the climb's backward-motion is dominated ~5:1 by the
      *  separate stepUp-ram-snap-back (40 of 48 backward ticks per run), the discrete-descent flip is
@@ -1681,7 +1683,7 @@ public final class BotConfig {
      *  a TURN / terminal / wall-corner node the bot is not crossing toward the next node so {@code passed}
      *  can't fire either — the flat water walk node then has NO relaxed-advance and the bot orbits / freezes
      *  against the corner (live deep-water bay corner: cur2 1.142 FROZEN 321 ticks, {@code within}=0, drive yaw
-     *  swinging 403° — the "贴墙卡住 / 在水里卡住" the goal names; {@code attack}=0, NOT digging — the dig was a
+     *  swinging 403° — the stuck-against-a-wall or stuck-in-water state the goal names; {@code attack}=0, NOT digging — the dig was a
      *  video misread). When ON, a CONFIRMED in-water stall ({@code noStepProgressTicks} — HORIZONTAL-only in
      *  water so the bob can't fake-reset it — past {@code WATER_WALK_STALL_TICKS}=24) at a flat {@code walk}
      *  water node within {@code WATER_WALK_REACH_SQ}=1.3 advances the step (next node {@code |Δy|<1.2} to bar a
@@ -1698,7 +1700,7 @@ public final class BotConfig {
      *  {@code noStepProgressTicks}, which the slide-back's re-approach / vertical bob zeroes on every 3D
      *  new-low — so on a WIDE ram the gate never fills and the bot bob-rams 150+ ticks before the slow
      *  WEDGE_TICKS(100) burst yanks it back (live J3b -877,75,241: diagUp node 3 above the foot, cur2 3.2-4.1,
-     *  反复横跳, 156 t / 7.8 s). When ON, a node >=2 above the foot (always a slide-back — no PLANNED move
+     *  repeated side-to-side hopping, 156 t / 7.8 s). When ON, a node >=2 above the foot (always a slide-back — no PLANNED move
      *  places one above a foot) that has DWELT {@code rawStepDwellTicks} (bob-immune, resets only on
      *  step-advance) past the bar folds into fellOffPath so the fresh foot-search blacklists the unreachable
      *  node and re-routes from the actual lower position NOW — with NO onGround requirement, so it also catches
@@ -1737,7 +1739,7 @@ public final class BotConfig {
      *  {@code |dyNode| < 1.2} as a still-suspect sibling. It was: on nether rung 14 the crossing's last
      *  four hops (2026-08-19) all ended perched at {@code 159,53,187} on 0.125 of a sole, and the plan
      *  that would have walked the body out — {@code [158,53,187 → 159,52,187 → 159,51,188]} — was spent
-     *  in a single tick without one block of movement, {@code 因=within} with {@code |w.y-p.y|=1.000}
+     *  in a single tick without one block of movement, {@code cause=within} with {@code |w.y-p.y|=1.000}
      *  printed on the very line that advanced. The pointer descended; the body did not. Covers the
      *  LAST node of a plan as well as its middle: rung 13's doorstep was a one-node plan spent on the
      *  tick it was adopted, and the segment then ends {@code path-consumed} with the body where it
@@ -1747,7 +1749,7 @@ public final class BotConfig {
 
     /** Phase-2 of the arc-length pursuit refactor (#55): aim BOTH the camera and the body at the bob-immune
      *  path TANGENT ahead of the projection ({@code arcProj.tangentYaw}) instead of the immediate-node bearing.
-     *  The node bearing flips ~180° the instant the foot overshoots the node — the backward-jump / 反复横跳 /
+     *  The node bearing flips ~180° the instant the foot overshoots the node — the backward-jump / repeated side-to-side hopping /
      *  facing-the-wall dead-corner stall (live P1 proof: with the step pointer correctly tracked the body still
      *  stalled on-path with dYaw up to 129°, the camera/drive pointing nearly opposite the path). A tangent at
      *  s+lookahead never reverses, so it eliminates that whole failure mode AND makes the descent flip-rejection
@@ -1811,7 +1813,7 @@ public final class BotConfig {
     /** Wall-corner node-aim handoff. With walkerTangentAim the body steers along the bob-immune path TANGENT,
      *  which is right for a clean trend-cruise but wrong at a CORNER: when the immediate node sits well off the
      *  tangent AND a wall is on the tangent heading, the body rams the wall (horizontalCollision) and only
-     *  creeps across as drift sweeps the geometry — the "贴墙卡住" stall (replay-diagnosed 2026-06-29 on
+     *  creeps across as drift sweeps the geometry — the stuck-against-a-wall stall (replay-diagnosed 2026-06-29 on
      *  corpus-dry-627 start: body yaw frozen 91° while the node bearing was 122°, hCol=true, ~350-tick churn).
      *  When ON, a ram with the node > WALL_CORNER_AIM_DEG off the tangent yields the aim back to the direct
      *  node bearing so the body turns off the wall onto the node. Gated on hCol, so a no-wall trend-cruise keeps
@@ -1822,7 +1824,7 @@ public final class BotConfig {
      *  node is the climb (>1 up, so the overshoot-resync `passed` reachability gate can't advance onto it)
      *  leaves the body aimed the wrong way (backward into a wall) and ram-frozen — even safetyRepath at
      *  stuck>60 re-commits the same path (journey 2026-06-29 -558,82: yaw -179, yawErr -120, hCol, cur2 6.28,
-     *  260-tick wedge = the "略微后退/贴墙卡住" signature). When ON, after OVERSHOOT_REAIM_STUCK wedged ticks
+     *  260-tick wedge = the signature of a slight step back followed by being stuck against a wall). When ON, after OVERSHOOT_REAIM_STUCK wedged ticks
      *  the aim points BACK at the overshot node so the body walks onto it and relaunches the climb from the
      *  aligned base. Dry + grounded + next-too-high + long-stuck only. Default OFF; validate via hardened gate. */
     public static volatile boolean walkerOvershootReaim = false;
@@ -1854,7 +1856,7 @@ public final class BotConfig {
 
     /** Wall-corner fast-churn recovery. The dry boxed-pocket churn detector (net XZ displacement < 8 blocks
      *  over a 20s window → blacklist the stuck nodes + escalate the planner + back off) is the ONLY recovery
-     *  that catches a §39 wall-corner stall (rocky/dirt/water-boundary 贴墙卡住), because the node-relative
+     *  that catches a wall-corner stall (stuck against a rocky/dirt/water-boundary wall), because the node-relative
      *  counters (totStuck, noStepProgressTicks) get RESET by the orbit's node-churn so safetyRepath/UnstuckChain
      *  never fire. But the 20s window is too slow — live journey-A ground through 20-45s wall-stalls. When ON,
      *  a SUSTAINED horizontalCollision (≥4s continuous, the unambiguous wall-ram signature) shortens that window
@@ -2087,7 +2089,7 @@ public final class BotConfig {
 
     /** Bridge-commit repath hold (§82): a mid-bridge PERIODIC repath swaps the committed
      *  bridgePlace chain for a fresh plan whose first node sits elsewhere, steering the
-     *  bot off the end of the placed deck into air ("搭桥中途掉下"). Arena A/B: 19-block
+     *  bot off the end of the placed deck into air (falling off partway through a bridge). Arena A/B: 19-block
      *  deck finishes inside one repath period and never falls (3/3); diagonal zig-zag and
      *  40-block decks straddle it and fell 100%. ON = hold routine repaths while the
      *  current/next edge is bridgePlace; safety repaths stay live. Default ON. */
@@ -2115,12 +2117,12 @@ public final class BotConfig {
      *  touches bottom ~4 ticks/second — each blip drops {@code digCommitted}, the tick falls
      *  through to the normal drive with attack=false, and vanilla RESETS the block's break
      *  progress (17 dig + 4 drive ticks per second, 25x underwater mining => the riser NEVER
-     *  breaks; observed as "反复挖同一处方块无效"). When ON: a grounded streak of <=5 ticks
+     *  breaks; observed as digging the same block over and over without effect). When ON: a grounded streak of <=5 ticks
      *  keeps the commit alive (a real climb-out grounds for good, ending it after the streak
      *  passes 5). Default ON. */
     public static volatile boolean walkerBankDigGroundBlip = true;
 
-    /** Actuator EXPECTATION alarms (预期-实际实时检测): every tick, compare what the pressed
+    /** Actuator EXPECTATION alarms (live expected-versus-actual checks): every tick, compare what the pressed
      *  inputs SHOULD produce against what the world actually did, and log a [expect] WARN the
      *  moment they diverge — turning post-mortem log archaeology into live, causal alarms.
      *  Three observers (zero intrusion into actuator branches; they read the player's real
@@ -2232,8 +2234,8 @@ public final class BotConfig {
      *  that land inside terrain, but it also defeats "pillar up to an elevated goal": the goal
      *  is "unstandable" only because its floor is air, which pillaring creates. Snapping it to
      *  the highest currently-standable cell makes the bot stop 1+ blocks short (live summitArena:
-     *  goal y233 snapped to y232, bot arrives at y232, never pillars the last block = "上坡跳不上
-     *  高空目标"). When ON, a pillar-reachable elevated goal keeps its real target so A* finds the
+     *  goal y233 snapped to y232, bot arrives at y232, never pillars the last block, so an uphill
+     *  goal in the air is never reached). When ON, a pillar-reachable elevated goal keeps its real target so A* finds the
      *  pillarUp path; a truly floating void goal (no base below) still snaps. Default ON
      *  (committed-safe); validate on the deterministic summitArena geometry. */
     public static volatile boolean walkerPillarReachGoalNoSnap = true;
@@ -2297,7 +2299,7 @@ public final class BotConfig {
      *  gametest baseline pins it OFF like every other walker flag. */
     public static volatile boolean walkerClimbIntentFromSurface = true;
 
-    /** The water pillar takeover declares「topped out」only on a rung with a dry cell beside it
+    /** The water pillar takeover declares "topped out" only on a rung with a dry cell beside it
      *  that can be stepped onto flush or down. The rise test alone read the top on a 1×1 rung one
      *  course under the rim whenever the latched climb node sat in the pool wall, A* then asked for
      *  a diagonal step-up off that rung, and the body walked off it back into the pool
@@ -2316,7 +2318,7 @@ public final class BotConfig {
 
     /** The last path node, when it IS the goal cell, is not spent until the foot stands in it
      *  (bounded by {@code FINAL_NODE_HOLD_TICKS}). Spending it from 0.67 away or from the air
-     *  ended the leg「path-consumed goalReached=false」with the body standing in the goal cell a few
+     *  ended the leg "path-consumed goalReached=false" with the body standing in the goal cell a few
      *  ticks later — half the client water scenes read that way on 2026-09-04, and the ladder
      *  acts on the field. Default ON; the gametest baseline pins it OFF like every other walker
      *  flag. */
@@ -2628,10 +2630,10 @@ public final class BotConfig {
     public static volatile boolean keepTickingUnfocused = true;
 
     // ===================== persistence (survives a restart) =====================
-    // The "重启游戏需要重新配置" pain: every relaunch reset these volatiles to their
-    // defaults, so survival toggles (autoSwim, autoRetreat, …) had to be re-applied
-    // by hand each time — and a default-off autoSwim drowned the bot on reload before
-    // it could be set. Now a successful mc.bot.setting apply writes every scalar (+ the
+    // Without persistence every relaunch resets these volatiles to their defaults, so
+    // survival toggles (autoSwim, autoRetreat, …) would have to be re-applied by hand after
+    // each restart — and a default-off autoSwim can drown the bot on reload before it is
+    // set. A successful mc.bot.setting apply writes every scalar (+ the
     // hazard-block Set) to a properties file via reflection, and the file is reloaded
     // at startup. Reflection means new tunables persist automatically with no per-field
     // code. Opt-in via -Dworlddriver.persistConfig=true (set by the dev runClient/runServer

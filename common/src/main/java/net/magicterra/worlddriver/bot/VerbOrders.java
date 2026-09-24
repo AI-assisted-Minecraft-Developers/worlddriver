@@ -71,7 +71,7 @@ public final class VerbOrders {
     /**
      * "acted" (did BunkerProcess ever really break/place a block) can't be known synchronously here — the
      * dig/carve/plug runs over many later ticks, not within this call. The reply stays a start ack
-     * ("ok:true" = "受理", not "sealed"); the honest terminal verdict (goalReached/endReason, folded in via
+     * ("ok:true" = "accepted", not "sealed"); the honest terminal verdict (goalReached/endReason, folded in via
      * awaitable()) lands on the bunker slot once BunkerProcess actually finishes or bails.
      */
     public static Order bunker(Params p, LivingEntity self) {

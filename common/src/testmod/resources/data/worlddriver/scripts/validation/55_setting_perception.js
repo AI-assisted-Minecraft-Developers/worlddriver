@@ -28,7 +28,7 @@ if (!clientAvailable()) {
         var r2 = Driver.invoke("mc.bot.setting", { autoSecureAtDusk: true });
         t.assertEqual(r2.settings.autoSecureAtDusk, true, "snapshot reflects autoSecureAtDusk=true");
 
-        // Restore default (OFF — 挖三填一 is Agent-invoked by default; auto-dig only
+        // Restore default (OFF — the "dig three, fill one" bunker is Agent-invoked by default; auto-dig only
         // when explicitly enabled, and it pushes duskSecure.triggered when it fires)
         Driver.invoke("mc.bot.setting", { autoSecureAtDusk: false });
     });

@@ -89,7 +89,8 @@ public final class TowerProcess implements BotProcess {
     private boolean startedWhileMoving;
     /** Courses whose jump never lifted the body a whole block. Counted rather than merely survived:
      *  a body that is being shoved off its own arc and one under a lid it cannot see produce the
-     *  same zero height, and only this number distinguishes「试了 15 次」from「试了 1 次就卡死了」. */
+     *  same zero height, and only this number distinguishes "tried 15 times" from "tried once and
+     *  got stuck". */
     private int shortJumps;
     private Phase phase = Phase.READY;
     private enum Phase { READY, JUMPING, PLACING, DONE }
@@ -205,12 +206,12 @@ public final class TowerProcess implements BotProcess {
                 //
                 // And it says WHICH CELL. This process places and never breaks, so the only thing it
                 // can do about a lid is name it for the caller that can mine it. Before this the
-                // answer was「stuck (no Y gain in 60t: placed=0, holding=64, phase=JUMPING)」, printed
+                // answer was "stuck (no Y gain in 60t: placed=0, holding=64, phase=JUMPING)", printed
                 // sixty ticks later, naming the phase the code stopped in rather than the block.
                 if (!p.level().noCollision(p,
                         p.getBoundingBox().move(0.0, WalkerGeometry.PILLAR_RISE, 0.0))) {
                     st.builder.lastError = "blocked overhead (placed=" + placed + ", feetY=" + feetY
-                            + ", 升不满一格：" + overheadRow(p) + ")";
+                            + ", cannot rise a full block: " + overheadRow(p) + ")";
                     failure = st.builder.lastError;
                     st.builder.reset();
                     a.releaseInputs();
@@ -226,7 +227,7 @@ public final class TowerProcess implements BotProcess {
                 // this process is the one that must never have it set.
                 p.setSprinting(false);
                 // And BRAKE, not merely stop asking. The READY gate waits for horizontal speed to
-                // fall under SETTLE_SPEED, but「under the threshold」is not zero: whatever is left
+                // fall under SETTLE_SPEED, but "under the threshold" is not zero: whatever is left
                 // is carried through the whole jump arc, and a body that lands one cell beside its
                 // own 1-wide pillar has nothing under it. Rung 20 left the world from -33,82,26 and
                 // -35,82,26 — two tower tops two blocks apart, with the entire leap family already
@@ -263,12 +264,12 @@ public final class TowerProcess implements BotProcess {
                 // failed to clear a whole block ended not the course but the ORDER, and the process
                 // spent every remaining tick of its caller's budget face-down over a cell it had
                 // already decided not to fill. Measured 2026-08-19 on three unrelated legs of the
-                // journey ladder, all reading「stuck (no Y gain in 60t: placed=0, holding=64,
-                // phase=JUMPING, apexFeetY=<start>)」over a body that was on the ground, not in water,
+                // journey ladder, all reading "stuck (no Y gain in 60t: placed=0, holding=64,
+                // phase=JUMPING, apexFeetY=<start>)" over a body that was on the ground, not in water,
                 // and holding a stack; and reproduced in wd.serverTowersUnderTheNeighboursCeiling,
                 // where the body rose 0.20 of a block and then stood still for 60 ticks.
                 //
-                // Retrying is not「a retry that changes nothing」HERE because the READY branch above
+                // Retrying is not "a retry that changes nothing" HERE because the READY branch above
                 // now refuses a course it cannot make: a lid that is still there ends the order on
                 // the next tick with the cell named, and what survives this path is the transient
                 // case — a shove, a current, a mob — where the next arc genuinely differs. The
@@ -300,15 +301,15 @@ public final class TowerProcess implements BotProcess {
     /** What is in the way of a one-block rise, as evidence: the cells and what stands in them.
      *
      *  <p>Cells, because the caller is the only party that can act on them — this process places and
-     *  never breaks. {@code 无} rather than an empty string when the rise is clear, so a stall with
+     *  never breaks. {@code none} rather than an empty string when the rise is clear, so a stall with
      *  nothing overhead is a POSITIVE reading instead of a missing one; and the entity case is said
-     *  out loud, because vanilla's collision test answers「blocked」for a hard-collision entity that
+     *  out loud, because vanilla's collision test answers "blocked" for a hard-collision entity that
      *  no cell scan can name. */
     private static String overheadRow(Player p) {
         List<BlockPos> lid = WalkerGeometry.pillarRiseBlockers(p);
         if (lid.isEmpty()) {
             return p.level().noCollision(p, p.getBoundingBox().move(0.0, WalkerGeometry.PILLAR_RISE, 0.0))
-                    ? "无" : "有东西拦着但不是方块（实体碰撞）";
+                    ? "none" : "blocked by something that is not a block (entity collision)";
         }
         StringBuilder sb = new StringBuilder();
         for (BlockPos at : lid) {
@@ -335,7 +336,7 @@ public final class TowerProcess implements BotProcess {
      *       stages the cobblestone in slot 20 and asserts the tower places nothing and reports
      *       {@code "no placeable block in hotbar"}. {@code reachIntoBag} is the per-caller opt-in
      *       out of that limit — and it applies to THIS branch only, because an id is an explicit
-     *       instruction from the caller and「any block」is not.</li>
+     *       instruction from the caller and "any block" is not.</li>
      *   <li><b>ANY placeable block</b> ({@code preferred == null}) — a different question with a
      *       different answer, and the hotbar-only limit below is NOT an oversight. Reaching into
      *       slots 9..35 for an unnamed block is the {@code holdPlaceable} family, where the client

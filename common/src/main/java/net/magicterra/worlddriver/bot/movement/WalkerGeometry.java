@@ -120,7 +120,7 @@ public final class WalkerGeometry {
      * back clean: {@code foot.below()} is solid because the FEET position is still inside that
      * block, the cell ahead is solid because it is real ground, and the neighbours are whatever they
      * are. Measured on the nether crossing, one tick before an eleven-block drop into lava:
-     * {@code 实心接触面积 0.0000/0.36} while {@code onGround} said true.
+     * a solid contact area of {@code 0.0000/0.36} while {@code onGround} said true.
      *
      * <p>The row is {@code floor(minY − 1e-7)} — the row the sole SITS ON, which is the block below
      * for a body flush on a full cube and the block itself for one on a shorter shape. The cells are
@@ -143,7 +143,7 @@ public final class WalkerGeometry {
     /**
      * Every cell that would stop this body from rising {@link #PILLAR_RISE} — empty when nothing does.
      *
-     * <p><b>A body is 0.6 wide, so「头顶那一格」is not one cell.</b> Asking
+     * <p><b>A body is 0.6 wide, so "the cell above the head" is not one cell.</b> Asking
      * {@code blockPosition().above(2)} answers about the column {@code floor(x), floor(z)} names, and
      * a body standing anywhere within 0.3 of a cell boundary also has to lift a corner of itself
      * through the NEIGHBOUR's cell. Measured 2026-08-19 by {@code wd.serverTowersUnderTheNeighboursCeiling},
@@ -159,7 +159,7 @@ public final class WalkerGeometry {
      * <p>The decision is vanilla's own ({@link Level#noCollision(net.minecraft.world.entity.Entity, AABB)}
      * over the box moved up by the rise); the scan below only puts names to it. They can disagree in
      * one direction — a hard-collision ENTITY blocks and has no cell — and the caller is
-     * expected to say so rather than print an empty list as「nothing in the way」.
+     * expected to say so rather than print an empty list as "nothing in the way".
      *
      * @return the blocking cells, lowest first, or an empty list when the rise is clear
      */
@@ -217,7 +217,7 @@ public final class WalkerGeometry {
      * cell's share of the footprint.
      *
      * <p><b>The single enumeration.</b> {@link #soleOnSolid}, {@link #soleRow} and
-     * {@link BlastFooting#refuseSwing} all run through here, so「身体站在哪一格上」has exactly one
+     * {@link BlastFooting#refuseSwing} all run through here, so "which cell is the bot standing on" has exactly one
      * answer in this repo — the rule this class's header states, applied to the one piece of it
      * that used to be copied by eye. Cells are walked OUTWARD with vanilla's own {@code 1e-7}, so a
      * sliver of overlap is reported as the sliver it is (a body walking off a ledge really is held
@@ -240,8 +240,8 @@ public final class WalkerGeometry {
      * The cells {@link #soleOnSolid} sums over, written out — the row index, each column, and what
      * that column contributes.
      *
-     * <p>Exists because a bare area is not falsifiable. {@code 脚底实心=0.0000} is consistent with
-     * three different worlds — the body is not in the cell the block coordinate suggests, the terrain
+     * <p>Exists because a bare area is not falsifiable. {@code soleOnSolid=0.0000} is consistent with
+     * three different worlds — the bot is not in the cell the block coordinate suggests, the terrain
      * is not what the arena's comments say, or the row being read is not the row a reader assumed —
      * and they want different fixes. The area alone cannot separate them; the row and the per-column
      * contributions can, and they are the very numbers the sum is built from, so no second opinion
@@ -249,9 +249,11 @@ public final class WalkerGeometry {
      * one and this print changes with it.
      */
     public static String soleRow(WorldView w, LivingEntity p) {
-        StringBuilder sb = new StringBuilder("排y=").append(soleRowY(p));
+        StringBuilder sb = new StringBuilder("rowY=").append(soleRowY(p));
+        // JourneyCrossingScenes tests the row for "solid" to tell a bot perched on a corner from
+        // one in mid-air.
         eachSoleCell(p, (cell, area) -> sb.append(String.format(java.util.Locale.ROOT,
-                " [%d,%d]%s%.4f", cell.getX(), cell.getZ(), w.isSolid(cell) ? "实" : "空", area)));
+                " [%d,%d]%s %.4f", cell.getX(), cell.getZ(), w.isSolid(cell) ? "solid" : "open", area)));
         return sb.toString();
     }
 
@@ -374,7 +376,7 @@ public final class WalkerGeometry {
     }
 
     /**
-     * 「where the body is pointed」beside「where the lethal cell is」, as one row.
+     * "where the body is pointed" beside "where the lethal cell is", as one row.
      *
      * <p>MEASUREMENT ONLY — nothing branches on it yet, deliberately. Gating the hop on this
      * bearing would introduce a cone half-angle, and this repo's rule is that a free parameter
@@ -399,16 +401,16 @@ public final class WalkerGeometry {
      * has shown how far the two diverge at a stall, neither is a lever.
      */
     public static String hopBearingRow(LivingEntity p, BlockPos foot, BlockPos lethal) {
-        if (lethal == null) return "无致命格，不算方位";
+        if (lethal == null) return "no lethal cell, no bearing computed";
         double bx = (lethal.getX() + 0.5) - (foot.getX() + 0.5);
         double bz = (lethal.getZ() + 0.5) - (foot.getZ() + 0.5);
         // Minecraft yaw: 0 = +Z, 90 = -X. atan2(-dx, dz) puts a world bearing in the same frame.
         double bearing = Math.toDegrees(Math.atan2(-bx, bz));
         double delta = Math.abs(net.minecraft.util.Mth.wrapDegrees(bearing - p.getYRot()));
         return String.format(java.util.Locale.ROOT,
-                "朝向 %.0f°，致命格 %s 在 %.0f°，夹角 %.0f°（%s）",
+                "facing %.0f°, lethal cell %s at %.0f°, angle between %.0f° (%s)",
                 net.minecraft.util.Mth.wrapDegrees(p.getYRot()), lethal.toShortString(), bearing,
-                delta, delta <= 90 ? "朝着它" : "背着它");
+                delta, delta <= 90 ? "facing it" : "facing away");
     }
 
     /**
@@ -479,7 +481,7 @@ public final class WalkerGeometry {
      * <p><b>What is NOT measured, and must not be written up as if it were.</b> That same run
      * produced <b>no</b> firing hop pointed AT a lethal cell, so the death side has no direct
      * sample. It rests on two independent RECONSTRUCTIONS: the ladder's fatal hop back-solves to a
-     * bearing of 140.7°, whose landing columns are the lake; and the one「toward」ring-3 firing an
+     * bearing of 140.7°, whose landing columns are the lake; and the one "toward" ring-3 firing an
      * earlier rehearsal did produce ({@code t=13294}) came with camera and drive within a few
      * degrees. No run has yet shown this rule suppressing a hop that would otherwise have killed
      * the body — which is why the row stays: the next real occasion files its own evidence.
@@ -519,13 +521,14 @@ public final class WalkerGeometry {
             prev = cand;
             boolean lethal = isLethalDropColumn(world, cand, threshold);
             anyLethal |= lethal;
-            if (cells.length() > 0) cells.append('，');
-            cells.append(cand.toShortString()).append(lethal ? " 致命" : " 安全");
+            if (cells.length() > 0) cells.append(", ");
+            cells.append(cand.toShortString()).append(lethal ? " lethal" : " safe");
         }
-        return String.format(java.util.Locale.ROOT, "驱动 %.0f°（相机 %.0f°，两者差 %.0f°）；落点柱 %s ⇒ 落点规则：%s",
+        return String.format(java.util.Locale.ROOT,
+                "drive %.0f° (camera %.0f°, difference %.0f°); landing columns %s ⇒ landing rule: %s",
                 Mth.wrapDegrees(driveYaw), Mth.wrapDegrees(p.getYRot()),
                 Math.abs(Mth.wrapDegrees(driveYaw - p.getYRot())), cells,
-                anyLethal ? "压制" : "放行");
+                anyLethal ? "suppress" : "allow");
     }
 
     /** One column's worth of {@link #nearestLethalHopCell}'s scan: open foot cell, no floor, and the
@@ -649,7 +652,7 @@ public final class WalkerGeometry {
     }
 
     /** Total blocks a path would PLACE — the sum of each edge's toPlace size. Used
-     *  by the block-budget reroute (搭桥前算够不够) to compare against inventory. */
+     *  by the block-budget reroute (checking before bridging that there are enough blocks) to compare against inventory. */
     public static int countPlaceEdges(List<Move.Edge> edges) {
         int n = 0;
         for (Move.Edge e : edges) if (e != null && e.toPlace != null) n += e.toPlace.size();

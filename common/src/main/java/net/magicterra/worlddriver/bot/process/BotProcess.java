@@ -41,12 +41,12 @@ public interface BotProcess {
      *  Explore, Build, Backfill, BboxFill, Farm, RunAway, Sleep — inherit this no-op and resume
      *  on a path computed from a position the body may have been dragged out of.
      *  {@code UserTaskChain} calls the hook faithfully; there is simply nothing on the other end.
-     *  Written down rather than fixed because 「pathing processes override」 read as a
+     *  Written down rather than fixed because "pathing processes override" read as a
      *  description and was a wish.
      *
      *  <p>The membership of that list is measured off {@code new Walker(} and off who hands the
      *  process to {@code UserTaskChain.setProcess}, not off which verbs feel path-shaped — it read
-     *  「…Farm, Bridge, Tower」 for a while and both of those own no {@code Walker} at all (they use
+     *  "…Farm, Bridge, Tower" for a while and both of those own no {@code Walker} at all (they use
      *  {@code WalkerGeometry} only), which quietly excused the two that do. Two more Walker owners
      *  are outside the list on purpose: {@code ReplayProcess} overrides this explicitly to a no-op
      *  (its plan is fixed, so repathing would discard the thing it exists to replay), and
@@ -64,7 +64,7 @@ public interface BotProcess {
      *  the log-cost waiver ({@code logWaiverOwner}) and never touches its {@code Walker}, so a
      *  cancelled mine drops its path archive exactly like build/farm/follow do. Count the overrides
      *  with {@code grep -rn "void onCancelled"}, and read each body before concluding it repaths:
-     *  「overrides the hook」and「finalizes the walker」are two different questions, and this
+     *  "overrides the hook" and "finalizes the walker" are two different questions, and this
      *  sentence answered the second with the first for a while. */
     default void onCancelled(String reason) {}
 

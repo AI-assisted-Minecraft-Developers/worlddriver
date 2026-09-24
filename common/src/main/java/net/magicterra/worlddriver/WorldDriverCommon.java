@@ -254,9 +254,10 @@ public final class WorldDriverCommon {
         Thread t = new Thread(() -> {
             try { Thread.sleep(ms); } catch (InterruptedException e) { return; }
             if (serverEverStarted) return;
-            LOG.error("[worlddriver] 启动看门狗：{} ms 内服务器没有启动完成，强制退出 JVM。"
-                    + "常见原因是端口被占（BindException）或世界目录被另一趟占住——"
-                    + "这两种情况服务器都会死掉而 JVM 不会，于是构建会永远等下去。", ms);
+            LOG.error("[worlddriver] Startup watchdog: the server did not finish starting within {} ms; "
+                    + "halting the JVM. The usual causes are a port already in use (BindException) or a "
+                    + "world directory held by another run. In both cases the server dies but the JVM "
+                    + "does not, so the build would otherwise wait forever.", ms);
             Runtime.getRuntime().halt(90);
         }, "worlddriver-startup-watchdog");
         t.setDaemon(true);

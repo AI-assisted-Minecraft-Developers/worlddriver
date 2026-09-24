@@ -54,7 +54,8 @@ public final class JourneyFill {
     /** How many sources a station must be able to see to be worth having at all. ONE, and the
      *  richest candidate wins — not ten, which is what the rung spends.
      *
-     *  <p>Asked as ten it found nothing: run 39 measured {@code 够得着的源块不足 10=99}, ninety-nine
+     *  <p>Asked as ten it found nothing: run 39 measured 99 rejections for fewer than 10 reachable
+     *  sources, ninety-nine
      *  cells that were dry, standable, near-bank and looking at the lake, all rejected, and the fills
      *  fell back to the per-trip choice that drowns the body. A station that sees six is not a
      *  station that fails on the seventh cast — the lake keeps flowing — and it is unconditionally
@@ -70,7 +71,8 @@ public final class JourneyFill {
      * stairwell's mouth to the far bank goes over the lake — so the walker took it, and six runs
      * running the body ended up UNDER the surface: {@code cast2.return=-10,60,20},
      * {@code climb.0 above=Block{minecraft:lava} onGround=false},
-     * {@code climb.0.wouldOpenFluid=-10,62,20 挖开就会放出 lava —— 不挖}, {@code exit.gained=0/6}.
+     * {@code climb.0.wouldOpenFluid=-10,62,20} (mining it would release lava, so the climb did not
+     * mine it), {@code exit.gained=0/6}.
      * There is no recovering from inside a lake whose ceiling the climb is (correctly) forbidden to
      * mine, so the answer is not to go. A choice that is right sixty percent of the time fails a
      * ten-trip rung almost always; a route walked once and proved is walked ten times.
@@ -100,9 +102,9 @@ public final class JourneyFill {
      *                              06:39:58 search-begin start=-13, 62, 19   ← in the lake
      *                              …sank to -15,59,19; ascendByTowering cannot pillar out of lava
      *                              (climb.0 above=lava … stuck (no Y gain)) holding 128 cobblestone
-     * run B (FAIL 17410t)  trip 8  lava8.aimsAt … 眼睛 -13.70/63.62/22.84    ← filled from y=62
+     * run B (FAIL 17410t)  trip 8  lava8.aimsAt … eye -13.70/63.62/22.84      ← filled from y=62
      *                              cast8.returnStuck3#1.gained = 4/4         ← pillared back out
-     *                              cast8.returnStopped 停在 -14, 66, 21 …脚下 air  ← and wedged
+     *                              cast8.returnStopped at -14, 66, 21 … air below  ← and wedged
      * </pre>
      *
      * <p>Two runs, two different deaths, one cell. Run B's is the plainer of the two: the body ends
@@ -140,27 +142,30 @@ public final class JourneyFill {
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
         Pick strict = pickStation(level, rig, lava, surfaceY, stairTop, sources, why, true);
         Pick chosen = strict;
-        String how = "脚边一步之内没有通向岩浆的空洞（严格判据）";
+        String how = "no opening to the lava within one step of the feet (strict criterion)";
         if (strict == null) {
             Map<String, Integer> loose = new java.util.LinkedHashMap<>();
             chosen = pickStation(level, rig, lava, surfaceY, stairTop, sources, loose, false);
             if (chosen != null) {
                 BlockPos over = JourneyTerrain.onThePoolsLip(level, chosen.foot());
                 if (over == null) over = JourneyTerrain.onThePoolsLip(level, chosen.foot().above());
-                how = "严格判据一格都没有，退回旧判据 —— 这一格在坑沿上（一步之外 " + over
-                        + " 是岩浆），十趟里迟早有一趟掉下去，"
-                        + "被它否掉的计数见「脚边就是通向岩浆的空洞」";
+                how = "no cell passed the strict criterion; fell back to the previous criterion - this cell is on"
+                        + " the pool's lip (" + over + ", one step away, is lava), so one of the ten trips will"
+                        + " eventually fall in; the cells the strict criterion refused are counted under"
+                        + " \"opening to the lava beside the feet\"";
             }
             why.putAll(loose);
         }
         fillStation = chosen == null ? null : chosen.foot();
         rig.evidence("station", chosen == null
-                ? "没找到固定装料点（湖边 " + STATION_REACH + " 格内没有站得住又看得见 "
-                  + STATION_SOURCES + " 格源块的干地）—— 退回每趟各选一处，"
-                  + "这正是把身体淹进湖里的那条路；否决计数 " + why
-                : chosen.foot().toShortString() + "：够得着 " + chosen.seen() + " 格源块，距楼梯口 "
-                  + Math.round(Math.sqrt(chosen.dist())) + " 格（十趟都站这里）；" + how
-                  + "；否决计数 " + why);
+                ? "no fixed fill station found (no dry cell within " + STATION_REACH
+                  + " blocks of the lake that can be stood on and sees " + STATION_SOURCES
+                  + " source(s)) - falling back to choosing a stand per trip, "
+                  + "which is the route that drowned the bot in the lake; rejection counts " + why
+                : chosen.foot().toShortString() + ": " + chosen.seen() + " source(s) in reach, "
+                  + Math.round(Math.sqrt(chosen.dist())) + " blocks from the stairwell mouth"
+                  + " (all ten trips stand here); " + how
+                  + "; rejection counts " + why);
     }
 
     /** A station candidate and the two numbers it was ranked on. */
@@ -169,7 +174,7 @@ public final class JourneyFill {
     /**
      * One pass of the station scan. {@code refuseTheLip} is what separates the two.
      *
-     * <p><b>Its「站得住」is the third in this package and the strictest, deliberately.</b> It asks
+     * <p><b>Its "standable" test is the third in this package and the strictest, deliberately.</b> It asks
      * {@code getCollisionShape().isEmpty()} rather than {@code blocksMotion()}, and it refuses fluid
      * at the HEAD as well as at the foot — neither of which
      * {@code JourneyPortalEntry.standable} or {@code JourneyEndRungs.standingCellInTheRoom} does.
@@ -187,27 +192,27 @@ public final class JourneyFill {
                 for (int y = lava.getY() + 1; y <= surfaceY + 1; y++) {
                     BlockPos foot = new BlockPos(stairTop.getX() + dx, y, stairTop.getZ() + dz);
                     if (!level.getBlockState(foot.below()).blocksMotion()) {
-                        why.merge("脚下不实心", 1, Integer::sum); continue;
+                        why.merge("floor below not solid", 1, Integer::sum); continue;
                     }
                     if (!level.getFluidState(foot).isEmpty()
                             || !level.getFluidState(foot.above()).isEmpty()) {
-                        why.merge("站在流体里", 1, Integer::sum); continue;
+                        why.merge("standing in fluid", 1, Integer::sum); continue;
                     }
                     if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()
                             || !level.getBlockState(foot.above())
                                     .getCollisionShape(level, foot.above()).isEmpty()) {
-                        why.merge("落脚或头顶被占", 1, Integer::sum); continue;
+                        why.merge("foot or head cell occupied", 1, Integer::sum); continue;
                     }
                     if (acrossThePool(level, stairTop, foot)) {
-                        why.merge("走过去要横穿岩浆", 1, Integer::sum); continue;
+                        why.merge("route crosses the lava", 1, Integer::sum); continue;
                     }
                     if (refuseTheLip && (JourneyTerrain.onThePoolsLip(level, foot) != null
                             || JourneyTerrain.onThePoolsLip(level, foot.above()) != null)) {
-                        why.merge("脚边就是通向岩浆的空洞", 1, Integer::sum); continue;
+                        why.merge("opening to the lava beside the feet", 1, Integer::sum); continue;
                     }
                     int seen = sourcesInReachFrom(level, rig, foot, sources);
                     if (seen < STATION_SOURCES) {
-                        why.merge("够得着的源块不足 " + STATION_SOURCES, 1, Integer::sum); continue;
+                        why.merge("fewer than " + STATION_SOURCES + " reachable sources", 1, Integer::sum); continue;
                     }
                     double d = foot.distSqr(stairTop);
                     if (best == null || seen > best.seen()
@@ -241,7 +246,7 @@ public final class JourneyFill {
      * <p>This used to record the {@code InteractionResult} and carry on regardless, which is how run
      * 21 poured nothing into cell zero and reported it as a casting failure. What actually happened
      * is one line above that: {@code lava0.result=FAIL}, the bucket still empty, and the pour then
-     * ran with <b>cobblestone in the hand</b> ({@code cast0.hand=拿不到 minecraft:lava_bucket}).
+     * ran with <b>cobblestone in the hand</b> ({@code cast0.hand=cannot hold minecraft:lava_bucket}).
      * A `PASS` from a block item is byte-identical to a bucket whose ray missed, so the rung's
      * verdict named the cast — three inferences from a fill nobody checked.
      *
@@ -269,7 +274,8 @@ public final class JourneyFill {
         // The staircase's mouth is cut beside the pool, so a body that has just climbed it is
         // usually two blocks from a source with a clear line to it — and the walk to a planned
         // stand on the far side crosses the pool's own rim. That crossing is not a slow route, it
-        // is a drowning: measured in three consecutive runs, `lava2.spot=站 -13,64,21` and then
+        // is a drowning: measured in three consecutive runs, `lava2.spot` chose a stand at
+        // `-13,64,21` and then
         // `cast2.return` beginning at `-10,60,20`, three blocks UNDER the surface, `climb.0
         // above=lava onGround=false`, and the scripted climb refusing to mine a ceiling with lava
         // behind it — correctly, and with nothing left to try. The trip that fetched the lava is
@@ -281,7 +287,7 @@ public final class JourneyFill {
         // ASKED WHERE THE BODY IS, NOT WHERE IT COMES TO REST — deliberately, and the other way
         // round has been tried. Settling first sounds strictly better (this clip is the reason the
         // fill does not walk, so it deserves a still body) and measured worse: a ten-tick settle
-        // here gave `recover8` eight extra ticks of falling, `眼睛 y 61.65→58.06`, after which
+        // here gave `recover8` eight extra ticks of falling, eye y 61.65→58.06, after which
         // nothing was in view, the fill walked, and the walk mined a cast frame cell on its way back
         // up. See HoldStill for the whole chain. A wrong answer from here costs one aim, which
         // `scoop` re-takes; a body four blocks lower costs the rung.
@@ -289,8 +295,8 @@ public final class JourneyFill {
             BlockPos inReach = visibleSourceNear(rig, lava, FILL_RESEARCH);
             if (inReach != null) {
                 rig.evidence(tag + ".fromHere", rig.player().blockPosition().toShortString()
-                        + " 已经看得见源块 " + inReach.toShortString() + "（够得着），不走过去了"
-                        + "；" + eyeNow(rig));
+                        + " already sees source " + inReach.toShortString() + " (in reach); not walking to it"
+                        + "; " + eyeNow(rig));
                 if (!bucketInHand(ctx, rig, tag)) return;
                 scoop(ctx, rig, src, inReach, tag, wanted, id, lava, tries, AIM_TRIES, then);
                 return;
@@ -299,7 +305,8 @@ public final class JourneyFill {
         // WHERE TO STAND is chosen before the walk, not discovered after it. `Goal.Near(src, 2)` puts
         // the body within two blocks of a source and says nothing about what is between them, so
         // whether the bucket filled came down to where the climb happened to emerge: the same code
-        // filled at `-12,63,21` one run and reported `射线停在 -10,63,21 stone` the next, two runs
+        // filled at `-12,63,21` one run and reported the ray stopping on stone at `-10,63,21` the
+        // next, two runs
         // apart, with nothing changed. That is the pour's old bug on the other side of the trip, and
         // this is the pour's fix on the other side of the trip.
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
@@ -309,23 +316,26 @@ public final class JourneyFill {
         FillSpot spot = lava && fillStation != null ? new FillSpot(fillStation, src)
                 : standToFill(ctx.level(), rig, src, lava, FILL_RESEARCH, why);
         rig.evidence(tag + ".spot", spot == null
-                ? "没找到能看见源块的落脚点，退回 Near(" + src.toShortString() + ",2)；否决计数 " + why
-                : (lava && fillStation != null ? "站固定装料点 " : "站 ")
-                  + spot.stand().toShortString() + " 瞄 " + spot.source().toShortString());
+                ? "no stand that sees a source was found; falling back to Near(" + src.toShortString()
+                  + ",2); rejection counts " + why
+                : (lava && fillStation != null ? "stand at fixed fill station " : "stand at ")
+                  + spot.stand().toShortString() + " aiming at " + spot.source().toShortString());
         Goal where = spot == null ? new Goal.Near(src, 2) : new Goal.Block(spot.stand());
         // THE WATER RECOVER MAY NOT DIG ITS WAY THERE. Its source sits inside the frame the rung is
         // building, so the only thing between a floor-level body and it is the frame — and a walker
         // with `allowBreak` on treats that as terrain. Measured, single-bucket rehearsal 2026-08-17:
-        // `recover8.spot = 没找到能看见源块的落脚点，退回 Near(-9,61,38,2)` and then
-        // `frame.lost.1 = -9,60,38 浇成黑曜石之后又没了：现在是 water，丢在「recover8 从 -9,61,38 收水」
-        // 这一步里；身体 -9,59,38 距 1.0 格` — the body one cell under the cell it had just cast, which
-        // is where you stand after breaking it. Every cell was poured that run (`frame.cast=9/10（浇成过
-        // 10 格，浇成之后又丢了 1 格）`) and the rung still failed, on a cell the fetch destroyed.
+        // `recover8.spot` found no stand that sees a source and fell back to `Near(-9,61,38,2)`, and
+        // then `frame.lost.1` reported that `-9,60,38` had been cast to obsidian and was gone again,
+        // now water, lost during the step "recover8 collects water from -9,61,38", with the bot at
+        // `-9,59,38`, 1.0 block away - the bot one cell under the cell it had just cast, which is
+        // where you stand after breaking it. Every cell was poured that run (`frame.cast=9/10`: 10
+        // cells cast, 1 of them lost afterwards) and the rung still failed, on a cell the fetch
+        // destroyed.
         //
         // The LAVA fetch keeps its digging: it walks across open ground to a lake, nowhere near the
         // mould, and taking the capability away there would only make an ordinary route fail. Same
         // distinction `digWithoutTunnelling` and the mould walk already draw.
-        // AND IT MAY NOT WALK THE RIM TO GET THERE. This is the leg that goes deliberately close to
+        // AND IT MAY NOT WALK THE RIM TO GET THERE. This is the walk that goes deliberately close to
         // the lake, and it was the one carrying `new Intent(where)` — no bias at all — while the
         // approach that first found the lake priced every rim cell at 300. A stand chosen for having
         // no hole beside it does not constrain the route to it, which is the whole argument of
@@ -350,11 +360,11 @@ public final class JourneyFill {
                 rig.evidence(tag + ".stationSees",
                         sourcesInReachFrom(ctx.level(), rig, fillStation,
                                 JourneyTerrain.lavaSourcesNear(ctx.level(), fillStation, 6,
-                                        fillStation)) + " 格源块还够得着");
+                                        fillStation)) + " source(s) still in reach");
             BlockPos seen = visibleSourceNear(rig, lava, FILL_RESEARCH);
             BlockPos aim = seen != null ? seen : (spot == null ? src : spot.source());
             if (!aim.equals(src)) rig.evidence(tag + ".aim", src.toShortString() + " → "
-                    + aim.toShortString() + "（计划的那格被挡住，改瞄看得见的一格）");
+                    + aim.toShortString() + " (the planned cell is blocked; aiming at a visible one instead)");
             if (!bucketInHand(ctx, rig, tag)) return;
             scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, AIM_TRIES, then);
         });
@@ -367,24 +377,25 @@ public final class JourneyFill {
      * fill whose hand could not be got aimed anyway. Ladder j48 measured the whole shape:
      *
      * <pre>
-     * lava6.hand    = 拿不到 minecraft:bucket，手上是 minecraft:stone_pickaxe；桶存量 空=0 水=1 岩浆=0
-     * lava6.aimsAt#5 = -11, 63, 16 Block{minecraft:lava} 源块=true 液位=8      ← the ray was perfect
+     * lava6.hand    = cannot hold minecraft:bucket; main hand holds minecraft:stone_pickaxe; bucket stock empty=0 water=1 lava=0
+     * lava6.aimsAt#5 = -11, 63, 16 Block{minecraft:lava} source=true level=8   ← the ray was perfect
      * lava6.result  = PASS                                                    ← a pickaxe's use
-     * (verdict)       装不到 minecraft:lava_bucket
+     * (result message) could not fill minecraft:lava_bucket
      * </pre>
      *
-     * <p>Three re-aims and three cleared sightlines were spent on a body holding a pickaxe, and the
-     * rung then reported a fill problem — about a leg whose real cause was the pour before it
+     * <p>Three re-aims and three cleared sightlines were spent on a bot holding a pickaxe, and the
+     * rung then reported a fill problem — about a fetch trip whose real cause was the pour before it
      * leaving the only bucket full of water. {@code JourneyPortalRung}'s pour has stopped on exactly
-     * this since「不要花掉一次不可能成功的 use」was written for it; the fill is the same sentence on
-     * the other side of the trip, and only one side had it.
+     * this since its rule "do not spend a use that cannot succeed" was written; the fill is the same
+     * rule on the other side of the trip, and only one side had it.
      */
     private static boolean bucketInHand(SceneContext ctx, JourneyRig rig, String tag) {
         if (JourneyHands.holdForUse(rig, Items.BUCKET, tag)) return true;
-        ctx.fail("装桶的那只手不是 minecraft:bucket：" + JourneyHands.heldOnBoth(rig)
-                + "；" + JourneyHands.bucketStock(rig)
-                + " —— 不装了。空手 use 只会返回 PASS，重瞄和清射线都会白花，"
-                + "然后这一级会把失败写成「装不到…」，而真因在拿不到桶之前");
+        ctx.fail("the hand that fills is not holding minecraft:bucket: " + JourneyHands.heldOnBoth(rig)
+                + "; " + JourneyHands.bucketStock(rig)
+                + " - not filling. A use without the bucket only returns PASS, so re-aiming and clearing the ray"
+                + " would be wasted, and this rung would then report the failure as \"could not fill...\" when"
+                + " the real cause is that the bucket could not be held");
         return false;
     }
 
@@ -399,8 +410,8 @@ public final class JourneyFill {
      * clips the segment eye→block-centre; {@code JourneyHands.aimedAt} traces
      * {@code directionFromRotation(xRot, yRot)} for {@code BUCKET_REACH} from the same eye. Those
      * are nominally the SAME line, and a single-bucket rehearsal had them disagree one cell apart:
-     * {@code recover9.fromHere = -10,58,35 已经看得见源块 -10,61,38（够得着）} and, an instant
-     * later, {@code recover9.aimsAt = -10,60,38 Block{minecraft:obsidian} 源块=false}.
+     * {@code recover9.fromHere = -10,58,35 already sees source -10,61,38 (in reach)} and, an
+     * instant later, {@code recover9.aimsAt = -10,60,38 Block{minecraft:obsidian} source=false}.
      *
      * <p>Only two things can do that and the rows could not tell them apart, because both printed
      * the CELL and a cell is 1 m wide:
@@ -426,7 +437,8 @@ public final class JourneyFill {
         // 60.48 − 1.62 = 58.86, so the body was most of a block above the row it thought it was on,
         // still falling toward it, and the extra 0.86 put the frame cell 4,60,19 on the line to the
         // water in 4,59,19 — from a resting eye at 59.62 that cell is not on the line at all. The
-        // row that DID exist,「settle 这两 tick 里眼睛挪了 0.25 格」, cannot answer this: eleven of
+        // row that DID exist, "the eye moved 0.25 blocks during the two settle ticks", cannot answer
+        // this: eleven of
         // that run's twelve aims drifted 0.10–0.30 too and every one of them ended on an integer
         // row. Drift is not the discriminator; where the feet ENDED is.
         //
@@ -437,15 +449,16 @@ public final class JourneyFill {
         double feet = fp.getY();
         boolean onRow = Math.abs(feet - Math.round(feet)) < 0.01;
         return String.format(java.util.Locale.ROOT,
-                "眼睛 %.2f/%.2f/%.2f 朝 yaw=%.2f pitch=%.2f（脚 y=%.2f，%s，onGround=%b）",
+                "eye %.2f/%.2f/%.2f facing yaw=%.2f pitch=%.2f (feet y=%.2f, %s, onGround=%b)",
                 eye.x, eye.y, eye.z, fp.getYRot(), fp.getXRot(), feet,
-                onRow ? "落在整数排上" : "★ 不在整数排上，身体还在坠", fp.onGround());
+                onRow ? "resting on an integer row" : "★ not on an integer row, the bot is still falling",
+                fp.onGround());
     }
 
     /** How far the eye may drift across a settle before the drift itself is worth printing. Five
      *  centimetres: under that the pitch to a cell at arm's length shifts by far less than the width
-     *  of a block face, and「挪了 0.00 格」on every fill is noise in a row that already has to carry
-     *  a cell, a fluid and a rotation. */
+     *  of a block face, and "moved 0.00 blocks" on every fill is noise in a row that already has to
+     *  carry a cell, a fluid and a rotation. */
     private static final double DRIFT_WORTH_A_ROW = 0.05;
 
     /**
@@ -462,7 +475,7 @@ public final class JourneyFill {
     private static String settleDrift(JourneyRig rig, net.minecraft.world.phys.Vec3 was) {
         double moved = was.distanceTo(rig.player().getEyePosition());
         return moved <= DRIFT_WORTH_A_ROW ? "" : String.format(java.util.Locale.ROOT,
-                "；settle 这两 tick 里眼睛挪了 %.2f 格（y %.2f→%.2f）—— 瞄准是落定后重算的",
+                "; the eye moved %.2f blocks during the two settle ticks (y %.2f→%.2f) - the aim was recomputed after settling",
                 moved, was.y, rig.player().getEyePosition().y);
     }
 
@@ -472,7 +485,8 @@ public final class JourneyFill {
      * <p>The pour has had this gate for a while and the fill did not, which is the whole of run 18's
      * failure: {@code lava0.spot} planned a stand from which the clip landed on the source,
      * {@code lava0.result=FAIL} an instant later, and {@code lava0.miss.3} explained why —
-     * {@code 瞄 -11,63,21（现在是 lava），距 1.8m，射线停在 -11,64,22 Block{minecraft:gravel}}. Between
+     * it aimed at {@code -11,63,21} (lava at that moment) from 1.8 m, and the ray stopped on
+     * {@code Block{minecraft:gravel}} at {@code -11,64,22}. Between
      * choosing the spot and using the bucket, <b>a gravel block fell into the line</b>. Nothing was
      * wrong with the plan; the world moved under it.
      *
@@ -530,7 +544,8 @@ public final class JourneyFill {
             // A SOURCE, not merely the right cell with the right fluid in it. `BucketItem.use` clips
             // with `Fluid.SOURCE_ONLY` and returns PASS — doing nothing whatsoever — when that clip
             // finds none, and PASS is exactly what run 26 got: `recover1.result=PASS` beside
-            // `射线停在 -10,57,38 Block{minecraft:water}` at 1.8 m. The cell was water and was not a
+            // a ray that stopped on `Block{minecraft:water}` at `-10,57,38`, 1.8 m away. The cell was
+            // water and was not a
             // source, and nothing here could tell those apart, so a fill vanilla had refused outright
             // read as a fill that missed — and the retry then aimed at the same non-source again.
             var fluid = pre.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
@@ -538,15 +553,15 @@ public final class JourneyFill {
             rig.evidence(tag + ".aimsAt", (fluid == null ? String.valueOf(pre.getType())
                     : pre.getBlockPos().toShortString() + " "
                       + level.getBlockState(pre.getBlockPos()).getBlock()
-                      + " 源块=" + fluid.isSource() + " 液位=" + fluid.getAmount()
-                      + (pre.getBlockPos().equals(aim) ? "" : "（想瞄 " + aim.toShortString() + "）"))
-                    + "；" + eyeNow(rig) + settleDrift(rig, eyeBeforeSettling));
+                      + " source=" + fluid.isSource() + " level=" + fluid.getAmount()
+                      + (pre.getBlockPos().equals(aim) ? "" : " (intended target " + aim.toShortString() + ")"))
+                    + "; " + eyeNow(rig) + settleDrift(rig, eyeBeforeSettling));
             boolean onTarget = fluid != null && pre.getBlockPos().equals(aim) && fluid.isSource();
             if (!onTarget && aims > 0) {
                 BlockPos again = visibleSourceNear(rig, lava, FILL_RESEARCH);
                 if (again != null && !again.equals(aim)) {
                     rig.evidence(tag + ".reaim." + aims, aim.toShortString() + " → "
-                            + again.toShortString() + "（射线没落在计划那格上）");
+                            + again.toShortString() + " (the ray did not land on the planned cell)");
                     scoop(ctx, rig, src, again, tag, wanted, id, lava, tries, aims - 1, then);
                     return;
                 }
@@ -558,12 +573,12 @@ public final class JourneyFill {
                     // THE MOULD IS NOT A WALL. This branch answers a blocked sightline by mining the
                     // blocker, and down in the alcove the tallest thing between an eye and a cell is
                     // the frame the rung is there to build — measured, {@code recover9.clearedLine.3
-                    // = -10,60,38 Block{minecraft:obsidian} 挡在眼睛和 -10,61,38 之间，敲掉它}, one
-                    // cast cell taken back by the fill that came after it.
+                    // = -10,60,38 Block{minecraft:obsidian} blocks the line between the eye and
+                    // -10,61,38; breaking it}, one cast cell taken back by the fill that came after it.
                     //
                     // <p>AND IT REALLY IS TAKEN BACK, which is the half that was worth checking
-                    // before writing this. Obsidian needs a diamond pickaxe and this body carries
-                    // stone, so "敲掉它" could have been a swing at nothing — three wasted aims and
+                    // before writing this. Obsidian needs a diamond pickaxe and this bot carries
+                    // stone, so "breaking it" could have been a swing at nothing — three wasted aims and
                     // an innocent line. It is not: {@code ServerPlayerBody.breakHold} calls
                     // {@code Level#destroyBlock}, which has no tool-level gate at all (its own
                     // javadoc says so outright — this avatar "harvests obsidian with its fists"),
@@ -575,18 +590,18 @@ public final class JourneyFill {
                     // else got into it.
                     if (JourneyPortalRung.isFrameCell(wall)) {
                         rig.evidence(tag + ".frameOnLine." + aims, wall.toShortString() + " "
-                                + level.getBlockState(wall).getBlock() + " 挡在眼睛和 "
-                                + aim.toShortString() + " 之间，但它是门框格 —— 不敲，"
-                                + "换个角度再看（身体 " + rig.player().blockPosition().toShortString()
-                                + "，眼睛 y=" + String.format(java.util.Locale.ROOT, "%.2f",
-                                        rig.player().getEyePosition().y) + "）");
+                                + level.getBlockState(wall).getBlock() + " blocks the line between the eye and "
+                                + aim.toShortString() + ", but it is a portal frame cell - not breaking it, "
+                                + "trying another viewpoint (bot at " + rig.player().blockPosition().toShortString()
+                                + ", eye y=" + String.format(java.util.Locale.ROOT, "%.2f",
+                                        rig.player().getEyePosition().y) + ")");
                         stepOutOfTheFrame(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims,
                                 then);
                         return;
                     }
                     rig.evidence(tag + ".clearedLine." + aims, wall.toShortString() + " "
-                            + level.getBlockState(wall).getBlock() + " 挡在眼睛和 "
-                            + aim.toShortString() + " 之间，敲掉它");
+                            + level.getBlockState(wall).getBlock() + " blocks the line between the eye and "
+                            + aim.toShortString() + "; breaking it");
                     // A PLANT is not a wall, and `mine` will not treat it as one. The lake's rim is
                     // hung with vines, and run 29 spent all three aims on the same one:
                     // `lava2.clearedLine.3/2/1 = -9,67,21 vine`, three identical lines, the vine
@@ -614,7 +629,7 @@ public final class JourneyFill {
      *
      * <p>And when there is nowhere to move to, it says so and spends the attempt. That is
      * deliberate: a recursion that walks nowhere and asks the same question is exactly the
-     *「retry that changes nothing」this file has already paid for twice, and a fill that reports
+     * "retry that changes nothing" this file has already paid for twice, and a fill that reports
      * {@code .miss} with its full geometry is a better row than three identical ones.
      */
     private static void stepOutOfTheFrame(SceneContext ctx, JourneyRig rig, BlockPos src, BlockPos aim,
@@ -625,15 +640,15 @@ public final class JourneyFill {
         FillSpot spot = standToFill(level, rig, aim, lava, FILL_RESEARCH, why);
         BlockPos here = rig.player().blockPosition();
         if (spot == null || spot.stand().equals(here)) {
-            rig.evidence(tag + ".frameStuck." + aims, "门框挡着 " + aim.toShortString()
-                    + "，而且没有别的落脚点看得见它（身体 " + here.toShortString()
-                    + (spot == null ? "，一处都没验过" : "，验得过的就是脚下这一格")
-                    + "）；否决计数 " + why);
+            rig.evidence(tag + ".frameStuck." + aims, "the portal frame blocks " + aim.toShortString()
+                    + " and no other stand can see it (bot at " + here.toShortString()
+                    + (spot == null ? ", no stand passed verification" : ", the only verified stand is the current cell")
+                    + "); rejection counts " + why);
             spendTheBucket(ctx, rig, aim, tag, wanted, id, lava, tries, then);
             return;
         }
         rig.evidence(tag + ".stepOut." + aims, here.toShortString() + " → " + spot.stand().toShortString()
-                + "（从那里射线落得到 " + aim.toShortString() + "，不用敲门框）");
+                + " (the ray reaches " + aim.toShortString() + " from there without breaking the frame)");
         rig.settle(new IntentProcess(new Intent(new Goal.Block(spot.stand()), List.of(),
                 CapabilityProfile.ALL, List.of(new NoBreak()))), 300,
                 () -> scoop(ctx, rig, src, aim, tag, wanted, id, lava, tries, aims - 1, then));
@@ -643,8 +658,8 @@ public final class JourneyFill {
      * Aim taken, line accepted: use the bucket and judge it by what the bag GAINED.
      *
      * <p>Split out of {@link #scoop} so the frame guard above has somewhere to give up to. Every
-     * exit from the aiming loop ends here exactly once, which is what keeps「the attempt was spent」
-     * from ever meaning「the attempt vanished」.
+     * exit from the aiming loop ends here exactly once, which is what keeps "the attempt was spent"
+     * from ever meaning "the attempt vanished".
      */
     private static void spendTheBucket(SceneContext ctx, JourneyRig rig, BlockPos aim,
                                        String tag, net.minecraft.world.item.Item wanted,
@@ -654,7 +669,7 @@ public final class JourneyFill {
         // line above is a MINE, and mining selects the best tool for the block — so the branch
         // that fixes the sightline is also the branch that swaps a stone pickaxe into the slot
         // the use is about to read. Measured in run 28: `recover1.clearedLine.3` broke the
-        // cobblestone, `recover1.aimsAt=-10,57,38 water 源块=true 液位=8` said the ray was dead
+        // cobblestone, `recover1.aimsAt=-10,57,38 water source=true level=8` said the ray was dead
         // on the source, and `recover1.result=PASS` — a pickaxe's use, indistinguishable from a
         // bucket that missed, which is the same trap `holdForUse` was written for.
         if (!bucketInHand(ctx, rig, tag)) return;
@@ -663,13 +678,15 @@ public final class JourneyFill {
         // could, so the two were indistinguishable and the weaker one shipped. Carry two and the
         // second fill passes before it is attempted: the first bucket is already in the bag, so
         // the test is true whatever `useItemInHand` did, and a fill that missed reports success
-        // and walks a full bucket short to a pour that will report「浇不出黑曜石」. Measure the
+        // and walks a full bucket short to a pour that will report that it could not cast obsidian.
+        // Measure the
         // DELTA and that is impossible at any bucket count.
         int before = rig.carrying(id);
         // THE READING THE POUR HAS AND THE SCOOP DID NOT. {@code cast6.atUse} is what makes a pour
         // that did nothing debuggable: both bodies' selected slot, both eyes, and the ray in BOTH
         // fluid modes, all at the instant of the use. The scoop had none of it, so ladder-18's
-        // `recover6.miss.3 = minecraft:water_bucket 0→0 … 射线停在 4, 59, 19 Block{minecraft:water}`
+        // `recover6.miss.3 = minecraft:water_bucket 0→0 …`, with the ray stopping on
+        // `Block{minecraft:water}` at `4, 59, 19`,
         // had three authors and no row could separate them: the acting hand was not the bucket
         // (`recover6.hand = minecraft:cobblestone`, `hand#2` the bucket, one settle apart), the cell
         // was water but not a source, or `BucketItem`'s own SOURCE_ONLY clip is simply not the ray
@@ -677,12 +694,13 @@ public final class JourneyFill {
         // pour makes, so the two sides stay comparable.
         JourneyHands.handsAtUse(rig, tag);
         // AND THE TARGET CELL, AS IT IS WHEN THE PACKET GOES OUT. `.miss` is written three ticks
-        // later, inside the settle below, so its「现在是」describes the world AFTER the use — the
-        // wrong moment to ask whether there was ever a source to pick up. A fill that worked
-        // removes the source it took, so「现在不是源块」is what SUCCESS looks like too. Take the
-        // reading here and print the pair; the difference between the two is the answer.
+        // later, inside the settle below, so its "after 3 ticks" reading describes the world AFTER
+        // the use — the wrong moment to ask whether there was ever a source to pick up. A fill that
+        // worked removes the source it took, so "no longer a source" is what SUCCESS looks like
+        // too. Take the reading here and print the pair; the difference between the two is the
+        // answer.
         //
-        // The row says 发包 and not 开火 on purpose. The server runs `BucketItem.use` a round trip
+        // The row says "packet sent" and not "fired" on purpose. The server runs `BucketItem.use` a round trip
         // after this line, and water re-ticks every 5, so this is the cell as the CLIENT saw it
         // when it sent — near the use, not identical to it. Naming the moment it was actually
         // taken is what keeps the next reader from doing arithmetic on a moment nobody sampled.
@@ -704,14 +722,15 @@ public final class JourneyFill {
             if (after > before) { then.run(); return; }
             // Only trustworthy since `scoop` started aiming BOTH bodies. This rays rig.player(),
             // the server body, and before that fix nothing had ever pointed it — so every
-            // 「射线停在 …」 this row printed described a direction the use never took.
+            // "ray stopped on ..." this row printed described a direction the use never took.
             var hit = JourneyHands.aimedAt(rig.player(), BUCKET_REACH, true);
             double range = rig.player().getEyePosition()
                     .distanceTo(net.minecraft.world.phys.Vec3.atCenterOf(aim));
             var aimNow = level.getFluidState(aim);
             rig.evidence(tag + ".miss." + tries, String.format(java.util.Locale.ROOT,
-                    "这一次没装上（%s %d→%d，已等过 3 tick 往返）；瞄 %s（发包那一刻 %s 源块=%b 液位=%d，"
-                            + "3 tick 后 %s 源块=%b 液位=%d），距 %.1fm，射线停在 %s",
+                    "this attempt did not fill (%s %d→%d, after waiting 3 ticks for the round trip); aimed at %s"
+                            + " (when the packet was sent: %s source=%b level=%d; "
+                            + "after 3 ticks: %s source=%b level=%d), range %.1fm, ray stopped on %s",
                     id, before, after,
                     aim.toShortString(),
                     blockAtUse, aimAtUse.isSource(), aimAtUse.getAmount(),
@@ -723,7 +742,7 @@ public final class JourneyFill {
             // A DIFFERENT source, explicitly. The old line asked for "the nearest one" and got back
             // the cell that had just failed, so the guard below refused the retry and the rung died
             // with two of its three approaches unspent — measured as
-            // 「瞄了 -11,63,21 没装上，改瞄 -11,63,21 仍然不行」.
+            // "aimed at -11,63,21 and did not fill; retargeting -11,63,21 still failed".
             BlockPos other = nextSourceBesides(ctx, rig, lava, aim);
             if (tries > 1 && other != null) {
                 rig.evidence(tag + ".retarget." + tries, aim.toShortString() + " → "
@@ -731,13 +750,14 @@ public final class JourneyFill {
                 fillFrom(ctx, rig, other, tag, wanted, tries - 1, then);
                 return;
             }
-            ctx.fail("装不到 " + id + "：瞄了 " + aim.toShortString() + " 没装上，"
-                    + (other == null ? "身边 " + FILL_RESEARCH + " 格内没有别的源块可换"
-                                     : "改瞄 " + other + " 仍然不行")
-                    + "；身边的源块：" + sourcesNear(level, rig.player().blockPosition(),
+            ctx.fail("could not fill " + id + ": aimed at " + aim.toShortString() + " and did not fill; "
+                    + (other == null ? "no other source within " + FILL_RESEARCH + " blocks to switch to"
+                                     : "retargeting " + other + " still failed")
+                    + "; sources nearby: " + sourcesNear(level, rig.player().blockPosition(),
                             FILL_RESEARCH, lava)
-                    + " —— 空着桶走下去只会把失败写成「浇不出黑曜石」，而真正的失败在这里"
-                    + "（见 " + tag + ".miss.*）");
+                    + " - continuing down with an empty bucket would only report the failure as"
+                    + " \"could not cast obsidian\", while the real failure is here"
+                    + " (see " + tag + ".miss.*)");
         });
     }
 
@@ -761,7 +781,8 @@ public final class JourneyFill {
      * <p><b>The first bucket is the one that matters, and only it may fail the rung.</b> It goes
      * through the full {@link #fillFrom} — three approaches, re-aiming, clearing its own sightline —
      * and keeps that method's verdict, because arriving at the mould empty-handed is exactly the
-     * failure that gets written down as「浇不出黑曜石」three inferences away from its cause. Every
+     * failure that gets written down as "could not cast obsidian" three inferences away from its
+     * cause. Every
      * bucket after it is a bonus: it is attempted only when there is an empty bucket AND a source
      * already in view from where the body stands, and the first attempt that does not take ends the
      * loading. Coming home with two when three were possible costs one extra trip; failing the rung
@@ -779,7 +800,8 @@ public final class JourneyFill {
      * needs an empty bucket in the bag at that moment. Filling every bucket with lava would usually
      * still work — the lava bucket empties itself into the cell one step before the recover — but
      * only when the pour lands. When it does not, the recover finds no bucket to hold, comes back
-     * dry, and the NEXT cell fails with「开浇前手上没有水桶」: a pour that missed, reported one cell
+     * dry, and the NEXT cell fails reporting no water bucket in hand before the pour: a pour that
+     * missed, reported one cell
      * late under another cell's name. Keeping one empty bucket out of the lava makes that
      * impossible, and costs at most one extra trip.
      */
@@ -796,7 +818,7 @@ public final class JourneyFill {
                                      Runnable then) {
         int empty = rig.carrying("minecraft:bucket");
         if (empty <= BUCKETS_KEPT_EMPTY_FOR_WATER) {
-            noteLoad(rig, tag, carried, "空桶只剩 " + empty + " 个，留着收水");
+            noteLoad(rig, tag, carried, "only " + empty + " empty bucket(s) left, kept for collecting water");
             then.run();
             return;
         }
@@ -810,20 +832,21 @@ public final class JourneyFill {
         rig.settle(new HoldStill(2), 10, () -> {
             BlockPos more = visibleSourceNear(rig, true, FILL_RESEARCH);
             if (more == null) {
-                noteLoad(rig, tag, carried, "站 " + rig.player().blockPosition().toShortString()
-                        + " 再也看不见第 " + (carried + 1) + " 格源块（还有 " + empty + " 个空桶）");
+                noteLoad(rig, tag, carried, "standing at " + rig.player().blockPosition().toShortString()
+                        + ", source number " + (carried + 1) + " is not visible (" + empty
+                        + " empty bucket(s) remain)");
                 then.run();
                 return;
             }
             rig.avatar().aimAtBlock(more);
             // The one call in this file that must NOT stop the rung when the hand is wrong — this
             // whole method is a bonus, and its own contract two branches down already says
-            //「带着已经装到的下去，不判红」. Going home one bucket light costs a trip; failing here
-            // costs the run. So the guard is the same question with the other answer: give up the
-            // bonus rather than spend a use that cannot work.
+            // "go down with what is already filled; do not fail". Going home one bucket light costs a
+            // trip; failing here costs the run. So the guard is the same question with the other
+            // answer: give up the bonus rather than spend a use that cannot work.
             if (!JourneyHands.holdForUse(rig, Items.BUCKET, tag + ".more" + carried)) {
-                noteLoad(rig, tag, carried, "第 " + (carried + 1) + " 桶拿不到空桶："
-                        + JourneyHands.heldOnBoth(rig) + " —— 加装是白赚的，不为它花一次 use");
+                noteLoad(rig, tag, carried, "bucket " + (carried + 1) + ": cannot hold an empty bucket: "
+                        + JourneyHands.heldOnBoth(rig) + " - extra buckets are optional, so no use is spent on it");
                 then.run();
                 return;
             }
@@ -831,9 +854,9 @@ public final class JourneyFill {
             var result = rig.hands().useItemInHand();
             int after = rig.carrying("minecraft:lava_bucket");
             if (after <= before) {
-                noteLoad(rig, tag, carried, "第 " + (carried + 1) + " 桶没装上：瞄 "
-                        + more.toShortString() + "，" + result + "，lava_bucket " + before + "→"
-                        + after + " —— 带着已经装到的下去，不判红");
+                noteLoad(rig, tag, carried, "bucket " + (carried + 1) + " did not fill: aimed at "
+                        + more.toShortString() + ", " + result + ", lava_bucket " + before + "→"
+                        + after + " - go down with what is already filled; do not fail");
                 then.run();
                 return;
             }
@@ -844,8 +867,8 @@ public final class JourneyFill {
     /** What one trip to the pool actually brought home. The number this change is judged on: the
      *  trips a run makes is {@code goUpToThePool}'s call count, and that only falls if this rises. */
     private static void noteLoad(JourneyRig rig, String tag, int carried, String why) {
-        rig.evidence(tag + ".loaded", carried + " 桶岩浆（" + why + "）—— 这一趟够浇 "
-                + carried + " 格，浇完才会再上来");
+        rig.evidence(tag + ".loaded", carried + " bucket(s) of lava (" + why + ") - this trip covers "
+                + carried + " cell(s); the next trip up starts after they are poured");
     }
 
     /**
@@ -870,7 +893,7 @@ public final class JourneyFill {
                     if (++n > 6) continue;
                     out.append(out.isEmpty() ? "" : " ").append(c.toShortString());
                 }
-        return n == 0 ? "一格也没有" : n + " 格（" + out + (n > 6 ? " …" : "") + "）";
+        return n == 0 ? "none" : n + " (" + out + (n > 6 ? " …" : "") + ")";
     }
 
     /** The nearest source of the right fluid that is NOT the one just tried. */
@@ -903,7 +926,8 @@ public final class JourneyFill {
      * <p>A stand is chosen by how far the BODY has to go, and straight-line distance is the only
      * cheap measure of that — but a straight line across a lava lake is a route the walker will
      * genuinely try, and this rung's lake sits between the stairwell's mouth and the far bank.
-     * Measured in four consecutive runs, and always the same shape: {@code lava2.spot=站 -13,64,21}
+     * Measured in four consecutive runs, and always the same shape: {@code lava2.spot} chose a stand
+     * at {@code -13,64,21}
      * chosen from the mouth at {@code -9,66,21}, and the very next reading is the body at
      * {@code -10,60,20} — three blocks under the surface, {@code onGround=false}, with the scripted
      * climb correctly refusing to mine a ceiling that has lava behind it. There is nothing to
@@ -937,7 +961,8 @@ public final class JourneyFill {
      * never has, and j52 is what that costs. That rung fires from wherever rung 11 left the body,
      * and the two seats it lands in are not equivalent: at {@code y=63} the ray clears the bank and
      * the bucket fills (j48, j51), at {@code y=62} it stops on the terrain one block away —
-     * {@code 空桶线 -5,62,55 minecraft:grass_block（1.05 格）} — and nothing within reach is visible
+     * {@code empty-bucket ray -5,62,55 minecraft:grass_block (1.05 blocks)} — and nothing
+     * within reach is visible
      * at all (j50, j52). Two seats, four runs, two of each.
      *
      * <p>Only the stand is returned. The caller re-asks {@link #visibleSourceNear} once it has
@@ -953,15 +978,15 @@ public final class JourneyFill {
      *
      * <p><b>The histogram already existed and this one call site threw it away.</b> It was built
      * inline as {@code new LinkedHashMap<>()} and dropped on the floor, which is why j55's rung 12
-     * could say {@code 换不了座位：挑出来的还是脚下这一格 -4, 62, 55} and not one word about what
-     * the alternatives were or what was wrong with them. Every other consumer of
-     * {@link #standToFill} prints it — {@code station} does, and {@code JourneyRamp} prints
-     * {@code standToFill 否决了 13 个候选，理由 脚下不实心}.
+     * could say {@code cannot re-seat: the chosen stand is still the current cell -4, 62, 55} and
+     * not one word about what the alternatives were or what was wrong with them. Every other
+     * consumer of {@link #standToFill} prints it — {@code station} does, and {@code JourneyRamp}
+     * prints that {@code standToFill} vetoed 13 candidates with the floor below not solid.
      *
      * <p>Note the map only sees the pass that ANSWERED. {@link #standToFill}'s near-side preference
      * runs first with a throwaway map, and only the fallback pass fills this one — so a run where
-     * the near-side pass succeeded hands back an empty histogram, and empty means「第一趟就选中了」,
-     * not「没有候选」.
+     * the near-side pass succeeded hands back an empty histogram, and empty means "chosen on the
+     * first pass", not "no candidates".
      */
     static BlockPos standToScoop(JourneyRig rig, BlockPos pool, Map<String, Integer> why) {
         FillSpot spot = standToFill(rig.ctx().level(), rig, pool, false, FILL_RESEARCH, why);
@@ -976,8 +1001,8 @@ public final class JourneyFill {
      * geometry worked out. It does not, at a lake's edge — a bucket clips from the eyes with
      * {@code Fluid.SOURCE_ONLY} and a finger of bank one cell wide is enough to stop it, so "there
      * is lava two blocks away" and "this bucket will fill" are different claims. Measured twice at
-     * 2.1 m and 1.9 m from live lava: {@code 射线停在 -10,63,21 Block{minecraft:stone}}, bucket
-     * still empty.
+     * 2.1 m and 1.9 m from live lava: the ray stopped on {@code Block{minecraft:stone}} at
+     * {@code -10,63,21}, bucket still empty.
      *
      * <p>So both halves are decided before the walk: a cell that is standable (feet and head clear of
      * blocks AND of fluid — this one stands next to lava) and from which the clip vanilla is about to
@@ -987,7 +1012,8 @@ public final class JourneyFill {
     private static FillSpot standToFill(ServerLevel level, JourneyRig rig, BlockPos pool, boolean lava,
                                         int radius, Map<String, Integer> why) {
         // PREFERENCE, not a rule. Asked as a rule it removed the only stands there were — run 37
-        // measured `没找到能看见源块的落脚点` on every cast with `过去要横穿岩浆=4..6`, and the fill
+        // measured "no stand that sees a source was found" on every cast with 4 to 6 candidates
+        // rejected for crossing the lava, and the fill
         // then fell back to `Near(src,2)`, which is the arithmetic guess this whole method replaced.
         // A worse route beats no route; a nearer-bank route beats both.
         FillSpot nearSide = standToFill(level, rig, pool, lava, radius, new java.util.LinkedHashMap<>(), true);
@@ -1018,8 +1044,9 @@ public final class JourneyFill {
                     // BELOW the source as well as level with it. Two rows down, because the cell a
                     // bucket has to take back is usually one ABOVE the floor the body stands on: the
                     // rung's own water sits in the frame's interior at y+1, and a search that only
-                    // looked at the source's own level and higher answered "没找到能看见源块的落脚点"
-                    // for a source two blocks away in a chamber the body was standing in.
+                    // looked at the source's own level and higher answered "no stand that sees a
+                    // source was found" for a source two blocks away in a chamber the bot was
+                    // standing in.
                     for (int dy = -2; dy <= 1; dy++) {
                         BlockPos foot = src.offset(dx, dy, dz);
                         double d = foot.distSqr(from);
@@ -1030,47 +1057,48 @@ public final class JourneyFill {
                             // its own cell qualifies, bestD is 0 and every remaining candidate dies
                             // right here, unevaluated. A better seat one block up is never asked
                             // whether it can see the water. That is j55's rung 12: the re-seat
-                            // reported「挑出来的还是脚下这一格」and the reason was arithmetic, not
-                            // visibility. Ranking is a choice; making it silent was not.
-                            why.merge("比已选中的更远，没评估", 1, Integer::sum);
+                            // reported "the chosen stand is still the current cell" and the reason
+                            // was arithmetic, not visibility. Ranking is a choice; making it silent
+                            // was not.
+                            why.merge("farther than the current choice, not evaluated", 1, Integer::sum);
                             continue;
                         }
                         if (!level.getBlockState(foot.below()).blocksMotion()) {
-                            why.merge("脚下不实心", 1, Integer::sum); continue;
+                            why.merge("floor below not solid", 1, Integer::sum); continue;
                         }
                         // Water underfoot is a wet floor, not a disqualification — and refusing it
                         // is what left the recover with nowhere to stand, because the bucket the
                         // rung is trying to take BACK is the thing that flooded the alcove. Lava is
                         // still a refusal: standing in it costs the body, not the bucket.
                         if (level.getFluidState(foot).is(net.minecraft.tags.FluidTags.LAVA)) {
-                            why.merge("落脚格是岩浆", 1, Integer::sum); continue;
+                            why.merge("foot cell is lava", 1, Integer::sum); continue;
                         }
                         if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()) {
-                            why.merge("落脚格被占", 1, Integer::sum); continue;
+                            why.merge("foot cell occupied", 1, Integer::sum); continue;
                         }
                         BlockPos head = foot.above();
                         if (level.getFluidState(head).is(net.minecraft.tags.FluidTags.LAVA)) {
-                            why.merge("头顶是岩浆", 1, Integer::sum); continue;
+                            why.merge("head cell is lava", 1, Integer::sum); continue;
                         }
                         if (!level.getBlockState(head).getCollisionShape(level, head).isEmpty()) {
-                            why.merge("头顶被占", 1, Integer::sum); continue;
+                            why.merge("head cell occupied", 1, Integer::sum); continue;
                         }
                         if (avoidCrossing && lava && acrossThePool(level, from, foot)) {
-                            why.merge("过去要横穿岩浆", 1, Integer::sum); continue;
+                            why.merge("route crosses the lava", 1, Integer::sum); continue;
                         }
                         var eye = JourneySight.eyeFor(rig.player(), foot);
                         var aim = net.minecraft.world.phys.Vec3.atCenterOf(src);
                         if (eye.distanceTo(aim) > BUCKET_REACH) {
-                            why.merge("够不着源块", 1, Integer::sum); continue;
+                            why.merge("source out of reach", 1, Integer::sum); continue;
                         }
                         var hit = level.clip(new net.minecraft.world.level.ClipContext(eye, aim,
                                 net.minecraft.world.level.ClipContext.Block.OUTLINE,
                                 net.minecraft.world.level.ClipContext.Fluid.SOURCE_ONLY, rig.player()));
                         if (hit.getType() != net.minecraft.world.phys.HitResult.Type.BLOCK) {
-                            why.merge("射线没打到方块", 1, Integer::sum); continue;
+                            why.merge("ray hit no block", 1, Integer::sum); continue;
                         }
                         if (!hit.getBlockPos().equals(src)) {
-                            why.merge("射线停在 " + level.getBlockState(hit.getBlockPos()).getBlock(),
+                            why.merge("ray stopped on " + level.getBlockState(hit.getBlockPos()).getBlock(),
                                     1, Integer::sum);
                             continue;
                         }
@@ -1127,8 +1155,8 @@ public final class JourneyFill {
      * one of them must add the face — do not "unify" them back.
      *
      * <p>Measured: ladder-1 lost rung 11 to exactly this. The body stood two rows BELOW the target
-     * water, its ray hit the bed `3,61,62` on its `south` face, the block-only check said「right
-     * block」, the run's one bucket poured, and obsidian appeared at `3,61,63` while the assertion
+     * water, its ray hit the bed `3,61,62` on its `south` face, the block-only check said "right
+     * block", the run's one bucket poured, and obsidian appeared at `3,61,63` while the assertion
      * read `3,62,62` and found water. A pour into the wrong cell is worse than a pour that never
      * fires, because the lava is gone by the time anything can tell.
      */
@@ -1229,8 +1257,8 @@ public final class JourneyFill {
     /**
      * How many times the scoop may move before it gives up and spends the use anyway.
      *
-     * <p>One. The question a re-seat answers is「can this body see any water from ANY nearby
-     * stand」, and {@code standToFill} answers it over the whole neighbourhood in one call — so a
+     * <p>One. The question a re-seat answers is "can this bot see any water from ANY nearby
+     * stand", and {@code standToFill} answers it over the whole neighbourhood in one call — so a
      * second move would be the same question asked from a cell two blocks over, which is how a
      * retry that changes nothing gets written. If one move does not find a seat, the seat is not
      * the problem.
@@ -1240,10 +1268,11 @@ public final class JourneyFill {
     private static void scoopWater(SceneContext ctx, JourneyRig rig, BlockPos water, int reseats,
                                    Runnable then) {
         if (water == null) {
-            ctx.fail("装不到水：附近没有底下实心的水面（身体在 " + rig.player().blockPosition() + "）");
+            ctx.fail("could not fill water: no water surface with a solid bottom nearby (bot at "
+                    + rig.player().blockPosition() + ")");
             return;
         }
-        rig.attempting("装一桶水带下去 —— 底下没有水可回头取");
+        rig.attempting("filling one bucket of water to take down - there is no water below to come back for");
         // AFTER A RE-SEAT, DO NOT APPROACH AGAIN. The re-seat below has just walked the body onto
         // the one cell it could find that sees the pond, and `standToFill` picks that cell out of
         // the POND's neighbourhood — not out of `Goal.Near`'s radius of `water`. A perfectly good
@@ -1259,9 +1288,10 @@ public final class JourneyFill {
                 ? new Goal.Block(rig.player().blockPosition())
                 : new Goal.Near(water, 2);
         rig.settle(new IntentProcess(new Intent(approach)), 2_000, () -> {
-            // The leg that had no reading. Everything below aims and uses a bucket, and a body that
-            // stopped thirty blocks short produces exactly the same rows as one that arrived and
-            // missed — so a failed fill here has read as「装水失败」whatever the real cause was.
+            // The approach walk that had no reading. Everything below aims and uses a bucket, and a
+            // bot that stopped thirty blocks short produces exactly the same rows as one that
+            // arrived and missed — so a failed fill here has read as "water fill failed" whatever
+            // the real cause was.
             JourneyLeg.record(rig, "waterFill", water);
             // WHICH SOURCE — asked the way the bucket asks it, which is not by distance.
             //
@@ -1269,7 +1299,7 @@ public final class JourneyFill {
             // `waterFill.result = FAIL` beside a hand that was right on both readings and a target
             // that was a genuine source. An EMPTY bucket returns FAIL from exactly one place — its
             // clip landed on a block that is not a `BucketPickup` — and the block in question was
-            // one this ladder had just made: rung 11 finished `在 -4,62,54 浇出黑曜石`, rung 12
+            // one this ladder had just made: rung 11 finished by casting obsidian at `-4,62,54`, rung 12
             // stood at `-4,62,55` and aimed at `-5,62,54`, and the fresh obsidian sits on that
             // diagonal. `shallowWaterNear` ranks by `distSqr` and never asks whether the line is
             // clear, so it kept choosing the cell behind the wall.
@@ -1287,21 +1317,23 @@ public final class JourneyFill {
             BlockPos clear = visibleSourceNear(rig, false, FILL_RESEARCH);
             BlockPos nearest = JourneyTerrain.shallowWaterNear(rig, 8);
             rig.evidence("waterFill.aim", clear != null
-                    ? clear.toShortString() + "（通视的最近水源"
-                        + (clear.equals(nearest) ? "，与按距离的最近是同一格" :
-                            "；按距离的最近是 " + (nearest == null ? "没有" : nearest.toShortString())
-                            + "，被否掉了 —— 中间有东西挡着射线")
-                        + "）"
-                    : "没有一格水源是这只眼睛看得见的；退回按距离的最近 "
-                        + (nearest == null ? "没有" : nearest.toShortString())
-                        + " 照瞄一次 —— 若它也失败，`waterFill.atUse` 的空桶线会写出挡路的是哪一块");
+                    ? clear.toShortString() + " (nearest water source with a clear line of sight"
+                        + (clear.equals(nearest) ? ", the same cell as the nearest by distance" :
+                            "; the nearest by distance is " + (nearest == null ? "none" : nearest.toShortString())
+                            + ", rejected because something blocks the ray")
+                        + ")"
+                    : "no water source is visible from this eye; falling back to the nearest by distance, "
+                        + (nearest == null ? "none" : nearest.toShortString())
+                        + ", and aiming once - if that fails too, the empty-bucket ray in `waterFill.atUse`"
+                        + " names the blocking block");
             // NOTHING VISIBLE IS A SEAT PROBLEM, and the seat is the thing to change.
             //
-            // j52 measured the other half of this leg: `visibleSourceNear` correctly returned null
-            // — `waterFill.aim = 没有一格水源是这只眼睛看得见的` — and the code below then aimed at
-            // the distance-nearest cell anyway and spent the one use it had. The ray row it printed
-            // named the blocker at last: `空桶线 -5,62,55 minecraft:grass_block（1.05 格）`, which
-            // is ORIGINAL TERRAIN one block from the body, not anything this ladder built.
+            // j52 measured the other half of this step: `visibleSourceNear` correctly returned null
+            // — `waterFill.aim` reported that no water source was visible from this eye — and the
+            // code below then aimed at the distance-nearest cell anyway and spent the one use it
+            // had. The ray row it printed named the blocker at last: the empty-bucket ray stopped on
+            // `-5,62,55 minecraft:grass_block` at 1.05 blocks, which is ORIGINAL TERRAIN one block
+            // from the bot, not anything this ladder built.
             //
             // Which means the answer is not another target. From a seat with a bank in the way
             // there is no target; from one block higher the same pond fills a bucket on the first
@@ -1315,26 +1347,28 @@ public final class JourneyFill {
                 BlockPos here = rig.player().blockPosition();
                 if (seat != null && !seat.equals(here)) {
                     rig.evidence("waterFill.reseat", here.toShortString() + " → " + seat.toShortString()
-                            + "（从这个座位一格水源都看不见，换一个看得见 " + pool.toShortString()
-                            + " 的落脚点再问一次）；否决计数 " + why);
+                            + " (no water source is visible from this seat; moving to a stand that sees "
+                            + pool.toShortString() + " and asking again); rejection counts " + why);
                     rig.settle(new IntentProcess(new Intent(new Goal.Block(seat))), 2_000,
                             () -> scoopWater(ctx, rig, water, reseats - 1, then));
                     return;
                 }
                 // THE HISTOGRAM IS THE POINT OF THIS ROW NOW. Until 2026-08-25 `standToScoop` built
-                // it and dropped it, so「挑出来的还是脚下这一格」named the outcome and hid the
-                // reason — and the reason turned out to be arithmetic: candidates are ranked by
-                // distance FROM THE BODY and skipped on `d >= bestD`, so once the body's own cell
-                // qualifies nothing else is even evaluated. Read「比已选中的更远，没评估」as「这一趟
-                // 根本没有比较过别的座位」, not as「别的座位都不行」.
+                // it and dropped it, so "the chosen stand is still the current cell" named the
+                // outcome and hid the reason — and the reason turned out to be arithmetic: candidates
+                // are ranked by distance FROM THE BOT and skipped on `d >= bestD`, so once the bot's
+                // own cell qualifies nothing else is even evaluated. Read "farther than the current
+                // choice, not evaluated" as "this pass never compared any other seat", not as "every
+                // other seat failed".
                 rig.evidence("waterFill.reseat", seat == null
-                        ? "换不了座位：附近没有一个「站得住且看得见水源」的落脚点 —— "
-                          + "那就不是座位的问题，照瞄一次把挡路的写进 atUse；否决计数 " + why
-                        : "换不了座位：挑出来的还是脚下这一格 " + here.toShortString()
-                          + "；否决计数 " + why);
+                        ? "cannot re-seat: there is no stand nearby that can be stood on and sees a water source - "
+                          + "so the seat is not the problem; aiming once to record the blocker in atUse; rejection counts "
+                          + why
+                        : "cannot re-seat: the chosen stand is still the current cell " + here.toShortString()
+                          + "; rejection counts " + why);
                 // THE EYE THAT VALIDATES vs THE EYE THAT FIRES. standToFill clips from the cell
-                // CENTRE (x+0.5, y+eyeHeight, z+0.5); the bucket is aimed from the body's real eye,
-                // which carries the footprint offset. j55 measured 格心 z=55.50 against 真实 z=55.70
+                // CENTRE (x+0.5, y+eyeHeight, z+0.5); the bucket is aimed from the bot's real eye,
+                // which carries the footprint offset. j55 measured cell-centre z=55.50 against real z=55.70
                 // — a fifth of a block, away from the target, and enough to clip the bank corner the
                 // validating ray cleared. So a seat can pass the check and then miss.
                 if (seat != null && seat.equals(here)) {
@@ -1342,8 +1376,9 @@ public final class JourneyFill {
                     var centre = new net.minecraft.world.phys.Vec3(here.getX() + 0.5,
                             here.getY() + rig.player().getEyeHeight(), here.getZ() + 0.5);
                     rig.evidence("waterFill.reseat.eye", String.format(java.util.Locale.ROOT,
-                            "验证用格心眼 %.2f/%.2f/%.2f，真正开火的眼 %.2f/%.2f/%.2f，"
-                            + "水平差 %.2f 格 —— 两条射线原点不同，所以「验证时看得见」不等于「开火时看得见」",
+                            "cell-centre eye used for validation %.2f/%.2f/%.2f, eye that actually fires %.2f/%.2f/%.2f, "
+                            + "horizontal offset %.2f blocks - the two rays start from different origins, so"
+                            + " \"visible during validation\" does not imply \"visible when firing\"",
                             centre.x, centre.y, centre.z, real.x, real.y, real.z,
                             Math.hypot(real.x - centre.x, real.z - centre.z)));
                 }
@@ -1406,15 +1441,16 @@ public final class JourneyFill {
                     rig.evidence("waterFill.cellAfter",
                             String.valueOf(ctx.level().getBlockState(at).getBlock()));
                     if (after <= before) {
-                        ctx.fail("装水失败：瞄了 " + at.toShortString() + "，这一次没装上（water_bucket "
-                                + before + "→" + after + "，已等过 3 tick 往返）—— "
-                                + "这一级底下全程靠这一桶水，装不上就没有下一步。"
-                                + "怎么选的这一格：" + rig.evidenceOf("waterFill.aim")
-                                + "；那一刻的手与两条射线：" + rig.evidenceOf("waterFill.atUse")
-                                + "。⚠️ 先看 `waterFill.result`：空桶的 use 返回 **FAIL** 说明射线"
-                                + "落到了一个不是 BucketPickup 的方块上（读空桶线，它写着是哪一块，"
-                                + "上一级刚浇出来的黑曜石是头号嫌疑）；返回 PASS 才是射线根本没打中；"
-                                + "返回 SUCCESS 而存量没涨，那才是两端不同步");
+                        ctx.fail("water fill failed: aimed at " + at.toShortString() + " and did not fill (water_bucket "
+                                + before + "→" + after + ", after waiting 3 ticks for the round trip) - "
+                                + "everything below this rung depends on this one bucket of water, so there is no next step"
+                                + " without it. How the cell was chosen: " + rig.evidenceOf("waterFill.aim")
+                                + "; the hands and both rays at that moment: " + rig.evidenceOf("waterFill.atUse")
+                                + ". ⚠️ Check `waterFill.result` first: **FAIL** from an empty-bucket use means the ray"
+                                + " landed on a block that is not a BucketPickup (read the empty-bucket ray, which names"
+                                + " the block; obsidian cast by the previous rung is the prime suspect); PASS means the ray"
+                                + " hit nothing at all; SUCCESS with no increase in stock means the client and server are"
+                                + " out of sync");
                         return;
                     }
                     then.run();

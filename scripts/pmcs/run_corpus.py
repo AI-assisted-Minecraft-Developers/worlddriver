@@ -1,4 +1,4 @@
-"""跑一个 flag 组合穿过全 corpus → maxStuck 矩阵 → 接受门裁决。"""
+"""Run one flag combination across the whole corpus → maxStuck matrix → acceptance gate result."""
 from __future__ import annotations
 import argparse
 import json
@@ -13,7 +13,7 @@ def build_matrix(results):
 
 
 def divergent_moves(results):
-    """跨 corpus 合并:任一归档里 churned>0 的 Move 类型并集(排序)。"""
+    """Merged across the corpus: the sorted union of Move types with churned>0 in any archive."""
     moves = set()
     for r in results:
         for move, stat in r.conformance.items():
@@ -34,7 +34,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", default="config/worlddriver/replays/corpus.json")
     ap.add_argument("--flags", default="{}")
-    ap.add_argument("--baseline", default=None, help="baseline matrix JSON 文件(省略=只采集)")
+    ap.add_argument("--baseline", default=None, help="baseline matrix JSON file (omit to collect only)")
     a = ap.parse_args()
     baseline = json.load(open(a.baseline)) if a.baseline else None
     matrix, verdict = run_corpus(a.corpus, json.loads(a.flags), baseline)

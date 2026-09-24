@@ -1,7 +1,7 @@
 package net.magicterra.worlddriver.bot.scheduler;
 
 /**
- * Per-siege anchor state for {@link BunkerChain}'s 挖三填一 reflex, factored out so the
+ * Per-siege anchor state for {@link BunkerChain}'s "dig three, fill one" reflex, factored out so the
  * descent-bounding invariant is a single, Minecraft-free source of truth (and thus
  * regression-testable without a client — see {@code serverBunkerAnchorRatchetArena}).
  *

@@ -6,7 +6,7 @@ import net.magicterra.worlddriver.bot.pathfinder.Move;
 import net.magicterra.worlddriver.bot.pathfinder.WorldView;
 import net.minecraft.core.BlockPos;
 
-/** 沿河岸走: tax every node that has NO water among its 4 cardinal neighbors
+/** Follow the shoreline: tax every node that has NO water among its 4 cardinal neighbors
  *  (checked at the foot level and one below — a bank cell's adjacent water
  *  surface usually sits one below the bank foot). Routes inside the shoreline
  *  band pay nothing; anything inland pays {@code weight} per node, so with

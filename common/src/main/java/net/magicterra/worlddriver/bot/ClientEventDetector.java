@@ -38,7 +38,7 @@ final class ClientEventDetector {
     private boolean evtDeathScreenSeen = false;
     private int evtLastThreatId = -1;
     // Day-phase transition (day/sunset/night/sunrise) — emit on change so the Agent
-    // gets a 日落提醒 to bunker/return before dark, and a sunrise cue to resume.
+    // gets a sunset alert to bunker/return before dark, and a sunrise cue to resume.
     private String evtLastPhase = null;
     // Item-pickup detection: per-item inventory counts last tick; an increase = a
     // pickup (or craft/give) → emit the gained id + delta. evtInvInit gates the
@@ -56,7 +56,7 @@ final class ClientEventDetector {
     private boolean evtAdvInit = false;
     private int evtAdvThrottle = 0;
     // Fluid-entry detection: emit a one-shot on the rising edge of entering water /
-    // lava (the 落水 / 落岩浆 warnings — the bot fell in and may be drowning/burning).
+    // lava (the fell-into-water / fell-into-lava warnings — the bot fell in and may be drowning/burning).
     private boolean evtInWater = false;
     private boolean evtInLava = false;
     // Client message surfaces (chat / action-bar / title). No server is attached in
@@ -174,7 +174,7 @@ final class ClientEventDetector {
         }
         evtLastThreatId = topId;
 
-        // --- Fluid entry (落水 / 落岩浆提醒) -------------------------------------
+        // --- Fluid entry (fell into water / lava alert) -------------------------
         // One-shot on the rising edge of stepping into water / lava — the "I fell
         // in" warning so the Agent can react (swim/escape ashore, or that it's
         // burning in lava) without polling observe.player every tick. isInWater()
@@ -194,7 +194,7 @@ final class ClientEventDetector {
         }
         evtInLava = inLava;
 
-        // --- Day-phase transition (日落提醒 etc.) --------------------------------
+        // --- Day-phase transition (sunset alert etc.) ---------------------------
         // Emit on each day/sunset/night/sunrise change. The sunset/night edges are
         // the "go bunker NOW" warning whose absence got the naked bot swarmed; the
         // sunrise edge is the cue to break out and resume. Buckets match
@@ -214,7 +214,7 @@ final class ClientEventDetector {
             }
         }
 
-        // --- Item pickup (拾取物品提醒) -----------------------------------------
+        // --- Item pickup (item picked up alert) ---------------------------------
         // Diff per-item inventory counts vs last tick; any increase is a gain
         // (picked-up drop, craft result, or give). The Agent's "did my gather land?"
         // signal — e.g. after mine/COLLECT, an item.pickup{oak_log} confirms it.
@@ -236,7 +236,7 @@ final class ClientEventDetector {
                     }
                 }
             }
-            // --- Tool broke (工具耐久打光提醒) --------------------------------
+            // --- Tool broke (tool durability exhausted alert) -----------------
             // The mainhand tool durability runs out SILENTLY: the item vanishes
             // and mine/goto grind on bare-handed at up to 12× the planned break
             // cost, with the Agent none the wiser until a "slow dig" mystery.
@@ -266,7 +266,7 @@ final class ClientEventDetector {
             evtInvInit = true;
         }
 
-        // --- Advancement earned (成就获取提醒) ----------------------------------
+        // --- Advancement earned (advancement alert) -----------------------------
         // Milestone signals (Getting Wood / Stone Age / Acquire Hardware=iron /
         // We Need to Go Deeper=nether). The client has no clean hook, so poll the
         // ClientAdvancements progress map (throttled ~1s) and emit newly-completed

@@ -19,8 +19,9 @@ import net.minecraft.world.level.block.state.BlockState;
  * <h2>The run this exists for</h2>
  *
  * Rung 20 of the journey ladder (2026-08-18) walked onto a caged end spike's LID to get in reach
- * ({@code 终点=-33,86,23 脚下=Block{minecraft:iron_bars} end=arrived}), hit the crystal once, and
- * the next rung started from {@code 脚下=Block{minecraft:air}} and ended at {@code 最低y=-5220}.
+ * (end position {@code -33,86,23}, block underfoot {@code minecraft:iron_bars}, {@code end=arrived}),
+ * hit the crystal once, and the next rung started with {@code minecraft:air} underfoot and ended at a
+ * lowest y of {@code -5220}.
  * Rungs 5–9 of that run are all free fall. One hit, nine rungs.
  *
  * <p>The mechanism is vanilla and has no gamerule in it: {@code EndCrystal.hurt} answers every hit
@@ -79,8 +80,9 @@ import net.minecraft.world.level.block.state.BlockState;
  *       scene for it. Adding it blind would widen a live invariant with no reading behind it.</li>
  *   <li><b>{@code wd.serverBreaksAnEndCrystal} is NOT covered, on purpose.</b> That scene calls
  *       {@code fp.attack(crystal)} straight on the {@code ServerPlayer} and never touches
- *       {@link Body}, so this guard cannot fire there — and must not. Its question is「能不能打碎
- *       水晶」, not「站哪儿打」: it stages the crystal on the body's own level with a plain floor,
+ *       {@link Body}, so this guard cannot fire there — and must not. Its question is "can the
+ *       crystal be broken", not "where to stand to hit it": it stages the crystal on the bot's own
+ *       level with a plain floor,
  *       and a guard that refused there would delete the coverage of the verb itself. If that ever
  *       needs the footing rule too, it should get its OWN arm rather than have this one reach into
  *       a raw vanilla call.</li>
@@ -88,10 +90,11 @@ import net.minecraft.world.level.block.state.BlockState;
  *
  * <h2>This guard refuses; it does not relocate</h2>
  *
- * {@code attackEntity} is a one-shot, single-tick verb: it can swing or decline, and「先站到炸不掉
- * 的落脚上再砍」is two steps. Making the body actually take a better stand needs a process that owns
- * the approach — see the X1/X2/X3 note on {@code wd.crystalBlastOnTheCage}. Until that exists the
- * honest answer is to decline loudly, because「这一座没砍成」is cheap and「掉下世界」is not.
+ * {@code attackEntity} is a one-shot, single-tick verb: it can swing or decline, and "first stand
+ * on footing the blast cannot destroy, then swing" is two steps. Making the bot actually take a
+ * better stand needs a process that owns the approach — see the X1/X2/X3 note on
+ * {@code wd.crystalBlastOnTheCage}. Until that exists the honest answer is to decline loudly,
+ * because "this spike was not destroyed" is cheap and "fell out of the world" is not.
  */
 public final class BlastFooting {
 
@@ -104,7 +107,7 @@ public final class BlastFooting {
      *  bounded on purpose (9³ cells, read only on the cold refusal path). It is 4 rather than 3 so
      *  that the one stand vanilla's caged spike actually has — the 3x3 obsidian floor INSIDE the
      *  cage, four blocks under a body on the lid — appears in the message instead of being reported
-     *  as「附近什么都没有」, which would send the reader looking for the wrong fix. */
+     *  as "nothing nearby", which would send the reader looking for the wrong fix. */
     public static final int STAND_SURVEY_RADIUS = 4;
 
     /** The blast a hit on {@code target} sets off, or 0 for everything that does not explode when
@@ -134,7 +137,7 @@ public final class BlastFooting {
      * matched by a message that names some other block, or the right block with the wrong number.
      */
     public static String footingTag(String blockId, float resistance) {
-        return String.format(Locale.ROOT, "落脚=%s 抗性=%.1f", blockId, resistance);
+        return String.format(Locale.ROOT, "footing=%s resistance=%.1f", blockId, resistance);
     }
 
     /**
@@ -154,13 +157,13 @@ public final class BlastFooting {
         Level level = p.level();
         double need = blastProofResistance(power);
         String targetId = BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()).toString();
-        // Names the entity from the registry rather than hardcoding「末影水晶」: the day
+        // Names the entity from the registry rather than hardcoding "end crystal": the day
         // blastPowerOnHurt grows a second member, a message that still said EndCrystal would be
         // wrong exactly when it was being read most carefully.
         String head = String.format(Locale.ROOT,
-                "拒绝挥刀：目标 %s 受击即爆（power=%.1f，它的 hurt() 直接 level.explode(…, "
-                + "ExplosionInteraction.BLOCK)，不看 mobGriefing；触发面见 "
-                + "BlastFooting.blastPowerOnHurt）；", targetId, power);
+                "Swing refused: target %s explodes when hit (power=%.1f; its hurt() calls level.explode(…, "
+                + "ExplosionInteraction.BLOCK) directly, regardless of mobGriefing; trigger surface: "
+                + "BlastFooting.blastPowerOnHurt). ", targetId, power);
 
         // The weakest cell of the sole row, and whether the row holds anything at all.
         BlockPos[] weakest = new BlockPos[1];
@@ -180,19 +183,22 @@ public final class BlastFooting {
             // the state a body is in one tick after jumping next to a crystal on good obsidian —
             // the caller simply gets its swing on the next grounded tick.
             return head + String.format(Locale.ROOT,
-                    "身体脚底那一排 y=%d 全是空气（不在地面上），这一炸落在哪儿由爆炸说了算 —— "
-                    + "等落地站稳再砍。", WalkerGeometry.soleRowY(p));
+                    "The row under the bot's feet, y=%d, is all air (the bot is not on the ground), so "
+                    + "the explosion decides where it lands. Swing again once the bot is standing on "
+                    + "the ground.", WalkerGeometry.soleRowY(p));
         }
         if (weakestRes[0] >= need) return null;
 
         String footId = BuiltInRegistries.BLOCK.getKey(
                 level.getBlockState(weakest[0]).getBlock()).toString();
-        return head + footingTag(footId, weakestRes[0]) + " —— " + String.format(Locale.ROOT,
-                "身体脚底那一排 y=%d 最弱的支撑是 %s @%s（爆炸抗性 %.1f），低于抗爆门槛 %.1f"
-                + "（=13*power/3-0.3，见 BlastFooting 的推导：射线强度上限 1.3*power，命中一格先扣 "
-                + "(R+0.3)*0.3，扣完仍>0 就拆）—— 这一炸会把它拆掉，身体会失去落脚；%s"
-                + "本动词不会移动身体：换落脚需要一个拥有「接近+挥刀」两步的进程"
-                + "（见 wd.crystalBlastOnTheCage 的 X1/X2/X3）。",
+        return head + footingTag(footId, weakestRes[0]) + " — " + String.format(Locale.ROOT,
+                "the weakest support in the row under the bot's feet, y=%d, is %s @%s (blast resistance "
+                + "%.1f), below the blast-proof threshold %.1f (=13*power/3-0.3, derived in BlastFooting: "
+                + "ray strength is at most 1.3*power, each block hit first costs (R+0.3)*0.3, and a block "
+                + "is destroyed if anything remains). The blast would destroy it and the bot would lose "
+                + "its footing. %s"
+                + "This verb does not move the bot: changing footing needs a process that owns both the "
+                + "approach and the swing (see X1/X2/X3 of wd.crystalBlastOnTheCage).",
                 weakest[0].getY(), footId, weakest[0].toShortString(), weakestRes[0], need,
                 surveyStands(level, p.blockPosition(), need));
     }
@@ -204,7 +210,7 @@ public final class BlastFooting {
      * <p>The survey's javadoc says no caller may branch on it because reachability is unverified,
      * and that stays true of this list: <b>a caller must treat each entry as a candidate to WALK
      * to, and let the walk be the reachability test.</b> That is a different contract from
-     *「可以站」. A caller that teleports to one, or that reports success because the list is
+     * "can stand here". A caller that teleports to one, or that reports success because the list is
      * non-empty, is making exactly the false-yes the wording was written to prevent. Rung 20 uses
      * it the intended way: it walks, and if the walk does not arrive it is no worse off than the
      * refusal it started from.
@@ -232,13 +238,14 @@ public final class BlastFooting {
 
     /**
      * One sentence naming the qualifying stands within {@link #STAND_SURVEY_RADIUS}, so the refusal
-     * says「有没有别的地方可站」rather than only「这里不行」.
+     * says "is there anywhere else to stand" rather than only "not here".
      *
      * <p><b>Diagnostic, and it says so.</b> A candidate here is a cell with head-room whose floor
-     * is blast-proof; nothing checks that the body could actually WALK there, and in the geometry
+     * is blast-proof; nothing checks that the bot could actually WALK there, and in the geometry
      * this guard was written for it provably cannot (vanilla's cage lid is a solid 5x5 of iron bars
-     * over the only qualifying floor). Reporting these as「可以站」would be exactly the kind of
-     * false yes this repo has paid for before, so the wording is {@code 可达性未验证} and no caller
+     * over the only qualifying floor). Reporting these as "can stand here" would be exactly the kind
+     * of false yes this repo has paid for before, so the wording is {@code reachability unverified}
+     * and no caller
      * may branch on it. The coarser {@code blocksMotion} head-room test lives ONLY here, inside a
      * message — the criterion above is the sole row and nothing else. That test is deliberately the
      * same shape {@code LavaProximityEscape} already uses to look for a cell to stand in (floor
@@ -251,10 +258,12 @@ public final class BlastFooting {
         BlockPos nearest = found == 0 ? null : stands.get(0);
         if (found == 0)
             return String.format(Locale.ROOT,
-                    "半径 %d 内一格合格落脚都看不见（每格要么脚下抗性不足/是空气，要么身体站不进去）；",
+                    "No qualifying stand is visible within radius %d (each cell either has a floor that "
+                    + "is too weak or air, or has no room for the bot). ",
                     STAND_SURVEY_RADIUS);
         return String.format(Locale.ROOT,
-                "半径 %d 内看得见 %d 格合格落脚（最近 %s，脚下 %s 抗性 %.1f，⚠️可达性未验证）；",
+                "%2$d qualifying stands are visible within radius %1$d (nearest %3$s, floor %4$s with "
+                + "resistance %5$.1f, reachability unverified). ",
                 STAND_SURVEY_RADIUS, found, nearest.toShortString(),
                 BuiltInRegistries.BLOCK.getKey(level.getBlockState(nearest.below()).getBlock()),
                 level.getBlockState(nearest.below()).getBlock().getExplosionResistance());

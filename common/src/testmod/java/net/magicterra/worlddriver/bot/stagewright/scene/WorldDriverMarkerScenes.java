@@ -62,10 +62,10 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
 
         BlockPos probe = new BlockPos(cx + 2, standY, cz);
         BlockState s = level.getBlockState(probe);
-        ctx.check(s.is(marker)).as("A 探针格是标记方块").isTrue();
+        ctx.check(s.is(marker)).as("A: the probe cell is a marker block").isTrue();
         ctx.check(s.blocksMotion()).as("B blocksMotion").isFalse();
-        ctx.check(s.getCollisionShape(level, probe).isEmpty()).as("C 碰撞形状为空").isTrue();
-        ctx.check(s.canBeReplaced()).as("D 可以像草一样被替换").isTrue();
+        ctx.check(s.getCollisionShape(level, probe).isEmpty()).as("C: the collision shape is empty").isTrue();
+        ctx.check(s.canBeReplaced()).as("D: the block is replaceable, like grass").isTrue();
 
         // The entity round trip: label and args come back from the tag the world would save.
         if (level.getBlockEntity(probe) instanceof MarkerBlockEntity be) {
@@ -76,8 +76,8 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
             CompoundTag saved = be.saveWithoutMetadata(level.registryAccess());
             MarkerBlockEntity fresh = new MarkerBlockEntity(probe, s);
             fresh.loadWithComponents(saved, level.registryAccess());
-            ctx.check(fresh.label()).as("E 标签经保存再读回").isEqualTo("near:2");
-            ctx.check(fresh.args().getFloat("yaw")).as("F 参数经保存再读回").isCloseTo(90.0, 1e-6);
+            ctx.check(fresh.label()).as("E: the label survives a save and reload").isEqualTo("near:2");
+            ctx.check(fresh.args().getFloat("yaw")).as("F: the arguments survive a save and reload").isCloseTo(90.0, 1e-6);
         } else {
             ctx.fail("marker: the block has no MarkerBlockEntity at " + probe.toShortString());
         }
@@ -99,13 +99,13 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
         int ticks = 0;
         for (; ticks < 200 && step == Walker.Step.WALKING; ticks++) { step = walker.tick(av, w); av.step(); }
         double dx = Math.abs(fp.getX() - (cx + 5.5)), dz = Math.abs(fp.getZ() - (cz + 0.5));
-        ctx.record("行走", "step=" + step + " ticks=" + ticks + " pos=" + String.format("%.2f %.2f %.2f", fp.getX(), fp.getY(), fp.getZ()));
-        ctx.check(dx < 1.5 && dz < 1.5).as("G 真 Walker 穿过标记墙到达目标").isTrue();
-        ctx.check(level.getBlockState(probe).is(marker)).as("H 走过之后标记还在，没有被破坏").isTrue();
+        ctx.record("walk","step=" + step + " ticks=" + ticks + " pos=" + String.format("%.2f %.2f %.2f", fp.getX(), fp.getY(), fp.getZ()));
+        ctx.check(dx < 1.5 && dz < 1.5).as("G: the real Walker passes through the marker wall and reaches the goal").isTrue();
+        ctx.check(level.getBlockState(probe).is(marker)).as("H: the marker is still present after the walk and was not broken").isTrue();
 
         level.setBlockAndUpdate(probe, Blocks.STONE.defaultBlockState());
-        ctx.check(level.getBlockState(probe).is(Blocks.STONE)).as("I setBlock 直接盖掉标记").isTrue();
-        ctx.check(level.getBlockEntity(probe) == null).as("J 盖掉之后方块实体一起没了").isTrue();
+        ctx.check(level.getBlockState(probe).is(Blocks.STONE)).as("I: setBlock overwrites the marker directly").isTrue();
+        ctx.check(level.getBlockEntity(probe) == null).as("J: the block entity is removed together with the overwritten marker").isTrue();
 
         // A marker put into a water source keeps the water: the cell still reads as a source, a
         // neighbouring source's flow tick does not wash the marker away (a bare no-collision block
@@ -115,13 +115,13 @@ public final class WorldDriverMarkerScenes implements SceneProvider {
             for (int pz = -1; pz <= 1; pz++)
                 level.setBlockAndUpdate(pool.offset(px, 0, pz), Blocks.WATER.defaultBlockState());
         FixtureIO.put(level, pool, MarkerRole.FORBID, "", null);
-        ctx.check(level.getBlockState(pool).is(marker)).as("K 标记放进了水源格").isTrue();
+        ctx.check(level.getBlockState(pool).is(marker)).as("K: the marker was placed in the water source cell").isTrue();
         ctx.check(level.getFluidState(pool).is(Fluids.WATER) && level.getFluidState(pool).isSource())
-                .as("L 那一格仍读作水源").isTrue();
+                .as("L: that cell still reads as a water source").isTrue();
         BlockPos east = pool.east();
         Fluids.WATER.tick(level, east, level.getFluidState(east));
-        ctx.check(level.getBlockState(pool).is(marker)).as("M 邻格的水流一次 tick 之后标记还在").isTrue();
+        ctx.check(level.getBlockState(pool).is(marker)).as("M: the marker is still present after one flow tick of the neighbouring water").isTrue();
         FixtureIO.remove(level, List.of(new FixtureBuilder.Placed(pool, MarkerRole.FORBID, "", java.util.Map.of())));
-        ctx.check(level.getBlockState(pool).is(Blocks.WATER)).as("N 拿走标记后那一格又是水").isTrue();
+        ctx.check(level.getBlockState(pool).is(Blocks.WATER)).as("N: after the marker is removed, that cell is water again").isTrue();
     }
 }

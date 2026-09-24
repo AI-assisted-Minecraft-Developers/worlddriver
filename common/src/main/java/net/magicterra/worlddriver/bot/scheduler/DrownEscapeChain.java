@@ -60,7 +60,7 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
  * surface within five cells, whether or not the body could get there, and a body that
  * cannot get there is a body denied the lid-break as well.
  *
- * <p>The one horizontal exception to「zero horizontal」, and it is smaller than the
+ * <p>The one horizontal exception to "zero horizontal", and it is smaller than the
  * lateral arm's: when the rise is blocked but the body's own column is clear to
  * air, the body drifts to that column's CENTRE. A player box is 0.6 wide, so a
  * body pressed against a cell boundary carries 0.3 of itself into the next
@@ -187,8 +187,8 @@ public final class DrownEscapeChain implements Chain {
                 // Same %10 window as the vertical row below (read, never incremented here — the
                 // two are one arm and must land on the same ticks, unlike the lateral row's own
                 // clock). This is the row whose absence sent a reader to the region file.
-                LOG.info("[drownEscape] CAPPED lid — 有能换气的柱 {} 但游不过去（{} 内无通路），"
-                                + "落回破盖 pos={},{},{}",
+                LOG.info("[drownEscape] CAPPED lid — breathable column {} exists but cannot be reached "
+                                + "by swimming (no route within {}), falling back to breaking the lid pos={},{},{}",
                         lateral.unreachable().toShortString(), LATERAL_SCAN_R, bx, by, bz);
             if (dir != null) {
                 float yaw = (float) Math.toDegrees(Math.atan2(-(double) dir[0], (double) dir[1]));
@@ -218,14 +218,13 @@ public final class DrownEscapeChain implements Chain {
                 // ticks without moving reads identically to one that was never asked. Bounded by
                 // the drowning episode itself, so the volume is ten rows per near-death.
                 if (dbg++ % 10 == 0)
-                    // `第一步` is the whole point of the field's name: it used to be the
-                    // DESTINATION, and a destination on this row cannot be told apart from a
-                    // reachable one — the row that read `dir=0,-2` on 2026-08-26 was naming a
-                    // column two cells away with stone in between. A first step is a cell the
-                    // scan has already asserted the body fits in, so a stalled body on this row
-                    // is now a physics question, not a routing one.
-                    LOG.info("[drownEscape] CAPPED lid — lateral swim to open water 第一步={},{} "
-                                    + "pos={},{},{} air={} 水平速度={} y={}",
+                    // `firstStep` is the whole point of the field's name: a DESTINATION on this
+                    // row cannot be told apart from a reachable one — a row reading `dir=0,-2`
+                    // once named a column two cells away with stone in between. A first step is a
+                    // cell the scan has already asserted the bot fits in, so a stalled bot on this
+                    // row is a physics question, not a routing one.
+                    LOG.info("[drownEscape] CAPPED lid — lateral swim to open water firstStep={},{} "
+                                    + "pos={},{},{} air={} horizontalSpeed={} y={}",
                             dir[0], dir[1], bx, by, bz, p.getAirSupply(),
                             String.format(java.util.Locale.ROOT, "%.4f",
                                     Math.hypot(p.getDeltaMovement().x, p.getDeltaMovement().z)),
@@ -254,12 +253,12 @@ public final class DrownEscapeChain implements Chain {
         // Sealed lid: whatever stops the rise, break it (allowBreak permitting). The eye cell
         // itself is AntiSuffocate's job; this is above it.
         //
-        // ASKED OF THE BODY'S OWN BOX, not of one column. This used to be
-        // `p.blockPosition().above(2)` — the cell two above the foot — which is right only for a
-        // body standing in the middle of its cell. A player box is 0.6 wide, so a body hard against
-        // a boundary has up to 0.3 of itself in the NEXT column, and one solid cell there pins it
-        // while this test, `cappedColumn` and `nearestBreathable` all report a clear path. Measured
-        // 2026-08-23, wd.drownEscapeClientPinnedByNeighbourColumn:「跳读回=true 撞顶=true 盖挡=false」
+        // ASKED OF THE BOT'S OWN BOX, not of one column. `p.blockPosition().above(2)` — the cell
+        // two above the foot — is right only for a bot standing in the middle of its cell. A player
+        // box is 0.6 wide, so a bot hard against a boundary has up to 0.3 of itself in the NEXT
+        // column, and one solid cell there pins it while a single-column test, `cappedColumn` and
+        // `nearestBreathable` all report a clear path. Measured 2026-08-23,
+        // wd.drownEscapeClientPinnedByNeighbourColumn: jumpReadBack=true hitCeiling=true lidBlocks=false
         // — the command landed, physics said blocked, the scan said clear — 200 ticks, 0.000 blocks.
         // The live death it reproduces spent 261 ticks the same way.
         BlockPos lid = riseBlockedCell(mc, p, RISE_PROBE);
@@ -300,8 +299,9 @@ public final class DrownEscapeChain implements Chain {
         // the jump above is held every tick, so the body hovers instead of resting on whatever it
         // is standing over. Measured 2026-08-27 on the real client body
         // (wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff, integrated topology):
-        // one dirt lid cost 380 ticks, `盖.着地率 = 3/380`, and the floor was RIGHT THERE —
-        // `盖.脚下 = stone` with the body parked at y=208.235 over a floor whose top is y=208.0.
+        // one dirt lid cost 380 ticks, the bot was on the ground for 3 of those 380 ticks, and the
+        // floor was RIGHT THERE — stone underfoot, with the bot parked at y=208.235 over a floor
+        // whose top is y=208.0.
         // 0.235 blocks of hover, and bare-hand dirt is ~15 ticks: 15 × 25 = 375.
         //
         // Releasing the jump drops those 0.235 blocks, `onGround` becomes true, and the same dig
@@ -309,7 +309,7 @@ public final class DrownEscapeChain implements Chain {
         // `drownEscapeAirThreshold` (100) buys roughly 300 ticks of life (100 air + 20 HP at 2 per
         // 20 ticks), so a 380-tick escape LOSES and a ~76-tick one wins with room to spare. The
         // walker's own hopelessness gate has priced digs this way all along — WalkerTickClimb notes
-        // 「off-ground ÷5 always undone (the bot can always ground)」 — while this reflex never
+        // "off-ground ÷5 always undone (the bot can always ground)" — while this reflex never
         // grounded. That gap is what the fix closes.
         //
         // GUARDED BY THE FLOOR, and the guard is geometry rather than caution. `RISE_PROBE` is 0.5
@@ -324,13 +324,13 @@ public final class DrownEscapeChain implements Chain {
                     Mth.floor(p.getZ()));
             if (!cellOpen(w, below)) a.commandJump(false);
         }
-        // UNCONDITIONAL — it used to be gated on walkerDebug, and that gate cost a whole gate slot.
-        // 2026-08-23, stagewrightIntegratedServerNeoforge: both armed arms of the drown scenes came
-        // back 净升 0.000 while the very same code passed on Fabric an hour earlier (2.291 / 2.320).
-        // `[drownEscape] PREEMPT` printed twice, so the chain armed and took the body — but there
-        // were ZERO 竖直支 rows to say what happened next, because gates do not run with
-        // walkerDebug on. A reading available only under a flag is a reading the run that needs it
-        // never takes, and the zero it leaves cannot be told apart from「the arm never ran」.
+        // UNCONDITIONAL, not gated on walkerDebug: gates do not run with walkerDebug on. On
+        // stagewrightIntegratedServerNeoforge both armed arms of the drown scenes reported a net rise
+        // of 0.000 while the same code passed on Fabric (2.291 / 2.320); `[drownEscape] PREEMPT`
+        // printed twice, so the chain armed and took control of the bot, but a debug-gated vertical
+        // arm row would have printed nothing about what happened next. A reading available only under
+        // a flag is a reading the run that needs it never takes, and the zero it leaves cannot be told
+        // apart from "the arm never ran".
         // Same lesson, same day, as BotInteract's [place] row. The %10 throttle stays: this arm
         // only ticks while a body is actually drowning, so the volume is an episode, not a stream.
         // Through BotInteract for the same reason continueDestroy above goes through it: the row
@@ -340,7 +340,7 @@ public final class DrownEscapeChain implements Chain {
         if (dbgV++ % 10 == 0) drownVerticalRow(mc, p, lid, lidBlocksRise, breaking);
     }
 
-    /** How far up the body's own box is swept to ask「这一升会不会撞上东西」. Half a block: far
+    /** How far up the bot's own box is swept to ask "will this rise hit something". Half a block: far
      *  enough to see the face a rising body is about to meet (terminal rise in water is ~0.175 per
      *  tick), short enough that it never nominates something the body would have drifted clear of.
      *  A lid a whole block higher is not in the way YET, and this arm re-asks every tick. */
@@ -398,7 +398,7 @@ public final class DrownEscapeChain implements Chain {
      *
      * <p>Every field separates exactly one candidate, so none of them is decoration:
      * <ul>
-     *   <li>{@code 跳读回} is read back off the player's own {@code Input}, i.e. what
+     *   <li>{@code jumpReadBack} is read back off the player's own {@code Input}, i.e. what
      *       {@link net.magicterra.worlddriver.bot.movement.AvatarInput#tick} actually left there on
      *       the previous tick — <b>not</b> what this class asked for. The command channel is
      *       last-writer-wins and heavily contended, so "we commanded it" is not the same claim.
@@ -412,15 +412,15 @@ public final class DrownEscapeChain implements Chain {
      *       and it has already drifted once since being corrected here, so re-run the grep. ⚠️ The
      *       identical wrong nine also sat in {@code BotInteract} — two copies from one memory,
      *       which is why the fix is a derivation rather than a better number.</li>
-     *   <li>{@code 撞顶} ({@code verticalCollision}) is the one-row proof of "buoyancy IS applying
-     *       and something is in the way" — the state every column scan in this class is blind to.
-     *       A body that is neither rising nor sinking is pinned, and only this field says so
-     *       without arithmetic on two samples taken 200 ticks apart.</li>
-     *   <li>{@code 身体跨柱} prints the cells the bounding box actually straddles at the lid's
-     *       height, not the one cell {@code blockPosition()} names. A body at x=-27.716 has its box
-     *       edge at -28.016 — 0.016 inside the NEXT column, which {@link #cappedColumn},
+     *   <li>{@code hitCeiling} ({@code verticalCollision}) is the one-row proof of "buoyancy IS
+     *       applying and something is in the way" — the state every column scan in this class is
+     *       blind to. A bot that is neither rising nor sinking is pinned, and only this field says
+     *       so without arithmetic on two samples taken 200 ticks apart.</li>
+     *   <li>{@code straddledColumns} prints the cells the bounding box actually straddles at the
+     *       lid's height, not the one cell {@code blockPosition()} names. A bot at x=-27.716 has its
+     *       box edge at -28.016 — 0.016 inside the NEXT column, which {@link #cappedColumn},
      *       {@link #nearestBreathable} and the {@code lid} cell all ignore.</li>
-     *   <li>{@code 破盖中} makes the break arm visible at all.</li>
+     *   <li>{@code breakingLid} makes the break arm visible at all.</li>
      * </ul>
      *
      * <p><b>The body lives in {@code BotInteract#drownVerticalRow}, not here.</b> It reads
@@ -474,9 +474,9 @@ public final class DrownEscapeChain implements Chain {
      *                    not fit through the diagonal gap between two solid cells, so a diagonal
      *                    "step" is a direction no body can travel.
      * @param unreachable a column that CAN surface, within range, that no route reaches — or
-     *                    null when the scan found nothing at all. Both fields null is「boxed in,
-     *                    nothing anywhere」; this one set is「open water is right there, behind
-     *                    rock」. The caller falls back to the lid-break either way, but a human
+     *                    null when the scan found nothing at all. Both fields null is "boxed in,
+     *                    nothing anywhere"; this one set is "open water is right there, behind
+     *                    rock". The caller falls back to the lid-break either way, but a human
      *                    reading a death needs to tell them apart, and until 2026-08-26 could
      *                    not: the answer had to be dug out of the saved region file.
      */
@@ -490,13 +490,13 @@ public final class DrownEscapeChain implements Chain {
     /**
      * The capped-column lateral decision, in full.
      *
-     * <p><b>A route, not a radius.</b> This used to be「scan outward in Chebyshev rings, take the
-     * first column that can surface」— a test on the DESTINATION alone, with nothing anywhere
+     * <p><b>A route, not a radius.</b> This used to be "scan outward in Chebyshev rings, take the
+     * first column that can surface" — a test on the DESTINATION alone, with nothing anywhere
      * asking whether the body can get there. It killed the ladder of 2026-08-26 at rung 9: body in
      * a 1×1 pocket at 81,59,82 under a dirt lid; the scan picked 81,59,80, which genuinely can
      * surface; 81,59,81, the one cell between them, is stone. The body held {@code forward} into
      * that stone for 532 ticks at a horizontal speed of exactly 0.0000 and drowned. The picked
-     * column was not even standable — its head cell 81,60,80 is stone too, so「can surface there」
+     * column was not even standable — its head cell 81,60,80 is stone too, so "can surface there"
      * was answered for a body that could never have been there.
      *
      * <p>Worse than useless: {@code step == null} is what sends the caller to the lid-break, the

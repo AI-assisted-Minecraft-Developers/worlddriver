@@ -59,7 +59,7 @@ final class WalkerTickEdgeGuards {
         // sub-path. Once the body is suspended ON a vine (!onGround), take over: face the
         // path-ahead bearing and, if the path ahead is up/level ("direction correct"),
         // CLIMB the vine (forward+jump); the offPath(>3) / stuck repath then re-routes
-        // from the new elevation ("修正路径"). If the path ahead is BELOW (we over-climbed),
+        // from the new elevation (correcting the path). If the path ahead is BELOW (we over-climbed),
         // release the climb keys so the body slides back down the vine to be re-planned.
         // Gated on !onGround so it never hijacks normal ground-walking through a vine-
         // draped cell; ladders are excluded by isClimbable's caller using vines in jungle.

@@ -106,7 +106,7 @@ public final class BotApiImpl implements BotApi {
         // PREEMPT, like every other lethal-now reflex. Above bunker (digging DOWN
         // while drowning is precisely lethal), below panic/dodge.
         scheduler.register(new DrownEscapeChain()); // 500 — drowning under an active process (autoDrownEscape)
-        // 挖三填一 emergency dig-in, registered but DEFAULT-OFF (autoBunker=false):
+        // "Dig three, fill one" emergency dig-in, registered but DEFAULT-OFF (autoBunker=false):
         // an OPT-IN last-resort reflex for a no-gear bot a flee can't save (a skeleton
         // matches walking speed on open ground — fleeing just circles, HP bleeds out).
         // The two original "too uncontrollable" concerns are now structurally fixed:
@@ -887,8 +887,8 @@ public final class BotApiImpl implements BotApi {
         // active processes, THEN let autoRespawn skip past.
         eventDetector.detectDeath(mc, () -> {
             cancelAllProcesses("player-death");
-            scheduler.cancelAllEpisodes("player-death");   // gap#68-③⑦: 全链 episode 清零
-            backfillTracker.clear();                        // gap#68-⑧⑫: 孤儿回填队列清零
+            scheduler.cancelAllEpisodes("player-death");   // reset every chain's episode state
+            backfillTracker.clear();                        // drop the orphaned backfill queue
             combatChain.suppressAutoFor(BotConfig.respawnGraceTicks);
             respawnGraceLeft = BotConfig.respawnGraceTicks;
         });
@@ -1131,8 +1131,8 @@ public final class BotApiImpl implements BotApi {
      *
      * <p>A record rather than three volatile fields because the reader is on ANOTHER THREAD and
      * wants the three together: two independently-atomic reads do not compose into an atomic
-     * pair, and the torn pair「busy 已清，但 error 还是上一腿的」is indistinguishable from a
-     * leg that just finished cleanly. One reference, one read, one consistent answer.
+     * pair, and the torn pair "busy is already cleared, but error still belongs to the previous
+     * process run" is indistinguishable from a leg that just finished cleanly. One reference, one read, one consistent answer.
      */
     private record Leg(long seq, boolean busy, String kind, String error) {}
 
@@ -1172,7 +1172,7 @@ public final class BotApiImpl implements BotApi {
     /**
      * Close out a leg whose process has left the chain. <b>Client thread only</b>, once per tick.
      *
-     * <p>The test is the process OBJECT, not「链子空不空」: the chain is empty during the whole
+     * <p>The test is the process OBJECT, not "is the chain empty": the chain is empty during the whole
      * window between enqueue and install too, and closing the leg there is the false-completion
      * this seam exists to prevent.
      */
@@ -1207,8 +1207,8 @@ public final class BotApiImpl implements BotApi {
     /**
      * Built fresh per call rather than cached, because {@code ClientPlayerBody} binds
      * {@code mc.player} in its constructor and that reference dies on every respawn and dimension
-     * change. A cached one would keep actuating a stale body — the same「视图不跟着身体走」shape the
-     * driver has already paid for once, where a view built at construction planned over the old
+     * change. A cached one would keep actuating a stale player — the same "the world view does not
+     * follow the player entity" shape the driver has already paid for once, where a view built at construction planned over the old
      * dimension's terrain for every rung after the portal.
      */
     @Override public net.magicterra.worlddriver.bot.body.Body clientAvatar() {

@@ -182,7 +182,7 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.serverBunker — real BunkerProcess seals a 挖三填一 shelter shaft.
+    // wd.serverBunker — real BunkerProcess seals a dig-three, fill-one shelter shaft.
     // ==================================================================================
 
     private static void serverBunkerScene(SceneContext ctx) {
@@ -585,8 +585,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
     }
 
     // ==================================================================================
-    // wd.underwaterBase — A5 part 2: full 游进水里回水下基地 dive + submerged traverse into an
-    // air-pocket chamber. LEGACY HANG RECIDIVIST — bounded actuation, ported with ×3 validation.
+    // wd.underwaterBase — the full "swim back to the underwater base" dive + submerged traverse
+    // into an air-pocket chamber. LEGACY HANG RECIDIVIST — bounded actuation, ported with ×3 validation.
     // ==================================================================================
 
     private static void underwaterBaseScene(SceneContext ctx) {
@@ -887,11 +887,11 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         }
         // (e) live death #31, the real ladder of 2026-08-26 rung 9. A column that CAN surface,
         // with rock in between. Every cell below was transcribed from that run's own saved region
-        // file (fabric/run-journey-integrated/saves/JourneyClient), origin = the body's cell
-        // 81,59,82; the run's log shows this arm holding `forward` at 水平速度=0.0000 for 532
-        // ticks and the body drowning without moving one block.
+        // file (fabric/run-journey-integrated/saves/JourneyClient), origin = the bot's cell
+        // 81,59,82; the run's log shows this arm holding `forward` at a horizontal speed of 0.0000
+        // for 532 ticks and the bot drowning without moving one block.
         //
-        // The old ring scan answered「can 81,59,80 surface?」— yes, it is air — and steered there.
+        // The old ring scan answered "can 81,59,80 surface?" — yes, it is air — and steered there.
         // 81,59,81, the single cell between, is stone; 81,60,80, the picked column's HEAD cell, is
         // stone too, so it was steering at a cell no two-block-tall body could ever occupy. And
         // because a non-null answer skips the lid-break, the false positive did not merely fail to
@@ -958,8 +958,8 @@ public final class WorldDriverSurvivalScenes implements SceneProvider {
         // framework reports only `unexpected RuntimeException: <message>`, and for a class-loading
         // failure the message ("Cannot load class …LocalPlayer in environment type SERVER") names
         // the class that could not load but NOT the instruction that asked for it. Two hours of
-        // reading javap output and git history could not answer「which of the three matrices, and
-        // at which call」 — one stack does. Rethrown afterwards so the verdict is unchanged.
+        // reading javap output and git history could not answer "which of the three matrices, and
+        // at which call" — one stack does. Rethrown afterwards so the verdict is unchanged.
         runMatrixNamingItsStack(ctx, "gate", () -> drownEscapeGateMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));
         runMatrixNamingItsStack(ctx, "lifecycle", () -> drownEscapeChainLifecycleMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));
         runMatrixNamingItsStack(ctx, "lateral", () -> drownEscapeLateralMatrix((ok, msg) -> { if (!ok) ctx.fail(msg); }));

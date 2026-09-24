@@ -13,7 +13,7 @@ import net.minecraft.core.BlockPos;
  * <p><b>That cap ships at 4, not at the no-damage 3.</b> Baritone's conservative
  * dry-fall behaviour is what the knob's LOWEST legal value (3) buys; the shipping
  * default deliberately spends damage, so {@code Fall(4)} is LIVE on every default
- * run and the planner takes a real 1 HP hit rather than build a dirt "天梯"
+ * run and the planner takes a real 1 HP hit rather than build a dirt
  * staircase down a steep jungle slope — the smooth-descent lever. Only
  * {@code Fall(5)} is inert by default. Vanilla charges {@code ceil(distance - 3)}
  * HP, so fall4 = 1 HP = 0.5♥ and fall5 = 2 HP = 1♥.

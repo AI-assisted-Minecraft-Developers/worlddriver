@@ -97,11 +97,11 @@ public final class MineProcess implements BotProcess {
      * of {@code [mine] no approach to stand} naming the mechanism. So the tax is waived for the leg
      * that goes to fetch a log, and left at 3.0 for every leg that is merely travelling.
      *
-     * <p><b>Do not grep for that string</b> — {@code 86f59fde} replaced it the day after the
-     * measurement. The row that says the same thing today is {@link #retireTarget}'s unconditional
-     * {@code [mine] blacklist <pos>（<why>）}, and the {@code why} for this failure reads
-     * {@code 「…t 内对落脚点 … 一点没靠近（最近 … 格）—— 实际到不了」}. Counting the old wording
-     * on a current run yields zero, which reads as「fixed」and means「the instrument was renamed」.
+     * <p><b>Do not grep for that string</b> — it no longer exists. The row that records this
+     * failure is {@link #retireTarget}'s unconditional {@code [mine] blacklist <pos> (<why>)}, and
+     * the {@code why} for it reads {@code made no progress toward stand … within …t (closest …
+     * blocks) — unreachable}. Counting a retired wording on a current run yields zero, which reads
+     * as "fixed" and means "the instrument was renamed".
      *
      * <p><b>Why an owner and not a boolean.</b> Clearing on any exit would let a winding-down
      * instance wipe a live one's waiver: old instance's {@code finish()} can run after a new
@@ -116,7 +116,7 @@ public final class MineProcess implements BotProcess {
      * was added to fix.
      *
      * <p><b>Where that call actually happens</b>, because grepping {@code BotApiImpl} for
-     * {@code onCancelled} returns nothing and reads as「it never gets called」: the client funnel is
+     * {@code onCancelled} returns nothing and reads as "it never gets called": the client funnel is
      * {@code cancelAllProcesses → cancelCurrent → UserTaskChain.cancel}, and the call is on
      * {@code UserTaskChain:47}. Starting a new order funnels there too — {@code setProcess} cancels
      * the outgoing process with {@code "superseded"} before attaching the new one. The server rig's
@@ -393,7 +393,7 @@ public final class MineProcess implements BotProcess {
                             return false;
                         }
                     }
-                    retireTarget("走行器报 FAILED，且没有可清的遮挡叶子");
+                    retireTarget("the walker reported FAILED and there are no obstructing leaves to clear");
                     return false;
                 }
                 if (s == Walker.Step.ARRIVED) {
@@ -421,7 +421,7 @@ public final class MineProcess implements BotProcess {
                         goingStallTicks = 0;
                     } else if (++goingStallTicks >= GOING_STALL_TICKS) {
                         retireTarget(String.format(java.util.Locale.ROOT,
-                                "%dt 内对落脚点 %s 一点没靠近（最近 %.1f 格）—— 实际到不了",
+                                "made no progress toward stand %2$s within %1$dt (closest %3$.1f blocks) — unreachable",
                                 GOING_STALL_TICKS, currentStand, goingBestDist));
                         return false;
                     }
@@ -492,7 +492,7 @@ public final class MineProcess implements BotProcess {
                     // This is the honest shape of the limitation, not a workaround for it: what
                     // the bot cannot do is CLIMB to a log, and until it can, "mine the ones you can
                     // reach" is what a player without a ladder does too.
-                    retireTarget("露在外面却还是破不掉 ⇒ 够不着，而站着不动改善不了距离");
+                    retireTarget("exposed but still cannot be broken ⇒ out of reach, and standing still cannot close the distance");
                     return false;
                 }
                 a.aimAtBlock(currentTarget);
@@ -530,8 +530,8 @@ public final class MineProcess implements BotProcess {
                         phase = Phase.SEARCH;
                     }
                 } else if (breakingTicks > BotConfig.breakTimeoutTicks) {
-                    retireTarget("砸了 " + breakingTicks + "t 还没碎（上限 "
-                            + BotConfig.breakTimeoutTicks + "t）");
+                    retireTarget("still unbroken after " + breakingTicks + "t of mining (limit "
+                            + BotConfig.breakTimeoutTicks + "t)");
                 }
             }
             case COLLECT -> {
@@ -758,7 +758,7 @@ public final class MineProcess implements BotProcess {
      */
     private void retireTarget(String why) {
         retiredTargets++;
-        LOG.info("[mine] blacklist {}（{}）—— 第 {} 个退休目标，回到 SEARCH",
+        LOG.info("[mine] blacklist {} ({}) — retired target #{}, back to SEARCH",
                 currentTarget, why, retiredTargets);
         blacklist.add(currentTarget);
         hands.breakHold(false);
@@ -1087,7 +1087,7 @@ public final class MineProcess implements BotProcess {
         BlockPos above = block.offset(0, 1, 0);
         if (canStandHere(lvl, above)) return above;
 
-        // PILLAR-UP (踮脚): the log is too HIGH for any ground stand — an upper
+        // PILLAR-UP (to raise the bot): the log is too HIGH for any ground stand — an upper
         // trunk/canopy log directly overhead is the tree itself (can't pillar
         // into it). If a CLEAR vertical column sits BESIDE the log, return an
         // elevated side-stand level with it. The pathfinder's PillarUp chain
@@ -1196,7 +1196,7 @@ public final class MineProcess implements BotProcess {
     }
 
     /** The shared stand test ({@link net.magicterra.worlddriver.bot.util.BotUtil#canStandHereStatic})
-     *  plus one clause only mining needs. Written as「the shared answer AND …」on purpose: a digger's
+     *  plus one clause only mining needs. Written as "the shared answer AND …" on purpose: a digger's
      *  extra refusal must be visibly extra, or it reads as a second opinion about what standing is
      *  and the three processes drift apart. */
     private boolean canStandHere(Level lvl, BlockPos foot) {

@@ -265,7 +265,7 @@ loom {
             // 2026-08-20 body-selection instruction puts JoinedBody on the DEDICATED server only, so
             // `SceneBody` refuses to mint one here and every scene that needs a headless body is a
             // recorded skip until its family is converted to the client helm.
-            // The old doctrine「a topology must vary the RUN, never the subject」still applies to
+            // The old doctrine "a topology must vary the RUN, never the subject" still applies to
             // every OTHER pair of topologies, and it is why the skips have to be reconciled against
             // the dedicated gate rather than counted as coverage.
             // The suite arms at SERVER_STARTED, which here is before the local player is placed;

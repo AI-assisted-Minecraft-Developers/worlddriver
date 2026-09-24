@@ -186,7 +186,7 @@ public final class DuskSecureChain implements Chain {
     /** Push a warning-level {@code duskSecure.triggered} event the instant this reflex
      *  starts an UNATTENDED dig, so an auto-trigger is never a silent surprise: the Agent
      *  can react (e.g. mc.bot.cancel) and the operator sees it. Pairs with the off-by-default
-     *  {@link BotConfig#autoSecureAtDusk} to keep 挖三填一 predominantly an Agent-invoked
+     *  {@link BotConfig#autoSecureAtDusk} to keep the "dig three, fill one" bunker predominantly an Agent-invoked
      *  action (mc.bot.bunker) rather than an uncontrolled reflex. */
     private static void announceAutoTrigger(Minecraft mc, boolean rearm) {
         DriverApi api = WorldDriverCommon.api();

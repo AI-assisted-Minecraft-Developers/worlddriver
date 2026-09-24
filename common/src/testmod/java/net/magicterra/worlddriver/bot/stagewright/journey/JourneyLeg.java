@@ -16,13 +16,14 @@ import java.util.Locale;
  * The other thirty-four asked nothing, and simply ran their next step.
  *
  * <p>That is not a tidiness problem, it is a diagnosis problem, and this suite has already paid for
- * it more than once. {@code IntentProcess} reports its goal reached for a PARTIAL path, so a leg
- * coming back「done」says nothing about whether the body is where the leg was aiming: measured on
- * the iron rung, a leg ended cleanly with the body <b>88 blocks</b> from its column, and the rung
- * reported「走不到下井点」for what was really「走到一半就不走了，没人问它」. A leg with no reading
- * turns every failure downstream of it into a guess: an aim that missed and an aim that was taken
- * from thirty blocks away produce the same evidence, and the search then goes looking at the wrong
- * mechanism. A false「可以」costs far more than an honest「不行」.
+ * it more than once. {@code IntentProcess} reports its goal reached for a PARTIAL path, so a walk
+ * that comes back "done" says nothing about whether the bot is where the walk was aiming: measured
+ * on the iron rung, a walk ended cleanly with the bot <b>88 blocks</b> from its column, and the
+ * rung reported "cannot reach the shaft entry" for what was really "stopped halfway and nobody
+ * checked". A walk with no reading turns every failure downstream of it into a guess: an aim that
+ * missed and an aim that was taken from thirty blocks away produce the same evidence, and the
+ * search then goes looking at the wrong mechanism. A false "yes" costs far more than an honest
+ * "no".
  *
  * <h2>What it is not</h2>
  *
@@ -36,7 +37,8 @@ import java.util.Locale;
  *
  * Every clause either carries a measurement or says in words why it has none. {@code 0} and
  * {@code null} are the two readings this suite has repeatedly mistaken for answers when they meant
- *「没算过」, so where a value is unavailable this writes {@code unavailable/<原因>} instead.
+ * "never computed", so where a value is unavailable this writes {@code unavailable/<reason>}
+ * instead.
  */
 final class JourneyLeg {
     private JourneyLeg() {}
@@ -56,51 +58,54 @@ final class JourneyLeg {
      */
     static void record(JourneyRig rig, String what, BlockPos goal) {
         BlockPos at = rig.player().blockPosition();
-        rig.evidence(what + ".leg", "停在 " + at.toShortString() + "，" + gap(at, goal)
-                + "；" + walkerEnd(rig));
+        rig.evidence(what + ".leg", "stopped at " + at.toShortString() + ", " + gap(at, goal)
+                + "; " + walkerEnd(rig));
     }
 
     /**
      * How far the body ended from where it was sent — horizontally and vertically, separately.
      *
-     * <p>Separately on purpose. A single 3-D distance hides exactly the case that matters: a body
-     * standing on the rim above its goal and a body standing beside it at the right height read the
-     * same, and only one of them can do the next step. The horizontal number is the one a walking
-     * leg is judged on; the height difference is the one that says「到了这一柱，但没下到那一格」.
+     * <p>Separately on purpose. A single 3-D distance hides exactly the case that matters: a bot
+     * standing on the rim above its goal and a bot standing beside it at the right height read the
+     * same, and only one of them can do the next step. The horizontal number is the one a walk is
+     * judged on; the height difference is the one that says "reached the column but did not descend
+     * to the target cell".
      */
     private static String gap(BlockPos at, BlockPos goal) {
-        if (goal == null) return "距目标 unavailable/这一腿的目标不是一个点，没有可比的坐标";
+        if (goal == null) return "distance to goal unavailable/the goal of this walk is not a point,"
+                + " so there is no coordinate to compare";
         double flat = Math.hypot(at.getX() - goal.getX(), at.getZ() - goal.getZ());
-        return String.format(Locale.ROOT, "距 %s 水平 %.1f 格、高差 %+d",
+        return String.format(Locale.ROOT, "from %s: horizontal %.1f blocks, height difference %+d",
                 goal.toShortString(), flat, at.getY() - goal.getY());
     }
 
     /**
      * What the walker said about the leg it just ended.
      *
-     * <h2>{@code end=null} is a reading, and printing it as「null」threw it away</h2>
+     * <h2>{@code end=null} is a reading, and printing it as "null" throws it away</h2>
      *
      * {@code IntentProcess.attach} nulls {@code endReason}, and the only writes to it are on the
      * terminal exits: {@code tick} returns early on {@code Step.WALKING} and stamps
      * {@code walker.lastEndReason} only once the step is no longer WALKING (plus
-     * {@code crossedOut}'s {@code DIMENSION_CHANGED}). So {@code endReason == null} is not「没查到」
-     * — it is exactly「这一腿被叫停的时候，进程还在走」, i.e. something OUTSIDE the process ended
-     * it, which in this suite is the {@code settle} budget running out.
+     * {@code crossedOut}'s {@code DIMENSION_CHANGED}). So {@code endReason == null} does not mean
+     * "not found"; it means exactly "the process was still walking when this walk was stopped",
+     * i.e. something OUTSIDE the process ended it, which in this suite is the {@code settle} budget
+     * running out.
      *
-     * <p>That distinction is the whole point of the row. A leg that ended
-     * {@code failed:no route progress …} is a search that ran and lost to the terrain; a leg that
-     * ended still-walking is a search that was never allowed to finish, and the two want opposite
+     * <p>That distinction is the whole point of the row. A walk that ended
+     * {@code failed:no route progress …} is a search that ran and lost to the terrain; a walk that
+     * ended still walking is a search that was never allowed to finish, and the two want opposite
      * responses (re-route vs. more budget). Printed as {@code end=null} they read alike, and read
-     * like「没有信息」— which is how {@code 0}/{@code null} has repeatedly been mistaken in this
-     * suite for an answer rather than for an unasked question.
+     * like "no information", which is how {@code 0}/{@code null} has repeatedly been mistaken in
+     * this suite for an answer rather than for an unasked question.
      *
      * <p><b>Measured</b>, rung 14 of the run of 2026-08-20 (`journey14BlazeRod`, 24 hops): all eight
      * hops with {@code end=null} had spent exactly their 900-tick budget, and both hops with a real
      * {@code endReason} had stopped early (546t, 200t). Ten of ten, in the direction the code says.
      *
      * <p>{@code lastError}'s {@code null} is separately ambiguous — {@code BotState}'s own javadoc
-     * says「null if last run ok or in-progress」— so「无」here means「没有报错」and does <b>not</b>
-     * prove the leg is over. Read it beside {@code end=}.
+     * says "null if last run ok or in-progress", so "none" here means "no error reported" and does
+     * <b>not</b> prove the walk is over. Read it beside {@code end=}.
      */
     static String walkerEnd(JourneyRig rig) {
         return walkerEnd(rig.body());
@@ -120,15 +125,15 @@ final class JourneyLeg {
      * <p>Three legs, and the split is exactly along this line:
      *
      * <pre>
-     * wp2  (real ladder)  直段 end=unavailable（预算用完，进程还在走） → 绕行 arrived，差 1 格
-     * wp5  (real ladder)  直段 end=failed:no route progress…unreachable → 绕行 停在 59,5,90，岩浆
-     * wp11 (rehearsal)    直段 end=failed:no path (expanded=100000)     → 绕行 停在 62,3,86，岩浆
+     * wp2  (real ladder)  direct end=unavailable (budget spent, still walking) → detour arrived, 1 block short
+     * wp5  (real ladder)  direct end=failed:no route progress…unreachable     → detour stopped at 59,5,90, lava
+     * wp11 (rehearsal)    direct end=failed:no path (expanded=100000)         → detour stopped at 62,3,86, lava
      * </pre>
      *
      * The detour's one measured win followed a timeout; both measured lava deaths followed a search
      * failure, and neither recovered anything before dying. Gating on the reason keeps the win.
      *
-     * <h2>Unknown means「让它试」, deliberately</h2>
+     * <h2>Unknown deliberately means "let it try"</h2>
      *
      * {@code endReason == null} is the timeout case (see {@link #walkerEnd}: the field is only
      * written on a terminating step), and an ending this method does not recognise is treated the
@@ -157,8 +162,9 @@ final class JourneyLeg {
         String end = goto_.endReason;
         String err = goto_.lastError;
         return "end=" + (end == null
-                        ? "unavailable/预算用完时进程还在走（endReason 只在终止步写，没写=没走到终止步）"
+                        ? "unavailable/the process was still walking when the budget ran out (endReason"
+                          + " is written only on a terminal step; unset means no terminal step was reached)"
                         : end)
-                + " err=" + (err == null ? "无" : err);
+                + " err=" + (err == null ? "none" : err);
     }
 }

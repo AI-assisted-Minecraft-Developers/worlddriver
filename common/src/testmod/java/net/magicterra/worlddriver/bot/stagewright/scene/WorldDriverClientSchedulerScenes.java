@@ -85,7 +85,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         stillHostile(ctx, EntityType.HUSK, 4, GROUND + 1, 2);
         stillHostile(ctx, EntityType.HUSK, 4, GROUND + 1, -2);
         BlockPos start = ctx.rel(0, GROUND, 0);
-        ctx.record("布景", "一格深的水带 x∈[-1,1]，身体站在水里 " + start.toShortString() + "，两只不动的尸壳在东岸 4 格外");
+        ctx.record("test setup", "one-deep strip of water at x in [-1,1], the bot standing in the water at " + start.toShortString() + ", two motionless husks 4 blocks away on the east bank");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         BotConfig.autoBunker = true;
@@ -106,15 +106,15 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 if (bail[0] == null) bail[0] = bailOf(s, "bunker");
                 return ++t[0] >= window;
             }).within(window + 100).then(() -> {
-                ctx.record("观测", "bunker 持有通道 " + bunkerTicks[0] + " tick，retreat 首次接手在第 "
-                        + (firstRetreat[0] < 0 ? "从没" : String.valueOf(firstRetreat[0])) + " tick，bail=" + bail[0]
-                        + "；" + helm.where());
+                ctx.record("observed", "bunker was the active chain for " + bunkerTicks[0] + " ticks, retreat first took over at tick "
+                        + (firstRetreat[0] < 0 ? "never" : String.valueOf(firstRetreat[0])) + ", bail=" + bail[0]
+                        + "; " + helm.where());
                 ctx.check(firstRetreat[0] >= 0 && firstRetreat[0] <= 40)
-                        .as("A retreat 在 40 tick 内接手：第 " + firstRetreat[0] + " tick").isTrue();
-                ctx.check(bunkerTicks[0] <= 3).as("B bunker 放弃后不再每 tick 重新抢通道：持有 "
-                        + bunkerTicks[0] + " tick").isTrue();
+                        .as("A: retreat takes over within 40 ticks: at tick " + firstRetreat[0]).isTrue();
+                ctx.check(bunkerTicks[0] <= 3).as("B: after bailing, bunker does not reclaim control every tick: active for "
+                        + bunkerTicks[0] + " ticks").isTrue();
                 ctx.check(bail[0] instanceof Map<?, ?> m && "water".equals(m.get("reason")))
-                        .as("C status 里看得到 bunker 的 bail：" + bail[0]).isTrue();
+                        .as("C: the bunker bail is visible in status: " + bail[0]).isTrue();
             });
         });
     }
@@ -143,7 +143,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
         final long dayTimeWas = ctx.level().getDayTime();
         ctx.cleanup(() -> ctx.level().setDayTime(dayTimeWas));
         ctx.level().setDayTime(15_000);
-        ctx.record("布景", "沙滩，身体站在 " + start.toShortString() + "，东边紧挨着水 x∈[1,4]；时间 15000（夜）");
+        ctx.record("test setup", "beach, the bot standing at " + start.toShortString() + ", water directly to the east at x in [1,4]; time 15000 (night)");
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         BotConfig.autoSecureAtDusk = true;
@@ -163,13 +163,13 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 if (endReason[0] == null) endReason[0] = helm.slot("bunker").get("endReason");
                 return ++t[0] >= window;
             }).within(window + 100).then(() -> {
-                ctx.record("观测", "duskSecure 持有通道 " + duskTicks[0] + " tick，user " + userTicks[0]
-                        + " tick（共 " + window + "），bunker.endReason=" + endReason[0] + "，bail=" + bail[0]);
+                ctx.record("observed", "duskSecure was the active chain for " + duskTicks[0] + " ticks, user for " + userTicks[0]
+                        + " ticks (out of " + window + "), bunker.endReason=" + endReason[0] + ", bail=" + bail[0]);
                 ctx.check("unsafe-site".equals(endReason[0]))
-                        .as("布景：沙滩上的 bunker 以 unsafe-site 结束：" + endReason[0]).isTrue();
-                ctx.check(duskTicks[0] <= 3).as("A 失败后不每 tick 重启：duskSecure 持有 " + duskTicks[0] + " tick").isTrue();
-                ctx.check(userTicks[0] >= window - 40).as("B 用户任务拿回通道：user 持有 " + userTicks[0] + " tick").isTrue();
-                ctx.check(bail[0] instanceof Map<?, ?>).as("C status 里看得到 duskSecure 的 bail：" + bail[0]).isTrue();
+                        .as("test setup: the bunker on the beach ends with unsafe-site: " + endReason[0]).isTrue();
+                ctx.check(duskTicks[0] <= 3).as("A: after the failure it does not restart every tick: duskSecure active for " + duskTicks[0] + " ticks").isTrue();
+                ctx.check(userTicks[0] >= window - 40).as("B: the user task regains control: user active for " + userTicks[0] + " ticks").isTrue();
+                ctx.check(bail[0] instanceof Map<?, ?>).as("C: the duskSecure bail is visible in status: " + bail[0]).isTrue();
             });
         });
     }
@@ -196,7 +196,7 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
             ctx.level().setBlock(head, Blocks.AIR.defaultBlockState(), 3);
         });
         BlockPos start = ctx.rel(0, GROUND + 1, 0);
-        ctx.record("布景", "石板 y=" + GROUND + "，床在 " + foot.toShortString() + "（朝东），起点 " + start.toShortString());
+        ctx.record("test setup", "stone slab at y=" + GROUND + ", bed at " + foot.toShortString() + " (facing east), start " + start.toShortString());
 
         ClientHelm helm = ClientHelm.adopt(ctx, start, -90f);
         helm.sync(20, () -> {
@@ -207,20 +207,20 @@ public final class WorldDriverClientSchedulerScenes implements SceneProvider {
                 return Boolean.TRUE.equals(helm.slot("goto").get("active")) && waited[0] >= 15;
             }).within(200).then(() -> {
                 double gap = helm.flatDistance(foot);
-                ctx.record("取消前", helm.where() + String.format(Locale.ROOT, "，离床 %.2f 格；goto=%s",
+                ctx.record("beforeCancel", helm.where() + String.format(Locale.ROOT, ", %.2f blocks from the bed; goto=%s",
                         gap, helm.slot("goto")));
-                ctx.check(gap > 2.0).as("布景：取消时身体还在去床的路上（离床 " + gap + " 格）").isTrue();
+                ctx.check(gap > 2.0).as("test setup: at cancellation the bot is still on its way to the bed (" + gap + " blocks from the bed)").isTrue();
                 call(ctx, "cancel", "mc.bot.cancel", Map.of("process", "sleep"));
                 helm.sync(5, () -> {
-                    Map<?, ?> status = call(ctx, "取消后.status", "mc.bot.status", Map.of());
+                    Map<?, ?> status = call(ctx, "afterCancel.status", "mc.bot.status", Map.of());
                     Map<?, ?> go = helm.slot("goto");
                     ctx.check(Boolean.FALSE.equals(go.get("active")))
-                            .as("A 取消睡觉后 goto 槽不再 active：" + go).isTrue();
+                            .as("A: after the sleep task is cancelled, the goto slot is no longer active: " + go).isTrue();
                     ctx.check(status.get("activeProcess") == null)
-                            .as("B 用户任务槽已空：activeProcess=" + status.get("activeProcess")).isTrue();
+                            .as("B: the user task slot is empty: activeProcess=" + status.get("activeProcess")).isTrue();
                     Object end = status.get("lastProcessEnd");
                     ctx.check(end instanceof Map<?, ?> m && "sleep".equals(m.get("kind")))
-                            .as("C 最后一次结束记的是 sleep：" + end).isTrue();
+                            .as("C: the most recent process end is recorded as sleep: " + end).isTrue();
                 });
             });
         });

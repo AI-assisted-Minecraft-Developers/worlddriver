@@ -37,7 +37,7 @@ final class WalkerTickClimb {
      * carved the surface case out of "flooded" (the {@code walkerPillarSurfacePlace} branch below,
      * which is the flag's only reader in the whole product); {@link WalkerTickProgress} computed
      * plain {@code isWater(dest)} and never carved. On the one geometry where the two disagree —
-     * destination water, air directly above — Climb decided「place a support」while Progress still
+     * destination water, air directly above — Climb decided "place a support" while Progress still
      * called it a buoyant float, took the branch whose comment says an unfilled place cell is not
      * genuinely pending, and let bare height promote the step. {@code Walker.tickInner} runs
      * Progress before Climb, so the pointer left the edge before the support existed.
@@ -140,7 +140,7 @@ final class WalkerTickClimb {
                     String.format("%.2f", p.getY()), fillCell.getY() + CREST_CLEAR,
                     dryGrounded, foot.getY(), wk.waterClimb.targetY);
         // TWO ways to be making progress, and the second one is not a courtesy. The takeover's
-        // product is「fill the cell under my own feet, then jump off it」, one cell per cycle — the
+        // product is "fill the cell under my own feet, then jump off it", one cell per cycle — the
         // fill and the rise are two readings of ONE event, taken a tick apart, and either may be the
         // one this tick can see. wd.waterLowBank is the whole cycle: click at X.98, the cell turns
         // solid, the body stands on it, a ground jump fires +0.42, and the body arrives at (X+1).98
@@ -149,7 +149,7 @@ final class WalkerTickClimb {
         // landed one were the same event, and a body bobbing in a band it could never place from
         // pressed the button forever while the dig fallback behind it could not fire.
         // The rise half is bounded by the pillar ceiling and monotone (high-water, never a per-tick
-        // delta), so it cannot launder buoyancy into progress the way「higher than last tick」would.
+        // delta), so it cannot launder buoyancy into progress the way "higher than last tick" would.
         BlockPos tried = wk.waterClimb.placeAttemptCell;
         boolean landed = tried != null && world.isSolid(tried);
         // HIGH-WATER, never a per-tick delta. The bob crosses a block boundary every cycle, so
@@ -255,7 +255,7 @@ final class WalkerTickClimb {
                         && !(wantClimbNow && cwp.getY() - foot.getY() >= 2)
                         // ...AND there is somewhere to WALK to. The climb node the takeover latched
                         // can sit BELOW the bank top (a swimAshore break target in the pool wall),
-                        // so the rise test above read「topped out」on a 1×1 rung one course under
+                        // so the rise test above read "topped out" on a 1×1 rung one course under
                         // the rim, A* then asked for a diagonal step-up off that rung, and the body
                         // walked off it back into the pool (wd.clientOneHighBankPlaceOut: a second
                         // climb-out, 500 ticks). A rung is the top only when a dry cell beside it
@@ -265,7 +265,7 @@ final class WalkerTickClimb {
                 // Reported whether or not it fires: this bail was unconditionally false until the
                 // engage latch was fixed, and the water-climb family records no evidence at all, so
                 // a guard that could not fire changed no colour and nothing in the suite could see
-                // it. Rise is kept so「never got near」differs from「never asked」. See Walker.
+                // it. Rise is kept so "never got near" differs from "never asked". See Walker.
                 if (tooHigh) Walker.waterPillarCeilingBails++;
                 Walker.waterPillarTopRise = Math.max(Walker.waterPillarTopRise,
                         foot.getY() - (wk.waterClimb.targetY - PILLAR_CEILING_RISE));
@@ -284,8 +284,8 @@ final class WalkerTickClimb {
                 boolean drifted = Math.abs(foot.getX() - wk.waterClimb.colX) > 2
                         || Math.abs(foot.getZ() - wk.waterClimb.colZ) > 2;
                 // In side-rung mode the intent is allowed to flicker: the climb node A* named sits
-                // at the body's level as soon as the first rung is mounted, and「no longer
-                // climbing」then dropped the takeover one course under the bank, handing a body on
+                // at the body's level as soon as the first rung is mounted, and "no longer
+                // climbing" then dropped the takeover one course under the bank, handing a body on
                 // a 1×1 rung in a current to the ordinary walker. The mode ends on its own terms —
                 // a flush exit, the ceiling, or futility (wd.clientFlowingTrenchPlaceOut, run 22).
                 boolean staleClimb = !wantClimb && !(BotConfig.walkerShallowWaterSideFoothold && wk.waterClimb.sideRung);
@@ -369,7 +369,7 @@ final class WalkerTickClimb {
                 // used to fill `foot` whenever the column's foot-level cell was not water — which
                 // is every tick the boost lifts the body INTO THE AIR above the surface, i.e.
                 // exactly the ticks the place could land. The target then followed the bob: at
-                // y 221.2 it asked for cell 221 and「cleared」at 221.9, back at 220.6 it asked for
+                // y 221.2 it asked for cell 221 and "cleared" at 221.9, back at 220.6 it asked for
                 // 220, and the one-tick window where 220 was both the target and cleared was
                 // skipped by the rise itself. wd.clientOneHighBankPlaceOut: 130 ticks of that
                 // cycle, no block. Reaching DOWN to the water under the foot pins the target to
@@ -382,7 +382,7 @@ final class WalkerTickClimb {
                 while (world.isWater(fillCell.above())) fillCell = fillCell.above();
                 // DRY COLUMN: the cell to fill is the one standing on the column's solid top, not
                 // the airborne foot. Taking `foot` here let the target ride the jump — at y 221.0
-                // it asked for 221 and「cleared」at 221.9 — so a body jumping off its own rung
+                // it asked for 221 and "cleared" at 221.9 — so a body jumping off its own rung
                 // never had a fillable cell under it (wd.clientFlowingTrenchPlaceOut, third run).
                 boolean dryColumn = BotConfig.walkerShallowWaterSideFoothold && !world.isWater(fillCell)
                         && !p.isInWater();
@@ -394,7 +394,7 @@ final class WalkerTickClimb {
                 // the feet cannot clear it. In a layer higher than 0.4 the jump key swims
                 // (LivingEntity.aiStep: in water and not grounded → jumpInLiquid), the body
                 // hovers between y+0.24 and y+0.96 and vanilla refuses a block that meets its
-                // box — wd.clientFlowingTrenchPlaceOut: 50 ticks of「cleared」at .95, no rung.
+                // box — wd.clientFlowingTrenchPlaceOut: 50 ticks of "cleared" at .95, no rung.
                 // The rung that CAN land is the one beside the body: a neighbour cell at foot
                 // level is clear of the box, its floor is the support, and once it is solid
                 // the forward press rides the +0.3 collision boost onto it. Standing there,
@@ -501,7 +501,7 @@ final class WalkerTickClimb {
         for (BlockPos n : new BlockPos[] { foot.east(), foot.west(), foot.north(), foot.south() }) {
             if (world.isWater(n) || world.isWater(n.below())) continue;
             // A rung this climb-out placed itself is not the shore: two side footholds a tick apart
-            // read as「flush exit」one course up and the takeover let go three courses under the bank.
+            // read as "flush exit" one course up and the takeover let go three courses under the bank.
             boolean ownRung = BotConfig.walkerShallowWaterSideFoothold && placedRungs.contains(n.below());
             if (!ownRung && world.canStandAt(n) && leadsOn(world, foot, n)) return true;
             BlockPos d = n.below();
@@ -588,7 +588,7 @@ final class WalkerTickClimb {
             boolean within = cur2 < REACH_DIST_SQ && Math.abs(dY) < 1.2;
             BlockPos br0 = (edge != null && !edge.toBreak.isEmpty()) ? edge.toBreak.get(0) : null;
             // bearing TO the node (MC yaw: 0=+z south, atan2(-dx,dz)); yawErr = how far the bot's body
-            // faces OFF that bearing. With hCol this separates "rammed a wall, facing right" (贴墙卡住) from
+            // faces OFF that bearing. With hCol this separates "rammed a wall, facing right" (stuck against a wall) from
             // "facing the wrong way, not driving toward the node" (aim/drive bug) — the missing axis that
             // forced guessing on every "won't close" stall.
             double bearing = Math.toDegrees(Math.atan2(-ddx, ddz));
@@ -959,7 +959,7 @@ final class WalkerTickClimb {
                 // a low bob dug the foot-level block AND a high bob dug the step block of
                 // the SAME column → the bank surface tunnelled DOWN to the water line and
                 // the next column stayed a fresh +2 wall (infinite pogo, ashoreTick 162).
-                // 兜底 anti-wander column LOCK: lock ONE chimney column at engage and dig
+                // Fallback anti-wander column LOCK: lock ONE chimney column at engage and dig
                 // it straight up. Without it the dig re-derives the target from the live
                 // (repathing) cwp every time a riser breaks, so the buoyant bot drifts along
                 // the bank digging a fresh column each time and never tops out (live
@@ -1089,7 +1089,7 @@ final class WalkerTickClimb {
                     wk.hands.selectTool(riser);
                     // Re-snap the look onto the riser ONLY when it changes, not every
                     // tick: aimAtBlock SNAPS yaw+pitch from the LIVE (bobbing) eye, so a
-                    // per-tick call judders the camera ~25°/cycle — the "镜头剧烈抖动" the
+                    // per-tick call judders the camera ~25°/cycle — the violent camera shake the
                     // video flags during digs. The first snap aims dead-on; the ±0.5 bob
                     // then keeps the crosshair on the 1-tall riser face while the camera
                     // holds steady, and we only re-aim when the dig moves to a new riser.
@@ -1148,7 +1148,7 @@ final class WalkerTickClimb {
                     // with a tiny natural bob; the instant it dips under → one correction
                     // pops it back up. The waterline riser then sits just below the steady
                     // surface eye → a near-horizontal, bob-tolerant mining ray. (Covers
-                    // "松手空格就会沉下去": it still swims up the moment it submerges.)
+                    // sinking as soon as the jump key is released: it still swims up the moment it submerges.)
                     // ...PLUS a controlled climb term: rise when the eye is clearly BELOW
                     // the current riser (more than 0.3 under its base). For a riser at eye
                     // level this is false → pure tread-water (the stable cycle-4 hold); once
@@ -1159,7 +1159,8 @@ final class WalkerTickClimb {
                     boolean needRise = p.isUnderWater() || p.getEyeY() < riser.getY() - 0.3;
                     wk.avatarJump(a, needRise);
                     // No sprinting: a sprinting bot swim-DIVES into the prone pose and dunks
-                    // its head underwater (the live "潜入水底/仰头空挖" thrash + the 25× mining
+                    // its head underwater (the live thrash of sinking to the bottom and digging at
+                    // nothing while looking up, plus the 25× mining
                     // penalty). Upright tread keeps the head out and the dig fast.
                     p.setSprinting(false);
                     // Press INTO the bank to enter the broken notch — but ONLY once the foot has
@@ -1167,8 +1168,8 @@ final class WalkerTickClimb {
                     // floats with its foot ~2 below the surface, so pressing forward while still
                     // low RAMS the riser's solid floor-cell (riser.below()) and pins the bot below
                     // the +1 step — it breaks the block but never steps onto it and slides back
-                    // into the water (live 2026-06-20: stuck at y61 ramming the y62 bank, "挖穿后
-                    // 掉回水里"). Below the notch, suppress forward and just SWIM UP (the jump
+                    // into the water (live 2026-06-20: stuck at y61 ramming the y62 bank, falling
+                    // back into the water after digging through). Below the notch, suppress forward and just SWIM UP (the jump
                     // above); once the foot reaches the ledge, press in and ground on it. (Forward
                     // while submerged also drops the bot into the prone-swim pose and it sinks.)
                     if (!p.isUnderWater() && p.getY() >= riser.getY() - 0.6) Walker.avatarForward(a, true);

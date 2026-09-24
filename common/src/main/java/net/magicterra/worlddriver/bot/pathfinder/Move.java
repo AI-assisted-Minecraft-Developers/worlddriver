@@ -57,8 +57,8 @@ public abstract class Move {
     /**
      * True if this move PLACES a block from inventory (bridge/pillar/parkour-place).
      * The Walker uses this to drop all placing moves from a search when the bot
-     * doesn't carry enough blocks for a committed path's placements — "搭桥前算够
-     * 不够，否则就挖": rather than bridge partway and strand, re-search with placing
+     * doesn't carry enough blocks for a committed path's placements — check the block
+     * count before bridging, otherwise dig: rather than bridge partway and strand, re-search with placing
      * off so A* digs through / routes around (break moves need no blocks). Default false.
      */
     public boolean placesBlock() { return false; }
@@ -192,15 +192,16 @@ public abstract class Move {
      * <p>Why a leap over THIS gets refused outright rather than repriced: the arithmetic was done
      * and it does not work. {@code parkour3} costs 32; the bridge chain that replaces it costs
      * 80+80+10 = 170, so for a price change to prefer bridging, a placed block would have to cost
-     * under 11 — cheaper than {@code walk} itself, and 80 is exactly what killed「深谷凌空架桥」
-     * when it was raised from 30. A cost model that has to lie about the price of one move to get
+     * under 11 — cheaper than {@code walk} itself, and a placement cost of 80 is exactly what
+     * stopped the planner from bridging across deep ravines. A cost model that has to lie about the price of one move to get
      * the right answer for another is not the tool for this; a hard rule is.
      *
      * <p>The asymmetry is the point. Misjudging a leap over a 3-deep pit costs a few ticks and a
      * climb out. Misjudging one over the void ends the run: this body's {@code isInvulnerableTo} is
      * permanently true, so it does not die and land at spawn — it falls forever, and every order
      * issued afterwards is issued to a body in the void. Rung 20 has ended that way repeatedly
-     * (measured: 身体掉出世界 y=-65, 位置 -61,-65,16, 已砸碎 5/10 座).
+     * (measured: the bot fell out of the world at y=-65, position -61,-65,16, with 5 of 10
+     * spikes destroyed).
      */
     public static boolean overTheVoid(WorldView w, BlockPos from, BlockPos to) {
         int steps = Math.max(Math.abs(to.getX() - from.getX()), Math.abs(to.getZ() - from.getZ()));
@@ -433,7 +434,7 @@ public abstract class Move {
         // Dry falls 2-3 are Baritone's no-damage cap, but the SHIPPING cap is 4, so
         // fall4 (1 HP) is live on a default run and only fall5 is inert until
         // BotConfig.pathfinderMaxDryFall is raised (Fall.valid gates live) — the
-        // "fall a small step instead of building a dirt 天梯" lever.
+        // "fall a small step instead of building a dirt staircase" lever.
         for (int[] d : CARDINAL)
             for (int drop = 2; drop <= 5; drop++)
                 ms.add(new Fall(d[0], d[1], drop));

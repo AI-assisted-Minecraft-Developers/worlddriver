@@ -35,7 +35,7 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.blockPosOf;
 public final class RetreatChain implements Chain {
     /** Flee until this many blocks from where the retreat began. */
     private static final int FLEE_DIST = 16;
-    /** Hysteresis (the 兜圈子 fix): once fleeing, KEEP fleeing until HP climbs this
+    /** Hysteresis (the fix for fleeing in circles): once fleeing, KEEP fleeing until HP climbs this
      *  far ABOVE the trigger. Without it, a single regen tick / a missed hit lifts
      *  HP a hair over the threshold, the channel snaps straight back to the goal,
      *  the bot marches into the SAME mob, HP drops, and it flips again — a tight
@@ -481,7 +481,7 @@ public final class RetreatChain implements Chain {
             // source, so sourcing it at the mob cluster gives a consistent
             // away-from-danger heading; sourcing it at the bot's own foot let each
             // 16-block reset pick an arbitrary direction — sometimes straight back
-            // into the mob (the zig-zag half of the 兜圈子).
+            // into the mob (the zig-zag half of fleeing in circles).
             // Report flee status to the reflex's OWN slot (state.retreat), never the
             // user mc.bot.runAway slot — so reflex and user flee never stomp each other.
             process = new RunAwayProcess(fleeFrom(mc), FLEE_DIST, state.retreat);

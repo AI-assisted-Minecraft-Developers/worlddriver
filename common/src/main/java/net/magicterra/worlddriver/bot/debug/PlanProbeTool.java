@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Handler for {@code mc.debug.plan} — a READ-ONLY, deterministic single-search probe
- * that is the measurement backbone of the pinch "走回头路" work.
+ * that is the measurement backbone of the work on backtracking at pinch points.
  *
  * <p>It runs one {@link PathFinder#findPath} from a fixed start to an XZ goal and returns
  * the committed best-effort segment plus a backtrack verdict, WITHOUT engaging the Walker —

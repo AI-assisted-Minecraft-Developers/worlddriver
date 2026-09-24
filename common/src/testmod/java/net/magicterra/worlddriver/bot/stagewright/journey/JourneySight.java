@@ -29,16 +29,16 @@ import net.minecraft.world.phys.Vec3;
  * at a height guessed by adding a whole block when the cell holds fluid. A real body is at neither.
  * A player's box is 0.6 wide, so its centre rests anywhere in {@code [0.2, 0.8]} of its own cell —
  * the walker leaves it wherever the last path edge ended, which {@link JourneyRamp}'s own approach
- * note already measured from the other side ({@code 身体精确位置 6.60/57.00/17.78}) — and a body in
+ * note already measured from the other side (exact position of the bot: 6.60/57.00/17.78) — and a body in
  * one block of water floats a third of a block, not a whole one.
  *
  * <p>Measured, the south rehearsal of 2026-08-17, cell eight of the mould. The chooser accepted
  * {@code -10,56,32} and said so:
  *
  * <pre>
- * cast8.stand.3 = -10, 56, 32 瞄 -9, 60, 35（背板近面） 否决计数 {…}
- * cast8.picks.3 = -9, 58, 33 Block{minecraft:cobblestone} face=west → 落进 -10, 58, 33
- *                 （想浇 -9, 60, 34，…，身体 -10, 56, 32，眼睛 -9.15/57.98/32.57 …）
+ * cast8.stand.3 = -10, 56, 32 aiming at -9, 60, 35 (near face of the backing) veto counts {…}
+ * cast8.picks.3 = -9, 58, 33 Block{minecraft:cobblestone} face=west → lands in -10, 58, 33
+ *                 (intended pour -9, 60, 34, …, bot at -10, 56, 32, eye -9.15/57.98/32.57 …)
  * </pre>
  *
  * <p>The eye it was chosen for is {@code -9.50/58.62/32.50}; the eye that fired is
@@ -72,11 +72,11 @@ import net.minecraft.world.phys.Vec3;
  * having it (ladder run of 2026-08-20, cast 8 of an {@code east} mould at {@code 4,56,19}):
  *
  * <pre>
- * cell.8.step       = 3, 58, 19 垫一格给 4, 60, 19 用 → 站得住了（cobblestone）
- * wet.8.ramp.flight = 4 级：2, 56, 17 → 3, 57, 17 → 3, 58, 18 → 3, 59, 19
- * cast8.picks.1     = 3, 59, 19 Block{minecraft:cobblestone} face=west → 落进 2, 59, 19
- *                     （想浇 4, 60, 19，瞄 5, 60, 19，身体 2, 58, 19，眼睛 2.04/59.62/19.48）
- * cast8.clear3      = 浇线上没有可清的方块（3, 59, 19=Block{minecraft:cobblestone}(壁龛内) …）
+ * cell.8.step       = 3, 58, 19 placed as a step for 4, 60, 19 → can stand now (cobblestone)
+ * wet.8.ramp.flight = 4 steps: 2, 56, 17 → 3, 57, 17 → 3, 58, 18 → 3, 59, 19
+ * cast8.picks.1     = 3, 59, 19 Block{minecraft:cobblestone} face=west → lands in 2, 59, 19
+ *                     (intended pour 4, 60, 19, aiming at 5, 60, 19, bot at 2, 58, 19, eye 2.04/59.62/19.48)
+ * cast8.clear3      = no clearable block on the pour line (3, 59, 19=Block{minecraft:cobblestone}(inside the alcove) …)
  * </pre>
  *
  * <p>Read in order: a step was placed at {@code 3,58,19} <b>for this very cell</b>, so that the body
@@ -137,13 +137,14 @@ final class JourneySight {
             for (double z : new double[] {0.5 - OFF_CENTRE, 0.5 + OFF_CENTRE})
                 // BOTH HEIGHTS when the cell holds fluid, because how far a body floats is exactly
                 // what nobody here knows: one block of water lifts it about a third of a block
-                // (measured `身体 y=56.29` over a floor at 56), deeper water lifts it a whole one
-                // (measured `water2.stand=-9,56,37` against `身体 -9,57,37`). A line that needs one
-                // of the two to be true is not a line this rung may plan on.
+                // (measured bot y=56.29 over a floor at 56), deeper water lifts it a whole one
+                // (measured `water2.stand=-9,56,37` against the bot at -9,57,37). A line that needs
+                // one of the two to be true is not a line this rung may plan on.
                 for (int lift = 0; lift <= (afloat ? 1 : 0); lift++) {
                     String edge = pourLine(level, body, foot, x, z, lift, backing, target);
                     if (edge == null) continue;
-                    why.merge("只有正对格心才成立（走位偏 " + OFF_CENTRE + " 格就 " + edge + "）",
+                    why.merge("holds only from the cell centre (standing " + OFF_CENTRE
+                                    + " blocks off centre: " + edge + ")",
                             1, Integer::sum);
                     return CENTRE_ONLY;
                 }
@@ -158,7 +159,7 @@ final class JourneySight {
      * 0.6 wide, so its centre rests anywhere in {@code [0.2, 0.8]} of its own cell, which puts the
      * real eye up to {@code hypot(0.2, 0.2) = 0.283} away from the centre this file's other callers
      * assume — measured {@code 0.22} on the seat that passed validation and then fired into rock,
-     * with the blocking face named ({@code -5,62,55 grass_block 面=up，1.04 格}). When {@code foot}
+     * with the blocking face named ({@code -5,62,55 grass_block face=up, 1.04 blocks}). When {@code foot}
      * is any OTHER cell — one the body has not walked to — no such reading exists and the centre is
      * the only honest estimate available.
      *
@@ -182,15 +183,17 @@ final class JourneySight {
         var eye = new Vec3(foot.getX() + x, foot.getY() + lift + body.getEyeHeight(),
                 foot.getZ() + z);
         var aim = Vec3.atCenterOf(backing);
-        if (eye.distanceTo(aim) > JourneyFill.BUCKET_REACH) return "够不着 " + backing.toShortString();
+        if (eye.distanceTo(aim) > JourneyFill.BUCKET_REACH) return "out of reach: " + backing.toShortString();
         var hit = level.clip(new ClipContext(eye, aim, ClipContext.Block.OUTLINE,
                 ClipContext.Fluid.NONE, body));
-        if (hit.getType() != HitResult.Type.BLOCK) return "射线没打到方块";
+        if (hit.getType() != HitResult.Type.BLOCK) return "the ray hit no block";
+        // JourneyPourLineScenes rebuilds this exact key and looks it up with containsKey, so the
+        // wording must change in both files at once.
         if (!hit.getBlockPos().equals(backing))
-            return "射线停在 " + hit.getBlockPos().toShortString() + " "
+            return "the ray stopped at " + hit.getBlockPos().toShortString() + " "
                     + level.getBlockState(hit.getBlockPos()).getBlock();
         if (!backing.relative(hit.getDirection()).equals(target))
-            return "打中 " + backing.toShortString() + " 的 " + hit.getDirection() + " 面";
+            return "hit the " + hit.getDirection() + " face of " + backing.toShortString();
         return null;
     }
 
@@ -215,7 +218,7 @@ final class JourneySight {
     /**
      * Is this cell on the pour line of a ring cell that has NOT been cast yet?
      *
-     * <p>「Not cast yet」is read off the WORLD rather than kept as an index, for the same reason
+     * <p>"Not cast yet" is read off the WORLD rather than kept as an index, for the same reason
      * {@link JourneyRamp}'s footing scan reads the world: a cell that was cast and then lost is
      * still a cell this rung has to pour into, and an index would say it was done. Obsidian in a
      * ring cell is the one state that means the line is spent.
@@ -291,7 +294,7 @@ final class JourneySight {
      *
      * <p>All four corners of the footprint, because a 0.6-wide box a fifth of a cell off centre
      * rests on the cell next door — the same reason {@link JourneyShaft#supportUnder} looks there,
-     * and the same measurement ({@code 身体精确位置 6.60/57.00/17.78}) that
+     * and the same measurement (exact position of the bot: 6.60/57.00/17.78) that
      * {@link JourneyRamp#approach} was written around. Asked of the BOX rather than of
      * {@code blockPosition()} for exactly that: the cell a body rounds to is not the whole of what
      * it is resting on.

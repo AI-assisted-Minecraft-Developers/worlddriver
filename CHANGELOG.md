@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-09-24
+
+- **Messages, comments and test output are in English.** Error text a caller can read, such as
+  the smelt failures in `lastError` ("timed out opening the furnace", "partially completed: smelted
+  only 3/8 (the ingredient ran out)"), log lines, and the evidence StageWright scenes record were
+  partly in Chinese; they are now English. Code that matched the old Chinese wording has to match
+  the English text instead. The language files for in-game text are unchanged.
+
 ## 2026-09-23
 
 - **`lastProcessEnd.error` says whether the last user task did what it was asked.** It was null

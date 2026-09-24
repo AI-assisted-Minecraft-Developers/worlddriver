@@ -20,7 +20,7 @@ import static net.magicterra.worlddriver.bot.util.BotInteract.selectBestToolFor;
 import static net.magicterra.worlddriver.bot.util.BotInteract.walkerPlace;
 
 /**
- * Emergency "挖三填一" bunker reflex. When the bot is CORNERED — HP at/below
+ * Emergency "dig three, fill one" bunker reflex. When the bot is CORNERED — HP at/below
  * {@link BotConfig#bunkerHpThreshold} and at least {@link BotConfig#bunkerMinHostiles}
  * hostiles within {@link BotConfig#bunkerTriggerRadius}, the situation where
  * fleeing just runs into more mobs — it digs straight down

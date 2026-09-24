@@ -37,11 +37,11 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p>{@code DrownEscapeChain.tick} opens with {@code if (mc == null) return;} — so the entire
  * execution layer of the reflex that outranks every user process is unreachable from a dedicated
- * server, which is where all four of those run. Twenty-six assertions on「该不该浮」, zero on
- * 「浮起来了没有」.
+ * server, which is where all four of those run. Twenty-six assertions on "should it rise", zero on
+ * "did it actually rise".
  *
  * <p><b>What that cost.</b> Integrated ladder, 2026-08-22, BED rung: the reflex preempted at
- * {@code air=100}, held the movement channel for 261 ticks, and the body drowned at
+ * {@code air=100}, held the movement channel for 261 ticks, and the bot drowned at
  * {@code -28,61,79} without moving one block. The whole in-window log is two scheduler handovers —
  * that arm printed nothing per tick and its lid-break sub-arm printed nothing ever.
  *
@@ -57,8 +57,8 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p>A body at {@code x=-27.716} has its bounding box edge at {@code -28.016}: 0.016 of it is in the
  * NEXT column, which no scan here ever asks about. {@link #pinnedByNeighbourColumn} stages that
- * geometry deliberately and with a large margin, so「今天红」means the blindness is real and
- * 「今天绿」means the neighbour column is not the mechanism and the search moves on. An open-water
+ * geometry deliberately and with a large margin, so a failure means the blindness is real and a
+ * pass means the neighbour column is not the mechanism and the search moves on. An open-water
  * arm alone could not tell those apart: it would go green today and go on being green through the
  * exact death it was written for.
  */
@@ -69,11 +69,10 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         return List.of(
                 Scene.of("wd.drownEscapeClientRisesInOpenWater", 400,
                         WorldDriverDrownRiseScenes::risesInOpenWater),
-                // REQUIRED as of the fix. It went in optional for exactly one run — the run that
-                // had to be allowed to report a red nobody could act on yet — and that run returned
-                // 「净升 0.000 格 / 200 tick，盖挡=false 撞顶=true」. The hypothesis is settled, the
-                // blindness is fixed, and a sensor that stays optional after its subject is
-                // understood is a sensor that will be green-by-accident the day it regresses.
+                // REQUIRED. The failure it recorded (net rise 0.000 blocks over 200 ticks, lid
+                // blocked=false, hit ceiling=true) settled the hypothesis and the blindness is fixed.
+                // A sensor that stays optional after its subject is understood will pass by
+                // accident on the day it regresses.
                 Scene.of("wd.drownEscapeClientPinnedByNeighbourColumn", 400,
                         WorldDriverDrownRiseScenes::pinnedByNeighbourColumn),
                 Scene.of("wd.drownEscapeClientStaysDownDisarmed", 400,
@@ -85,23 +84,23 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                 Scene.of("wd.drownEscapeClientBreaksTheLidWhenOpenWaterIsWalledOff", 900,
                         ctx -> breaksTheLid(ctx, 0)),
                 // THE SAME ARM OVER WATER, and it is the control the pair above cannot be read
-                // without. Standing up to dig is guarded on「the cell under the feet can be stood
-                // on」, and a guard is only worth what its NEGATIVE arm is worth: over water the
-                // jump must stay held, because a body that sinks in a deep pocket drifts out of
+                // without. Standing up to dig is guarded on "the cell under the feet can be stood
+                // on", and a guard is only worth what its NEGATIVE arm is worth: over water the
+                // jump must stay held, because a bot that sinks in a deep pocket drifts out of
                 // RISE_PROBE's half-block reach, loses the lid, and starts a jump/sink oscillation
                 // that resets the break progress every cycle. Three water cells under the foot is
-                // the shallowest staging that is unambiguously「deeper than two」.
+                // the shallowest staging that is unambiguously "deeper than two".
                 //
-                // Read the two `盖.破了` numbers side by side: the shallow arm should fall to about
-                // a fifth once the body grounds, and THIS one should not move at all. A single
-                // number cannot tell「the fix worked」from「the dig got cheaper for some other
-                // reason」; two numbers whose ratio is predicted in advance can.
+                // Read the two `lid.broken` numbers side by side: the shallow arm should fall to about
+                // a fifth once the bot grounds, and THIS one should not move at all. A single
+                // number cannot tell "the fix worked" from "the dig got cheaper for some other
+                // reason"; two numbers whose ratio is predicted in advance can.
                 Scene.of("wd.drownEscapeClientKeepsFloatingWhenThePocketIsDeep", 900,
                         ctx -> breaksTheLid(ctx, 3)));
     }
 
-    /** Ticks the body is given to reach air. Ten times the ~20 ticks a free rise over this column
-     *  takes, so a red cannot be read as「预算太紧」— and far below the ~240 ticks that separate the
+    /** Ticks the bot is given to reach air. Ten times the ~20 ticks a free rise over this column
+     *  takes, so a failure cannot be read as "the budget was too tight" — and far below the ~240 ticks that separate the
      *  staged {@code air=40} from a drowning death, so a red never costs the client its life. */
     private static final int BUDGET = 200;
 
@@ -124,9 +123,9 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
     }
 
     /** The regression. Same open column by every scan this class performs, but a solid block in the
-     *  neighbouring column the body's own bounding box straddles. Nothing in
-     *  {@code DrownEscapeChain} looks there, so the body should be pinned 那一格 below air with the
-     *  reflex reporting a clear path. */
+     *  neighbouring column the bot's own bounding box straddles. Nothing in
+     *  {@code DrownEscapeChain} looks there, so the bot should be pinned one block below air with
+     *  the reflex reporting a clear path. */
     private static void pinnedByNeighbourColumn(SceneContext ctx) {
         run(ctx, true, true);
     }
@@ -166,8 +165,8 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
      * moving one block. The lid was never touched, because a non-null lateral target is precisely
      * what skips the lid-break.
      *
-     * <p>So the subject here is not「能不能浮」and not「活不活得下来」. It is: <b>with open water in
-     * range but walled off, does the body end up attacking the lid?</b> The old code cannot pass
+     * <p>So the subject here is neither "can it rise" nor "does it survive". It is: <b>with open
+     * water in range but walled off, does the bot end up attacking the lid?</b> The old code cannot pass
      * this — it swims sideways into rock until the budget runs out and the lid is still there.
      *
      * <p>The air supply is pinned under the threshold rather than allowed to drain, so this measures
@@ -183,14 +182,14 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("topology", (integrated ? "integratedServer" : "dedicatedServer")
-                + "，mc.bot.* 在本 JVM=" + BotHooks.isAvailable());
+                + ", mc.bot.* in this JVM=" + BotHooks.isAvailable());
         if (!integrated || !BotHooks.isAvailable()) {
-            ctx.skip("DrownEscapeChain 的执行层要求同一 JVM 里有真的 LocalPlayer："
-                    + "tick() 第一行就是 if (mc == null) return。专用服上这条覆盖率不是弱，是零。");
+            ctx.skip("DrownEscapeChain's execution layer requires a real LocalPlayer in the same JVM: "
+                    + "the first line of tick() is if (mc == null) return. On a dedicated server this coverage is not weak, it is zero.");
         }
         List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
         if (humans.isEmpty()) {
-            ctx.skip("集成服上没有真玩家 —— 客户端还没进世界，或已经掉线");
+            ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
         }
         ServerPlayer body = humans.get(0);
         ServerLevel level = ctx.level();
@@ -221,11 +220,12 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         level.setBlockAndUpdate(head, Blocks.WATER.defaultBlockState());
         for (int d = 1; d <= underFoot; d++)
             level.setBlockAndUpdate(new BlockPos(ox, y0 - d, oz), Blocks.WATER.defaultBlockState());
-        ctx.record("布景.脚下", underFoot == 0
-                ? "脚下 " + new BlockPos(ox, y0 - 1, oz).toShortString() + " 是石头 —— 站得住，"
-                  + "破盖时应当松跳落地"
-                : "脚下 " + underFoot + " 格是水（到 " + new BlockPos(ox, y0 - underFoot, oz).toShortString()
-                  + "）—— 站不住，破盖时应当保持按跳，读数应与修法之前一致");
+        ctx.record("setup.underFoot", underFoot == 0
+                ? "under the feet " + new BlockPos(ox, y0 - 1, oz).toShortString() + " is stone: the bot can stand, "
+                  + "so it should release jump and ground itself while breaking the lid"
+                : "under the feet " + underFoot + " blocks are water (down to " + new BlockPos(ox, y0 - underFoot, oz).toShortString()
+                  + "): the bot cannot stand, so it should keep holding jump while breaking the lid, and the readings "
+                  + "should match those from before the stand-up guard existed");
 
         // The lid: DIRT, as it was in the death. Dirt and not stone on purpose — stone cannot be
         // chewed inside any breath at all, so a stone lid would make every reading a timeout and
@@ -249,15 +249,15 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         for (int y = y0; y <= y0 + 7; y++)
             level.setBlockAndUpdate(new BlockPos(ox, y, oz - 2), Blocks.AIR.defaultBlockState());
 
-        ctx.record("布景.水腔", foot.toShortString() + " / " + head.toShortString() + " = water");
-        ctx.record("布景.盖", lid.toShortString() + " = "
-                + level.getBlockState(lid).getBlock() + "（上面 " + (y0 + 3) + ".." + (y0 + 6) + " 是空气）");
-        ctx.record("布景.诱饵柱", bait.toShortString() + " = " + level.getBlockState(bait).getBlock()
-                + "，柱顶 " + new BlockPos(ox, y0 + 7, oz - 2).toShortString() + " = "
+        ctx.record("setup.waterPocket", foot.toShortString() + " / " + head.toShortString() + " = water");
+        ctx.record("setup.lid", lid.toShortString() + " = "
+                + level.getBlockState(lid).getBlock() + " (air above at y " + (y0 + 3) + ".." + (y0 + 6) + ")");
+        ctx.record("setup.baitColumn", bait.toShortString() + " = " + level.getBlockState(bait).getBlock()
+                + ", column top " + new BlockPos(ox, y0 + 7, oz - 2).toShortString() + " = "
                 + level.getBlockState(new BlockPos(ox, y0 + 7, oz - 2)).getBlock()
-                + "（真的通到外面，不只是判据说可换气）");
-        ctx.record("布景.路上那一格", gap.toShortString() + " = " + level.getBlockState(gap).getBlock()
-                + "（挡住通往诱饵柱的唯一一步）");
+                + " (it really opens to the outside, not merely judged breathable by the predicate)");
+        ctx.record("setup.cellInTheWay", gap.toShortString() + " = " + level.getBlockState(gap).getBlock()
+                + " (blocks the only step toward the bait column)");
 
         var pin = BotConfig.pinnedBaseline();
         ctx.cleanup(pin::close);
@@ -278,30 +278,30 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         final int[] waited = { 0 };
         ctx.await(() -> ++waited[0] >= SYNC_TICKS).within(SYNC_TICKS + 100).then(() -> {
             boolean submerged = body.isEyeInFluid(FluidTags.WATER);
-            ctx.record("布景.眼在水里", submerged);
+            ctx.record("setup.eyeInWater", submerged);
             if (!submerged) {
-                ctx.fail("布景没成立：等了 " + SYNC_TICKS + " tick，眼睛还不在水里（"
-                        + String.format(Locale.ROOT, "y=%.3f", body.getY()) + "，脚格="
-                        + level.getBlockState(body.blockPosition()) + "）。先修布景，与本臂无关。");
+                ctx.fail("test setup failed: after waiting " + SYNC_TICKS + " ticks the bot's eyes are still not in water ("
+                        + String.format(Locale.ROOT, "y=%.3f", body.getY()) + ", foot cell="
+                        + level.getBlockState(body.blockPosition()) + "). Fix the test setup first; this is unrelated to this arm.");
             }
             final double startY = body.getY();
             final int[] t = { 0 };
             final boolean[] broke = { false };
             final double[] maxY = { startY };
             // WHY THE DIG COSTS WHAT IT COSTS — the stance, sampled, because the tick count alone
-            // cannot say. Vanilla's Player#getDestroySpeed divides by 5 when the body is off the
+            // cannot say. Vanilla's Player#getDestroySpeed divides by 5 when the bot is off the
             // ground and again by 5 when its eyes are in water, and this arm measured 379 ticks for
             // ONE dirt block: bare-hand dirt is ~15 ticks, and 15 × 25 = 375. That arithmetic makes
             // the ×25 look proved, but nothing here recorded `onGround`, so the off-ground half was
             // inferred. The repo has measured both factors before — WalkerTickClimb's hopelessness
-            // gate notes「the same stone bank cell is 150t dug grounded ashore yet 750-3750t sampled
-            // mid-bob」— and that same gate PRICES digs assuming「the bot can always ground」, while
+            // gate notes "the same stone bank cell is 150t dug grounded ashore yet 750-3750t sampled
+            // mid-bob" — and that same gate PRICES digs assuming "the bot can always ground", while
             // DrownEscapeChain#tick holds jump unconditionally and never does. These two rows decide
             // whether that gap is what this arm is paying for.
             //
             // Values, not predicates: a rate and a block id, so a later reader can redo the judgement
-            // instead of inheriting mine. `底下` distinguishes「had a floor and never stood on it」
-            // (a fix at the jump) from「the pocket is deeper than 2」(a fix somewhere else entirely).
+            // instead of inheriting mine. `lid.underFoot` distinguishes "had a floor and never stood on
+            // it" (a fix at the jump) from "the pocket is deeper than 2" (a fix somewhere else entirely).
             final int[] grounded = { 0 };
             final int[] samples = { 0 };
             final double[] riseSum = { 0.0 };
@@ -311,7 +311,7 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                 // COUNTED AGAINST ITS OWN DENOMINATOR, not against `t`. The tick counter is
                 // incremented in the return expression and skipped on the tick that breaks out, so
                 // a rate written over `t` can exceed 1 — the first run of this row printed
-                // 「80/79 采样着地」, a ratio the world cannot produce. The numbers around it were
+                // "80/79 samples grounded", a ratio the world cannot produce. The numbers around it were
                 // right, which is exactly why the impossible one had to go: a row that cannot be
                 // true invites doubt about the readings that can.
                 samples[0]++;
@@ -321,30 +321,31 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                 return broke[0] || ++t[0] >= LID_BUDGET;
             }).within(LID_BUDGET + 100).then(() -> {
                 BlockPos under = body.blockPosition().below();
-                ctx.record("盖.着地率", grounded[0] + "/" + samples[0] + " 采样着地"
-                        + "（挖速腐蚀：不着地 ÷5，眼在水里再 ÷5）");
-                ctx.record("盖.脚下", under.toShortString() + " = " + level.getBlockState(under).getBlock());
-                ctx.record("盖.竖直速度均值", String.format(Locale.ROOT, "%.5f 格/tick（%d 个采样求和 %.3f）",
+                ctx.record("lid.groundedRate", grounded[0] + "/" + samples[0] + " samples grounded"
+                        + " (dig speed penalties: not grounded ÷5, eyes in water another ÷5)");
+                ctx.record("lid.underFoot", under.toShortString() + " = " + level.getBlockState(under).getBlock());
+                ctx.record("lid.meanVerticalSpeed", String.format(Locale.ROOT, "%.5f blocks/tick (sum over %d samples %.3f)",
                         samples[0] == 0 ? 0.0 : riseSum[0] / samples[0], samples[0], riseSum[0]));
-                ctx.record("盖.破了", broke[0] + "（用了 " + t[0] + "/" + LID_BUDGET + " tick）");
-                ctx.record("盖.末态", lid.toShortString() + " = " + level.getBlockState(lid).getBlock());
-                ctx.record("升.净升", String.format(Locale.ROOT, "%.3f 格", maxY[0] - startY));
-                ctx.record("升.末态", String.format(Locale.ROOT, "y=%.3f 眼在水里=%s",
+                ctx.record("lid.broken", broke[0] + " (used " + t[0] + "/" + LID_BUDGET + " ticks)");
+                ctx.record("lid.finalState", lid.toShortString() + " = " + level.getBlockState(lid).getBlock());
+                ctx.record("rise.netRise", String.format(Locale.ROOT, "%.3f blocks", maxY[0] - startY));
+                ctx.record("rise.finalState", String.format(Locale.ROOT, "y=%.3f eyeInWater=%s",
                         body.getY(), body.isEyeInFluid(FluidTags.WATER)));
-                // ⚠️ NOT a survival verdict. Air was pinned at PINNED_AIR the whole way, so this is
-                // a dig time. The comparison is arithmetic on it, printed as a VALUE so a later
+                // WARNING: NOT a survival verdict. Air was pinned at PINNED_AIR the whole way, so this
+                // is a dig time. The comparison is arithmetic on it, printed as a VALUE so a later
                 // reader can redo it rather than inherit a predicate.
-                ctx.record("赛跑.对照", "一口气约 290 tick（气 100 + 19 血 ÷ 每 20 tick 2 血）；"
-                        + "本趟破盖 " + t[0] + " tick ⇒ " + (t[0] <= 290 ? "够" : "不够")
-                        + "。⚠️ 本臂把气钉在 " + PINNED_AIR + " 不掉，所以这只是挖掘耗时，不是存活结论");
+                ctx.record("race.comparison", "one breath lasts about 290 ticks (100 air + 19 health ÷ 2 health per 20 ticks); "
+                        + "this run broke the lid in " + t[0] + " ticks ⇒ " + (t[0] <= 290 ? "enough" : "not enough")
+                        + ". WARNING: this arm pins air at " + PINNED_AIR + " so it never drops; this is only a dig time, not a survival result");
                 if (!broke[0]) {
-                    ctx.fail("按住 " + LID_BUDGET + " tick，盖 " + lid.toShortString() + " 还在（净升 "
-                            + String.format(Locale.ROOT, "%.3f", maxY[0] - startY) + " 格）。"
-                            + "这正是 2026-08-26 真梯第 9 级的签名：诱饵柱 " + bait.toShortString()
-                            + " 真的能换气，而路上的 " + gap.toShortString() + " 是石头 —— "
-                            + "横向支若又选了那根柱，身体会一直顶着石头，而破盖那条后备根本轮不到。"
-                            + "去日志里数 [drownEscape] CAPPED lid 那两种行：出现『第一步=』说明又在走横向，"
-                            + "出现『有能换气的柱…但游不过去』说明选路对了而破盖本身没干活。");
+                    ctx.fail("after holding for " + LID_BUDGET + " ticks, the lid " + lid.toShortString() + " is still there (net rise "
+                            + String.format(Locale.ROOT, "%.3f", maxY[0] - startY) + " blocks). "
+                            + "This is exactly the signature of rung 9 of the real ladder on 2026-08-26: the bait column " + bait.toShortString()
+                            + " really can breathe, while the cell in the way, " + gap.toShortString() + ", is stone. "
+                            + "If the lateral arm picked that column again, the bot keeps pushing against the stone and the lid-break "
+                            + "fallback never gets a turn. Count the two kinds of [drownEscape] CAPPED lid lines in the log: "
+                            + "'firstStep=' means it is swimming laterally again; "
+                            + "'cannot be reached by swimming' means the route choice was right and the lid-break itself did nothing.");
                 }
             });
         });
@@ -356,17 +357,17 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("topology", (integrated ? "integratedServer" : "dedicatedServer")
-                + "，mc.bot.* 在本 JVM=" + BotHooks.isAvailable());
+                + ", mc.bot.* in this JVM=" + BotHooks.isAvailable());
         if (!integrated || !BotHooks.isAvailable()) {
             // Not a soft spot in the coverage — a hard one, and named. DrownEscapeChain.tick's first
             // line is `if (mc == null) return;`, so on a dedicated server this subject does not
-            // merely go untested, it cannot execute. The dedicated gates' green says nothing here.
-            ctx.skip("DrownEscapeChain 的执行层要求同一 JVM 里有真的 LocalPlayer："
-                    + "tick() 第一行就是 if (mc == null) return。专用服上这条覆盖率不是弱，是零。");
+            // merely go untested, it cannot execute. The dedicated gates' pass says nothing here.
+            ctx.skip("DrownEscapeChain's execution layer requires a real LocalPlayer in the same JVM: "
+                    + "the first line of tick() is if (mc == null) return. On a dedicated server this coverage is not weak, it is zero.");
         }
         List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
         if (humans.isEmpty()) {
-            ctx.skip("集成服上没有真玩家 —— 客户端还没进世界，或已经掉线");
+            ctx.skip("no real player on the integrated server: the client has not entered the world yet, or has disconnected");
         }
         ServerPlayer body = humans.get(0);
         ServerLevel level = ctx.level();
@@ -381,9 +382,9 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
             for (int dz = -4; dz <= 4; dz++)
                 for (int y = y0 - 1; y <= y0 + 7; y++)
                     level.setBlockAndUpdate(new BlockPos(ox + dx, y, oz + dz), Blocks.STONE.defaultBlockState());
-        // Water y0..y0+3 (surface plane y0+4.0), air above it. A body standing on the floor has its
+        // Water y0..y0+3 (surface plane y0+4.0), air above it. A bot standing on the floor has its
         // eye at y0+1.62 and needs to reach y0+2.38 to breathe — 2.38 blocks of rise, big enough
-        // that「浮了一点点」and「浮上去了」cannot print the same.
+        // that "rose slightly" and "reached the surface" cannot print the same.
         for (int dx = -3; dx <= 3; dx++)
             for (int dz = -3; dz <= 3; dz++) {
                 for (int y = y0; y <= y0 + 3; y++)
@@ -407,10 +408,10 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
             // top face at 62.959 against a face at 63.0.
             level.setBlockAndUpdate(straddled, Blocks.STONE.defaultBlockState());
         }
-        ctx.record("柱.水面", "y=" + (y0 + 4) + ".0（水填 " + y0 + ".." + (y0 + 3) + "）");
-        ctx.record("柱.身体", String.format(Locale.ROOT, "x=%.2f z=%.2f，blockPosition 的柱=%s",
+        ctx.record("column.waterSurface", "y=" + (y0 + 4) + ".0 (water fills " + y0 + ".." + (y0 + 3) + ")");
+        ctx.record("column.bot", String.format(Locale.ROOT, "x=%.2f z=%.2f, blockPosition column=%s",
                 bodyX, bodyZ, scanned.toShortString()));
-        ctx.record("柱.挡块", pinNeighbour ? straddled.toShortString() + "=stone（扫描永远不看这一柱）" : "无");
+        ctx.record("column.blocker", pinNeighbour ? straddled.toShortString() + "=stone (no scan ever reads this column)" : "none");
 
         // ---- config, restored by the pin ----------------------------------------------
         var pin = BotConfig.pinnedBaseline();
@@ -431,9 +432,9 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         // FULL air for the sync wait, and the staged value only once measuring starts.
         //
         // Staging the low value here instead cost a criterion on 2026-08-23: the latch engaged
-        // immediately, the reflex spent the 20 sync ticks freeing the body, and 升.起点y — taken
-        // after the wait — was 209.017 instead of the staged 208.2. 升.净升 then read 1.302 for a
-        // body that had actually risen 2.12, i.e. the baseline had been moved by the very thing the
+        // immediately, the reflex spent the 20 sync ticks freeing the bot, and rise.startY — taken
+        // after the wait — was 209.017 instead of the staged 208.2. rise.netRise then read 1.302 for a
+        // bot that had actually risen 2.12, i.e. the baseline had been moved by the very thing the
         // number was measuring. 300 is above every float threshold in the driver
         // (drownEscapeAirThreshold 100, drownFloatAirThreshold 240) with room for the ~20 ticks of
         // drain the wait costs, so nothing acts before the window opens.
@@ -442,21 +443,21 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
         // ---- measure -------------------------------------------------------------------
         final int[] waited = { 0 };
         ctx.await(() -> ++waited[0] >= SYNC_TICKS).within(SYNC_TICKS + 100).then(() -> {
-            // The staging is asserted BEFORE the subject is. A body that never got submerged would
-            // produce a perfectly readable「没浮起来」that describes the arena, not the reflex.
+            // The staging is asserted BEFORE the subject is. A bot that never got submerged would
+            // produce a perfectly readable "did not rise" that describes the arena, not the reflex.
             boolean submerged = body.isEyeInFluid(FluidTags.WATER);
-            ctx.record("布景.眼在水里", submerged);
-            ctx.record("布景.脚格", level.getBlockState(body.blockPosition()).getBlock().toString());
+            ctx.record("setup.eyeInWater", submerged);
+            ctx.record("setup.footCell", level.getBlockState(body.blockPosition()).getBlock().toString());
             if (!submerged) {
-                ctx.fail("布景没成立：等了 " + SYNC_TICKS + " tick，身体的眼睛还不在水里（"
-                        + String.format(Locale.ROOT, "y=%.3f", body.getY()) + "，脚格="
-                        + level.getBlockState(body.blockPosition()) + "）。"
-                        + "这一份读数与 DrownEscapeChain 无关，先修布景。");
+                ctx.fail("test setup failed: after waiting " + SYNC_TICKS + " ticks the bot's eyes are still not in water ("
+                        + String.format(Locale.ROOT, "y=%.3f", body.getY()) + ", foot cell="
+                        + level.getBlockState(body.blockPosition()) + "). "
+                        + "This reading is unrelated to DrownEscapeChain; fix the test setup first.");
             }
             body.setAirSupply(STAGED_AIR);       // the window opens HERE — see the teleport's note
             final double startY = body.getY();
-            ctx.record("布景.测量起点相对布景高度", String.format(Locale.ROOT,
-                    "%.3f（布景 y0=%d，同步等待里漂了 %.3f）", startY, y0, startY - y0));
+            ctx.record("setup.measureStartRelativeToSetup", String.format(Locale.ROOT,
+                    "%.3f (setup y0=%d, drifted %.3f during the sync wait)", startY, y0, startY - y0));
             final double[] maxY = { startY };
             final boolean[] surfaced = { false };
             final int[] t = { 0 };
@@ -469,29 +470,29 @@ public final class WorldDriverDrownRiseScenes implements SceneProvider {
                 return surfaced[0] || ++t[0] >= BUDGET;
             }).within(BUDGET + 100).then(() -> {
                 double gained = maxY[0] - startY;
-                ctx.record("升.起点y", String.format(Locale.ROOT, "%.3f", startY));
-                ctx.record("升.峰值y", String.format(Locale.ROOT, "%.3f", maxY[0]));
-                ctx.record("升.净升", String.format(Locale.ROOT, "%.3f 格", gained));
-                ctx.record("升.出水", surfaced[0] + "（用了 " + t[0] + "/" + BUDGET + " tick）");
-                ctx.record("升.末态", String.format(Locale.ROOT,
-                        "y=%.3f 眼在水里=%s 气=%d", body.getY(), body.isEyeInFluid(FluidTags.WATER),
+                ctx.record("rise.startY", String.format(Locale.ROOT, "%.3f", startY));
+                ctx.record("rise.peakY", String.format(Locale.ROOT, "%.3f", maxY[0]));
+                ctx.record("rise.netRise", String.format(Locale.ROOT, "%.3f blocks", gained));
+                ctx.record("rise.surfaced", surfaced[0] + " (used " + t[0] + "/" + BUDGET + " ticks)");
+                ctx.record("rise.finalState", String.format(Locale.ROOT,
+                        "y=%.3f eyeInWater=%s air=%d", body.getY(), body.isEyeInFluid(FluidTags.WATER),
                         body.getAirSupply()));
                 if (armed && !surfaced[0]) {
-                    ctx.fail("按住跳 " + BUDGET + " tick，头始终没出水：净升 "
-                            + String.format(Locale.ROOT, "%.3f", gained) + " 格，水面在 y=" + (y0 + 4)
-                            + ".0，脚只要到 " + String.format(Locale.ROOT, "%.2f", y0 + 2.38)
-                            + " 就能换气。" + (pinNeighbour
-                                    ? "本臂的挡块在 " + straddled.toShortString()
-                                      + "，而 cappedColumn/lid/nearestBreathable 三处都只看 "
-                                      + scanned.toShortString() + " 那一柱 —— 单柱扫描的盲区成立。"
-                                    : "本臂头顶完全敞开，所以问题不在几何，在执行层："
-                                      + "看日志里 [drownEscape] 竖直支 那几行的 跳读回/撞顶 两列。"));
+                    ctx.fail("jump was held for " + BUDGET + " ticks and the head never left the water: net rise "
+                            + String.format(Locale.ROOT, "%.3f", gained) + " blocks, water surface at y=" + (y0 + 4)
+                            + ".0, and the feet only need to reach " + String.format(Locale.ROOT, "%.2f", y0 + 2.38)
+                            + " to breathe. " + (pinNeighbour
+                                    ? "This arm's blocker is at " + straddled.toShortString()
+                                      + ", while cappedColumn, lid and nearestBreathable all read only the "
+                                      + scanned.toShortString() + " column: the single-column scan blind spot is confirmed."
+                                    : "This arm is fully open overhead, so the problem is not geometry but the execution layer: "
+                                      + "check the jumpReadBack and hitCeiling fields of the [drownEscape] vertical arm lines in the log."));
                 }
                 if (!armed && surfaced[0]) {
-                    ctx.fail("反确认臂失败：autoDrownEscape 和 autoFloatWhenDrowning 都关着，"
-                            + "身体却还是出水了（净升 " + String.format(Locale.ROOT, "%.3f", gained)
-                            + " 格）。说明另有一条没被关掉的通道在浮它 —— 在它被找出来之前，"
-                            + "另外两臂的绿证明不了是这条反射把身体浮上去的。");
+                    ctx.fail("counter-arm failed: autoDrownEscape and autoFloatWhenDrowning are both off, "
+                            + "yet the bot still surfaced (net rise " + String.format(Locale.ROOT, "%.3f", gained)
+                            + " blocks). Some other channel that was not disabled is lifting it; until it is found, "
+                            + "the other two arms passing does not prove that this reflex is what lifted the bot.");
                 }
             });
         });

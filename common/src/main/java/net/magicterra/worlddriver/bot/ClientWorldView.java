@@ -603,7 +603,7 @@ public final class ClientWorldView implements WorldView {
                 // the HazardField (+10000) and the edge-brake reflex, so taxing
                 // SURVIVABLE hillside step-downs here was pure harm: it inflated every
                 // descending route, so best-effort fled UP onto flat hilltops/canopy
-                // and the bot walked in circles ("走回头路", the dense-jungle backtrack —
+                // and the bot walked in circles (the dense-jungle backtrack —
                 // A/B root cause 2026-06-06). Healthy bot descends freely; a fragile
                 // one (low HP → small survivableFall) still shuns dangerous drops.
                 if (BotConfig.ledgeDangerPenalty > 0) {
@@ -632,7 +632,7 @@ public final class ClientWorldView implements WorldView {
                 // extra so A* routes around ponds/oceans when a land path exists.
                 // Additive (not a ban) — a sole water crossing is still taken, but
                 // a long open-water swim loses to any reasonable land detour. This
-                // is the fix for "寻路太蠢/走进海里淹死".
+                // is the fix for pathfinding that walked into the sea and drowned.
                 if (BotConfig.waterDangerPenalty > 0 && isWater(foot)) {
                     penalty += BotConfig.waterDangerPenalty * (fleeSearch ? BotConfig.fleeDangerBoost : 1.0);
                     // SUBMERGED layer extra: a cell the body floats fully under moves at

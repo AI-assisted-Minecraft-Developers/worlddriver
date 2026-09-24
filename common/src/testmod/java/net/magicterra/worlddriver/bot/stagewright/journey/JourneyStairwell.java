@@ -71,8 +71,9 @@ final class JourneyStairwell {
      * <p><b>The flight ends on the lowest step a body can stand on, which is not always its bottom.</b>
      * See {@link JourneyStairs#lowestDryStep} for the nine casts that bought this: the mould's own
      * runoff floods the bottom step from the row the pour is aimed at, the pour climbs, and a waypoint
-     * whose cell and head room are both water cannot be walked to at all — the leg stops four cells
-     * short and the rung reads that as「走不回模腔」. Ending one step early costs nothing when the
+     * whose cell and head room are both water cannot be walked to at all — the walk stops four cells
+     * short and the rung reads that as a failure to walk back into the mould. Ending one step early
+     * costs nothing when the
      * bottom is dry, because then it IS the bottom.
      *
      * <p>Waypoints below the chosen end are dropped rather than kept: the stride can step past it
@@ -100,8 +101,8 @@ final class JourneyStairwell {
      * the body left the flight on a return leg, fell through the lake's one-block crust into the
      * cave below it, and — with the pathfinder free to plan digs — mined its way back to daylight
      * through {@code -9,64,22}: the block holding up its own second step. Every later ascent then
-     * walked into a two-deep hole where a step used to be, and the rung reported
-     * {@code 走不上楼梯} about a staircase it had eaten itself.
+     * walked into a two-deep hole where a step used to be, and the rung reported that the bot could
+     * not climb the stairs, about a staircase it had eaten itself.
      *
      * <p>These legs cross ground the rung cut with its own pick and nothing else, so a dig here is
      * never the answer to anything. A leg that genuinely cannot get through now stalls instead,
@@ -121,16 +122,16 @@ final class JourneyStairwell {
                 CapabilityProfile.ALL, List.of(new NoBreak()))), 600, () -> {
             BlockPos got = rig.player().blockPosition();
             double off = Math.sqrt(got.distSqr(want));
-            // BOTH CELLS, not just the one the body is standing in. `cast5.returnStopped` read
-            // `停在 -9,66,21 … 脚下 cobblestone，身处 air，头顶 air，起跳格 air` — four cells all
-            // clear, on a leg that moved zero blocks. They were clear because the body had climbed
-            // through them one leg earlier; the cell that stopped it is the one it was trying to
-            // REACH, and that cell was not in the message at all.
+            // BOTH CELLS, not just the one the bot is standing in. `cast5.returnStopped` reported the
+            // bot stopped at -9,66,21 with cobblestone below and air in its cell, above its head and
+            // in the jump clearance — four cells all clear, on a walk that moved zero blocks. They
+            // were clear because the bot had climbed through them one waypoint earlier; the cell that
+            // stopped it is the one it was trying to REACH, and that cell was not in the message.
             if (off > LEG_ARRIVED && flightShortfall == null)
-                flightShortfall = "第 " + i + "/" + (route.size() - 1) + " 段：想到 "
-                        + want.toShortString() + "，停在 " + got.toShortString() + "，差 "
-                        + String.format("%.2f", off) + " 格 —— 身体处："
-                        + cellStory(rig.ctx().level(), got, !down) + "；要去的那格："
+                flightShortfall = "segment " + i + "/" + (route.size() - 1) + ": aimed for "
+                        + want.toShortString() + ", stopped at " + got.toShortString() + ", "
+                        + String.format("%.2f", off) + " blocks short - bot's cell: "
+                        + cellStory(rig.ctx().level(), got, !down) + "; target cell: "
                         + cellStory(rig.ctx().level(), want, !down);
             walkTheStairs(rig, route, i + 1, down, tax, then);
         });
@@ -141,7 +142,8 @@ final class JourneyStairwell {
      * reads one cell off when its 0.6-wide box straddles the edge — the {@code cell.5.standMissed}
      * lesson — and a leg that stops a cell short has still walked the flight.
      *
-     * <p><b>{@code LEG_ARRIVED = 1.5} 让「迈没迈下最后一级」这件事在日志里从来没被区分过。</b> The
+     * <p><b>With {@code LEG_ARRIVED = 1.5}, the log has never distinguished whether the bot stepped
+     * down the last step or not.</b> The
      * flight's last waypoint IS {@link #stairBottom}, and a body that stops in the cell directly above
      * it is exactly 1.0 away — inside this tolerance, so the leg reports arrival and
      * {@code returnStopped} never fires. Measured over four rehearsals: {@code returnedY} is 57 on
@@ -163,7 +165,8 @@ final class JourneyStairwell {
      * <p>Both ends of the flight used to read only the height the body finished at, which says the
      * walk failed and nothing about where. The run of 2026-08-15 failed the ascent with
      * {@code lava0.upEnded=-9,56,36} — the stair bottom, which is the FIRST of five waypoints — and
-     * the message it produced ({@code 走不上楼梯：停在 …}) reads identically whether the body never
+     * the message it produced (the bot could not climb the stairs and stopped at a given cell) reads
+     * identically whether the bot never
      * left the alcove or climbed four fifths of the flight and stalled.
      */
     private static String flightShortfall;
@@ -173,19 +176,20 @@ final class JourneyStairwell {
      * must jump THROUGH, which is the last line of {@code StepUp.valid}.
      *
      * <p>{@code upward} is not decoration. Those four cells are {@code StepUp.valid}'s question, and
-     * {@code StepUp} takes no part in a descent — so printing 起跳格 on a return leg answers a
-     * question nobody asked and reads like an all-clear. That is exactly how `cast5.returnStopped`
-     * certified a body that had not moved: 起跳格 air, on a leg that never needed to jump.
+     * {@code StepUp} takes no part in a descent — so printing the jump clearance on the walk back
+     * down answers a question nobody asked and reads like an all-clear. That is exactly how
+     * `cast5.returnStopped` certified a bot that had not moved: jump clearance air, on a walk that
+     * never needed to jump.
      */
     private static String cellStory(ServerLevel level, BlockPos foot, boolean upward) {
-        String story = "脚下 " + level.getBlockState(foot.below()).getBlock() + "，身处 "
-                + level.getBlockState(foot).getBlock() + "，头顶 "
+        String story = "below " + level.getBlockState(foot.below()).getBlock() + ", in cell "
+                + level.getBlockState(foot).getBlock() + ", above "
                 + level.getBlockState(foot.above()).getBlock();
         if (!upward) return story;
         BlockPos jump = foot.above(2);
-        return story + "，起跳格 " + jump.toShortString()
+        return story + ", jump clearance " + jump.toShortString()
                 + "=" + level.getBlockState(jump).getBlock()
-                + (level.getBlockState(jump).blocksMotion() ? "（挡着，跳不起来）" : "");
+                + (level.getBlockState(jump).blocksMotion() ? " (blocked, cannot jump)" : "");
     }
 
     /**
@@ -210,9 +214,9 @@ final class JourneyStairwell {
         // THE RIM, PRICED FOR THIS FLIGHT. The first waypoint of the down route is the stairwell
         // mouth and the body reaches it across open ground beside the lake — which is the leg that
         // killed ladder j39 (`cast1.return`, `-8,64,14` → `-8,66,19`, dead at `-8,66,10` of
-        // `lava −4.0×3；onFire −1.0×2`). It ran untaxed because the tax was built inside the
+        // `lava −4.0×3; onFire −1.0×2`). It ran untaxed because the tax was built inside the
         // approach and never left it, while the file's own recovery javadoc thirty lines down
-        // already said in words that「the walk back crosses the lake's own rim」.
+        // already said in words that "the walk back crosses the lake's own rim".
         //
         // Recomputed per flight, not carried from the approach: see JourneyTerrain#avoidTheRim —
         // the fills and the cleared aim lines keep opening new ways in, so the count on this row is
@@ -226,8 +230,9 @@ final class JourneyStairwell {
         BlockPos bottom = JourneyStairs.cells.get(JourneyStairs.cells.size() - 1);
         BlockPos ends = down ? route.get(route.size() - 1) : route.get(0);
         if (!ends.equals(bottom))
-            rig.evidence(tag + ".flightEnd", "末路点从楼梯底 " + bottom.toShortString() + " 提到 "
-                    + ends.toShortString() + " —— 楼梯底站不了："
+            rig.evidence(tag + ".flightEnd", "terminal waypoint raised from the stair bottom "
+                    + bottom.toShortString() + " to " + ends.toShortString()
+                    + " - the stair bottom cannot be stood on: "
                     + cellStory(rig.ctx().level(), bottom, false));
         // THE LAST STEP IS WALKED, not tolerated — going down only. See finishTheFlight.
         Runnable done = down ? () -> finishTheFlight(rig, tag, ends, then) : then;
@@ -245,23 +250,24 @@ final class JourneyStairwell {
      * floor row holds only cells at {@code floorY} and {@code floorY+1}, and {@link #walkHome}
      * accepts both. Ending one step early moves that ball up a row, and now HALF of it — the
      * terminal's own head room, and the step above it at 1.41 — is {@code floorY+2}, which
-     * {@code walkHome} rejects as「走不回模腔」.
+     * {@code walkHome} rejects as a failure to walk back into the mould.
      *
      * <p>Measured on the rung-12 rehearsal of 2026-08-25, first cast, which is where the flight first
      * shortens (the mould's runoff wets the bottom step on every return — the reclaim happens after
      * the descent, so the pour is live for the whole trip):
      *
      * <pre>
-     * cast0.flightEnd  = 末路点从楼梯底 2, 56, 19 提到 1, 57, 19 —— 楼梯底站不了：… 身处 water …
-     * cast0.returnedY  = 58（楼梯底 y=56，身体 1, 58, 19）      ← rejected
-     * cast0.landing    = 精确 1.09/58.00/19.51，onGround=true   ← standing, not falling
-     *                    每一段都走到了                          ← and the flight reported success
+     * cast0.flightEnd  = terminal waypoint raised from the stair bottom 2, 56, 19 to 1, 57, 19
+     *                    - the stair bottom cannot be stood on: … in cell water …
+     * cast0.returnedY  = 58 (stair bottom y=56, bot at 1, 58, 19)   ← rejected
+     * cast0.landing    = exact 1.09/58.00/19.51, onGround=true      ← standing, not falling
+     *                    every segment arrived                      ← and the flight reported success
      * </pre>
      *
-     * The body was on the step ABOVE the terminal — {@code x=1.09}, a 0.6-wide box straddling two
+     * The bot was on the step ABOVE the terminal — {@code x=1.09}, a 0.6-wide box straddling two
      * columns, so {@code blockPosition()} rounds into the terminal's column while the feet rest on
      * {@code 0,58,19}. Three readings that each look like an all-clear on their own; only together do
-     * they say「walked the whole flight and stopped one step short」.
+     * they say "walked the whole flight and stopped one step short".
      *
      * <p><b>Not solved by narrowing {@link #LEG_ARRIVED}</b>, whose own javadoc refuses that: it is
      * shared walking code and every caller would feel it. Solved by walking the one step, which is
@@ -278,7 +284,8 @@ final class JourneyStairwell {
      *
      * <pre>
      * cast0/1.flightLastStep       = 0, 58, 19 → 1, 57, 19
-     * cast0/1.flightLastStepMissed = 1, 58, 19 仍不在末路点 1, 57, 19 上 —— 脚下 stone，身处 air，头顶 air
+     * cast0/1.flightLastStepMissed = 1, 58, 19 still not on the terminal waypoint 1, 57, 19
+     *                                - below stone, in cell air, above air
      * cast0/1.returnedY            = 58                                    ← rejected, rung dead
      * </pre>
      *
@@ -293,17 +300,19 @@ final class JourneyStairwell {
      * <ul>
      *   <li><b>Constructively wrong target.</b> {@code ends} is {@link JourneyStairs#lowestDryStep},
      *       so by definition every step below it is wet — the step below is the very water the
-     *       terminal was raised to avoid ({@code 身处 Block{minecraft:water}} on its own row).</li>
-     *   <li><b>Actively harmful.</b> Measured: the leg spent its whole 200-tick budget
-     *       ({@code end=unavailable/预算用完时进程还在走}) walking the body two cells BACK and one row
-     *       UP the staircase — {@code 100511,218} to {@code 100509,219}. It turned「one row above the
-     *       terminal」into「two」, which is strictly worse for the {@code walkHome} that follows.</li>
+     *       terminal was raised to avoid ({@code Block{minecraft:water}} in the cell on its own
+     *       row).</li>
+     *   <li><b>Actively harmful.</b> Measured: the walk spent its whole 200-tick budget
+     *       ({@code end=unavailable/...}: the process was still running when the budget ran out)
+     *       walking the bot two cells BACK and one row UP the staircase — {@code 100511,218} to
+     *       {@code 100509,219}. It turned "one row above the terminal" into "two", which is strictly
+     *       worse for the {@code walkHome} that follows.</li>
      * </ul>
      *
      * <p>The reason the earlier version of this note gave for the second leg — that re-asking for the
      * terminal is a no-op because 0.58 &lt; {@link #LEG_ARRIVED} — was <b>wrong about the
      * mechanism</b>: {@code Goal.Block.reached} is {@code p.equals(target)}, an exact cell and not a
-     * ball. What the first leg actually reports is {@code end=path-consumed err=无} with the body
+     * ball. What the first leg actually reports is {@code end=path-consumed} with no error and the bot
      * still on the lip: <b>a path was produced and walked to its end, and the body never arrived</b>.
      * That is TODO J47's signature, and this scene is its second witness — a dry one, with no
      * floating body anywhere in it, which is what makes it worth more than the water case it
@@ -318,8 +327,8 @@ final class JourneyStairwell {
         BlockPos here = rig.player().blockPosition();
         if (down(here, ends)) { then.run(); return; }
         rig.evidence(tag + ".flightLastStep", here.toShortString() + " → " + ends.toShortString()
-                + "（容差 " + LEG_ARRIVED + " 格把这一步判成到达了，这里把它走完；"
-                + landingStory(rig) + "）");
+                + " (the " + LEG_ARRIVED + "-block arrival tolerance counted this step as arrived;"
+                + " walking it to the end here; " + landingStory(rig) + ")");
         // TURN THE BODY BEFORE ASKING IT TO WALK. This is the whole step, and every term of it was
         // measured on `wd.journeyWalksOffTheLipOntoTheDryStep` with walker rows on:
         //
@@ -327,44 +336,48 @@ final class JourneyStairwell {
         //   t=1..3  node=99999,217  yaw=0  bear=-90  yawErr=-90  driveYaw=0  up=true
         //           p=(99999.20,218.00,100000.50 → .60 → .70)   hCol=true
         //
-        // A* plans it, the walker presses forward — and the body walks 90° off, into +z, until it
+        // A* plans it, the walker presses forward — and the bot walks 90° off, into +z, until it
         // hits a wall. The heading never turns because `WalkerTickAim` holds it: the aim vector to
         // the node is (0.30, 0.00), and `YAW_DEADZONE_SQ = 0.25` (half a block) makes
-        // `targetYaw = p.getYRot()` — the body's CURRENT yaw, whatever it is. That dead-zone is
-        // correct and is not being fought here: its javadoc names this very manoeuvre (
-        //「during a vertical manoeuvre the bot sits almost directly over its target column, so
-        // adx/adz hover near zero and atan2 on that sub-block noise snaps the yaw ±90 every tick」).
+        // `targetYaw = p.getYRot()` — the bot's CURRENT yaw, whatever it is. That dead-zone is
+        // correct and is not being fought here: its javadoc names this very manoeuvre ("during a
+        // vertical manoeuvre the bot sits almost directly over its target column, so adx/adz hover
+        // near zero and atan2 on that sub-block noise snaps the yaw ±90 every tick").
         // It holds the current heading — so the fix is to make the current heading the right one.
         //
-        // `aimBoth` and not a bare `setYRot`, because the ladder's judge drives a client body and a
-        // server-side rotation does not survive the next packet — see JourneyHands' own note.
+        // `aimBoth` and not a bare `setYRot`, because the ladder's judge drives a client player and
+        // a server-side rotation does not survive the next packet — see JourneyHands' own note.
         float yawWas = rig.player().getYRot();
         JourneyHands.aimBoth(rig, ends);
         rig.evidence(tag + ".flightLastStepAim", String.format(java.util.Locale.ROOT,
-                "yaw %.1f° → %.1f°（瞄向末路点 %s 的格心；死区保持的是身体当前的 yaw，"
-                + "所以转身必须发生在开腿之前，不能指望走行器在腿里自己转）",
+                "yaw %.1f° → %.1f° (aimed at the centre of terminal waypoint %s; the dead zone holds"
+                + " the bot's current yaw, so the turn has to happen before the walk starts, not be"
+                + " left to the walker mid-walk)",
                 yawWas, rig.player().getYRot(), ends.toShortString()));
         rig.settle(lastStep(ends), LAST_STEP_TICKS, () -> {
             BlockPos got = rig.player().blockPosition();
-            // WHAT THE WALKER SAID, on both outcomes. `settle` legs carry no `end=`/`err=` of their
-            // own the way `drive` legs do, so a leg that ended because A* found no path and one that
-            // ended having walked read identically — which is how「重走会原地不动」stood as a
-            // mechanism for a whole ladder without ever being asked.
+            // WHAT THE WALKER SAID, on both outcomes. `settle` walks carry no `end=`/`err=` of their
+            // own the way `drive` walks do, so a walk that ended because A* found no path and one
+            // that ended having walked read identically — which is how "a repeated walk does not
+            // move" stood as a mechanism for a whole ladder without ever being checked.
             rig.evidence(tag + ".flightLastStepEnd", JourneyLeg.walkerEnd(rig));
-            // ⚠️ NOT `down(got, ends)` ON ITS OWN. That reads the BLOCK row, and a body's feet cross
+            // ⚠️ NOT `down(got, ends)` ON ITS OWN. That reads the BLOCK row, and a bot's feet cross
             // into the terminal's row while it is still most of a block above that row's FLOOR —
-            // 够低的是格号，不是身体。Measured across eight rung-12 rehearsals, byte-identical:
-            // `flightLastStepEnd=path-consumed`, `down` true at `1,57,20`, and `landing` an instant
-            // later reading `精确 1.53/57.92/20.51，onGround=false` — 0.92 of a block still to fall.
+            // it is the cell index that is low enough, not the bot. Measured across eight rung-12
+            // rehearsals, byte-identical: `flightLastStepEnd=path-consumed`, `down` true at
+            // `1,57,20`, and `landing` an instant later reading `exact 1.53/57.92/20.51,
+            // onGround=false` — 0.92 of a block still to fall.
             // The pour that follows decides its aim from THAT eye (`fromHere.3`, eye y=59.54, which
             // validates a shot at the target's own floor) and fires 0.69 of a block lower
             // (`picks.3`, eye y=58.85), by which point the same ray enters the backing through its
             // WEST face instead of its top and the lava lands one cell short, in `3,56,19`. The wait
-            // below already existed; it never ran, because this line had said 够低了 first.
+            // below already existed; it never ran, because this line had already judged the bot low
+            // enough.
             //
             // The ladder run is the control, and it only reached the wait by accident: its last-step
-            // leg ran out of budget (`end=unavailable`), leaving `got` at `ends.above()`, so it
-            // waited, landed at `57.00`, and its FIRST shot hit — `1.84/58.62/20.50 → 落进 4,57,19`.
+            // walk ran out of budget (`end=unavailable`), leaving `got` at `ends.above()`, so it
+            // waited, landed at `57.00`, and its FIRST shot hit — `1.84/58.62/20.50`, landing in
+            // `4,57,19`.
             //
             // The quantity is a POSITION on purpose. `onGround` is rejected twelve lines down for a
             // reason that still holds — it describes the previous `move()`, not what is underfoot —
@@ -372,39 +385,45 @@ final class JourneyStairwell {
             double afootBy = rig.player().getY() - ends.getY();
             boolean afoot = afootBy > SETTLED_SLACK;
             if (down(got, ends) && !afoot) { then.run(); return; }
-            // A BODY ONE ROW ABOVE THE TERMINAL MAY BE FALLING INTO IT, and this callback is the
+            // A BOT ONE ROW ABOVE THE TERMINAL MAY BE FALLING INTO IT, and this callback is the
             // wrong tick to ask. Measured on the rung-12 rehearsal of 2026-08-25, whose last walker
-            // row before this judgment was `身体=1,58,20 精确=(1.454,58.000,20.500) cur2=0.002
-            // 脚底实心=0.0000 因=within` — horizontally on the terminal's centre with nothing under
-            // the feet — and one second later the body was two rows lower and walking on. The step
-            // HAD been walked. Judging it a miss cost `returnedY=58`, which bought a `returnStuck`
-            // tower that then ate the rung's whole 6503-tick budget in the pour's own water.
+            // row before this judgment put the bot at cell 1,58,20, exact (1.454,58.000,20.500),
+            // cur2=0.002, solid-under-feet fraction 0.0000, cause=within — horizontally on the
+            // terminal's centre with nothing under the feet — and one second later the bot was two
+            // rows lower and walking on. The step HAD been walked. Judging it a miss cost
+            // `returnedY=58`, which bought a `returnStuck` tower that then ate the rung's whole
+            // 6503-tick budget in the pour's own water.
             //
-            // Narrow on purpose: only the body standing in the terminal's OWN head room waits. Any
-            // other cell is a body that is somewhere else, and giving it time would be widening the
+            // Narrow on purpose: only a bot standing in the terminal's OWN head room waits. Any
+            // other cell means the bot is somewhere else, and giving it time would be widening the
             // criterion rather than reading it at the right moment.
             //
-            // Not `onGround`: that same row read `onGround=true` beside `脚底实心=0.0000`, because
-            // it describes the previous `move()` and not what is under the body now.
+            // Not `onGround`: that same row read `onGround=true` beside a solid-under-feet fraction of
+            // 0.0000, because it describes the previous `move()` and not what is under the bot now.
             if (got.equals(ends.above()) || afoot) {
                 rig.settle(new HoldStill(LAND_TICKS), LAND_TICKS * 2, () -> {
                     BlockPos after = rig.player().blockPosition();
                     // WHETHER THE WAIT CHANGED THE ANSWER, always. A step that was already walked
-                    // and one where the body is genuinely balanced on the lip above must not leave
+                    // and one where the bot is genuinely balanced on the lip above must not leave
                     // the same log — that is the whole reason this branch is allowed to exist.
                     // PRINT THE HEIGHT, NOT ONLY THE CELL. `down(after, ends)` was ALREADY true on
-                    // the `afoot` path — the body was inside the terminal and falling — so a row that
-                    // only says「落进末路点了」cannot tell 等到落地 from 本来就没在动, and those are
-                    // the two readings this branch exists to separate. The number that decides it is
-                    // the body's exact Y above the terminal row's floor: 0.92 → 0.00 is a fall that
-                    // finished, 0.92 → 0.92 is a body resting on something at that height.
+                    // the `afoot` path — the bot was inside the terminal and falling — so a row that
+                    // only says it landed in the terminal cannot tell "waited until it landed" from
+                    // "was never moving", and those are the two readings this branch exists to
+                    // separate. The number that decides it is the bot's exact Y above the terminal
+                    // row's floor: 0.92 → 0.00 is a fall that finished, 0.92 → 0.92 is a bot
+                    // resting on something at that height.
                     rig.evidence(tag + ".flightLastStepSettled", got.toShortString() + " → "
-                            + after.toShortString() + "（等 " + LAND_TICKS + " tick 让下坠落地；"
-                            + String.format(java.util.Locale.ROOT, "离末路排地板 %.2f → %.2f 格，进来时%s",
+                            + after.toShortString() + " (waited " + LAND_TICKS + " ticks for the fall"
+                            + " to land; "
+                            + String.format(java.util.Locale.ROOT,
+                                    "height above the terminal row's floor %.2f → %.2f blocks, on entry %s",
                                     afootBy, rig.player().getY() - ends.getY(),
-                                    afoot ? "在下坠（本行就是为它开的）" : "骑在上一级唇上")
-                            + "）—— " + (down(after, ends) ? "落进末路点了，这一步本来就走成了"
-                                                 : "没动，身体是真骑在上一级的唇上"));
+                                    afoot ? "falling (the case this row exists for)"
+                                          : "resting on the lip of the step above")
+                            + ") - " + (down(after, ends)
+                                    ? "landed in the terminal waypoint; the step had been walked all along"
+                                    : "did not move; the bot really is resting on the lip of the step above"));
                     sayMissedUnlessLanded(rig, tag, after, ends, then);
                 });
                 return;
@@ -435,8 +454,8 @@ final class JourneyStairwell {
                                               Runnable then) {
         if (!down(got, ends))
             rig.evidence(tag + ".flightLastStepMissed", got.toShortString()
-                    + " 仍不在末路点 " + ends.toShortString() + " 上 —— "
-                    + cellStory(rig.ctx().level(), ends, false) + "；" + landingStory(rig));
+                    + " still not on the terminal waypoint " + ends.toShortString() + " - "
+                    + cellStory(rig.ctx().level(), ends, false) + "; " + landingStory(rig));
         then.run();
     }
 
@@ -474,7 +493,7 @@ final class JourneyStairwell {
      * the whole difference from the version before it, which cleared the water out of the stairwell's
      * foot on the theory that a flooded foot floats the body one row up. <b>That theory is dead</b>,
      * and its own staging rows are what killed it: on eight of ten casts the lever found exactly ONE
-     * wet cell ({@code 1 格抽干了：[2,56,19]}) — the two cells above it were already air — and a body
+     * wet cell (one cell drained, {@code [2,56,19]}) — the two cells above it were already air — and a body
      * cannot float in a cell of air, yet {@code returnedY} was 57 all eight times. The correlation
      * failed at both ends too: the leg that cleared nothing at all returned 56, the one that cleared
      * two returned 56, and the ones that cleared one or three returned 57. Backfill is real (a live
@@ -492,7 +511,7 @@ final class JourneyStairwell {
      * silently; this only makes the losing side reproducible so the remedy can be measured against it.
      * See {@link #LEG_ARRIVED}.
      *
-     * <p><b>How to tell it worked, and it is not "the property was read".</b> The downstream量 is
+     * <p><b>How to tell it worked, and it is not "the property was read".</b> The downstream quantity is
      * {@code cast*.returnedY}: with the flag on, EVERY cast must report the floor row and
      * {@code cast8#1.fromY} must be that row. The other half is the run with the flag OFF, which must
      * still show the natural 57/56 mixture — a lever that quietly moved the baseline would pass the
@@ -509,12 +528,16 @@ final class JourneyStairwell {
             // leave the same trace as the baseline: none. A run comparing the two would then have
             // scored an unarmed lever as a working one that changed nothing.
             //
-            // WHICH of the two is missing, not just「没补」: a rehearsal that never set a target and
-            // a return that never recorded its bottom step are different bugs with different fixes.
+            // WHICH of the two is missing, not just "not done": a rehearsal that never set a target
+            // and a return that never recorded its bottom step are different bugs with different
+            // fixes.
             String missing = JourneyRehearsal.target() == null
-                    ? (stairBottom == null ? "排练没有目标级，也没记下楼梯底" : "排练没有目标级")
-                    : "没记下楼梯底";
-            rig.evidence(tag + ".floorLegUnarmed", "landOnFloor 开着但补不了腿：" + missing);
+                    ? (stairBottom == null
+                            ? "the rehearsal has no target rung, and no stair bottom was recorded"
+                            : "the rehearsal has no target rung")
+                    : "no stair bottom was recorded";
+            rig.evidence(tag + ".floorLegUnarmed",
+                    "landOnFloor is on but cannot add the final step-down walk: " + missing);
             then.run();
             return;
         }
@@ -522,27 +545,28 @@ final class JourneyStairwell {
         if (here.equals(stairBottom)) {
             JourneyLedger.staged("rehearsal: the return already ended on the bottom step "
                     + stairBottom.toShortString() + " — nothing to finish");
-            rig.evidence(tag + ".floorLeg", "已经在楼梯底 " + stairBottom.toShortString()
-                    + " 上，不用补腿（排练专用）");
+            rig.evidence(tag + ".floorLeg", "already on the stair bottom " + stairBottom.toShortString()
+                    + ", no extra step-down walk needed (rehearsal only)");
             then.run();
             return;
         }
         JourneyLedger.staged("rehearsal: walked the last step-down that LEG_ARRIVED=1.5 let the flight"
                 + " skip, " + here.toShortString() + " → " + stairBottom.toShortString());
         rig.evidence(tag + ".floorLeg", here.toShortString() + " → " + stairBottom.toShortString()
-                + "（排练专用：最后一段的到达容差 1.5 格把「停在上一级」判成到达，这里把那一步走完；"
-                + "一格方块、一格流体都不动）");
+                + " (rehearsal only: the last segment's 1.5-block arrival tolerance counts stopping on"
+                + " the step above as arrived, so this walks that step to the end; no block and no"
+                + " fluid is changed)");
         rig.settle(new IntentProcess(new Intent(new Goal.Block(stairBottom), List.of(),
                 CapabilityProfile.ALL, List.of(new NoBreak()))), FLOOR_LEG_TICKS,
                 () -> rig.settle(new HoldStill(10), 30, () -> {
-            // SAY SO WHEN THE LEG DID NOT LAND IT. A lever that silently fails is the half v1 was
-            // missing: its own rows said「抽干了」and nothing said the row never moved. And this
-            // particular miss is worth more than the lever — it is the reading that finally names what
-            // is in the bottom step's cell when the body cannot get into it.
+            // SAY SO WHEN THE WALK DID NOT LAND IT. A lever that silently fails reads like one that
+            // worked: rows that only report what the lever did never say that the bot's row did not
+            // change. And this particular miss is worth more than the lever — it is the reading
+            // that finally names what is in the bottom step's cell when the bot cannot get into it.
             if (!rig.player().blockPosition().equals(stairBottom)) {
                 rig.evidence(tag + ".floorLegMissed", rig.player().blockPosition().toShortString()
-                        + " 补腿走完仍不在楼梯底 " + stairBottom.toShortString() + " 上 —— "
-                        + landingStory(rig));
+                        + " still not on the stair bottom " + stairBottom.toShortString()
+                        + " after the extra step-down walk - " + landingStory(rig));
             }
             then.run();
         }));
@@ -557,19 +581,20 @@ final class JourneyStairwell {
      * Where the body actually ended the descent, and what is under it — always, for every return.
      *
      * <p><b>Zero behaviour, and the most valuable line of this change.</b> {@code returnedY} prints a
-     * BlockPos, and a BlockPos cannot tell「站在楼梯底那一级上」from「浮在它上面一格」from「悬在半空
-     * 还没落下去」— three worlds that want three different remedies. Three rounds of this rung went
+     * BlockPos, and a BlockPos cannot tell "standing on the bottom step" from "floating one cell above
+     * it" from "in mid-air and not yet landed" — three worlds that want three different remedies.
+     * Three rounds of this rung went
      * into water models that all fitted the rows there were, and every one of them would have died in
      * one run against {@code onGround} plus the two cells' block and fluid states. The precise
      * position matters for the same reason it did in {@code JourneyRamp#approach}: a 0.6-wide box a
-     * fifth of a cell off centre rests on the cell next door, so「身体 2,57,19」and「x=2.37」are
-     * different facts and only the second one says what is holding it up.
+     * fifth of a cell off centre rests on the cell next door, so "bot at cell 2,57,19" and "x=2.37"
+     * are different facts and only the second one says what is holding it up.
      */
     private static String landingStory(JourneyRig rig) {
         ServerLevel level = rig.ctx().level();
         var body = rig.player();
         return String.format(java.util.Locale.ROOT,
-                "精确 %.2f/%.2f/%.2f，onGround=%s，inWater=%s；楼梯底 %s=%s%s，其上 %s=%s%s",
+                "exact %.2f/%.2f/%.2f, onGround=%s, inWater=%s; stair bottom %s=%s%s, above it %s=%s%s",
                 body.getX(), body.getY(), body.getZ(), body.onGround(), body.isInWater(),
                 stairBottom.toShortString(), level.getBlockState(stairBottom).getBlock(),
                 fluidStory(level, stairBottom), stairBottom.above().toShortString(),
@@ -577,13 +602,13 @@ final class JourneyStairwell {
                 fluidStory(level, stairBottom.above()));
     }
 
-    /** The fluid in one cell, named rather than left to a Fluid's own toString — and「无」when there
-     *  is none, because an absent fluid is a reading too. */
+    /** The fluid in one cell, named rather than left to a Fluid's own toString — and "no fluid" when
+     *  there is none, because an absent fluid is a reading too. */
     private static String fluidStory(ServerLevel level, BlockPos c) {
         var fluid = level.getFluidState(c);
-        if (fluid.isEmpty()) return "（无流体）";
-        return "（" + (fluid.isSource() ? "源块 " : "流动 ")
-                + BuiltInRegistries.FLUID.getKey(fluid.getType()) + "）";
+        if (fluid.isEmpty()) return " (no fluid)";
+        return " (" + (fluid.isSource() ? "source " : "flowing ")
+                + BuiltInRegistries.FLUID.getKey(fluid.getType()) + ")";
     }
 
     /**
@@ -601,11 +626,12 @@ final class JourneyStairwell {
      *       three courses — two cells into the frame's own plane, which it then mined out and filled
      *       with cobblestone on the way up.</li>
      *   <li><b>The drift breached the lake.</b> Off the shaft the tower had to mine fresh rock, and
-     *       twelve blocks up that rock is the lava the mould is cut under. {@code drain.0=等了 200
-     *       tick 仍有流体：-7,54,21 = lava}, in an alcove far below it, with the corridor set to stone
-     *       where the lava met the cast's own water.</li>
-     *   <li><b>The descent needed the body exactly over the hole.</b> {@code 回程站到壁龛外面了：…
-     *       停在 -9,60,20}, one cell off and nine blocks up, with nowhere legal to dig.</li>
+     *       twelve blocks up that rock is the lava the mould is cut under. {@code drain.0} reported
+     *       fluid still present after a 200-tick wait, {@code -7,54,21 = lava}, in an alcove far
+     *       below it, with the corridor set to stone where the lava met the cast's own water.</li>
+     *   <li><b>The descent needed the bot exactly over the hole.</b> The return reported that the bot
+     *       had ended up outside the alcove, stopped at {@code -9,60,20}, one cell off and nine
+     *       blocks up, with nowhere legal to dig.</li>
      *   <li><b>And when it dug anyway, it dug outside the alcove</b> — sixty passes of
      *       {@code below=stone → broke=air} at {@code -8,51,20}, because the lava that the breach had
      *       let in kept flowing back and setting.</li>
@@ -636,11 +662,11 @@ final class JourneyStairwell {
         // a row above its own staircase. Measured twice on the south geometry, 2026-08-17, when this
         // read the anchored cell instead: `stairs.bottom = -9, 56, 31` against `forge.landedY = 57`,
         // and the second of those runs then failed on the first waypoint of the first ascent —
-        // `第 0/3 段：想到 -9, 56, 31，停在 -9, 61, 32` — because the two no longer met.
+        // `segment 0/3: aimed for -9, 56, 31, stopped at -9, 61, 32` — because the two no longer met.
         if (body.getY() <= targetY) {
             stairBottom = body;
-            rig.evidence("stairs.bottom", body.toShortString() + "（" + stairDir + " 向，顶在 "
-                    + (stairTop == null ? "?" : stairTop.toShortString()) + "）");
+            rig.evidence("stairs.bottom", body.toShortString() + " (heading " + stairDir + ", top at "
+                    + (stairTop == null ? "?" : stairTop.toShortString()) + ")");
             then.run();
             return;
         }
@@ -658,12 +684,12 @@ final class JourneyStairwell {
         BlockPos anchored = JourneyStairs.courseFrom(body);
         final BlockPos at = anchored.getY() <= targetY ? body : anchored;
         if (budget <= 0) {
-            ctx.fail("楼梯挖不到底：目标 y=" + targetY + "，试了 " + cap + " 级仍停在 "
-                    + at.toShortString() + "（" + stairDir + " 向）");
+            ctx.fail("staircase did not reach the bottom: target y=" + targetY + ", still at "
+                    + at.toShortString() + " after " + cap + " step attempts (heading " + stairDir + ")");
             return;
         }
         int step = cap - budget;
-        // ONE STEP, OR TWO WHEN ONE HAS ALREADY BEEN REFUSED. See noteStairWedge: a leg that ends
+        // ONE STEP, OR TWO WHEN ONE HAS ALREADY BEEN REFUSED. See noteStairWedge: a walk that ends
         // `path-consumed` with the body half a block short of a step it has verified open is the
         // walker calling a partial path an arrival, and asking it again is the retry that changes
         // nothing — measured as eighty identical legs, twice.
@@ -685,26 +711,30 @@ final class JourneyStairwell {
         for (BlockPos c : cut) {
             String wet = JourneyShaft.fluidTouching(ctx.level(), c);
             if (wet != null) {
-                ctx.fail("楼梯挖不下去：" + c.toShortString() + " 挖开会放出 " + wet
-                        + "（身体在 " + at.toShortString() + "，正往 " + stairDir + " 下挖到 y="
-                        + targetY + "）—— 这一段石头后面是流体，不能开");
+                ctx.fail("cannot dig the staircase further: opening " + c.toShortString()
+                        + " would release " + wet + " (bot at " + at.toShortString()
+                        + ", digging down toward " + stairDir + " to y=" + targetY
+                        + ") - there is fluid behind this stretch of rock, so it must not be opened");
                 return;
             }
         }
         rig.evidence("stair." + step, at.toShortString() + " → " + foot.toShortString()
-                + (stride > 1 ? "（上一级被拒了三次，这一腿一次挖两级、直接瞄第二级）" : ""));
+                + (stride > 1 ? " (the previous step was refused three times, so this attempt cuts"
+                        + " two steps at once and aims directly at the second)" : ""));
         if (!at.equals(body))
             // SAY WHICH OF THE TWO, do not assert the falling one. The anchor is unconditional now,
             // so this fires whenever the body is anywhere other than the deepest step — including the
             // case it was built for, a body that has not moved off the course above yet, which is NOT
             // "falling into" anything. Claiming that would be a row asserting a mechanism it never
             // checked, the trap this rung has paid for repeatedly.
-            rig.evidence("stair." + step + ".fromStep", "身体读作 " + body.toShortString()
-                    + "，这一级改从楼梯最深那级 " + at.toShortString() + " 起算（"
+            rig.evidence("stair." + step + ".fromStep", "bot reads as " + body.toShortString()
+                    + "; this step is measured from the deepest step of the flight, "
+                    + at.toShortString() + " ("
                     + (body.getX() == at.getX() && body.getZ() == at.getZ()
-                            ? "同一柱、身体在它上方 " + (body.getY() - at.getY()) + " 排，正落进去"
-                            : "身体还在别的柱上 —— 多半是还没迈下去")
-                    + "）—— 否则下一级会落在同一柱里，或把上一级再切一遍");
+                            ? "same column, bot " + (body.getY() - at.getY())
+                                    + " row(s) above it, falling in"
+                            : "bot is still in another column - most likely it has not stepped down yet")
+                    + ") - otherwise the next step would land in the same column, or re-cut the step above");
         for (int s = 1; s <= stride; s++) JourneyStairs.cut(at.relative(stairDir, s).below(s));
         cutStairCells(rig, cut, 0, () ->
                 rig.settle(new IntentProcess(new Intent(new Goal.Block(foot))), 300, () -> {
@@ -716,7 +746,7 @@ final class JourneyStairwell {
                 // branch, that decides where the retry measures from: this comment used to claim the
                 // same step was retried and the retry re-read `blockPosition()`, so a body that had
                 // drifted one cell sideways into the new step's head room cut a course out of THAT.
-                rig.evidence("stair." + step + ".waited", now.toShortString() + " 还没迈下去");
+                rig.evidence("stair." + step + ".waited", now.toShortString() + " has not stepped down yet");
                 noteStairWedge(rig, now, foot);
                 rig.settle(new HoldStill(20), 40,
                         () -> digStairsDown(ctx, rig, targetY, budget - 1, cap, then));
@@ -728,7 +758,8 @@ final class JourneyStairwell {
     }
 
 
-    /** Consecutive「还没迈下去」legs taken from the same cell — see {@link #noteStairWedge}.
+    /** Consecutive "has not stepped down yet" waits taken from the same cell — see
+     *  {@link #noteStairWedge}.
      *
      *  <p>Package-private for the one writer outside this file: the descent resets both of them
      *  together, right before the first {@link #digStairsDown}, and a counter left over from the
@@ -751,8 +782,10 @@ final class JourneyStairwell {
      *
      * <p>{@code stair.N.waited} says the body is still on the step above and nothing else, and the
      * run of 2026-08-17 printed <b>eighty of them</b>, byte-identical
-     * ({@code stair.0..79 = -8, 66, 19 → -7, 65, 19}, {@code stair.N.waited = -8, 66, 19 还没迈下去}),
-     * before failing with「楼梯挖不到底：试了 80 级仍停在 -8, 66, 19」. Eighty rows, one sentence, and
+     * ({@code stair.0..79 = -8, 66, 19 → -7, 65, 19},
+     * {@code stair.N.waited = -8, 66, 19 has not stepped down yet}), before failing because the
+     * staircase did not reach the bottom: still at {@code -8, 66, 19} after 80 step attempts. Eighty
+     * rows, one sentence, and
      * at least four worlds produce it: the three cells were never cut, the step below has no floor so
      * the goal cell is not standable at all, a route exists and the body cannot walk it, or the body
      * is simply still falling. They want four different answers and the row could not pick.
@@ -766,9 +799,9 @@ final class JourneyStairwell {
         if (++stairWaits != STAIR_WEDGE_WAITS) return;
         ServerLevel level = rig.ctx().level();
         rig.evidence("stair.wedged", String.format(java.util.Locale.ROOT,
-                "%s 连着 %d 腿一格没挪（精确 %.2f/%.2f/%.2f）；想去 %s；"
-                + "%s；台阶四格：脚下 %s=%s，落脚 %s=%s，头 %s=%s，起跳 %s=%s；"
-                + "canBreak(落脚)=%s，allowBreak=%s allowPlace=%s",
+                "%s did not move a single cell over %d consecutive walks (exact %.2f/%.2f/%.2f);"
+                + " target %s; %s; the step's four cells: support %s=%s, foot %s=%s, head %s=%s,"
+                + " jump clearance %s=%s; canBreak(foot)=%s, allowBreak=%s allowPlace=%s",
                 now.toShortString(), STAIR_WEDGE_WAITS,
                 rig.player().getX(), rig.player().getY(), rig.player().getZ(),
                 foot.toShortString(),
@@ -807,36 +840,38 @@ final class JourneyStairwell {
                               Runnable then) {
         if (rig.player().blockPosition().getY() >= poolY - 1) { then.run(); return; }
         if (stairTop == null) {
-            ctx.fail("没有楼梯顶坐标：descendToTheForge 没有记下来，走不上去装岩浆");
+            ctx.fail("no stair top coordinate: descendToTheForge did not record one, so the bot"
+                    + " cannot climb up to fill the bucket with lava");
             return;
         }
         // THE CELL THE ASCENT STARTS ON, told by the same function the DESCENT's end is told by.
         // The descent gets a check here and the ascent does not: `flightEnd` lifts the down route's
-        // last waypoint OFF the stair foot when that cell cannot be stood on (「楼梯底站不了：…
-        // 身处 water …」), while this leg simply begins wherever the body is — and on the fatal
+        // last waypoint OFF the stair foot when that cell cannot be stood on (the stair bottom
+        // reported as unstandable, with water in the cell), while the ascent simply begins wherever
+        // the bot is — and on the fatal
         // shape of `lava2.upStopped` that is the very same flooded cell, 2,56,20. Whether starting
         // there is what stops the climb is not yet decided; what IS decided is that the two ends of
         // one staircase were reporting to different standards, so the ascent could not be compared
         // with the descent that was fixed. ⛔ This is the READING only — do not copy the descent's
         // lift up here before it has said something.
         BlockPos from = rig.player().blockPosition();
-        rig.evidence(tag + ".up", from.toShortString() + " → 楼梯顶 " + stairTop.toShortString()
-                + "；起脚那格：" + cellStory(rig.ctx().level(), from, true));
+        rig.evidence(tag + ".up", from.toShortString() + " → stair top " + stairTop.toShortString()
+                + "; starting cell: " + cellStory(rig.ctx().level(), from, true));
         walkTheFlight(rig, tag, false, () -> {
             BlockPos here = rig.player().blockPosition();
-            rig.evidence(tag + ".upEnded", here.toShortString() + "（楼梯顶 "
-                    + stairTop.toShortString() + "）");
+            rig.evidence(tag + ".upEnded", here.toShortString() + " (stair top "
+                    + stairTop.toShortString() + ")");
             if (flightShortfall != null) rig.evidence(tag + ".upStopped", flightShortfall);
             if (here.getY() < poolY - 1) {
                 // The audit, not a guess. The two guesses this message used to make — "a step is
                 // blocked?" "it cannot make the jump?" — were both wrong the one time the message
                 // was read: the flight had lost the block UNDER a step, which is invisible from
                 // above because the cell reads air whether or not anything holds it up.
-                ctx.fail("走不上楼梯：停在 " + here.toShortString() + "，楼梯顶 "
-                        + stairTop.toShortString() + " 在 y=" + stairTop.getY()
-                        + " —— " + (flightShortfall == null ? "每一段都走到了" : flightShortfall)
-                        + "；楼梯自检：" + JourneyStairs.report(ctx.level())
-                        + "（本级共自检 " + JourneyStairs.tally() + "）");
+                ctx.fail("could not climb the stairs: stopped at " + here.toShortString()
+                        + ", stair top " + stairTop.toShortString() + " is at y=" + stairTop.getY()
+                        + " - " + (flightShortfall == null ? "every segment arrived" : flightShortfall)
+                        + "; stair audit: " + JourneyStairs.report(ctx.level())
+                        + " (audits this rung: " + JourneyStairs.tally() + ")");
                 return;
             }
             then.run();
@@ -867,14 +902,16 @@ final class JourneyStairwell {
         // mould was to be standing on its floor, and `liftInPlace` broke that: a body up a
         // one-block pillar beside the cell it just poured into is at y=58 in a mould whose floor is
         // y=56, so run 41 — which had cast NINE cells, every fill from the station and not one
-        // drowning — reported `走不回模腔：停在 -11,58,36` about a body already standing in it.
+        // drowning — reported that the bot could not walk back into the mould and had stopped at
+        // -11,58,36, about a bot already standing in it.
         if (at.getY() <= floorY + 1 || JourneyPortalRung.forgeCorridor.contains(at)) { then.run(); return; }
         if (stairBottom == null) {
-            ctx.fail("没有楼梯底坐标：descendToTheForge 没有记下来，回不到模腔");
+            ctx.fail("no stair bottom coordinate: descendToTheForge did not record one, so the bot"
+                    + " cannot return to the mould");
             return;
         }
-        rig.evidence(tag + ".return", at.toShortString() + " → 楼梯口 " + stairTop.toShortString()
-                + " → 楼梯底 " + stairBottom.toShortString() + "（模腔地板 y=" + floorY + "）");
+        rig.evidence(tag + ".return", at.toShortString() + " → stairwell mouth " + stairTop.toShortString()
+                + " → stair bottom " + stairBottom.toShortString() + " (mould floor y=" + floorY + ")");
         // LET THE LAKE CLOSE FIRST. A filled bucket takes a source out and leaves an air cell in the
         // middle of the lava, and air is what the pathfinder plans through — so the route home ran
         // straight into the hole the fill had just made, and the lava flowed back in on top of the
@@ -894,8 +931,8 @@ final class JourneyStairwell {
         // easy ones.
         walkTheFlight(rig, tag, true, () -> landOnFloor(rig, tag, () -> {
             BlockPos here = rig.player().blockPosition();
-            rig.evidence(tag + ".returnedY", here.getY() + "（楼梯底 y=" + stairBottom.getY()
-                    + "，身体 " + here.toShortString() + "）");
+            rig.evidence(tag + ".returnedY", here.getY() + " (stair bottom y=" + stairBottom.getY()
+                    + ", bot at " + here.toShortString() + ")");
             // ALWAYS, flag or no flag. See landingStory: a BlockPos alone cannot tell standing on the
             // bottom step from floating over it from still falling into it.
             rig.evidence(tag + ".landing", landingStory(rig));
@@ -909,7 +946,7 @@ final class JourneyStairwell {
                 //
                 // Filling a bucket takes a lava SOURCE out of the lake, which leaves a pit where a
                 // source used to be — and the walk back crosses the lake's own rim. Run 33 measured
-                // it at the third cast: `lava2.aimsAt=-11,63,21 lava 源块=true`, `CONSUME`, and then
+                // it at the third cast: `lava2.aimsAt=-11,63,21` on a lava source block, `CONSUME`, and then
                 // `cast2.return` starting from `-11,60,21` — three blocks under the surface, inside
                 // the pit, with placing off so it could not build its way out. Every waypoint of the
                 // flight then failed in turn and the rung reported the last one.
@@ -920,8 +957,10 @@ final class JourneyStairwell {
                 // the pours have to stand in, and the leg turns placing off again on its way down.
                 if (tries > 1) {
                     rig.evidence(tag + ".returnStuck." + tries, here.toShortString()
-                            + " 走不到楼梯（多半掉进了自己舀空的岩浆坑）—— 开着放置权垒回地面 y="
-                            + stairTop.getY() + " 再走去楼梯口 " + stairTop.toShortString());
+                            + " cannot reach the stairs (most likely fell into the pit its own bucket"
+                            + " emptied in the lava) - pillaring back up to ground level y="
+                            + stairTop.getY() + " with placing allowed, then walking to the stairwell mouth "
+                            + stairTop.toShortString());
                     // TOWER, not walk. Asking the walker again is a retry that changes nothing: it
                     // failed because there is no walkable route out of a pit, and run 34 measured
                     // exactly that — `cast2.returnStuck.2` at `-10,60,21`, then two thousand ticks of
@@ -932,16 +971,17 @@ final class JourneyStairwell {
                     JourneyShaft.climbOut(rig, stairTop.getY(), tag + ".returnStuck" + tries, () ->
                         rig.settle(new IntentProcess(new Intent(new Goal.Block(stairTop))), 2_000, () -> {
                             rig.evidence(tag + ".backToMouth", rig.player().blockPosition().toShortString()
-                                    + "（楼梯口 " + stairTop.toShortString() + "）");
+                                    + " (stairwell mouth " + stairTop.toShortString() + ")");
                             returnToTheForge(ctx, rig, floorY, tag, tries - 1, then);
                         }));
                     return;
                 }
-                ctx.fail("走不回模腔：停在 " + here.toShortString() + "，楼梯底 "
-                        + stairBottom.toShortString() + " 在 y=" + stairBottom.getY()
-                        + " —— 带着一桶岩浆停在半路，浇下去只会浇进楼梯。"
-                        + (flightShortfall == null ? "每一段都走到了" : flightShortfall)
-                        + "；楼梯自检：" + JourneyStairs.report(ctx.level()));
+                ctx.fail("could not walk back into the mould: stopped at " + here.toShortString()
+                        + ", stair bottom " + stairBottom.toShortString() + " is at y=" + stairBottom.getY()
+                        + " - stopped halfway with a bucket of lava, and pouring it here would only pour"
+                        + " it into the staircase. "
+                        + (flightShortfall == null ? "every segment arrived" : flightShortfall)
+                        + "; stair audit: " + JourneyStairs.report(ctx.level()));
                 return;
             }
             then.run();

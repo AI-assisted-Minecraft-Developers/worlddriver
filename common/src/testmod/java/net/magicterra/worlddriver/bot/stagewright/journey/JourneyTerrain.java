@@ -94,8 +94,10 @@ public final class JourneyTerrain {
                         bands.merge(Math.floorDiv(y, 8) * 8, 1, Integer::sum);
                 }
         if (bands.isEmpty())
-            return "半径 " + r + " 的整列（y=" + floor + "..63）一格源块都没有 —— 这里确实没有岩浆湖";
-        StringBuilder sb = new StringBuilder("半径 " + r + " 整列按 8 格分层（层=源块数）：");
+            return "no source block in the full column within radius " + r + " (y=" + floor
+                    + "..63); there really is no lava lake here";
+        StringBuilder sb = new StringBuilder("full column within radius " + r
+                + " in 8-block bands (band=source count):");
         bands.descendingMap().forEach((y0, n) -> sb.append(" y").append(y0).append("~")
                 .append(y0 + 7).append("=").append(n));
         return sb.toString();
@@ -131,7 +133,7 @@ public final class JourneyTerrain {
      * 280 around this seed's pool, because that is what an aquifer is. So the middle is the
      * descent's problem, and when the descent finds water there the only thing that knows the column
      * is bad is the descent. Without this list the next pick rings outward from the same centre and
-     * returns the same column, and「换一根」becomes a loop rather than a remedy.
+     * returns the same column, and "try another column" becomes a loop rather than a remedy.
      */
     public static BlockPos pickDigColumn(ServerLevel level, BlockPos lava, int surfaceY,
                                           Map<String, Integer> rejected, List<BlockPos> banned) {
@@ -144,10 +146,11 @@ public final class JourneyTerrain {
      *
      * <p><b>Written because the lever that claimed to do this did not.</b> A rehearsal could already
      * stage which side of the lake the BODY starts on ({@code -PforgeAway}), and its evidence row
-     * promised 「楼梯与模腔都会朝这边」. It cannot keep that promise, and three directed rehearsals on
-     * 2026-08-16 proved it in one line each: {@code east}, {@code south} and {@code west} produced
-     * three different {@code rehearsal.stand} values and then the SAME
-     * {@code shaft.standingOn = -9,21} and the same {@code forge.face … 朝 south}. The reason is
+     * promised "the staircase and the mould will both face this way". It cannot keep that promise,
+     * and three directed rehearsals on 2026-08-16 proved it in one line each: {@code east},
+     * {@code south} and {@code west} produced three different {@code rehearsal.stand} values and
+     * then the SAME {@code shaft.standingOn = -9,21} and the same {@code forge.face}, facing south.
+     * The reason is
      * structural rather than incidental — rung 12 opens with {@code walkToColumn(lava)}, which throws
      * the staged stand away, and this method then rings outward from the pool in a fixed scan order
      * and returns the first qualifying column, which for a given pool is the same column every run.
@@ -167,7 +170,8 @@ public final class JourneyTerrain {
         if (prefer != null) {
             BlockPos onTheSide = scanForDigColumn(level, lava, surfaceY, rejected, banned, prefer);
             if (onTheSide != null) return onTheSide;
-            rejected.merge("这一侧（" + prefer + "）没有合格的柱，改在四周找", 1, Integer::sum);
+            rejected.merge("no qualifying column on this side (" + prefer + "), searching all around",
+                    1, Integer::sum);
         }
         return scanForDigColumn(level, lava, surfaceY, rejected, banned, null);
     }
@@ -182,10 +186,12 @@ public final class JourneyTerrain {
                     BlockPos c = new BlockPos(lava.getX() + dx, lava.getY(), lava.getZ() + dz);
                     // THE RUNG'S OWN RULE, not a second copy of it: the staircase direction is
                     // awayFrom(lava, start), so filtering candidates through that very call is what
-                    // makes 「站在南侧」 and 「模腔朝南」 the same claim rather than two hopes.
+                    // makes "standing on the south side" and "the mould faces south" the same claim
+                    // rather than two hopes.
                     if (prefer != null && JourneyPortalRung.awayFrom(lava, c) != prefer) continue;
                     if (sameColumn(banned, c)) {
-                        rejected.merge("下挖时发现中段有水，这一柱已换掉", 1, Integer::sum);
+                        rejected.merge("water found mid-column during the descent, column already replaced",
+                                1, Integer::sum);
                         continue;
                     }
                     String why = whyNotDiggable(level, c, surfaceY);
@@ -241,17 +247,17 @@ public final class JourneyTerrain {
         // has to land on ground beside the pool rather than in water. What happens in between is the
         // descent's problem, and it now has a guard that reports floating in one line.
         if (!dryBand(level, floor.getX(), floor.getZ(), daylightAt(level, floor), DRY_HEADROOM))
-            return "井口下方有流体";
+            return "fluid below the shaft mouth";
         if (!dryBand(level, floor.getX(), floor.getZ(), floor.getY() + DRY_LANDING, DRY_LANDING))
-            return "落脚处上方有流体";
-        if (!level.getBlockState(floor).blocksMotion()) return "岩浆层没有落脚面";
+            return "fluid above the landing cell";
+        if (!level.getBlockState(floor).blocksMotion()) return "no floor to land on at the lava level";
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 BlockPos c = floor.offset(dx, 0, dz);
-                if (!dryUnderfoot(level, c.getX(), c.getZ())) return "邻柱地表是水";
+                if (!dryUnderfoot(level, c.getX(), c.getZ())) return "a neighbouring column's surface is water";
                 for (int y = c.getY() + 1; y <= surfaceY + 1; y++) {
                     if (level.getBlockState(new BlockPos(c.getX(), y, c.getZ())).getBlock() == Blocks.LAVA) {
-                        return "邻柱里还有岩浆";
+                        return "a neighbouring column still contains lava";
                     }
                 }
             }
@@ -343,7 +349,7 @@ public final class JourneyTerrain {
      * <p>It is asked of a cell that is EMPTY, so it is a question about the cell rather than about
      * the body in it, which is what makes it usable before any body is standing there. The reading
      * it is a proxy for is {@code soleOnSolid}, and that one needs a body: a dead stop printed
-     * {@code 脚下 Block{minecraft:air}} at {@code -14,66,21}, which is this predicate's answer taken
+     * {@code Block{minecraft:air}} below the feet at {@code -14,66,21}, which is this predicate's answer taken
      * the expensive way, eleven trips too late.
      *
      * <p>It lives here rather than beside the first caller because it turned out to answer for two:
@@ -395,8 +401,8 @@ public final class JourneyTerrain {
      * thing that chooses those.
      *
      * <p>Handed to a search as a {@code CostModifier} rather than a {@code Constraint}: a tax leaves
-     * the route available when it is the only one, which a prune does not, and「a rule nothing can
-     * satisfy is not a strict rule, it is a broken one」is a lesson this file already carries once
+     * the route available when it is the only one, which a prune does not, and "a rule nothing can
+     * satisfy is not a strict rule, it is a broken one" is a lesson this file already carries once
      * (see {@link #whyNotDiggable}). Precomputed as a set on the server thread, so the per-edge cost
      * is one hash lookup — the predicate itself reads up to eighty cells and the search expands a
      * hundred thousand nodes.
@@ -437,14 +443,15 @@ public final class JourneyTerrain {
      * so the two legs that run <b>after</b> the lake has been opened up were the two that priced it
      * at nothing. Ladder j39 died on the second of those: {@code cast1.return} left the fill station
      * at {@code -8,64,14} for the stairwell mouth five blocks away at {@code -8,66,19}, went north
-     * along the crater instead, and took {@code lava −4.0×3；onFire −1.0×2} at {@code -8,66,10}.
+     * along the crater instead, and took {@code lava −4.0×3; onFire −1.0×2} at {@code -8,66,10}.
      * That the return crosses the lake's own rim was already written down — in the javadoc of the
      * recovery that fires <i>after</i> it goes wrong.
      *
      * <p><b>Recomputed</b> because the rim moves while the rung works, always outward: each fill
      * takes a source out and leaves an air cell, and each cleared aim line breaks a block that was
-     * holding the lake in ({@code lava1.clearedLine.2 = -9, 63, 17 stone 挡在眼睛和 -9, 63, 18 之间,
-     * 敲掉它} — one cell from a confirmed source). A set built at the approach and reused would price
+     * holding the lake in ({@code lava1.clearedLine.2} reported the stone at -9, 63, 17 standing
+     * between the eye and -9, 63, 18 and broke it, one cell from a confirmed source). A set built at
+     * the approach and reused would price
      * the lake the rung <i>found</i>, not the one it <i>made</i>. The cost is one pass over
      * {@code (2r+1)² × rise} cells per search, milliseconds on the server thread, against a leg that
      * costs the run.
@@ -453,13 +460,14 @@ public final class JourneyTerrain {
      * so a search with nothing to avoid is handed nothing to ask.
      */
     public static RimTax avoidTheRim(ServerLevel level, BlockPos lava) {
-        if (lava == null) return new RimTax(List.of(), 0, "没有湖坐标，这一段不加价");
+        if (lava == null) return new RimTax(List.of(), 0, "no lake coordinate, so this walk is not taxed");
         java.util.Set<BlockPos> rim = poolsLipCells(level, lava, LIP_TAX_RADIUS, LIP_TAX_RISE);
         List<CostModifier> bias = rim.isEmpty() ? List.of()
                 : List.of((from, to, edge, goal, world) -> rim.contains(to) ? LIP_TAX : 0.0);
-        return new RimTax(bias, rim.size(), rim.size() + " 格坑沿每踏一格加价 " + (int) LIP_TAX
-                + "（普通走一格是 10，即绕 " + (int) (LIP_TAX / 10) + " 格也比踏上去便宜）；半径 "
-                + LIP_TAX_RADIUS + "、y=" + (lava.getY() + 1) + ".." + (lava.getY() + LIP_TAX_RISE));
+        return new RimTax(bias, rim.size(), rim.size() + " rim cells, each step onto one costs an extra "
+                + (int) LIP_TAX + " (a plain walk step is 10, so a detour of up to " + (int) (LIP_TAX / 10)
+                + " blocks is cheaper than stepping on it); radius "
+                + LIP_TAX_RADIUS + ", y=" + (lava.getY() + 1) + ".." + (lava.getY() + LIP_TAX_RISE));
     }
 
     /**
@@ -479,11 +487,12 @@ public final class JourneyTerrain {
      * <p>Hoisted out of {@code JourneyCast} on 2026-08-24 when a second caller appeared and the two
      * occasions turned out to be one question. The first was a body that surfaced from a lava dive
      * still swimming; the second was the furnace rung failing in three ticks on
-     * {@code 需要工作台（背包里有，但脚边没有可放置的空位）} after the bed rung's walk home stopped
-     * three blocks short at {@code 67,63,60} with {@code 脚下=tall_seagrass}. Different rungs,
-     * different verbs, same answer: <b>go to a column that is dry and stand on it.</b>
+     * the error "a crafting table is needed (there is one in the inventory, but no free spot beside
+     * the feet to place it)" after the bed rung's walk home stopped three blocks short at
+     * {@code 67,63,60} standing on tall_seagrass. Different rungs, different verbs, same answer:
+     * <b>go to a column that is dry and stand on it.</b>
      *
-     * <p>A dry column is a sufficient condition for「there is somewhere to put a station」rather
+     * <p>A dry column is a sufficient condition for "there is somewhere to put a station" rather
      * than a proxy for it: {@link #dryUnderfoot} refuses any column with fluid anywhere in the five
      * rows around its surface, so what is left is solid ground with open air over it.
      *
@@ -515,7 +524,7 @@ public final class JourneyTerrain {
     /** How far above the fluid's own row a bank stand may sit. Eight. The crater's rim on this seed
      *  is three above the lake, so this is slack — what it is really for is the other end of the
      *  heightmap: {@code MOTION_BLOCKING_NO_LEAVES} stops on a LOG, so without a ceiling the
-     *  nearest「standable, dry, off the lip」cell to a pool in a forest is the top of a tree. */
+     *  nearest "standable, dry, off the lip" cell to a pool in a forest is the top of a tree. */
     private static final int BANK_RISE = 8;
 
     /**
@@ -535,8 +544,8 @@ public final class JourneyTerrain {
      * cannot even be planned for.
      *
      * <p>So the destination becomes a cell that was CHOSEN rather than one that was survived: the
-     * column's own daylight cell — one candidate per column, which is what「walk overland to the
-     * bank」means — standable, dry, no higher than {@link #BANK_RISE} over the fluid, and with
+     * column's own daylight cell — one candidate per column, which is what "walk overland to the
+     * bank" means — standable, dry, no higher than {@link #BANK_RISE} over the fluid, and with
      * {@link #onThePoolsLip} answering null at the foot AND at the cell above it, the same pair the
      * loading station asks and for the same reason (the body arrives in the upper cell first).
      *
@@ -559,32 +568,33 @@ public final class JourneyTerrain {
                 int z = lava.getZ() + dz;
                 BlockPos foot = new BlockPos(x, daylightAt(level, new BlockPos(x, 0, z)), z);
                 if (foot.getY() <= lava.getY() || foot.getY() > lava.getY() + BANK_RISE) {
-                    why.merge("这一柱的地表不在岩浆层上方 " + BANK_RISE + " 格以内", 1, Integer::sum);
+                    why.merge("this column's surface is not within " + BANK_RISE + " blocks above the lava level",
+                            1, Integer::sum);
                     continue;
                 }
                 if (!level.getBlockState(foot.below()).blocksMotion()) {
-                    why.merge("脚下不实心", 1, Integer::sum);
+                    why.merge("not solid underfoot", 1, Integer::sum);
                     continue;
                 }
                 if (!level.getFluidState(foot).isEmpty()
                         || !level.getFluidState(foot.above()).isEmpty()) {
-                    why.merge("站在流体里", 1, Integer::sum);
+                    why.merge("standing in fluid", 1, Integer::sum);
                     continue;
                 }
                 if (!level.getBlockState(foot).getCollisionShape(level, foot).isEmpty()
                         || !level.getBlockState(foot.above())
                                 .getCollisionShape(level, foot.above()).isEmpty()) {
-                    why.merge("落脚或头顶被占", 1, Integer::sum);
+                    why.merge("foot or head cell occupied", 1, Integer::sum);
                     continue;
                 }
                 if (refuseTheLip && (onThePoolsLip(level, foot) != null
                         || onThePoolsLip(level, foot.above()) != null)) {
-                    why.merge("脚边就是通向岩浆的空洞", 1, Integer::sum);
+                    why.merge("an opening down to the lava is right beside the feet", 1, Integer::sum);
                     continue;
                 }
                 // HORIZONTAL, both of them. A bank cell three rows over a lake is not further from
                 // it than one two rows over, and the rung's next question is a COLUMN — see the
-                // archive's「a radius is not a distance」for the search this repo has already had
+                // archive's "a radius is not a distance" for the search this repo has already had
                 // truncated by mixing the vertical in.
                 long toPool = (long) dx * dx + (long) dz * dz;
                 long ddx = x - from.getX();

@@ -16,7 +16,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
  * if they're solid. Chained, it carves a 1-wide STAIRCASE up the walls of a
  * pit and out — needing NO placed blocks.
  *
- * <p>This is the escape a block-less bot needs from its own 挖三填一 bunker: after
+ * <p>This is the escape a block-less bot needs from its own "dig three, fill one" bunker: after
  * sealing it has no blocks to {@link PillarUp} out of the 1-wide vertical shaft,
  * and on sand/sandstone/badlands it can't replenish (sandstone drops nothing by
  * hand, sand falls). With no break-to-ascend move A* returned "no path" and the

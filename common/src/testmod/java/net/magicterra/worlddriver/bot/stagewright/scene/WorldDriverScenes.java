@@ -522,7 +522,7 @@ public final class WorldDriverScenes implements SceneProvider {
 
     /**
      * Ported from {@code AgentGameTestTerrain#descentYawArena} (:1197-1330) — the
-     * DIAGONAL DESCENT yaw-thrash gauge (live "下山转圈"): a 45° staircase descends −2
+     * DIAGONAL DESCENT yaw-thrash gauge (the live symptom: the bot spinning while walking downhill): a 45° staircase descends −2
      * every diagonal step; the bot walks down it and the loop sums total {@code |Δyaw|}
      * over the descent (a clean spin gauge — a steady heading sums to ~the one initial
      * turn; a carrot-chase winds up hundreds of degrees). Asserts reached-bottom,
@@ -633,7 +633,7 @@ public final class WorldDriverScenes implements SceneProvider {
         double prevYaw = Double.NaN, sumAbsDyaw = 0, maxDyaw = 0;
         int onSlope = 0, reversals = 0;
         double lastSign = 0;
-        // Backward-hop (原地后跳) metric: the goal is the NE corner, so EVERY tick's net horizontal
+        // Backward-hop (hopping backwards in place) metric: the goal is the NE corner, so EVERY tick's net horizontal
         // motion should project >=0 onto the NE direction. A tick that projects NEGATIVE = the bot
         // drove AWAY from the goal (the overshoot-node drive flip). Count those + the worst single
         // backward projection (≈ blocks). Deterministic post-hardening baseline = 67, worst ≈ -0.25.
@@ -684,8 +684,8 @@ public final class WorldDriverScenes implements SceneProvider {
         if (!reached)
             ctx.fail("descentYaw: did not reach the bottom: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") step=" + s);
-        // ⚠ 993° is the UNSOLVED carrot-swing baseline, NOT a smoothness pass: a steep dry descent
-        // still winds the yaw badly (the live "下山转圈"; the real fix is pending). Since the
+        // WARNING: 993° is the UNSOLVED carrot-swing baseline, NOT a smoothness pass: a steep dry
+        // descent still winds the yaw badly (the live downhill-spinning symptom; the real fix is pending). Since the
         // 2026-07-09 rig hardening (run-out plateau + baseline re-pin) the run is DETERMINISTIC
         // (ARRIVED@~299t, 993°, byte-identical across solo runs), so this ceiling is a real
         // regression gate, not flake headroom.
@@ -961,7 +961,7 @@ public final class WorldDriverScenes implements SceneProvider {
      * </ol>
      * Half 2's green was, until 2026-08-18, riding a defect. Measured with the ground-gate
      * disagreement reading: at {@code t=260} the body stood flush at {@code y=223.0000} with
-     * {@code 脚底实心=0.0000} and {@code 落速=-0.0784} — one tick of gravity from rest, so it had been
+     * a sole-support reading of {@code 0.0000} and a fall speed of {@code -0.0784} — one tick of gravity from rest, so it had been
      * resting on that support the tick before and the support was gone this tick — while vanilla's
      * {@code onGround}, which describes the PREVIOUS move, still said true. {@code ServerPlayerBody}
      * gated its ground jump on that bit and handed the body a {@code +0.42} it had no standing to
@@ -1073,7 +1073,7 @@ public final class WorldDriverScenes implements SceneProvider {
                     + "'[pathfinder] search-begin owner=mine' lines in this window: NONE = gap#60 "
                     + "proper (the stand pre-filter refused to hand the walker a dig goal); ONE OR "
                     + "MORE = the pre-filter did its job and the walker failed to CLIMB the "
-                    + "staircase it digs — check for '[avatar] 挖掉了自己的落脚' in the same"
+                    + "staircase it digs — check for '[avatar] dug out its own footing' in the same"
                     + " window. lastError=" + err
                     + " ;; " + stairs + " ;; " + planCells + " ;; " + approach);
         if (!driver.finished() || ServerAvatarManager.activeCount() != 0)
@@ -1084,7 +1084,7 @@ public final class WorldDriverScenes implements SceneProvider {
 
     /**
      * The seven cells of the staircase {@code wd.buriedOre}'s walker digs into the stone cube, as
-     * one {@code 楼梯=} fragment — block id plus the {@code blocksMotion} verdict, the same
+     * one {@code stairs=} fragment — block id plus the {@code blocksMotion} verdict, the same
      * predicate {@code ServerWorldView.isSolid} steers by.
      *
      * <p><b>Read it as a two-way test on {@code (cx+4, floorY+3)}</b> — {@code (106660,223)} in the
@@ -1111,12 +1111,12 @@ public final class WorldDriverScenes implements SceneProvider {
      */
     private static String buriedOreStairAudit(ServerLevel level, int cx, int cz, int floorY) {
         int[][] cells = {{3, 1}, {3, 2}, {3, 3}, {4, 2}, {4, 3}, {5, 2}, {5, 3}};
-        StringBuilder sb = new StringBuilder("楼梯=");
+        StringBuilder sb = new StringBuilder("stairs=");
         for (int[] c : cells) {
             BlockPos p = new BlockPos(cx + c[0], floorY + c[1], cz);
             BlockState st = level.getBlockState(p);
             sb.append('[').append(p.getX()).append(',').append(p.getY()).append(']')
-              .append(st.blocksMotion() ? "实" : "空")
+              .append(st.blocksMotion() ? "solid " : "empty ")
               .append(st.getBlock());
         }
         return sb.toString();
@@ -1279,7 +1279,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
         EntityLeash leash = new EntityLeash("minecraft:armor_stand", leashRadius, 0, true);
-        // Near(1), not Block: 带路 semantics are "reach the destination AREA" — exact-cell
+        // Near(1), not Block: guiding semantics are "reach the destination AREA" — exact-cell
         // parking is a walker trait, not this arena's gate (run-e evidence: reached=true
         // ±1.5 but the exact cell never latched → finished=false forever).
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);

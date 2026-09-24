@@ -40,8 +40,9 @@ import net.minecraft.world.phys.Vec3;
  * player by subsystem, and every one of those rows was derived by <b>reading code</b>: this override
  * is empty, that field is only decremented on a tick path nothing calls, this handler has no verb
  * on our side. Reading is how the list was found; it is not how the list gets confirmed. A row that
- * says「这具身体一辈子只吸一颗经验球」is a prediction about a running game, and the repo's own
- * standing rule is 「先测量、先证明差异真实存在且真的影响测试结论，再谈改」.
+ * says "this player entity only ever picks up one experience orb in its lifetime" is a prediction
+ * about a running game, and the repo's own standing rule is "measure first: prove that the
+ * difference is real and actually affects a test result before discussing a change".
  *
  * <p>So this scene measures. It writes down what the body actually reports, for each of the
  * quantities the boundary table makes a claim about, and it <b>asserts nothing at all</b>. That is
@@ -83,7 +84,8 @@ import net.minecraft.world.phys.Vec3;
  * the first dedicated-server run after {@code -Dworlddriver.realPlayerBodies=true} was armed for
  * the gates, column A still minted through the seam, which by then handed back a
  * {@code JoinedBody}: <b>both columns minted a {@code JoinedBody}</b> and every one of the 26 rows
- * came back identical. Nothing failed; the matching columns read exactly like 「换身体没有区别」,
+ * came back identical. Nothing failed; the matching columns read exactly like "changing the player
+ * entity type makes no difference",
  * which is the opposite of the truth. It was caught only because {@code census.armProperty}
  * recorded that run's PREMISE unconditionally. The rule outlives the column: <b>a control that can
  * silently degenerate into its own treatment arm is worse than no control</b>, and the only cheap
@@ -114,7 +116,8 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p><b>A value that could not be taken is recorded as {@code unavailable/<reason>}, never as 0 or
  * null.</b> This is not politeness. In this repo {@code 0} and {@code null} have repeatedly meant
- * 「还没算过」rather than 「算出来是零」, and a census whose misses are indistinguishable from its
+ * "not computed yet" rather than "computed, and the result is zero", and a census whose misses are
+ * indistinguishable from its
  * zeroes would manufacture exactly the wrong conclusions — it would report a body that never got
  * built as a body with no fall distance.
  *
@@ -122,7 +125,7 @@ import net.minecraft.world.phys.Vec3;
  *
  * {@code check_scene_arena.py} interval-evaluates offsets written inline in the scene body; this
  * scene builds its pads inside helpers, so the gate scores its hull as {@code [+0,+0]} — an honest
- * 「看不出来」, not a clean bill of health. The real span, written out so a reader can check it:
+ * "cannot tell", not a clean bill of health. The real span, written out so a reader can check it:
  *
  * <ul>
  *   <li>column {@code factory} at {@code dx=0}, pad and clear-box half-width {@code PAD+1 = 4}
@@ -187,11 +190,11 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * <p>Six, not one, and the reason is the whole point of phase 2. {@code tickCount},
      * {@code invulnerableTime} and {@code fallDistance} are the three readings the synchronous phase
      * takes and cannot interpret: it drives the body with {@code avatar.step()} inside a SINGLE
-     * {@code tickServer()}, so a zero there has two readings — 「通道一是死的」 and 「还没到时间」 —
-     * and 0 has meant 「还没算过」 rather than 「算出来是零」 too often in this repo for that to be
-     * left ambiguous. Six ticks of real server time separates them: a body the server actually ticks
-     * gains six, and a body whose {@code tick()} is overridden to nothing gains zero no matter how
-     * long anyone waits.
+     * {@code tickServer()}, so a zero there has two readings — "channel one is dead" and "not
+     * enough time has passed yet" — and 0 has meant "not computed yet" rather than "computed, and
+     * the result is zero" too often in this repo for that to be left ambiguous. Six ticks of real
+     * server time separates them: a player entity the server actually ticks gains six, and one whose
+     * {@code tick()} is overridden to nothing gains zero no matter how long anyone waits.
      */
     private static final int SERVER_TICK_SAMPLES = 6;
 
@@ -203,7 +206,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         ctx.record("census.topology", topology(ctx));
         // The switch this row used to print was deleted with the fake bodies. The key stays, so an
         // archived row and a new one line up and the run's premise is still written down.
-        ctx.record("census.armProperty", "retired（服务端身体只有 JoinedBody，开关已删）");
+        ctx.record("census.armProperty", "retired (the server-side player entity is always a JoinedBody; the switch was removed)");
 
         // ---- column A: the fake-player factory body — gone, and recorded as gone ----
         //
@@ -212,7 +215,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         // its pad is built and cleaned as before, and body.factory.identity says unavailable instead
         // of going missing, which would read like a census that lost a column. The two-column runs
         // from before the deletion are the archive this scene was built to leave.
-        ctx.record("census.factoryColumnSource", "unavailable/假人工厂已删除（服务端身体只有 JoinedBody）");
+        ctx.record("census.factoryColumnSource", "unavailable/the fake-player factories were deleted (the server-side player entity is always a JoinedBody)");
         ServerPlayerBody factoryAvatar = measureColumn(ctx, "factory", level, ox, floorY, oz, () -> {
             throw new IllegalStateException("the fake-player body factories were deleted");
         });
@@ -305,8 +308,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         record(ctx, column, "swinging", () -> swinging(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "mineDrop", () -> mineDrop(level, fp, avatar, cx, floorY, cz));
         record(ctx, column, "tickCount", () -> String.valueOf(fp.tickCount)
-                + "（同步相，全程在一个服务端 tick 内；真玩家每 tick +1，"
-                + "见 ServerLevel.tickNonPassenger。这个数要和 serverTickCount 一起读）");
+                + " (synchronous phase, entirely within one server tick; a real player gains +1 per tick,"
+                + " see ServerLevel.tickNonPassenger. Read this value together with serverTickCount)");
         return avatar;
     }
 
@@ -340,13 +343,15 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      * are all in the second category: they move in {@code ServerPlayer.tick()}, which the server
      * calls from {@code ServerLevel.tickNonPassenger}, and which {@code avatar.step()} never calls.
      * Measured synchronously they all read zero, and a zero measured inside one tick cannot tell
-     * 「这条通道被覆盖成空了」 from 「一个 tick 里本来就攒不出数」.
+     * "this channel was overridden to do nothing" from "one tick is not enough to accumulate a
+     * value in the first place".
      *
      * <p>So this phase does the one thing that separates them: it <b>stops driving</b> and lets real
      * ticks pass. Nothing here calls {@code avatar.step()} — deliberately. If the numbers move, the
-     * server is ticking the body and the synchronous zero merely meant 「时间不够」; if they stay at
-     * zero through six ticks the body is not on channel one at all, and the empty {@code tick()}
-     * override is the reason. That is the reading the 「能不能拆掉那行覆盖」 decision needs, and it
+     * server is ticking the body and the synchronous zero merely meant "not enough time"; if they
+     * stay at zero through six ticks the body is not on channel one at all, and the empty
+     * {@code tick()} override is the reason. That is the reading the decision on whether that
+     * override can be removed needs, and it
      * is the one reading the old shape could never produce.
      *
      * <p>It still does not call {@code level.tick()} — the Avatar-family rule stands. It waits for
@@ -388,7 +393,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         static ServerTickWatch arm(String column, ServerPlayerBody avatar,
                                    int cx, int floorY, int cz) {
             if (avatar == null) {
-                return new ServerTickWatch(column, null, "unavailable/该列没能铸出身体（见 identity）",
+                return new ServerTickWatch(column, null, "unavailable/this column could not create its player entity (see identity)",
                         0, 0, 0L);
             }
             try {
@@ -430,15 +435,15 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             // +pumps" without measuring would be an evidence row that names a number it never took.
             long elapsed = fp.level().getGameTime() - gameTime0;
             ctx.record(key(column, "serverTickCount"), String.format(java.util.Locale.ROOT,
-                    "%d 次采样跨了 %d 个真实服务器 tick（世界时钟量的）：tickCount %d→%d（+%d；"
-                            + "真玩家应 +%d）——这里的 0 是「通道一没跑」，不是「时间不够」",
+                    "%d samples spanned %d real server ticks (measured by the world clock): tickCount %d->%d (+%d; "
+                            + "a real player should gain +%d). A 0 here means channel one did not run, not that there was too little time",
                     pumps, elapsed, tickCount0, fp.tickCount, gained, elapsed));
             ctx.record(key(column, "serverInvulnerableTime"), String.format(java.util.Locale.ROOT,
-                    "置 20 后按真实服务器 tick 逐个采样（跨 %d tick）：%s（真玩家应递减）",
+                    "set to 20, then sampled once per real server tick (spanning %d ticks): %s (a real player's value should decrease)",
                     elapsed, invulnerable));
             ctx.record(key(column, "serverFallDistance"), String.format(java.util.Locale.ROOT,
-                    "从 y=%.1f 起不再驱动，%d 个真实 tick 后 y=%.1f（实际下落 %.2f 格），"
-                            + "fallDistance 峰值=%.3f，末值=%.3f",
+                    "no longer driven from y=%.1f; after %d real ticks y=%.1f (actual drop %.2f blocks), "
+                            + "fallDistance peak=%.3f, final=%.3f",
                     startY, elapsed, fp.getY(), startY - fp.getY(), fallPeak, fp.fallDistance));
         }
     }
@@ -470,12 +475,12 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         }
         String kind = !dedicated ? "integratedServer"
                 : humans.isEmpty() ? "dedicatedServer" : "dedicatedServerWithClient";
-        StringBuilder s = new StringBuilder(kind).append("（真玩家 ").append(humans.size());
+        StringBuilder s = new StringBuilder(kind).append(" (real players ").append(humans.size());
         for (ServerPlayer p : humans) {
-            s.append('：').append(p.getGameProfile().getName())
+            s.append(": ").append(p.getGameProfile().getName())
                     .append('@').append(p.level().dimension().location());
         }
-        return s.append("；mc.bot.* 在本 JVM=").append(clientHalf).append("）").toString();
+        return s.append("; mc.bot.* in this JVM=").append(clientHalf).append(")").toString();
     }
 
     /**
@@ -499,9 +504,9 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         }
         return fp.getClass().getSimpleName()
                 + " " + fp.getGameProfile().getName()
-                + "（在玩家表=" + fp.level().players().contains(fp)
-                + "，是 neoforge FakePlayer=" + neoFake
-                + "，@" + fp.level().dimension().location() + "）";
+                + " (in player list=" + fp.level().players().contains(fp)
+                + ", is a neoforge FakePlayer=" + neoFake
+                + ", @" + fp.level().dimension().location() + ")";
     }
 
     /**
@@ -524,10 +529,10 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             emptyTick = false;
         }
         return "avatar.step()/ServerAvatarManager"
-                + "；在 ServerLevel 实体 tick 表=" + inLevel
-                + "；tick() 被子类覆盖=" + emptyTick
-                + "（覆盖成空则通道一被掐断）"
-                + "；connection 在 ServerConnectionListener=false（两具身体都不是真 socket，通道二不跑）";
+                + "; in the ServerLevel entity tick list=" + inLevel
+                + "; tick() overridden by a subclass=" + emptyTick
+                + " (an empty override cuts off channel one)"
+                + "; connection in ServerConnectionListener=false (neither player entity has a real socket, so channel two does not run)";
     }
 
     // ---------------------------------------------------------------- probes
@@ -557,35 +562,35 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         boolean granted = fp.getAdvancements().award(holder, criterion);
         boolean done = fp.getAdvancements().getOrStartProgress(holder).isDone();
         fp.getAdvancements().revoke(holder, criterion);
-        return "award() 返回 " + granted + "，随后 isDone=" + done
-                + "（已 revoke；false 意味着这具身体拿不到任何进度）";
+        return "award() returned " + granted + ", then isDone=" + done
+                + " (revoked afterwards; false means this player entity cannot earn any advancement)";
     }
 
     /**
      * The i-frame counter over five ticks after taking a hit.
      *
-     * <p>Five, not one. A single reading cannot tell 「没有被赋值」 from 「赋值了但不递减」, and it is
-     * precisely the递减 that is predicted missing: {@code LivingEntity.baseTick} excludes
+     * <p>Five, not one. A single reading cannot tell "never assigned" from "assigned but never
+     * decremented", and it is precisely the decrement that is predicted missing: {@code LivingEntity.baseTick} excludes
      * {@code ServerPlayer} from the decrement explicitly, leaving {@code ServerPlayer.tick()} as its
      * only home — and that is the override this body empties. A flat series is the defect; a
      * counting-down series is its absence.
      */
     private static String invulnerableTimeSeries(ServerPlayer fp, ServerPlayerBody avatar) {
         fp.invulnerableTime = 20;
-        StringBuilder s = new StringBuilder("置 20 后逐 tick：");
+        StringBuilder s = new StringBuilder("set to 20, then per tick: ");
         for (int i = 0; i < 5; i++) {
             avatar.step();
             s.append(i == 0 ? "" : ",").append(fp.invulnerableTime);
         }
-        return s.append("（真玩家应递减到 15）").toString();
+        return s.append(" (a real player's value should decrease to 15)").toString();
     }
 
     /**
      * {@code fallDistance} sampled through an actual fall, plus the drop actually achieved.
      *
      * <p>Both halves matter and neither alone would do. Recording only {@code fallDistance} could
-     * not distinguish 「没有累加」 from 「根本没掉下去」 — a body standing on solid ground has an
-     * honest 0. So the vertical distance travelled is recorded next to it: a large drop with a zero
+     * not distinguish "did not accumulate" from "never fell at all" — a player entity standing on
+     * solid ground has an honest 0. So the vertical distance travelled is recorded next to it: a large drop with a zero
      * counter is the defect, a zero drop with a zero counter is a broken rig, and the two must not
      * print the same.
      */
@@ -601,7 +606,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         }
         double dropped = startY - fp.getY();
         String s = String.format(Locale.ROOT,
-                "从 y=%.1f 落到 y=%.1f（实际下落 %.2f 格），期间 fallDistance 峰值=%.3f，落地后=%.3f",
+                "fell from y=%.1f to y=%.1f (actual drop %.2f blocks), fallDistance peak during the fall=%.3f, after landing=%.3f",
                 startY, fp.getY(), dropped, peak, fp.fallDistance);
         // Back onto the pad, so the next probe does not start mid-air.
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
@@ -630,9 +635,9 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         for (int i = 0; i < 20; i++) avatar.step();
         int alive = 0;
         for (ExperienceOrb orb : spawned) if (!orb.isRemoved()) { orb.discard(); alive++; }
-        return "扔 3 颗（每颗 3 点）：totalExperience " + before + "→" + fp.totalExperience
-                + "，takeXpDelay=" + fp.takeXpDelay + "，20 tick 后仍未被吸收=" + alive
-                + " 颗（真玩家应吸完 3 颗）";
+        return "spawned 3 orbs (3 points each): totalExperience " + before + "->" + fp.totalExperience
+                + ", takeXpDelay=" + fp.takeXpDelay + ", still unabsorbed after 20 ticks=" + alive
+                + " (a real player should absorb all 3)";
     }
 
     /**
@@ -651,8 +656,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         String sneaking = fp.getPose() + "/" + String.format(Locale.ROOT, "%.2f", fp.getBbHeight());
         avatar.commandSneak(false);
         avatar.step();
-        return "站立 pose/高度=" + standing + "，持续潜行 5 tick 后=" + sneaking
-                + "（真玩家应 CROUCHING/1.50）";
+        return "standing pose/height=" + standing + ", after sneaking for 5 ticks=" + sneaking
+                + " (a real player should read CROUCHING/1.50)";
     }
 
     /** Distance walked, and the walk statistic that should have counted it. Both, for the same
@@ -693,8 +698,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
         fp.setDeltaMovement(Vec3.ZERO);
         return String.format(Locale.ROOT,
-                "走到水平 %.1f 格用了 %d tick（撞上限=%b，上限 %d）：实际位移 %.2f 格"
-                        + "（≈%.3f 格/tick，仍在台面上=%b），walk_one_cm %d→%d",
+                "walking %.1f blocks horizontally took %d ticks (hit the cap=%b, cap %d): actual displacement %.2f blocks"
+                        + " (about %.3f blocks/tick, still on the platform=%b), walk_one_cm %d->%d",
                 WALK_TARGET, ticks, hitCap, WALK_TICK_CAP, moved,
                 ticks == 0 ? 0.0 : moved / ticks, stillOnPad, before, after);
     }
@@ -731,14 +736,14 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
      */
     private static String jumpExhaustion(ServerPlayer fp, ServerPlayerBody avatar,
                                          int cx, int floorY, int cz) {
-        // Start from a known cell on solid ground: jumpApex ran just before this and left the body
-        // wherever its fall ended.
+        // Start from a known cell on solid ground: jumpApex ran just before this and left the player
+        // entity wherever its fall ended.
         //
         // TWO settling steps, because vanilla's jump gate reads onGround and onGround describes the
         // last move(). After setPos with zero velocity the first step moves by nothing vertically,
         // hits no floor and reads onGround=false; gravity only lands the second. With one step the
-        // pumped body refused the press and this row read「起跳升高 0.000」. The hand-integrated body
-        // asked the world instead (soleOnSolid), which is why one step used to be enough.
+        // vanilla-ticked player entity refuses the press and this row reads "jump rise 0.000". The
+        // hand-integrated implementation asks the world instead (soleOnSolid), so one step suffices for it.
         fp.setPos(cx + 0.5, floorY + 1, cz + 0.5);
         fp.setDeltaMovement(Vec3.ZERO);
         avatar.step();
@@ -760,8 +765,8 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         // its drop: a zero delta beside a zero rise is a jump that never happened, which is a broken
         // rig; a zero delta beside a real rise is the defect this key exists to see.
         return String.format(Locale.ROOT,
-                "起跳升高 %.3f 格（冲刺=%b，按跳时 onGround=%b），foodExhaustion %.3f→%.3f（差 %.3f；"
-                        + "真玩家 jumpFromGround 应加 %.2f）",
+                "jump rise %.3f blocks (sprinting=%b, onGround when jump was pressed=%b), foodExhaustion %.3f->%.3f (delta %.3f; "
+                        + "a real player's jumpFromGround should add %.2f)",
                 apex - startY, sprinting, groundedAtPress, before, after, after - before,
                 sprinting ? 0.2f : 0.05f);
     }
@@ -787,7 +792,7 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
             avatar.step();
             apex = Math.max(apex, fp.getY());
         }
-        return String.format(Locale.ROOT, "起跳 y=%.3f → 顶点 y=%.3f（升高 %.3f 格），Stats.JUMP %d→%d",
+        return String.format(Locale.ROOT, "jump start y=%.3f -> apex y=%.3f (rise %.3f blocks), Stats.JUMP %d->%d",
                 startY, apex, apex - startY, jumpBefore,
                 fp.getStats().getValue(Stats.CUSTOM.get(Stats.JUMP)));
     }
@@ -810,9 +815,9 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         try {
             fp.swinging = false;
             avatar.attackEntityUnchecked(target);
-            return "经 avatar 缝攻击后 swinging=" + fp.swinging
-                    + "，attackAnim=" + String.format(Locale.ROOT, "%.2f", fp.attackAnim)
-                    + "（真玩家的 handleInteract 会 swing(hand,true)）";
+            return "after an attack through the avatar seam swinging=" + fp.swinging
+                    + ", attackAnim=" + String.format(Locale.ROOT, "%.2f", fp.attackAnim)
+                    + " (a real player's handleInteract calls swing(hand,true))";
         } finally {
             target.discard();
         }
@@ -861,9 +866,9 @@ public final class WorldDriverBodyCensusScenes implements SceneProvider {
         level.setBlockAndUpdate(bare, Blocks.AIR.defaultBlockState());
         level.setBlockAndUpdate(withTool, Blocks.AIR.defaultBlockState());
 
-        return "赤手挖石头：方块消失=" + bareGone + "，掉落物 " + bareDrops
-                + " 个（真玩家应 0）；铁镐挖石头：掉落物 " + toolDrops
-                + " 个，镐耐久损耗=" + damage + "（真玩家应 1）";
+        return "stone mined bare-handed: block removed=" + bareGone + ", item drops " + bareDrops
+                + " (a real player should get 0); stone mined with an iron pickaxe: item drops " + toolDrops
+                + ", pickaxe durability lost=" + damage + " (a real player should lose 1)";
     }
 
     // ---------------------------------------------------------------- rig

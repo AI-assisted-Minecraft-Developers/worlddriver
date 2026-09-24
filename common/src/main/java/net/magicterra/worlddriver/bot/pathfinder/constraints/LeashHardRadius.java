@@ -8,8 +8,8 @@ import net.minecraft.core.BlockPos;
 
 /** Hard leash: prune any move whose destination is farther than {@code radius}
  *  from the anchor. The hard twin of A4b's soft {@code LeashAnchor} — the route
- *  MAY NOT leave the radius at all (vs paying a cost to). Backs "带路别离太远"
- *  as a firm bound.
+ *  MAY NOT leave the radius at all (vs paying a cost to). Backs "when leading the
+ *  way, do not stray too far" as a firm bound.
  *
  *  <p><b>Rejoin semantics</b>: a bot OUTSIDE the tether (the dynamic anchor
  *  jumped away, or the search starts outside the sphere) must not be fully

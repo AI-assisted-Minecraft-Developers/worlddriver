@@ -1,8 +1,10 @@
-"""把 telemetry tick 流聚合成 per-Move conformance 表。
+"""Aggregate the telemetry tick stream into a per-Move conformance table.
 
-一次 Move "execution" = telemetry 里 step 指针的一段连续占用(step 变化 = 进入下一个 Move)。
-该段内 totStuck 峰值 >= silky 即判 churned(executor 在这个 Move 上卡了)。
-跨 corpus 聚合后,churned>0 的 Move = planner 谓词比 executor 真实能力宽松的发散点。
+One Move "execution" is one contiguous run of the same step pointer in the telemetry (a step
+change means the next Move has started). If the peak totStuck within that run is >= silky, the
+execution counts as churned (the executor got stuck on this Move).
+Aggregated across the corpus, a Move with churned>0 marks a divergence where the planner's
+predicate is more permissive than what the executor can actually do.
 """
 from dataclasses import dataclass
 

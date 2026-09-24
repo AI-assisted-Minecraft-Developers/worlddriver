@@ -59,8 +59,8 @@ public final class SmeltProcess implements BotProcess {
      *  furnace still dark two seconds later is not slow: either its chunk is not ticking block
      *  entities, or the ingredient has no smelting recipe, or the result slot is occupied by
      *  something else ({@code AbstractFurnaceBlockEntity.canBurn} refuses all three). All of
-     *  them used to surface a whole batch later as "冶炼超时（燃料不足？）" — which names the
-     *  one cause that is definitely NOT what happened. */
+     *  them would otherwise surface a whole batch later as a smelt timeout blamed on low fuel,
+     *  which names the one cause that is definitely NOT what happened. */
     private static final int LIGHT_GRACE = 40;
     /** Ticks to let LOAD's QUICK_MOVE round-trip show up in the ingredient slot. Past this, an
      *  empty ingredient slot with an empty result means the ore never went in at all. */
@@ -93,12 +93,12 @@ public final class SmeltProcess implements BotProcess {
      *  as a broken furnace would be the rig's shape talking rather than the game's. */
     private long coldAtGameTime = Long.MIN_VALUE;
     /** What LOAD fed the furnace and what that was worth in burn ticks — the two numbers that
-     *  turn "燃料不足？" from a question into a statement. */
+     *  turn "not enough fuel?" from a question into a statement. */
     private String fuelChosen;
     private int fuelBurnLoaded;
     /** Resuming a furnace that already holds the ingredient/result (a prior
-     *  smelt was interrupted after loading — ep-018: preempted smelt left 3
-     *  raw iron inside; the retry then failed "缺 raw_iron" while the loaded
+     *  smelt was interrupted after loading — a preempted smelt left 3 raw iron
+     *  inside and the retry then failed with raw_iron missing while the loaded
      *  furnace sat within reach). Skip LOAD's shift-clicks and adopt. */
     private boolean adopt;
 
@@ -165,8 +165,8 @@ public final class SmeltProcess implements BotProcess {
                 // reads downstream as "the mine produced nothing".
                 if (!m.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem().isEmpty()
                         || !m.getSlot(AbstractFurnaceMenu.INGREDIENT_SLOT).getItem().isEmpty()) {
-                    error = error + "；东西还留在熔炉里取不回来（" + after
-                            + "，背包空格 " + freeSlots(p) + "）";
+                    error = error + "; items are still in the furnace and cannot be taken back (" + after
+                            + ", free inventory slots " + freeSlots(p) + ")";
                 }
             }
             LOG.info("[smelt] FAIL: {} furnace={} target={}× {} slots {} -> {} free={}",
@@ -199,7 +199,7 @@ public final class SmeltProcess implements BotProcess {
                 st = St.OPEN_WAIT;
                 return;
             }
-            fail(s, "缺 " + count + " 个 " + shortId(input)); return;
+            fail(s, "missing " + count + " x " + shortId(input)); return;
         }
         targetOut = Math.min(count, have);
 
@@ -209,12 +209,12 @@ public final class SmeltProcess implements BotProcess {
             // The same split CraftProcess makes for its table, for the same measured reason:
             // PlaceNearby holds the item through holdItem, which searches all 36 slots — so a
             // failure here with a furnace in the bag is a missing CELL, not a missing furnace.
-            // The old single message said "背包里没有可放置的熔炉" to a body standing on top of
-            // the one-wide pillar it had just towered out of, holding the furnace, and the
-            // journey's iron rung had to work around the wrong cause rather than read it.
+            // A single "no placeable furnace in the inventory" message would misreport a bot
+            // standing on a one-wide pillar while holding the furnace, so the two causes get
+            // separate messages.
             fail(s, p.getInventory().countItem(Items.FURNACE) > 0
-                    ? "需要熔炉（背包里有，但脚边没有可放置的空位——先清出一格）"
-                    : "需要熔炉（背包里没有熔炉）");
+                    ? "needs a furnace (one is in the inventory, but there is no free cell beside the feet to place it; clear one first)"
+                    : "needs a furnace (none in the inventory)");
             return;
         }
         furnacePos = fz;
@@ -229,7 +229,7 @@ public final class SmeltProcess implements BotProcess {
 
     private void awaitOpen(Player p, BotState s) {
         if (p.containerMenu instanceof AbstractFurnaceMenu) { waited = 0; st = St.LOAD; return; }
-        if (++waited > OPEN_TIMEOUT) fail(s, "打开熔炉超时");
+        if (++waited > OPEN_TIMEOUT) fail(s, "timed out opening the furnace");
     }
 
     private void load(Body a, Player p, BotState s) {
@@ -251,13 +251,13 @@ public final class SmeltProcess implements BotProcess {
         }
         // Shift-click the ingredient from the inventory → routes to the input slot.
         int inSlot = findInvMenuSlot(menu, st2 -> idOf(st2.getItem()).equals(input));
-        if (inSlot < 0) { fail(s, "背包里找不到 " + shortId(input)); return; }
+        if (inSlot < 0) { fail(s, "no " + shortId(input) + " in the inventory"); return; }
         menus.containerClick(menu.containerId, inSlot, 0, ClickType.QUICK_MOVE);
 
         int burn = loadFuel(a, menu);
         if (burn < 0) {
-            fail(s, fuelId != null ? "背包里找不到燃料 " + shortId(fuelId)
-                    : "背包里没有可用燃料（工作方块不作燃料烧）");
+            fail(s, fuelId != null ? "fuel " + shortId(fuelId) + " is not in the inventory"
+                    : "no usable fuel in the inventory (workstation blocks are not burned as fuel)");
             return;
         }
         smeltWaitBudget = PER_ITEM_TIMEOUT * targetOut + 100;
@@ -299,15 +299,15 @@ public final class SmeltProcess implements BotProcess {
 
     private void smeltWait(Body a, Player p, BotState s) {
         AbstractContainerMenu menu = p.containerMenu;
-        if (!(menu instanceof AbstractFurnaceMenu fm)) { fail(s, "熔炉界面意外关闭"); return; }
+        if (!(menu instanceof AbstractFurnaceMenu fm)) { fail(s, "the furnace screen closed unexpectedly"); return; }
         // Is the furnace still THERE? Nothing in this repo reclaims one mid-smelt, so a hit here
         // is news rather than bookkeeping — and it is the only reading that separates "the smelt
         // never finished" from "the thing that was going to finish it got mined out from under
         // it" (candidate ⑤). Costs one block read per tick, against a menu whose slots still
         // report the contents of a block entity that no longer exists.
         if (furnacePos != null && !p.level().getBlockState(furnacePos).is(Blocks.FURNACE)) {
-            fail(s, "熔炉在冶炼途中消失了 @" + furnacePos.toShortString()
-                    + "（现在是 " + p.level().getBlockState(furnacePos).getBlock() + "）");
+            fail(s, "the furnace disappeared while smelting @" + furnacePos.toShortString()
+                    + " (now " + p.level().getBlockState(furnacePos).getBlock() + ")");
             return;
         }
         ItemStack out = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem();
@@ -321,12 +321,13 @@ public final class SmeltProcess implements BotProcess {
         // used to reset `waited` every tick and spin silently forever.
         if (!in.isEmpty() && fuel.isEmpty() && !fm.isLit()) {
             if (pickFuelMenuSlot(menu, fuelId) < 0) {
-                if (!out.isEmpty()) { shortCause = "（燃料耗尽）"; st = St.COLLECT; }
-                else fail(s, "燃料耗尽且背包无可续装燃料");
+                if (!out.isEmpty()) { shortCause = " (fuel ran out)"; st = St.COLLECT; }
+                else fail(s, "fuel ran out and the inventory has no fuel to reload");
                 return;
             }
             if (++fuelTries > 8) {
-                fail(s, "燃料装不进熔炉（" + fuelTries + " 次装载后燃料槽仍空）");
+                fail(s, "fuel cannot be loaded into the furnace (the fuel slot is still empty after "
+                        + fuelTries + " attempts)");
                 return;
             }
             // Odd ticks click, even ticks let the server round-trip land.
@@ -342,9 +343,9 @@ public final class SmeltProcess implements BotProcess {
         // Loaded on both sides and still dark. Vanilla lights on the first block-entity tick, so
         // this is never latency past LIGHT_GRACE — it is a furnace whose chunk is not ticking
         // block entities, an ingredient with no smelting recipe, or a result slot holding
-        // something else (AbstractFurnaceBlockEntity.canBurn refuses all three). Candidate ③,
-        // and until now every one of them spent the whole batch budget and then reported
-        // "冶炼超时（燃料不足？）" — a guess at the one cause it demonstrably was not.
+        // something else (AbstractFurnaceBlockEntity.canBurn refuses all three). Without this
+        // check each of them spends the whole batch budget and then reports a timeout blamed on
+        // low fuel — a guess at the one cause it demonstrably was not.
         boolean loadedButCold = !in.isEmpty() && !fuel.isEmpty() && !fm.isLit();
         if (!loadedButCold) {
             coldTicks = 0;
@@ -353,20 +354,20 @@ public final class SmeltProcess implements BotProcess {
             if (now != coldAtGameTime) { coldAtGameTime = now; coldTicks++; }
         }
         if (loadedButCold && coldTicks > LIGHT_GRACE) {
-            fail(s, "熔炉装好料却不点火（" + coldTicks + "t：" + slotSummary(menu)
-                    + "）——方块实体没在 tick，或这个原料没有熔炼配方，或出料槽被占");
+            fail(s, "the furnace is loaded but does not light (" + coldTicks + "t: " + slotSummary(menu)
+                    + "): the block entity is not ticking, the input has no smelting recipe, or the output slot is occupied");
             return;
         }
         // Input exhausted and something cooked → take what we got. LOAD shift-clicks one stack
         // only, so this can be a real shortfall; COLLECT judges it by what it actually takes.
-        if (in.isEmpty() && !out.isEmpty()) { shortCause = "（原料用完）"; st = St.COLLECT; return; }
+        if (in.isEmpty() && !out.isEmpty()) { shortCause = " (the ingredient ran out)"; st = St.COLLECT; return; }
         // The ore never went in. LOAD's QUICK_MOVE can be refused outright (the ingredient has no
         // smelting recipe so quickMoveStack routes it nowhere, the menu id went stale), and that
         // used to burn the entire batch budget before reporting a fuel problem. The bag reading is
         // the half that says which: still holding the ore = the click was refused.
         if (!adopt && in.isEmpty() && out.isEmpty() && !fuel.isEmpty() && waited > INTAKE_GRACE) {
-            fail(s, "原料没进熔炉（" + waited + "t 后 " + slotSummary(menu) + "，背包里还有 "
-                    + countInInventory(p, input) + " 个 " + shortId(input) + "）");
+            fail(s, "the input never went into the furnace (after " + waited + "t: " + slotSummary(menu)
+                    + "; the inventory still holds " + countInInventory(p, input) + " x " + shortId(input) + ")");
             return;
         }
         // Cold empty furnace (adopt path found nothing inside): nothing will
@@ -374,21 +375,21 @@ public final class SmeltProcess implements BotProcess {
         // Adopt-only: the normal path's QUICK_MOVE round-trip can leave the
         // slots briefly empty right after LOAD and must not trip this.
         if (adopt && in.isEmpty() && out.isEmpty() && !fm.isLit()) {
-            fail(s, "缺 " + count + " 个 " + shortId(input) + "（熔炉也是空的）");
+            fail(s, "missing " + count + " x " + shortId(input) + " (the furnace is empty too)");
             return;
         }
         if (++waited > smeltWaitBudget) {
             if (!out.isEmpty()) { shortCause = ""; st = St.COLLECT; }
-            // The timeout used to end in a question mark. It now ends in the four readings that
-            // answer it: what is in the three slots, whether the fire is lit, how far the current
-            // item has cooked (getBurnProgress is cookingProgress/cookingTotalTime straight off
-            // the block entity — a flat 0.00 next to lit=true means the block entity is not being
-            // ticked), and what the fuel that WAS loaded was worth.
-            else fail(s, "冶炼超时 " + waited + "t：" + slotSummary(menu)
+            // The timeout carries the four readings that explain it: what is in the three slots,
+            // whether the fire is lit, how far the current item has cooked (getBurnProgress is
+            // cookingProgress/cookingTotalTime straight off the block entity — a flat 0.00 next to
+            // lit=true means the block entity is not being ticked), and what the fuel that WAS
+            // loaded was worth.
+            else fail(s, "smelt timed out after " + waited + "t: " + slotSummary(menu)
                     + " lit=" + fm.isLit()
                     + " cook=" + String.format(java.util.Locale.ROOT, "%.2f", fm.getBurnProgress())
-                    + " 已装燃料=" + fuelChosen + "/" + fuelBurnLoaded + "t"
-                    + " 需要≈" + COOK_TICKS_PER_ITEM * targetOut + "t");
+                    + " fuelLoaded=" + fuelChosen + "/" + fuelBurnLoaded + "t"
+                    + " needed≈" + COOK_TICKS_PER_ITEM * targetOut + "t");
         }
     }
 
@@ -425,16 +426,17 @@ public final class SmeltProcess implements BotProcess {
         // A shortfall is judged by what the result slot holds here, not where SMELT_WAIT stopped: the
         // ingredient slot's update can land a tick before the result's, so the last item shows late.
         if (shortCause != null && made < targetOut) {
-            error = "部分完成：只炼出 " + made + "/" + targetOut + shortCause;
+            error = "partially completed: smelted only " + made + "/" + targetOut + shortCause;
         }
         int stranded = menu.getSlot(AbstractFurnaceMenu.RESULT_SLOT).getItem().getCount();
         if (made > 0 && stranded >= made) {
-            error = "炼好的 " + made + " 个 " + madeId + " 取不回背包（背包空格 " + freeBefore
-                    + "，全部留在熔炉 " + (furnacePos == null ? "?" : furnacePos.toShortString()) + "）";
+            error = "the " + made + " x " + madeId + " smelted cannot be taken into the inventory (free slots "
+                    + freeBefore + "; all of it is left in the furnace at "
+                    + (furnacePos == null ? "?" : furnacePos.toShortString()) + ")";
         } else if (stranded > 0) {
-            error = "只取回 " + (made - stranded) + "/" + made + " 个 " + madeId
-                    + "（背包空格 " + freeBefore + "，剩下的留在熔炉 "
-                    + (furnacePos == null ? "?" : furnacePos.toShortString()) + "）";
+            error = "took back only " + (made - stranded) + "/" + made + " x " + madeId
+                    + " (free slots " + freeBefore + "; the rest is left in the furnace at "
+                    + (furnacePos == null ? "?" : furnacePos.toShortString()) + ")";
         }
         if (error != null) s.smelt.lastError = error;   // surface partial-completion note
         LOG.info("[smelt] COLLECT: furnace={} made={}× {} taken={} left={} free={}->{} note={}",
@@ -535,5 +537,7 @@ public final class SmeltProcess implements BotProcess {
     private static String idOf(ItemStack s) { return BuiltInRegistries.ITEM.getKey(s.getItem()).toString(); }
     private static String shortId(String id) { int i = id.indexOf(':'); return i >= 0 ? id.substring(i + 1) : id; }
 
+    // Every failure that concerns the furnace says "furnace": wd.serverSmeltStationOpens reads
+    // that word in smelt.lastError as "the furnace never opened or took its load".
     private void fail(BotState s, String msg) { this.error = msg; this.st = St.FAIL; }
 }

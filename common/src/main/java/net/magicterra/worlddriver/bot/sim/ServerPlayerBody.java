@@ -283,7 +283,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         // stack in slot 0 -> the footing remedy spends a block and the sole goes 0.168 -> 0.360;
         // the same stack in slot 20 -> zero blocks spent, sole 0.168 -> 0.184, body off the ledge.
         // Rung 20 walks its End legs with the haul wherever picking it up put it, which is why the
-        // ladder logged five footing pins and not one 垫脚. Swapping up from the bag is what the
+        // ladder logged five footing pins and not one support placement. Swapping up from the bag is what the
         // tool selector below has always done for exactly the same reason.
         for (int slot = 9; slot < inv.items.size(); slot++) {
             if (!isSupport(inv.items.get(slot))) continue;
@@ -420,18 +420,18 @@ public class ServerPlayerBody implements Body, Hands, Containers {
 
     /** Where this body was and what it was aiming at, for the place tally's first-sample rows. */
     private String placeSample(BlockPos cell) {
-        return "身体 " + fp.blockPosition().toShortString() + " → 目标 " + cell.toShortString();
+        return "bot at " + fp.blockPosition().toShortString() + " → target " + cell.toShortString();
     }
 
-    /** The place actuator's own tally, for a caller that can see「no block was spent」and cannot see
+    /** The place actuator's own tally, for a caller that can see "no block was spent" and cannot see
      *  why. Read it as a partition: {@code calls=0} means the actuator never ran at all (an ordering
-     *  or momentum fault upstream, not a placement one); {@code 无面>0} means it ran and found no
-     *  solid neighbour to click; {@code 无块>0} means the body was not holding anything placeable. */
+     *  or momentum fault upstream, not a placement one); {@code noFace>0} means it ran and found no
+     *  solid neighbour to click; {@code noBlock>0} means the bot was not holding anything placeable. */
     public String placeTally() {
-        return "calls=" + placeCalls + " 无面=" + placeNoFace + " 无块=" + placeNoBlock
-                + "；首次调用 " + (firstCallAt == null ? "无" : firstCallAt)
-                + "；首次无面 " + (firstNoFaceAt == null ? "无" : firstNoFaceAt)
-                + "；首次无块 " + (firstNoBlockAt == null ? "无" : firstNoBlockAt);
+        return "calls=" + placeCalls + " noFace=" + placeNoFace + " noBlock=" + placeNoBlock
+                + "; first call: " + (firstCallAt == null ? "none" : firstCallAt)
+                + "; first noFace: " + (firstNoFaceAt == null ? "none" : firstNoFaceAt)
+                + "; first noBlock: " + (firstNoBlockAt == null ? "none" : firstNoBlockAt);
     }
 
     @Override public void place(WorldView w, BlockPos cell) {
@@ -503,8 +503,8 @@ public class ServerPlayerBody implements Body, Hands, Containers {
      * the tick the fall becomes owed.
      *
      * <p>Why it earns a line: {@code wd.buriedOre} regressed on exactly this. The disagreement
-     * reading pinned the tick — {@code 悬空却报站着 t=260 脚底实心=0.0000 y=223.0000 落速=-0.0784},
-     * i.e. a body flush at a block boundary whose fall speed is precisely one tick of gravity from
+     * reading ("airborne but reported as standing") pinned the tick — {@code t=260
+     * soleOnSolid=0.0000 y=223.0000 fallSpeed=-0.0784}, i.e. a bot flush at a block boundary whose fall speed is precisely one tick of gravity from
      * rest, so it was resting on that cell the tick before and the cell was gone this tick. Under the
      * old gate vanilla's stale {@code onGround} then handed it a {@code +0.42} it had no standing to
      * take, and that illegal jump was what carried it up the staircase it had just dug out from under
@@ -519,7 +519,7 @@ public class ServerPlayerBody implements Body, Hands, Containers {
         if (soleBefore <= 0.0) return;
         if (WalkerGeometry.soleOnSolid(new ServerWorldView(fp.serverLevel()), fp) > 0.0) return;
         loggedDugOwnFloor = true;
-        WorldDriverCommon.LOG.info("[avatar] 挖掉了自己的落脚: t={} 目标={} 脚底实心 {}→0.0000 y={} 身体={}",
+        WorldDriverCommon.LOG.info("[avatar] dug out its own footing: t={} target={} soleOnSolid {}→0.0000 y={} foot={}",
                 fp.level().getGameTime(), target.toShortString(),
                 String.format(java.util.Locale.ROOT, "%.4f", soleBefore),
                 String.format(java.util.Locale.ROOT, "%.4f", fp.getY()),

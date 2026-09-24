@@ -35,7 +35,7 @@ import net.minecraft.world.level.block.Blocks;
  *
  * <p>The route those trips are walked on is no longer here: {@link JourneyStairwell} cuts the
  * staircase and walks it, which is what split this file when it in turn reached the budget. It said
- *「sink a shaft」until then, and the shaft had been gone for a dozen runs — see
+ * "sink a shaft" until then, and the shaft had been gone for a dozen runs — see
  * {@code JourneyStairwell.digStairsDown} for the four bugs that replaced it with a flight.
  */
 public final class JourneyPortalRung {
@@ -83,18 +83,21 @@ public final class JourneyPortalRung {
         boolean haveLake = !JourneyRoute.lavaLake.equals(JourneyRoute.UNSURVEYED);
         BlockPos lava = haveLake ? JourneyRoute.lavaLake : JourneyRoute.firstLava;
         rig.evidence("lava.landmark", (haveLake
-                ? "lavaLake " + lava.toShortString() + "（勘测到 " + JourneyRoute.lavaLakeSources + " 格源块）"
-                : "回退到 firstLava " + lava.toShortString() + " —— 没有勘测到够十格的岩浆湖"));
+                ? "lavaLake " + lava.toShortString() + " (survey found " + JourneyRoute.lavaLakeSources
+                  + " source blocks)"
+                : "fell back to firstLava " + lava.toShortString()
+                  + " — the survey found no lava lake with at least ten source blocks"));
         rig.evidence("bucket.before", rig.carrying("minecraft:bucket"));
         rig.evidence("flintAndSteel.before", rig.carrying("minecraft:flint_and_steel"));
         rig.evidence("cobblestone.before", rig.carrying("minecraft:cobblestone"));
         if (rig.carrying("minecraft:flint_and_steel") < 1) {
-            ctx.fail("没有打火石：PORTAL_KIT 应当留下一把（当前 0）");
+            ctx.fail("No flint and steel: PORTAL_KIT should have left one (currently 0)");
             return;
         }
         if (rig.carrying("minecraft:bucket") < 1 && rig.carrying("minecraft:water_bucket") < 1) {
-            ctx.fail("没有桶：OBSIDIAN 用完之后应当把空桶带回来（bucket=0, water_bucket=0, lava_bucket="
-                    + rig.carrying("minecraft:lava_bucket") + "）");
+            ctx.fail("No bucket: OBSIDIAN should have brought the empty bucket back after use"
+                    + " (bucket=0, water_bucket=0, lava_bucket="
+                    + rig.carrying("minecraft:lava_bucket") + ")");
             return;
         }
 
@@ -107,19 +110,19 @@ public final class JourneyPortalRung {
      *  normally one aim away; the walk is the fallback for a run that ended somewhere else. */
     private static void fillWaterAtTheSurface(SceneContext ctx, JourneyRig rig, Runnable then) {
         if (rig.carrying("minecraft:water_bucket") >= 1) {
-            rig.evidence("water.alreadyCarried", "是");
+            rig.evidence("water.alreadyCarried", "yes");
             then.run();
             return;
         }
         BlockPos water = JourneyTerrain.shallowWaterNear(rig, 24);
         if (water == null) {
             BlockPos w = JourneyRoute.firstWater;
-            rig.attempting("身边没有水，走到勘测过的水域装水");
+            rig.attempting("No water nearby; walking to the surveyed water to fill the bucket");
             WorldDriverJourneyScenes.walkToColumn(rig, "water", w.getX(), w.getZ(), 0, 16_000,
                     () -> JourneyFill.scoopWater(ctx, rig,
                             JourneyTerrain.shallowWaterNear(rig, 12), then),
-                    () -> ctx.fail("走不到 firstWater " + w.toShortString()
-                            + "：停在 " + rig.player().blockPosition()));
+                    () -> ctx.fail("Could not reach firstWater " + w.toShortString()
+                            + ": stopped at " + rig.player().blockPosition()));
             return;
         }
         JourneyFill.scoopWater(ctx, rig, water, then);
@@ -133,7 +136,8 @@ public final class JourneyPortalRung {
      * shape out of solid rock so every cell has a back for the buckets to aim at. Laid at the lava's
      * level that holds underground and fails at a surface lake: run 10 walked to this seed's only
      * usable lake, at <b>y=63</b>, cast the first two cells and died on the third with
-     * {@code 想放 -9,65,23 … 现在是 air} — the upper rows were open sky, so the water ran off.
+     * a report that it wanted to place at -9,65,23 and found air there — the upper rows were open
+ * sky, so the water ran off.
      *
      * <p>Seven below the lava puts all twelve cells in rock whatever the lake's depth, and costs a
      * seven-block climb per fill against the thirty-six the OBSIDIAN rung already climbs carrying
@@ -183,8 +187,8 @@ public final class JourneyPortalRung {
      * the wreck takes are this rung's two upstream deaths:
      *
      * <pre>
-     * east FAIL 10608t  end=failed:no progress for 1200 ticks   停在 -13, 66, 21   ← pinned on the rim
-     * east FAIL 206t    end=failed:no path (expanded=1)         停在 -12, 63, 20   ← in the pool
+     * east FAIL 10608t  end=failed:no progress for 1200 ticks   stopped at -13, 66, 21   ← pinned on the rim
+     * east FAIL 206t    end=failed:no path (expanded=1)         stopped at -12, 63, 20   ← in the pool
      * </pre>
      *
      * <p>The first is the crater's lip: {@code footing guard: sole 0.0000 … beside a lethal drop}
@@ -193,7 +197,8 @@ public final class JourneyPortalRung {
      * cell. The second is worse and needs no guard to explain it — {@code expanded=1} is a start
      * node the pathfinder judges lethal, at the lava's own row, so nothing downstream can plan at
      * all: that run died 206 ticks in with the back-off itself unable to move
-     * ({@code shaft.backOff.2 = -12, 63, 20（想退到 -16,24，只退到这里）}).
+     * ({@code shaft.backOff.2} recorded -12, 63, 20: it tried to back off to -16,24 and got no
+     * further than that).
      *
      * <p>Both are the same mistake, and it is not a tolerance: <b>the destination was a cell no body
      * can occupy</b>, so where the leg ended was decided by how the walker gave up. Naming a bank
@@ -210,32 +215,37 @@ public final class JourneyPortalRung {
         BlockPos from = rig.player().blockPosition();
         Map<String, Integer> why = new java.util.LinkedHashMap<>();
         BlockPos bank = JourneyTerrain.bankStandNear(level, lava, from, why, true);
-        String how = "脚边一步之内没有通向岩浆的空洞（严格判据）";
+        String how = "no opening towards the lava within one step of the feet (strict criterion)";
         if (bank == null) {
             Map<String, Integer> loose = new java.util.LinkedHashMap<>();
             bank = JourneyTerrain.bankStandNear(level, lava, from, loose, false);
             if (bank != null) {
                 BlockPos over = JourneyTerrain.onThePoolsLip(level, bank);
                 if (over == null) over = JourneyTerrain.onThePoolsLip(level, bank.above());
-                how = "严格判据一格都没有，退回旧判据 —— 这一格在坑沿上（一步之外 " + over
-                        + " 是岩浆），被它否掉的计数见「脚边就是通向岩浆的空洞」";
+                how = "the strict criterion accepted no cell, so the loose criterion was used — this"
+                        + " cell is on the pool's rim (one step away, " + over + " is lava); the cells"
+                        + " the strict criterion rejected are counted under 'opening towards the lava"
+                        + " beside the feet'";
             }
             why.putAll(loose);
         }
         rig.evidence("lava.bank", bank == null
-                ? "湖边 " + JourneyTerrain.BANK_REACH + " 格内没有站得住的干地 —— 退回走岩浆柱本身 "
-                  + lava.getX() + "," + lava.getZ() + "（这正是把身体走进湖里的那条路）；否决计数 " + why
-                : bank.toShortString() + "：距岩浆柱 "
+                ? "no standable dry ground within " + JourneyTerrain.BANK_REACH
+                  + " blocks of the lake — falling back to the lava column itself "
+                  + lava.getX() + "," + lava.getZ() + " (the very route that walks the bot into the"
+                  + " lake); rejection counts " + why
+                : bank.toShortString() + ": "
                   + Math.round(Math.hypot(bank.getX() - lava.getX(), bank.getZ() - lava.getZ()))
-                  + " 格，距身体 "
+                  + " blocks from the lava column, "
                   + Math.round(Math.hypot(bank.getX() - from.getX(), bank.getZ() - from.getZ()))
-                  + " 格；" + how + "；否决计数 " + why);
+                  + " blocks from the bot; " + how + "; rejection counts " + why);
         return bank == null ? lava : bank;
     }
 
     /** Walk to the surveyed lava and sink to its level, reusing OBSIDIAN's own descent. */
     private static void descendToTheForge(SceneContext ctx, JourneyRig rig, BlockPos lava) {
-        rig.attempting("背着一桶水走到岩浆湖边站得住的一格，挖一段楼梯下到岩浆层");
+        rig.attempting("Carrying a water bucket to a standable cell beside the lava lake, then"
+                + " digging a staircase down to the lava's level");
         BlockPos bank = pinTheApproach(ctx, rig, lava);
         JourneyStairwell.lavaPool = lava;
         // THE ROUTE, not only its end. See JourneyTerrain#poolsLipCells: a chosen bank cell did not
@@ -244,12 +254,13 @@ public final class JourneyPortalRung {
         // ever does a hash lookup against an immutable set.
         JourneyTerrain.RimTax tax = JourneyTerrain.avoidTheRim(ctx.level(), lava);
         rig.evidence("lava.rimTax", tax.story()
-                + "；这一段、它的中点腿，以及此后每一趟楼梯 flight 和每一趟走去装料点都带着这份加价");
+                + "; this walk, its midpoint walk, and every later staircase flight and every walk to"
+                + " the loading point all carry this cost surcharge");
         WorldDriverJourneyScenes.walkToColumn(rig, "lava", bank.getX(), bank.getZ(), 0, 24_000,
                 tax.bias(), () -> {
             BlockPos at = rig.player().blockPosition();
             final int surfaceY = JourneyTerrain.daylightY(rig, at);
-            rig.evidence("forge.surfaceY", surfaceY + "（脚下 y=" + at.getY() + "）");
+            rig.evidence("forge.surfaceY", surfaceY + " (feet at y=" + at.getY() + ")");
             if (at.getY() <= forgeFloorY(lava) + 1) { carveTheForge(ctx, rig, lava, surfaceY); return; }
             ServerLevel level = ctx.level();
             Map<String, Integer> rejected = new java.util.LinkedHashMap<>();
@@ -264,8 +275,9 @@ public final class JourneyPortalRung {
                     : JourneyTerrain.pickDigColumn(level, lava, surfaceY, rejected, List.of(),
                             JourneyRehearsal.stagedForgeSide);
             if (dig == null) {
-                ctx.fail("岩浆柱周围没有可下挖的柱子（目标 " + lava.toShortString()
-                        + "，地表 y=" + surfaceY + "）——各项否决计数：" + rejected);
+                ctx.fail("No column around the lava column can be dug down (target "
+                        + lava.toShortString() + ", surface y=" + surfaceY
+                        + ") — rejection counts by reason: " + rejected);
                 return;
             }
             WorldDriverJourneyScenes.stepOntoDiggableColumn(rig, dig, lava, surfaceY,
@@ -279,9 +291,9 @@ public final class JourneyPortalRung {
                 JourneyStairwell.stairDir = awayFrom(lava, start);
                 int depth = Math.max(0, start.getY() - forgeFloorY(lava));
                 int cap = depth * JourneyStairwell.STAIR_ATTEMPTS_PER_BLOCK + 40;
-                rig.evidence("stairs.top", start.toShortString() + " 往 "
-                        + JourneyStairwell.stairDir + " 下 "
-                        + depth + " 级到 y=" + forgeFloorY(lava) + "（给 " + cap + " 次）");
+                rig.evidence("stairs.top", start.toShortString() + " heading "
+                        + JourneyStairwell.stairDir + ", down "
+                        + depth + " steps to y=" + forgeFloorY(lava) + " (" + cap + " attempts allowed)");
                 JourneyStairwell.digStairsDown(ctx, rig, forgeFloorY(lava), cap, cap, () -> {
                     rig.evidence("forge.landedY", rig.player().blockPosition().getY());
                     // The baseline the twenty later audits are read against. A flight that is
@@ -290,15 +302,17 @@ public final class JourneyPortalRung {
                     rig.evidence("stairs.asCut", JourneyStairs.report(ctx.level()));
                     carveTheForge(ctx, rig, lava, surfaceY);
                 });
-            }, () -> ctx.fail("站不到可下挖的柱子上：想去 " + dig.getX() + "," + dig.getZ()
-                    + "，停在 " + rig.player().blockPosition()
+            }, () -> ctx.fail("Could not stand on a diggable column: wanted " + dig.getX() + ","
+                    + dig.getZ() + ", stopped at " + rig.player().blockPosition()
                     // Deliberately asserts NOTHING about why. Its twin in WorldDriverJourneyScenes
-                    // used to guess「该柱在岩浆层不是实心」and was wrong on ladder-15; the four values
-                    // that actually decide it are on shaft.stepStuck, and what each walk leg did is
-                    // on shaft.stepEnd.*.
-                    + "（为什么：看 shaft.stepStuck 的四项与 shaft.stepEnd.* 的每腿 end）"));
-        }, () -> ctx.fail("走不到岩浆湖边：目标 " + bank.getX() + "," + bank.getZ()
-                + "（岩浆柱 " + lava.getX() + "," + lava.getZ() + "，见 lava.bank 是怎么选的），停在 "
+                    // used to guess that the column was not solid at the lava's level, and was wrong
+                    // on ladder-15; the four values that actually decide it are on shaft.stepStuck,
+                    // and what each walk did is on shaft.stepEnd.*.
+                    + " (for the cause, see the four values in shaft.stepStuck and the end of each"
+                    + " walk in shaft.stepEnd.*)"));
+        }, () -> ctx.fail("Could not reach the lava lake's bank: target " + bank.getX() + ","
+                + bank.getZ() + " (lava column " + lava.getX() + "," + lava.getZ()
+                + "; lava.bank records how it was chosen), stopped at "
                 + rig.player().blockPosition()));
     }
 
@@ -333,8 +347,8 @@ public final class JourneyPortalRung {
         // once removes the case where a body that stopped a cell short computes the OTHER axis and
         // carves the mould back across its own way home.
         Direction away = JourneyStairwell.stairDir;
-        rig.evidence("forge.away", away + "（楼梯方向；从岩浆看这里是 "
-                + awayFrom(lava, at) + "）");
+        rig.evidence("forge.away", away + " (the staircase's direction; seen from the lava, this"
+                + " spot lies " + awayFrom(lava, at) + ")");
         // Two questions decide where the mould goes, and only one of them used to be asked.
         //
         // HOW FAR OUT (`push`) answers "is there fluid in what I am about to dig". That is a real
@@ -358,8 +372,9 @@ public final class JourneyPortalRung {
             if (deepenings > 0) {
                 int deeper = at.getY() - FORGE_DEEPEN_BY;
                 rig.evidence("forge.deepen." + (FORGE_DEEPENINGS - deepenings + 1),
-                        "y=" + at.getY() + " → " + deeper + "：" + bad);
-                rig.attempting("模腔外壳不干，楼梯再往下修 " + FORGE_DEEPEN_BY + " 级");
+                        "y=" + at.getY() + " → " + deeper + ": " + bad);
+                rig.attempting("The mould's shell is not dry; extending the staircase "
+                        + FORGE_DEEPEN_BY + " steps further down");
                 // Deepened as MORE STAIRCASE, not as a shaft. Sinking straight down here was the old
                 // behaviour and it severed the route the moment it was used: the stairs ended at
                 // y=56 and the alcove at y=51, with nothing walkable between them, which is exactly
@@ -370,8 +385,9 @@ public final class JourneyPortalRung {
                         () -> carveTheForge(ctx, rig, lava, surfaceY, deepenings - 1));
                 return;
             }
-            ctx.fail("模腔怎么摆都不成立：外推 2..8 格、下挖 " + (FORGE_DEEPENINGS * FORGE_DEEPEN_BY)
-                    + " 格都试过，最后一处 " + bad + "（身体在 " + at + "）");
+            ctx.fail("No placement of the mould holds: pushing out 2..8 blocks and digging down "
+                    + (FORGE_DEEPENINGS * FORGE_DEEPEN_BY) + " blocks were all tried; the last"
+                    + " obstruction was " + bad + " (bot at " + at + ")");
             return;
         }
         final int out = push;
@@ -393,8 +409,9 @@ public final class JourneyPortalRung {
         // it is what lets a flight prefer a route that does not fill a cell a later pour has to
         // shoot through, and what names the borrow when there is no such route.
         JourneySight.mould(base, away);
-        rig.evidence("forge.face", base.toShortString() + " 朝 " + away
-                + "（背离岩浆，外推 " + push + " 格，井底 y=" + at.getY() + "，岩浆层 y=" + lava.getY() + "）");
+        rig.evidence("forge.face", base.toShortString() + " facing " + away
+                + " (away from the lava, pushed out " + push + " blocks, shaft bottom y=" + at.getY()
+                + ", lava level y=" + lava.getY() + ")");
         // Corridor only. The twelve frame cells were checked for fluid above (via `cells`) but are
         // left SOLID here — each is opened in castCell just before it is filled, so that its floor
         // is still rock or already-cast obsidian at the moment the fluid lands in it.
@@ -403,56 +420,60 @@ public final class JourneyPortalRung {
             if (level.getBlockState(c).isAir()) continue;
             todo.add(c);
         }
-        rig.evidence("forge.toCarve", todo.size() + "/" + cells.size() + " 格");
-        rig.attempting("挖出浇筑用的壁龛和十二格门框");
+        rig.evidence("forge.toCarve", todo.size() + "/" + cells.size() + " cells");
+        rig.attempting("Carving the casting alcove and the twelve frame cells");
         BotConfig.allowPlace = false;
         int swungBefore = rig.swungInPlace();
         int cobbleBefore = rig.carrying("minecraft:cobblestone");
         carveNext(ctx, rig, todo, 0, new ArrayList<>(), () -> {
             // Placing stays OFF from here to the last cast, and that is the fix run 16 asked for.
-            // The alcove is finished: every cell the body needs is already open, so anything the
+            // The alcove is finished: every cell the bot needs is already open, so anything the
             // pathfinder puts down inside it is pure obstruction — and it does not land harmlessly.
-            // Measured: standToPour rejected all 140 candidates, with 头顶被占 on BOTH cells of the
-            // only line that can see the backing (-9,52,21 and -9,52,22) and stray cobblestone at
-            // -10,53,21. That is a body pillaring up its own shaft while walking to a frame cell,
-            // and it walls off exactly the two spots the pour has to stand in. The rung then had no
+            // Measured: standToPour rejected all 140 candidates, reporting the head space occupied
+            // on BOTH cells of the only line that can see the backing (-9,52,21 and -9,52,22) and
+            // stray cobblestone at -10,53,21. That is the bot pillaring up its own shaft while
+            // walking to a frame cell, and it walls off exactly the two spots the pour has to stand
+            // in. The rung then had no
             // ray-verified spot at all, fell back to a standable one, and stopped on its own gate.
             //
             // The only place that still needs to build is the ascent, and climbOut turns it back on
             // for itself; returnToTheForge turns it off again on the way down.
             BotConfig.allowPlace = false;
-            // NOT "完成" WHEN IT IS NOT. The ladder run of 2026-08-15 printed `forge.carved=完成`
-            // directly under `carve.stuck=12 格挖不动`, and the two rows were written by the same
-            // method one line apart. A caption that says the excavation finished, beside a
+            // NOT "DONE" WHEN IT IS NOT. The ladder run of 2026-08-15 printed `forge.carved` as done
+            // directly under a `carve.stuck` row reporting 12 cells that would not break, and the
+            // two rows were written by the same method one line apart. A caption that says the
+            // excavation finished, beside a
             // measurement that says twelve of its cells are still rock, is a caption that can only
             // mislead.
             //
             // It reports rather than FAILS, and that is a decision the data forced. Stuck cells are
-            // not uniformly fatal: the two rehearsals that cast 10/10 both carried
-            // `carve.stuck=4 格` at the alcove's ceiling, and the twelve that the ladder run carried
+            // not uniformly fatal: the two rehearsals that cast 10/10 both carried four stuck cells
+            // in `carve.stuck` at the alcove's ceiling, and the twelve that the ladder run carried
             // were at the top two rows as well — the cell that actually killed that run,
             // `7,56,19`, had been carved perfectly and was refilled afterwards. Failing here would
             // have ended three runs earlier than their real finding, which is the opposite of what a
             // gate is for.
             int carved = todo.size() - forgeStuck.size();
             rig.evidence("forge.carved", forgeStuck.isEmpty()
-                    ? todo.size() + "/" + todo.size() + " 格全开"
-                    : carved + "/" + todo.size() + " 格开了，" + forgeStuck.size()
-                      + " 格没挖动 —— 见 carve.stuck，壁龛不是完整的");
+                    ? todo.size() + "/" + todo.size() + " cells, all open"
+                    : carved + "/" + todo.size() + " cells open, " + forgeStuck.size()
+                      + " would not break — see carve.stuck; the alcove is incomplete");
             // HOW MANY NEEDED A ROUTE AT ALL. `forge.carved` counts cells and cannot tell a carve
             // that walked to all of them from one that walked to none, and those are different
             // machines with different failure modes — the walk is what pillared the body onto the
             // surface on 2026-08-16. A run where this number is near zero has NOT taken the fix.
             rig.evidence("forge.swung", (rig.swungInPlace() - swungBefore) + "/" + todo.size()
-                    + " 格是就地挥开的（canBreak 已经为真，不用走过去）");
+                    + " cells were broken in place (canBreak was already true, so no walk was needed)");
             // WHAT THE SKIPPED COLLECT COST. An in-place swing breaks the block but nothing walks
             // to the drop, so the alcove's cobblestone is now collected only by the avatar's own
-            // pickup sweep. This rung SPENDS cobblestone (backings, steps, pillars), so「carve 之后
-            // 手上多了几块」is the number that says whether that trade was affordable — measured as
-            // a delta, because the bag already held sixty-nine when the rung started.
+            // pickup sweep. This rung SPENDS cobblestone (backings, steps, pillars), so how many
+            // more blocks the bot holds after the carve is the number that says whether that trade
+            // was affordable — measured as a delta, because the bag already held sixty-nine when
+            // the rung started.
             rig.evidence("forge.cobblestone", cobbleBefore + " → "
-                    + rig.carrying("minecraft:cobblestone") + "（挖壁龛这一段的净变化；"
-                    + "就地挥不走过去捡，掉落只靠身体自己的拾取范围）");
+                    + rig.carrying("minecraft:cobblestone") + " (net change across the alcove carve;"
+                    + " an in-place break does not walk to its drop, so drops are collected only"
+                    + " within the bot's own pickup range)");
             // Is the mould still a mould? The backings were solid when the spot was CHOSEN, and the
             // carve is the only thing that has happened since — but `allowBreak` stays on through it,
             // so the pathfinder is free to chew a way through the back wall while reaching a corridor
@@ -460,11 +481,14 @@ public final class JourneyPortalRung {
             // backing, and a ray that passes through it puts the fluid a cell or more beyond, which
             // the rung would then report as "the cast does not work".
             String open = JourneyForge.firstOpenBacking(ctx.level(), at, away, out);
-            rig.evidence("forge.backings", open == null ? "十四格背板都还是实心" : "挖穿了：" + open);
+            rig.evidence("forge.backings", open == null ? "all fourteen backing cells are still solid"
+                    : "dug through: " + open);
             if (open != null) {
-                ctx.fail("挖模腔时把门框背后挖穿了：" + open
-                        + " —— 选址时这些格子都是实心的，是挖的过程（allowBreak 全程开着，"
-                        + "寻路自己会破墙）把背板打通的。背板一旦是空的，瞄它的每一桶都会穿过去");
+                ctx.fail("Carving the mould dug through the wall behind the frame: " + open
+                        + " — these cells were all solid when the spot was chosen, so the carve"
+                        + " itself (allowBreak stays on throughout, and the pathfinder breaks walls"
+                        + " on its own) opened the backing. Once a backing cell is empty, every"
+                        + " bucket aimed at it passes through");
                 return;
             }
             // HOME BEFORE THE FIRST CAST. Every other phase of this rung that can leave the alcove
@@ -476,22 +500,22 @@ public final class JourneyPortalRung {
             // top row is y=62 under a surface at y=64, so the cheapest way for `MineProcess` to
             // reach a cell it cannot swing at is to walk up the staircase and dig down from
             // outside. `forge.swung` says how often that happens — 63 of 67 cells were opened where
-            // the body stood and the remaining four were enough — and `carve.stuck`'s own key is
-            // the giveaway, since it measures each cell's height against「the row the body's feet
-            // ended on」and that row read y=64 on runs whose alcove floor is y=56.
+            // the bot stood and the remaining four were enough — and `carve.stuck`'s own key is
+            // the giveaway, since it measures each cell's height against "the row the bot's feet
+            // ended on" and that row read y=64 on runs whose alcove floor is y=56.
             //
             // Measured three times on the east arm, always the same two rows, never any others:
             //
             //   FAIL 8055t / FAIL 10608t   forge.carved=66/67  forge.swung=63/67  carve.stuck={-2=1}
-            //                              cell.0.standMissed=想站 3, 56, 19，停在 2, 65, 19
+            //                              cell.0.standMissed: wanted 3, 56, 19, stopped at 2, 65, 19
             //
             // The cast's own walk cannot fix it: `walkToStand` gets 300 ticks and NoBreak to cross
             // nine rows of rock it would have to go round by the stairs, so it reports a stand it
             // missed by 9.22 blocks and the dig then reports `canBreak=false` at 12 m — three
-            // readings, none of which names the body being outside. Walking home is not a widened
-            // tolerance: it is the same leg, with the same audit and the same pillar-out recovery,
+            // readings, none of which names the bot being outside. Walking home is not a widened
+            // tolerance: it is the same walk, with the same audit and the same pillar-out recovery,
             // that the fetch trips have always used, asked at the one transition that skipped it. A
-            // body still in the alcove returns from its first line without moving.
+            // bot still in the alcove returns from its first line without moving.
             JourneyStairwell.returnToTheForge(ctx, rig, base.getY(), "forge",
                     () -> castTheFrame(ctx, rig, base, away, lava, surfaceY));
         });
@@ -518,8 +542,8 @@ public final class JourneyPortalRung {
             // after the carve, which is the only way the rung can tell its own scaffolding from the
             // rock it failed to break without guessing at block ids.
             forgeStuck = Set.copyOf(stuck);
-            rig.evidence("carve.stuck", stuck.isEmpty() ? "无"
-                    : stuck.size() + " 格挖不动：" + describeStuck(rig, stuck));
+            rig.evidence("carve.stuck", stuck.isEmpty() ? "none"
+                    : stuck.size() + " cells would not break: " + describeStuck(rig, stuck));
             then.run();
             return;
         }
@@ -562,10 +586,11 @@ public final class JourneyPortalRung {
             boolean s = level.getBlockState(n).isSolidRender(level, n);
             if (s) solid++;
             around.append(' ').append(d).append('=').append(level.getBlockState(n).getBlock())
-                    .append(s ? "(实心)" : "");
+                    .append(s ? "(solid)" : "");
         }
         rig.evidence("carve.firstStuck", String.format(java.util.Locale.ROOT,
-                "%s=%s：身体 %s，距 %.1f 格，canBreak=%s，六邻实心 %d/6，手上 %s；六邻%s",
+                "%s=%s: bot at %s, %.1f blocks away, canBreak=%s, solid neighbours %d/6, holding %s;"
+                        + " neighbours%s",
                 c.toShortString(), level.getBlockState(c).getBlock(), at.toShortString(),
                 Math.sqrt(at.distSqr(c)), rig.body().avatar().canBreak(c), solid,
                 BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()), around));
@@ -585,12 +610,13 @@ public final class JourneyPortalRung {
         StringBuilder where = new StringBuilder();
         for (int i = 0; i < Math.min(stuck.size(), 8); i++)
             where.append(i == 0 ? "" : " ").append(stuck.get(i).toShortString());
-        // SAY WHAT THE KEY IS RELATIVE TO. "离脚下的高度" is measured from wherever the body finished
-        // the carve, which is not the alcove floor and is not the same place twice — read without
+        // SAY WHAT THE KEY IS RELATIVE TO. "Height above the feet" is measured from wherever the
+        // bot finished the carve, which is not the alcove floor and is not the same place twice — read without
         // that y the histogram put the ladder run's twelve stuck cells at "0 and 1", which reads as
         // the floor and is in fact the ceiling.
-        return byHeight + "（键=离 y=" + floor + " 的高度，即挖完时身体脚下那一层，值=格数）"
-                + " 分别在：" + where + (stuck.size() > 8 ? " …" : "");
+        return byHeight + " (key = height above y=" + floor + ", the row under the bot's feet when"
+                + " the carve finished; value = cell count) at: " + where
+                + (stuck.size() > 8 ? " …" : "");
     }
 
     /**
@@ -603,15 +629,15 @@ public final class JourneyPortalRung {
     private static void castTheFrame(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
                                      BlockPos lava, int surfaceY) {
         // Searched around the SURVEYED lava, not around the body — and that is the fix for a run
-        // that reported "0 格" while standing in a chamber it had just carved. The shaft column is
+        // that reported zero sources while standing in a chamber it had just carved. The shaft column is
         // chosen up to eight cells clear of the pool (it must not open into it), and then the alcove
         // is carved further away again, so by the time the casting starts the body can be a dozen
         // blocks from the lava it came down for. The caller knows where the pool is; ask there.
         BlockPos here = rig.player().blockPosition();
         List<BlockPos> pool = JourneyTerrain.lavaSourcesNear(ctx.level(), lava, 16, here);   // may be widened below
-        rig.evidence("pool.sources", pool.size() + " 格岩浆源（需要 " + RING.length + "）"
-                + (pool.isEmpty() ? "" : "，最近一格 " + pool.get(0).toShortString() + " 距身体 "
-                        + Math.round(Math.sqrt(pool.get(0).distSqr(here))) + " 格"));
+        rig.evidence("pool.sources", pool.size() + " lava sources (" + RING.length + " needed)"
+                + (pool.isEmpty() ? "" : ", nearest " + pool.get(0).toShortString() + " is "
+                        + Math.round(Math.sqrt(pool.get(0).distSqr(here))) + " blocks from the bot"));
         // Widen before giving up. firstLava is the OBSIDIAN rung's fill point and a bucket takes the
         // source block itself, so the surveyed cell can simply be gone by now — measured, zero
         // sources within sixteen of it. The body is already standing at lava level with its chunks
@@ -619,9 +645,10 @@ public final class JourneyPortalRung {
         // declaring the rung impossible.
         if (pool.size() < RING.length) {
             List<BlockPos> wider = JourneyTerrain.lavaSourcesNear(ctx.level(), here, 40, here);
-            rig.evidence("pool.widened", pool.size() + " → " + wider.size() + " 格（以身体为心 40 格）"
-                    + (wider.isEmpty() ? "" : "，最近 " + wider.get(0).toShortString() + " 距 "
-                        + Math.round(Math.sqrt(wider.get(0).distSqr(here))) + " 格"));
+            rig.evidence("pool.widened", pool.size() + " → " + wider.size()
+                    + " sources (within 40 blocks of the bot)"
+                    + (wider.isEmpty() ? "" : ", nearest " + wider.get(0).toShortString() + " at "
+                        + Math.round(Math.sqrt(wider.get(0).distSqr(here))) + " blocks"));
             if (wider.size() >= RING.length) pool = wider;
         }
         if (pool.size() < RING.length) {
@@ -629,19 +656,21 @@ public final class JourneyPortalRung {
             // and "the nearest source is 40 blocks that way" are the same red row and want opposite
             // fixes — a wider search versus a different landmark.
             List<BlockPos> wider = JourneyTerrain.lavaSourcesNear(ctx.level(), here, 48, here);
-            rig.evidence("pool.nearestAnywhere", wider.isEmpty() ? "48 格内一格都没有"
-                    : wider.get(0).toShortString() + " 距身体 "
-                      + Math.round(Math.sqrt(wider.get(0).distSqr(here))) + " 格，共 "
-                      + wider.size() + " 格源块");
+            rig.evidence("pool.nearestAnywhere", wider.isEmpty() ? "none within 48 blocks"
+                    : wider.get(0).toShortString() + " is "
+                      + Math.round(Math.sqrt(wider.get(0).distSqr(here))) + " blocks from the bot; "
+                      + wider.size() + " source blocks in total");
             rig.evidence("pool.column", JourneyTerrain.lavaColumnReport(ctx.level(), here, 24));
-            ctx.fail("岩浆源不够：以勘测点 " + lava.toShortString() + " 为心 16 格内只找到 "
-                    + pool.size() + " 格源块，浇十块需要十格。**firstLava 是 OBSIDIAN 装桶用的那一处，"
-                    + "装一次拿走的就是源块本身** —— 这一级需要的是一片有十格以上源块的岩浆湖，"
-                    + "是一个独立的地标，不是同一个点（身体在 " + here + "）");
+            ctx.fail("Not enough lava sources: only " + pool.size() + " source blocks within 16"
+                    + " blocks of the surveyed point " + lava.toShortString() + ", and ten casts need"
+                    + " ten. **firstLava is where OBSIDIAN fills its bucket, and each fill removes"
+                    + " the source block itself** — this rung needs a lava lake with at least ten"
+                    + " source blocks, which is a separate landmark, not the same point (bot at "
+                    + here + ")");
             return;
         }
         JourneyFill.pinTheFillStation(ctx, rig, lava, surfaceY, JourneyStairwell.stairTop);
-        rig.attempting("一只桶浇十块黑曜石（水搬着走）");
+        rig.attempting("Casting ten obsidian blocks with one bucket (carrying the water along)");
         openTheFrameWatch(base, away);
         castCell(ctx, rig, base, away, pool, 0, () -> lightIt(ctx, rig, base, away, surfaceY));
     }
@@ -665,7 +694,7 @@ public final class JourneyPortalRung {
     private static int frameLosses;
 
     /** The last step that ended with every cast cell still obsidian — the other half of "when". */
-    private static String frameLastSound = "浇筑开始前";
+    private static String frameLastSound = "before casting began";
 
     /** Is this one of the ten cells the frame is made of? */
     static boolean isFrameCell(BlockPos c) { return frameCells.contains(c); }
@@ -676,7 +705,7 @@ public final class JourneyPortalRung {
         frameCells = Set.copyOf(ring);
         frameCast.clear();
         frameLosses = 0;
-        frameLastSound = "浇筑开始前";
+        frameLastSound = "before casting began";
     }
 
     /**
@@ -706,14 +735,16 @@ public final class JourneyPortalRung {
             if (level.getBlockState(c).getBlock() == Blocks.OBSIDIAN) continue;
             it.remove();
             BlockPos at = rig.player().blockPosition();
-            rig.evidence("frame.lost." + (++frameLosses), c.toShortString() + " 浇成黑曜石之后又没了："
-                    + "现在是 " + level.getBlockState(c).getBlock()
-                    + "，丢在「" + step + "」这一步里（上一次它还在，是「" + frameLastSound + "」之后）；"
-                    + "身体 " + at.toShortString() + " 距 "
+            rig.evidence("frame.lost." + (++frameLosses), c.toShortString()
+                    + " was cast to obsidian and is gone again: it is now "
+                    + level.getBlockState(c).getBlock()
+                    + ", lost during step '" + step + "' (last seen intact after '" + frameLastSound
+                    + "'); bot at " + at.toShortString() + ", "
                     + String.format(java.util.Locale.ROOT, "%.1f", Math.sqrt(at.distSqr(c)))
-                    + " 格，手上 "
+                    + " blocks away, holding "
                     + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem())
-                    + "；已浇 " + (frameCast.size() + frameLosses) + " 格，现存 " + frameCast.size() + " 格");
+                    + "; cast so far " + (frameCast.size() + frameLosses) + " cells, still standing "
+                    + frameCast.size());
         }
         // Unconditionally, INCLUDING after a loss. The cells still standing were verifiably whole at
         // the end of this step, so this step is what the next loss should name as its last-seen —
@@ -733,12 +764,12 @@ public final class JourneyPortalRung {
     private static void castCell(SceneContext ctx, JourneyRig rig, BlockPos base, Direction away,
                                  List<BlockPos> pool, int i, Runnable then) {
         if (i >= RING.length) {
-            auditFrame(rig, "最后一格收尾之后");
+            auditFrame(rig, "after the last cell was finished");
             // BOTH NUMBERS. "6/10" alone is the row that started this: it cannot say whether four
             // cells never cast or four cast and were taken back, and those want opposite work.
             rig.evidence("frame.cast", countObsidian(ctx.level(), base, away) + "/" + RING.length
-                    + "（浇成过 " + (frameCast.size() + frameLosses) + " 格，浇成之后又丢了 "
-                    + frameLosses + " 格 —— 见 frame.lost.*）");
+                    + " (" + (frameCast.size() + frameLosses) + " cells were cast, " + frameLosses
+                    + " of them lost again afterwards — see frame.lost.*)");
             then.run();
             return;
         }
@@ -755,9 +786,9 @@ public final class JourneyPortalRung {
         //
         // `frame.cast` answers the same question only at the END, and a run that never reaches the
         // end never writes it. This one is written ten times or fewer, never zero.
-        rig.evidence("frame.roll." + i, "开工 " + cell.toShortString() + "（水格 "
-                + wet.toShortString() + "）；此前浇成 " + frameCast.size() + "/" + RING.length
-                + " 格，浇成后又丢 " + frameLosses + " 格");
+        rig.evidence("frame.roll." + i, "starting " + cell.toShortString() + " (water cell "
+                + wet.toShortString() + "); cast so far " + frameCast.size() + "/" + RING.length
+                + ", lost after casting " + frameLosses);
         // What the rung has left to dig with, per cell. A snapped pickaxe and a cell the body cannot
         // reach produce the same line — `opened.N=…=stone` — and they want opposite fixes. The kit is
         // two stone pickaxes (262 uses) on purpose, and this rung breaks roughly a hundred cells plus
@@ -775,7 +806,8 @@ public final class JourneyPortalRung {
             for (BlockPos b : openBackings)
                 where.append(where.isEmpty() ? "" : " ").append(b.toShortString()).append('=')
                         .append(ctx.level().getBlockState(b).getBlock());
-            rig.evidence("backings." + i, openBackings.size() + "/14 格背板已经不是实心：" + where);
+            rig.evidence("backings." + i, openBackings.size() + "/14 backing cells are no longer solid: "
+                    + where);
         }
         // Open exactly these two, now. Everything else in the frame is still solid, which is what
         // gives this cell a floor — see forgeCorridor for why carving them all up front cast 0/10.
@@ -785,11 +817,12 @@ public final class JourneyPortalRung {
         // plausible reason run 20 left `wet` as stone, not a confirmed one; the assertion below is
         // what will actually name the cause next run.
         reopen(ctx, rig, "cell." + i, cell, away, REOPEN_TRIES,
-                watchFrame(rig, "cell." + i + " 挖开门框格 " + cell.toShortString(), () ->
+                watchFrame(rig, "cell." + i + " opening frame cell " + cell.toShortString(), () ->
                 reopen(ctx, rig, "wet." + i, wet, away, REOPEN_TRIES,
-                watchFrame(rig, "wet." + i + " 挖开水位格 " + wet.toShortString(), () ->
+                watchFrame(rig, "wet." + i + " opening water cell " + wet.toShortString(), () ->
                         tidyTheAlcove(ctx, rig, "tidy." + i,
-                                watchFrame(rig, "tidy." + i + " 清壁龛里自己垒的方块", () ->
+                                watchFrame(rig, "tidy." + i
+                                        + " clearing the bot's own blocks from the alcove", () ->
                                         castOpenedCell(ctx, rig, base, away, pool, i, cell, wet,
                                                 then)))))));
     }
@@ -806,7 +839,8 @@ public final class JourneyPortalRung {
      * directly over that one is gravel, mining out from under it dropped it in, and the reading that
      * says the cell is open was taken in the same tick as the swing that opened it. The pour then
      * aimed at the target, hit the gravel standing in it, and put the lava a cell short —
-     * {@code cast6.picks=-8,59,38 gravel face=north → 落进 -8,59,37}.
+     * {@code cast6.picks} recorded gravel at -8,59,38, face north, with the fluid landing in
+     * -8,59,37.
      *
      * <p>So the check is: dig, let the world settle, look again. Fluids are left alone — a cell with
      * the rung's own water in it is not shut, and asking {@code mine} to break water spends the whole
@@ -815,9 +849,10 @@ public final class JourneyPortalRung {
      *
      * <p><b>"Refilled" is now a measurement, not a caption.</b> It used to be printed on every retry
      * that found the cell solid — which is also what a dig that never opened it looks like — so the
-     * ladder run of 2026-08-12 reported {@code -9,56,34 又被 granite 填上了（上面塌下来的）} three
-     * times about a granite block that had never once been air. Granite is not a {@code FallingBlock}
-     * and nothing fell; the dig simply failed, and the line named a mechanism instead of saying so.
+     * ladder run of 2026-08-12 reported that -9,56,34 had been refilled with granite falling from
+     * above, three times, about a granite block that had never once been air. Granite is not a
+     * {@code FallingBlock} and nothing fell; the dig simply failed, and the line named a mechanism
+     * instead of saying so.
      *
      * <p><b>The body stands in the corridor first.</b> {@code ServerWorldDriver.mine} is
      * {@code walker.setGoal(Near(cell, 2))} with breaking on, and a walker asked to get near a cell
@@ -843,8 +878,10 @@ public final class JourneyPortalRung {
         if (tries < REOPEN_TRIES)
             rig.evidence(tag + (wasOpen ? ".refilled." : ".stillShut.") + tries,
                     cell.toShortString() + "=" + level.getBlockState(cell).getBlock()
-                    + (wasOpen ? "：开过又被填上了（这一格上面是会掉的方块），再挖一次"
-                               : "：这一格从头到尾没开过，不是被填上的 —— 挖没挖动，再试一次"));
+                    + (wasOpen ? ": was open and has been refilled (a falling block sits above this"
+                                 + " cell); digging again"
+                               : ": this cell was never open, not refilled — the dig did not break it;"
+                                 + " trying again"));
         standBehind(rig, tag, cell, away, () ->
             digWithoutTunnelling(rig, cell, tries == REOPEN_TRIES ? 1_200 : 400,
                 () -> rig.settle(new HoldStill(10), 30, () -> {
@@ -866,8 +903,9 @@ public final class JourneyPortalRung {
      * watching.
      *
      * <p>Measured the first time the frame watch ran on a single-bucket rehearsal:
-     * {@code frame.lost.1 = -9,60,38 浇成黑曜石之后又没了：现在是 air，丢在「wet.9 挖开水位格
-     * -10,61,38」这一步里，身体 -10,57,38}. The step is a dig of the NOTCH; the cell it cost is the
+     * {@code frame.lost.1} reported that -9,60,38 had been cast to obsidian and was air again, lost
+     * during the step that opened water cell -10,61,38 ({@code wet.9}), with the bot at -10,57,38.
+     * The step is a dig of the NOTCH; the cell it cost is the
      * top-left ring cell two rows below it; and {@code -10,57,38} is not a corridor cell at all, it
      * is an interior cell of the portal's own doorway. The body was inside the mould, having eaten
      * its way up through it, exactly as {@link #reopen}'s note describes — and the audit is what
@@ -962,10 +1000,11 @@ public final class JourneyPortalRung {
         // gate and the swing it green-lights cannot disagree. Costless when it refuses — the body
         // falls through to exactly the stand-finding it would have done anyway.
         if (rig.body().avatar().canBreak(cell)) {
-            rig.evidence(tag + ".swingFromHere", cell.toShortString() + " 就地够得着：身体 "
-                    + here.toShortString() + " 格心距 "
+            rig.evidence(tag + ".swingFromHere", cell.toShortString() + " is reachable in place: bot at "
+                    + here.toShortString() + ", cell-centre distance "
                     + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
-                    + " 超了 DIG_ARRIVE=" + DIG_ARRIVE + "，但 canBreak 为真 ⇒ 不去找站位、不修坡道");
+                    + " exceeds DIG_ARRIVE=" + DIG_ARRIVE + ", but canBreak is true ⇒ no stand search"
+                    + " and no ramp");
             then.run();
             return;
         }
@@ -980,7 +1019,7 @@ public final class JourneyPortalRung {
         // `tidyTheAlcove` swept it. A real climb arrives with what eleven rungs left: the ladder run
         // of 2026-08-15 arrived holding DIRT, and its first frame cell then read `canBreak=false`
         // with all six neighbours solid because the corridor cell behind it had become one of them —
-        // `cell.0.noStand = … 7,56,19 被 Block{minecraft:dirt} 占着`, at floor level, in a chamber cut
+        // `cell.0.noStand` reported 7,56,19 occupied by dirt, at floor level, in a chamber cut
         // through granite where dirt is not terrain. Three retries then re-asked an unchanged
         // question and the rung died five casts' worth of wall clock later, at the pour.
         //
@@ -993,7 +1032,8 @@ public final class JourneyPortalRung {
         if (blocked != null && clears > 0) {
             rig.evidence(tag + ".litter." + clears, blocked.toShortString() + "="
                     + level.getBlockState(blocked).getBlock()
-                    + " 挖门框时自己垒进落脚格的，敲掉它再站（挖完之后才出现，不在 carve.stuck 里）");
+                    + " was placed into the stand cell by the bot's own frame digging; breaking it"
+                    + " before standing (it appeared after the carve, so it is not in carve.stuck)");
             rig.mineCellOrGiveUp(blocked, 300,
                     () -> standBehind(rig, tag, cell, away, clears - 1, then));
             return;
@@ -1010,10 +1050,11 @@ public final class JourneyPortalRung {
         BlockPos step = lower.below();
         String whyStep = whyNotStep(level, step, here);
         if (whyStep != null) {
-            rig.evidence(tag + ".noStand", cell.toShortString() + " 够不着：身体 " + here.toShortString()
-                    + " 距 " + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
-                    + " 格（>" + DIG_ARRIVE + "）；站不了：" + whyBehind + "；" + whyLower
-                    + "；垫不了：" + whyStep + " —— 改修一段楼梯上去");
+            rig.evidence(tag + ".noStand", cell.toShortString() + " is out of reach: bot at "
+                    + here.toShortString() + ", "
+                    + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(here.distSqr(cell)))
+                    + " blocks away (>" + DIG_ARRIVE + "); cannot stand: " + whyBehind + "; " + whyLower
+                    + "; cannot place a step: " + whyStep + " — building a staircase up instead");
             // A FLIGHT, because one brick is what this row has just finished saying is not enough.
             // The two cells a single step can reach are the frame's bottom three rows; from the
             // fourth row up the brick's own support is air as well, and the honest answer is a
@@ -1030,9 +1071,11 @@ public final class JourneyPortalRung {
         // a step that was never there leaves exactly the "the dig just did not work" row this rung
         // has already been misled by twice.
         boolean stood = level.getBlockState(step).blocksMotion();
-        rig.evidence(tag + ".step", step.toShortString() + " 垫一格给 " + cell.toShortString() + " 用 → "
-                + (stood ? "站得住了（" + level.getBlockState(step).getBlock() + "）"
-                         : (held ? "没垫上（" + level.getBlockState(step).getBlock() + "）" : "手上没有圆石")));
+        rig.evidence(tag + ".step", step.toShortString() + " support block placed for "
+                + cell.toShortString() + " → "
+                + (stood ? "standable (" + level.getBlockState(step).getBlock() + ")"
+                         : (held ? "not placed (" + level.getBlockState(step).getBlock() + ")"
+                                 : "no cobblestone in hand")));
         if (!stood) { then.run(); return; }
         walkToStand(rig, tag, cell, lower, then);
     }
@@ -1047,22 +1090,23 @@ public final class JourneyPortalRung {
             BlockPos now = rig.player().blockPosition();
             if (withinDigReach(now, cell)) { then.run(); return; }
             // THE CONTINUOUS POSITION, not only the cell. The run of 2026-08-13 reported
-            // `cell.5.standMissed=想站 -11,57,37，停在 -11,57,36` — the right height and the near
-            // rank — and two very different bodies produce that line: one that never got onto the
-            // step, and one that IS on the step with its centre a hand's width back, so that the
-            // cell its feet round to is the neighbour. A 0.6-wide box resting on a block edge is the
-            // second, and the two want opposite fixes (a second step versus a nudge). What is under
-            // the feet says which.
+            // `cell.5.standMissed` as wanting -11,57,37 and stopping at -11,57,36 — the right
+            // height and the near rank — and two very different positions produce that line: one that
+            // never got onto the step, and one that IS on the step with its centre a hand's width
+            // back, so that the cell its feet round to is the neighbour. A 0.6-wide box resting on
+            // a block edge is the second, and the two want opposite fixes (a second step versus a
+            // nudge). What is under the feet says which.
             ServerLevel lvl = rig.ctx().level();
-            rig.evidence(tag + ".standMissed", "想站 " + spot.toShortString() + "，停在 "
-                    + now.toShortString() + "，距 " + cell.toShortString() + " 还有 "
+            rig.evidence(tag + ".standMissed", "wanted " + spot.toShortString() + ", stopped at "
+                    + now.toShortString() + ", still "
                     + String.format(java.util.Locale.ROOT, "%.2f", Math.sqrt(now.distSqr(cell)))
-                    + " 格（精确 " + String.format(java.util.Locale.ROOT, "%.2f/%.2f/%.2f",
+                    + " blocks from " + cell.toShortString() + " (exact "
+                    + String.format(java.util.Locale.ROOT, "%.2f/%.2f/%.2f",
                             rig.player().getX(), rig.player().getY(), rig.player().getZ())
-                    + "，脚下 " + now.below().toShortString() + "="
+                    + ", under the feet " + now.below().toShortString() + "="
                     + lvl.getBlockState(now.below()).getBlock()
-                    + "，想站那格脚下 " + spot.below().toShortString() + "="
-                    + lvl.getBlockState(spot.below()).getBlock() + "）");
+                    + ", under the wanted stand " + spot.below().toShortString() + "="
+                    + lvl.getBlockState(spot.below()).getBlock() + ")");
             then.run();
         });
     }
@@ -1072,7 +1116,7 @@ public final class JourneyPortalRung {
      * null when it can.
      *
      * <p>Four clauses, and the message used to name one of them for all four:
-     * {@code cell.0.noStand} reported {@code -9,56,37 和 -9,55,37 都没有地板} about the mould's BOTTOM
+     * {@code cell.0.noStand} reported that neither -9,56,37 nor -9,55,37 had a floor, about the mould's BOTTOM
      * row, and an offline read of that run's saved world says {@code -9,55,37 = andesite} — a
      * perfectly good floor. So the row was false, and WHICH of the other three refused it is not
      * recoverable from the run: both remaining candidates are live in that alcove (the cell itself
@@ -1082,15 +1126,15 @@ public final class JourneyPortalRung {
      * the reading under "no floor" and it does not belong there.
      */
     private static String whyNotStandable(ServerLevel level, BlockPos spot) {
-        if (!forgeCorridor.contains(spot)) return spot.toShortString() + " 不是壁龛格";
+        if (!forgeCorridor.contains(spot)) return spot.toShortString() + " is not an alcove cell";
         if (level.getBlockState(spot).blocksMotion())
-            return spot.toShortString() + " 被 " + level.getBlockState(spot).getBlock() + " 占着";
+            return spot.toShortString() + " is occupied by " + level.getBlockState(spot).getBlock();
         if (level.getBlockState(spot.above()).blocksMotion())
-            return spot.toShortString() + " 头顶 " + spot.above().toShortString() + "="
-                    + level.getBlockState(spot.above()).getBlock() + " 被占";
+            return spot.toShortString() + " has its head space " + spot.above().toShortString() + "="
+                    + level.getBlockState(spot.above()).getBlock() + " occupied";
         if (!level.getBlockState(spot.below()).blocksMotion())
-            return spot.toShortString() + " 脚下 " + spot.below().toShortString() + "="
-                    + level.getBlockState(spot.below()).getBlock() + " 不是地板";
+            return spot.toShortString() + " has " + spot.below().toShortString() + "="
+                    + level.getBlockState(spot.below()).getBlock() + " under it, which is not a floor";
         return null;
     }
 
@@ -1098,8 +1142,9 @@ public final class JourneyPortalRung {
      * The first of a stand's own cells that this rung put a block into after carving it — or null.
      *
      * <p>Feet and head of both candidate stands, because either one seals the stand and the head is
-     * the one the rehearsals actually hit ({@code cell.0.noStand = … -9,56,37 头顶 -9,57,37=
-     * cobblestone 被占}). {@link #forgeStuck} is what makes this answerable without guessing at block
+     * the one the rehearsals actually hit ({@code cell.0.noStand} reported the head space of
+     * -9,56,37, at -9,57,37, occupied by cobblestone). {@link #forgeStuck} is what makes this
+     * answerable without guessing at block
      * ids: a corridor cell that is solid and was left solid by the carve is rock the pick could not
      * reach, and re-attempting it every cast is exactly the thrash the block-id test was protecting
      * against; a corridor cell that is solid and was NOT is something that arrived since, and the
@@ -1127,19 +1172,21 @@ public final class JourneyPortalRung {
      *  "there is already something there" and "a brick here would hang in mid-air" are the two the
      *  rung has actually met and they want completely different work. */
     private static String whyNotStep(ServerLevel level, BlockPos step, BlockPos here) {
-        if (!forgeCorridor.contains(step)) return step.toShortString() + " 不是壁龛格";
+        if (!forgeCorridor.contains(step)) return step.toShortString() + " is not an alcove cell";
         if (!level.getBlockState(step).isAir())
-            return step.toShortString() + " 已经是 " + level.getBlockState(step).getBlock();
+            return step.toShortString() + " is already " + level.getBlockState(step).getBlock();
         if (!level.getFluidState(step).isEmpty())
-            return step.toShortString() + " 里有流体";
+            return step.toShortString() + " contains fluid";
         if (!level.getBlockState(step.below()).blocksMotion())
-            return step.toShortString() + " 脚下 " + step.below().toShortString() + "="
+            return step.toShortString() + " has " + step.below().toShortString() + "="
                     + level.getBlockState(step.below()).getBlock()
-                    + " 撑不住 —— 一块砖会悬空，这一格要的是楼梯不是一块砖";
+                    + " under it, which cannot support it — a single block would hang in mid-air;"
+                    + " this cell needs a staircase, not one block";
         if (step.equals(here) || step.equals(here.above()))
-            return step.toShortString() + " 正被身体占着";
+            return step.toShortString() + " is occupied by the bot";
         double d = Math.sqrt(here.distSqr(step));
-        if (d > JourneyStairs.MEND_REACH) return step.toShortString() + " 距身体 " + Math.round(d) + " 格，够不着";
+        if (d > JourneyStairs.MEND_REACH)
+            return step.toShortString() + " is " + Math.round(d) + " blocks from the bot, out of reach";
         return null;
     }
 
@@ -1164,8 +1211,9 @@ public final class JourneyPortalRung {
      * <p>Measured, run 29: cells 0–2 cast, and cell 3 at {@code -11,57,38} then had no ray-verified
      * spot at all — {@code -11,57,36}, {@code -11,58,36}, {@code -11,59,36}, {@code -11,58,37} and
      * {@code -10,58,37} were all cobblestone, so {@code standToPour} fell back to a standable cell
-     * three columns away and its ray stopped on the litter: {@code cast3.picks=-10,58,37
-     * cobblestone face=north → 落进 -10,58,36}. {@link #clearPourLine} cleans the LINE and that was
+     * three columns away and its ray stopped on the litter: {@code cast3.picks} recorded
+     * cobblestone at -10,58,37, face north, with the fluid landing in -10,58,36.
+     * {@link #clearPourLine} cleans the LINE and that was
      * not enough; what a pour needs clear is the room.
      *
      * <p><b>Cobblestone only, and that is a MEASURED restriction rather than the original lazy one.</b>
@@ -1177,10 +1225,12 @@ public final class JourneyPortalRung {
      *
      * <p>Measured, both runs, same three cells: {@code tidy.0} removed {@code -7,56,36=gravel},
      * {@code -9,56,36=gravel}, {@code -8,57,36=gravel}, and from cast six onward
-     * {@code drain.6 = 等了 200 tick 仍有流体：-7,56,36 = water} — the very cell the gravel had been
+     * {@code drain.6} reported fluid still present after waiting 200 ticks, with -7,56,36 = water —
+     * the very cell the gravel had been
      * cleared from. With the alcove wet three casts earlier than before, the body then floated in it
      * ({@code climb.4…10 = -7,56,36 onGround=false water=true}) and the top-row pours failed on their
-     * own flooded line. The two runs before the widening reported {@code drain.0…6 = 壁龛已排干}.
+     * own flooded line. The two runs before the widening reported {@code drain.0…6} as the alcove
+     * having drained.
      *
      * <p>So the widening is reverted and the case that motivated it is answered where it actually
      * bites: {@link #standBehind} clears the ONE corridor cell a dig needs, by the same
@@ -1213,8 +1263,8 @@ public final class JourneyPortalRung {
         for (BlockPos c : litter)
             where.append(where.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
                     .append(level.getBlockState(c).getBlock());
-        rig.evidence(tag, litter.size() + " 格是挖完之后才出现的，要清（挖门框时 MineProcess 自己垒的）："
-                + where);
+        rig.evidence(tag, litter.size() + " cells appeared after the carve and are being cleared"
+                + " (MineProcess placed them itself while digging the frame): " + where);
         clearNext(rig, litter, 0, 240, then);
     }
 
@@ -1231,7 +1281,7 @@ public final class JourneyPortalRung {
                     .append(stack.getMaxDamage() - stack.getDamageValue()).append('/')
                     .append(stack.getMaxDamage());
         }
-        return out.isEmpty() ? "没有镐子了" : out.toString();
+        return out.isEmpty() ? "no pickaxes left" : out.toString();
     }
 
     /**
@@ -1272,17 +1322,19 @@ public final class JourneyPortalRung {
         for (Direction d : Direction.values()) {
             BlockPos n = cell.relative(d);
             around.append(' ').append(d).append('=').append(level.getBlockState(n).getBlock())
-                    .append(level.getBlockState(n).isSolidRender(level, n) ? "(实心)" : "");
+                    .append(level.getBlockState(n).isSolidRender(level, n) ? "(solid)" : "");
         }
-        // WHERE THE BODY IS, in the rung's own vocabulary. "距 4.2m" alone cannot tell a body that
-        // stopped short in the corridor from one that tunnelled into the mould, and those want
-        // opposite fixes.
+        // WHERE THE BOT IS, in the rung's own vocabulary. A distance of 4.2 m alone cannot tell a
+        // bot that stopped short in the corridor from one that tunnelled into the mould, and those
+        // want opposite fixes.
         BlockPos behind = cell.relative(away.getOpposite());
-        String where = forgeCorridor.contains(at) ? "壁龛内"
-                : at.equals(behind) ? "正对着这一格的壁龛格"
-                : "壁龛之外（离壁龛最近的格都不是它）—— 多半是自己挖进门框里去了";
+        String where = forgeCorridor.contains(at) ? "inside the alcove"
+                : at.equals(behind) ? "the alcove cell directly facing this cell"
+                : "outside the alcove (not in any alcove cell) — most likely it dug its own way"
+                  + " into the frame";
         rig.evidence("dig." + tag, String.format(java.util.Locale.ROOT,
-                "%s 仍是 %s：身体 %s（%s），距 %.1fm，canBreak=%s，该站的壁龛格 %s=%s，手上 %s；六邻%s",
+                "%s is still %s: bot at %s (%s), %.1fm away, canBreak=%s, intended alcove stand"
+                        + " %s=%s, holding %s; neighbours%s",
                 cell.toShortString(), level.getBlockState(cell).getBlock(), at.toShortString(), where,
                 eyes, rig.body().avatar().canBreak(cell),
                 behind.toShortString(), level.getBlockState(behind).getBlock(),
@@ -1293,7 +1345,7 @@ public final class JourneyPortalRung {
                                        List<BlockPos> pool, int i, BlockPos cell, BlockPos wet,
                                        Runnable then) {
         rig.evidence("opened." + i, cell.toShortString() + "=" + ctx.level().getBlockState(cell).getBlock()
-                + " 水位 " + wet.toShortString() + "=" + ctx.level().getBlockState(wet).getBlock());
+                + " water cell " + wet.toShortString() + "=" + ctx.level().getBlockState(wet).getBlock());
         // Say it outright when a cell did not open. `mineCellOrGiveUp` is "dig, and carry on either
         // way" by design — which is right for an excavation and wrong here, where pouring into rock
         // is not a smaller version of pouring into a cavity. Run 20 poured water at a `wet` that was
@@ -1302,10 +1354,12 @@ public final class JourneyPortalRung {
         // gives obsidian — so that reading also says the floor is now holding, and only the opening
         // is missing.
         if (!ctx.level().getBlockState(cell).isAir() || !ctx.level().getBlockState(wet).isAir()) {
-            ctx.fail("第 " + (i + 1) + " 格没挖开就要浇：" + cell.toShortString() + "="
-                    + ctx.level().getBlockState(cell).getBlock() + "，水位 " + wet.toShortString()
+            ctx.fail("Cell " + (i + 1) + " is about to be cast but was not opened: "
+                    + cell.toShortString() + "=" + ctx.level().getBlockState(cell).getBlock()
+                    + ", water cell " + wet.toShortString()
                     + "=" + ctx.level().getBlockState(wet).getBlock()
-                    + "（两格都必须是空气；mineCellOrGiveUp 挖不动会静默继续）");
+                    + " (both cells must be air; mineCellOrGiveUp continues silently when it"
+                    + " cannot break a block)");
             return;
         }
         // A water bucket is what this cell is about to spend. Say so before spending the walk: the
@@ -1313,15 +1367,17 @@ public final class JourneyPortalRung {
         // an empty bucket, places nothing, pours lava into a dry cell and reports "cast.missed" —
         // which reads as a casting bug and is really a fill that failed a cell ago.
         if (rig.carrying("minecraft:water_bucket") < 1) {
-            ctx.fail("第 " + (i + 1) + " 格开浇前手上没有水桶：bucket=" + rig.carrying("minecraft:bucket")
+            ctx.fail("No water bucket in hand before casting cell " + (i + 1) + ": bucket="
+                    + rig.carrying("minecraft:bucket")
                     + " water_bucket=0 lava_bucket=" + rig.carrying("minecraft:lava_bucket")
-                    + " —— 上一格的 recover 没把水收回来，没有水就浇不出黑曜石");
+                    + " — the previous cell's recover step did not take the water back, and without"
+                    + " water no obsidian can be cast");
             return;
         }
         // Water in, from the block behind it: a bucket fills the neighbour of the face its ray lands
         // on, and an air cell stops no ray. Standing level with the target keeps that ray horizontal.
         placeFluid(ctx, rig, wet, away, Items.WATER_BUCKET, "water" + i,
-                watchFrame(rig, "water" + i + " 放水进 " + wet.toShortString(), () -> {
+                watchFrame(rig, "water" + i + " placing water into " + wet.toShortString(), () -> {
             // Record where the water settled; do not fail on it. The claim is the obsidian, so let
             // the cast decide — `cast.missed.i` names any cell that did not turn.
             //
@@ -1331,16 +1387,17 @@ public final class JourneyPortalRung {
             // and the problem is not this precondition. Nothing casts in a carved mould at all,
             // while the built arena mould casts 10/10. Keep the relaxation (the precondition was
             // never the blocker) but do not read it as evidence the geometry works.
-            // ASK THE TARGET, do not guess about it. The old wording was「水多半落进了目标格 cell」
-            // followed by cell's own state in brackets — and j48 printed that sentence with
-            // 「（现在是 air）」 beside it, a row disagreeing with itself in its own parentheses.
+            // ASK THE TARGET, do not guess about it. A row that claims the water most likely fell
+            // into the target cell, followed by that cell's own state in brackets, was printed by
+            // j48 with "now air" beside it — a row disagreeing with itself in its own parentheses.
             // The two cells are two independent readings; print both and let them say what they say.
             if (ctx.level().getFluidState(wet).isEmpty()) {
                 boolean landed = !ctx.level().getFluidState(cell).isEmpty();
-                rig.evidence("water.fell." + i, wet.toShortString() + " 空了；目标格 "
-                        + cell.toShortString() + " 现在是 " + ctx.level().getBlockState(cell).getBlock()
-                        + (landed ? "（有流体 —— 水落到目标格去了）"
-                                  : "（也没有流体 —— 两格都是空的，这一浇要么没发生，要么流去了别处）"));
+                rig.evidence("water.fell." + i, wet.toShortString() + " is empty; target cell "
+                        + cell.toShortString() + " is now " + ctx.level().getBlockState(cell).getBlock()
+                        + (landed ? " (contains fluid — the water fell into the target cell)"
+                                  : " (no fluid either — both cells are empty, so this pour either"
+                                    + " did not happen or flowed elsewhere)"));
             }
             BlockPos src = pool.get(Math.min(i, pool.size() - 1));
             // Reopened first, because the trip that fetched this lava is thousands of ticks long and
@@ -1349,7 +1406,8 @@ public final class JourneyPortalRung {
             // right on a cell poured from a bucket already in the bag: the cell was opened moments
             // ago and the reopen finds nothing to do.)
             Runnable pour = () -> reopen(ctx, rig, "cast" + i + ".reopen", cell, away, REOPEN_TRIES,
-                    watchFrame(rig, "cast" + i + ".reopen 浇前再挖一次 " + cell.toShortString(), () ->
+                    watchFrame(rig, "cast" + i + ".reopen digging again before the pour "
+                            + cell.toShortString(), () ->
                     placeFluid(ctx, rig, cell, away, Items.LAVA_BUCKET,
                     "cast" + i, () -> rig.settle(new HoldStill(3), 12, () -> {
                 var got = ctx.level().getBlockState(cell).getBlock();
@@ -1359,34 +1417,35 @@ public final class JourneyPortalRung {
                 if (got == Blocks.OBSIDIAN) frameCast.add(cell.immutable());
                 if (got != Blocks.OBSIDIAN)
                     rig.evidence("cast.missed." + i, cell.toShortString() + " = " + got
-                            + "（旁边 " + wet.toShortString() + " 是 "
-                            + ctx.level().getBlockState(wet).getBlock() + "）");
+                            + " (adjacent " + wet.toShortString() + " is "
+                            + ctx.level().getBlockState(wet).getBlock() + ")");
                 // Stop on the FIRST cell that will not cast. Nothing is forfeited: a frame missing
                 // one cell can reach 9/10 at best, and `lightIt` fails on anything under ten — so
                 // every run that would have continued was already a failing run. What it buys is the
                 // clock. Run 17 spent 39 240 ticks (32 minutes) walking all ten cells to report
                 // `0/10`, which is the same finding cell one had already made in about a minute, and
                 // that cost is paid on every future attempt at this geometry.
-                // ANY cell, not just the first. The paragraph above argues for「stop on the FIRST cell
-                // that will not cast」and the code said `i == 0`, which is a different sentence: it
-                // stops on cell one and lets cells two through ten walk on. Ladder-11 is what that
-                // costs. Cell six did not cast, `cast.missed.6` said so, and the rung carried on into
-                // the water recovery — which cannot work, because the lava the cast did not spend is
-                // still in the only bucket. The run died on `recover6` with 「装不到 water_bucket」
-                // beside a ray that was correct to the centimetre, and the reason string sent the next
-                // reader to the fill.
+                // ANY cell, not just the first. Stopping only on cell one lets cells two through ten
+                // walk on, and Ladder-11 is what that costs. Cell six did not cast, `cast.missed.6`
+                // said so, and the rung carried on into the water recovery — which cannot work,
+                // because the lava the cast did not spend is still in the only bucket. The run died
+                // on `recover6` reporting that no water_bucket could be filled, beside a ray that was
+                // correct to the centimetre, and the reason string sent the next reader to the fill.
                 //
                 // Nothing is forfeited by stopping here either: `lightIt` needs ten of ten, so a frame
                 // that has already missed one is a failing run whichever cell it was.
                 if (got != Blocks.OBSIDIAN) {
-                    ctx.fail("第 " + (i + 1) + " 格没浇成黑曜石：" + cell.toShortString() + " = " + got
-                            + "（水在 " + wet.toShortString() + " = "
-                            + ctx.level().getBlockState(wet).getBlock() + "）—— 十格缺一格就点不着，"
-                            + "不再走完。"
-                            + (i == 0 ? "挖出来的模腔浇不出黑曜石，砌出来的竞技场模腔可以："
-                                        + "差别在每一格有没有底和背，不在某一格"
-                                      : "前 " + i + " 格是浇成了的，所以这不是模腔的通病，"
-                                        + "是这一格自己的落脚/射线/手上拿的那件东西"));
+                    ctx.fail("Cell " + (i + 1) + " did not cast to obsidian: " + cell.toShortString()
+                            + " = " + got + " (water at " + wet.toShortString() + " = "
+                            + ctx.level().getBlockState(wet).getBlock() + ") — a frame missing one"
+                            + " of its ten cells cannot be lit, so the remaining cells are not"
+                            + " attempted. "
+                            + (i == 0 ? "The carved mould does not cast obsidian while the built"
+                                        + " arena mould does: the difference is whether each cell"
+                                        + " has a floor and a backing, not any single cell"
+                                      : "The first " + i + " cells did cast, so this is not a defect"
+                                        + " of the mould as a whole but of this cell's own stand,"
+                                        + " ray or held item"));
                     return;
                 }
                 // The bucket is empty again, which is exactly what taking the water back needs —
@@ -1396,9 +1455,10 @@ public final class JourneyPortalRung {
                 // actually complete.
                 riseToTakeItBack(ctx, rig, wet, away, "recover" + i, () ->
                 JourneyFill.fillFrom(ctx, rig, wet, "recover" + i, Items.WATER_BUCKET,
-                        watchFrame(rig, "recover" + i + " 从 " + wet.toShortString() + " 收水", () ->
+                        watchFrame(rig, "recover" + i + " taking the water back from "
+                                + wet.toShortString(), () ->
                         JourneyDrain.drainTheAlcove(ctx, rig, i, JourneyDrain.legs(),
-                        watchFrame(rig, "drain." + i + " 等壁龛排干",
+                        watchFrame(rig, "drain." + i + " waiting for the alcove to drain",
                         () -> castCell(ctx, rig, base, away, pool, i + 1, then))))));
             }))));
             // THE STAIRS ARE THE EXPENSIVE PART, so climb them only when there is nothing to pour.
@@ -1408,7 +1468,8 @@ public final class JourneyPortalRung {
             // ceil(10 / buckets) of them. See loadBuckets for why that number needs no flag.
             int inBag = rig.carrying("minecraft:lava_bucket");
             if (inBag >= 1) {
-                rig.evidence("lava" + i + ".fromBag", inBag + " 桶岩浆还在包里 —— 这一格不上楼");
+                rig.evidence("lava" + i + ".fromBag", inBag + " lava buckets still in the inventory"
+                        + " — no climb for this cell");
                 pour.run();
                 return;
             }
@@ -1416,11 +1477,11 @@ public final class JourneyPortalRung {
             // climbs are spelled out; neither was, and each cost a run to find. See
             // JourneyStairwell's goUpToThePool and returnToTheForge.
             JourneyStairwell.goUpToThePool(ctx, rig, src.getY(), "lava" + i,
-                    watchFrame(rig, "lava" + i + " 上楼去岩浆池", () ->
+                    watchFrame(rig, "lava" + i + " climbing the stairs to the lava pool", () ->
                     JourneyFill.loadBuckets(ctx, rig, src, "lava" + i,
-                    watchFrame(rig, "lava" + i + " 在池边装桶", () ->
+                    watchFrame(rig, "lava" + i + " filling buckets at the pool", () ->
                     JourneyStairwell.returnToTheForge(ctx, rig, base.getY(), "cast" + i,
-                    watchFrame(rig, "cast" + i + " 下楼回模腔", pour))))));
+                    watchFrame(rig, "cast" + i + " descending the stairs back to the mould", pour))))));
         }));
     }
 
@@ -1436,13 +1497,14 @@ public final class JourneyPortalRung {
     /**
      * Put back the block this pour is about to aim at, when the digging has taken it out.
      *
-     * <p>The mould is declared sound once, right after the carve, and {@code forge.backings=十四格
-     * 背板都还是实心} is that declaration. Nothing re-asked it, and by the ninth cast of the run of
-     * 2026-08-13 two backings were air — {@code -9,59,39} and {@code -9,60,39}, read out of the saved
-     * world, both behind the column whose frame cells are dug from a body that pillars up into the
-     * doorway. Every bucket in this rung is aimed at the block BEHIND the cell it fills, so an air
+     * <p>The mould is declared sound once, right after the carve, and the {@code forge.backings} row
+     * reporting all fourteen backings solid is that declaration. Nothing re-asked it, and by the
+     * ninth cast of the run of 2026-08-13 two backings were air — {@code -9,59,39} and
+     * {@code -9,60,39}, read out of the saved world, both behind the column whose frame cells are dug
+     * by a bot that pillars up into the doorway. Every bucket in this rung is aimed at the block BEHIND the cell it fills, so an air
      * backing is not a leak, it is an aim with nothing to stop it: {@code cast8.stand} rejected both
-     * candidates with {@code -9,60,39 不是实心的，弹不出流体}, fell back to a merely standable cell, and
+     * candidates because -9,60,39 was not solid and so could not put the fluid in front of it, fell
+     * back to a merely standable cell, and
      * {@code cast8.picks} measured the ray reaching {@code -9,60,40} and dropping the lava into
      * {@code -9,60,39} — a cell BEHIND the frame.
      *
@@ -1467,9 +1529,9 @@ public final class JourneyPortalRung {
         String was = String.valueOf(level.getBlockState(backing).getBlock());
         if (reach > JourneyStairs.MEND_REACH) {
             rig.evidence(tag + ".backingGone", backing.toShortString() + "=" + was
-                    + " 不是实心的（在 " + target.toShortString() + " 后面），身体 "
-                    + here.toShortString() + " 距 " + Math.round(reach) + " 格，够不着补不上"
-                    + " —— 这一桶会穿过去落在更远的一格");
+                    + " is not solid (behind " + target.toShortString() + "); bot at "
+                    + here.toShortString() + " is " + Math.round(reach) + " blocks away, out of reach"
+                    + " to replace it — this bucket will pass through and land one cell further on");
             then.run();
             return;
         }
@@ -1480,11 +1542,12 @@ public final class JourneyPortalRung {
         // can be refused for reasons the caller cannot see, and a backing that was never rebuilt
         // leaves exactly the "the cast just did not work" row this rung has been misled by twice.
         boolean solid = level.getBlockState(backing).isSolidRender(level, backing);
-        rig.evidence(tag + ".backingMend", backing.toShortString() + " 背板是 " + was
-                + "（在 " + target.toShortString() + " 后面，挖门框时被打通的）→ "
-                + (solid ? "补回来了（" + level.getBlockState(backing).getBlock() + "）"
-                         : (held ? "补不上（现在是 " + level.getBlockState(backing).getBlock() + "）"
-                                 : "手上没有圆石")));
+        rig.evidence(tag + ".backingMend", backing.toShortString() + " backing was " + was
+                + " (behind " + target.toShortString() + ", opened while digging the frame) → "
+                + (solid ? "replaced (" + level.getBlockState(backing).getBlock() + ")"
+                         : (held ? "could not be replaced (now "
+                                   + level.getBlockState(backing).getBlock() + ")"
+                                 : "no cobblestone in hand")));
         then.run();
     }
 
@@ -1496,8 +1559,8 @@ public final class JourneyPortalRung {
      * body to whatever cell has a floor, which in a hollow alcove is seven rows down. From there the
      * line to the water goes straight through the obsidian that was just cast into the cell between
      * them, and the fill's answer to a blocked line used to be to mine the blocker: measured,
-     * {@code recover9.clearedLine.3 = -10,60,38 Block{minecraft:obsidian} 挡在眼睛和 -10,61,38
-     * 之间，敲掉它}. {@link JourneyFill} no longer does that; this is the other half, which is giving
+     * {@code recover9.clearedLine.3} reported obsidian at -10,60,38 standing between the eye and
+     * -10,61,38, and broke it. {@link JourneyFill} no longer does that; this is the other half, which is giving
      * it a line that is not blocked in the first place.
      *
      * <p><b>Only when the body cannot already see water</b>, and that is a measurement rather than a
@@ -1527,9 +1590,9 @@ public final class JourneyPortalRung {
      * own flight left the body at {@code 3,58,18} — {@code wantY} exactly, one column north of the
      * water — and from there the line to the water is a DIAGONAL that has to squeeze past the cell
      * the cast has just turned to obsidian. It does not:
-     * {@code recover6.aimsAt = 4,59,18 Block{minecraft:obsidian} 源块=false（想瞄 4,59,19）}, and
-     * {@code standToFill} refuted the very same cell from its centre —
-     * {@code 射线停在 Block{minecraft:obsidian}=1} — so this is not an artefact of where in its cell
+     * {@code recover6.aimsAt} recorded obsidian at 4,59,18, not a source block, while aiming for
+     * 4,59,19; and {@code standToFill} refuted the very same cell from its centre, counting one ray
+     * stopped by obsidian — so this is not an artefact of where in its cell
      * the body happened to be standing.
      *
      * <p>The column that works is the one directly behind the water, {@code 3,·,19}: from there the
@@ -1542,29 +1605,32 @@ public final class JourneyPortalRung {
      */
     private static void riseToTakeItBack(SceneContext ctx, JourneyRig rig, BlockPos wet,
                                          Direction away, String tag, Runnable then) {
-        // ASKED WHERE THE BODY IS, mid-air or not, and that is not an oversight. This clip decides a
-        // NO-OP, so a wrong「看得见」costs the fill one aim that {@link JourneyFill#scoop} re-takes
-        // from the far side of its own settle. Standing the body still first was tried on
+        // ASKED WHERE THE BOT IS, mid-air or not, and that is not an oversight. This clip decides a
+        // NO-OP, so a wrong "visible" answer costs the fill one aim that {@link JourneyFill#scoop}
+        // re-takes from the far side of its own settle. Holding the bot still first was tried on
         // 2026-08-16 and cost far more than it saved: a ten-tick settle here and in the fill gave
-        // `recover8` eight extra ticks of falling (`眼睛 y 61.65→58.06`), after which the water was
+        // `recover8` eight extra ticks of falling (eye y 61.65→58.06), after which the water was
         // genuinely out of sight, the fill walked, and the walk mined a cast frame cell to get back
-        // up — `frame.lost.1 … 丢在「recover8 从 -9, 61, 38 收水」这一步里`. See HoldStill.
+        // up — `frame.lost.1` dated the loss to the step that took the water back from -9, 61, 38
+        // in `recover8`. See HoldStill.
         if (JourneyFill.visibleSourceNear(rig, false, JourneyFill.FILL_RESEARCH) != null) {
             then.run();
             return;
         }
         BlockPos here = rig.player().blockPosition();
         int wantY = wet.getY() - 1;
-        // WHICH OF THE TWO STATES, named in the row itself.「看不见」covers a body that is too low and
-        // a body that is high enough and beside the wrong column, and those are different repairs —
-        // the first wants a flight, the second wants one step sideways. Before this row said only the
-        // first, and the run it was wrong about produced no row at all.
-        rig.evidence(tag + ".rise", here.toShortString() + " 看不见 " + wet.toShortString()
-                + " 里的水（脚在 y=" + here.getY() + "，要站的排 y=" + wantY + "，"
+        // WHICH OF THE TWO STATES, named in the row itself. "Cannot see" covers a bot that is too low and
+        // a bot that is high enough and beside the wrong column, and those are different repairs —
+        // the first wants a flight, the second wants one step sideways. A row naming only the first
+        // would leave the wrong-column case with no row at all.
+        rig.evidence(tag + ".rise", here.toShortString() + " cannot see the water in "
+                + wet.toShortString() + " (feet at y=" + here.getY() + ", wanted row y=" + wantY + ", "
                 + (here.getY() >= wantY
-                        ? "高度已经够了 —— 差的是柱：从这一柱望过去，射线要斜着穿过刚浇的门框"
-                        : "还差 " + (wantY - here.getY()) + " 排，中间隔着刚浇的门框")
-                + "）—— 先挪到一条望得见水的柱上再收");
+                        ? "the height is already sufficient — the column is wrong: from this column"
+                          + " the ray would have to cross the freshly cast frame diagonally"
+                        : (wantY - here.getY()) + " rows short, with the freshly cast frame in"
+                          + " between")
+                + ") — moving to a column with a view of the water before taking it back");
         JourneyPour.raiseTo(ctx, rig, wet, away, wantY, false, tag + ".rise", then);
     }
 
@@ -1575,71 +1641,76 @@ public final class JourneyPortalRung {
         // EVERY ROW BELOW CARRIES ITS APPROACH NUMBER, for the reason the climb rows now carry their
         // caller. Three approaches wrote one set of keys and the last writer won, so the results file
         // showed `cast9.fromHere` from approach three beside `cast9.stand` and `cast9.picks` from
-        // approach one — a body at -9,56,36 in one row and a walk from -9,56,37 in the next, with
+        // approach one — the bot at -9,56,36 in one row and a walk from -9,56,37 in the next, with
         // nothing saying they were different attempts. That cost a reading on 2026-08-17: it looked
         // like the short-circuit had fired and the walk had happened anyway.
         // IF IT CAN BE DONE FROM HERE, DO IT FROM HERE — before choosing anywhere to walk to.
         //
         // Otherwise the walk undoes the work that made the pour possible. Run 42's last cell:
-        // `cast9.lift=-9,56,36 → y=59`, `cast9.liftedY=59/59`, the body up its own pillar exactly
+        // `cast9.lift=-9,56,36 → y=59`, `cast9.liftedY=59/59`, the bot up its own pillar exactly
         // level with the cell — and then the retry chose a stand, walked to it, and reported
-        // `身体在 -10,57,35`, two rows below the row it had just built to reach. The fill has had
+        // the bot at -10,57,35, two rows below the row it had just built to reach. The fill has had
         // this short-circuit since run 36 for the same reason; this is it on the pour side.
         JourneyPour.PourSpot spot = null;
         BlockPos already = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away, tag + "." + tries);
         if (already != null) {
             rig.evidence(tag + ".fromHere." + tries, rig.player().blockPosition().toShortString()
-                    + " 就地瞄 " + already.toShortString() + "，流体会落进 "
-                    + target.toShortString() + "（不走了）；" + JourneyFill.eyeNow(rig));
+                    + " aiming in place at " + already.toShortString() + "; the fluid will land in "
+                    + target.toShortString() + " (no walk); " + JourneyFill.eyeNow(rig));
             spot = new JourneyPour.PourSpot(rig.player().blockPosition(), already);
         }
         if (spot == null) spot = JourneyPour.standToPour(ctx.level(), rig.player(), target, away, why);
         if (spot == null) {
-            ctx.fail("模腔里没有能浇到 " + target.toShortString() + " 的落脚点："
-                    + "要求脚下实心、头顶两格空、射线打在背板 " + target.relative(away).toShortString()
-                    + " 的近面、地板 " + target.below().toShortString()
-                    + " 的顶面，或同排侧邻 " + target.relative(away.getClockWise()).toShortString()
-                    + "／" + target.relative(away.getCounterClockWise()).toShortString()
-                    + " 的对面上 —— 身体在 " + rig.player().blockPosition()
-                    + "，各项否决计数：" + why);
+            ctx.fail("No stand in the mould can pour into " + target.toShortString()
+                    + ": a stand needs a solid block under the feet, two clear cells overhead, and a"
+                    + " ray that lands on the near face of the backing "
+                    + target.relative(away).toShortString() + ", the top face of the floor "
+                    + target.below().toShortString()
+                    + ", or the facing side of a same-row side neighbour "
+                    + target.relative(away.getClockWise()).toShortString()
+                    + "/" + target.relative(away.getCounterClockWise()).toShortString()
+                    + " — bot at " + rig.player().blockPosition()
+                    + "; rejection counts by reason: " + why);
             return;
         }
         BlockPos goal = spot.stand();
         BlockPos backing = spot.aim();
-        rig.evidence(tag + ".stand." + tries, goal.toShortString() + " 瞄 " + backing.toShortString()
-                + (backing.equals(target.below()) ? "（地板顶面）" : "（背板近面）")
-                + " 否决计数 " + why);
-        // NoBreak, the fourth leg of a family whose other three already had it.
-        // {@code JourneyStairwell.walkTheStairs}
-        // (「The walk may not dig」), {@code JourneyFill}'s water fetch and {@code JourneyRamp#walkTo}
-        // all forbid it for one reason: inside the alcove there is nothing between the body and its
-        // destination that this rung did not cut itself, so a dig is never the answer and is always
-        // the rung eating its own work. This leg was missed, and the rehearsal of 2026-08-25 is what
-        // it cost: nine consecutive `stairsBroken=11 级都完好`, then `lava8` reporting three treads
-        // whose supports had become air — `-3,60,20`, `-1,58,20`, `0,57,20`, one row under the flight
-        // and one apart in x, which is the flight's own diagonal. The log names the actor: the body
-        // stood at `-1,56,21` digging `-1,57,20` then `-1,58,20`, the feet and head cells of its next
-        // step, under `goal=Block[3,60,20]` — this walk. It never arrived (`停在 -2, 61, 20`, five
-        // short), so the digging bought nothing and the rung then died on 走不上楼梯.
+        rig.evidence(tag + ".stand." + tries, goal.toShortString() + " aiming at " + backing.toShortString()
+                + (backing.equals(target.below()) ? " (top face of the floor)" : " (near face of the backing)")
+                + " rejection counts " + why);
+        // NoBreak, like the other three walks in this family: {@code JourneyStairwell.walkTheStairs}
+        // ("The walk may not dig"), {@code JourneyFill}'s water fetch and {@code JourneyRamp#walkTo}
+        // all forbid digging for one reason: inside the alcove there is nothing between the bot
+        // and its destination that this rung did not cut itself, so a dig is never the answer and
+        // is always the rung eating its own work. Without it, the rehearsal of 2026-08-25 recorded
+        // nine consecutive `stairsBroken` rows reporting all 11 steps intact, then `lava8`
+        // reporting three treads whose supports had become air — `-3,60,20`, `-1,58,20`,
+        // `0,57,20`, one row under the flight and one apart in x, which is the flight's own
+        // diagonal. The log names the actor: the bot stood at `-1,56,21` digging `-1,57,20` then
+        // `-1,58,20`, the feet and head cells of its next step, under `goal=Block[3,60,20]` — this
+        // walk. It never arrived (it stopped at -2, 61, 20, five short), so the digging bought
+        // nothing and the rung then died unable to climb the stairs.
         rig.settle(new IntentProcess(new Intent(new Goal.Block(goal), List.of(),
                 CapabilityProfile.ALL, List.of(new NoBreak()))), 1_200, () -> {
             JourneyHands.holdForUse(rig, held, tag);
-            // RE-ASK FROM WHERE THE BODY ACTUALLY ENDED UP. The fill has done this for a while and
-            // the pour never did, and it is the same bug on the other side of the trip: the stand
+            // RE-ASK FROM WHERE THE BOT ACTUALLY ENDED UP, as the fill does; it is the same bug on
+            // the other side of the trip: the stand
             // and the aim are chosen together, so a walk that ends one cell off leaves the aim
-            // answering a question about a body that is not there. Measured, run 39 cell one —
-            // `water1.stand=-9,56,37 瞄 -10,57,39（背板近面）` and, an instant later,
-            // `water1.picks=… 身体 -9,57,37 → 落进 -9,58,37`: the body floated a block up between
+            // answering a question about a position the bot is no longer in. Measured, run 39 cell one —
+            // `water1.stand` chose -9,56,37 aiming at the near face of the backing -10,57,39 and, an
+            // instant later, `water1.picks` had the bot at -9,57,37 with the fluid landing in
+            // -9,58,37: the bot floated a block up between
             // choosing and pouring, and from there the backing is the wrong thing to aim at while
             // the target's floor would still have worked. Both are clipped from the real eye here,
             // so whichever one lands in the target is the one used.
             // …and the post-walk ask is tagged apart from the pre-walk one, because the whole point of
-            // asking twice is that the body is somewhere else now.
+            // asking twice is that the bot is somewhere else now.
             BlockPos aimNow = JourneyPour.aimThatLandsIn(ctx.level(), rig, target, away,
                     tag + "." + tries + ".walked");
             if (aimNow != null && !aimNow.equals(backing))
                 rig.evidence(tag + ".reaimed." + tries, backing.toShortString() + " → " + aimNow.toShortString()
-                        + "（走完发现身体在 " + rig.player().blockPosition().toShortString() + "）");
+                        + " (after the walk the bot is at " + rig.player().blockPosition().toShortString()
+                        + ")");
             BlockPos planned = aimNow != null ? aimNow : backing;
             // Clear a plant off the line first. This rung's lake is at y=63 — on the SURFACE — so
             // unlike the underground forge it is standing in grass, and grass is REPLACEABLE: the
@@ -1652,8 +1723,9 @@ public final class JourneyPortalRung {
                 // wherever the eye was; these two ticks are the ticks a body falls in.
                 //
                 // Measured, single-bucket rehearsal 2026-08-17, cell ten, approach three:
-                // `cast9.fromHere.3 = -9,57,36 就地瞄 -10,60,39，流体会落进 -10,60,38` and then
-                // `cast9.picks.3 = … 身体 -9,56,36` — a WHOLE BLOCK of eye height between the
+                // `cast9.fromHere.3` aimed in place from -9,57,36 at -10,60,39 with the fluid due to
+                // land in -10,60,38, and then `cast9.picks.3` had the bot at -9,56,36 — a WHOLE BLOCK
+                // of eye height between the
                 // decision and the shot, and the ray duly entered the frame's plane one row low.
                 // Approach two then repeated it inside one cell: same block position both times, the
                 // body floating in the alcove's own water, and the two rays still disagreed — sub-cell
@@ -1695,12 +1767,12 @@ public final class JourneyPortalRung {
                         ? hit.getBlockPos().relative(hit.getDirection()) : null;
                 rig.evidence(tag + ".picks." + tries, (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                         ? hit.getBlockPos().toShortString() + " " + lvl.getBlockState(hit.getBlockPos()).getBlock()
-                          + " face=" + hit.getDirection() + " → 落进 " + lands.toShortString()
+                          + " face=" + hit.getDirection() + " → lands in " + lands.toShortString()
                         : String.valueOf(hit.getType()))
-                        + "（想浇 " + target.toShortString() + "，瞄 " + at.toShortString()
+                        + " (pouring into " + target.toShortString() + ", aiming at " + at.toShortString()
                         + "=" + lvl.getBlockState(at).getBlock()
-                        + "，身体 " + rig.player().blockPosition().toShortString()
-                        + "，" + JourneyFill.eyeNow(rig) + "）");
+                        + ", bot at " + rig.player().blockPosition().toShortString()
+                        + ", " + JourneyFill.eyeNow(rig) + ")");
                 rig.evidence(tag + ".before." + tries, target.toShortString() + "="
                         + lvl.getBlockState(target).getBlock());
                 // Do not spend the bucket unless the ray lands where the plan says. This is the same
@@ -1736,22 +1808,23 @@ public final class JourneyPortalRung {
                     // the stand described the shot that was fired. The line stays, at the end, where a
                     // secondary reading belongs.
                     boolean onItsStand = rig.player().blockPosition().equals(goal);
-                    ctx.fail("浇不到指定格：想浇 " + target.toShortString()
-                            + (onItsStand ? "" : " —— 身体不在它自己选的落脚格上：选的是 "
-                                    + goal.toShortString() + "，实际站在 "
+                    ctx.fail("Cannot pour into the intended cell " + target.toShortString()
+                            + (onItsStand ? "" : " — the bot is not on the stand it chose: it chose "
+                                    + goal.toShortString() + " but is standing at "
                                     + rig.player().blockPosition().toShortString()
-                                    + "，差 " + String.format(java.util.Locale.ROOT, "%.2f",
+                                    + ", " + String.format(java.util.Locale.ROOT, "%.2f",
                                             Math.sqrt(rig.player().blockPosition().distSqr(goal)))
-                                    + " 格。"
-                                    + "落脚格上的射线验过、身体所在格的没有")
-                            + "（瞄 " + at.toShortString()
-                            + (at.equals(backing) ? "" : "，选落脚点时瞄的是 " + backing.toShortString())
-                            + "），射线会把流体放进 "
+                                    + " blocks off. The ray was verified from the chosen stand, not"
+                                    + " from the cell the bot is in")
+                            + " (aiming at " + at.toShortString()
+                            + (at.equals(backing) ? "" : "; the aim when the stand was chosen was "
+                                    + backing.toShortString())
+                            + "); the ray would put the fluid into "
                             + (lands == null ? String.valueOf(hit.getType()) : lands.toShortString())
-                            + "，身体在 " + rig.player().blockPosition()
-                            + "；浇线上是 " + pourLine(lvl, target, away)
-                            + " —— 没有倒；倒下去 use 照样报 CONSUME，"
-                            + "然后这一级会把失败写成「浇不出黑曜石」");
+                            + ", bot at " + rig.player().blockPosition()
+                            + "; the pour line holds " + pourLine(lvl, target, away)
+                            + " — not poured; a pour would still report CONSUME, and this rung"
+                            + " would then record the failure as 'no obsidian cast'");
                     return;
                 }
                 // WHAT THE BUCKET BECAME, not what the use returned. `result` was never able to
@@ -1763,23 +1836,21 @@ public final class JourneyPortalRung {
                 // Measured, rung 12's client rehearsal 2026-08-22, and it took a purpose-built row
                 // to see at all. The pour reported `water0.result=SUCCESS`, `water.fell.0` said the
                 // wet cell was empty, and the rung walked on — then died two steps later on
-                // `lava0.hand#2 = 拿不到 minecraft:bucket … 桶存量 空=0 水=1 岩浆=0`. THE BUCKET WAS
+                // `lava0.hand#2`, which could not find an empty bucket: its bucket stock read empty=0,
+                // water=1, lava=0. THE BUCKET WAS
                 // STILL FULL. Nothing had been poured; three separate rows had said otherwise, and
-                // `water.fell`'s own wording (「水多半落进了目标格」) shows it was inferring, not
-                // measuring — its test is `getFluidState(wet).isEmpty()`, which cannot tell 「the
-                // water flowed away」 from 「the water was never placed」.
+                // `water.fell`'s own wording (that the water had most likely fallen into the target
+                // cell) shows it was inferring, not measuring — its test is
+                // `getFluidState(wet).isEmpty()`, which cannot tell "the water flowed away" from "the
+                // water was never placed".
                 //
                 // A spend is a state change of one object: bucket → water_bucket → bucket. Measure
                 // that and none of the three ambiguities above can survive.
                 //
-                // IT IS ENFORCED, and this paragraph used to say the opposite. It read「recorded
-                // rather than enforced, deliberately: this rung already fails downstream on an
-                // empty-handed cast (line 1995) and on `cast.missed`」— written before the `.spent`
-                // gate at the end of this same method existed, and left standing after it was added.
-                // Both halves had rotted: the gate below DOES fail the rung, and「line 1995」pointed
-                // at `tidyTheAlcove`'s javadoc rather than at `castOpenedCell`'s「开浇前手上没有
-                // 水桶」, which is the check it meant. See that gate for why limping on was the more
-                // expensive option.
+                // IT IS ENFORCED, and the `.spent` gate at the end of this method is what fails the
+                // rung. The check that fires first on an empty-handed cast is `castOpenedCell`'s
+                // "no water bucket in hand before casting", and `cast.missed` fires after it; see the
+                // `.spent` gate for why limping on was the more expensive option.
                 java.util.function.Supplier<Integer> stock = () -> rig.carrying(
                         BuiltInRegistries.ITEM.getKey(held).toString());
                 int before = stock.get();
@@ -1812,21 +1883,23 @@ public final class JourneyPortalRung {
                 boolean placeWas = BotConfig.allowPlace;
                 BotConfig.allowPlace = false;
                 ctx.cleanup(() -> BotConfig.allowPlace = placeWas);
-                rig.evidence(tag + ".placeHeldOff", "浇的这一段关掉放置权（原值 " + placeWas + "）");
+                rig.evidence(tag + ".placeHeldOff", "placement disabled for the duration of the pour"
+                        + " (previous value " + placeWas + ")");
                 boolean gripped = JourneyHands.regripBeforeUse(rig, held, tag);
                 JourneyHands.handsAtUse(rig, tag);
                 // AND DO NOT SPEND A USE THAT CANNOT WORK. A bucket-less `useItemInHand` returns PASS
                 // and changes nothing, which is byte-identical to a ray that missed — cell six spent
-                // one on a stack of dirt, reported `cast6.result=PASS`, walked on, and died six legs
-                // later on `recover6.hand = 拿不到 minecraft:bucket … 桶存量 空=0 水=0 岩浆=1`, a
-                // message about the wrong leg entirely.
+                // one on a stack of dirt, reported `cast6.result=PASS`, walked on, and died six steps
+                // later on `recover6.hand`, which could not find an empty bucket (bucket stock
+                // empty=0, water=0, lava=1) — a message about the wrong step entirely.
                 if (!gripped) {
                     BotConfig.allowPlace = placeWas;
-                    ctx.fail("开浇的那只手不是 " + BuiltInRegistries.ITEM.getKey(held)
-                            + "，重新拿过一次也没拿到：" + JourneyHands.heldOnBoth(rig)
-                            + "；" + JourneyHands.bucketStock(rig)
-                            + " —— 不浇了。浇下去 use 只会返回 PASS，然后这一级会把失败写成"
-                            + "「浇不出黑曜石」或者更晚的「装不到水」");
+                    ctx.fail("The hand about to pour is not holding " + BuiltInRegistries.ITEM.getKey(held)
+                            + ", and one re-grip did not fix it: " + JourneyHands.heldOnBoth(rig)
+                            + "; " + JourneyHands.bucketStock(rig)
+                            + " — not pouring. The use would only return PASS, and this rung would"
+                            + " then record the failure as 'no obsidian cast' or, later, as 'could"
+                            + " not fill water'");
                     return;
                 }
                 // THE CALIBRATION ROW, taken BEFORE the use, in the watcher's own format. It reads the
@@ -1837,16 +1910,16 @@ public final class JourneyPortalRung {
                 // AND ASK WHERE IT LANDS ONE MORE TIME, HERE, with nothing but the use after it.
                 //
                 // <b>This is an invariant assertion, not a fix — say so, because the obvious reading is
-                // wrong.</b> "The gate is a hundred lines up, so the body has moved since" does NOT hold
+                // wrong.</b> "The gate is a hundred lines up, so the bot has moved since" does NOT hold
                 // on the normal path: `regripBeforeUse` opens with `if (actingHolds(…)) return true`,
                 // and everything else between the two points reads fields or writes evidence rows.
                 // Nothing there ticks the server — which is exactly what `handTrace`'s own contract
                 // asserts three lines below. Cell 4 of ladder5 was lost to the gate reading the wrong
-                // BODY, not to it reading at the wrong MOMENT, and the body swap above is the fix.
+                // ENTITY, not to it reading at the wrong MOMENT, and the entity swap above is the fix.
                 //
-                // So this row earns its place two ways and neither is「the body sank」: it covers the
-                // `handSlipped` branch, which DOES settle and therefore ticks, and it turns「something
-                // between the gate and the use moved the body」from an assumption into a measurement.
+                // So this row earns its place two ways and neither is "the bot sank": it covers the
+                // `handSlipped` branch, which DOES settle and therefore ticks, and it turns "something
+                // between the gate and the use moved the bot" from an assumption into a measurement.
                 // If `.atUseGate` ever fires with `.handSlipped` absent, the no-tick claim above is
                 // false and every reading between them has to be re-dated. It costs no tick to ask.
                 //
@@ -1860,22 +1933,27 @@ public final class JourneyPortalRung {
                 rig.evidence(tag + ".atUseGate." + tries,
                         (atUseHit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK
                                 ? atUseHit.getBlockPos().toShortString() + " face=" + atUseHit.getDirection()
-                                  + " → 落进 " + atUseLands.toShortString()
+                                  + " → lands in " + atUseLands.toShortString()
                                 : String.valueOf(atUseHit.getType()))
-                        + "（贴着 use 重瞄 " + at.toShortString() + " 之后再问一次，想浇 "
-                        + target.toShortString() + "，身体 " + rig.player().blockPosition().toShortString()
-                        + "，" + JourneyFill.eyeNow(rig) + "）");
+                        + " (asked again after re-aiming at " + at.toShortString()
+                        + " immediately before the use; pouring into "
+                        + target.toShortString() + ", bot at " + rig.player().blockPosition().toShortString()
+                        + ", " + JourneyFill.eyeNow(rig) + ")");
                 if (atUseLands == null || !atUseLands.equals(target)) {
                     BotConfig.allowPlace = placeWas;
-                    ctx.fail("开浇前最后一刻射线已经偏了：想浇 " + target.toShortString()
-                            + "，贴着 use 重瞄 " + at.toShortString() + " 之后射线落进 "
+                    ctx.fail("The ray drifted at the last moment before the pour: pouring into "
+                            + target.toShortString() + ", but after re-aiming at " + at.toShortString()
+                            + " immediately before the use the ray lands in "
                             + (atUseLands == null ? String.valueOf(atUseHit.getType())
                                                   : atUseLands.toShortString())
-                            + "，身体在 " + rig.player().blockPosition()
-                            + " —— 早闸放行过，两处之间本不该有任何一 tick："
-                            + "看这一级有没有 `.handSlipped`（有＝重新拿桶那次落定动了身体；"
-                            + "没有＝中间有别的东西在 tick 服务端，那么这两点之间所有读数的时刻都要重判）。"
-                            + "没有倒：倒下去 use 照样报 CONSUME，然后这一级会把失败写成「浇不出黑曜石」");
+                            + ", bot at " + rig.player().blockPosition()
+                            + " — the earlier gate passed, and no tick should run between the two"
+                            + " points: check this rung for a `.handSlipped` row (present = the"
+                            + " settle after re-gripping the bucket moved the bot; absent = something"
+                            + " else ticked the server in between, so the timing of every reading"
+                            + " between the two points must be re-established). Not poured: a pour"
+                            + " would still report CONSUME, and this rung would then record the"
+                            + " failure as 'no obsidian cast'");
                     return;
                 }
                 JourneyHands.handTrace(rig, tag, -1);
@@ -1883,13 +1961,13 @@ public final class JourneyPortalRung {
                 // THE HAND ON CONSECUTIVE SERVER TICKS. `.result` is the CLIENT's prediction and
                 // `.spent` is the SERVER after the wait; between them sits the tick that decides this
                 // cell — the one where the server processes the use packet and reads its OWN
-                // `inventory.selected`. Nothing in this rung has ever sampled that, so「the hand was
-                // right at the send and wrong at the handling」was indistinguishable from a refusal,
+                // `inventory.selected`. Nothing in this rung has ever sampled that, so "the hand was
+                // right at the send and wrong at the handling" was indistinguishable from a refusal,
                 // and j48 spent its whole rung-12 budget on that ambiguity.
                 //
                 // Ten ticks rather than the three this settle used to wait, and ten because that is
                 // what rung 11's pour already waits — the same window, not a tighter one invented
-                // here. TRACE_TICKS is 6 because the answer「the other author is merely slower」lives
+                // here. TRACE_TICKS is 6 because the answer "the other author is merely slower" lives
                 // on use+5, so the settle has to outlast the trace or the last sample never happens.
                 // The longer wait is also strictly safer for the round trip `.spent` claims to have
                 // waited out, and that row's own wording moves with the constant.
@@ -1900,43 +1978,48 @@ public final class JourneyPortalRung {
                     // The pour is over; everything downstream — the lift, the walk home — pillars.
                     BotConfig.allowPlace = placeWas;
                     // HOW MANY TICKS THE INSTRUMENT SAW, so silence can be read. Missing entirely ⇒
-                    // the run never reached this pour (未触发, evidence for neither side); present
-                    // with 0 ⇒ the settle was skipped and the instrument never fired, so its silence
-                    // is also not evidence; present with 6 ⇒ the trace rows are the answer.
-                    rig.evidence(tag + ".handTrace.samples", "采到 " + traced[0] + "/"
-                            + JourneyHands.TRACE_TICKS + " 个服务端 tick。t0 与 useItemInHand 落在同一个"
-                            + "服务端 tick —— 以每行的 gameTime 为准，别以 tick 序号为准。"
-                            + "t-1 是发包前的校准行：它与 " + tag + ".atUse 必须一致，不一致就是仪器坏了。");
+                    // the run never reached this pour (not triggered, evidence for neither side);
+                    // present with 0 ⇒ the settle was skipped and the instrument never fired, so its
+                    // silence is also not evidence; present with 6 ⇒ the trace rows are the answer.
+                    rig.evidence(tag + ".handTrace.samples", "sampled " + traced[0] + "/"
+                            + JourneyHands.TRACE_TICKS + " server ticks. t0 falls on the same server"
+                            + " tick as useItemInHand — go by each row's gameTime, not by the tick"
+                            + " index. t-1 is the calibration row taken before the packet is sent: it"
+                            + " must agree with " + tag + ".atUse, and a disagreement means the"
+                            + " instrument is broken.");
                     int after = stock.get();
                     rig.evidence(tag + ".spent", after < before
                             ? BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
-                              + "（倒出去了）"
+                              + " (poured)"
                             : BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
-                              + "，等过 " + POUR_SETTLE
-                              + " tick 往返仍未消耗 —— 桶还满着，这一浇没有发生");
+                              + ", still not consumed after a " + POUR_SETTLE
+                              + "-tick round trip — the bucket is still full; this pour did not happen");
                     // AND STOP, because everything downstream assumes the bucket is now empty.
                     //
-                    // This row has been able to say「这一浇没有发生」for several runs and nothing
-                    // has ever read it. Ladder j48 measured what that costs: `water6.spent =
+                    // This row can report that the pour did not happen, and nothing downstream read
+                    // it. Ladder j48 measured what that costs: `water6.spent =
                     // water_bucket 1→1` and the rung walked on to fetch lava with its only bucket
-                    // still full of water, spent the next leg re-aiming three times and clearing
-                    // three sightlines while holding a stone pickaxe, and died on
-                    // `装不到 minecraft:lava_bucket`. Six legs downstream, about the wrong one.
+                    // still full of water, spent the next step re-aiming three times and clearing
+                    // three sightlines while holding a stone pickaxe, and died unable to fill a
+                    // lava_bucket. Six steps downstream, about the wrong one.
                     //
-                    // A verdict that names this leg is worth more than a run that limps: the cell
-                    // is uncast either way, and the ONLY difference is whether the reader is sent
-                    // to the leg that failed or to the one that inherited it.
+                    // A result message that names this step is worth more than a run that limps: the
+                    // cell is uncast either way, and the ONLY difference is whether the reader is sent
+                    // to the step that failed or to the one that inherited it.
                     if (after >= before) {
-                        ctx.fail("这一浇没有发生："
+                        ctx.fail("This pour did not happen: "
                                 + BuiltInRegistries.ITEM.getKey(held) + " " + before + "→" + after
-                                + "，等过 " + POUR_SETTLE + " tick 往返仍未消耗 —— 桶还满着。"
-                                + "客户端说 " + rig.evidenceOf(tag + ".result")
-                                + "，服务端没消耗，两个数来自两端；"
-                                + "这一浇的手与瞄准：" + rig.evidenceOf(tag + ".atUse")
-                                + "。要判是「服务端那只手在处理包那一刻就不对了」还是「两端都拿着桶而这一浇被拒」，"
-                                + "去读 " + tag + ".handTrace.t*.server 那一组（先看 "
-                                + tag + ".handTrace.samples 确认仪器响了）—— "
-                                + tag + ".atUse 只答得了发包那一刻");
+                                + ", still not consumed after a " + POUR_SETTLE
+                                + "-tick round trip — the bucket is still full. The client reported "
+                                + rig.evidenceOf(tag + ".result")
+                                + " and the server consumed nothing; the two numbers come from the"
+                                + " two sides. Hand and aim for this pour: " + rig.evidenceOf(tag + ".atUse")
+                                + ". To decide between 'the server's hand was already wrong when it"
+                                + " handled the packet' and 'both sides held the bucket and the pour"
+                                + " was refused', read the " + tag + ".handTrace.t*.server rows"
+                                + " (check " + tag + ".handTrace.samples first to confirm the"
+                                + " instrument fired) — " + tag + ".atUse only answers for the moment"
+                                + " the packet was sent");
                         return;
                     }
                     then.run();
@@ -1949,13 +2032,13 @@ public final class JourneyPortalRung {
      * How long a pour waits before judging whether its bucket emptied.
      *
      * <p>Ten, copied from rung 11's {@code pourInto} rather than picked here: the two pours ask the
-     * same question of the same round trip, and inventing a second number would make「等过 N tick」
-     * mean two things in one results file. It used to be three, which is why the wait had to grow —
+     * same question of the same round trip, and inventing a second number would make "after an
+     * N-tick round trip" mean two things in one results file. It is not three, because
      * {@link JourneyHands#TRACE_TICKS} samples six consecutive server ticks after the use, and a
      * settle that ends on tick three cannot produce the sixth sample.
      *
-     * <p>Every message that quotes the wait quotes THIS constant. A row saying「等过 3 tick」beside a
-     * settle that waited ten is the kind of stale literal that gets read as a measurement.
+     * <p>Every message that quotes the wait quotes THIS constant. A row claiming a 3-tick wait beside
+     * a settle that waited ten is the kind of stale literal that gets read as a measurement.
      */
     private static final int POUR_SETTLE = 10;
 
@@ -1972,8 +2055,6 @@ public final class JourneyPortalRung {
      *  blocker at {@code dy=+2} shows up as a clear line here and an unexplained refusal there. One
      *  below the target is where the body's feet go, the target's own is where the ray travels, and
      *  TWO above because the cast's own water floats the body a block higher by the third cell.
-     *  (This said 「two rows」 for a while after the window was widened; the neighbouring javadoc
-     *  had 「Four rows, not two」 in bold twenty lines further down the same file.)
      *
      *  <p>Naming which cell is not clear is the difference between "the pour does not work" and
      *  "there is a cobblestone at -9,52,22". */
@@ -1985,28 +2066,29 @@ public final class JourneyPortalRung {
                 if (level.getBlockState(c).isAir()) continue;
                 out.append(out.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
                         .append(level.getBlockState(c).getBlock())
-                        .append(forgeCorridor.contains(c) ? "(壁龛内)" : "(壁龛外)");
-                // SOURCE OR FLOW, because 「the pour line is flooded」 and 「something upstream is
-                // still feeding it」 are different problems with opposite remedies: a flow with no
-                // source retreats on its own and the leg only has to wait, while a source has to be
+                        .append(forgeCorridor.contains(c) ? "(inside alcove)" : "(outside alcove)");
+                // SOURCE OR FLOW, because "the pour line is flooded" and "something upstream is
+                // still feeding it" are different problems with opposite remedies: a flow with no
+                // source retreats on its own and the pour only has to wait, while a source has to be
                 // taken back before anything downstream can stand. The same distinction
                 // `JourneyStairs.report` prints for the stair foot, and the reading rung 12's cell
                 // eight has been missing — its alcove is water at pour time and no row says whose.
                 var fl = level.getFluidState(c);
                 if (!fl.isEmpty())
-                    out.append(fl.isSource() ? "(源)" : "(流 level=" + fl.getAmount() + ")");
+                    out.append(fl.isSource() ? "(source)" : "(flow level=" + fl.getAmount() + ")");
             }
-        return out.isEmpty() ? "全是空气" : out.toString();
+        return out.isEmpty() ? "all air" : out.toString();
     }
 
     /**
      * Mine whatever is standing in the pour's line, but only inside the alcove.
      *
-     * <p><b>Four rows, not two.</b> One below the target (the cell the body's feet go in), the
+     * <p><b>Four rows, not two.</b> One below the target (the cell the bot's feet go in), the
      * target's own (where the ray travels), and TWO above — because by the third cell the corridor is
-     * flooded by the cast's own water and the body floats a block higher, so the cell its head
+     * flooded by the cast's own water and the bot floats a block higher, so the cell its head
      * occupies is two above its feet, not one. Measured, run 27: {@code standToPour} correctly
-     * rejected the one standing spot with a clean line — {@code 浮起来会顶到 -10,58,37} — and the
+     * rejected the one standing spot with a clean line, because a floating bot would hit its head
+     * on -10,58,37, and the
      * clear could not reach {@code y=58} to do anything about it, so the pour fell back to a cell one
      * column over and its ray hit cell zero's obsidian on the way past.
      *
@@ -2028,20 +2110,22 @@ public final class JourneyPortalRung {
         ServerLevel level = ctx.level();
         List<BlockPos> blocked = JourneySight.blockersOnTheLine(level, forgeCorridor, target, away,
                 POUR_LINE, rig.player());
-        // WHICH OF THEM WERE THE RUNG'S OWN STEPS, named before they are spent. "1 格要清" over a
-        // stray block and over a borrowed staircase step are the same sentence and want opposite
-        // reading — the first is litter, the second is this rung handing back a cell it filled on
-        // purpose two legs ago.
+        // WHICH OF THEM WERE THE RUNG'S OWN STEPS, named before they are spent. "1 cell to clear"
+        // over a stray block and over a borrowed staircase step are the same sentence and want
+        // opposite reading — the first is litter, the second is this rung handing back a cell it
+        // filled on purpose two cells ago.
         StringBuilder borrowed = new StringBuilder();
         for (BlockPos c : blocked)
             if (JourneyRamp.isStep(c))
-                borrowed.append(borrowed.isEmpty() ? "" : "，").append(c.toShortString());
-        rig.evidence(tag, blocked.isEmpty() ? "浇线上没有可清的方块（" + pourLine(level, target, away) + "）"
-                : blocked.size() + " 格要清：" + pourLine(level, target, away)
+                borrowed.append(borrowed.isEmpty() ? "" : ", ").append(c.toShortString());
+        rig.evidence(tag, blocked.isEmpty()
+                ? "nothing clearable on the pour line (" + pourLine(level, target, away) + ")"
+                : blocked.size() + " cells to clear: " + pourLine(level, target, away)
                   + (borrowed.isEmpty() ? ""
-                        : "；其中 " + borrowed + " 是自己垒的台阶 —— 当初为上一格的活儿垫的，"
-                          + "现在挡着这一格的射线，收回来（身体 "
-                          + rig.player().blockPosition().toShortString() + " 不站在它上面）"));
+                        : "; of these, " + borrowed + " are the bot's own staircase steps — placed"
+                          + " for an earlier cell's work, now blocking this cell's ray, so they are"
+                          + " taken back (bot at " + rig.player().blockPosition().toShortString()
+                          + " is not standing on them)"));
         clearNext(rig, blocked, 0, () -> {
             for (BlockPos c : blocked)
                 if (!level.getBlockState(c).blocksMotion()) JourneyRamp.forget(c);
@@ -2113,15 +2197,16 @@ public final class JourneyPortalRung {
         // Reported on the way past whether or not it ever fired. A guard that only speaks when it
         // trips cannot be told apart from a guard that was never wired up, and this one has to
         // survive twenty legs of a rung nobody watches.
-        rig.evidence("stairs.audit", "自检 " + JourneyStairs.tally()
-                + "，收工时 " + JourneyStairs.report(level));
+        rig.evidence("stairs.audit", "self-check " + JourneyStairs.tally()
+                + ", at the end of casting " + JourneyStairs.report(level));
         if (cast < RING.length) {
-            ctx.fail("门框没浇满：只有 " + cast + "/" + RING.length + " 块黑曜石 —— 点不着一个缺角的门");
+            ctx.fail("The frame is incomplete: only " + cast + "/" + RING.length
+                    + " obsidian blocks — a frame with a missing cell cannot be lit");
             return;
         }
         BlockPos hearth = frameCell(base, away, 0, 0);
         BlockPos doorway = hearth.above();
-        rig.attempting("清门洞并点火");
+        rig.attempting("Clearing the doorway and lighting the portal");
         clearTheDoorway(ctx, rig, base, away, () -> strike(ctx, rig, base, away, hearth, doorway));
     }
 
@@ -2142,10 +2227,10 @@ public final class JourneyPortalRung {
      *
      * <p><b>And slag is not the only thing that gets in — WATER does, and a pick cannot take it
      * out.</b> The first ladder run ever to cast all ten cells died here:
-     * {@code portal.slag = 2 格要清：-9,57,38=water -10,58,38=granite}, then
-     * {@code portal.doorway = 还堵着：-9,57,38=water}. The granite went; the water was swung at six
+     * {@code portal.slag} listed two cells to clear, -9,57,38=water and -10,58,38=granite, then
+     * {@code portal.doorway} reported -9,57,38=water still blocking. The granite went; the water was swung at six
      * hundred ticks' worth of nothing, because {@code mine} on a fluid cell is a no-op. It is fed
-     * from the alcove — {@code drain.9 = 等了 200 tick 仍有流体：-9,57,37 = water} names the cell
+     * from the alcove — {@code drain.9}, reporting fluid still at -9,57,37 after 200 ticks, names the cell
      * immediately behind it — so the doorway is where this rung's long-standing wet alcove finally
      * stops being a cost and becomes the failure.
      *
@@ -2173,18 +2258,18 @@ public final class JourneyPortalRung {
             if (level.getFluidState(behind).isEmpty()) continue;
             boolean was = level.getFluidState(behind).isSource();
             if (held) JourneyStairs.placeInto(level, rig, behind);
-            // READ IT BACK, and do not call it dammed until the world says so. The first run of this
-            // reported `堵住…-10,57,37(流动)→Block{minecraft:water}` — a sentence that claims a dam
-            // and prints the water still standing there, which is the shape of row this rung has
-            // been misled by twice. Best-effort is fine here (the wait and the plug below carried
-            // that run to 6/6 anyway); claiming success is not.
+            // READ IT BACK, and do not call it dammed until the world says so. A row that claims a
+            // dam at -10,57,37 (flowing) and prints the water still standing there is the shape
+            // of row this rung has been misled by twice. Best-effort is fine here (the wait and the
+            // plug below carried that run to 6/6 anyway); claiming success is not.
             boolean now = level.getBlockState(behind).blocksMotion();
             dammed.append(dammed.isEmpty() ? "" : " ").append(behind.toShortString())
-                    .append(was ? "(源块)" : "(流动)").append(now ? "→堵上了 " : "→没堵上，还是 ")
+                    .append(was ? "(source)" : "(flowing)").append(now ? "→dammed " : "→not dammed, still ")
                     .append(level.getBlockState(behind).getBlock());
         }
-        rig.evidence("portal.dam", dammed.isEmpty() ? "门洞背后没有流体，不用堵"
-                : (held ? "" : "手上没有圆石，堵不上；") + "门洞背后的壁龛格：" + dammed);
+        rig.evidence("portal.dam", dammed.isEmpty() ? "no fluid behind the doorway, nothing to dam"
+                : (held ? "" : "no cobblestone in hand, cannot dam; ") + "alcove cells behind the doorway: "
+                  + dammed);
 
         rig.settle(new HoldStill(20), DOORWAY_DRAIN_TICKS, () -> {
             List<BlockPos> slag = new ArrayList<>();
@@ -2195,8 +2280,8 @@ public final class JourneyPortalRung {
                 // water is the six hundred ticks of nothing that killed the run above.
                 if (!level.getFluidState(c).isEmpty()) {
                     // BEFORE THE PLUG, because plugging is what empties the cell. The first run of
-                    // this read the fluid back after placing and printed
-                    // `流动 …material.EmptyFluid@1835b783` — the state it had just destroyed, under
+                    // this read the fluid back after placing and printed a flowing
+                    // `…material.EmptyFluid@1835b783` — the state it had just destroyed, under
                     // an object identity nobody can read. What the row is for is naming the fluid
                     // that was in the way.
                     boolean source = level.getFluidState(c).isSource();
@@ -2205,15 +2290,17 @@ public final class JourneyPortalRung {
                     boolean plugged = JourneyHands.holdBoth(rig, Items.COBBLESTONE)
                             && JourneyStairs.placeInto(level, rig, c);
                     rig.evidence("portal.plug." + c.toShortString(),
-                            (source ? "源块 " : "流动 ") + fluid
-                            + " → " + (plugged ? "塞成 " + level.getBlockState(c).getBlock()
-                                               + "，接下来当方块挖掉" : "塞不上，挖也挖不动"));
+                            (source ? "source " : "flowing ") + fluid
+                            + " → " + (plugged ? "plugged as " + level.getBlockState(c).getBlock()
+                                               + ", to be mined out as a block next"
+                                             : "could not be plugged, and cannot be mined either"));
                 }
                 slag.add(c);
                 what.append(what.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
                         .append(level.getBlockState(c).getBlock());
             }
-            rig.evidence("portal.slag", slag.isEmpty() ? "门洞六格都是空气" : slag.size() + " 格要清：" + what);
+            rig.evidence("portal.slag", slag.isEmpty() ? "all six doorway cells are air"
+                    : slag.size() + " cells to clear: " + what);
             if (slag.isEmpty()) { then.run(); return; }
             clearNext(rig, slag, 0, 600, () -> {
                 StringBuilder left = new StringBuilder();
@@ -2222,12 +2309,15 @@ public final class JourneyPortalRung {
                         left.append(left.isEmpty() ? "" : " ").append(c.toShortString()).append('=')
                                 .append(level.getBlockState(c).getBlock())
                                 .append(level.getFluidState(c).isEmpty() ? ""
-                                        : level.getFluidState(c).isSource() ? "(源块)" : "(流动)");
-                rig.evidence("portal.doorway", left.isEmpty() ? "六格都清干净了" : "还堵着：" + left);
+                                        : level.getFluidState(c).isSource() ? "(source)" : "(flowing)");
+                rig.evidence("portal.doorway", left.isEmpty() ? "all six cells cleared"
+                        : "still blocked: " + left);
                 if (!left.isEmpty()) {
-                    ctx.fail("门洞清不干净：" + left + " —— 传送门要的是六格空气；"
-                            + "圆石是浇筑时岩浆碰水结的渣，流体是壁龛里没排干的水顺着背后灌进来的，"
-                            + "两者要的手段不一样，看 portal.dam / portal.plug 哪一步没成");
+                    ctx.fail("The doorway could not be cleared: " + left + " — a portal needs six"
+                            + " cells of air. Cobblestone is slag left where lava met water during"
+                            + " casting; fluid is undrained alcove water flowing in from behind. The"
+                            + " two need different remedies; check whether portal.dam or portal.plug"
+                            + " failed");
                     return;
                 }
                 then.run();
@@ -2257,7 +2347,8 @@ public final class JourneyPortalRung {
                 rig.settle(new HoldStill(5), 20, () -> {
                     // PRINT THE VALUE, NOT THE PREDICATE — and print it HERE, not upstream.
                     // `portal.cells` is a count, and a count of zero names nothing. Rehearsal #7 read
-                    // frame.obsidian=10/10, portal.slag=门洞六格都是空气, light.cellAfter=fire and
+                    // frame.obsidian=10/10, portal.slag reporting all six doorway cells as air,
+                    // light.cellAfter=fire and
                     // portal.cells=0/6: every row right, and not one row saying what was in the other
                     // five cells. Those two upstream rows are also STALE by the time the flint moves —
                     // both are taken in clearTheDoorway, which then hands off to strike(), and strike()
@@ -2275,7 +2366,7 @@ public final class JourneyPortalRung {
                             cells.append(cells.isEmpty() ? "" : " ").append(c.toShortString())
                                     .append('=').append(st.getBlock())
                                     .append(level.getFluidState(c).isEmpty() ? ""
-                                            : level.getFluidState(c).isSource() ? "(源块)" : "(流动)");
+                                            : level.getFluidState(c).isSource() ? "(source)" : "(flowing)");
                         }
                     rig.evidence("portal.cells", lit + "/6");
                     rig.evidence("portal.cellsNow", cells.toString());
@@ -2284,7 +2375,7 @@ public final class JourneyPortalRung {
                     // ring of nine is not a frame — and the count alone sends the next reader to
                     // re-derive the missing cell from `portal.cellsNow`, which lists the INTERIOR and
                     // therefore cannot name it at all. Measured, rehearsal 2026-08-26: `frame.cast =
-                    // 10/10（浇成之后又丢了 0 格）` beside `frame.obsidianNow = 9/10`, so the block
+                    // 10/10` with no cell lost after casting, beside `frame.obsidianNow = 9/10`, so the block
                     // went missing during `strike`'s walk and the run failed with `portal.cells 0/6`
                     // and `light.cellAfter = fire`. Naming the cell is what turns that into a place
                     // to look. The block it is NOW is part of the answer: air is something removing
@@ -2298,14 +2389,16 @@ public final class JourneyPortalRung {
                                 .append('=').append(fs.getBlock());
                     }
                     rig.evidence("frame.obsidianNow", countObsidian(level, base, away) + "/" + RING.length
-                            + "（对照 frame.obsidian：那个数是清门洞之前读的，中间隔着 strike 里最多 1500 tick 的走路）"
-                            + (gone.isEmpty() ? "" : " —— 缺的是 " + gone));
+                            + " (compare frame.obsidian: that count was read before the doorway was"
+                            + " cleared, and up to 1500 ticks of walking in strike lie between them)"
+                            + (gone.isEmpty() ? "" : " — missing: " + gone));
                     rig.evidence("light.cellAfter", String.valueOf(level.getBlockState(doorway).getBlock()));
                     rig.evidence("bucket.after", rig.carrying("minecraft:bucket")
-                            + " 空 / " + rig.carrying("minecraft:water_bucket") + " 水");
-                    ctx.expect(lit).as("the portal the body carved, cast and struck is lit").isEqualTo(6);
-                    rig.reach("在 y=" + doorway.getY() + " 就地浇出十块黑曜石并点亮 " + lit
-                            + " 格传送门（自带一桶水下井，浇完水还在桶里）");
+                            + " empty / " + rig.carrying("minecraft:water_bucket") + " water");
+                    ctx.expect(lit).as("the portal the bot carved, cast and struck is lit").isEqualTo(6);
+                    rig.reach("cast ten obsidian blocks in place at y=" + doorway.getY() + " and lit "
+                            + lit + " portal cells (carried one water bucket down the shaft; the"
+                            + " water is still in the bucket after casting)");
                 });
             });
         });

@@ -190,9 +190,9 @@ public interface BotApi {
      * it end" are separate volatiles updated by the client thread while the caller reads
      * from the server thread, and two atomic reads do not compose into an atomic pair: a
      * poll landing between them sees {@code busy=false} beside the PREVIOUS leg's ending, so
-     * 「这一腿刚跑完」and「上一腿早跑完、这一腿还没装上」render identically. This repo has
-     * already paid for that exact shape — a {@code null} that meant「还没算过」read as
-     * 「算出来是零」. So the whole reading is published as one immutable snapshot and handed
+     * "this process run has just completed" and "the previous run completed long ago and this one
+     * is not installed yet" render identically. This repo has already paid for that exact shape —
+     * a {@code null} that meant "not computed yet" read as "computed as zero". So the whole reading is published as one immutable snapshot and handed
      * over in one field read.
      *
      * <p>{@code busy} is true from the instant {@code runProcess} returns and goes false only
@@ -257,8 +257,8 @@ public interface BotApi {
      *
      * <p><b>Why "hop without waiting" cannot simply be applied.</b> Half the call sites branch on the
      * result — {@code boolean held = …holdItem(COBBLESTONE); if (!held) …} — and a dispatch that does
-     * not wait can only return「已派发」, which would turn each of those guards into an always-true
-     * predicate. This repo has already paid for one of those this week. Waiting instead is the
+     * not wait can only return "dispatched", which would turn each of those guards into an
+     * always-true predicate. Waiting instead is the
      * deadlock shape: {@code BotUtil.onClient} blocks the caller until the client thread answers, and
      * on an integrated server the caller IS the thread the client is ticking against.
      *
@@ -268,7 +268,7 @@ public interface BotApi {
      * return value. That is a change of call TIMING, not of call style, and it is not yet made.
      *
      * <p>Until it is: this is not merely untidy. A cross-thread write to client state may not throw —
-     * few of these vanilla fields carry thread assertions — so a test that reports「一致」can be
+     * few of these vanilla fields carry thread assertions — so a test that reports "consistent" can be
      * sitting on a data race, and green would not mean correct. Any scene judging this path must
      * record the calling thread alongside its readings, or it cannot tell the two apart.
      */

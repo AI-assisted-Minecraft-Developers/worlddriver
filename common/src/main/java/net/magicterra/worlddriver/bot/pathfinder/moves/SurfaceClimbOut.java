@@ -9,7 +9,7 @@ import net.minecraft.core.BlockPos;
  * The edge the walker's water climb-out takeover really performs — a ground jump and a fill in
  * one-deep water, a side rung on a neighbouring floor, or a press against a bank while the fill
  * cell is placed under the risen feet — and legal only in those three shapes, with a block in
- * hand. Replaces the legacy {@code swimUp}「into the air」edge, which A* could plan over any
+ * hand. Replaces the legacy {@code swimUp} "into the air" edge, which A* could plan over any
  * open column and which the body could only bob against. Same price as that edge so the two
  * models differ in legality, not in taste; the water climb-out tax still applies on top.
  *

@@ -163,14 +163,14 @@ public final class IntentProcess implements BotProcess {
         // the planning of THAT place. Latched on the first tick that actually holds a path, so it
         // records the plan the run started from rather than the one it died in.
         if (st.mc_goto.firstPlan == null && walker.pathLen() > 0) {
-            st.mc_goto.firstPlan = "身体 " + (body == null ? "?" : body.blockPosition().toShortString())
-                    + " 首步 move=" + walker.pathMove()
-                    + " 首节点=" + (walker.pathNode() == null ? "?" : walker.pathNode().toShortString())
-                    + "；平滑后 " + walker.planTally()
-                    + "；平滑前 " + walker.rawPlanTally()
-                    + "；沿路 " + walker.planTerrain(w)
-                    + "；逐格 " + walker.planSpans(w, 4)
-                    + "；平滑自审 "
+            st.mc_goto.firstPlan = "bot at " + (body == null ? "?" : body.blockPosition().toShortString())
+                    + " firstMove=" + walker.pathMove()
+                    + " firstNode=" + (walker.pathNode() == null ? "?" : walker.pathNode().toShortString())
+                    + "; smoothed: " + walker.planTally()
+                    + "; before smoothing: " + walker.rawPlanTally()
+                    + "; terrain along the path: " + walker.planTerrain(w)
+                    + "; cell by cell: " + walker.planSpans(w, 4)
+                    + "; smoothing self-audit: "
                     + net.magicterra.worlddriver.bot.movement.PathSmoothing.smoothingAudit();
         }
         // Published from the SAME tick as the two counters above, so a reader cannot pair a step
@@ -180,7 +180,7 @@ public final class IntentProcess implements BotProcess {
         // Same tick, same reason (see BotState.ProcessSlot.driveTag): whether this tick reached the
         // drive tail at all is what separates "the edge guard said no" from "the edge guard never
         // ran", and only the walker knows.
-        if (walker.parkourTakeoff() != "无") st.mc_goto.parkourTakeoff = walker.parkourTakeoff();
+        if (walker.parkourTakeoff() != "none") st.mc_goto.parkourTakeoff = walker.parkourTakeoff();
         st.mc_goto.driveTag = walker.driveTag;
         st.mc_goto.jumpTag = walker.jumpTag;
         if (s == Walker.Step.WALKING) return false;

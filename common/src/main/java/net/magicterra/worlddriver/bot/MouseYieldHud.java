@@ -33,18 +33,18 @@ public final class MouseYieldHud {
         if (!MouseYield.driving()) return;
 
         String who = MouseYield.driver();
-        String line1 = who.isEmpty() ? "● BOT 接管中" : "● BOT 接管中 · " + who;
+        String line1 = who.isEmpty() ? "● BOT in control" : "● BOT in control · " + who;
         String line2;
         int color2;
         if (MouseYield.reclaimed()) {
-            line2 = "鼠标在你手上 · bot 仍在操作";
+            line2 = "You have the mouse · the bot is still acting";
             color2 = COLOR_RECLAIM;
         } else if (MouseYield.yielded()) {
-            line2 = "鼠标已释放 · 双击 ESC 取回";
+            line2 = "Mouse released · double-press ESC to take it back";
             color2 = COLOR_YIELDED;
         } else {
             // Driving but nothing released — mouseYield off, or a screen owns the cursor.
-            line2 = "双击 ESC 取回鼠标";
+            line2 = "Double-press ESC to take back the mouse";
             color2 = COLOR_YIELDED;
         }
 

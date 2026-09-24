@@ -159,7 +159,7 @@ public final class JourneyNetherRungs {
      */
     private static void blazeRod(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.BLAZE_ROD);
-        rig.attempting("走到下界要塞，把烈焰人刷怪笼围成一间封顶小屋，在屋里打出烈焰棒");
+        rig.attempting("reach the Nether fortress, wall the blaze spawner in a roofed room, kill blazes for rods");
         rig.generousPathfinding();
         dontCutCornersOverLava(rig);
         rig.liveWorld(true);
@@ -189,15 +189,15 @@ public final class JourneyNetherRungs {
         // only this evidence line was ever wrong. Resolving a real standable y here would not change
         // the walk at all, and would cost a block read 390 blocks away in an unloaded chunk.
         int away = (int) Math.round(Math.hypot(here.getX() - fortress.getX(), here.getZ() - fortress.getZ()));
-        rig.evidence("fortress.at", fortress.toShortString()
-                + "（距身体 " + away + " 格水平；地标的 y=" + fortress.getY() + " 是 locate 的占位，不是可站立高度）");
-        rig.attempting("走到要塞 " + fortress.toShortString() + "（" + away + " 格）");
-        // ASK ALL EIGHTEEN BEFORE WALKING ONE. The corridor has been diagnosed a leg at a time for
-        // four runs, and each leg's verdict can only ever say「这一段没走到」. The waypoints are body
-        // positions from a run that BRIDGED, so some of them are cells that run created and a fresh
-        // world does not have — wp4 is one: the body was declared arrived 1 block from it, in mid
-        // air, over a shaft. Which of the eighteen are causeway artifacts is one cheap column scan
-        // each, and it is knowable before the rung takes a single step rather than after four runs.
+        rig.evidence("fortress.at", fortress.toShortString() + " (" + away + " blocks horizontally from the bot;"
+                + " the landmark's y=" + fortress.getY() + " is a locate placeholder, not a standable height)");
+        rig.attempting("walk to the fortress " + fortress.toShortString() + " (" + away + " blocks)");
+        // ASK ALL EIGHTEEN BEFORE WALKING ONE. The corridor was diagnosed one segment at a time for four
+        // runs, and each segment's result can only say "this segment was not reached". The waypoints are
+        // bot positions from a run that BRIDGED, so some are cells that run created and a fresh world
+        // lacks — wp4 is one: the bot was declared arrived 1 block from it, in mid air, over a shaft.
+        // Which of the eighteen are causeway artifacts is one cheap column scan each, and it is
+        // knowable before the rung takes a single step rather than after four runs.
         JourneyCorridorProbe.auditWaypoints(rig, FORTRESS_WAYPOINTS);
         walkTheCorridor(ctx, rig, fortress, 0, 0);
     }
@@ -210,8 +210,8 @@ public final class JourneyNetherRungs {
      * have to block the server thread to wait for one.
      *
      * <p><b>Each leg fails under its own name.</b> {@code fortress.wp3} carries its own hop lines,
-     * its own pace and its own {@code why}, so「the crossing did not make it」becomes「the leg from
-     * {60,85} to {74,97} did not make it」— which is a route edit, not a mechanism hunt. That is the
+     * its own pace and its own {@code why}, so "the crossing did not make it" becomes "the leg from
+     * {60,85} to {74,97} did not make it" — which is a route edit, not a mechanism hunt. That is the
      * whole of what a scripted route buys: it cannot fix the executor's drift and does not try, it
      * removes the case where a waypoint dead-reckoned along a bearing lands in the sea.
      *
@@ -231,24 +231,23 @@ public final class JourneyNetherRungs {
             crossToColumn(rig, "fortress", fortress.getX(), fortress.getZ(), FORTRESS_ARRIVE_WITHIN,
                     HOP_TICKS, MAX_HOPS,
                     () -> findTheSpawner(ctx, rig),
-                    () -> ctx.fail("走完了烘入的走廊，最后一段走不到要塞 " + fortress.toShortString()
-                            + "：停在 " + rig.player().blockPosition().toShortString()
-                            + "。这一段没有任何一趟勘测过，读 fortress.* 那几行的死因，"
-                            + "不要当成路点选错了"));
+                    () -> ctx.fail("baked corridor completed; the final segment cannot reach the fortress "
+                            + fortress.toShortString() + ": stopped at " + rig.player().blockPosition()
+                            .toShortString() + ". No run has surveyed it; read fortress.*, not a bad waypoint"));
             return;
         }
         int[] wp = FORTRESS_WAYPOINTS[i];
         String leg = "fortress.wp" + (i + 1);
         BlockPos want = new BlockPos(wp[0], wp[1], wp[2]);
         BlockPos at = rig.player().blockPosition();
-        rig.evidence(leg + ".from", at.toShortString() + " → " + want.toShortString() + "（"
-                + Math.round(Math.sqrt(at.distSqr(want))) + " 格；第 " + (i + 1)
-                + "/" + FORTRESS_WAYPOINTS.length + " 个烘入路点，出处见 FORTRESS_WAYPOINTS）");
+        rig.evidence(leg + ".from", at.toShortString() + " → " + want.toShortString() + " ("
+                + Math.round(Math.sqrt(at.distSqr(want))) + " blocks; baked waypoint " + (i + 1)
+                + "/" + FORTRESS_WAYPOINTS.length + ", sources in FORTRESS_WAYPOINTS)");
         // THE Y STILL COUNTS — the RADIUS is what changed, and those are two different claims that
         // this comment used to run together.
         //
         // Still not Goal.XZ: the first corridor run walked legs 1-4 in one hop each and then failed
-        // leg 5 with 「goal unreachable from here」 — from 72,44,92, five blocks short of the surveyed
+        // leg 5 with "goal unreachable from here" — from 72,44,92, five blocks short of the surveyed
         // cell 74,41,97 and THREE ABOVE IT, standing on a shelf over the corridor rather than on it,
         // and from a shelf the way east genuinely does not exist. A column is not a cell. That
         // argument is about Y, and Goal.Near keeps Y: it is a 3D sphere, the same shape the judge
@@ -275,7 +274,7 @@ public final class JourneyNetherRungs {
         // there, or hung in cave_air — three different bugs that print one identical coordinate,
         // which is the entire reason JourneyFlight exists. The corridor is the part of rung 14 under
         // active repair, so it is the last place that should be reading a photograph of the wreckage.
-        // NO_PARKOUR HERE TOO — its own javadoc says「scoped to the crossing hops on purpose」, and
+        // NO_PARKOUR HERE TOO — its own javadoc says "scoped to the crossing hops on purpose", and
         // that scope was wrong: these precise legs walk the SAME lava sea, and the argument for it
         // holds word for word here. Leg 5 was measured taking nine parkour launches across four runs
         // and NOT ONE landed on its node; two of them ended in the lava at y=5 and killed the rung.
@@ -286,9 +285,8 @@ public final class JourneyNetherRungs {
         // the single variable that separates every corridor leg that planned from every corridor leg
         // that reported expanded=100000, and this leg's own arrival Y is the next leg's start.
         int ceiling = bandCeiling(i);
-        rig.evidence(leg + ".band", "这一段的免税天花板 y=" + ceiling
-                + "（取自路点表，不取自身体所在高度）；每高出一格加价 " + (int) BAND_TAX
-                + "，一格平走是 10");
+        rig.evidence(leg + ".band", "untaxed ceiling y=" + ceiling + " (from the waypoint table, not the"
+                + " bot's height); each block above costs " + (int) BAND_TAX + " extra, a flat block 10");
         // BEFORE THE BODY MOVES. See JourneyFireCensus: the planner already refuses fire as a foot
         // cell, so a body that ends up centred in one either left its plan or met fire that was not
         // there when the plan was made — and only a reading taken at THIS instant can tell which.
@@ -310,16 +308,16 @@ public final class JourneyNetherRungs {
                 int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
                 // Unconditional, on arrival AND on failure: a leg that stopped two blocks out and a
                 // leg that stopped thirty read identically in a PASS, and this corridor exists to
-                // make the difference between「on the surveyed cell」and「near it」visible.
-                rig.evidence(leg + ".at", now.toShortString() + "，距路点 " + off + " 格（含 y，容差 "
-                        + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling) + "；"
+                // make the difference between "on the surveyed cell" and "near it" visible.
+                rig.evidence(leg + ".at", now.toShortString() + ", " + off + " blocks from the waypoint (with y,"
+                        + " tolerance " + WAYPOINT_ARRIVE_WITHIN + "); " + aboveBand(now, ceiling) + "; "
                         + JourneyLeg.walkerEnd(rig)
-                        // The drop is printed even when it is zero blocks of movement but the body
-                        // was unsupported, because「走完时没有支撑」is the defect whether or not the
-                        // landing allowance was long enough to resolve it.
-                        + (ended.equals(now) ? "" : "；⚠️ 走完那一刻身体在 " + ended.toShortString()
-                                + " 且没有支撑，是落地后才判的（掉了 " + (ended.getY() - now.getY())
-                                + " 格）—— 上面那个 end= 描述的是下坠开始前的那一刻"));
+                        // The drop is printed even when it is zero blocks of movement but the bot
+                        // was unsupported, because "no support when the walk ended" is the defect
+                        // whether or not the landing allowance was long enough to resolve it.
+                        + (ended.equals(now) ? "" : "; ⚠️ the walk ended at " + ended.toShortString()
+                                + " unsupported and was judged after landing (fell " + (ended.getY() - now.getY())
+                                + " blocks); end= above describes the moment before the fall"));
                 if (off <= WAYPOINT_ARRIVE_WITHIN) { walkTheCorridor(ctx, rig, fortress, i + 1, laid); return; }
                 // THE DETOUR IS NOT A SECOND CHANCE AT A SEARCH THAT ALREADY GAVE UP. See
                 // JourneyLeg.searchGaveUp: re-aiming six blocks PAST a cell the search could not
@@ -346,8 +344,8 @@ public final class JourneyNetherRungs {
      * hop #6 got out by turning 60° off the bearing to the FORTRESS and aiming at {63,92} — a point
      * nobody stood in, 5 blocks past the cell the walk actually ended in.
      *
-     * <p>So a surveyed cell answers「is this standable」and「was this reachable」, and it does not
-     * answer「is this a goal A* can solve for from here」. {@link #crossToColumn} already owns the
+     * <p>So a surveyed cell answers "is this standable" and "was this reachable", and it does not
+     * answer "is this a goal A* can solve for from here". {@link #crossToColumn} already owns the
      * only thing that has ever unwedged this terrain — halve the reach, then turn ±60° — and its
      * bearing comes from the goal, which is why it found the lateral escape when a direct goal
      * could not.
@@ -363,8 +361,8 @@ public final class JourneyNetherRungs {
         // AIM PAST IT, and by exactly as much as the hop machinery calls "arrived". crossToColumn
         // judges arrival in XZ only (away <= tolerance + ARRIVED_WITHIN), so a body standing in the
         // right column 23 blocks below its waypoint is ARRIVED as far as it is concerned — the first
-        // cut of this fallback aimed at the cell itself and ran 「一段都没走，还差 0 格」, a fallback
-        // that reported success without moving. Aiming past the cell gives the hop machinery
+        // cut of this fallback aimed at the cell itself and reported "no hop walked, 0 blocks left",
+        // a fallback that reported success without moving. Aiming past the cell gives the hop machinery
         // somewhere to walk AND reproduces what the ladder actually did here: its escape from
         // {71,43,69} aimed at {63,92}, five blocks beyond the {63,41,87} it landed in.
         BlockPos here = rig.player().blockPosition();
@@ -373,31 +371,30 @@ public final class JourneyNetherRungs {
         // THE BEARING IS UNDEFINED WHEN THE BODY IS ALREADY IN THE COLUMN, and the overshoot then
         // degenerates onto the body's own cell: dx=dz=0 makes `round(0/1e-6 * 6)` zero, so the aim
         // becomes want's own XZ, the hop machinery's XZ-only test fires at `away = 0`, and the
-        // fallback reports「走完了整条绕行路线」having stood still. That is the same walked-nowhere
-        // failure DETOUR_OVERSHOOT's assertion was written to stop — the assertion guards the
-        // CONSTANT and cannot guard a zero direction vector.
+        // fallback reports "the detour completed its whole route" having stood still. That is the
+        // same walked-nowhere failure DETOUR_OVERSHOOT's assertion was written to stop — the
+        // assertion guards the CONSTANT and cannot guard a zero direction vector.
         //
         // Skipped rather than nudged, because at this range the hop machinery is structurally the
         // wrong tool: it only judges XZ, and a body already in the right column is missing height.
         if (flat <= ARRIVED_WITHIN) {
-            rig.evidence(leg + ".detourSkipped", here.toShortString() + " 水平上离路点只有 "
-                    + Math.round(flat) + " 格（≤ " + ARRIVED_WITHIN + "）—— 跳段机器只判 XZ，"
-                    + "在这个距离上它会当场判到达、一段都不走，而这里缺的是高度不是水平位移。"
-                    + "跳过绕行，直接重问原题");
+            rig.evidence(leg + ".detourSkipped", here.toShortString() + " is " + Math.round(flat) + " blocks"
+                    + " from the waypoint horizontally (≤ " + ARRIVED_WITHIN + "): the XZ-only hop machinery would"
+                    + " arrive at once and walk no hop, but height is missing. Re-asking the original goal");
             reaskAfterDetour(ctx, rig, fortress, i, want, leg,
-                    "跳过了绕行（水平上已在到达环内，缺的是高度）", bridged);
+                    "skipped the detour (inside the arrival ring horizontally; height missing)", bridged);
             return;
         }
         double span = Math.max(1e-6, flat);
         int overX = want.getX() + (int) Math.round(dx / span * DETOUR_OVERSHOOT);
         int overZ = want.getZ() + (int) Math.round(dz / span * DETOUR_OVERSHOOT);
-        rig.evidence(leg + ".detour", "直接瞄 " + want.toShortString() + " 走不通，改用跳段机器"
-                + "（减半 → 偏 ±60°）瞄过头到 " + overX + "," + overZ + "（多 " + DETOUR_OVERSHOOT
-                + " 格）—— 能到达的格未必是能瞄的格，而跳段机器只判 XZ，瞄本格会当场判到达、一段都不走。"
-                + "见 detourTo");
+        rig.evidence(leg + ".detour", "aiming at " + want.toShortString() + " failed; hop machinery (halve →"
+                + " turn ±60°) aims past it at " + overX + "," + overZ + " (" + DETOUR_OVERSHOOT + " beyond) — a"
+                + " reachable cell is not always aimable, and aiming at the cell itself would arrive at once"
+                + " on XZ and walk no hop. See detourTo");
         crossToColumn(rig, leg + ".hop", overX, overZ, 0, HOP_TICKS, WAYPOINT_DETOUR_HOPS,
-                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行走完了整条路线", bridged),
-                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "绕行没走到瞄点就停了", bridged));
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "the detour completed", bridged),
+                () -> reaskAfterDetour(ctx, rig, fortress, i, want, leg, "the detour stopped short", bridged));
     }
 
     /**
@@ -428,9 +425,9 @@ public final class JourneyNetherRungs {
      * six blocks out. If seats decide runs, this is where it shows.
      *
      * <p><b>Three ways to arrive here must not print the same line.</b> {@code detourOutcome} comes
-     * in as words from the call site rather than being inferred from a distance: 「the detour walked
-     * its whole route」,「the detour gave up short」and「there was no detour, the body was already in
-     * the column」land at the same place often enough to be confused, and each one sends the reader
+     * in as words from the call site rather than being inferred from a distance: "the detour walked
+     * its whole route", "the detour gave up short" and "there was no detour, the body was already
+     * in the column" land at the same place often enough to be confused, and each one sends the reader
      * somewhere different. It was a boolean for one round and the boolean started lying the moment a
      * third case existed — a skipped detour printed as one that failed.
      */
@@ -439,10 +436,9 @@ public final class JourneyNetherRungs {
                                          int bridged) {
         BlockPos over = rig.player().blockPosition();
         int fromOver = (int) Math.round(Math.sqrt(over.distSqr(want)));
-        rig.evidence(leg + ".detourAt", over.toShortString() + "，距路点 " + fromOver + " 格（含 y）；"
-                + detourOutcome
-                + " —— 瞄过头是为了让身体动起来，动起来之后还得走回路点，所以这里重问原题（同一个判据 "
-                + WAYPOINT_ARRIVE_WITHIN + " 格），不在这里判");
+        rig.evidence(leg + ".detourAt", over.toShortString() + ", " + fromOver + " blocks from the waypoint"
+                + " (with y); " + detourOutcome + " — aiming past only gets the bot moving, so the original"
+                + " goal is asked again (same bar, " + WAYPOINT_ARRIVE_WITHIN + " blocks), not judged here");
         // Goal.Near for the same reason the direct leg uses it — one bar, in one place. Asking the
         // re-ask for an exact cell while judging it at WAYPOINT_ARRIVE_WITHIN would reintroduce, in
         // the fallback, exactly the mismatch the fallback is here to survive.
@@ -474,30 +470,29 @@ public final class JourneyNetherRungs {
             settleToGround(rig, leg + ".reask", i, () -> {
                 BlockPos now = rig.player().blockPosition();
                 int off = (int) Math.round(Math.sqrt(now.distSqr(want)));
-                rig.evidence(leg + ".detourReask", "从 " + over.toShortString() + " 重问 "
-                        + want.toShortString() + "：停在 " + now.toShortString() + "，差 " + off
-                        + " 格（含 y，容差 " + WAYPOINT_ARRIVE_WITHIN + "）；" + aboveBand(now, ceiling)
-                        + "；" + JourneyLeg.walkerEnd(rig)
-                        + (ended.equals(now) ? "" : "；⚠️ 走完那一刻身体在 " + ended.toShortString()
-                                + " 且没有支撑，是落地后才判的（掉了 " + (ended.getY() - now.getY())
-                                + " 格）"));
+                rig.evidence(leg + ".detourReask", "re-asked " + want.toShortString() + " from "
+                        + over.toShortString() + ": stopped at " + now.toShortString() + ", " + off
+                        + " blocks off (with y, tolerance " + WAYPOINT_ARRIVE_WITHIN + "); "
+                        + aboveBand(now, ceiling) + "; " + JourneyLeg.walkerEnd(rig)
+                        + (ended.equals(now) ? "" : "; ⚠️ the walk ended at " + ended.toShortString()
+                                + " unsupported and was judged after landing (fell " + (ended.getY() - now.getY())
+                                + " blocks)"));
                 if (off > WAYPOINT_ARRIVE_WITHIN) {
                     // BEFORE ctx.fail, which throws. And here as well as in corridorGaveUp: the
                     // 2026-08-21 run died down this exit and produced no map at all, because the
                     // probe was wired to only one of the two ways a leg can be abandoned.
                     JourneyCorridorProbe.record(rig, leg + ".reask", now, FORTRESS_WAYPOINTS, i, 3);
-                    ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
-                            + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
-                            + "）。直走、" + detourOutcome + "、以及从 " + over.toShortString()
-                            + " 换个座位重问，三条都试过了。"
-                            // NOT「这一格身体站过所以它站得住」any more. wp4 is 63,41,87 and the body
-                            // that "stood there" had its feet at 63,42,87 — the cell in the table is
-                            // the FLOOR. That sentence sent a reader looking for a mechanism fault at
-                            // a cell whose own premise was wrong, and the engine had been silently
-                            // re-aiming off it.
-                            + "注意 FORTRESS_WAYPOINTS 混着落脚格和地板格：如果这一格不可站立，"
-                            + "身体最好也只能站到它上方一格，判据的 " + WAYPOINT_ARRIVE_WITHIN
-                            + " 格容差就是留给这个的。死因在 " + leg + ".* 那几行"
+                    ctx.fail("cannot reach waypoint " + (i + 1) + " " + want.toShortString() + ": stopped at "
+                            + now.toShortString() + ", " + off + " blocks off (tolerance " + WAYPOINT_ARRIVE_WITHIN
+                            + "). Tried: direct, " + detourOutcome + ", re-ask from " + over.toShortString() + ". "
+                            // NOT "the bot stood on this cell, so it is standable" any more. wp4 is
+                            // 63,41,87 and the bot that "stood there" had its feet at 63,42,87 — the cell
+                            // in the table is the FLOOR. That sentence sent a reader looking for a
+                            // mechanism fault at a cell whose own premise was wrong, and the engine had
+                            // been silently re-aiming off it.
+                            + "FORTRESS_WAYPOINTS mixes feet cells with floor cells: if this cell is not"
+                            + " standable the bot can at best stand one above it, which the "
+                            + WAYPOINT_ARRIVE_WITHIN + "-block tolerance allows for. Cause: " + leg + ".* rows"
                             + causewayNote(rig, laid));
                     return;
                 }
@@ -526,8 +521,8 @@ public final class JourneyNetherRungs {
      * <p><b>⚠️ It is DERIVED from {@link #ARRIVED_WITHIN}, and the two are checked against each
      * other at class-load rather than by eye.</b> {@link #detourTo} calls the crossing with
      * {@code tolerance = 0}, so arrival fires at {@code away <= 0 + ARRIVED_WITHIN} and the aim must
-     * land strictly outside that, or the fallback reports「arrived」having walked nowhere — the
-     * exact failure it was written to fix (「一段都没走，还差 0 格」). The margin is ONE block, the
+     * land strictly outside that, or the fallback reports "arrived" having walked nowhere — the
+     * exact failure it was written to fix ("no hop walked, 0 blocks left"). The margin is ONE block, the
      * two constants live two thousand lines apart, and raising {@code ARRIVED_WITHIN} alone would
      * re-break the fallback SILENTLY. It cannot be written as {@code ARRIVED_WITHIN + 1} here —
      * {@code ARRIVED_WITHIN} is declared two thousand lines below and JLS 8.3.3 forbids the forward
@@ -587,7 +582,7 @@ public final class JourneyNetherRungs {
      * </pre>
      *
      * <p>The mechanism is visible in the edge tallies: from one block above the netherrack every
-     * forward cell is「air with a floor two down」, which prices as a bridge, not a walk. One leg
+     * forward cell is "air with a floor two down", which prices as a bridge, not a walk. One leg
      * walked thirty-nine blocks on {@code {bridgePlace=45, walk=2}} — it built a causeway across
      * ground it could have walked on — and the leg after it then expanded a hundred thousand nodes
      * from the tip of that causeway without finding a route seven blocks away.
@@ -631,8 +626,8 @@ public final class JourneyNetherRungs {
      * without turning the box into the whole region.
      *
      * <p>⚠️ <b>The box is not the route</b>, and no pad makes it one — a corner the search cuts wide
-     * leaves it. So a census that comes back empty says「no fire in this neighbourhood when the plan
-     * was made」and NOT「the body met no fire」, and the row says so in as many words. Widening this
+     * leaves it. So a census that comes back empty says "no fire in this neighbourhood when the plan
+     * was made" and NOT "the body met no fire", and the row says so in as many words. Widening this
      * to cover every possible bulge would answer a question nobody asked at the cost of making every
      * corridor read as fiery; the reading that discriminates is a cell that appears in a LATER census
      * of a box that already contained its position.
@@ -648,7 +643,7 @@ public final class JourneyNetherRungs {
      * When leg 11's search gave up, the body was at {@code 100,41,120} — twelve blocks short, alive,
      * standing on cobblestone it had placed. The detour then ran for 2069 ticks, walked it
      * <b>43 blocks further from the goal</b>, dropped it fifteen blocks into lava and left it
-     * submerged at {@code 62,3,86}. The printed verdict was「停在 62,3,86，差 72 格」. Every number in
+     * submerged at {@code 62,3,86}. The printed verdict was "stopped at 62,3,86, 72 blocks off". Every number in
      * that sentence is a true measurement of the rescue and none of them is about the failure.
      *
      * <p>So this reports the seat the search actually died in, and says in as many words that the
@@ -669,13 +664,12 @@ public final class JourneyNetherRungs {
         // at. Probing only here, and only three legs ahead, keeps the worldgen bounded to the span
         // that actually failed.
         JourneyCorridorProbe.record(rig, "fortress.wp" + (i + 1), now, FORTRESS_WAYPOINTS, i, 3);
-        ctx.fail("走不到第 " + (i + 1) + " 个路点 " + want.toShortString() + "：停在 "
-                + now.toShortString() + "，差 " + off + " 格（容差 " + WAYPOINT_ARRIVE_WITHIN
-                + "）。**搜索自己放弃了**（" + JourneyLeg.walkerEnd(rig) + "），不是走不完预算 —— "
-                + "所以这一次没有走绕行：瞄到路点更远处，问的是同一个搜索一个更难的问题，"
-                + "实测两次都把身体放到岩浆里（wp5 停在 59,5,90、wp11 停在 62,3,86），一格都没赚回来。"
-                + "身体现在停的就是搜索死掉的那个座位，读 fortress.wp" + (i + 1) + ".* 那几行"
-                + causewayNote(rig, bridged));
+        ctx.fail("cannot reach waypoint " + (i + 1) + " " + want.toShortString() + ": stopped at "
+                + now.toShortString() + ", " + off + " blocks off (tolerance " + WAYPOINT_ARRIVE_WITHIN
+                + "). **The search gave up** (" + JourneyLeg.walkerEnd(rig) + "), not the budget, so no detour:"
+                + " aiming past asks the same search a harder question, and both measured tries put the bot in"
+                + " lava (wp5 at 59,5,90, wp11 at 62,3,86) gaining nothing. The bot stands where the search"
+                + " died; read fortress.wp" + (i + 1) + ".*" + causewayNote(rig, bridged));
     }
 
     /**
@@ -699,10 +693,11 @@ public final class JourneyNetherRungs {
      * bag. A hotbar-only reading would understate what the walker can actually spend.
      */
     private static String causewayNote(JourneyRig rig, int bridged) {
-        return "。这条走廊后半段是现架的栈道不是地面（路点表烘的是上一趟架完桥之后的身体位置）："
-                + "到这里为止直段已经放了 " + bridged + " 格，身上还剩 " + JourneyShelter.stock(rig)
-                + "（整个背包，服务端 holdPlaceable 会从 9..35 号槽换上来，不只看快捷栏）。"
-                + "缺料会以「搜索失败」的样子出现 —— 架桥的边需要有东西可放 —— 所以这两个数要一起读";
+        return ". This corridor's second half is a causeway built during the run, not ground (the table"
+                + " holds bot positions from a run after it bridged): direct segments have placed " + bridged
+                + " blocks, the bot still carries " + JourneyShelter.stock(rig) + " (whole inventory; server"
+                + " holdPlaceable swaps up from slots 9..35). Running out shows up as 'search failed' (bridge"
+                + " edges need something to place), so read these two numbers together";
     }
 
     /**
@@ -733,9 +728,9 @@ public final class JourneyNetherRungs {
      */
     private static String aboveBand(BlockPos now, int ceiling) {
         int above = now.getY() - ceiling;
-        if (above > 0) return "高出免税带 " + above + " 格（天花板 y=" + ceiling + "）";
-        if (above < 0) return "在免税带以下 " + -above + " 格（天花板 y=" + ceiling + "）";
-        return "正好在免税带上（y=" + ceiling + "）";
+        if (above > 0) return above + " blocks above the untaxed band (ceiling y=" + ceiling + ")";
+        if (above < 0) return -above + " blocks below the untaxed band (ceiling y=" + ceiling + ")";
+        return "exactly at the untaxed band (y=" + ceiling + ")";
     }
 
     /**
@@ -751,8 +746,8 @@ public final class JourneyNetherRungs {
      * tax nor the lethal-edge pin said a word about it.
      *
      * <p><b>A survivable fall into somewhere you cannot leave ends the crossing exactly as a lethal
-     * one does.</b> The guard is asking「will this kill the body」and it is right to; this crossing
-     * has to ask「will this end the walk」, and those have different answers. Four blocks is a step
+     * one does.</b> The guard is asking "will this kill the body" and it is right to; this crossing
+     * has to ask "will this end the walk", and those have different answers. Four blocks is a step
      * the body can climb back out of with a placed block, which is the shape of an accident that
      * costs ticks rather than the run.
      *
@@ -771,16 +766,16 @@ public final class JourneyNetherRungs {
      */
     private static BlockPos fortressLandmark(SceneContext ctx, JourneyRig rig, BlockPos here) {
         if (!JourneyRoute.netherFortress.equals(JourneyRoute.UNSURVEYED)) {
-            rig.evidence("fortress.landmark", "烘好的 " + JourneyRoute.netherFortress.toShortString()
-                    + "（上次勘测耗时 " + JourneyRoute.netherFortressMs + " ms）");
+            rig.evidence("fortress.landmark", "baked " + JourneyRoute.netherFortress.toShortString()
+                    + " (the last survey took " + JourneyRoute.netherFortressMs + " ms)");
             return JourneyRoute.netherFortress;
         }
         JourneyRoute.Located survey = JourneyRoute.surveyNetherFortressFrom(ctx, here);
         rig.evidence("fortress.survey", survey.asRecord());
         if (survey.found().where() == null) {
-            ctx.fail("生成器说这附近没有下界要塞（以 " + here.toShortString() + " 为心）—— "
-                    + survey.asRecord() + "。注意搜索半径的单位是放置区不是区块，"
-                    + "放宽之前先读 JourneyRoute 里那条常量的说明");
+            ctx.fail("the generator reports no Nether fortress near " + here.toShortString() + " — "
+                    + survey.asRecord() + ". The search radius is in placement regions, not chunks;"
+                    + " read the note on that constant in JourneyRoute before widening it");
             return null;
         }
         return survey.found().where();
@@ -795,26 +790,25 @@ public final class JourneyNetherRungs {
 
         BlockPos spawner = nearestSpawner(nether, at, SPAWNER_SEARCH_CHUNKS);
         if (spawner == null) {
-            ctx.fail("要塞落点 " + at.toShortString() + " 周围 " + SPAWNER_SEARCH_CHUNKS
-                    + " 个区块里没有刷怪笼。要塞的刷笼在桥面平台上，落点偏了一片就会整片扫空 —— "
-                    + "这是落点的问题，不是驱动的问题");
+            ctx.fail("no spawner within " + SPAWNER_SEARCH_CHUNKS + " chunks of the fortress landing point "
+                    + at.toShortString() + ". Fortress spawners sit on bridge platforms and a landing point one"
+                    + " region off scans empty — a landing-point problem, not a driver problem");
             return;
         }
-        rig.evidence("spawner.at", spawner.toShortString() + "（距身体 "
-                + Math.round(Math.sqrt(at.distSqr(spawner))) + " 格）");
+        rig.evidence("spawner.at", spawner.toShortString() + " ("
+                + Math.round(Math.sqrt(at.distSqr(spawner))) + " blocks from the bot)");
         rig.evidence("spawner.spawns", spawnerMob(nether, spawner));
 
-        rig.attempting("走到刷怪笼 " + spawner.toShortString() + " 旁边");
+        rig.attempting("walk next to the spawner " + spawner.toShortString());
         rig.settle(new IntentProcess(new Intent(new Goal.Near(spawner, 2))), SPAWNER_APPROACH_TICKS, () -> {
             BlockPos stood = rig.player().blockPosition();
             double gap = Math.sqrt(stood.distSqr(spawner));
             rig.evidence("spawner.stoodAt", stood.toShortString()
-                    + "（距刷怪笼 " + String.format(Locale.ROOT, "%.1f", gap) + " 格）");
+                    + " (" + String.format(Locale.ROOT, "%.1f", gap) + " blocks from the spawner)");
             if (gap > SPAWNER_MUST_BE_WITHIN) {
-                ctx.fail("走不到刷怪笼旁边：停在 " + stood.toShortString() + "，距 "
-                        + spawner.toShortString() + " 还有 "
-                        + String.format(Locale.ROOT, "%.1f", gap) + " 格 —— "
-                        + "屋子要围住刷怪范围，人不在里面就围不成");
+                ctx.fail("cannot reach the spawner: stopped at " + stood.toShortString() + ", "
+                        + String.format(Locale.ROOT, "%.1f", gap) + " blocks from " + spawner.toShortString()
+                        + " — the room must enclose the spawn range, which the bot cannot do from outside");
                 return;
             }
             sealTheRoom(ctx, rig, spawner);
@@ -838,20 +832,20 @@ public final class JourneyNetherRungs {
         rig.evidence("gamerule.doMobSpawning",
                 nether.getGameRules().getBoolean(GameRules.RULE_DOMOBSPAWNING));
         rig.evidence("gamerule.doMobLoot", nether.getGameRules().getBoolean(GameRules.RULE_DOMOBLOOT));
-        rig.attempting("等刷怪笼转出第一只烈焰人");
+        rig.attempting("wait for the spawner to produce the first blaze");
 
         int[] waited = {0};
         rig.await(() -> !blazesNear(nether, spawner).isEmpty() || ++waited[0] >= SPAWN_WAIT_TICKS,
                 SPAWN_WAIT_TICKS + 200, () -> {
             List<Blaze> seen = blazesNear(nether, spawner);
-            rig.evidence("blaze.appeared", seen.size() + " 只（等了 " + waited[0] + " tick）");
+            rig.evidence("blaze.appeared", seen.size() + " (waited " + waited[0] + " ticks)");
             if (seen.isEmpty()) {
-                ctx.fail("刷怪笼 " + spawner.toShortString() + " 等了 " + waited[0]
-                        + " tick 一只烈焰人都没出来 —— " + whyNothingSpawns(nether));
+                ctx.fail("the spawner " + spawner.toShortString() + " produced no blaze in " + waited[0]
+                        + " ticks — " + whyNothingSpawns(nether));
                 return;
             }
             rig.evidence("weapon", rig.holdBestWeapon());
-            rig.attempting("在屋里把烈焰人打死并捡起烈焰棒");
+            rig.attempting("kill the blazes inside the room and pick up the blaze rods");
             fightOneBlaze(ctx, rig, spawner, BLAZE_FIGHTS, new StringBuilder(), new int[]{0});
         });
     }
@@ -883,7 +877,7 @@ public final class JourneyNetherRungs {
             rig.await(() -> !blazesNear(nether, spawner).isEmpty() || ++again[0] >= RESPAWN_WAIT_TICKS,
                     RESPAWN_WAIT_TICKS + 100, () -> {
                 if (blazesNear(nether, spawner).isEmpty()) {
-                    tally.append(tally.length() == 0 ? "" : ",").append("×没再刷");
+                    tally.append(tally.length() == 0 ? "" : ",").append("×no respawn");
                     blazeVerdict(ctx, rig, tally, killed[0]);
                 } else {
                     fightOneBlaze(ctx, rig, spawner, roundsLeft, tally, killed);
@@ -893,19 +887,19 @@ public final class JourneyNetherRungs {
         }
 
         final Blaze target = here.get(0);
-        // BAG PLUS GROUND, not the bag. This tally's whole job is to separate「killed_by_player 闸没
-        // 过，所以根本没掉」from「掉了，只是这一只没掉」——and once the collect moved to AFTER the
-        // fight (see blazeVerdict), a bag delta is structurally 0 for every kill. It printed
-        // `rods.perKill=0,0,0,0,0,0,0,0` on a run that banked two rods, which is the loot-gate
+        // BAG PLUS GROUND, not the bag. This tally's whole job is to separate "the killed_by_player
+        // gate failed, so nothing dropped" from "this one blaze dropped nothing" — and once the
+        // collect moved to AFTER the fight (see blazeVerdict), a bag delta is structurally 0 for
+        // every kill. It printed `rods.perKill=0,0,0,0,0,0,0,0` on a run that banked two rods, the loot-gate
         // signature exactly, on a run whose loot gate was fine. Counting what came into EXISTENCE
         // answers the question the row is asked; counting what reached the bag answers a different
         // one that the pickup rows already cover.
         // `rods` ALREADY counts the ground — adding it again double-counted it, and the row printed
-        // 「0,0,1,-1,-1,-1,0,-2,…」 on 2026-08-22. A count of things that came into existence cannot
+        // "0,0,1,-1,-1,-1,0,-2,…" on 2026-08-22. A count of things that came into existence cannot
         // be negative, so the row said plainly that it was broken; the arithmetic was
         // before = carrying + 2×ground while now = carrying + ground, i.e. now-before = -ground.
-        // That fix left one −1 behind (「…,0,1,0,-1,…」, same day's rehearsal), because a difference
-        // of two ground TOTALS is still the wrong instrument: the radius follows the body, so a rod
+        // That fix left one −1 behind ("…,0,1,0,-1,…", same day's rehearsal), because a difference
+        // of two ground TOTALS is still the wrong instrument: the radius follows the bot, so a rod
         // dropped at an earlier fight simply leaves the window. Per-stack ids answer it exactly —
         // see JourneyRig.dropStacks.
         final var beforeStacks = rig.dropStacks(BLAZE_ROD, BLAZE_DROP_LOOK);
@@ -927,10 +921,10 @@ public final class JourneyNetherRungs {
             boolean dead = !target.isAlive();
             if (dead) killed[0]++;
             int now = rig.gained(BLAZE_ROD, beforeStacks, beforeBag, BLAZE_DROP_LOOK);
-            tally.append(tally.length() == 0 ? "" : ",").append(dead ? String.valueOf(now) : "×没打死");
-            rig.evidence("fight." + round, (dead ? "打死" : "没打死") + "，用了 " + waited[0]
-                    + " tick，手里 " + weapon + "，最高离地 " + String.format(Locale.ROOT, "%.1f",
-                            highest[0] - rig.player().getY()) + " 格");
+            tally.append(tally.length() == 0 ? "" : ",").append(dead ? String.valueOf(now) : "×not killed");
+            rig.evidence("fight." + round, (dead ? "killed" : "not killed") + ", took " + waited[0]
+                    + " ticks, holding " + weapon + ", highest " + String.format(Locale.ROOT, "%.1f",
+                            highest[0] - rig.player().getY()) + " blocks above the bot");
             fightOneBlaze(ctx, rig, spawner, roundsLeft - 1, tally, killed);
         });
     }
@@ -947,8 +941,8 @@ public final class JourneyNetherRungs {
     private static void blazeVerdict(SceneContext ctx, JourneyRig rig, StringBuilder tally, int killed) {
         // GO AND GET THEM FIRST. A blaze dies in the air — measured up to 4.3 blocks up — so its rod
         // lands wherever it falls, and this rung used to read the bag straight afterwards and fail on
-        // an empty one. 2026-08-21: seven kills, zero rods, `dropsNearby=2 根掉在地上没捡` printed by
-        // the row below, on the same verdict. The drops were not the problem and neither was the
+        // an empty one. 2026-08-21: seven kills, zero rods, and two rods left on the ground per the
+        // `dropsNearby` row below, on the same verdict. The drops were not the problem and neither was the
         // loot gate (wd.serverEarnsABlazeRod: 24/24 kills, 11 rods) — nobody walked over to them.
         // More legs than the shared default, because this rung now fights for a QUOTA rather than
         // for one rod: fourteen blazes die in fourteen places, and three walks banked four rods with
@@ -981,19 +975,19 @@ public final class JourneyNetherRungs {
                                           int killed) {
         BlockPos spawner = rig.nearestBlock("minecraft:spawner", SPAWNER_BREAK_SEARCH);
         if (spawner == null) {
-            rig.evidence("spawner.silenced", "找不到刷怪笼方块了，跳过（不影响本级判据）");
+            rig.evidence("spawner.silenced", "spawner block not found; skipped (not part of this rung's check)");
             blazeBank(ctx, rig, tally, killed);
             return;
         }
-        rig.attempting("临走把刷怪笼砸了 —— 否则它会一直刷，把怪物上限占满，下一级就找不到末影人");
+        rig.attempting("break the spawner on leaving, or it fills the mob cap and the next rung has no endermen");
         rig.settle(new IntentProcess(new Intent(new Goal.Near(spawner, 3))), 900,
                 () -> rig.mineBlock(spawner, 900, () -> {
                     var now = BuiltInRegistries.BLOCK.getKey(
                             rig.player().serverLevel().getBlockState(spawner).getBlock());
                     boolean gone = now == null || !"minecraft:spawner".equals(now.toString());
                     rig.evidence("spawner.silenced", gone
-                            ? "已砸掉 " + spawner.toShortString()
-                            : "没砸掉 " + spawner.toShortString() + "（还立着 —— 下一级的刷怪窗口会被烈焰人占住）");
+                            ? "broke " + spawner.toShortString()
+                            : "still standing " + spawner.toShortString() + " (blazes will hold the next spawns)");
                     rig.evidence("spawner.blazesLeft", blazesNear(rig.player().serverLevel(), spawner).size());
                     blazeBank(ctx, rig, tally, killed);
                 }));
@@ -1002,17 +996,17 @@ public final class JourneyNetherRungs {
     /** The verdict proper, taken after the collect — see {@link #blazeVerdict}. */
     private static void blazeBank(SceneContext ctx, JourneyRig rig, StringBuilder tally, int killed) {
         int rods = rig.carrying(BLAZE_ROD);
-        rig.evidence("blaze.killed", killed + " 只");
-        rig.evidence("rods.perKill", tally.length() == 0 ? "一场没打" : tally.toString());
+        rig.evidence("blaze.killed", killed + " blazes");
+        rig.evidence("rods.perKill", tally.length() == 0 ? "no fights" : tally.toString());
         rig.evidence("blaze_rod", rods);
         rig.evidence("blaze_rod.quota", rods + "/" + BLAZE_RODS_WANTED
-                + "（一套末地门要 " + (BLAZE_RODS_WANTED * 2) + " 份烈焰粉，一根棒磨两份）"
-                + (rods >= BLAZE_RODS_WANTED ? " —— 够了" : " —— 还差 " + (BLAZE_RODS_WANTED - rods)
-                        + "，18 级会因此停下，而那时身体已经不在下界了"));
-        rig.evidence("dropsNearby", rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK) + " 根掉在地上没捡");
+                + " (an End portal set needs " + (BLAZE_RODS_WANTED * 2) + " blaze powder, two per rod)"
+                + (rods >= BLAZE_RODS_WANTED ? " — enough" : " — " + (BLAZE_RODS_WANTED - rods)
+                        + " short; rung 18 will stop on this, and by then the bot has left the Nether"));
+        rig.evidence("dropsNearby", rig.dropsNearby(BLAZE_ROD, BLAZE_DROP_LOOK) + " left on the ground");
         rig.noteAdvancement("minecraft:nether/obtain_blaze_rod");
-        ctx.expect(rods).as("烈焰棒真的进了包（不是打死了就算）").isAtLeast(1);
-        rig.reach("在自己围出来的屋子里打死 " + killed + " 只烈焰人，收 " + rods + " 根烈焰棒");
+        ctx.expect(rods).as("blaze rods reached the inventory (a kill alone does not count)").isAtLeast(1);
+        rig.reach("killed " + killed + " blazes in its own room and collected " + rods + " blaze rods");
     }
 
     // =====================================================================================
@@ -1042,7 +1036,7 @@ public final class JourneyNetherRungs {
      */
     private static void enderPearl(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.ENDER_PEARL);
-        rig.attempting("在下界猎末影人，把末影珍珠攒进包里");
+        rig.attempting("hunt endermen in the Nether and collect ender pearls into the inventory");
         rig.generousPathfinding();
         dontCutCornersOverLava(rig);
         rig.liveWorld(true);
@@ -1083,7 +1077,7 @@ public final class JourneyNetherRungs {
      * The first version of this walk asked {@code findClosestBiome3d} and walked at the answer. That
      * call returns the CLOSEST matching cell, which is by construction a point on the biome's
      * boundary — and the run that carried it out arrived and reported
-     * {@code warped.arrivedBiome = minecraft:nether_wastes（停在 130, 41, -229）} against a sample
+     * {@code warped.arrivedBiome = minecraft:nether_wastes (stopped at 130, 41, -229)} against a sample
      * point at {@code 136, 41, -233}. Seven blocks off a boundary sample is outside the biome about
      * half the time, and {@link #WARPED_ARRIVE_WITHIN} is wider than that. <b>"Walked to it" and
      * "standing in it" were never the same claim</b>, and only the second one is what this rung's
@@ -1126,10 +1120,10 @@ public final class JourneyNetherRungs {
             // warped forest — 272 blocks out, outside the candidate margin. A row that reports an
             // empty world when the world was merely out of reach sends the next round at the biome
             // source. So the miss says how far the nearest sampled warped column actually was.
-            rig.evidence("warped.survey", "以 " + here.toShortString() + " 为心 " + WARPED_SEARCH_RADIUS
-                    + " 格内没有一处可以走的 " + WARPED + "：" + survey.nearestWarped()
-                    + "（" + survey.howSampled() + "，找了 " + ms
-                    + " ms）—— 就地猎，nether_wastes 也刷末影人，只是稀");
+            rig.evidence("warped.survey", "no walkable " + WARPED + " within " + WARPED_SEARCH_RADIUS
+                    + " blocks of " + here.toShortString() + ": " + survey.nearestWarped()
+                    + " (" + survey.howSampled() + ", searched for " + ms
+                    + " ms) — hunting here; nether_wastes also spawns endermen, only rarely");
             rig.evidence("warped.standing", standingIn(nether, here));
             then.run();
             return;
@@ -1140,33 +1134,33 @@ public final class JourneyNetherRungs {
         // The grid says nothing about which y is standable and the goal below is a `Goal.XZ`, so
         // there was never a y to walk to and only this line could have been wrong about it.
         int away = (int) Math.round(Math.hypot(here.getX() - aim.getX(), here.getZ() - aim.getZ()));
-        rig.evidence("warped.survey", "最密的一处在 " + aim.getX() + ", ?, " + aim.getZ() + "（距身体 "
-                + away + " 格水平）：那里 " + (int) ENDERMAN_SEARCH + " 格内可刷体积疣林占 " + pct(aimShare)
-                + "，身体现在这处只占 " + pct(hereShare) + "；" + survey.nearestWarped()
-                + "（" + survey.howSampled() + "，找了 " + ms + " ms）");
+        rig.evidence("warped.survey", "densest at " + aim.getX() + ", ?, " + aim.getZ() + " (" + away + " blocks"
+                + " horizontally): warped share of spawnable volume within " + (int) ENDERMAN_SEARCH + " is "
+                + pct(aimShare) + " there, " + pct(hereShare) + " at the bot; " + survey.nearestWarped()
+                + " (" + survey.howSampled() + ", searched for " + ms + " ms)");
         if (hereShare >= aimShare - SHARE_TIE) {
-            rig.evidence("warped.already", "身体脚下这一带已经和最密的那处一样疣（" + pct(hereShare)
-                    + " 对 " + pct(aimShare) + "），不用走");
+            rig.evidence("warped.already", "the bot's area is already as warped as the densest point ("
+                    + pct(hereShare) + " against " + pct(aimShare) + "); no walk needed");
             rig.evidence("warped.standing", standingIn(nether, here));
             then.run();
             return;
         }
-        rig.attempting("走进疣林深处 " + aim.getX() + ", ?, " + aim.getZ() + "（" + away + " 格，那里 "
-                + (int) ENDERMAN_SEARCH + " 格内疣林占 " + pct(aimShare) + "）再猎");
+        rig.attempting("walk deep into the warped forest at " + aim.getX() + ", ?, " + aim.getZ() + " (" + away
+                + " blocks; warped share " + pct(aimShare) + " within " + (int) ENDERMAN_SEARCH + "), then hunt");
         crossToColumn(rig, "warped", aim.getX(), aim.getZ(), WARPED_ARRIVE_WITHIN, HOP_TICKS,
                 () -> {
                     BlockPos stood = rig.player().blockPosition();
                     rig.evidence("warped.arrivedBiome", biomeAt(rig, stood)
-                            + "（停在 " + stood.toShortString() + "）");
+                            + " (stopped at " + stood.toShortString() + ")");
                     rig.evidence("warped.standing", standingIn(nether, stood));
                     rig.evidence("warped.census", census(nether, rig.player()));
                     then.run();
                 },
                 () -> {
                     BlockPos stood = rig.player().blockPosition();
-                    rig.evidence("warped.notReached", "走不到 " + aim.getX() + ", ?, " + aim.getZ()
-                            + "：停在 " + stood.toShortString() + "，就地猎 —— "
-                            + "这一行说的是走位，不是这一级的成败");
+                    rig.evidence("warped.notReached", "cannot reach " + aim.getX() + ", ?, " + aim.getZ()
+                            + ": stopped at " + stood.toShortString() + ", hunting here — this row"
+                            + " reports positioning, not whether this rung passes");
                     rig.evidence("warped.standing", standingIn(nether, stood));
                     then.run();
                 });
@@ -1187,10 +1181,10 @@ public final class JourneyNetherRungs {
      */
     private static String standingIn(ServerLevel level, BlockPos at) {
         WarpedGrid around = new WarpedGrid(level, at, 0, (int) ENDERMAN_CENSUS, SURVEY_STEP);
-        return "脚下 " + biomeName(level, at) + "；" + (int) ENDERMAN_SEARCH + " 格内可刷体积疣林占 "
-                + pct(around.shareAround(at, (int) ENDERMAN_SEARCH)) + "（猎的半径）、"
-                + (int) ENDERMAN_CENSUS + " 格内占 " + pct(around.shareAround(at, (int) ENDERMAN_CENSUS))
-                + "（刷怪窗口，决定上限被谁占）；" + around.howSampled();
+        return "underfoot " + biomeName(level, at) + "; warped share of spawnable volume "
+                + pct(around.shareAround(at, (int) ENDERMAN_SEARCH)) + " within " + (int) ENDERMAN_SEARCH
+                + " (hunt radius), " + pct(around.shareAround(at, (int) ENDERMAN_CENSUS)) + " within "
+                + (int) ENDERMAN_CENSUS + " (spawn window, decides who fills the cap); " + around.howSampled();
     }
 
     private static String pct(double share) {
@@ -1330,20 +1324,19 @@ public final class JourneyNetherRungs {
                 }
             }
             if (closest == null) {
-                return "采样的 " + (half * step) + " 格见方里一柱 " + WARPED + " 都没有";
+                return "no " + WARPED + " column in the sampled square of radius " + (half * step);
             }
-            return "采到的最近一柱 " + WARPED + " 在 " + closest.getX() + ", ?, " + closest.getZ()
-                    + "（" + (int) Math.round(Math.sqrt(closestD2)) + " 格）";
+            return "nearest sampled " + WARPED + " column at " + closest.getX() + ", ?, " + closest.getZ()
+                    + " (" + (int) Math.round(Math.sqrt(closestD2)) + " blocks)";
         }
 
         String howSampled() {
             // The candidate clause only when there ARE candidates: a grid built to measure ONE
-            // point has none, and printing "0 格以内的柱才可以当目标" beside a standing measurement
-            // reads as a truncated survey rather than as a survey that was not ranking anything.
-            return "每 " + step + " 格一柱、每柱 " + SPAWN_SLICES.length + " 层高度，采样半径 "
-                    + (half * step) + " 格"
-                    + (candidateCells > 0 ? "、其中 " + (candidateCells * step) + " 格以内的柱可以当目标" : "")
-                    + "，直接问生成器不装载区块";
+            // point has none, and printing "only columns within 0 blocks can be targets" beside a
+            // standing measurement reads as a truncated survey rather than one that ranked nothing.
+            return "a column every " + step + " blocks, " + SPAWN_SLICES.length + " heights each, radius "
+                    + (half * step) + (candidateCells > 0 ? ", targets within " + (candidateCells * step) : "")
+                    + ", asked of the generator without loading chunks";
         }
     }
 
@@ -1378,13 +1371,12 @@ public final class JourneyNetherRungs {
         boolean rimLoaded = level.getChunkSource().hasChunk(
                 SectionPos.blockToSectionCoord(from.getX() + (int) ENDERMAN_CENSUS),
                 SectionPos.blockToSectionCoord(from.getZ()));
-        return "末影人 " + near + " 只在 " + (int) ENDERMAN_SEARCH + " 格内、" + far + " 只在 "
-                + (int) ENDERMAN_CENSUS + " 格内；" + (int) ENDERMAN_CENSUS + " 格内怪物共 "
-                + mobs.size() + " 只 " + byType
-                + "（远处那个数只在已加载区块里算数：" + (int) ENDERMAN_CENSUS + " 格外沿那一格现在"
-                + (rimLoaded ? "装着" : "没装 —— 这个数是被票截断的")
-                + "，本级至少钉 " + SEE_CHUNKS + " 区块，进了 players() 的身体另有 view-distance 的票）；"
-                + spawnGate(level, body);
+        return "endermen " + near + " within " + (int) ENDERMAN_SEARCH + ", " + far + " within "
+                + (int) ENDERMAN_CENSUS + "; monsters within " + (int) ENDERMAN_CENSUS + ": " + mobs.size() + " "
+                + byType + " (the far count sees loaded chunks only: the " + (int) ENDERMAN_CENSUS + "-block rim"
+                + " chunk is " + (rimLoaded ? "loaded" : "not loaded — tickets cut this count off")
+                + "; this rung pins at least " + SEE_CHUNKS + " chunks, a bot in players() holds view-distance"
+                + " tickets too); " + spawnGate(level, body);
     }
 
     /**
@@ -1421,20 +1413,20 @@ public final class JourneyNetherRungs {
         NaturalSpawner.SpawnState state = source.getLastSpawnState();
         String cap;
         if (state == null) {
-            cap = "本层还没算过刷怪账";
+            cap = "this level has not computed a spawn state yet";
         } else {
             int monsters = state.getMobCategoryCounts().getInt(MobCategory.MONSTER);
             int chunks = state.getSpawnableChunkCount();
             // 289 = 17², vanilla's NaturalSpawner.MAGIC_NUMBER: the cap is quoted per 17×17 chunks.
             int allowed = MobCategory.MONSTER.getMaxInstancesPerChunk() * chunks / 289;
-            cap = "本层怪物 " + monsters + "/" + allowed + " 只（上限 = "
-                    + MobCategory.MONSTER.getMaxInstancesPerChunk() + " × 可刷区块 " + chunks + " / 289）";
+            cap = "level monsters " + monsters + "/" + allowed + " (cap = "
+                    + MobCategory.MONSTER.getMaxInstancesPerChunk() + " × spawnable chunks " + chunks + " / 289)";
         }
-        return "刷怪三闸：身体在区块 " + here + "，实体在跑=" + level.isNaturalSpawningAllowed(here)
-                + "，ChunkMap 认为这一格近旁有 " + source.chunkMap.getPlayersCloseForSpawning(here).size()
-                + " 个玩家（它记的身体在区块 " + tracked + "，差 " + drift
-                + " 区块；那张表只认 " + SPAWN_WINDOW_CHUNKS
-                + " 区块以内，而只有 join 和 ChunkMap.move 会更新它）；" + cap;
+        return "spawn gates: bot in chunk " + here + ", entity ticking=" + level.isNaturalSpawningAllowed(here)
+                + ", ChunkMap counts " + source.chunkMap.getPlayersCloseForSpawning(here).size()
+                + " players near this chunk (it has the bot in chunk " + tracked + ", " + drift
+                + " chunks off; that table only counts players within " + SPAWN_WINDOW_CHUNKS
+                + " chunks, and only join and ChunkMap.move update it); " + cap;
     }
 
     private static void huntOne(SceneContext ctx, JourneyRig rig, int roundsLeft,
@@ -1460,12 +1452,12 @@ public final class JourneyNetherRungs {
                 if (nearestEnderman(nether, rig.player().blockPosition()) == null) {
                     // A DRY SPELL COSTS A ROUND, NOT THE RUNG. This used to go straight to the
                     // verdict, so one quiet minute ended a hunt with 118 000 ticks of its budget
-                    // unspent and printed a single `×没找到` where six rounds were promised — an
+                    // unspent and printed a single `×none found` where six rounds were promised — an
                     // enderman that wandered into range at minute two was never going to be met.
                     // Six waits is still bounded and still says "found nothing" if that is the world.
-                    tally.append(tally.length() == 0 ? "" : ",").append("×没找到");
-                    rig.evidence("hunt." + round + ".dry", "等了 " + ENDERMAN_WAIT_TICKS
-                            + " tick 没等到；" + census(nether, rig.player()));
+                    tally.append(tally.length() == 0 ? "" : ",").append("×none found");
+                    rig.evidence("hunt." + round + ".dry", "none appeared in " + ENDERMAN_WAIT_TICKS
+                            + " ticks; " + census(nether, rig.player()));
                     huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
                 } else {
                     huntOne(ctx, rig, roundsLeft, foundAndKilled, tally);
@@ -1490,7 +1482,7 @@ public final class JourneyNetherRungs {
         rig.settle(new IntentProcess(new Intent(new Goal.Near(man.blockPosition(), 3))),
                 ENDERMAN_APPROACH_TICKS, () -> {
             if (!man.isAlive()) {                      // it died to something else, or despawned
-                tally.append(tally.length() == 0 ? "" : ",").append("×走到时已经没了");
+                tally.append(tally.length() == 0 ? "" : ",").append("×gone on arrival");
                 huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
                 return;
             }
@@ -1506,9 +1498,9 @@ public final class JourneyNetherRungs {
                 if (dead) foundAndKilled[1]++;
                 int now = rig.gained(ENDER_PEARL, beforeStacks, beforeBag, PEARL_DROP_LOOK);
                 tally.append(tally.length() == 0 ? "" : ",")
-                        .append(dead ? String.valueOf(now) : "×没打死");
+                        .append(dead ? String.valueOf(now) : "×not killed");
                 rig.evidence("hunt." + round,
-                        (dead ? "打死" : "没打死") + "，用了 " + waited[0] + " tick，手里 " + weapon);
+                        (dead ? "killed" : "not killed") + ", took " + waited[0] + " ticks, holding " + weapon);
                 huntOne(ctx, rig, roundsLeft - 1, foundAndKilled, tally);
             });
         });
@@ -1517,11 +1509,11 @@ public final class JourneyNetherRungs {
     /**
      * Walk to the pearls before judging whether there are any.
      *
-     * <p>The assertion below already said 「打死了不等于捡到了」 and there was nothing behind it: the
-     * 2026-08-22 ladder run killed six endermen, banked one pearl, and printed
-     * {@code dropsNearby 1 颗掉在地上没捡} — half the yield left on the floor of the Nether. An
-     * enderman teleports when hurt and dies wherever it lands, so the drop is routinely somewhere
-     * the body is not.
+     * <p>The assertion below already said "a kill is not a pickup" and there was nothing behind it:
+     * the 2026-08-22 ladder run killed six endermen, banked one pearl, and printed a
+     * {@code dropsNearby} of one pearl left on the ground — half the yield left on the floor of the
+     * Nether. An enderman teleports when hurt and dies wherever it lands, so the drop is routinely
+     * somewhere the bot is not.
      *
      * <p>Same routine the blaze rung uses. It was moved onto {@link JourneyRig} precisely so a
      * second caller could reach it, and then this caller was left unwired for a day.
@@ -1537,19 +1529,19 @@ public final class JourneyNetherRungs {
         ServerLevel nether = rig.player().serverLevel();
         int found = foundAndKilled[0], killed = foundAndKilled[1];
         int pearls = rig.carrying(ENDER_PEARL);
-        rig.evidence("enderman.found", found + "/" + ENDERMAN_HUNTS + " 场找到了目标");
+        rig.evidence("enderman.found", found + "/" + ENDERMAN_HUNTS + " hunts found a target");
         rig.evidence("enderman.killed", killed + "/" + ENDERMAN_HUNTS);
-        rig.evidence("pearls.perFight", tally.length() == 0 ? "一场没打" : tally.toString());
+        rig.evidence("pearls.perFight", tally.length() == 0 ? "no fights" : tally.toString());
         rig.evidence("ender_pearl", pearls);
         rig.evidence("ender_pearl.quota", pearls + "/" + PEARLS_WANTED
-                + "（一套末地门要 " + PEARLS_WANTED + " 只眼，每只一颗珍珠）"
-                + (pearls >= PEARLS_WANTED ? " —— 够了" : " —— 还差 " + (PEARLS_WANTED - pearls)
-                        + "，18 级会因此停下，而那时身体已经不在下界了"));
-        rig.evidence("dropsNearby", rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK)
-                + " 颗掉在地上没捡（这一行是在收集之后读的，所以非零表示收集也没够着）");
-        rig.evidence("arena", "真的下界，不是盒子 —— 瞬移可以真的把它带走");
+                + " (an End portal set needs " + PEARLS_WANTED + " eyes, one pearl each)"
+                + (pearls >= PEARLS_WANTED ? " — enough" : " — " + (PEARLS_WANTED - pearls)
+                        + " short; rung 18 will stop on this, and by then the bot has left the Nether"));
+        rig.evidence("dropsNearby", rig.dropsNearby(ENDER_PEARL, PEARL_DROP_LOOK) + " left on the ground"
+                + " (read after the collect, so non-zero means the collect did not reach them)");
+        rig.evidence("arena", "the real Nether, not a box — a teleport can really carry the enderman away");
         BlockPos ended = rig.player().blockPosition();
-        rig.evidence("hunt.endedIn", biomeAt(rig, ended) + "（" + ended.toShortString() + "）");
+        rig.evidence("hunt.endedIn", biomeAt(rig, ended) + " (" + ended.toShortString() + ")");
         rig.evidence("hunt.censusAfter", census(nether, rig.player()));
         if (found == 0) {
             // The census AND the ground go in the FAILURE, not only in the evidence. "No enderman
@@ -1557,22 +1549,22 @@ public final class JourneyNetherRungs {
             // looking for the rows that separate them usually stops at the sentence. The share is
             // there because it is the only one of the four this rung can act on: a hunt that ended
             // on 90% warped ground and a hunt that ended on 5% want opposite next moves.
-            ctx.fail("身边 " + ENDERMAN_SEARCH + " 格内一只末影人都没有，"
-                    + ENDERMAN_HUNTS + " 轮都等了也没等到 —— " + census(nether, rig.player())
-                    + "；站的地方：" + standingIn(nether, ended)
-                    + "；" + whyNothingSpawns(nether));
+            ctx.fail("no enderman within " + ENDERMAN_SEARCH + " blocks of the bot after waiting all "
+                    + ENDERMAN_HUNTS + " rounds — " + census(nether, rig.player())
+                    + "; where the bot stands: " + standingIn(nether, ended)
+                    + "; " + whyNothingSpawns(nether));
             return;
         }
         // A MAJORITY, and the bar is where it is because the alternative sits on the wrong side of
         // the dice: an enderman teleports when hurt and a fortress is not a sealed box, so demanding
         // every hunt land would redden this row for a slow fight rather than a broken one.
-        ctx.expect(killed).as("会瞬移的末影人不是打不死的（" + ENDERMAN_HUNTS + " 场里的多数）")
+        ctx.expect(killed).as("teleporting endermen are killable (a majority of " + ENDERMAN_HUNTS + " hunts)")
                 .isAtLeast(ENDERMEN_TO_KILL);
         // No advancement recorded here on purpose: vanilla has none for obtaining a pearl, and
         // noting a nearby-sounding one (`story/follow_ender_eye` is entering a STRONGHOLD) would
         // put a permanent not-earned on this row for a thing this rung was never about.
-        ctx.expect(pearls).as("珍珠真的进了包（打死了不等于捡到了）").isAtLeast(1);
-        rig.reach(ENDERMAN_HUNTS + " 场里打死 " + killed + " 只末影人，收 " + pearls + " 颗末影珍珠");
+        ctx.expect(pearls).as("pearls reached the inventory (a kill is not a pickup)").isAtLeast(1);
+        rig.reach("killed " + killed + " endermen in " + ENDERMAN_HUNTS + " hunts, got " + pearls + " pearls");
     }
 
     // =====================================================================================
@@ -1583,9 +1575,9 @@ public final class JourneyNetherRungs {
     private static boolean standingInTheNether(SceneContext ctx, JourneyRig rig) {
         rig.evidence("dimension", rig.dimension());
         if ("minecraft:the_nether".equals(rig.dimension())) return true;
-        ctx.fail("身体不在下界（现在是 " + rig.dimension() + "，站在 "
-                + rig.player().blockPosition().toShortString() + "）—— "
-                + "NETHER 那一级说走过去了，这一级却站在别处，两者必有一个是假的");
+        ctx.fail("the bot is not in the Nether (it is in " + rig.dimension() + " at "
+                + rig.player().blockPosition().toShortString() + ") — the NETHER rung reported crossing"
+                + " over, yet this rung finds the bot elsewhere, so one of the two is wrong");
         return false;
     }
 
@@ -1610,14 +1602,14 @@ public final class JourneyNetherRungs {
      */
     private static boolean theViewMatchesTheWorld(SceneContext ctx, JourneyRig rig) {
         int off = worldViewDisagreements(rig);
-        rig.evidence("worldview.disagreements", off + "/27 格（身体周围 3×3×3，两种读法）");
+        rig.evidence("worldview.disagreements", off + "/27 cells (3×3×3 around the bot, read two ways)");
         if (off == 0) return true;
-        ctx.fail("驱动的寻路视图不是身体脚下这个世界：身体周围 27 格里有 " + off
-                + " 格，LevelWorldView 和 ServerLevel 读出来不一样。"
-                + "ServerWorldDriver 在构造时用 fakePlayer().level() 建了一个 LevelWorldView 就再不换，"
-                + "而这具身体是在主世界 SPAWN 那一级造出来的 —— 过了传送门之后，"
-                + "每一次寻路都是拿下界的坐标去查主世界的方块。"
-                + "这一级往下的脚本（找刷怪笼、围屋子、打架）都写好了，等这一条修好就能跑");
+        ctx.fail("the driver's pathfinding view is not the bot's world: " + off + " of the 27 cells around"
+                + " the bot differ between LevelWorldView and ServerLevel. ServerWorldDriver builds one"
+                + " LevelWorldView from fakePlayer().level() in its constructor and never replaces it, and this"
+                + " bot was created in the overworld at the SPAWN rung — so past the portal every search reads"
+                + " overworld blocks at Nether coordinates. The rest of this rung (spawner, room, fight) is"
+                + " written and runs once this is fixed");
         return false;
     }
 
@@ -1650,14 +1642,14 @@ public final class JourneyNetherRungs {
      */
     private static String whyNothingSpawns(ServerLevel level) {
         if (!level.players().isEmpty()) {
-            return "本层 level.players() 里有 " + level.players().size()
-                    + " 个玩家，所以这不是 isNearPlayer 的问题 —— 要往刷怪条件查（光照、脚下方块、"
-                    + "同类上限、屋子把刷怪点全堵死了）";
+            return "level.players() on this level holds " + level.players().size()
+                    + " players, so this is not an isNearPlayer problem — check the spawn conditions (light,"
+                    + " the block below, the per-type cap, or a room that blocks every spawn position)";
         }
-        return "本层 level.players() 是空的。BaseSpawner.isNearPlayer 读的正是这份名单，"
-                + "自然刷怪也读它，所以刷怪笼一次也不会转。服务端铸的身体都走过 PlayerList.placeNewPlayer，"
-                + "名单空说明这具身体已经不在这一层（被移除了，或者在别的维度）。"
-                + "这不是战斗逻辑的问题，加多少 tick 都等不来";
+        return "level.players() on this level is empty. BaseSpawner.isNearPlayer reads exactly this list, as"
+                + " does natural spawning, so the spawner never activates. Every server-created bot goes through"
+                + " PlayerList.placeNewPlayer, so an empty list means this bot has left this level (removed, or in"
+                + " another dimension). Not a combat-logic problem; no amount of extra ticks will fix it";
     }
 
     // =====================================================================================
@@ -1693,9 +1685,9 @@ public final class JourneyNetherRungs {
      *  fortress has exactly one kind of spawner and the ladder is allowed to know that. */
     private static String spawnerMob(ServerLevel level, BlockPos at) {
         try {
-            if (!(level.getBlockEntity(at) instanceof SpawnerBlockEntity spawner)) return "不是刷怪笼";
+            if (!(level.getBlockEntity(at) instanceof SpawnerBlockEntity spawner)) return "not a spawner";
             var display = spawner.getSpawner().getOrCreateDisplayEntity(level, at);
-            if (display == null) return "读不出刷什么";
+            if (display == null) return "spawned mob unreadable";
             var key = BuiltInRegistries.ENTITY_TYPE.getKey(display.getType());
             return key == null ? "?" : key.toString();
         } catch (RuntimeException | LinkageError e) {
@@ -1710,7 +1702,7 @@ public final class JourneyNetherRungs {
      * animation, so the unfiltered query hands the next round the corpse of the previous one — and
      * every check downstream agrees it is dead: {@code !target.isAlive()} is true on the first tick,
      * the round books a kill and ends in 0 ticks. The first run to get this far reported
-     * {@code blaze.killed=8 只} and {@code fight.2…8 = 打死，用了 0 tick} against ONE real fight of 54
+     * {@code blaze.killed=8} and {@code fight.2…8} as killed in 0 ticks against ONE real fight of 54
      * ticks, with {@code rods.perKill=0,0,0,0,0,0,0,0} beside it. Eight kills and no drops reads as
      * the {@code killed_by_player} gate this rung was written to expect; one kill and no drops is a
      * blaze's ordinary 50/50. The rung could not tell those apart while it was counting corpses.
@@ -1767,13 +1759,13 @@ public final class JourneyNetherRungs {
      * The arrival test is {@code away <= tolerance + ARRIVED_WITHIN} over {@code hypot(dx, dz)}, and
      * {@code y} appears nowhere in it. That is correct for what this is for — a fortress landmark is
      * an XZ answer from a structure locate, wearing a {@code BlockPos} whose {@code y} is a
-     * placeholder zero — and it is a TRAP for anything else: a body in the right column but
-     * twenty-three blocks below the caller's target is「arrived」here, immediately, having walked
+     * placeholder zero — and it is a TRAP for anything else: a bot in the right column but
+     * twenty-three blocks below the caller's target is "arrived" here, immediately, having walked
      * nowhere.
      *
      * <p>Measured 2026-08-21, and it did not fail loudly: a precise-leg fallback delegated here, was
-     * judged arrived on the spot, and reported success with the evidence row
-     * {@code 一段都没走，还差 0 格}. <b>The fallback had never once run, and said it worked.</b> A
+     * judged arrived on the spot, and reported success with an evidence row saying no hop was
+     * walked and 0 blocks were left. <b>The fallback had never once run, and said it worked.</b> A
      * caller that needs height must either overshoot past the column (what that fallback does now)
      * or use a goal that owns {@code y} — {@code Goal.Block} / {@code Goal.Near} through
      * {@code WorldDriverJourneyScenes.walkToColumn} — rather than adding a {@code y} check after
@@ -1786,9 +1778,9 @@ public final class JourneyNetherRungs {
      * ended. Three attempts at one distant {@code Goal.XZ}, rehearsed 2026-08-16:
      *
      * <pre>
-     * flight.1 = 走了 15/397 格 … 13/289 tick 身上没有计划 … no route progress (best dist=3622)
-     * flight.2 = 走了 69/383 格 … 1203/1582 tick 身上没有计划 … no progress for 1200 ticks
-     * flight.3 = 走了  0/314 格 … 1203/1203 tick 身上没有计划 … no progress for 1200 ticks
+     * flight.1 = walked 15/397 blocks … no plan for 13/289 ticks     … no route progress (best dist=3622)
+     * flight.2 = walked 69/383 blocks … no plan for 1203/1582 ticks  … no progress for 1200 ticks
+     * flight.3 = walked  0/314 blocks … no plan for 1203/1203 ticks  … no progress for 1200 ticks
      * </pre>
      *
      * <p>and the server log carries <b>2402 {@code search-begin} lines from the one cell
@@ -1826,13 +1818,13 @@ public final class JourneyNetherRungs {
         recordBudget(rig, what, Math.hypot(x - from.getX(), z - from.getZ()), hopTicks, maxHops);
         // Say that this leg carries the tax, because a leg that carries it and a leg that does not
         // are otherwise indistinguishable in the results — and the hop lines that would show it
-        // (「守卫钉住把计划丢掉重找」going to zero) only exist on hops that wedge.
-        rig.evidence(what + ".lipTax", "唇沿每踏一格加价 " + (int) LIP_TAX + "（普通走一格是 10，"
-                + "即绕 " + (int) (LIP_TAX / 10) + " 格也比踏上去便宜）；判据是执行侧自己那个"
-                + " WalkerGeometry.dropAdjacentExceeds（八个水平邻格里落脚格与其下方都空、"
-                + "落柱里碰到 hazard 或深过 " + LIP_DROP + " 格）。阈值不是「摔不死」的高度："
-                + "摔不死地掉进一个爬不出来的坑，对这一趟和摔死没有区别 —— 见 LIP_DROP。"
-                + "这是加价不是禁行 —— 唯一的路是唇沿时仍然走得通");
+        // (the guard's pin-and-discard count going to zero) only exist on hops that wedge.
+        rig.evidence(what + ".lipTax", "each lip cell costs " + (int) LIP_TAX + " extra (a walk is 10 per block,"
+                + " so a " + (int) (LIP_TAX / 10) + "-block detour is cheaper); the test is the executor's own"
+                + " WalkerGeometry.dropAdjacentExceeds (a horizontal neighbour whose foot cell and the one below"
+                + " are empty, with a hazard in the drop or a drop over " + LIP_DROP + "). Not the 'survivable"
+                + " fall' height: surviving a fall into a pit the bot cannot leave ends this crossing like a fatal"
+                + " one — see LIP_DROP. A cost, not a ban: a route that must follow a lip is still walkable");
         Crossing c = new Crossing();
         c.hopTicks = hopTicks;
         c.maxHops = maxHops;
@@ -1844,10 +1836,10 @@ public final class JourneyNetherRungs {
      *
      * <h2>This row used to rule out a cause, and the cause it ruled out was the right one</h2>
      *
-     * <p>It said, in every crossing:「段数和 tick 都不是这一趟的瓶颈（余量 2.4 倍）—— 它要是半路停了，
-     * 死因在 crossing 那一行，不在这里」. Every number in it was correct and its conclusion was
-     * backwards, which is a worse failure than a wrong number because it reads exactly like a
-     * measurement.
+     * <p>It said, in every crossing: "neither hops nor ticks limit this crossing (2.4× margin); if it
+     * stops halfway, the cause is in the crossing row, not here". Every number in it was correct and
+     * its conclusion was backwards, which is a worse failure than a wrong number because it reads
+     * exactly like a measurement.
      *
      * <p>It was written for the run of 2026-08-19, which stopped 294 blocks out after three hops and
      * was wrongly accused of running out of budget — it had in fact ended because the body was in
@@ -1876,12 +1868,12 @@ public final class JourneyNetherRungs {
                                      int maxHops) {
         int perHop = NETHER_HOP - HOP_ARRIVE_WITHIN;
         int need = (int) Math.ceil(away / perHop);
-        rig.evidence(what + ".budget", Math.round(away) + " 格；上限 " + maxHops + " 段 × "
-                + hopTicks + " tick = " + (maxHops * hopTicks) + " tick。若每段都干净（净进 "
-                + perHop + " 格 = 伸手 " + NETHER_HOP + " 减路点半径 " + HOP_ARRIVE_WITHIN
-                + "）要 " + need + " 段 —— 这是计划速率，不是实测速率：楔死的段和干净的段花掉一样多的"
-                + "段数、三倍的 tick，所以两个上限逼近的速度不同，别拿这一行替这一趟排除任何一个。"
-                + "两个上限各花了多少，走完之后 pace 那一行报");
+        rig.evidence(what + ".budget", Math.round(away) + " blocks; ceiling " + maxHops + " hops × " + hopTicks
+                + " ticks = " + (maxHops * hopTicks) + " ticks. With clean hops (net " + perHop + " = reach "
+                + NETHER_HOP + " minus waypoint radius " + HOP_ARRIVE_WITHIN + ") it needs " + need + " hops — the"
+                + " planned rate, not the measured one: a wedged hop costs one hop like a clean one but three"
+                + " times the ticks, so the ceilings fill at different speeds; rule neither out here. .pace"
+                + " reports both");
     }
 
     /**
@@ -1892,11 +1884,11 @@ public final class JourneyNetherRungs {
      * The rehearsal that fell into lava for the fourth time finally said why, in one row:
      *
      * <pre>
-     * 上一 tick：位置 (79.950, 41.0000, 81.963) 速度 (0.037, -0.078, -0.054) onGround=true 潜行=true
-     *   vanilla 自己那一问（脚下 0.0784 格内有碰撞吗）=有（和 onGround 一致 —— 它没有迟一拍）
-     *   实心接触面积 0.1180/0.36   支撑行 y=40 [79,40,81=netherrack(0.1180) …其余三格 air]
-     *   这一 tick 速度 y=0.333（是起跳，不是走出去的）
-     *   立足面 5×5：#####/#####/###!!/##!!!/#!!!!   （!=空的且下面有岩浆）
+     * previous tick: pos (79.950, 41.0000, 81.963) vel (0.037, -0.078, -0.054) onGround=true sneak=true
+     *   vanilla's own check (collision within 0.0784 below) = yes (agrees with onGround; not late)
+     *   solid contact 0.1180/0.36   support row y=40 [79,40,81=netherrack(0.1180) … other three air]
+     *   this tick's velocity y=0.333 (a jump, not a walk-off)
+     *   footing 5×5: #####/#####/###!!/##!!!/#!!!!   (! = empty with lava below)
      * </pre>
      *
      * <p>Three things at once, and none of them is what the previous three rounds went looking for.
@@ -1928,7 +1920,8 @@ public final class JourneyNetherRungs {
     private static void dontCutCornersOverLava(JourneyRig rig) {
         BotConfig.pathfinderDiagAscendPenalty = DIAG_ASCEND_PENALTY;
         rig.evidence("crossing.diagAscendPenalty", BotConfig.pathfinderDiagAscendPenalty
-                + "（对角上跳的加价；判断它有没有生效看 flight 行末尾的「走过的边」，不是看这一行）");
+                + " (extra cost of a diagonal ascent; whether it took effect is shown by the walked edges at"
+                + " the end of the flight rows, not by this row)");
     }
 
     /** What a diagonal ascent costs on a nether rung, on top of its base 19. A cardinal way up is
@@ -1943,12 +1936,12 @@ public final class JourneyNetherRungs {
      * terrain and the executor does not land where the plan says:
      *
      * <pre>
-     * 计划下一格 50, 50, 49[fall4]     … 距身体 1.66 格 → 落到 51, 44, 52，坠 9 格
-     * 计划下一格 16, 53, 22[parkour3]  … 距身体 2.90 格 → 落进岩浆 14, 29, 23，坠 24 格
+     * next planned cell 50, 50, 49[fall4]     … 1.66 from the bot → landed at 51, 44, 52, fell 9
+     * next planned cell 16, 53, 22[parkour3]  … 2.90 from the bot → into lava at 14, 29, 23, fell 24
      * </pre>
      *
      * <p>The second one ended the crossing fifteen blocks in. Both landing cells were real ground —
-     * {@code 16,52,22=netherrack（撑得住）} — so neither plan was wrong about the world. What is
+     * {@code 16,52,22=netherrack} (load-bearing) — so neither plan was wrong about the world. What is
      * wrong is the BET: <b>a leap's cost does not include what is under the gap.</b> Over rock a
      * missed {@code parkour3} costs a few hearts; over a lava chasm it costs the run, and the stride
      * floor-guard is explicitly disarmed on a parkour tick ({@code guardParkourTick}) because a leap's
@@ -2007,7 +2000,7 @@ public final class JourneyNetherRungs {
             return;
         }
         if (c.hop >= c.maxHops) {
-            c.why = "走完了 " + c.maxHops + " 段还没到（还差 " + Math.round(away) + " 格）";
+            c.why = "used all " + c.maxHops + " hops without arriving (" + Math.round(away) + " blocks left)";
             recordCrossing(rig, what, c, away, false);
             onStuck.run();
             return;
@@ -2050,15 +2043,15 @@ public final class JourneyNetherRungs {
             // and a counter that only watched failures would have reported it as a healthy hop.
             if (flight.ticks() >= hopTicks) c.capped++;
             if (flight.lavaLine() != null && c.firstLava == null)
-                c.firstLava = "第 " + hop + " 段 " + flight.lavaLine();
-            // 纪录/净进 are the two numbers the shuttle was invisible without: every one of those 21
-            // hops printed a healthy 「走 44/48 格」, and only the pair (record, gain-against-record)
+                c.firstLava = "hop " + hop + " " + flight.lavaLine();
+            // record/gain are the two numbers the shuttle was invisible without: every one of those 21
+            // hops printed a healthy "walked 44/48 blocks", and only the pair (record, gain-against-record)
             // says the crossing was standing still. c.best is still the PRE-hop record here on purpose
             // — it is the bar this hop had to clear.
             c.lines.add("#" + hop + " " + before.toShortString() + "→" + wx + "," + wz
-                    + (c.turn == 0 ? "" : "（偏 " + c.turn + "°）")
-                    + " " + flight.brief() + "，还差 " + Math.round(left)
-                    + "（纪录 " + Math.round(c.best) + "，净进 " + Math.round(gained) + "）");
+                    + (c.turn == 0 ? "" : " (turned " + c.turn + "°)")
+                    + " " + flight.brief() + ", " + Math.round(left) + " left"
+                    + " (record " + Math.round(c.best) + ", gain " + Math.round(gained) + ")");
             // Falls get their own rows whatever the hop's outcome. A crossing that ARRIVES after
             // dropping nine blocks into a canyon arrived by the goal's definition and is still the
             // finding — and a PASS prints no evidence, so this is the only place it can be read.
@@ -2075,8 +2068,8 @@ public final class JourneyNetherRungs {
             // out, so the next hop would be the retry-that-changes-nothing in its purest form.
             String hazard = hazardBlockingARetry(rig.player(), at);
             if (hazard != null) {
-                c.why = "第 " + hop + " 段之后停手：" + hazard
-                        + " —— 再走一段只会得到同样的答案，先要把身体从这里弄出来，那是另一件事";
+                c.why = "stopped after hop " + hop + ": " + hazard + " — another hop would get the same"
+                        + " answer; the bot must first be got out of here, which is a separate problem";
                 rig.evidence(what + ".flight." + hop, flight.report());
                 rig.evidence(what + ".around." + hop, surroundings(rig.player(), at));
                 recordCrossing(rig, what, c, left, false);
@@ -2113,7 +2106,8 @@ public final class JourneyNetherRungs {
             c.wedged++;
             rig.evidence(what + ".flight." + hop, flight.report());
             // Through JourneyLeg so a hop stopped by its own budget says so, instead of printing
-            // `end=null` — which reads as「没有信息」and is really「预算用完时进程还在走」. Rung 14
+            // `end=null` — which reads as "no information" and really means "the process was still
+            // walking when the budget ran out". Rung 14
             // of 2026-08-20 spent eight of its ten wedged hops in exactly that state and could not
             // be told from a search that ran and lost.
             rig.evidence(what + ".goto." + hop, JourneyLeg.walkerEnd(rig));
@@ -2122,17 +2116,17 @@ public final class JourneyNetherRungs {
                 // Says NOTHING about whether the body moved — it may have walked 200 blocks. What it
                 // says is that four hops in a row failed to get the crossing closer than its own
                 // record, which is the only sense of "stuck" that a shuttle cannot fake.
-                c.why = "连着 " + c.wedged + " 段没比纪录（" + Math.round(c.best)
-                        + " 格）更近（最后停在 " + at.toShortString()
-                        + "，还差 " + Math.round(left) + " 格）";
+                c.why = c.wedged + " consecutive hops got no closer than the record (" + Math.round(c.best)
+                        + " blocks) (last stopped at " + at.toShortString() + ", " + Math.round(left)
+                        + " blocks left)";
                 recordCrossing(rig, what, c, left, false);
                 onStuck.run();
                 return;
             }
             if (c.wedged == 1) c.reach = Math.max(HOP_MIN, NETHER_HOP / 2);
             else c.turn = c.turn <= 0 ? HOP_TURN : -HOP_TURN;
-            rig.evidence(what + ".reaim." + hop, "下一段改问 " + c.reach + " 格、偏 " + c.turn
-                    + "° —— 同一个问题问第二遍只会得到同一个答案");
+            rig.evidence(what + ".reaim." + hop, "next hop asks for " + c.reach + " blocks, turned " + c.turn
+                    + "° — asking the same question twice only gets the same answer");
             oneHop(rig, what, x, z, tolerance, hopTicks, c, onArrived, onStuck);
         }));
     }
@@ -2146,10 +2140,10 @@ public final class JourneyNetherRungs {
      * from" — and on 2026-08-20 it stopped a healthy crossing 141 blocks short with this:
      *
      * <pre>
-     * 第 6 段之后停手：身体还在下坠（179, 43, 198，落速 -0.38 格/tick，脚下到实心 0 格）
+     * stopped after hop 6: the bot is still falling (179, 43, 198, -0.38 blocks/tick, 0 to solid ground)
      * </pre>
      *
-     * <p>{@code 脚下到实心 0}: the body was a hair above netherrack and would have been standing on
+     * <p>Zero to solid ground: the bot was a hair above netherrack and would have been standing on
      * it on the next tick. Eighteen of twenty-four hops and 16 200 hop ticks went unspent, against
      * 141 blocks that the same leg's own pace (11.4 tick/block) prices at ~1 600 ticks. The reading
      * was not wrong; it was taken too early.
@@ -2166,10 +2160,10 @@ public final class JourneyNetherRungs {
         ServerPlayer fp = rig.player();
         boolean falling = stillFalling(fp);
         if (!falling && !nothingUnderfoot(fp)) { then.run(); return; }
-        rig.evidence(what + ".landing." + hop, "这一段结束时身体"
-                + (falling ? "还在下坠" : "脚下没有支撑（还没坠起来，速度还够不上下坠的门槛）")
-                + "（" + surroundings(fp, fp.blockPosition()) + "） —— 先给 " + LANDING_TICKS
-                + " tick 落地余量，再判决");
+        rig.evidence(what + ".landing." + hop, "when this hop ended the bot was "
+                + (falling ? "still falling" : "unsupported (not yet fast enough to count as falling)")
+                + " (" + surroundings(fp, fp.blockPosition()) + ") — allowing " + LANDING_TICKS
+                + " ticks to land before judging");
         rig.settle(new HoldStill(LANDING_TICKS), LANDING_TICKS + 4, then);
     }
 
@@ -2179,11 +2173,11 @@ public final class JourneyNetherRungs {
      * <h2>Why {@link #stillFalling} cannot be the only trigger</h2>
      *
      * {@code stillFalling} needs {@code dy < }{@link #FALLING_OVER} = −0.3, about four ticks of
-     * gravity. <b>A body that stepped off a ledge on the verdict tick has not accelerated that far
-     * yet</b> — its {@code dy} is roughly −0.08 — so the velocity gate says「没在下坠」 about a body
-     * with two air cells under it. That is precisely how corridor leg 4 was judged: {@code
-     * onGround=false 支撑[63,42,86=air 63,42,87=air]}, and the fall it was one tick into carried the
-     * NEXT leg seventeen blocks down into lava.
+     * gravity. <b>A bot that stepped off a ledge on the verdict tick has not accelerated that far
+     * yet</b> — its {@code dy} is roughly −0.08 — so the velocity gate says "not falling" about a bot
+     * with two air cells under it. That is precisely how corridor segment 4 was judged: {@code
+     * onGround=false}, support cells {@code 63,42,86} and {@code 63,42,87} both air, and the fall it
+     * was one tick into carried the NEXT segment seventeen blocks down into lava.
      *
      * <p>So this asks the question the failure is actually about — is there a floor — and asks it of
      * the world rather than of the body's momentum. {@code onGround()} short-circuits it because a
@@ -2206,10 +2200,10 @@ public final class JourneyNetherRungs {
      *
      * <h2>Every distance in these rows is HORIZONTAL, and the rows now say so</h2>
      *
-     * {@code 还差}, {@code 全程最近}, {@code 净走} and {@code arrivedDistance} are all
+     * The "left", "closest overall", "net walked" and {@code arrivedDistance} figures are all
      * {@code hypot(dx, dz)}. That matches what this crossing is for — see {@code crossToColumn}, it
      * is handed {@code x, z} and nothing else — but a reader does not see the signature, only the
-     * number, and「还差 0 格」about a body twenty-three blocks below its caller's target is a row
+     * number, and "0 blocks left" about a bot twenty-three blocks below its caller's target is a row
      * that ends an investigation in the wrong place. It has already done so once (2026-08-21: a
      * fallback delegated here, was judged arrived on the spot, and reported success having walked
      * nowhere).
@@ -2227,37 +2221,37 @@ public final class JourneyNetherRungs {
      * Arrival is {@code away <= tolerance + ARRIVED_WITHIN}, and the caller's tolerance is not
      * visible here — the fortress crossing arrives with {@code tolerance = 24}, so a perfectly
      * successful crossing reaches this method with {@code left} as large as 29. Any threshold this
-     * method invented (「{@code left <= 0}」was the first attempt) would therefore call a successful
-     * fortress arrival unfinished and print the pace row's「没走完」clause about a body that walked
+     * method invented ({@code left <= 0} was the first attempt) would therefore call a successful
+     * fortress arrival unfinished and print the pace row's "did not finish" clause about a bot that walked
      * the whole way. Of the four call sites exactly one is an arrival — the {@code onArrived} branch
      * of {@code oneHop}; the other three are the hop ceiling, the lava stop and the wedge — so each
      * one states the fact it already knows instead of leaving it to be guessed from a distance.
      */
     private static void recordCrossing(JourneyRig rig, String what, Crossing c, double left,
                                        boolean arrived) {
-        rig.evidence(what + ".hops", c.lines.isEmpty() ? "一段都没走" : String.join(" | ", c.lines));
-        // 无计划 is the headline, and it is the reading that made the hop crossing worth writing:
-        // one distant goal spent 2406 of its ticks with nothing to steer at, so a crossing that
-        // reports a big number here has NOT been fixed by being cut up, whatever its distance says.
-        // 全程最近 is not the same as 还差, and the gap between them IS the finding when a crossing
-        // shuttles: the run that named this ended 265 blocks out having once been 244 out.
-        // 「还差 N 格」 IS NOT A VERDICT, and printed alone it contradicts one. A fortress crossing
-        // arrives with tolerance 24, so a body that walked the whole way and finished reaches this row
-        // with left as large as 29 — and「24 段，还差 29 格水平」with an empty why reads exactly like a
+        rig.evidence(what + ".hops", c.lines.isEmpty() ? "no hop walked" : String.join(" | ", c.lines));
+        // The no-plan count is the headline, and it is the reading that made the hop crossing worth
+        // writing: one distant goal spent 2406 of its ticks with nothing to steer at, so a crossing
+        // that reports a big number here has NOT been fixed by being cut up, whatever its distance says.
+        // "Closest overall" is not the same as "left", and the gap between them IS the finding when a
+        // crossing shuttles: the run that named this ended 265 blocks out having once been 244 out.
+        // "N BLOCKS LEFT" IS NOT A VERDICT, and printed alone it contradicts one. A fortress crossing
+        // arrives with tolerance 24, so a bot that walked the whole way and finished reaches this row
+        // with left as large as 29 — and "24 hops, 29 blocks left" with an empty why reads exactly like a
         // crossing that ran out of hops. The distance is still worth printing (it says how deep into
-        // the tolerance the body landed), but the fact of arrival has to be stated, not left to be
+        // the tolerance the bot landed), but the fact of arrival has to be stated, not left to be
         // inferred from a number whose bar lives in the caller. `arrived` is passed for this.
-        rig.evidence(what + ".crossing", c.hop + " 段，" + (arrived
-                        ? "到了（离目标 " + Math.round(left) + " 格水平，在调用方的容差之内）"
-                        : "还差 " + Math.round(left) + " 格水平")
-                + "（全程最近 "
-                + Math.round(Math.min(c.best, left)) + " 格），离地 "
-                + c.falls + " 次，全程无计划 " + c.noPlan + " tick"
-                + (c.firstLava == null ? "，没进过岩浆" : "，" + c.firstLava)
-                + (c.why.isEmpty() ? "" : "；" + c.why));
-        // The denominator 无计划 never had. 67 ticks with nothing to steer at is a re-planning
-        // problem at 900 and a rounding error at 1517, and only the pair says which — so a future
-        // reader deciding between「give it more budget」and「it cannot plan here」has the number in
+        rig.evidence(what + ".crossing", c.hop + " hops, " + (arrived
+                        ? "arrived (" + Math.round(left) + " blocks horizontally, within the caller's tolerance)"
+                        : Math.round(left) + " blocks left horizontally")
+                + " (closest overall "
+                + Math.round(Math.min(c.best, left)) + " blocks), left the ground "
+                + c.falls + " times, no plan for " + c.noPlan + " ticks in total"
+                + (c.firstLava == null ? ", never entered lava" : ", " + c.firstLava)
+                + (c.why.isEmpty() ? "" : "; " + c.why));
+        // The denominator the no-plan count never had. 67 ticks with nothing to steer at is a
+        // re-planning problem at 900 and a rounding error at 1517, and only the pair says which — so a future
+        // reader deciding between "give it more budget" and "it cannot plan here" has the number in
         // front of them instead of a hop line to add up.
         //
         // BOTH CEILINGS, side by side, because they are approached at different rates and only the
@@ -2268,48 +2262,49 @@ public final class JourneyNetherRungs {
         // and c.why in the crossing row above names it in words.
         int walked = (int) Math.round(Math.max(0, c.best0 - Math.min(c.best, left)));
         int tickCeiling = c.maxHops * Math.max(1, c.hopTicks);
-        rig.evidence(what + ".pace", c.hop + " 段共 " + c.ticks + " tick，净走 " + walked + " 格"
+        rig.evidence(what + ".pace", c.hop + " hops took " + c.ticks + " ticks, net walked " + walked
                 + (walked > 0 && c.ticks > 0
-                    ? "（" + String.format(Locale.ROOT, "%.1f", c.ticks / (double) walked)
-                      + " tick/格"
+                    ? " (" + String.format(Locale.ROOT, "%.1f", c.ticks / (double) walked)
+                      + " ticks/block"
                       // THE EXTRAPOLATION IS ONLY HONEST WHEN THE CROSSING ARRIVED. It prices the
                       // whole distance at the rate measured over the part that was walked — and on a
                       // crossing that stopped short, the part that was NOT walked is precisely the
-                      // part the body could not walk. The fortress leg of 2026-08-21 printed「照这
-                      // 个脚程走完全程要 16289 tick」after burning 13260 without arriving, which
-                      // reads as「a bit more budget would do it」about a run whose remaining 75 格
-                      // would cost 3041 at that rate and had already refused 13260. Same family as
-                      // the row that ruled out its own cause: nothing in it was false, and the
-                      // conclusion it invited was the opposite of the truth.
+                      // part the bot could not walk. The fortress crossing of 2026-08-21 printed "at this
+                      // pace the whole distance takes 16289 ticks" after burning 13260 without
+                      // arriving, which reads as "a bit more budget would do it" about a run whose
+                      // remaining 75 blocks would cost 3041 at that rate and had already refused
+                      // 13260. Same family as the row that ruled out its own cause: nothing in it
+                      // was false, and the conclusion it invited was the opposite of the truth.
                       //
                       // Gated on the PASSED-IN arrival, not on `left`: see this method's javadoc —
                       // an arrival carries the caller's tolerance, so a successful fortress crossing
                       // gets here with left as large as 29 and any local threshold would libel it.
-                      + (arrived ? "，照这个脚程走完全程要 "
-                                   + Math.round(c.best0 * c.ticks / (double) walked) + " tick"
-                                 : "，剩下的 " + Math.round(left) + " 格不适用这个脚程 —— "
-                                   + "它是走得动的那 " + walked + " 格测出来的，而没走完的正是走不动的那一段")
-                      + "）" : "")
-                + "；其中无计划 " + c.noPlan + "/" + c.ticks + " tick = "
+                      + (arrived ? ", at this pace the whole distance takes "
+                                   + Math.round(c.best0 * c.ticks / (double) walked) + " ticks"
+                                 : ", this pace does not apply to the remaining " + Math.round(left)
+                                   + " blocks — it was measured over the " + walked + " walkable blocks,"
+                                   + " and what was not walked is exactly the part that could not be")
+                      + ")" : "")
+                + "; of which no plan for " + c.noPlan + "/" + c.ticks + " ticks = "
                 + (c.ticks > 0 ? Math.round(100.0 * c.noPlan / c.ticks) : 0) + "%"
-                + "。两个上限各用了：段数 " + c.hop + "/" + c.maxHops + " = "
-                + Math.round(100.0 * c.hop / c.maxHops) + "%，tick " + c.ticks + "/" + tickCeiling
-                + " = " + Math.round(100.0 * c.ticks / tickCeiling) + "%（其中 " + c.capped + " 段"
-                + "跑满了自己那 " + c.hopTicks + " tick）—— 满掉的那个才是结束这一趟的那个");
+                + ". Ceilings used: hops " + c.hop + "/" + c.maxHops + " = "
+                + Math.round(100.0 * c.hop / c.maxHops) + "%, ticks " + c.ticks + "/" + tickCeiling
+                + " = " + Math.round(100.0 * c.ticks / tickCeiling) + "% (" + c.capped + " hops"
+                + " used all of their " + c.hopTicks + " ticks) — the full one is what ended this crossing");
         // Stays a bare number: it is quoted as one across TODO.md and CHANGELOG.md, and the sibling
         // rows in WorldDriverJourneyScenes and JourneyEndRungs write the same key the same way — a
         // unit glued onto this one alone would make those incomparable to buy nothing the row below
         // does not buy properly.
         rig.evidence(what + ".arrivedDistance", Math.round(left));
         // WHAT THAT NUMBER IS NOT. Same shape as `raiseColumnMissed` in JourneyPour, and for the
-        // same reason: `arrivedDistance` is not read as a verdict, so the honest place to say「this
-        // is horizontal only, and the crossing was never given a height to miss」is its own row,
-        // next to the y the body actually ended at. A reader who sees `还差 0` and this line
-        // together cannot conclude the body is where the caller wanted it — which is exactly the
+        // same reason: `arrivedDistance` is not read as a verdict, so the honest place to say "this
+        // is horizontal only, and the crossing was never given a height to miss" is its own row,
+        // next to the y the bot actually ended at. A reader who sees "0 left" and this line
+        // together cannot conclude the bot is where the caller wanted it — which is exactly the
         // conclusion that was drawn on 2026-08-21 and cost a fallback that had never run.
-        rig.evidence(what + ".arrivedDistanceIs", "水平距离（hypot(dx,dz)），身体停在 y="
-                + rig.player().blockPosition().getY() + "；这一趟只被交代了 x,z，没有目标高度，"
-                + "所以 y 的差值无从算起 —— 要判高度的调用方得自己带目标（见 crossToColumn 的说明）");
+        rig.evidence(what + ".arrivedDistanceIs", "horizontal distance (hypot(dx,dz)); the bot stopped at y="
+                + rig.player().blockPosition().getY() + "; this crossing was given x,z only, no target height,"
+                + " so no y difference exists — a caller judging height must bring its own goal (crossToColumn)");
     }
 
     /**
@@ -2331,9 +2326,9 @@ public final class JourneyNetherRungs {
     static String surroundings(ServerPlayer fp, BlockPos at) {
         ServerLevel level = fp.serverLevel();
         StringBuilder sb = new StringBuilder();
-        sb.append("脚下=").append(blockName(level, at.below()))
-          .append(" 身处=").append(blockName(level, at))
-          .append(" 头顶=").append(blockName(level, at.above()));
+        sb.append("below=").append(blockName(level, at.below()))
+          .append(" at=").append(blockName(level, at))
+          .append(" above=").append(blockName(level, at.above()));
         int walls = 0;
         for (Direction d : Direction.Plane.HORIZONTAL) {
             BlockPos side = at.relative(d);
@@ -2342,11 +2337,12 @@ public final class JourneyNetherRungs {
         }
         // WHICH expanded=1. Four walls is one way to have no legal move out of the start node;
         // being submerged is another, and it looks like the opposite (0/4 walls). One run spent a
-        // round misreading `脚下=lava … 0/4 面是墙` as "the body is entombed", because the line said
-        // how many walls there were and never said the body was under the lava.
-        if (fp.isInLava()) sb.append("（0/4 面是墙但身体泡在岩浆里 —— expanded=1 是这个原因）");
-        else sb.append(walls == 4 ? "（四面封死 —— 这是 expanded=1 的样子）"
-                : "（" + walls + "/4 面是墙）");
+        // round misreading a row with lava underfoot and zero of four walls as "the bot is
+        // entombed", because the line said how many walls there were and never said the bot was
+        // under the lava.
+        if (fp.isInLava()) sb.append(" (0/4 sides are walls, but the bot is submerged in lava; that is why expanded=1)");
+        else sb.append(walls == 4 ? " (sealed on all four sides; this is what expanded=1 looks like)"
+                : " (" + walls + "/4 sides are walls)");
         // The three readings that separate "the terrain beat the search" from "the body is not on
         // any terrain". A plan that ends AIRBORNE OVER A CAVE is the open half of this rung's
         // diagnosis, and it is invisible in a line that only names blocks: the body has walked
@@ -2356,18 +2352,18 @@ public final class JourneyNetherRungs {
         // the override Entity.move() calls — is an EMPTY method: the accumulating one is
         // `doCheckFallDamage`, which vanilla runs only off a movement packet. Until 2026-09-14 the
         // server body sent none and nothing stood in for it, so `fp.fallDistance` was 0 for this body
-        // always, and the `坠=0.0` this line used to print answered "not falling" about a body
+        // always, and the zero fall distance this line used to print answered "not falling" about a bot
         // measured dropping 1.14 blocks in a single tick. JoinedBody.pump runs the packet tail now,
         // so the field counts; the body's own vertical velocity stays because it needs neither.
         sb.append(" onGround=").append(fp.onGround())
-          .append(" 落速=").append(String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y))
-          .append(" 血=").append(Math.round(fp.getHealth()))
-          .append(" 脚下到实心=").append(dropBelow(level, at));
+          .append(" vy=").append(String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y))
+          .append(" hp=").append(Math.round(fp.getHealth()))
+          .append(" dropToSolid=").append(dropBelow(level, at));
         // THE CELL UNDER THE CENTRE IS NOT THE BODY'S SUPPORT. A player is 0.6 wide, so every
-        // reading above answers about the column `at` names and none of them answers「is this body
-        // standing on anything」. Measured 2026-08-20, rung 14's shuttle:
+        // reading above answers about the column `at` names and none of them answers "is this bot
+        // standing on anything". Measured 2026-08-20, rung 14's shuttle, paraphrased:
         //
-        //   fortress.around.8 = 脚下=air …… onGround=true 落速=-0.08 脚下到实心=>16
+        //   fortress.around.8 = air underfoot … onGround=true, vertical speed -0.08, drop to solid >16
         //
         // which reads as a body hanging over a void and was a body STANDING — cornered on a
         // neighbour with its own column open sixteen down. Recovering that took a different row from
@@ -2377,12 +2373,12 @@ public final class JourneyNetherRungs {
         // measured the two rows BYTE-IDENTICAL before this line existed.
         //
         // Through WalkerGeometry, not a local scan: soleOnSolid/soleRow are this repo's single
-        // enumeration of「身体站在哪一格上」, and a row that answered it differently from the guards
-        // that steer on it is how a diagnosis comes to describe a body that does not exist.
+        // enumeration of "which cells the bot is standing on", and a row that answered it differently
+        // from the guards that steer on it is how a diagnosis comes to describe a bot that does not exist.
         LevelWorldView view = new LevelWorldView(level, fp);
-        sb.append(" 脚底=")
+        sb.append(" sole=")
           .append(String.format(java.util.Locale.ROOT, "%.4f/0.36", WalkerGeometry.soleOnSolid(view, fp)))
-          .append("（").append(WalkerGeometry.soleRow(view, fp)).append("）");
+          .append(" (").append(WalkerGeometry.soleRow(view, fp)).append(")");
         return sb.toString();
     }
 
@@ -2392,7 +2388,7 @@ public final class JourneyNetherRungs {
     private static String dropBelow(ServerLevel level, BlockPos at) {
         for (int d = 1; d <= DROP_PROBE; d++) {
             BlockPos p = at.below(d);
-            if (p.getY() < level.getMinBuildHeight()) return "虚空";
+            if (p.getY() < level.getMinBuildHeight()) return "void";
             if (level.getBlockState(p).blocksMotion()) return String.valueOf(d - 1);
         }
         return ">" + DROP_PROBE;
@@ -2419,14 +2415,14 @@ public final class JourneyNetherRungs {
      */
     static String hazardBlockingARetry(ServerPlayer fp, BlockPos at) {
         if (fp.isInLava())
-            return "身体泡在岩浆里（" + at.toShortString() + "，血 " + Math.round(fp.getHealth()) + "）";
+            return "the bot is in lava (" + at.toShortString() + ", health " + Math.round(fp.getHealth()) + ")";
         if (fp.isInWater())
-            return "身体泡在水里（" + at.toShortString() + "）";
+            return "the bot is in water (" + at.toShortString() + ")";
         if (stillFalling(fp))
-            return "身体还在下坠（" + at.toShortString() + "，落速 "
+            return "the bot is still falling (" + at.toShortString() + ", falling at "
                     + String.format(java.util.Locale.ROOT, "%.2f", fp.getDeltaMovement().y)
-                    + " 格/tick，脚下到实心 "
-                    + dropBelow(fp.serverLevel(), at) + " 格）";
+                    + " blocks/tick, "
+                    + dropBelow(fp.serverLevel(), at) + " blocks to solid ground)";
         return null;
     }
 
@@ -2467,8 +2463,8 @@ public final class JourneyNetherRungs {
      *
      * <p>Twenty-six ticks, and the number is arithmetic rather than a guess: vanilla gravity covers
      * {@code 23.4} blocks in 26 ticks, and {@code SurvivalMath.survivableFall(20) = 22} is the
-     * deepest DRY drop this body takes at full health. So the allowance is「as long as the deepest
-     * fall the body can walk away from」. Past it the fall is a genuine one — a chasm, or the void —
+     * deepest DRY drop this body takes at full health. So the allowance is "as long as the deepest
+     * fall the body can walk away from". Past it the fall is a genuine one — a chasm, or the void —
      * and {@link #hazardBlockingARetry} is right to stop the crossing on it.
      *
      * <p>Spent only by a hop that ends mid-air, which is rare: measured on the 2026-08-20 rehearsal,
@@ -2542,12 +2538,12 @@ public final class JourneyNetherRungs {
      * ticks between them and displaced <b>six blocks</b>. What those hops report:
      *
      * <pre>
-     * 守卫钉住把计划丢掉重找 2 次，最后一次 连钉 30 tick，其间点火过 4 个不同的格子（一路换格 —— 这是沿岸走）
-     * 37/900 个着地 tick 接触面积不足 0.09（等于只踩住一个角）
-     * 计划最往回指 14.18 格（身体 90,41,96 离目标 55，计划下一格 90,41,78 离目标 69）
+     * guard pinned and dropped the plan 2 times, last pin 30 ticks, fired on 4 cells (walking a shore)
+     * 37/900 grounded ticks with contact area under 0.09 (standing on one corner)
+     * plan pointed back up to 14.18 blocks (bot 90,41,96 is 55 from goal, next cell 90,41,78 is 69)
      * </pre>
      *
-     * <p>The body was walking the shore of a lava sea. {@code WalkerGeometry.lethalDropAdjacent}
+     * <p>The bot was walking the shore of a lava sea. {@code WalkerGeometry.lethalDropAdjacent}
      * pinned it there — correctly, that is what the guard is for — every pin ran to
      * {@code guardPinStreak >= 30} and threw the plan away, and the re-search handed back a route
      * pointing fifteen blocks BACK from the goal. Nine hops of that is a crossing that shuttles.
@@ -2566,7 +2562,7 @@ public final class JourneyNetherRungs {
      * function to ask the question the executor already asks, and a per-leg {@link CostModifier} is
      * how this repo has done that before. Rung 12's lava lake had the same shape and the same cure:
      * {@code JourneyPortalRung#LIP_TAX} prices the crater's rim, and the leg that had never once
-     * arrived reported {@code end=arrived … 这条腿上 footing guard：0 条}. This is that fix, on the
+     * arrived reported {@code end=arrived} with zero footing-guard entries. This is that fix, on the
      * terrain it was not applied to.
      *
      * <p>Three hundred, same as rung 12's and as {@link BotConfig#lavaDangerPenalty}: a plain walk
@@ -2606,7 +2602,7 @@ public final class JourneyNetherRungs {
      * hop #2  33, 55, 36     hop #16 103, 41, 132    hop #22 162, 56, 177
      * hop #3  62, 43, 67     hop #17 132, 43, 165    hop #23 154, 58, 194
      * hop #6  71, 43, 69     hop #18 135, 43, 167    hop #24 189, 53, 221
-     * hop #7  63, 41, 87     hop #19 152, 53, 178    （末位）220, 53, 250 ← 那一趟停下的地方
+     * hop #7  63, 41, 87     hop #19 152, 53, 178    (last) 220, 53, 250 ← where that run stopped
      * hop #13 74, 41, 97     hop #14 102, 41, 122
      * </pre>
      *
@@ -2651,14 +2647,14 @@ public final class JourneyNetherRungs {
      * arrival bar — tightening it asks the executor for more than the judge requires, which is its
      * own defect. See TODO.md for the full account and the Y-band tax that followed.
      *
-     * <h2>「OCCUPIED, not surveyed」was the wrong warrant, and it is measured wrong</h2>
+     * <h2>"OCCUPIED, not surveyed" was the wrong warrant, and it is measured wrong</h2>
      *
      * This javadoc used to argue that the inserted cells ({@code 82,41,100}, {@code 89,41,108},
      * {@code 95,41,115}) were safer than scanned ones because they came off the per-100-tick track of
      * a run that reached the fortress — <b>cells a body had actually stood in</b>, which "is a
      * stronger warrant than a scan". {@link JourneyCorridorProbe#auditWaypoints} asked all eighteen
-     * against a fresh world on 2026-08-21 and all three are 「本格空且脚下也空」, their nearest floor
-     * nineteen to twenty-one blocks down.
+     * against a fresh world on 2026-08-21 and all three report the cell and the one below it empty,
+     * their nearest floor nineteen to twenty-one blocks down.
      *
      * <p><b>Occupancy warrants nothing when the occupant is carrying blocks.</b> The body stood there
      * on a causeway it had placed one cell earlier, so the track records where the bridge WAS, not
@@ -2675,14 +2671,14 @@ public final class JourneyNetherRungs {
      */
     private static final int[][] FORTRESS_WAYPOINTS = {
             {33, 55, 36}, {62, 43, 67}, {71, 43, 69},
-            // {63,41,87} STOOD HERE AND IS DELETED. The audit reports it 「本格空且脚下也空」with no
-            // floor within twenty-four blocks — a shaft. It was a cell the recording run bridged to,
-            // not ground. Its leg's own evidence says the same thing without the audit: the walker
-            // reported `goalReached=true end=arrived 在 63,42,86 支撑[air air]`, one block inside the
-            // two-block sphere and in free fall, and the body then dropped fourteen blocks.
-            // Deleting rather than re-baking because there is nothing under it to re-bake ONTO, and
-            // both neighbours are verified ground: {71,43,69} → {72,42,85} is sixteen blocks between
-            // two cells the audit calls 「可站」, against the twenty-then-nine this detour cost.
+            // {63,41,87} STOOD HERE AND IS DELETED. The audit reports the cell and the one below it
+            // empty, with no floor within twenty-four blocks — a shaft. It was a cell the recording
+            // run bridged to, not ground. Its own evidence says the same thing without the audit: the
+            // walker reported `goalReached=true end=arrived` at 63,42,86 with both support cells air,
+            // one block inside the two-block sphere and in free fall, and the bot then dropped
+            // fourteen blocks. Deleting rather than re-baking because there is nothing under it to
+            // re-bake ONTO, and both neighbours are verified ground: {71,43,69} → {72,42,85} is sixteen
+            // blocks between two cells the audit calls standable, against this detour's twenty-then-nine.
             // EAST FIRST. Leg {63,41,87} → {74,41,97} is bistable across four runs — two reached the
             // waypoint, two ended in the lava at y=5 — and the two outcomes differ by DIRECTION, not
             // by luck. The runs that passed went east immediately (63,41,85 → 72,42,85 → 73,42,86);
@@ -2773,9 +2769,9 @@ public final class JourneyNetherRungs {
      *       ladder below (halve, then turn) never fired once. 21 hops, <b>5 blocks</b> of net
      *       progress, 18 339 ticks, and every line read healthy:
      *       <pre>
-     *       #9  110,41,116→141,152 走 44/48 格 900t，还差 292   ← moved 44, and LOST 44
-     *       #10  89,41, 77→119,114 走 42/48 格 900t，还差 251
-     *       #11 108,41,114→139,150 走 43/48 格 900t，还差 293   ← moved 43, and LOST 42
+     *       #9  110,41,116→141,152 walked 44/48 blocks 900t, 292 left   ← moved 44, and LOST 44
+     *       #10  89,41, 77→119,114 walked 42/48 blocks 900t, 251 left
+     *       #11 108,41,114→139,150 walked 43/48 blocks 900t, 293 left   ← moved 43, and LOST 42
      *       </pre>
      * </ul>
      *

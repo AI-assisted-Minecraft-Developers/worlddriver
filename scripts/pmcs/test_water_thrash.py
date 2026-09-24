@@ -1,4 +1,4 @@
-"""water_yaw_thrash:水中 body-yaw 摆动指标(2026-06-29)。"""
+"""water_yaw_thrash: the in-water body-yaw swing metric."""
 from scripts.pmcs.telemetry import water_yaw_thrash, _yaw_delta, WalkerTick
 
 

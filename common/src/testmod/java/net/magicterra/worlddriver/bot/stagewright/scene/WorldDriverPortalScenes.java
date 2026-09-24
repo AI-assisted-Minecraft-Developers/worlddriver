@@ -386,22 +386,22 @@ public final class WorldDriverPortalScenes {
             BlockPos cell = plan.get(i)[0], wet = plan.get(i)[1];
 
             if (!pourInto(driver, fp, wet, floorY, Items.WATER_BUCKET, Blocks.WATER, level)) {
-                ctx.record("water.stuckAt", label(cell, x0, y0) + " 想放水到 " + label(wet, x0, y0)
-                        + "，那格现在是 " + level.getBlockState(wet).getBlock());
+                ctx.record("water.stuckAt", label(cell, x0, y0) + " tried to pour water into " + label(wet, x0, y0)
+                        + ", which is now " + level.getBlockState(wet).getBlock());
                 break;
             }
             moves++;
 
             if (!scoopSource(driver, fp, lake.get(i), floorY, Items.LAVA_BUCKET)) {
                 ctx.record("lava.stuckAt", label(cell, x0, y0)
-                        + "（湖格 " + lake.get(i).toShortString() + " = " + level.getBlockState(lake.get(i)).getBlock() + "）");
+                        + " (lake cell " + lake.get(i).toShortString() + " = " + level.getBlockState(lake.get(i)).getBlock() + ")");
                 break;
             }
             pourInto(driver, fp, cell, floorY, Items.LAVA_BUCKET, Blocks.OBSIDIAN, level);
 
             if (level.getBlockState(cell).getBlock() == Blocks.OBSIDIAN) cast++;
             else ctx.record("cast.missed." + label(cell, x0, y0), level.getBlockState(cell).getBlock()
-                    + "（旁边 " + label(wet, x0, y0) + " 是 " + level.getBlockState(wet).getBlock() + "）");
+                    + " (neighbour " + label(wet, x0, y0) + " is " + level.getBlockState(wet).getBlock() + ")");
 
             // The bucket is empty again, which is exactly what taking the water back needs. This is
             // the step that makes ONE bucket enough, and it is also the step that leaves the interior
@@ -412,8 +412,8 @@ public final class WorldDriverPortalScenes {
         }
         ctx.record("frame.cast", cast + "/" + plan.size());
         ctx.record("water.moves", moves + "");
-        ctx.record("bucket.after", WorldDriverProcessScenes.countItem(fp, Items.BUCKET) + " 空 / "
-                + WorldDriverProcessScenes.countItem(fp, Items.LAVA_BUCKET) + " 岩浆 / " + WorldDriverProcessScenes.countItem(fp, Items.WATER_BUCKET) + " 水");
+        ctx.record("bucket.after", WorldDriverProcessScenes.countItem(fp, Items.BUCKET) + " empty / "
+                + WorldDriverProcessScenes.countItem(fp, Items.LAVA_BUCKET) + " lava / " + WorldDriverProcessScenes.countItem(fp, Items.WATER_BUCKET) + " water");
         ctx.expect(cast).as("obsidian cast into every frame cell from one bucket")
                 .isEqualTo(plan.size());
 
@@ -516,7 +516,7 @@ public final class WorldDriverPortalScenes {
 
         ServerLevel nether = level.getServer().getLevel(Level.NETHER);
         if (nether == null) {
-            ctx.skip("这个运行时没有下界维度（数据包移除了 minecraft:the_nether），没有可去的地方");
+            ctx.skip("this runtime has no Nether dimension (a data pack removed minecraft:the_nether), so there is nowhere to go");
             return;
         }
 
@@ -576,7 +576,7 @@ public final class WorldDriverPortalScenes {
         int ticked = 0;
         while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
 
-        ctx.record("transit.ticks", ticked + (ticked >= budget ? "（用尽）" : ""));
+        ctx.record("transit.ticks", ticked + (ticked >= budget ? " (budget exhausted)" : ""));
         ctx.record("transit.dimension", fp.level().dimension().location().toString());
         ctx.record("transit.pos", fp.blockPosition().toShortString());
         ctx.record("transit.standingIn", String.valueOf(fp.level().getBlockState(fp.blockPosition()).getBlock()));
@@ -584,7 +584,7 @@ public final class WorldDriverPortalScenes {
         // own block is a POSITIONING fault, and a body that stood in it for six hundred ticks
         // without moving is a TICK fault.
         ctx.record("transit.everInPortal",
-                level.getBlockState(doorway).getBlock() == Blocks.NETHER_PORTAL ? "门还在" : "门没了");
+                level.getBlockState(doorway).getBlock() == Blocks.NETHER_PORTAL ? "portal still present" : "portal gone");
 
         ctx.expect(fp.level().dimension()).as("the driven body arrives in the Nether through its own portal")
                 .isEqualTo(Level.NETHER);
@@ -601,7 +601,7 @@ public final class WorldDriverPortalScenes {
         int drift = Math.max(Math.abs(fp.blockPosition().getX() - want.getX()),
                 Math.abs(fp.blockPosition().getZ() - want.getZ()));
         ctx.record("transit.scale", String.valueOf(scale));
-        ctx.record("transit.expectedXZ", want.getX() + "," + want.getZ() + "（漂移 " + drift + " 格）");
+        ctx.record("transit.expectedXZ", want.getX() + "," + want.getZ() + " (drift " + drift + " blocks)");
         ctx.record("transit.arrivalPortal", String.valueOf(
                 fp.level().getBlockState(fp.blockPosition()).getBlock()));
         ctx.record("transit.underfoot", String.valueOf(
@@ -609,13 +609,13 @@ public final class WorldDriverPortalScenes {
         // The dimension's own ceiling: a nether arrival above logical height is standing where the
         // roof is, which no portal search should ever return.
         ctx.record("transit.logicalHeight", nether.dimensionType().logicalHeight()
-                + "（落点 y=" + fp.blockPosition().getY() + "）");
+                + " (arrival y=" + fp.blockPosition().getY() + ")");
         ctx.expect(drift).as("the arrival is at the 8:1-scaled coordinate, not the raw one")
                 .isAtMost(128);
         ctx.expect(fp.blockPosition().getY()).as("the arrival is under the Nether's own roof")
                 .isAtMost(nether.dimensionType().logicalHeight());
-        ctx.passNote("穿过自己点燃的传送门到达下界，用了 " + ticked + " tick，落在 "
-                + fp.blockPosition().toShortString() + "（期望附近 " + want.getX() + "," + want.getZ() + "）");
+        ctx.passNote("reached the Nether through the portal the bot lit itself in " + ticked + " ticks, landing at "
+                + fp.blockPosition().toShortString() + " (expected near " + want.getX() + "," + want.getZ() + ")");
     }
 
     /**
@@ -775,8 +775,8 @@ public final class WorldDriverPortalScenes {
         ctx.record("interior.after", String.valueOf(level.getBlockState(interior.get(0)).getBlock()));
         ctx.expect(lit).as("the portal the body built and cast is lit end to end")
                 .isEqualTo(interior.size());
-        ctx.passNote("平地起门: 铺 " + (wanted + wallWanted) + " 块模具, 一只桶浇 " + cast
-                + " 块黑曜石, 点亮 " + lit + " 格");
+        ctx.passNote("portal built on flat ground: laid " + (wanted + wallWanted) + " mould blocks, cast " + cast
+                + " obsidian blocks with one bucket, lit " + lit + " portal cells");
     }
 
     /** Place a held cobblestone in {@code target} by clicking {@code face} of {@code support}.
@@ -816,7 +816,7 @@ public final class WorldDriverPortalScenes {
 
         ServerLevel end = level.getServer().getLevel(Level.END);
         if (end == null) {
-            ctx.skip("这个运行时没有末地维度（数据包移除了 minecraft:the_end），没有可去的地方");
+            ctx.skip("this runtime has no End dimension (a data pack removed minecraft:the_end), so there is nowhere to go");
             return;
         }
 
@@ -878,7 +878,7 @@ public final class WorldDriverPortalScenes {
         final int budget = 400;
         int ticked = 0;
         while (ticked < budget && fp.level() == level) { ServerAvatarManager.tickAll(); ticked++; }
-        ctx.record("transit.ticks", ticked + (ticked >= budget ? "（用尽）" : ""));
+        ctx.record("transit.ticks", ticked + (ticked >= budget ? " (budget exhausted)" : ""));
         ctx.record("transit.dimension", fp.level().dimension().location().toString());
         ctx.record("transit.pos", fp.blockPosition().toShortString());
         ctx.expect(fp.level().dimension()).as("the driven body crosses into the End").isEqualTo(Level.END);
@@ -889,11 +889,11 @@ public final class WorldDriverPortalScenes {
         BlockPos want = net.minecraft.server.level.ServerLevel.END_SPAWN_POINT;
         int drift = Math.max(Math.abs(fp.blockPosition().getX() - want.getX()),
                 Math.abs(fp.blockPosition().getZ() - want.getZ()));
-        ctx.record("transit.spawnPoint", want.toShortString() + "（漂移 " + drift + " 格）");
+        ctx.record("transit.spawnPoint", want.toShortString() + " (drift " + drift + " blocks)");
         ctx.record("transit.underfoot", String.valueOf(
                 fp.level().getBlockState(fp.blockPosition().below()).getBlock()));
         ctx.expect(drift).as("the arrival is on the End's own spawn platform").isAtMost(16);
-        ctx.passNote("十二只眼开门, " + ticked + " tick 过到末地, 落在 "
+        ctx.passNote("twelve eyes opened the portal, crossed into the End in " + ticked + " ticks, landing at "
                 + fp.blockPosition().toShortString());
     }
 

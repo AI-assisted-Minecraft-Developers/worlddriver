@@ -43,7 +43,7 @@ final class WalkerTickRepath {
         // walkerBridgeHoldRepath (§82): a mid-bridge PERIODIC repath swaps the committed
         // bridgePlace chain for a fresh plan whose first node sits elsewhere (arena live:
         // new node at y+8), and the drive steers off the END of the placed deck into air —
-        // the "搭桥中途掉下" signature. Deck length decides the fate: a 19-block deck
+        // the signature of falling off partway through a bridge. Deck length decides the fate: a 19-block deck
         // finishes in 8-9s (inside one 10s repath period, 3/3 clean) while diagonal
         // zig-zag and 40-block decks straddle the period and fell every run. While the
         // current or next edge is a bridgePlace, hold the ROUTINE repath; safety repaths
@@ -236,7 +236,7 @@ final class WalkerTickRepath {
             // Chebyshev-≤2 test would have held this hop, ">2" means it would have let it go. A row
             // that prints only the rule that won cannot tell a reader the two ever disagreed.
             int oldRing = nearestLethalHopRing(world, p, foot, HOP_RANGE);
-            LOG.info("[walker] 解卡突进跳: 起跳={} 身体={} 剩余={} 旧闸最近致命格={} | {}", allowed,
+            LOG.info("[walker] unstuck burst hop: jump={} foot={} remaining={} ringGateNearestLethal={} | {}", allowed,
                     foot.toShortString(), wk.unstuck.burstTicks,
                     oldRing < 0 ? ">" + HOP_RANGE : String.valueOf(oldRing),
                     hopLandingRow(world, p, foot, wk.unstuck.burstYaw));

@@ -149,7 +149,7 @@ public interface Hands {
 
     /** Why the last {@link #attackEntity} did not swing, or {@code null} if it did. Read it right
      *  after the call — a client body is rebuilt every tick, so this is a within-tick reading,
-     *  and「拒绝了」must never be inferred from silence. */
+     *  and "refused" must never be inferred from silence. */
     default String lastAttackRefusal() { return null; }
 
     // --- using ---

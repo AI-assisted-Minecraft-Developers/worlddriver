@@ -134,7 +134,7 @@ final class WalkerTickStallDetect {
         // hangs on noStepProgressTicks, which a slide-back's re-approach / vertical bob zeroes on every 3D
         // new-low — so on a WIDE steep ram the gate never fills and the bot bob-rams 150+ ticks before the
         // slow WEDGE_TICKS(100) burst (live J3b -877,75,241: diagUp node 3 above the grounded/airborne foot,
-        // cur2 3.2-4.1, 反复横跳, 156 t / 7.8 s). Mirror crestOrbitTicks: a stepUp/diagUp edge (a PLANNED +1
+        // cur2 3.2-4.1, repeated side-to-side hopping, 156 t / 7.8 s). Mirror crestOrbitTicks: a stepUp/diagUp edge (a PLANNED +1
         // the bot has slid 2-3 BELOW, so its node now sits >=2 above the foot) that has DWELT rawStepDwellTicks
         // past the bar — bob-immune, and NO onGround requirement so it ALSO catches the airborne-bob ram the
         // grounded ascentRamSlide misses — folds into fellOffPath so the fresh foot-search blacklists the

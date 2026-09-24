@@ -48,8 +48,8 @@ import net.minecraft.server.level.ServerPlayer;
  *
  * <h2>What a skip here costs, stated rather than hidden</h2>
  *
- * The integrated gate existed to run the SAME scenes under a different topology — 「a topology must
- * vary the RUN, never the subject」. Skipping the minting scenes there gives that up: the
+ * The integrated gate existed to run the SAME scenes under a different topology — "a topology must
+ * vary the RUN, never the subject". Skipping the minting scenes there gives that up: the
  * cross-topology comparison is exactly what stops happening. The trade is deliberate and it is
  * temporary. Coverage for a skipped scene is on {@code stagewrightDedicatedServerFabric} /
  * {@code …Neoforge}, and the reconciliation that has to hold after every change here is:
@@ -173,7 +173,7 @@ public final class SceneBody {
         return avatar(ctx, ctx.level(), x, y, z);
     }
 
-    // A `mintingIsLegal(ctx)` used to sit here, for「the scene that must BRANCH rather than skip」.
+    // A `mintingIsLegal(ctx)` used to sit here, for "the scene that must BRANCH rather than skip".
     // Its javadoc named its one caller, `wd.bodyParityCensus`, and that scene stopped calling it:
     // it mints DIRECTLY (`new JoinedPlayerBodies()`; its fake-player column now records unavailable)
     // precisely so the census is taken on every run rather than branching on the run's shape. A
@@ -207,7 +207,7 @@ public final class SceneBody {
      * The predicate — <b>deliberately time-invariant, and deliberately NOT the same as
      * {@code JourneyRig.realPlayerHelm}.</b>
      *
-     * <p>That one also asks 「is a human in the player list right now」, because it is about to ADOPT
+     * <p>That one also asks "is a human in the player list right now", because it is about to ADOPT
      * one and would get a {@link NullPointerException} otherwise. This one is about to REFUSE, and
      * asking the same question here would be a bug: the suite arms at {@code SERVER_STARTED}, which
      * on an integrated server is before the local player has been placed, so the answer CHANGES
@@ -231,9 +231,10 @@ public final class SceneBody {
 
     private static void refuseWhereAClientShouldDrive(SceneContext ctx) {
         if (!aClientShouldDrive(ctx)) return;
-        ctx.skip("集成服上有真实客户端，按 2026-08-20 的身体选型指令，这里不许再造无头身体（JoinedBody "
-                + "仅限专用测试服）。这条场景的执行层还没转到客户端舵（BotApi.runProcess），"
-                + "覆盖率记在 stagewrightDedicatedServer* 闸上。");
+        ctx.skip("The integrated server has a real client. Under the 2026-08-20 player-entity selection rule, "
+                + "a headless player entity must not be created here (JoinedBody is reserved for the dedicated "
+                + "test server). This scene's execution has not yet moved to the client driver (BotApi.runProcess); "
+                + "its coverage is counted on the stagewrightDedicatedServer* gates.");
     }
 
     /** Whether anyone in the player list is a person rather than one of our own bodies. A reading,
@@ -255,7 +256,7 @@ public final class SceneBody {
      * ({@code AvatarFakePlayer}, since deleted with the other fake body), three of four places asked
      * for only one of them, and {@code WorldDriverActuatorSplitScenes} disagreed with itself twenty
      * lines apart: its {@code humanPlayers()} admitted a fake body and its own next check failed the
-     * scene with「挑错了身体」. If a minted player type is ever added again, this is the one place
+     * scene with "picked the wrong player entity". If a minted player type is ever added again, this is the one place
      * to add it.
      *
      * <p>Asked STRUCTURALLY. {@code agent-body-N} is a naming convention
@@ -268,7 +269,7 @@ public final class SceneBody {
 
     /** Everyone on this server who is not one of the driver's own bodies, by {@link #isDriverMinted}.
      *  Server scope, not level scope: a body on another dimension is still not a person, and a scene
-     *  that scoped this to its own level would report「没有真玩家」the moment the client walked into
+     *  that scoped this to its own level would report "no real player" the moment the client walked into
      *  the nether. */
     public static List<ServerPlayer> humanPlayers(SceneContext ctx) {
         List<ServerPlayer> out = new ArrayList<>();

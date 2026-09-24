@@ -10,20 +10,22 @@ import net.minecraft.world.item.ItemStack;
  * Eat, then wait for the health that eating makes possible — the leg the ladder never had.
  *
  * <p><b>Why it exists.</b> On 2026-08-26 the iron rung fell three times down its own shaft (−4, −7,
- * −3, every {@code hp.trace} row reading {@code 身处=air}), banked its three ingots and PASSED: its
- * assertion asks for ingots, not for a body able to continue. The gravel rung then aborted on its
+ * −3, every {@code hp.trace} row placing the bot in air), banked its three ingots and PASSED: its
+ * assertion asks for ingots, not for a bot able to continue. The gravel rung then aborted on its
  * FIRST tick, because {@code MineProcess} refuses to mine at or below {@code MINE_HP_CRITICAL}=4
- * and the body arrived at exactly 4.0 — {@code broke 0/64}, no gravel, no flint, and a rung
- * reporting「10% 掉率，靠量不靠运气」about a die it never rolled. Both rungs behaved correctly.
+ * and the bot arrived at exactly 4.0 — {@code broke 0/64}, no gravel, no flint, and a rung
+ * reporting "10% drop rate, relying on volume rather than luck" about a die it never rolled. Both
+ * rungs behaved correctly.
  * What was missing is that nobody spends the five raw beef the food rung banked.
  *
  * <p><b>Why not the engine's own toggles.</b> {@code BotConfig.autoHeal} and {@code autoEat} exist
  * and are off by default. Turning them on arms a preemption for all twenty rungs at once, so every
  * change in the next run becomes unattributable — that, and not the use key itself, is the
- * objection. ⚠️ An earlier version of this paragraph also refused the key as「a key press in a
- * tick」; {@link #startBite} now holds it, because the ban is on hammering a key every tick as a
- * drive loop, not on {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem}, which is an edge-triggered actuator verb the
- * engine steers its own bow with. An explicit leg eats where eating is wanted and nowhere else.
+ * objection. ⚠️ Holding the use key is not "a key press in a tick": {@link #startBite} holds it,
+ * because the ban is on hammering a key every tick as a drive loop, not on
+ * {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem}, which is an edge-triggered
+ * actuator verb the engine steers its own bow with. An explicit eating step eats where eating is
+ * wanted and nowhere else.
  *
  * <p><b>What it does NOT assert.</b> Nothing here fails a rung. Every branch records what it saw
  * and calls {@code then}: a body with no food, a hold that would not take, a bite that never
@@ -34,7 +36,7 @@ import net.minecraft.world.item.ItemStack;
  * the aiming subsystem), and an instrument that fails the rung would answer it by killing the run.
  *
  * <p><b>What the first real occasion returned</b>, on the gravel rung of 2026-08-26: it fired on
- * FOOD, not on health — {@code 血 20.0/20.0，饱食 8/20}. Health has been full on that rung both runs
+ * FOOD, not on health — health 20.0/20.0, food 8/20. Health has been full on that rung both runs
  * that reached it, while hunger has been under {@link #REGEN_FOOD} from the food rung onward in
  * every run, so the hunger half of the condition is the half that gets used, and this leg speaks on
  * every climb rather than only after a bad fall. The bite then landed in the one ending no branch
@@ -50,11 +52,11 @@ import net.minecraft.world.item.ItemStack;
  * rather than a same/different boolean: the two ids matched each other and neither was the food.
  *
  * <p><b>And the run after that showed the wait was half of it.</b> Run 10 held the right item —
- * {@code 手里=minecraft:beef、正在用的是=minecraft:beef}, so the bucket family is closed and the
+ * {@code held=minecraft:beef, using=minecraft:beef}, so the bucket family is closed and the
  * {@code updatingUsingItem} mismatch branch is ruled out — and the bite still died at
  * {@code useItemRemaining=31}, two ticks into thirty-two. A bite that ends two ticks in with the
  * hand correct is ended by something outside this file, and the suspect is the client: a
- * {@code LocalPlayer} whose use key was never pressed sees the synced「using」flag and releases it.
+ * {@code LocalPlayer} whose use key was never pressed sees the synced "using" flag and releases it.
  *
  * <p><b>So the bite is begun the way the engine begins one.</b> {@code net.magicterra.worlddriver.bot.body.Hands#commandUseItem} holds
  * the client's own use key — the route {@code CombatProcess} draws a bow with and the one rung 20
@@ -101,15 +103,15 @@ final class JourneyFeed {
         ServerPlayer fp = rig.player();
         float hp = fp.getHealth();
         int food = fp.getFoodData().getFoodLevel();
-        rig.evidence(tag + ".feed.before", String.format("血 %.1f/%.1f，饱食 %d/20", hp,
+        rig.evidence(tag + ".feed.before", String.format("health %.1f/%.1f, food %d/20", hp,
                 fp.getMaxHealth(), food));
         if (hp > LOW_HP && food >= REGEN_FOOD) {
-            rig.evidence(tag + ".feed", "不需要：血 " + String.format("%.1f", hp) + " > " + LOW_HP
-                    + "，饱食 " + food + " ≥ " + REGEN_FOOD);
+            rig.evidence(tag + ".feed", "not needed: health " + String.format("%.1f", hp) + " > " + LOW_HP
+                    + ", food " + food + " ≥ " + REGEN_FOOD);
             then.run();
             return;
         }
-        rig.attempting("低血/低饱食，先吃东西再干活");
+        rig.attempting("low health or low food: eat before working");
         bite(rig, tag, 0, then);
     }
 
@@ -130,21 +132,22 @@ final class JourneyFeed {
         final String chosen = firstFoodOwned(rig);
         if (chosen == null) {
             rig.evidence(tag + ".feed.food", n == 0
-                    ? "包里一样吃的都没有 —— 这一级要低血开工了"
-                    : "吃完了包里所有食物，共 " + n + " 口");
+                    ? "no food in the inventory: this rung starts work at low health"
+                    : "ate all food in the inventory, " + n + " bites in total");
             afterEating(rig, tag, n, then);
             return;
         }
         Item want = JourneyRig.item(chosen);
         if (!JourneyHands.holdBoth(rig, want)) {
             // Same failure the weapon hold reports: owning it and holding it are different questions.
-            rig.evidence(tag + ".feed.hold", "拿不到手上：" + chosen + "（手里是 " + rig.heldItemId() + "）");
+            rig.evidence(tag + ".feed.hold", "could not put in hand: " + chosen + " (holding "
+                    + rig.heldItemId() + ")");
             afterEating(rig, tag, n, then);
             return;
         }
         // THE HOLD IS A PACKET, NOT AN ASSIGNMENT — wait for it to land before starting the use.
-        // The first run to get a trace here (2026-08-26) read
-        // 「还在吃了 1 tick；useItemRemaining=0；那一刻手里=minecraft:bucket、正在用的是=minecraft:bucket」
+        // The first run to get a trace here (2026-08-26) read "eating for 1 tick;
+        // useItemRemaining=0; held at that moment=minecraft:bucket, using=minecraft:bucket"
         // with beef in slot 4 by the time the row was written. `holdBoth` returned true, and it was
         // telling the truth about what it had SENT; the client's swap click had not reached the
         // server yet, so the server-side `startUsingItem` one line later picked up the bucket the
@@ -169,8 +172,9 @@ final class JourneyFeed {
         if (fp.getMainHandItem().getItem() == want) { eat.run(); return; }
         rig.await(() -> rig.player().getMainHandItem().getItem() == want, HOLD_TICKS, () -> {
             if (rig.player().getMainHandItem().getItem() != want) {
-                rig.evidence(tag + ".feed.holdLate" + n, "等了 " + HOLD_TICKS + " tick，服务端手里仍不是 "
-                        + chosen + "（是 " + rig.heldItemId() + "）—— 不开吃，否则吃的是别的东西");
+                rig.evidence(tag + ".feed.holdLate" + n, "after waiting " + HOLD_TICKS
+                        + " ticks the server-side hand is still not " + chosen + " (it is "
+                        + rig.heldItemId() + "); not eating, since it would consume something else");
                 afterEating(rig, tag, n, then);
                 return;
             }
@@ -196,7 +200,7 @@ final class JourneyFeed {
      * nothing on either implementation.
      *
      * <p><b>The wait is on the BAR, not on the flag.</b> With the key held, vanilla starts the next
-     * use a few ticks after one finishes, so 「still using」 never cleanly goes false and a flag
+     * use a few ticks after one finishes, so "still using" never cleanly goes false and a flag
      * watcher would time out through a meal that was working. Hunger rising is the thing actually
      * being asked about.
      *
@@ -218,7 +222,7 @@ final class JourneyFeed {
         }, BITE_TICKS, () -> {
             av.commandUseItem(false);
             int after = fp.getFoodData().getFoodLevel();
-            rig.evidence(tag + ".feed.bite" + n, chosen + "：饱食 " + foodBefore + "→" + after);
+            rig.evidence(tag + ".feed.bite" + n, chosen + ": food " + foodBefore + "→" + after);
             rig.evidence(tag + ".feed.bite" + n + ".trace", trace.line(fp, rig));
             if (after > foodBefore) { bite(rig, tag, n + 1, then); return; }
             // Started and finished without feeding, and the trace says which of the two middles it
@@ -228,7 +232,8 @@ final class JourneyFeed {
                 bite(rig, tag, n + 1, then);
                 return;
             }
-            rig.evidence(tag + ".feed.stalled", "一口下去饱食没涨，停止进食（" + (n + 1) + " 口）");
+            rig.evidence(tag + ".feed.stalled", "a bite did not raise food, stopped eating ("
+                    + (n + 1) + " bites)");
             afterEating(rig, tag, n + 1, then);
         });
     }
@@ -238,8 +243,8 @@ final class JourneyFeed {
      * FINISHED rather than eaten, because those are not the same claim.
      *
      * <p><b>What cuts it.</b> Measured on the gravel rung, run 10 of 2026-08-26, with the hand
-     * already correct: {@code 还在吃了 2 tick；useItemRemaining=31；手里=minecraft:beef、正在用的是
-     * =minecraft:beef}. Hand and use agree, so this is not the {@code updatingUsingItem} mismatch
+     * already correct: "eating for 2 ticks; useItemRemaining=31; held=minecraft:beef,
+     * using=minecraft:beef". Hand and use agree, so this is not the {@code updatingUsingItem} mismatch
      * branch. The remaining suspect is the client: {@code isUsingItem} rides on synced entity flags,
      * so a {@code LocalPlayer} whose use key was never pressed sees itself using an item and sends
      * {@code RELEASE_USE_ITEM} on its next tick. This repo's own {@link
@@ -266,16 +271,17 @@ final class JourneyFeed {
         ServerPlayer fp = rig.player();
         ItemStack hand = fp.getMainHandItem();
         if (hand.isEmpty() || hand.getItem() != JourneyRig.item(chosen)) {
-            rig.evidence(tag + ".feed.finish" + n, "不补完：手里已经不是 " + chosen
-                    + "（是 " + rig.heldItemId() + "）—— 补完别的东西比不补更糟");
+            rig.evidence(tag + ".feed.finish" + n, "not completing: the hand no longer holds " + chosen
+                    + " (it holds " + rig.heldItemId() + "); completing something else is worse than"
+                    + " not completing");
             return false;
         }
         int before = fp.getFoodData().getFoodLevel();
         fp.setItemInHand(InteractionHand.MAIN_HAND, hand.finishUsingItem(fp.serverLevel(), fp));
         int after = fp.getFoodData().getFoodLevel();
-        rig.evidence(tag + ".feed.finish" + n, "这一口是服务端补完的，不是自己走完的（"
-                + chosen + " 走 ItemStack.finishUsingItem，与 completeUsingItem 同一条路）"
-                + "：饱食 " + before + "→" + after);
+        rig.evidence(tag + ".feed.finish" + n, "this bite was completed on the server, not run to its"
+                + " own end (" + chosen + " via ItemStack.finishUsingItem, the same path as"
+                + " completeUsingItem): food " + before + "→" + after);
         return after > before;
     }
 
@@ -294,18 +300,18 @@ final class JourneyFeed {
         ServerPlayer fp = rig.player();
         float hp = fp.getHealth();
         int food = fp.getFoodData().getFoodLevel();
-        rig.evidence(tag + ".feed.after", String.format("吃了 %d 口，血 %.1f/%.1f，饱食 %d/20",
+        rig.evidence(tag + ".feed.after", String.format("ate %d bites, health %.1f/%.1f, food %d/20",
                 bites, hp, fp.getMaxHealth(), food));
         if (hp > LOW_HP) { then.run(); return; }
         if (food < REGEN_FOOD) {
-            rig.evidence(tag + ".feed.regen", "不等了：饱食 " + food + " < " + REGEN_FOOD
-                    + "，自然回血不会发生");
+            rig.evidence(tag + ".feed.regen", "not waiting: food " + food + " < " + REGEN_FOOD
+                    + ", so natural regeneration will not happen");
             then.run();
             return;
         }
-        rig.attempting("等自然回血");
+        rig.attempting("wait for natural regeneration");
         rig.await(() -> fp.getHealth() > LOW_HP, REGEN_TICKS, () -> {
-            rig.evidence(tag + ".feed.regen", String.format("等回血结束：血 %.1f（想要 > %.1f）",
+            rig.evidence(tag + ".feed.regen", String.format("regeneration wait over: health %.1f (wanted > %.1f)",
                     fp.getHealth(), LOW_HP));
             then.run();
         });
@@ -348,26 +354,30 @@ final class JourneyFeed {
         /** The flag went out with ticks still on the clock, so the bite did not end itself. A bite
          *  that ran to {@code remaining == 0} and still fed nothing is a DIFFERENT disease, and the
          *  server-side completion must not be allowed to paper over it — hence the reading rather
-         *  than「it fed nothing」as the trigger. {@code ticks == 0} never observed a clock at all. */
+         *  than "it fed nothing" as the trigger. {@code ticks == 0} never observed a clock at all. */
         boolean wasCutShort() { return ticks > 0 && remaining > 0; }
 
         String line(ServerPlayer fp, JourneyRig rig) {
-            String now = "；此刻服务端选中槽 " + fp.getInventory().selected + "，手里=" + rig.heldItemId();
+            String now = "; server-side selected slot now " + fp.getInventory().selected + ", held="
+                    + rig.heldItemId();
             if (ticks == 0) {
-                return "整段等待里一 tick 都没观察到「还在吃」—— 按住 use 键之后客户端根本没开始这一口"
-                        + "（不是被掐掉：被掐掉至少会看到一 tick）" + now;
+                return "not a single tick of \"still eating\" observed during the whole wait: the client"
+                        + " never started this bite after the use key was held (not cut short; a cut"
+                        + " would show at least one tick)" + now;
             }
-            return "还在吃了 " + ticks + " tick；翻回 false 前最后一次读到 useItemRemaining=" + remaining
-                    + "（一口 32 tick，倒数到 0 才会 completeUsingItem，所以 >1 就是被别人掐掉的）"
-                    + "；那一刻手里=" + hand + "、正在用的是=" + using
+            return "eating for " + ticks + " ticks; last useItemRemaining read before the flag went false="
+                    + remaining + " (a bite is 32 ticks and completeUsingItem runs only when the count"
+                    + " reaches 0, so >1 means something else cut it short)"
+                    + "; held at that moment=" + hand + ", using=" + using
                     + (hand != null && !hand.equals(using)
-                            ? " ⚠️ 两者不同 —— 正是 updatingUsingItem 自己会 stopUsingItem 的那一支"
+                            ? " ⚠️ the two differ: this is the branch where updatingUsingItem itself"
+                              + " calls stopUsingItem"
                             : "")
                     + now;
         }
 
         private static String id(ItemStack s) {
-            return s == null || s.isEmpty() ? "空"
+            return s == null || s.isEmpty() ? "empty"
                     : String.valueOf(BuiltInRegistries.ITEM.getKey(s.getItem()));
         }
     }
