@@ -354,8 +354,13 @@ public final class SmeltProcess implements BotProcess {
                     + "）——方块实体没在 tick，或这个原料没有熔炼配方，或出料槽被占");
             return;
         }
-        // Input exhausted and something cooked → take what we got.
-        if (in.isEmpty() && !out.isEmpty()) { st = St.COLLECT; return; }
+        // Input exhausted and something cooked → take what we got. Reaching here means the full
+        // batch check above failed, so this is a shortfall: LOAD shift-clicks one stack only.
+        if (in.isEmpty() && !out.isEmpty()) {
+            error = "部分完成：只炼出 " + out.getCount() + "/" + targetOut + "（原料用完）";
+            st = St.COLLECT;
+            return;
+        }
         // The ore never went in. LOAD's QUICK_MOVE can be refused outright (the ingredient has no
         // smelting recipe so quickMoveStack routes it nowhere, the menu id went stale), and that
         // used to burn the entire batch budget before reporting a fuel problem. The bag reading is

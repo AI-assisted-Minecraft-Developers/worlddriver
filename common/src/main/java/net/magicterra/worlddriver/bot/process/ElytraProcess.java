@@ -166,21 +166,7 @@ public final class ElytraProcess implements BotProcess {
 
         // --- FLYING ---
         a.commandJump(false);
-        if (!p.isFallFlying()) {                               // wing closed / landed / no room
-            // If this happened mid-air (wing broke, ran out of room) the
-            // always-on water-bucket clutch — which deliberately stands down
-            // while isFallFlying() — now sees a fast unplanned fall and arms
-            // reactively, so a bucketed bot still self-rescues. Nothing to do
-            // here but release; clientTick's CLUTCH.armReactive picks it up.
-            if (BotConfig.elytraDebug) {
-                logSummary();
-                if (!p.onGround())
-                    LOG.info(
-                            "[elytra] flight ended airborne at y={} — handing fall to the clutch",
-                            f(p.getY()));
-            }
-            a.releaseInputs(); st.elytra.reset(); return true;
-        }
+        if (!p.isFallFlying()) return wingClosed(a, p, st);   // wing closed / landed / no room
 
         Vec3 curVel = p.getDeltaMovement();
 
@@ -391,6 +377,43 @@ public final class ElytraProcess implements BotProcess {
         a.releaseInputs();
         st.elytra.reset();
         return true;
+    }
+
+    /**
+     * The wing closed. Touching down at the goal closes it too, so this is also an arrival path,
+     * and only a close away from the goal is stamped.
+     *
+     * <p>If this happened mid-air (wing broke, ran out of room) the always-on water-bucket clutch —
+     * which deliberately stands down while isFallFlying() — now sees a fast unplanned fall and arms
+     * reactively, so a bucketed bot still self-rescues. Nothing to do here but release;
+     * clientTick's CLUTCH.armReactive picks it up.
+     */
+    private boolean wingClosed(Body a, LivingEntity p, BotState st) {
+        if (BotConfig.elytraDebug) {
+            logSummary();
+            if (!p.onGround())
+                LOG.info(
+                        "[elytra] flight ended airborne at y={} — handing fall to the clutch",
+                        f(p.getY()));
+        }
+        // A failsafe descent already stamped why it gave up; keep that reason.
+        if (st.elytra.lastError == null && target != null) {
+            double hDist = Math.hypot(target.getX() + 0.5 - p.getX(), target.getZ() + 0.5 - p.getZ());
+            st.elytra.lastError = closedShort(landing, hDist, stopXZDist);
+        }
+        a.releaseInputs();
+        st.elytra.reset();
+        return true;
+    }
+
+    /**
+     * Why a flight toward a target ended when its wing closed, or null if that close was the
+     * arrival: a touch-down after the flare, which the landing branch also counts as done
+     * anywhere inside the approach, or a stop within {@code stopXZDist}.
+     */
+    static String closedShort(boolean landing, double hDist, double stopXZDist) {
+        if (landing || hDist <= stopXZDist) return null;
+        return String.format(Locale.ROOT, "wing closed %.1f blocks short of target", hDist);
     }
 
     /** Highest landing surface at/below {@code (x,yStart,z)} within 256 — the
