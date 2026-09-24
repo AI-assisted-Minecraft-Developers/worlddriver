@@ -201,12 +201,12 @@ public final class JoinedPlayerBodies {
          *
          * <p><b>Why this logs at all.</b> A departure here is REQUIRED to be silent in the vanilla
          * channel, and that silence has already been misread once as a leak. The chat line
-         * 「X left the game」 is broadcast from {@code ServerGamePacketListenerImpl}'s
+         * "X left the game" is broadcast from {@code ServerGamePacketListenerImpl}'s
          * {@code removePlayerFromWorld()}, reached only from {@code onDisconnect} — a socket path
          * this body deliberately never enters. {@code PlayerList.remove} itself broadcasts a
          * {@code ClientboundPlayerInfoRemovePacket} and logs nothing. Meanwhile the ARRIVAL is
          * announced by vanilla, from {@code PlayerList.placeNewPlayer}, which this body does call.
-         * So counting 「joined」 against 「left」 in a server log compares two unrelated channels and
+         * So counting "joined" against "left" in a server log compares two unrelated channels and
          * will report a totally healthy run as 239 joins and 0 departures. The line below is this
          * class's own leave channel, deliberately shaped like the join line, so the comparison is
          * finally between two things that answer the same question.

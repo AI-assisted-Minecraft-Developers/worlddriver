@@ -113,7 +113,7 @@ public final class LookController {
             rendered = ny;
         }
         // WINDING: accumulate the rendered camera's net rotation. A smooth multi-turn spin (no
-        // single snap) still reads as 转圈 — this is what per-tick snap-counting missed.
+        // single snap) still reads as spinning — this is what per-tick snap-counting missed.
         if (BotConfig.walkerDebug) {
             if (windHavePrev) {
                 float d = ((rendered - windPrev) % 360f + 540f) % 360f - 180f;

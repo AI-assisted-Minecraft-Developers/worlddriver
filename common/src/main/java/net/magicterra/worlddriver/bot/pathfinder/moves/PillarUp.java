@@ -34,7 +34,7 @@ import net.magicterra.worlddriver.bot.BotConfig;
  * carrying only sand and gravel, or with its cobble stranded in slot 9, makes {@code canPlace()}
  * false and A* emits no pillar edge at all — while {@code WalkerTickDrive} and
  * {@code WalkerTickStallDetect} pillar out of exactly that situation, which is why both gate on
- * {@code holdPillarBlock} and say「not world.canPlace」in as many words. Stricter is the safe
+ * {@code holdPillarBlock} and say "not world.canPlace" in as many words. Stricter is the safe
  * direction here (a route never found, rather than one that cannot be walked), so this is a note
  * and not a fix: closing it means handing the planner the executor's predicate, which changes what
  * A* plans and wants its own measurement.

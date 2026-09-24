@@ -65,7 +65,7 @@ ScriptTest.run("44_craft: mc.bot.craft reports missing materials, not a crash", 
     t.assertEqual(r.ok, true, "call accepted (async)");
     var slot = awaitSlot("craft", 40);
     t.assertTrue(typeof slot.lastError === "string", "fails with an error");
-    t.assertTrue(slot.lastError.indexOf("缺") >= 0, "error names what's missing: " + slot.lastError);
+    t.assertTrue(slot.lastError.indexOf("missing") >= 0, "error names what's missing: " + slot.lastError);
     cleanup();
 });
 

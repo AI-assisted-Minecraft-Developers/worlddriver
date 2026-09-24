@@ -61,14 +61,15 @@ public final class ClientHelm {
         MinecraftServer server = ctx.server();
         boolean integrated = server != null && !server.isDedicatedServer();
         ctx.record("helm.topology", (integrated ? "integratedServer" : "dedicatedServer")
-                + "，mc.bot.* 在本 JVM=" + BotHooks.isAvailable());
+                + ", mc.bot.* available in this JVM=" + BotHooks.isAvailable());
         if (!integrated || !BotHooks.isAvailable()) {
-            ctx.skip("这条场景驱动的是客户端的真玩家（BotApi.runProcess），只在集成拓扑上跑；"
-                    + "专用服上它的覆盖率是零，不是弱。");
+            ctx.skip("This scene drives the client's real player (BotApi.runProcess) and runs only on the "
+                    + "integrated topology; on a dedicated server its coverage is zero, not merely weak.");
         }
         List<ServerPlayer> humans = SceneBody.humanPlayers(ctx);
         if (humans.isEmpty()) {
-            ctx.skip("集成服上没有真玩家 —— 客户端还没进世界，或已经掉线");
+            ctx.skip("The integrated server has no real player: the client has not joined the world yet, "
+                    + "or has disconnected");
         }
         ServerPlayer body = humans.get(0);
         // A dead player is still in the player list until it respawns, and setHealth below does not
@@ -106,7 +107,7 @@ public final class ClientHelm {
         body.getFoodData().setFoodLevel(20);
         body.teleportTo(ctx.level(), foot.getX() + 0.5, foot.getY(), foot.getZ() + 0.5,
                 java.util.Set.of(), yaw, 0f);
-        ctx.record("helm.body", body.getGameProfile().getName() + " 真玩家，落到 " + foot.toShortString());
+        ctx.record("helm.body", body.getGameProfile().getName() + " (real player), placed at " + foot.toShortString());
         return new ClientHelm(ctx, body, bot);
     }
 
@@ -166,16 +167,16 @@ public final class ClientHelm {
             if (!Boolean.TRUE.equals(now.get("busy"))) {
                 ended[0] = true;
                 ctx.record(tag + ".chain", "busy=false kind=" + now.get("kind") + " error="
-                        + (now.get("error") == null ? "无" : now.get("error")) + "，第 " + waited[0] + " tick");
+                        + (now.get("error") == null ? "none" : now.get("error")) + ", at tick " + waited[0]);
                 return true;
             }
             return ++waited[0] >= ticks;
         }).within(ticks + 100).then(() -> {
             if (!ended[0]) {
-                ctx.record(tag + ".chain", "预算 " + ticks + " tick 用完时进程还在跑（busy=true）");
+                ctx.record(tag + ".chain", "the process was still running when the " + ticks + "-tick budget ran out (busy=true)");
                 try { bot.runProcess(new HoldStill(1)); } catch (RuntimeException ignored) { }
             }
-            ctx.record(tag + ".leg", where() + "，" + gap(goal) + "；" + slotEnding(process.kind()));
+            ctx.record(tag + ".leg", where() + ", " + gap(goal) + "; " + slotEnding(process.kind()));
             then.run();
         });
     }
@@ -188,14 +189,14 @@ public final class ClientHelm {
     /** Where the body is, with the block under its feet, as one string. */
     public String where() {
         BlockPos at = player.blockPosition();
-        return String.format(Locale.ROOT, "停在 %.2f,%.2f,%.2f（格 %s，脚下=%s，onGround=%s，inWater=%s）",
+        return String.format(Locale.ROOT, "stopped at %.2f,%.2f,%.2f (block %s, below feet=%s, onGround=%s, inWater=%s)",
                 player.getX(), player.getY(), player.getZ(), at.toShortString(),
                 ctx.level().getBlockState(at.below()).getBlock(), player.onGround(), player.isInWater());
     }
 
     private String gap(BlockPos goal) {
-        if (goal == null) return "距目标 unavailable/这一腿的目标不是一个点";
-        return String.format(Locale.ROOT, "距 %s 水平 %.2f 格、高差 %+.2f",
+        if (goal == null) return "distance to goal unavailable/this process's goal is not a single block";
+        return String.format(Locale.ROOT, "to %s: horizontal %.2f blocks, height difference %+.2f",
                 goal.toShortString(), flatDistance(goal), player.getY() - goal.getY());
     }
 
@@ -213,8 +214,11 @@ public final class ClientHelm {
     private String slotEnding(String slotName) {
         Map<?, ?> s = slot(slotName);
         Object end = s.get("endReason"), err = s.get("lastError"), reached = s.get("goalReached");
-        return "end=" + (end == null ? "unavailable/进程被叫停时还在走（endReason 只在终止步写）" : end)
+        return "end=" + (end == null
+                        ? "unavailable/the process was still moving when it was stopped "
+                                + "(endReason is written only on the terminal step)"
+                        : end)
                 + " goalReached=" + (reached == null ? "unavailable" : reached)
-                + " err=" + (err == null ? "无" : err);
+                + " err=" + (err == null ? "none" : err);
     }
 }

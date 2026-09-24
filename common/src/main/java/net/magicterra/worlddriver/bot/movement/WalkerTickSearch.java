@@ -210,7 +210,7 @@ final class WalkerTickSearch {
                 // mount the bank) makes every repath return a best-effort that swims
                 // back / circles without the bot's ACTUAL position getting any closer
                 // to the goal; following each one U-turns the bot and the repeated
-                // U-turns wind the camera (the water "转圈"). This is a TEMPORAL signal
+                // U-turns wind the camera (the water spin). This is a TEMPORAL signal
                 // (no net progress across repaths), not a single-path property — the
                 // churn segment can even END on dry land (the unreachable climb-out
                 // target). Track the bot's best goal-distance: when several consecutive
@@ -259,7 +259,7 @@ final class WalkerTickSearch {
                         return wk.terminalReport(Walker.Step.ARRIVED, PathTrace.Outcome.SUCCESS, null, "churn-giveup", p.blockPosition());
                     }
                 }
-                // BLOCK-BUDGET ("搭桥前算够不够，否则就挖"): if this path would place
+                // BLOCK-BUDGET (before bridging, check there are enough blocks, otherwise dig): if this path would place
                 // more blocks (bridge/pillar/parkour-place) than the bot carries, it
                 // would bridge partway, burn its blocks and strand. Re-search with
                 // placing OFF so A* digs through / routes around (break moves need no

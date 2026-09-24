@@ -25,13 +25,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * Ops ({@code op}):
  *   - {@code emit}  — inject a custom event into the stream ({@code type}, optional
- *     {@code data}/{@code pos}). The "自定义条件满足 / manual" path: an agent that
+ *     {@code data}/{@code pos}). The manual "custom condition met" path: an agent that
  *     computed its own condition can publish it for other subscribers.
  *   - {@code watch} — register a server-side rising-edge watcher. Polls a route
  *     ({@code invoke}/{@code params}) every {@code everyMs}, walks {@code field}
  *     into the result, and the first tick the predicate flips false→true it emits
  *     {@code emitAs} (default {@code condition.met}). This is the automatic
- *     "自定义条件满足" path — e.g. watch {@code mc.observe.player} field {@code health}
+ *     "custom condition met" path — e.g. watch {@code mc.observe.player} field {@code health}
  *     {@code below} 6 to get pushed a low-health alert. {@code once:true} self-cancels
  *     after the first fire.
  *   - {@code unwatch} — cancel a watcher by {@code id}.

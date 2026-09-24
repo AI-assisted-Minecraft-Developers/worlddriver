@@ -102,7 +102,7 @@ Driver.skill = {
 // transports (subscribe over WebSocket / the MCP SSE stream at /mcp/events);
 // these helpers cover injecting custom events and registering condition watchers.
 Driver.events = {
-    // Inject a custom event into the stream (the manual "自定义条件满足" path).
+    // Inject a custom event into the stream (the manual "custom condition met" path).
     emit:    function (type, data, pos) {
         var p = { op: 'emit', type: type };
         if (data !== undefined) p.data = data;

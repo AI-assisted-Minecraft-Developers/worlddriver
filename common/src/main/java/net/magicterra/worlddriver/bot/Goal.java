@@ -28,7 +28,7 @@ public sealed interface Goal permits Goal.Block, Goal.Near, Goal.XZ, Goal.YLevel
      * True when this goal's heuristic IGNORES Y — an XZ column goal. For such a
      * goal descending reads as free progress (the estimate doesn't change with Y),
      * so A* can be lured into diving/tunnelling DOWN through water and rock to reach
-     * the target column at a lower Y (the deep-water-bowl "卡上岸" root cause).
+     * the target column at a lower Y (the root cause of the bot getting stuck climbing ashore from a deep-water bowl).
      * {@link net.magicterra.worlddriver.bot.pathfinder.PathFinder}'s descend-tax applies
      * ONLY to these. A goal that knows its target Y (Block/Near/TwoBlocks/GetToBlock
      * — a seabed monument, shipwreck, or any {@code pos:}/{@code block:} target)

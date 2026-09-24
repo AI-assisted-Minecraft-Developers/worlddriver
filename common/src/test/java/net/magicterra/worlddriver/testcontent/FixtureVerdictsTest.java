@@ -31,12 +31,12 @@ class FixtureVerdictsTest {
         Path file = dir.resolve("human.x.verdicts.jsonl");
         FixtureVerdicts.Record r = run(200, 2, 1, 0);
         FixtureVerdicts.append(file, r);
-        FixtureVerdicts.append(file, r.judged("2026-09-06T14:05:00+08:00", "gardel", "pass", "看着挺稳"));
+        FixtureVerdicts.append(file, r.judged("2026-09-06T14:05:00+08:00", "gardel", "pass", "looks steady"));
         List<FixtureVerdicts.Record> back = FixtureVerdicts.read(file);
         assertEquals(2, back.size());
         assertNull(back.get(0).human());
         assertEquals("pass", back.get(1).human());
-        assertEquals("看着挺稳", back.get(1).note());
+        assertEquals("looks steady", back.get(1).note());
         assertEquals(200, ((Number) back.get(1).observed().get("ticks")).intValue());
         assertEquals(Boolean.TRUE, back.get(1).auto().get("forbid"));
         assertEquals(2, Files.readAllLines(file).size());

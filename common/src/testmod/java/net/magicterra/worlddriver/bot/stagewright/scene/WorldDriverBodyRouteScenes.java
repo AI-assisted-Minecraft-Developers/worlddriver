@@ -85,7 +85,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         NpcBodyHost npc = new NpcBodyHost(NAME, npcBody);
         ctx.cleanup(() -> ServerAvatarManager.unregister(npc));
         for (BodyHost h : List.of(player, npc)) {
-            if (!BodyRegistry.register(h)) { ctx.fail(h.id() + " 已被占用：前一条场景没把身体注销掉"); return null; }
+            if (!BodyRegistry.register(h)) { ctx.fail(h.id() + " is already taken: the previous scene did not unregister its body from BodyRegistry"); return null; }
             ctx.cleanup(() -> BodyRegistry.unregister(h.id()));
         }
         for (int i = 0; i < SETTLE_STEPS; i++) { npcBody.step(); driver.avatar().step(); }
@@ -106,20 +106,20 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         Map<String, Object> listed = call(api, "mc.bot.status", Map.of());
         ctx.record("status.bodies", String.valueOf(listed.get("bodies")));
         ctx.check(ids(listed).containsAll(List.of(player.id(), npc.id())))
-                .as("status 的 bodies 该列出两具注册过的身体：" + listed.get("bodies")).isTrue();
+                .as("status.bodies lists both registered bodies: " + listed.get("bodies")).isTrue();
 
         Map<String, Object> waypoint = call(api, "mc.bot.goto", Map.of("body", npc.id(), "waypoint", "home"));
         Map<String, Object> tool = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcGoal),
                 "route", Map.of("requireTool", "minecraft:iron_pickaxe")));
         ctx.record("npc.refused", waypoint + " / " + tool);
         ctx.check(Boolean.FALSE.equals(waypoint.get("ok")) && Boolean.FALSE.equals(tool.get("ok")) && !npc.busy())
-                .as("NPC 该拒掉航点和 requireTool，且没有开工：" + waypoint + " / " + tool).isTrue();
+                .as("the NPC refuses the waypoint and requireTool orders and does not start: " + waypoint + " / " + tool).isTrue();
 
         Map<String, Object> playerGo = call(api, "mc.bot.goto", Map.of("body", player.id(), "pos", pos(playerGoal)));
         Map<String, Object> npcGo = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcGoal)));
         ctx.record("goto", playerGo + " / " + npcGo);
         if (!Boolean.TRUE.equals(playerGo.get("started")) || !Boolean.TRUE.equals(npcGo.get("started"))) {
-            ctx.fail("按名字下的 goto 没有开工：player=" + playerGo + " npc=" + npcGo);
+            ctx.fail("a goto addressed by name did not start: player=" + playerGo + " npc=" + npcGo);
             return;
         }
 
@@ -130,9 +130,9 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
             ctx.record("player.goto", String.valueOf(playerSlot));
             ctx.record("npc.goto", String.valueOf(npcSlot));
             ctx.check(playerAt.closerThan(playerGoal, 1.5) && endedArrived(playerSlot))
-                    .as("服务端玩家身体按名字走到终点并以 arrived 收单：停在 " + playerAt.toShortString() + "，" + playerSlot).isTrue();
+                    .as("the server-side player, addressed by name, walks to the goal and the order ends as arrived: stopped at " + playerAt.toShortString() + ", " + playerSlot).isTrue();
             ctx.check(npcAt.closerThan(npcGoal, 1.5) && endedArrived(npcSlot))
-                    .as("NPC 按名字走到终点并以 arrived 收单：停在 " + npcAt.toShortString() + "，" + npcSlot).isTrue();
+                    .as("the NPC, addressed by name, walks to the goal and the order ends as arrived: stopped at " + npcAt.toShortString() + ", " + npcSlot).isTrue();
 
             Map<String, Object> back = call(api, "mc.bot.goto", Map.of("body", npc.id(), "pos", pos(npcStart)));
             Map<String, Object> cancelled = call(api, "mc.bot.cancel", Map.of("body", npc.id(), "process", "goto"));
@@ -141,7 +141,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
             Object slot = after.get("goto");
             ctx.check("goto".equals(cancelled.get("cancelled")) && Boolean.FALSE.equals(after.get("busy"))
                             && slot instanceof Map<?, ?> m && "user-cancel".equals(m.get("lastError")))
-                    .as("按名字取消 NPC 的第二段 goto：" + cancelled + "，之后 busy=" + after.get("busy") + " goto=" + slot)
+                    .as("cancelling the NPC's second goto by name: " + cancelled + ", afterwards busy=" + after.get("busy") + " goto=" + slot)
                     .isTrue();
 
             // route.mode fly on another body is elytraFly's order; the NPC wears no elytra, so it walks,
@@ -151,7 +151,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
             ctx.record("npc.fly", String.valueOf(fly));
             if (!Boolean.TRUE.equals(fly.get("started")) || !"groundFallback".equals(fly.get("mode"))
                     || !"goto".equals(fly.get("slot"))) {
-                ctx.fail("NPC 的 route.mode fly 该退回步行、回复 goto 槽：" + fly);
+                ctx.fail("the NPC's route.mode fly should fall back to walking and reply with the goto slot: " + fly);
                 return;
             }
             ctx.await(() -> !npc.busy()).within(400).then(() -> {
@@ -159,7 +159,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
                 Object flySlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("goto");
                 ctx.record("npc.flyBack", at.toShortString() + " " + flySlot);
                 ctx.check(at.closerThan(npcStart, 2.5))
-                        .as("NPC 没有鞘翅，fly 单退回步行走回起点附近：停在 " + at.toShortString() + "，" + flySlot).isTrue();
+                        .as("the NPC has no elytra, so the fly order falls back to walking back near the start: stopped at " + at.toShortString() + ", " + flySlot).isTrue();
             });
         });
     }
@@ -177,7 +177,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         Map<String, Object> empty = call(api, "mc.bot.mine", Map.of("body", player.id(), "blocks", List.of()));
         ctx.record("player.badOrder", String.valueOf(empty));
         ctx.check(Boolean.FALSE.equals(empty.get("ok")) && "blocks list required".equals(empty.get("error")) && !player.busy())
-                .as("空 blocks 的 mine 该在开工前被拒，玩家身体保持空闲：" + empty).isTrue();
+                .as("a mine order with empty blocks is refused before it starts and the server-side player stays idle: " + empty).isTrue();
 
         // The hand verbs: the player body takes a stack up from its hotbar and turns; the NPC has no
         // hands to hold, use or swing with, and says so before anything happens.
@@ -188,14 +188,14 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         float yaw = b.driver().fakePlayer().getYRot();
         ctx.record("player.hands", hold + " / " + look + " / yRot=" + yaw);
         ctx.check("minecraft:stone".equals(hold.get("held")) && Boolean.TRUE.equals(look.get("ok")) && Math.abs(yaw - 90f) < 0.01f)
-                .as("玩家身体按名字把石头拿到手上并转到 yaw 90：" + hold + " / " + look + " / yRot=" + yaw).isTrue();
+                .as("the server-side player, addressed by name, holds the stone and turns to yaw 90: " + hold + " / " + look + " / yRot=" + yaw).isTrue();
         Map<String, Object> npcHold = call(api, "mc.bot.holdItem", Map.of("body", npc.id(), "item", "stone"));
         Map<String, Object> npcUse = call(api, "mc.bot.useItem", Map.of("body", npc.id()));
         Map<String, Object> npcHit = call(api, "mc.bot.attackEntity", Map.of("body", npc.id(),
                 "entityId", b.driver().fakePlayer().getId()));
         ctx.record("npc.hands", npcHold + " / " + npcUse + " / " + npcHit);
         ctx.check(List.of(npcHold, npcUse, npcHit).stream().allMatch(r -> "no_hands".equals(r.get("reason"))))
-                .as("NPC 的 holdItem/useItem/attackEntity 该以 no_hands 拒单：" + npcHold + " / " + npcUse + " / " + npcHit)
+                .as("the NPC refuses holdItem/useItem/attackEntity with no_hands: " + npcHold + " / " + npcUse + " / " + npcHit)
                 .isTrue();
 
         Map<String, Object> mine = call(api, "mc.bot.mine", Map.of("body", npc.id(), "blocks", List.of("minecraft:stone"),
@@ -205,7 +205,7 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
         ctx.record("orders", mine + " / " + run);
         if (!Boolean.TRUE.equals(mine.get("started")) || !npc.id().equals(mine.get("body"))
                 || !Boolean.TRUE.equals(run.get("started")) || !player.id().equals(run.get("body"))) {
-            ctx.fail("按名字下的 mine/runAway 没有开工，或回复没带 body：mine=" + mine + " runAway=" + run);
+            ctx.fail("a mine/runAway order addressed by name did not start, or the reply did not include body: mine=" + mine + " runAway=" + run);
             return;
         }
 
@@ -213,15 +213,15 @@ public final class WorldDriverBodyRouteScenes implements SceneProvider {
             Object mineSlot = call(api, "mc.bot.status", Map.of("body", npc.id())).get("mine");
             ctx.record("npc.mine", String.valueOf(mineSlot));
             ctx.check(mineSlot instanceof Map<?, ?> m && "no_hands".equals(m.get("lastError")))
-                    .as("NPC 没有手，mine 该由进程以 no_hands 收工：" + mineSlot).isTrue();
+                    .as("the NPC has no hands, so the mine process ends with no_hands: " + mineSlot).isTrue();
 
             BlockPos at = b.driver().fakePlayer().blockPosition();
             double away = Math.sqrt(Math.pow(at.getX() - playerStart.getX(), 2) + Math.pow(at.getZ() - playerStart.getZ(), 2));
             ctx.record("player.runAway", at.toShortString() + " away=" + away + " slot="
                     + call(api, "mc.bot.status", Map.of("body", player.id())).get("runAway"));
             ctx.check(away >= RUN_AWAY - 1)
-                    .as("服务端玩家身体按名字跑开至少 " + (RUN_AWAY - 1) + " 格：停在 " + at.toShortString()
-                            + "，离起点 " + away).isTrue();
+                    .as("the server-side player, addressed by name, runs at least " + (RUN_AWAY - 1) + " blocks away: stopped at " + at.toShortString()
+                            + ", " + away + " from the start").isTrue();
         });
     }
 

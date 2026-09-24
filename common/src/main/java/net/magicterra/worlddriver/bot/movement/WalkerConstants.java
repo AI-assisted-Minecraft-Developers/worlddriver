@@ -49,7 +49,7 @@ final class WalkerConstants {
     public static final double CLIMB_AIM_DEADZONE_SQ = 4.0;
     /** Descent camera/movement decouple: how far ahead (blocks) the CAMERA looks on a dry
      *  descent. On a steep grid descent the immediate-waypoint bearing sweeps ~180° as the bot
-     *  passes each close node, and chasing it winds the camera (the 下山转圈 — live yaw to 671°,
+     *  passes each close node, and chasing it winds the camera (the downhill spin — live yaw to 671°,
      *  replay 2953°). Fix: aim the CAMERA at the first path node ≥ this many blocks away (a far
      *  point's bearing is stable → no spin) while the MOVEMENT impulse keeps driving at the
      *  immediate node (precise foot-placement → still reaches). The two run on independent
@@ -61,7 +61,7 @@ final class WalkerConstants {
      *  nodes, spatially averaging a switchback staircase's alternating cardinal legs into the
      *  steady down-slope bearing. A single far node (DESCENT_CAM_FAR_DIST) SAMPLES the zigzag and
      *  itself swings ±50° as the bot descends — winding the camera ~9.7 turns on a steep slope
-     *  (the live 下山/下落转圈, ground-truthed via LookController WIND telemetry 2026-06-21). A
+     *  (the live downhill and falling spin, ground-truthed via LookController WIND telemetry 2026-06-21). A
      *  centroid does not swing. Wide enough to span ≥1 zigzag period (~2-3 nodes); the decoupled
      *  drive (driveTargetYaw=node) keeps the body on every step so trend-aiming is nav-safe. */
     public static final int DESCENT_CAM_LOOKAHEAD = 12;
@@ -85,7 +85,7 @@ final class WalkerConstants {
      *  normal ground walking — independent of the cosmetic {@code smoothLook}. A single
      *  degenerate aim vector (reCentre pointing back at the previous node, atan2 on a
      *  near-zero vector, a fall's transient carrot) can otherwise snap the heading 180°
-     *  in one tick — the "朝向反复跳变" the pathfinding charts surfaced. Capping the slew
+     *  in one tick — the repeated heading flips the pathfinding charts surfaced. Capping the slew
      *  turns any such transient into a small wobble the next (correct) tick undoes, so
      *  the body holds its forward line; a stuck/reCentre limit-cycle can no longer spin
      *  it, so forward progress resumes and the bot escapes the stall. 30°/tick = 600°/s,
@@ -154,7 +154,7 @@ final class WalkerConstants {
      *  carrot rounding a corner — moves the heading gradually; a SUDDEN ±180° jump is a transient
      *  artifact (a node overshoot, a re-plan, or the carrot collapsing onto a wall/path-end and
      *  falling back to the flipping node bearing). Reject it — hold the forward heading — so the
-     *  body doesn't lurch backward and crawl (the open-water "绕node打转" churn). */
+     *  bot doesn't lurch backward and crawl (the open-water churn of circling around a node). */
     public static final float WATER_DRIVE_MAX_TURN = 120f;
     /** Consecutive flip-rejections after which the DRIVE SNAPS to the live source anyway. A genuine
      *  transient flip lasts 1–2 ticks (the carrot returns and tracking resumes); a PERSISTENT >120°
@@ -168,7 +168,7 @@ final class WalkerConstants {
      *  over (crossed horizontally at the surface) instead of followed down. A* routes wide
      *  deep-water crossings along the riverbed, placing walk/parkour nodes many blocks under the
      *  surface swimmer; following them dives the buoyant body and stalls it bobbing underwater (the
-     *  "潜底/挖墙" stall). A surface/land goal never needs to END deep underwater (real descents use
+     *  stall where the bot sinks to the bottom and digs into the wall). A surface/land goal never needs to END deep underwater (real descents use
      *  fall/swimDown edges), so floating over any reasonable depth is safe; a swimDown dive keeps
      *  its own tight bound. */
     public static final double FLOATOVER_NONDIVE_MAX_DROP = 32.0;
@@ -511,7 +511,7 @@ final class WalkerConstants {
     /** Anti-spin: consecutive in-water repaths with no goal-progress before the camera
      *  heading is FROZEN. A failed water climb-out makes every repath return a
      *  swim-back/circle best-effort; following each one U-turns the bot and the
-     *  repeated U-turns wind the camera (the water "转圈"). Past this count the heading
+     *  repeated U-turns wind the camera (the water spin). Past this count the heading
      *  is held steady (see the heading block) — MC movement follows body yaw, so a
      *  frozen heading also steadies the bot pressing toward the climb-out instead of
      *  whipping around. Small so the spin is killed within ~1-2s of churn. */
@@ -537,7 +537,7 @@ final class WalkerConstants {
     public static final int CHURN_WINDOW = 400;
     public static final int CHURN_MIN_MOVE_SQ = 64;
     /** Wall-corner fast-churn (walkerWallCornerFastChurn): consecutive sustained-hCol ticks before the
-     *  net-displacement churn window is SHORTENED to {@link #WALL_CHURN_WINDOW}. The §39 贴墙卡住 stall
+     *  net-displacement churn window is SHORTENED to {@link #WALL_CHURN_WINDOW}. The stuck-against-a-wall stall
      *  (rocky/dirt/water-boundary wall-corner) makes NO net XZ progress with hCol pinned true, but the
      *  node-relative stuck counters (totStuck, noStepProgressTicks) get RESET by the orbit's node-churn so
      *  the 20s window is the only thing that catches it — too slow (live journey-A: 20-45s per stall). A
@@ -559,7 +559,7 @@ final class WalkerConstants {
      *  planner escalation armed. Sticky so a couple of wandering windows that briefly
      *  show net progress mid-climb don't drop the escalation before the climb completes. */
     public static final long BOXED_ESCALATE_STICKY_TICKS = 1200;
-    /** PROACTIVE PINCH escalation (渐进式 pinch 预判, gated by {@link BotConfig#pathfinderProgressive}):
+    /** PROACTIVE PINCH escalation (progressive pinch prediction, gated by {@link BotConfig#pathfinderProgressive}):
      *  if a BIG search comes back best-effort having closed less than this many blocks of
      *  goal distance, the planner is wedged at a pinch and a low budget will keep
      *  re-committing the shallow scrap the bot churns on. Arm the deep-search escalation
@@ -698,7 +698,7 @@ final class WalkerConstants {
      *  ±0.9..1.5; the once-only snap then points the fixed ray OFF the 1-tall riser face
      *  (eye rises → ray passes above it) so the break never lands and the bot bobs ~30 s.
      *  ~0.4 ≈ the drift that walks the ray off a 1-block face → re-snap to hold it on, while
-     *  staying far above the per-tick re-aim that judders the camera (不跳变视角). */
+     *  staying far above the per-tick re-aim that judders the camera (so the view does not jump). */
     public static final double DIG_REAIM_EYE_DY = 0.4;
     /** Ticks the pillar takeover may bob WITHOUT a successful place before it's judged
      *  futile here (a buoyant bot can't lift its feet above a surface fill cell) and the

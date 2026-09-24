@@ -164,7 +164,7 @@ public final class AutoEquip {
     }
 
     /** Score this stack as a weapon; -1 if it isn't one. Swords are preferred over
-     *  axes/tridents (design "剑优先"), then material tier, then enchantments. */
+     *  axes/tridents (the design is "swords first"), then material tier, then enchantments. */
     private static double weaponScore(ItemStack stack) {
         if (stack.isEmpty()) return -1;
         double base;

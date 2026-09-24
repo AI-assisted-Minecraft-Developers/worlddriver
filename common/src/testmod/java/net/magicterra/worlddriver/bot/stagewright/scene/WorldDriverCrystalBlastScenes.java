@@ -28,75 +28,79 @@ import net.minecraft.world.phys.AABB;
  *
  * <h2>The mechanism, and the run that produced it</h2>
  *
- * Rung 20 of the journey ladder (2026-08-18) recorded a pair of rows that only make sense together:
+ * Rung 20 of the journey ladder (2026-08-18) recorded a pair of rows that only make sense together
+ * (field labels translated):
  *
  * <pre>{@code
- * crystal.4.leg   ... → 终点=-33,86,23  脚下=Block{minecraft:iron_bars}  end=arrived
- * crystal.4.result 碎了（站到 y=86，最近 3.3 格，挥 1 刀）
- * crystal.5.leg   起点=-33,86,23  脚下=Block{minecraft:air}  → 最低y=-5220
+ * crystal.4.leg   ... → end=-33,86,23  underFeet=Block{minecraft:iron_bars}  end=arrived
+ * crystal.4.result broken (stood at y=86, closest 3.3 blocks, 1 swing)
+ * crystal.5.leg   start=-33,86,23  underFeet=Block{minecraft:air}  → lowestY=-5220
  * }</pre>
  *
- * Same coordinate, {@code iron_bars} under the body before the swing and {@code air} under it after,
+ * Same coordinate, {@code iron_bars} under the bot before the swing and {@code air} under it after,
  * and the only thing that happened in between was one hit on an end crystal. Vanilla's
  * {@code EndCrystal.hurt} answers every hit with
  * {@code level.explode(this, …, 6.0F, false, ExplosionInteraction.BLOCK)}; {@code Level.explode}
  * maps {@code BLOCK} onto {@code getDestroyType(RULE_BLOCK_EXPLOSION_DROP_DECAY)}, which is
  * {@code DESTROY} or {@code DESTROY_WITH_DECAY} and <b>never</b> {@code KEEP} — so unlike a creeper
  * this blast is not gated on {@code mobGriefing}. Iron bars have explosion resistance 6.0 and
- * obsidian has 1200. The blast therefore eats the cage and leaves the pillar, and a body that
- * climbed onto the cage to get in range is standing on the half that goes.
+ * obsidian has 1200. The blast therefore destroys the cage and leaves the pillar, and a bot that
+ * climbed onto the cage to get in range is standing on the part that is destroyed.
  *
- * <p>Rungs 5–9 of that run are all free fall ({@code 脚下=void_air}, {@code 放了 0 块}), i.e. every
- * later crystal order was given to a body that was no longer standing anywhere. One hit, nine rungs.
+ * <p>Rungs 5–9 of that run are all free fall (block under the feet {@code void_air}, zero blocks
+ * placed), i.e. every later crystal order was given to a bot that was no longer standing anywhere.
+ * One hit cost nine rungs.
  *
  * <h2>What these two scenes are</h2>
  *
- * A matched pair whose <b>only</b> variable is the block under the body's feet. Same pillar, same
+ * A matched pair whose <b>only</b> variable is the block under the bot's feet. Same pillar, same
  * cage, same crystal, same inventory, same tick loop; one arm stands on the cage lid and one stands
  * on the pillar-top obsidian one block from the crystal. Neither touches the product — they are
  * sensors, shipped {@code withRequired(false)} under this repo's promote-on-first-green rule and
  * required now — both went green on both loaders, the cage arm by way of a refusal.
  *
  * <ul>
- *   <li>{@code wd.crystalBlastOnTheCage} — it falsifies「砍水晶时可以站在笼上」. <b>The way it goes
- *       green is a REFUSAL</b>, not a better stand: {@code BlastFooting} declines the swing and
- *       names the footing, so the crystal survives and the body keeps its lid. Read 判据 and the
- *       X1/X2/X3 note below before assuming this arm proves the bot can relocate — it cannot, and
- *       nothing here has ever asked it to.</li>
- *   <li>{@code wd.crystalBlastOnThePillar} — <b>expected GREEN, and it is the anti-overfit arm.</b>
- *       Without it,「一律不许靠近水晶，远远地放弃」is a full-marks answer to the arm above. This one
- *       asserts positively that the crystal still gets broken from a blast-proof stand.</li>
+ *   <li>{@code wd.crystalBlastOnTheCage} — it falsifies the claim "the bot may stand on the cage
+ *       while breaking the crystal". <b>The way it passes is a REFUSAL</b>, not a better stand:
+ *       {@code BlastFooting} declines the swing and names the footing, so the crystal survives and
+ *       the bot keeps its lid. Read the criteria and the X1/X2/X3 note below before assuming this arm
+ *       proves the bot can relocate — it cannot, and nothing here has ever asked it to.</li>
+ *   <li>{@code wd.crystalBlastOnThePillar} — <b>expected to pass, and it is the anti-overfit arm.</b>
+ *       Without it, "never approach a crystal; give up from a distance" would fully satisfy the arm
+ *       above. This one asserts positively that the crystal still gets broken from a blast-proof
+ *       stand.</li>
  * </ul>
  *
- * <h2>判据 — three clauses, and none of them may be dropped</h2>
+ * <h2>Criteria — three clauses, and none of them may be dropped</h2>
  *
  * <ol>
- *   <li><b>落脚不许被抽走.</b> Both arms assert {@code 最低y(挥刀之后) > 挥刀时站立y − 2}. Anchoring
- *       instead on the pillar top would make the cage arm <b>green while measuring nothing</b>: with
- *       no knockback in play (see below) a body whose lid was destroyed simply drops the four blocks
- *       onto the obsidian, which is still「在柱子上」. This is the real invariant and it is
- *       unchanged.</li>
- *   <li><b>要么砸碎，要么带理由地拒绝.</b> {@code 水晶=碎了}, <i>or</i> the driver's
- *       {@code Body.lastAttackRefusal} is non-empty AND carries
- *       {@code BlastFooting.footingTag(块id, 抗性)} for the block the scene itself read under the
- *       swing stand before the hit. The pair is checked as ONE token on purpose: iron bars are 6.0
- *       and the blast is 6.0, so asking separately for the id and for「6.0」would be satisfied by
- *       the {@code power=6.0} every refusal prints. A message that merely says「不行」, or names
- *       another block, or the right block with a wrong number, does not satisfy it — that is what
- *       keeps this clause out of「只要报个错就算过」.</li>
- *   <li><b>⛔ 既没砸碎、也没有理由 ⇒ 红.</b> The clause that plugs the {@code 0==0} hole: a run that
- *       never swings, or one where the driver silently declined, fails here. Without it a body that
- *       stood still for 200 ticks would pass clause 1 perfectly.</li>
+ *   <li><b>The footing must not be removed.</b> Both arms assert {@code lowest y after the swing >
+ *       standing y at the swing − 2}. Anchoring instead on the pillar top would make the cage arm
+ *       <b>pass while measuring nothing</b>: with no knockback in play (see below) a bot whose lid was
+ *       destroyed simply drops the four blocks onto the obsidian, which is still "on the pillar".
+ *       This is the real invariant and it is unchanged.</li>
+ *   <li><b>Either break the crystal or refuse with a reason.</b> The crystal is broken, <i>or</i>
+ *       the driver's {@code Body.lastAttackRefusal} is non-empty AND carries
+ *       {@code BlastFooting.footingTag(blockId, resistance)} for the block the scene itself read
+ *       under the swing stand before the hit. The pair is checked as ONE token on purpose: iron bars
+ *       are 6.0 and the blast is 6.0, so asking separately for the id and for "6.0" would be
+ *       satisfied by the {@code power=6.0} every refusal prints. A message that merely says "not
+ *       allowed", or names another block, or the right block with a wrong number, does not satisfy
+ *       it — that is what keeps this clause from passing on any error at all.</li>
+ *   <li><b>Neither broken nor refused with a reason means FAIL.</b> The clause that plugs the
+ *       {@code 0==0} hole: a run that never swings, or one where the driver silently declined, fails
+ *       here. Without it a bot that stood still for 200 ticks would pass clause 1 perfectly.</li>
  * </ol>
  *
- * <p><b>今天这条臂转绿的方式是第 2 条的后半句 —— 带理由地拒绝，不是站到黑曜石上砍.</b> Do not read a
- * green row here as「bot 会自己换落脚了」. It does not, and this rig could not observe it if it did:
+ * <p><b>The cage arm currently passes through the second half of clause 2 — a refusal with a
+ * reason — not by standing on the obsidian to swing.</b> Do not read a passing row here as "the bot
+ * now relocates its footing on its own". It does not, and this rig could not observe it if it did:
  *
  * <ul>
- *   <li><b>X1 — a process that owns「接近 + 挥刀」两步.</b> {@code Body.attackEntity} is one-shot
- *       and single-tick; it can swing or decline, and it must never teleport. Choosing a stand is a
- *       multi-tick job and belongs to whatever walks the body in ({@code SwingAt} on rung 20,
- *       {@code CombatProcess} in production).</li>
+ *   <li><b>X1 — a process that owns both steps, approaching and swinging.</b>
+ *       {@code Body.attackEntity} is one-shot and single-tick; it can swing or decline, and it must
+ *       never teleport. Choosing a stand is a multi-tick job and belongs to whatever walks the bot in
+ *       ({@code SwingAt} on rung 20, {@code CombatProcess} in production).</li>
  *   <li><b>X2 — the scene must hand control over BEFORE it latches the stand it judges.</b>
  *       {@link #swingAndWatch} reads {@code swingStand} on the line above the driver call, so a
  *       relocation performed inside that call is invisible to the anchor and reads as a fall. A rig
@@ -104,16 +108,17 @@ import net.minecraft.world.phys.AABB;
  *       calling the verb itself.</li>
  *   <li><b>X3 — the staging must contain a blast-proof stand the body can REACH.</b> In vanilla's
  *       caged spike there is exactly one — the 3x3 obsidian floor inside the cage — and it is sealed
- *       under a solid 5x5 iron lid, four blocks below a body standing on that lid. Every blast-proof
- *       sole row in this arena is at {@code y = 柱顶}, i.e. {@code 挥刀站立y − 4}, so clause 1's
+ *       under a solid 5x5 iron lid, four blocks below a bot standing on that lid. Every blast-proof
+ *       sole row in this arena is at {@code y = pillar top}, i.e. {@code standing y at the swing − 4},
+ *       so clause 1's
  *       {@code −2} tolerance can never be met by relocating. That is a fact about the geometry
  *       vanilla builds, not about this file: fixing it means a different staging (or a bot that
  *       breaks in), never a looser number here.</li>
  * </ul>
  *
- * <p>{@code 最低y} <b>excludes the swing tick's own y</b>, for the reason this ladder has already
- * paid for once: a minimum that includes its own starting sample can never contradict the start, and
- * a healthy arm was judged red over exactly that.
+ * <p>{@code minYAfterSwing} <b>excludes the swing tick's own y</b>, for a reason this ladder has
+ * already paid for once: a minimum that includes its own starting sample can never contradict the
+ * start, and a healthy arm was judged failing for exactly that reason.
  *
  * <h2>Two limits stated on the row rather than left to be discovered</h2>
  *
@@ -122,17 +127,17 @@ import net.minecraft.world.phys.AABB;
  *       server body joins now.</b> {@code Explosion.explode} collects victims with
  *       {@code level.getEntities(source, aabb)}, which reads the level's entity index. A body that
  *       never joined is absent from that index and takes no launch; a {@code JoinedBody} is present
- *       and is thrown. The ladder always used joined bodies and the six gates did from 2026-08-22,
- *       so the「clean footing reading」this note used to promise is gone: the first run on joined
- *       bodies threw the body {@code dx=+5} and {@code dy=−31} off a sole that was still obsidian.
+ *       and is thrown. The ladder and the six gates all use joined bodies, so there is no clean
+ *       footing-only reading: the first run on joined bodies threw the bot {@code dx=+5} and
+ *       {@code dy=−31} off a sole that was still obsidian.
  *
  *       <p>Clause B therefore exempts a fall whose sole stayed blast-proof AND whose body moved
  *       horizontally — that combination is knockback, and knockback is not what B grades. The
  *       exemption is narrow on purpose: dissolve the footing and {@code soleSurvived} goes false, so
  *       no amount of launch can buy a green. <b>The ballistics are real, and this scene still does
  *       not measure them</b> — there is no staging for it and no criterion on it, so a green pillar
- *       arm remains no evidence about knockback in either direction. The {@code 弹道} row says on
- *       every run which of the three worlds this one was.</li>
+ *       arm remains no evidence about knockback in either direction. The {@code trajectory} row says
+ *       on every run which of the three outcomes this run was.</li>
  *   <li><b>No Walker, no goal, no {@code LevelWorldView}.</b> The sibling void scenes drive a Walker
  *       because their subject is a leap; here the subject is which block is under the feet, and
  *       steering would put a second variable between the two arms. The body is created and stepped
@@ -156,8 +161,8 @@ import net.minecraft.world.phys.AABB;
  *       clear air ring the pillar down to a catch floor, comfortably past
  *       {@code SurvivalMath.survivableFall} at full health (22).</li>
  *   <li><b>Every row is {@link SceneContext#record}ed on PASS as well as FAIL.</b> The harness prints
- *       the evidence map into the log only on failure, and「绿的那一趟砍完脚下还是黑曜石」is the
- *       reading that separates these two arms.</li>
+ *       the evidence map into the log only on failure, and "on the passing run the block under the
+ *       feet is still obsidian after the swing" is the reading that separates these two arms.</li>
  * </ul>
  */
 public final class WorldDriverCrystalBlastScenes implements SceneProvider {
@@ -166,8 +171,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     public List<Scene> scenes() {
         return List.of(
                 // PROMOTE TO REQUIRED once a gate run confirms it green — the repo's
-                // promote-on-first-green rule, and the green it is waiting for is「带理由地拒绝」
-                // (BlastFooting), not「换了个落脚」. See 判据 / X1-X3 above.
+                // promote-on-first-green rule, and the pass it is waiting for is a refusal with a
+                // reason (BlastFooting), not a change of footing. See the criteria and X1-X3 above.
                 Scene.of("wd.crystalBlastOnTheCage", 600,
                         WorldDriverCrystalBlastScenes::crystalBlastOnTheCage),
                 // Expected GREEN. Optional only until one gate run confirms it, per the same rule;
@@ -220,26 +225,27 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
     // ------------------------------------------------------------- the arms ----
 
     /**
-     * <b>The reproduction.</b> The body stands on the cage lid, one cell off centre — the offset the
-     * ladder's {@code 最近 3.3 格} implies for a body at {@code y=86} over a crystal at {@code y=83}.
+     * <b>The reproduction.</b> The bot stands on the cage lid, one cell off centre — the offset the
+     * ladder's "closest 3.3 blocks" implies for a bot at {@code y=86} over a crystal at {@code y=83}.
      *
-     * <p>Expected RED. What it forbids is not「靠近水晶」but「站在会被自己这一炸拆掉的方块上砍它」.
+     * <p>Expected RED. What it forbids is not approaching the crystal but hitting it while standing
+     * on a block that the resulting blast will destroy.
      */
     private static void crystalBlastOnTheCage(SceneContext ctx) {
         smashFrom(ctx, "crystalBlastOnTheCage", CAGE_LID_DY + 1);
     }
 
     /**
-     * <b>The anti-overfit arm.</b> The same pillar, the same cage, the same crystal — the body simply
+     * <b>The anti-overfit arm.</b> The same pillar, the same cage, the same crystal — the bot simply
      * stands on the pillar-top obsidian inside the cage instead of on its lid.
      *
-     * <p>Expected GREEN, and its greenness is the whole reason the other arm is allowed to be red:
-     * the answer to「爆炸会抽走落脚」is a different stand, not a refusal to approach. A fix that
-     * forbids every crystal within reach reddens this arm and is caught.
+     * <p>Expected GREEN, and its passing is the whole reason the other arm is allowed to fail: the
+     * answer to "the blast removes the footing" is a different stand, not a refusal to approach. A
+     * fix that forbids every crystal within reach makes this arm fail and is caught.
      *
-     * <p>If this arm is RED, the premise「站黑曜石就没事」is itself false, and that is a finding about
-     * the world rather than about the rig — read {@code 落点} and {@code body.inLevelEntityIndex}
-     * before touching the staging.
+     * <p>If this arm is RED, the premise "standing on obsidian is safe" is itself false, and that is a
+     * finding about the world rather than about the rig — read {@code landing} and
+     * {@code body.inLevelEntityIndex} before touching the staging.
      */
     private static void crystalBlastOnThePillar(SceneContext ctx) {
         smashFrom(ctx, "crystalBlastOnThePillar", 0);
@@ -301,7 +307,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
      *
      * <p>The lid is a FULL 5x5 while the obsidian top has no corners, exactly as
      * {@code SpikeFeature.place} builds it. That overhang is not decoration: it is the difference
-     * between「掉回柱顶」and「掉进虚空」for a body standing on the wrong lid cell.
+     * between falling back onto the pillar top and falling into the void for a bot standing on the
+     * wrong lid cell.
      */
     private static void buildSpike(ServerLevel level, int cx, int cz, int topY, int standY) {
         for (int dx = -PILLAR_RADIUS; dx <= PILLAR_RADIUS; dx++)
@@ -374,9 +381,9 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
                     }
                     av.attackEntity(crystal);   // EndCrystal.hurt explodes INSIDE this call
                     sinceSwing = 0;
-                    // A refused call is NOT a swing. Counting it as one would print「挥了 10 刀」
-                    // over a crystal nothing ever touched, and 挥刀 is the row that says whether
-                    // this arm measured anything at all.
+                    // A refused call is NOT a swing. Counting it as one would print "10 swings"
+                    // over a crystal nothing ever touched, and the swings row is the one that says
+                    // whether this arm measured anything at all.
                     String why = av.lastAttackRefusal();
                     if (why != null) {
                         refused++;
@@ -390,8 +397,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
             if (swungNow && underAfterSwing == null)
                 underAfterSwing = blockIdAt(level, swingStand.below());
             av.step();
-            // Sampled only after the swing tick's own step, so 最低y never contains the y the body
-            // had when it swung — a minimum that includes its own start cannot contradict the start.
+            // Sampled only after the swing tick's own step, so the minimum never contains the y the
+            // bot had when it swung — a minimum that includes its own start cannot contradict the start.
             if (firstSwingTick >= 0 && t >= firstSwingTick)
                 minYAfterSwing = Math.min(minYAfterSwing, fp.getY());
         }
@@ -402,8 +409,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         boolean tried = firstSwingTick >= 0;
         boolean broke = !crystal.isAlive();
         int swingStandY = tried ? swingStand.getY() : Integer.MIN_VALUE;
-        // DID THE SOLE SURVIVE? This is the mechanism clause B actually names —「爆炸不许抽走落脚」
-        // — and it is a question about the WORLD, not about where the body ended up. Obsidian is
+        // DID THE SOLE SURVIVE? This is the mechanism clause B actually names — the blast must not
+        // remove the footing — and it is a question about the WORLD, not about where the bot ended up. Obsidian is
         // 1200 against a power-6 blast, so a cell that is still solid was never taken.
         boolean soleSurvived = tried
                 && level.getBlockState(swingStand.below()).getBlock().getExplosionResistance()
@@ -411,7 +418,8 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         // AND WAS THE BODY LAUNCHED OFF IT? Horizontal displacement is the signature of knockback:
         // Explosion.explode applies an impulse along the vector from the blast, and a body whose
         // footing was removed falls STRAIGHT down. Measured on the flipped gates, 2026-08-22:
-        // dx=+5 dz=0 dy=−31 with 砍后脚下=obsidian — the sole was there the whole time.
+        // dx=+5 dz=0 dy=−31 with obsidian still under the feet after the swing — the sole was there
+        // the whole time.
         boolean launchedSideways = tried
                 && (Math.abs(fp.getX() - (swingStand.getX() + 0.5)) > 1.5
                  || Math.abs(fp.getZ() - (swingStand.getZ() + 0.5)) > 1.5);
@@ -425,9 +433,9 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         String resAtSwingText = tried ? String.format(Locale.ROOT, "%.1f", resAtSwing) : null;
         // Clause 2's second half. The block id and the resistance are the scene's OWN readings of
         // the world, taken before the hit, and they are checked as ONE token: iron bars are 6.0 and
-        // the blast is 6.0, so two separate contains() calls would be satisfied by the 「power=6.0」
+        // the blast is 6.0, so two separate contains() calls would be satisfied by the "power=6.0"
         // any refusal carries — the same coincidence that would have made the threshold itself a
-        // silent no-op. A refusal that does not quote this exact pair is not「带理由地拒绝」.
+        // silent no-op. A refusal that does not quote this exact pair is not a refusal with a reason.
         String footingTag = tried ? BlastFooting.footingTag(underAtSwing, resAtSwing) : null;
         boolean namedTheFooting = refusal != null && footingTag != null
                 && refusal.contains(footingTag);
@@ -435,63 +443,65 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
 
         // EVERY row below is written on PASS as well as on FAIL — the harness only prints the
         // evidence map into the log when a scene fails, and the pillar arm's green run carries the
-        // control reading (砍后脚下 still obsidian) that makes the cage arm's red mean anything.
+        // control reading (underAfterSwing still obsidian) that makes the cage arm's failure meaningful.
         ctx.record("rig", String.format(Locale.ROOT,
-                "柱顶实心 y=%d（中心基岩）站立面 y=%d | 笼: |dx|=2或|dz|=2或dy=3, y=%d..%d, 笼盖 y=%d "
-                + "| 水晶 (%d.5,%d,%d.5) | 身体起始站位 y=%d（站立面 +%d）| 柱周围 %d 格空到接住地板 y=%d",
+                "solid pillar top y=%d (bedrock centre), standing surface y=%d | cage: |dx|=2 or |dz|=2 or dy=3, y=%d..%d, cage lid y=%d "
+                + "| crystal (%d.5,%d,%d.5) | bot start y=%d (standing surface +%d) | %d blocks of air around the pillar down to the catch floor y=%d",
                 topY, standY, standY, standY + CAGE_LID_DY, standY + CAGE_LID_DY,
                 cx, standY + 1, cz, standAt, standAt - standY, VOID_DEPTH, standY - VOID_DEPTH));
-        ctx.record("站位", tried
-                ? swingStand.toShortString() + " 脚下=" + underAtSwing
-                : "从没挥过刀（水晶始终不在 " + MELEE_REACH + " 格内，或身体先掉了）");
-        ctx.record("砍后脚下", underAfterSwing == null ? "未采样（没挥过刀）" : underAfterSwing);
-        ctx.record("水晶", broke ? "碎了" : "还在");
-        ctx.record("最低y", tried
-                ? String.format(Locale.ROOT, "%.3f（不含挥刀那一刻的 y=%d；判据 > %d）",
+        ctx.record("stand", tried
+                ? swingStand.toShortString() + " underFeet=" + underAtSwing
+                : "never swung (the crystal was never within " + MELEE_REACH + " blocks, or the bot fell first)");
+        ctx.record("underAfterSwing", underAfterSwing == null ? "not sampled (never swung)" : underAfterSwing);
+        ctx.record("crystal", broke ? "broken" : "intact");
+        ctx.record("minYAfterSwing", tried
+                ? String.format(Locale.ROOT, "%.3f (excludes the y=%d at the moment of the swing; criterion > %d)",
                         minYAfterSwing, swingStandY, swingStandY - 2)
-                : "未采样");
-        ctx.record("挥刀", swings + " 刀（最近 "
-                + (closest == Double.MAX_VALUE ? "未测" : String.format(Locale.ROOT, "%.2f", closest))
-                + " 格，门限 " + MELEE_REACH + "）");
-        // The control reading for clause 2, written on BOTH arms: the pillar arm's「无」is what
+                : "not sampled");
+        ctx.record("swings", swings + " swings (closest "
+                + (closest == Double.MAX_VALUE ? "not measured" : String.format(Locale.ROOT, "%.2f", closest))
+                + " blocks, reach limit " + MELEE_REACH + ")");
+        // The control reading for clause 2, written on BOTH arms: the pillar arm's "none" is what
         // says the guard did not simply forbid every crystal, and the cage arm's text is the
-        // evidence its green rests on. A green cage arm with an empty 拒绝 row would mean the
+        // evidence its pass rests on. A passing cage arm with an empty refusal row would mean the
         // clause-3 hole reopened — that combination must never be read as a pass.
-        ctx.record("拒绝", refusal == null
-                ? "无 —— 驱动放行（脚下抗性合格；本趟真正挥出 " + swings + " 刀）"
-                : "被拒 " + refused + " 次 / 真正挥出 " + swings + " 刀；首次理由：" + refusal);
-        ctx.record("抗爆门槛", String.format(Locale.ROOT,
-                "power=%.1f ⇒ 落脚抗性需 ≥ %.1f（13*power/3−0.3，推导见 BlastFooting）；挥刀那一格脚下 %s 抗性 %s",
+        ctx.record("refusal", refusal == null
+                ? "none: the driver allowed the swing (resistance under the feet is sufficient; " + swings + " real swings this run)"
+                : "refused " + refused + " times / " + swings + " real swings; first reason: " + refusal);
+        ctx.record("blastProofThreshold", String.format(Locale.ROOT,
+                "power=%.1f ⇒ footing resistance must be ≥ %.1f (13*power/3−0.3, derived in BlastFooting); block under the feet at the swing: %s, resistance %s",
                 BlastFooting.CRYSTAL_BLAST_POWER,
                 BlastFooting.blastProofResistance(BlastFooting.CRYSTAL_BLAST_POWER),
-                tried ? underAtSwing : "——", tried ? resAtSwingText : "未采样"));
-        ctx.record("落点", String.format(Locale.ROOT, "%s 脚下=%s（起始 y=%.1f，净掉 %.1f 格）",
+                tried ? underAtSwing : "-", tried ? resAtSwingText : "not sampled"));
+        ctx.record("landing", String.format(Locale.ROOT, "%s underFeet=%s (start y=%.1f, net drop %.1f blocks)",
                 endAt.toShortString(), blockIdAt(level, endAt.below()), startY, startY - fp.getY()));
-        ctx.record("笼子残存", barsLeft(level, cx, cz, standY) + "/" + cageCells()
-                + " 块铁栏杆（爆炸抗性 6.0，power 6 的爆炸吃得掉；黑曜石 1200 吃不掉）");
-        // The reading that says what this scene CANNOT see. A gate-run body is not in the level's
-        // entity index, so Explosion.explode never finds it and never launches it; the journey's
-        // joined body IS, and does. A green pillar arm is not a claim about knockback.
+        ctx.record("cageBarsLeft", barsLeft(level, cx, cz, standY) + "/" + cageCells()
+                + " iron bars (blast resistance 6.0, destroyed by a power-6 blast; obsidian at 1200 is not)");
+        // The reading that says what this scene CANNOT see. A bot that never joined the level is not
+        // in its entity index, so Explosion.explode never finds it and never launches it; a joined
+        // bot IS, and is launched. A passing pillar arm is not a claim about knockback.
         ctx.record("body.inLevelEntityIndex", (level.getEntity(fp.getId()) != null)
-                + "（false = 这一趟身体收不到爆炸击退；true = 收得到，弹道真实发生，但本场景仍然只判落脚）");
-        // WHAT THE VERDICT IGNORED, and why that is not the same as「弹道不存在」. Written on every
-        // run, including the ones where nothing was exempted, so a reader can tell「没被掀走」from
-        // 「被掀走了但这一条不管」 — those are different worlds and a bare green would print alike.
-        ctx.record("弹道", !tried ? "未采样"
+                + " (false = the bot cannot receive blast knockback in this run; true = it can and the trajectory is real, but this scene still grades only the footing)");
+        // WHAT THE VERDICT IGNORED, and why that is not the same as "there is no trajectory". Written
+        // on every run, including the ones where nothing was exempted, so a reader can tell "not
+        // thrown" from "thrown, but this clause does not grade it" — those are different outcomes
+        // that a bare pass would print identically.
+        ctx.record("trajectory", !tried ? "not sampled"
                 : !launchedSideways
-                    ? "身体没有横向位移（落脚 " + (soleSurvived ? "存活" : "被抽走")
-                        + "），这一趟没有可豁免的击退"
+                    ? "the bot did not move horizontally (footing " + (soleSurvived ? "survived" : "was removed")
+                        + "); no knockback to exempt in this run"
                     : soleSurvived
-                        ? "身体被掀出去了：横move " + swingStand.toShortString() + " → "
-                            + endAt.toShortString() + "，而挥刀那一格脚下 "
-                            + blockIdAt(level, swingStand.below()) + " 抗性合格、始终没被抽走 —— "
-                            + "判为击退，B 条豁免。⚠️ 击退是真实发生的，本场景不测它（没有布景、"
-                            + "没有判据），别把这一行读成「爆炸掀不动身体」"
-                        : "身体横向位移了，且落脚也被抽走 —— 不豁免，B 条照常判红");
+                        ? "the bot was thrown: horizontal move " + swingStand.toShortString() + " → "
+                            + endAt.toShortString() + ", while the block under the feet at the swing, "
+                            + blockIdAt(level, swingStand.below()) + ", was sufficiently resistant and never removed. "
+                            + "Classified as knockback; clause B is exempted. WARNING: the knockback is real and this "
+                            + "scene does not measure it (no test setup and no criterion for it); do not read this row "
+                            + "as \"the blast cannot move the bot\""
+                        : "the bot moved horizontally and the footing was also removed; not exempted, clause B fails as usual");
         ctx.record("gamerule.blockExplosionDropDecay", String.valueOf(
                 level.getGameRules().getBoolean(GameRules.RULE_BLOCK_EXPLOSION_DROP_DECAY)));
         ctx.record("gamerule.mobGriefing", level.getGameRules().getBoolean(GameRules.RULE_MOBGRIEFING)
-                + "（记录用：ExplosionInteraction.BLOCK 不看这条，看它的是 MOB）");
+                + " (recorded for reference: ExplosionInteraction.BLOCK ignores this rule; only MOB reads it)");
         WorldDriverCommon.LOG.info("[wd.{}] standAt={} swung={}@{} refused={} under={}->{} broke={} "
                 + "minY={} end={} inIndex={}", name, standAt, swings, firstSwingTick, refused,
                 underAtSwing, underAfterSwing, broke, minYAfterSwing, endAt,
@@ -499,24 +509,26 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
 
         // Soft checks, so both verdicts are always reported: "the crystal survived unexplained" and
         // "the body was dropped" are different failures and one merged line prints them the same.
-        ctx.check(broke || namedTheFooting).as("A 要么砸碎，要么带理由地拒绝：水晶"
-                + (broke ? "碎了" : "还在")
-                + "，驱动" + (refusal == null ? "没有给出拒绝理由" : "拒绝了 " + refused + " 次")
-                + (namedTheFooting ? "并点名了落脚（" + footingTag + "）"
-                        : refusal == null ? "" : "但理由里找不到成对的【" + footingTag
-                                + "】，那不算带理由（分开匹配会被 power=6.0 蒙混过去）")
-                + "。⛔ 既没砸碎、也没有带落脚读数的理由 = 红：这一条堵的是「从没挥过刀」以 0==0 白过"
-                + "（本趟真正挥出 " + swings + " 刀，最近 "
-                + (closest == Double.MAX_VALUE ? "未测"
-                        : String.format(Locale.ROOT, "%.2f", closest)) + " 格）").isTrue();
-        ctx.check(heldItsGround).as("B 爆炸不许抽走落脚：挥刀（含被拒的那一次）时站在 "
-                + (tried ? swingStand.toShortString() + "（脚下 " + underAtSwing + "）" : "——")
-                + "，其后最低 y=" + (tried ? String.format(Locale.ROOT, "%.3f", minYAfterSwing) : "未采样")
-                + "，判据 > " + (tried ? String.valueOf(swingStandY - 2) : "无锚点")
-                + (knockedClear ? "（本趟豁免：落脚始终合格，身体是被爆炸横向掀走的，见【弹道】行——"
-                        + "掉高度是击退的后果，不是落脚被抽走）" : "")
-                + "。锚点是【决定挥刀那一刻】的站立 y，不是布景放下的位置。⚠️ 这条臂今天绿在【带理由地"
-                + "拒绝】上，不是绿在【换了落脚】上——换落脚要 X1/X2/X3，见类注释").isTrue();
+        ctx.check(broke || namedTheFooting).as("A: either break the crystal or refuse with a reason: the crystal is "
+                + (broke ? "broken" : "intact")
+                + ", the driver " + (refusal == null ? "gave no refusal reason" : "refused " + refused + " times")
+                + (namedTheFooting ? " and named the footing (" + footingTag + ")"
+                        : refusal == null ? "" : " but the reason does not contain the paired token [" + footingTag
+                                + "], so it does not count as a reason (matching the parts separately would be fooled by power=6.0)")
+                + ". Neither broken nor refused with a footing reading means FAIL: this clause stops a run that never "
+                + "swung from passing as 0==0 (" + swings + " real swings this run, closest "
+                + (closest == Double.MAX_VALUE ? "not measured"
+                        : String.format(Locale.ROOT, "%.2f", closest)) + " blocks)").isTrue();
+        ctx.check(heldItsGround).as("B: the blast must not remove the footing: at the swing (including a refused one) the bot stood at "
+                + (tried ? swingStand.toShortString() + " (under the feet: " + underAtSwing + ")" : "-")
+                + ", lowest y afterwards=" + (tried ? String.format(Locale.ROOT, "%.3f", minYAfterSwing) : "not sampled")
+                + ", criterion > " + (tried ? String.valueOf(swingStandY - 2) : "no anchor")
+                + (knockedClear ? " (exempted this run: the footing stayed sufficient and the bot was thrown sideways "
+                        + "by the blast, see the trajectory row; the height loss is a consequence of knockback, "
+                        + "not of the footing being removed)" : "")
+                + ". The anchor is the standing y at the moment the swing was decided, not where the test setup "
+                + "placed the bot. WARNING: this arm currently passes through a refusal with a reason, not through "
+                + "a change of footing; changing footing requires X1/X2/X3, see the class comment").isTrue();
     }
 
     // ------------------------------------------------------------- readings ----
@@ -525,7 +537,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         return BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
     }
 
-    /** Iron bars still standing anywhere in the cage's shell — the direct reading of「炸没炸掉笼子」,
+    /** Iron bars still standing anywhere in the cage's shell — the direct reading of whether the blast destroyed the cage,
      *  which the footing row alone cannot give (one surviving cell under the feet would hide it). */
     private static int barsLeft(ServerLevel level, int cx, int cz, int standY) {
         int n = 0;
@@ -540,7 +552,7 @@ public final class WorldDriverCrystalBlastScenes implements SceneProvider {
         return n;
     }
 
-    /** How many cells {@link #buildSpike} filled with bars, so {@code 笼子残存} is a fraction rather
+    /** How many cells {@link #buildSpike} filled with bars, so {@code cageBarsLeft} is a fraction rather
      *  than a bare count nobody can scale. */
     private static int cageCells() {
         int n = 0;

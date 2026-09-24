@@ -1,7 +1,8 @@
-"""接受门:候选 flag 组合是否够格 flip default-ON。
+"""Acceptance gate: is a candidate flag combination good enough to flip to default-ON?
 
-spec §3 的"全集净正 + 零回归"门——直接对治本项目的 over-fit 教训(apw 在 0005/0006 调优
-却在 0004 上 579→1935 灾难回归)。门只和 corpus 一样好(spec §9 风险2)。
+The "net positive across the whole set + zero regressions" gate from spec §3. It exists to
+prevent over-fitting: apw was tuned on 0005/0006 and regressed catastrophically on 0004
+(579→1935). The gate is only as good as the corpus (spec §9, risk 2).
 """
 from dataclasses import dataclass
 

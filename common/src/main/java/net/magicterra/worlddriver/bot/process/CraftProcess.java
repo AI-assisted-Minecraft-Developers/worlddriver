@@ -36,7 +36,7 @@ import static net.magicterra.worlddriver.bot.util.BotUtil.nearestBlockWithinReac
  * <p>Planning reuses the very resolver the {@code mc.recipe.resolve} verb exposes
  * (client {@link RecipeManager}, so this works in multiplayer too — no integrated
  * server needed): "I want N×item" → a dependency-first list of crafting jobs. If
- * any leaf material is missing, the process fails up front reporting "缺 N 个 X" so
+ * any leaf material is missing, the process fails up front reporting "missing N x X" so
  * the caller (T2) can go gather it.
  *
  * <p>Each job is run through the game's recipe-book placement
@@ -226,10 +226,10 @@ public final class CraftProcess implements BotProcess {
             // Give the client inventory a few ticks to catch up before giving up —
             // a craft issued right after a pickup/give would otherwise read empty.
             if (++planTries < PLAN_GRACE) return;   // stay in INIT, re-plan next tick
-            StringBuilder sb = new StringBuilder("缺");
+            StringBuilder sb = new StringBuilder("missing");
             boolean first = true;
             for (var e : plan.missing().entrySet()) {
-                sb.append(first ? " " : "、").append(e.getValue()).append(" 个 ").append(shortId(e.getKey()));
+                sb.append(first ? " " : ", ").append(e.getValue()).append(" x ").append(shortId(e.getKey()));
                 first = false;
             }
             LOG.info("[craft] plan {}×{} incomplete missing={}", count, target, plan.missing());
@@ -270,11 +270,11 @@ public final class CraftProcess implements BotProcess {
         if (table == null) table = placeTable(a, p, lvl);
         if (table == null) {
             // Distinguish the two causes: a missing ITEM needs an acquire plan, a
-            // missing SPOT needs one dug cell — conflating them (the old single
-            // message) sent the agent hunting wood while sealed in a 1×1 bunker.
+            // missing SPOT needs one dug cell — a single message for both sends the
+            // agent hunting wood while sealed in a 1×1 bunker.
             fail(s, p, p.getInventory().countItem(Items.CRAFTING_TABLE) > 0
-                    ? "需要工作台（背包里有，但脚边没有可放置的空位——先清出一格）"
-                    : "需要工作台（背包里没有工作台）");
+                    ? "crafting table needed (one is in the inventory, but there is no free cell beside the bot to place it; clear one first)"
+                    : "crafting table needed (none in the inventory)");
             return;
         }
         tablePos = table;
@@ -288,7 +288,7 @@ public final class CraftProcess implements BotProcess {
 
     private void awaitTableOpen(Player p, BotState s) {
         if (p.containerMenu instanceof CraftingMenu) { waited = 0; st = St.PLACE; return; }
-        if (++waited > STEP_TIMEOUT) fail(s, p, "打开工作台超时");
+        if (++waited > STEP_TIMEOUT) fail(s, p, "timed out opening the crafting table");
     }
 
     // === craft loop ==========================================================
@@ -314,7 +314,7 @@ public final class CraftProcess implements BotProcess {
             st = St.AWAIT_TAKE;
             return;
         }
-        if (++waited > STEP_TIMEOUT) fail(s, p, "摆料失败（原料不足或未同步）: " + shortId(jobs.get(jobIdx).result()));
+        if (++waited > STEP_TIMEOUT) fail(s, p, "failed to place the recipe (missing ingredients or inventory not synced): " + shortId(jobs.get(jobIdx).result()));
     }
 
     private void awaitTake(Player p, BotState s) {

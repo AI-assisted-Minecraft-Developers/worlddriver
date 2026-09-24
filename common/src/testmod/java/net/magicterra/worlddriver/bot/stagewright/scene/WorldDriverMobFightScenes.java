@@ -167,7 +167,8 @@ public final class WorldDriverMobFightScenes {
         // The whole point: vanilla gates the rod on killed_by_player, read from lastHurtByPlayer.
         // A body that kills without registering as a player clears fortresses and crafts no eyes.
         ctx.expect(rods).as("the kills count as PLAYER kills, so rods actually drop").isAtLeast(1);
-        ctx.passNote("铁剑打死 " + killed + " 只烈焰人, 掉出 " + rods + " 根棒（钉住的, 没测飞行）");
+        ctx.passNote("an iron sword killed " + killed + " blazes, dropping " + rods
+                + " rods (blazes pinned; flight not tested)");
     }
 
     /**
@@ -250,7 +251,7 @@ public final class WorldDriverMobFightScenes {
             var head = dragon.getSubEntities()[0];
             for (var part : dragon.getSubEntities())
                 if ("head".equals(part.name)) head = part;
-            ctx.record("dragon.parts", dragon.getSubEntities().length + " 个（瞄 " + head.name + "）");
+            ctx.record("dragon.parts", dragon.getSubEntities().length + " parts (aiming at " + head.name + ")");
             float beforeHead = dragon.getHealth();
             int swings = 10;
             for (int i = 0; i < swings; i++) {
@@ -270,8 +271,9 @@ public final class WorldDriverMobFightScenes {
                     .as("the existing combat loop takes health off the dragon").isTrue();
             ctx.expect(afterPart < beforeHead)
                     .as("a hit aimed at the head lands on a multipart boss").isTrue();
-            ctx.passNote("龙血 " + before + " → CombatProcess 后 " + afterCombat
-                    + " → 再打头部 " + swings + " 下后 " + afterPart + "（钉住的, 没测飞行/水晶）");
+            ctx.passNote("dragon health " + before + " → " + afterCombat + " after CombatProcess"
+                    + " → " + afterPart + " after " + swings + " more hits on the head"
+                    + " (dragon pinned; flight and crystals not tested)");
         });
     }
 
@@ -396,7 +398,8 @@ public final class WorldDriverMobFightScenes {
                 var roofed = roofedRun.finish();
                 ctx.record("futileGate.roofed", futileGateLine(futileAfterOpen, futileSnapshot()));
 
-                ctx.record("body.invulnerable", "true —— 所以这一条只说打得赢, 不说活得下来");
+                ctx.record("body.invulnerable", "true — so this result shows only that the fight can be"
+                        + " won, not that the bot would survive it");
                 // The open-sky round is RECORDED, not asserted, and that is a deliberate correction.
                 // It was written as `expect(open.dead).isFalse()` — "notice if the open fight ever
                 // becomes winnable" — until a NeoForge run finished it at 2.0 health left. An
@@ -407,10 +410,11 @@ public final class WorldDriverMobFightScenes {
                 ctx.expect(roofed.dead)
                         .as("in a closed room a driven body kills a blaze that is free to fly")
                         .isTrue();
-                ctx.passNote("露天 " + open.ticks + " tick 打不死（剩 "
+                ctx.passNote("under open sky the blaze was not killed in " + open.ticks + " ticks ("
                         + String.format(java.util.Locale.ROOT, "%.1f", open.hp)
-                        + " 血, 最高离地 " + String.format(java.util.Locale.ROOT, "%.1f", open.rise)
-                        + " 格）；加个四格高的顶后 " + roofed.ticks + " tick 打死");
+                        + " health left, highest " + String.format(java.util.Locale.ROOT, "%.1f", open.rise)
+                        + " blocks above the floor); with a roof four blocks high it was killed in "
+                        + roofed.ticks + " ticks");
             });
         });
     }
@@ -506,14 +510,15 @@ public final class WorldDriverMobFightScenes {
         ctx.record("gate.creepSetGoal", setGoalArm.line());
         ctx.record("gate.creepRetarget", retargetArm.line());
         ctx.record("gate.chase", chase.line());
-        ctx.passNote("够不着的目标：不动 / 每 2 tick 降一格（setGoal 基线 vs retargetGoal）；"
-                + "外加一条够得着的追击反证。闸的去向见 gate.*");
+        ctx.passNote("unreachable goal: fixed / lowered one block every 2 ticks (setGoal baseline vs"
+                + " retargetGoal); plus a reachable-chase counter-check. Gate outcomes are in gate.*");
 
         // A census that silently counts nothing reads exactly like a gate that judged everything and
         // let it pass, so prove the channel spoke before reading anything else out of it.
         for (var arm : java.util.List.of(still, setGoalArm, retargetArm, chase))
             if (arm.searches() == 0)
-                ctx.fail("闸的普查通道是哑的，有一臂一次搜索都没发生 —— 这行读数不能用来判任何事：" + arm.line());
+                ctx.fail("the gate census channel is silent: one arm ran no search at all, so this reading"
+                        + " cannot be used to judge anything: " + arm.line());
 
         // The claim the fix makes, stated as a number the arm can miss. A cap of 5 admits one
         // unjudged seeding search plus the five it counts; anything past that means the body is
@@ -521,17 +526,17 @@ public final class WorldDriverMobFightScenes {
         // again, or the latched terminal is re-searching every tick.
         int cap = BotConfig.walkerFutileSearchCap;
         if (retargetArm.searches() > cap + 2)
-            ctx.fail("追一个够不着的目标，240 tick 里搜了 " + retargetArm.searches()
-                    + " 次（上限 " + cap + "，允许 " + (cap + 2) + "）：" + retargetArm.line());
+            ctx.fail("chasing an unreachable goal ran " + retargetArm.searches() + " searches in 240 ticks"
+                    + " (cap " + cap + ", allowed " + (cap + 2) + "): " + retargetArm.line());
         if (!retargetArm.noRoute())
-            ctx.fail("闸压根没开火：追一个 200 格头顶、既不能挖也不能垒的目标，"
-                    + "240 tick 里没有出现 no route progress：" + retargetArm.line());
+            ctx.fail("the gate never fired: chasing a goal 200 blocks overhead that can be neither dug to"
+                    + " nor built to produced no 'no route progress' within 240 ticks: " + retargetArm.line());
 
         // The reverse. A guard that fires on a healthy pursuit is worse than one that never fires,
         // and "the body stayed put" is exactly what a body walking toward a moving quarry does NOT do.
         if (chase.noRoute())
-            ctx.fail("闸误伤了一次正常追击：目标就在同一层地板上 8 格外，身体一路在走，"
-                    + "却报了 no route progress：" + chase.line());
+            ctx.fail("the gate fired on a healthy chase: the goal is 8 blocks away on the same floor and"
+                    + " the bot kept walking, yet 'no route progress' was reported: " + chase.line());
 
         recoverArm(ctx, av, fp, w, high, cx, floorY, cz);
     }
@@ -579,22 +584,25 @@ public final class WorldDriverMobFightScenes {
         long[] after = futileSnapshot();
         BlockPos end = fp.blockPosition();
         long searches = searchSum(before, after);
-        String line = "recover：第一段" + (latched ? "闩上了" : "⚠️ 没闩上") + "（身体停在 "
-                + stuckAt.toShortString() + "），身体不动改下一个 8 格外的新目标，"
-                + ARM_TICKS + " tick 后收在 " + s + "，身体停在 " + end.toShortString()
-                + "；" + futileGateLine(before, after);
+        String line = "recover: phase 1 " + (latched ? "latched" : "WARNING: did not latch") + " (bot stopped at "
+                + stuckAt.toShortString() + "); without moving the bot, a new goal 8 blocks away was set;"
+                + " after " + ARM_TICKS + " ticks the walker ended in " + s + " with the bot at " + end.toShortString()
+                + "; " + futileGateLine(before, after);
         ctx.record("gate.recover", line);
 
         // Phase 1 not latching would make phase 2 vacuous — it would prove a latch can be cleared
         // that was never set. Say so rather than reporting a pass.
         if (!latched)
-            ctx.fail("这一臂的前提没成立：第一段没能闩住，于是第二段证明不了任何事：" + line);
+            ctx.fail("this arm's precondition did not hold: phase 1 failed to latch, so phase 2 proves"
+                    + " nothing: " + line);
         else if (searches == 0)
-            ctx.fail("闩活过了它自己那趟追击：身体没挪，但换了一个 8 格外够得着的新目标之后，"
-                    + ARM_TICKS + " tick 里一次搜索都没起 —— 这是无声冻结，没有终局也没有日志：" + line);
+            ctx.fail("the latch outlived the chase that set it: the bot did not move, but after a new"
+                    + " reachable goal 8 blocks away was set, no search started in " + ARM_TICKS
+                    + " ticks — a silent freeze with no terminal state and no log: " + line);
         else if (end.equals(stuckAt))
-            ctx.fail("搜索恢复了但身体没动：新目标就在同一层地板上 8 格外，"
-                    + ARM_TICKS + " tick 后仍停在 " + end.toShortString() + "：" + line);
+            ctx.fail("searching resumed but the bot did not move: the new goal is 8 blocks away on the"
+                    + " same floor, and after " + ARM_TICKS + " ticks the bot is still at "
+                    + end.toShortString() + ": " + line);
     }
 
     /**
@@ -627,9 +635,10 @@ public final class WorldDriverMobFightScenes {
         }
         BlockPos end = fp.blockPosition();
         long[] after = futileSnapshot();
-        return new ArmReading("chase：" + ARM_TICKS + " tick 跑满，下了 " + regoals + " 次目标，收在 " + s
-                + "，身体停在 " + end.getX() + "," + end.getY() + "," + end.getZ()
-                + "；" + futileGateLine(before, after), searchSum(before, after), noRoute);
+        return new ArmReading("chase: ran the full " + ARM_TICKS + " ticks, set the goal " + regoals
+                + " times, walker ended in " + s
+                + ", bot at " + end.getX() + "," + end.getY() + "," + end.getZ()
+                + "; " + futileGateLine(before, after), searchSum(before, after), noRoute);
     }
 
     /**
@@ -699,9 +708,10 @@ public final class WorldDriverMobFightScenes {
             av.step();
         }
         long[] after = futileSnapshot();
-        return new ArmReading(tag + "：" + ARM_TICKS + " tick 跑满，下了 " + regoals + " 次目标，"
-                + (firstTerminal < 0 ? "全程没有终局" : "首个终局在 t=" + firstTerminal + "（" + firstError + "）")
-                + "，收在 " + s + "；" + futileGateLine(before, after),
+        return new ArmReading(tag + ": ran the full " + ARM_TICKS + " ticks, set the goal " + regoals + " times, "
+                + (firstTerminal < 0 ? "no terminal state during the run"
+                        : "first terminal state at t=" + firstTerminal + " (" + firstError + ")")
+                + ", walker ended in " + s + "; " + futileGateLine(before, after),
                 searchSum(before, after), noRoute);
     }
 
@@ -729,12 +739,13 @@ public final class WorldDriverMobFightScenes {
         for (int i = 0; i < names.length; i++) {
             long v = after[i] - before[i];
             sum += v;
-            if (i > 0) sb.append('，');
+            if (i > 0) sb.append(", ");
             sb.append(names[i]).append('=').append(v);
         }
         return sum == 0
-                ? "这一轮一次搜索都没有 —— 走行器没搜过路，别把这行读成「闸放行了」"
-                : "这一轮 " + sum + " 次搜索，闸的去向：" + sb;
+                ? "no search at all this round — the walker never searched for a path, so do not read this"
+                        + " line as \"the gate let it through\""
+                : sum + " searches this round, gate outcomes: " + sb;
     }
 
     /**
@@ -1009,26 +1020,28 @@ public final class WorldDriverMobFightScenes {
             // appears on the bad runs cannot be differenced against a good one, and "no row" reads
             // the same as "instrument absent".
             ctx.record(tag + ".leftTheArena", fellAt < 0
-                    ? "否 —— 整轮都在台子上（这是健康形状；守卫在这一趟一个字节都没执行）"
+                    ? "no — the bot stayed on the platform for the whole round (the healthy case; the guard"
+                            + " executed no code in this run)"
                     : String.format(java.util.Locale.ROOT,
-                            "是 —— 第 %d 次迭代掉到 y=%.1f（台面 %d，低了 %.1f 格），"
-                                    + "此后 %d 次有界迭代取证后收轮。露天轮的 ticks 因此不是打满的 %d",
+                            "yes — at iteration %d the bot fell to y=%.1f (platform top %d, %.1f blocks lower);"
+                                    + " the round then ended after %d bounded iterations of evidence collection,"
+                                    + " so the open-sky round's ticks are not the full %d",
                             fellAt, fellY, floorY, floorY - fellY, t - fellAt, budget));
             if (postFallCensus != null) ctx.record(tag + ".postFallGate", postFallCensus);
-            ctx.record(tag + ".workMs", workMs + " ms（" + t + " 次迭代，摊在 " + serverTicks
-                    + " 个服务器 tick 上）");
+            ctx.record(tag + ".workMs", workMs + " ms (" + t + " iterations, spread over " + serverTicks
+                    + " server ticks)");
             // The number the hang watchdog actually measures. It is the one that must stay small;
             // the total may legitimately be large, because the work is real.
             ctx.record(tag + ".worstServerTickMs",
-                    String.format(java.util.Locale.ROOT, "%.1f ms（预算 %d ms）",
+                    String.format(java.util.Locale.ROOT, "%.1f ms (budget %d ms)",
                             worstPump / 1_000_000.0, SLICE_MS));
-            ctx.record(tag + ".worstIterMs", String.format(java.util.Locale.ROOT, "%.1f ms（第 %d 次）",
+            ctx.record(tag + ".worstIterMs", String.format(java.util.Locale.ROOT, "%.1f ms (iteration %d)",
                     worstIter / 1_000_000.0, worstAt));
             ctx.record(tag + ".msPerIter", String.format(java.util.Locale.ROOT, "%.2f ms",
                     t == 0 ? 0.0 : (double) workMs / t));
             var out = new BlazeFight(!blaze.isAlive(), t, blaze.getHealth(), highest - floorY);
             ctx.record(tag + ".dead", String.valueOf(out.dead()));
-            ctx.record(tag + ".ticks", t + (t >= budget ? "（用尽）" : ""));
+            ctx.record(tag + ".ticks", t + (t >= budget ? " (budget exhausted)" : ""));
             ctx.record(tag + ".hpLeft", String.format(java.util.Locale.ROOT, "%.1f", out.hp()));
             ctx.record(tag + ".highestAboveFloor",
                     String.format(java.util.Locale.ROOT, "%.1f", out.rise()));
@@ -1111,34 +1124,39 @@ public final class WorldDriverMobFightScenes {
             return run.pump();
         }).within(run.tickAllowance()).then(() -> {
             var out = run.finish();
-            ctx.record("staged.pushedAt", pushedAt[0] + " 次迭代后把身体挪到 " + (cx) + ", "
-                    + (padY + 1) + ", " + cz + "（台面 " + floorY + "，低 200 格）");
+            ctx.record("staged.pushedAt", "after " + pushedAt[0] + " iterations the bot was moved to " + (cx) + ", "
+                    + (padY + 1) + ", " + cz + " (platform top " + floorY + ", 200 blocks lower)");
             ctx.record("subject.fellAt", String.valueOf(run.fellAt()));
             ctx.record("subject.iterationsAfterFall",
-                    run.fellAt() < 0 ? "不适用（守卫没开火）" : String.valueOf(out.ticks() - run.fellAt()));
+                    run.fellAt() < 0 ? "not applicable (the guard did not fire)" : String.valueOf(out.ticks() - run.fellAt()));
             ctx.record("subject.worstPumpMs", String.format(java.util.Locale.ROOT,
-                    "%.1f ms（看门狗砍在 60000 ms）", run.worstPumpMs()));
+                    "%.1f ms (the watchdog kills at 60000 ms)", run.worstPumpMs()));
 
             ctx.check(run.fellAt() >= 0)
-                    .as("A 守卫必须开火：身体被挪到台下 200 格，noteTheFall 应当记下 fellAt。"
-                            + "没开火说明判据问错了量（fp.getY() 未必是 combat 读的那具身体），"
-                            + "先打一行 y 再改阈值，不要直接调 FALL_MARGIN。fellAt=" + run.fellAt())
+                    .as("A: the guard fires: the bot was moved 200 blocks below the platform, and noteTheFall"
+                            + " should record fellAt. If it did not fire, the criterion reads the wrong quantity"
+                            + " (fp.getY() is not necessarily the entity that combat reads); log y first and then"
+                            + " change the threshold, do not adjust FALL_MARGIN directly. fellAt=" + run.fellAt())
                     .isTrue();
             // Deliberately NOT `== FALL_PROBE_ITERS`. The pump completes whole iterations, so the
             // round can overshoot by one; an exact-equality check here would go red for a reason
             // that has nothing to do with the bound holding.
             ctx.check(run.fellAt() >= 0 && out.ticks() - run.fellAt() <= 80)
-                    .as("B 收轮必须有界：坠落之后只该再跑 60 次取证迭代，而不是把 3000 跑满。"
-                            + "跑满说明预算翻转没生效或 done() 没认这一支。实到 "
-                            + (run.fellAt() < 0 ? "不适用" : String.valueOf(out.ticks() - run.fellAt())))
+                    .as("B: the round ends within a bound: after the fall only 60 more evidence-collection"
+                            + " iterations should run, not the full 3000. Running the full budget means the"
+                            + " budget switch did not take effect or done() does not recognise this branch."
+                            + " Actual: "
+                            + (run.fellAt() < 0 ? "not applicable" : String.valueOf(out.ticks() - run.fellAt())))
                     .isTrue();
             ctx.check(run.worstPumpMs() < 2_000)
-                    .as("C 单个 pump 必须远离看门狗：坠落后每次搜索在 MAX_VALUE/2 下要 2.6~3 s，"
-                            + "翻成真预算后不该有任何一个 pump 接近这个量级。实到 "
+                    .as("C: no single pump comes near the watchdog: after the fall each search takes 2.6-3 s"
+                            + " under MAX_VALUE/2, and once switched to the real budget no pump should approach"
+                            + " that magnitude. Actual: "
                             + String.format(java.util.Locale.ROOT, "%.1f ms", run.worstPumpMs()))
                     .isTrue();
-            ctx.passNote("第 " + run.fellAt() + " 次迭代认出身体离场，再取证 "
-                    + (out.ticks() - run.fellAt()) + " 次后收轮，最差 pump "
+            ctx.passNote("the bot leaving the arena was detected at iteration " + run.fellAt()
+                    + "; the round ended after " + (out.ticks() - run.fellAt())
+                    + " more evidence-collection iterations, worst pump "
                     + String.format(java.util.Locale.ROOT, "%.1f", run.worstPumpMs()) + " ms");
         });
     }
@@ -1236,13 +1254,14 @@ public final class WorldDriverMobFightScenes {
         // Recorded, never gated. A fight that runs its whole budget is the shape the old 4-of-6 bar
         // was really reacting to, and it belongs in a row where it can be READ across runs instead
         // of in a threshold that reddens the gate at random. 4000 ticks is an arena constant.
-        ctx.record("fights.slow", slow + "/" + fights + " 场打满了 " + fightTicks
-                + " tick 预算还没打死；每场用了 " + ticks + " tick");
-        ctx.record("pearls.perFight", tally + "（× = 没打死）");
+        ctx.record("fights.slow", slow + "/" + fights + " fights used the full " + fightTicks
+                + "-tick budget without a kill; ticks per fight: " + ticks);
+        ctx.record("pearls.perFight", tally + " (× = not killed)");
         ctx.record("pearls.total", pearls + "");
-        ctx.record("arena", "封顶 " + (2 * r - 1) + "×" + (2 * r - 1) + "×" + (h - 1)
-                + " 的盒子 —— 瞬移落回盒内, 真要塞不是盒子");
-        ctx.record("body.invulnerable", "true —— 只说打得赢, 不说活得下来");
+        ctx.record("arena", "a roofed " + (2 * r - 1) + "×" + (2 * r - 1) + "×" + (h - 1)
+                + " box — teleports land back inside the box, and a real fortress is not a box");
+        ctx.record("body.invulnerable", "true — this shows only that the fight can be won, not that the"
+                + " bot would survive it");
         // The bar was 4 of 6 — a MAJORITY — and the comment justifying it already named the failure
         // mode it wanted: "a systematic break shows up as 0 or 1, which this still catches". A
         // majority is a far stricter test than that claim needs, and it turned out to sit INSIDE
@@ -1264,7 +1283,7 @@ public final class WorldDriverMobFightScenes {
         ctx.expect(killed).as("teleport-on-hurt does not make an enderman unkillable — more than a"
                         + " lucky single resolve out of " + fights + " fights").isAtLeast(2);
         ctx.expect(pearls).as("the kills yield ender pearls").isAtLeast(1);
-        ctx.passNote("盒中打死 " + killed + "/" + fights + " 只末影人, 掉 " + pearls + " 颗珍珠");
+        ctx.passNote("killed " + killed + "/" + fights + " endermen in the box, dropping " + pearls + " pearls");
     }
 
     /**
@@ -1318,10 +1337,11 @@ public final class WorldDriverMobFightScenes {
 
             ctx.record("crystal.alive", String.valueOf(crystal.isAlive()));
             ctx.record("body.alive", String.valueOf(fp.isAlive()));
-            ctx.record("body.invulnerable", "true —— 所以\"炸完还站着\"这条读数是弱的");
+            ctx.record("body.invulnerable", "true — so the \"still standing after the explosion\" reading is weak");
             ctx.expect(!crystal.isAlive()).as("a driven body can break an end crystal").isTrue();
             ctx.expect(fp.isAlive()).as("the body is still there after the explosion").isTrue();
-            ctx.passNote("近身砸掉末影水晶, 身体还在（水晶放在同层, 没测爬柱子）");
+            ctx.passNote("broke an end crystal at melee range and the bot is still present (crystal placed at"
+                    + " the bot's level; climbing the pillar not tested)");
         });
     }
 }

@@ -67,7 +67,7 @@ public interface Body {
     void commandJump(boolean v);
     void commandSneak(boolean v);
     /** Sprint intent. Sticky, unlike the per-tick channels above: it stays until something flips
-     *  it back, which is what every「…and definitely do not sprint into the lava」caller wants. On
+     *  it back, which is what every "…and definitely do not sprint into the lava" caller wants. On
      *  a client body this sets the sprint flag rather than pressing {@code keySprint}: vanilla's
      *  {@code aiStep} reads the key only to DECIDE a sprint start and emits STOP_SPRINTING from
      *  the flag alone, so the flag is both the shorter path and the one that also stops. */
@@ -78,7 +78,7 @@ public interface Body {
      * <p>The alternative — slam the yaw at the target and hold forward — is the right shape for
      * a metres-long swim and the wrong one for a correction measured in tenths of a block: the
      * camera whips for a nudge, which is one of the things a watching person reports as
-     *「视角乱甩」. Vanilla's {@code travel()} rotates the impulse by the CURRENT yaw, so feeding
+     * erratic camera whipping. Vanilla's {@code travel()} rotates the impulse by the CURRENT yaw, so feeding
      * it the bearing's offset from that yaw moves the body along the bearing while the camera
      * stays put (the {@code WalkerTickRepath} back-off idiom). Drives {@link #commandMove}, so it
      * outranks a running process.

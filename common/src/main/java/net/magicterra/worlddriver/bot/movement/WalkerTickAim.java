@@ -140,7 +140,7 @@ final class WalkerTickAim {
         // `wp.getY() != foot.getY()` test that toggled aimAtWaypoint every bob tick,
         // snapping the aim between the stable look-ahead carrot and the CLOSE waypoint
         // and swinging the yaw left-right (live 2026-06-15 deep-water crossing: camera
-        // "高频左右摆", pathChart maxYawErr 172°). In water, judge the vertical maneuver
+        // swinging rapidly left and right, pathChart maxYawErr 172°). In water, judge the vertical maneuver
         // by the CONTINUOUS Y gap to the waypoint with a bob-proof threshold (a flat or
         // gently-graded swim stays on the carrot; only a genuine dive / bank-climb ≥~1.5
         // aims at the block). On land the integer test is exact and unchanged.
@@ -232,7 +232,7 @@ final class WalkerTickAim {
             // like a held yaw does, and the buoyant water-exit mount whose next node is a
             // forward ledge walk only steadies). Land + gentle +1 only; parkour leaps
             // (precise launch aim) and steeper jumps keep the exact-waypoint aim.
-            // NOTE: extending this trend-average to DESCENTS (the live 2026-06-21 "下山转圈":
+            // NOTE: extending this trend-average to DESCENTS (the live 2026-06-21 camera spin while descending a slope:
             // close-node carrot-swing winds the yaw 600°+ down a steep slope) was A/B-DISPROVEN on
             // the deterministic descentYawArena — every variant was WORSE than no fix (off=1050°
             // thrash/242tk; descent-trend=1559°/569tk i.e. 2.3× SLOWER; parkour-inclusive=1529° @
@@ -242,7 +242,7 @@ final class WalkerTickAim {
             // bearing itself / cut switchback node density), not this aim swap. Up-steps only.
             if (!p.isInWater() && !parkourEdge && (wp.getY() - foot.getY()) == 1
                     && wk.step + 1 < wk.path.size()) {
-                // Path-trend averaging (the "路径趋势平均" true fix). Sum the UNIT direction of
+                // Path-trend averaging (the root-cause fix). Sum the UNIT direction of
                 // each upcoming segment while they stay consistent (<60° turn), so a diagonal
                 // staircase's ±30° per-step alternation collapses to the steady diagonal and the
                 // heading holds inside the pivot tolerance (no per-step drive cut → no sawtooth).
@@ -358,7 +358,7 @@ final class WalkerTickAim {
         // advance onto it, and the carrot/tangent aim points the body the wrong way (backward into a wall)
         // so it never re-centres — a ram-frozen wedge (journey 2026-06-29 -558,82: yaw -179 / yawErr -120 /
         // hCol / cur2 6.28 / 260 ticks; even safetyRepath at stuck>60 re-commits the same path). When wedged
-        // there, aim BACK at the overshot node so the body walks onto it (the 略微后退 it should do) and
+        // there, aim BACK at the overshot node so the bot walks onto it (the slight step back it should take) and
         // relaunches the climb from the aligned base. Dry + grounded + next-too-high + long stuck only.
         // hCol-gate refinement REVERTED 2026-06-29: requiring horizontalCollision made it WORSE (rev-897, a
         // STABLE archive, regressed 161→380 — the hCol subset is where backing up HURTS, i.e. ram-and-push-
@@ -415,7 +415,7 @@ final class WalkerTickAim {
         boolean launch = parkourEdge || steppingOffFall || steppingOffWaterFall;
         // Phase-2 (walkerTangentAim): replace the immediate-node bearing with the bob-immune path TANGENT
         // ahead of the projection. The node bearing reverses ~180° on a node overshoot — the backward-jump /
-        // 反复横跳 / facing-the-wall dead-corner stall; the tangent never flips, so the camera (via
+        // repeated side-to-side hopping / facing-the-wall dead-corner stall; the tangent never flips, so the camera (via
         // smoothTargetYaw/aimYaw below) and the captured descentNodeYaw both follow the path smoothly. Skipped
         // for launches (a leap snaps at its landing node) and inside the aim dead-zone (hold heading). The
         // projector ran this tick (call site gates on the same flag).
@@ -449,7 +449,7 @@ final class WalkerTickAim {
             // immediate node sits well off the tangent AND a wall is on the tangent heading, the body RAMS
             // the wall (horizontalCollision) instead of turning the corner toward the node — it then only
             // creeps across as drift sweeps the geometry (live dry-627 start: yaw frozen 91° / node bearing
-            // 122° / hCol=true / 350-tick churn, the "贴墙卡住" signature). When ramming with the node well
+            // 122° / hCol=true / 350-tick churn, the stuck-against-a-wall signature). When ramming with the node well
             // off the tangent, yield back to the DIRECT node bearing so the body turns off the wall onto the
             // node. Gated on hCol so a clean trend-cruise (no wall) keeps the bob-immune tangent unchanged.
             if (BotConfig.walkerWallCornerNodeAim && p.horizontalCollision) {
@@ -522,7 +522,7 @@ final class WalkerTickAim {
         boolean dryDescent = BotConfig.descentCameraDecouple && !p.isInWater() && !steppingOffWaterFall
                 && ( (!launch && wp.getY() <= foot.getY())                 // flat or descending walk
                    || (launch && BotConfig.descentDecoupleLaunches) );     // any dry launch
-        // Water 摇头 (head-shake) fix: extend the trend camera to FLAT water swimming. A buoyant bot
+        // Water head-shake fix: extend the trend camera to FLAT water swimming. A buoyant bot
         // crossing open water swims slowly (~1.4 b/s); near a waypoint the immediate-node bearing flips
         // ±170°/tick and the camera — coupled to it in water — swings, the visible head-shake (live
         // 2026-06-21 crossing: camera mean|dyaw|=3°/tick with ±170° driveYaw flips in the slow bursts).
@@ -575,7 +575,7 @@ final class WalkerTickAim {
         boolean trendCam = (dryDescent || flatWaterTrend) && !recoverySnagAim && !offPathPursuit(wk, p, launch, foot);
         // Smoothed water DRIVE: the raw immediate-node bearing flips ±180° when the slow buoyant body
         // overshoots a node, so driving it raw makes the body swim-wobble (live: 52% path efficiency,
-        // "突然转身背离目标"). A light EMA damps the per-tick flip while still tracking the node. WATER
+        // and the bot suddenly turning away from the target). A light EMA damps the per-tick flip while still tracking the node. WATER
         // ONLY: extending this EMA to dry descent was A/B-DISPROVEN in descentYawArena (raw backSteps=42
         // winding=211° → ema backSteps=54 winding=370° — the dry body has traction and needs the precise
         // node bearing; lagging it makes it overshoot/correct MORE). Dry back-hop's real fix is a
@@ -585,7 +585,7 @@ final class WalkerTickAim {
             // A slow buoyant body drifts off-axis, and the immediate node's bearing rotates faster the
             // closer it gets — within ~2 blocks it sweeps and flips ±180° as the body crosses it, so
             // the EMA still swings ±55°/tick and the swim wobbles/crawls (live: open-water hSpd
-            // collapses 0.078→0.02 at every node, the "绕node打转" churn). The carrot is a STABLE far
+            // collapses 0.078→0.02 at every node, the circling-around-a-node churn). The carrot is a STABLE far
             // heading (small angular sensitivity) that still ROUNDS corners (it walks the path) and
             // STOPS at a wall (carrotPoint's losWalkable break) — so it can't ram a divider the way
             // driving the far CENTROID did (waterFarAimBankCorner).
@@ -653,7 +653,7 @@ final class WalkerTickAim {
         // decoupled descending launch (dryDescent), which must NOT resync/snap: the leap is
         // drive-decoupled (driveTargetYaw=node), so the camera can keep its continuous EMA and
         // SLEW smoothly through the turn over the airborne ticks instead of snapping ~180° (the
-        // 下落转圈). Snapping stays for ascending leaps / water-falls where the leap aims via yaw.
+        // spin while falling). Snapping stays for ascending leaps / water-falls where the leap aims via yaw.
         boolean snapLaunch = launch && !dryDescent;
         if (Float.isNaN(wk.aimSmooth.smoothTargetYaw) || snapLaunch) {
             wk.aimSmooth.smoothTargetYaw = targetYaw;
@@ -670,7 +670,7 @@ final class WalkerTickAim {
             wk.aimSmooth.smoothTargetYaw = angleDiff(0f, wk.aimSmooth.smoothTargetYaw + alpha * angleDiff(wk.aimSmooth.smoothTargetYaw, targetYaw));
         }
         float aimYaw = snapLaunch ? targetYaw : wk.aimSmooth.smoothTargetYaw;
-        // ── 原地后跳 (in-place backward hop) fix ───────────────────────────────────────────────
+        // ── In-place backward hop fix ───────────────────────────────────────────────
         // The decoupled descent drive rides the IMMEDIATE node (descentNodeYaw). When the bot
         // OVERSHOOTS that node on a fall landing or a step (lands a hair past it), the node is now
         // BEHIND the body, so its bearing flips ~180° and the drive reverses — the body hops
@@ -692,7 +692,7 @@ final class WalkerTickAim {
         // the waypoint behind the bot), HOLD the heading instead of chasing the
         // flipping target. A ~180° flip resolves the same rotational way each time, so
         // chasing it winds the camera one direction (raw yaw past -900 ≈ 2.5 turns in
-        // the trace — the water "转圈"). Freezing stops the wind AND, since MC movement
+        // the trace — the water spin). Freezing stops the wind AND, since MC movement
         // follows body yaw, steadies the bot pressing one direction toward the climb-
         // out rather than U-turning. Launches still snap. Cleared as soon as progress
         // resumes (repathsNoProgress resets). */
@@ -841,7 +841,7 @@ final class WalkerTickAim {
         else if (wk.dive.hold > 0 && p.isInWater() && wp.getY() < foot.getY()) wk.dive.hold--;
         else wk.dive.hold = 0;
         boolean diving = diveTarget || (wk.dive.hold > 0 && p.isInWater());
-        // CAMERA-THRASH fix (bridge "镜头上下剧烈跳变"): while bridging, each place tick
+        // CAMERA-THRASH fix (the camera jumping violently up and down while bridging): while bridging, each place tick
         // does aimAtBlockSnap → requestSnap, instantly pitching the camera DOWN onto the
         // block being placed; pulling pitch back to the horizon (0) on every non-place
         // tick made the view saw violently between "look down at feet" and "look at sky".
@@ -850,7 +850,7 @@ final class WalkerTickAim {
         // does not affect movement, so freezing it here is motion-neutral.
         if (!bridging && !placingEdge)
             p.setXRot(smoothAngle(p.getXRot(), (diveUnderCap || diving) ? 50f : 0f));
-        // STEP-UP HEADING GATE (卡碰撞箱 fix): if a +1 step is still badly mis-aimed,
+        // STEP-UP HEADING GATE (fix for the bot catching on the riser's collision box): if a +1 step is still badly mis-aimed,
         // pivot in place instead of ramming the riser. The jump gate (ascendJumpReady
         // below) already checks POSITION alignment, but neither it nor the forward key
         // checked HEADING — so a drift-off-column / sharp-turn arrival bob-jammed the

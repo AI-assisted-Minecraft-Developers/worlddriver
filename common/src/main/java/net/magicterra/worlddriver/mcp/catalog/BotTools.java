@@ -108,7 +108,7 @@ public final class BotTools {
                 .desc("Stay within [min,max] Y (either side optional). hard:true prunes outside cells; "
                     + "else weight/block outside (default 10). E.g. keep out of caves, stay on the 2nd floor."))
             .prop("hug", object().prop("what", stringEnum("shore")).prop("weight", number())
-                .desc("沿河岸走: cells with no adjacent water cost weight (default 30, keep it ≫ 10 the "
+                .desc("Follow the shoreline: cells with no adjacent water cost weight (default 30, keep it ≫ 10 the "
                     + "per-cell walk cost). Pair with mode:['walk'] to stay dry."))
             .prop("leash", object()
                     .prop("center", array(number()))
@@ -116,7 +116,7 @@ public final class BotTools {
                     .prop("radius", number()).prop("hard", bool()).prop("weight", number())
                     .prop("axis", stringEnum("xz"))
                 .desc("Stay near an anchor: center [x,y,z] or entity (player name / type id / entity id, "
-                    + "followed as it moves — 带路: goto the destination + leash:{entity:'PlayerB'}). "
+                    + "followed as it moves — to lead the way: goto the destination + leash:{entity:'PlayerB'}). "
                     + "hard:true = may not leave the radius at all (routes straight back in when outside); "
                     + "else weight/block beyond it (default 20). axis:'xz' measures horizontally only "
                     + "(center may be [x,z]): with a vertical goal (y:N / direction up|down) and radius 1-2 "
@@ -191,9 +191,9 @@ public final class BotTools {
                 "route.leash:{center:[x,z],radius:2,hard:true,axis:'xz'} around your current column — or " +
                 "the search drowns in sideways branches and times out (measured: 16205 nodes timeout bare " +
                 "vs 68 nodes reached with the leash). Add route.requireTool:'minecraft:iron_pickaxe' to insist on the tool\n" +
-                "  LONG AIRBORNE TRAVEL (鞘翅返程): don't goto across thousands of blocks — use " +
+                "  LONG AIRBORNE TRAVEL (returning by elytra): don't goto across thousands of blocks — use " +
                 "route.mode:['fly'] (or mc.bot.elytraFly directly: reactive glide control, firework boost, groundFallback when no elytra)\n" +
-                "  UNDERWATER BASE (游进水下基地): goto pos:{base} + route:{mode:['dive'], break:'never'} — dive is " +
+                "  UNDERWATER BASE (swimming into an underwater base): goto pos:{base} + route:{mode:['dive'], break:'never'} — dive is " +
                 "opt-in; without it the planner treats water as an obstacle and routes ashore\n" +
                 "  - block:'minecraft:foo'    → nearest matching block within radius (default 32); " +
                 "Baritone 'goto <block>'. Accepts a '#tag' selector too — block:'#minecraft:logs' " +
@@ -574,7 +574,7 @@ public final class BotTools {
                 ),
 
             wrTool("mc.bot.bunker",
-                "挖三填一 emergency shelter — dig straight DOWN `depth` blocks at the bot's current spot " +
+                "\"Dig three, fill one\" emergency shelter — dig straight DOWN `depth` blocks at the bot's current spot " +
                 "and seal the roof with a dug block, making a 1×1 pocket no mob can reach. The no-gear way " +
                 "to survive a night or a swarm. AGENT-DRIVEN (not an auto-reflex): YOU decide when/where — " +
                 "typical plan is, at sunset (mc.observe.player.time.phase=='sunset'/'night') when exposed, " +
@@ -609,7 +609,7 @@ public final class BotTools {
                 "executes each crafting step via the recipe-book placement path (server fills the grid, " +
                 "the bot shift-clicks the result out) — 2x2 recipes use the inventory grid, 3x3 recipes " +
                 "open a crafting table (an existing one within reach, or one placed from the hotbar). " +
-                "If a leaf material is missing it fails up front with lastError '缺 N 个 X' (left for the " +
+                "If a leaf material is missing it fails up front with lastError 'missing N x X' (left for the " +
                 "caller to gather). Smelting/blasting routes are NOT followed — use mc.bot.smelt for those. " +
                 "Returns {ok, started, item, count}. Watch mc.bot.status.craft for completion/lastError.",
                 object()
@@ -626,7 +626,7 @@ public final class BotTools {
                 "ingredient into the input slot and a fuel into the fuel slot, waits for the output to " +
                 "cook (~200 ticks/item), then shift-clicks the result back to the inventory. Fuel is the " +
                 "supplied `fuel` item or auto-picked from the inventory (vanilla fuel table). Fails with " +
-                "lastError '缺 N 个 X' if the ingredient isn't held, or a furnace/fuel error otherwise. " +
+                "lastError 'missing N x X' if the ingredient isn't held, or a furnace/fuel error otherwise. " +
                 "Returns {ok, started, item, count, fuel}. Watch mc.bot.status.smelt for completion.",
                 object()
                     .req("item", string()

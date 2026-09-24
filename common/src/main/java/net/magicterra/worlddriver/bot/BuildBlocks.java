@@ -19,7 +19,7 @@ public final class BuildBlocks {
      *  — the actual shape test — a STURDY top face. Sturdy, NOT "full collision cube": that
      *  older test rejected mud/soul_sand/soul_soil for being 14/16 tall though the bot stands
      *  on them fine. It still rejects the thin/partial blocks this exists for (bottom slabs,
-     *  fences, carpets, bamboo, saplings) that would "搭路卡死". A non-empty
+     *  fences, carpets, bamboo, saplings) that would leave the bot stuck on the path it builds. A non-empty
      *  {@link BotConfig#buildBlockWhitelist} overrides the SHAPE test ONLY — the other three still
      *  apply. */
     public static boolean isUsableBuildBlock(net.minecraft.world.level.block.Block block) {

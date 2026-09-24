@@ -189,21 +189,22 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
                         java.util.List.of(new net.magicterra.worlddriver.bot.combat.ThreatScanner.Threat(
                                 zombie, zombie.getId(), "minecraft:zombie", dist, true, true, false, 0.6, 0f, /*attackedMe*/ false)),
                         java.util.List.of());
-        // gap#68-①: 被近战打中(attackedMe,非 Ranged)必须进闩——旧门只认 Ranged 或 HP≤thr
+        // A melee hit (attackedMe, not Ranged) must latch the flee; a gate that recognises only
+        // Ranged or HP<=thr would miss it.
         if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(2.0)))
             ctx.fail("gap#68-①: melee attackedMe at full-ish HP must latch the flee");
-        // 动态阈值:maxHp*0.4=8 > thr=6,HP 7 + 近战近身必须进
+        // Dynamic threshold: maxHp*0.4=8 > thr=6, so HP 7 with a melee mob close by must enter.
         if (!RetreatChain.shouldEnter(7f, 6f, 20f, zombieNear.apply(5.0)))
             ctx.fail("gap#68-①: effective threshold is max(thr, 40% maxHp)");
-        // 阴性:无人打我、HP 高、无 ranged → 不进
+        // Negative case: nobody is attacking, HP is high and there is no ranged threat, so no entry.
         if (RetreatChain.shouldEnter(18f, 6f, 20f, zombieNear.apply(5.0)))
             ctx.fail("gap#68-①: nearby idle zombie at high HP must NOT latch");
-        // release 对称性(gap#65 先例: underRangedFire 同时挡 enter 和 release):
-        // melee attackedMe@14 在 hostileWithin(12) 外、hurt-entry(24) 内 —— 若 release
-        // 不认 hurtByAnyone, safe 支当 tick 放闩、下一 tick hurt-entry 重进 = 每 tick 抖动。
+        // Release symmetry (as with underRangedFire, which blocks both enter and release): a melee
+        // attackedMe at 14 is outside hostileWithin(12) but inside hurt-entry(24). If release ignored
+        // hurtByAnyone, the safe branch would unlatch on one tick and hurt-entry re-enter on the next.
         if (RetreatChain.shouldRelease(20f, 10f, meleeHit.apply(14.0)))
             ctx.fail("gap#68-①: melee attackedMe at 14 must BLOCK release (enter/release symmetry)");
-        // 进入边界: 锁定 CLEAR_RADIUS*2=24 的精确截断。
+        // Entry boundary: pins the exact cutoff at CLEAR_RADIUS*2=24.
         if (!RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(23.0)))
             ctx.fail("gap#68-①: connected hit at 23 (inside 2xCLEAR_RADIUS) must enter");
         if (RetreatChain.shouldEnter(18f, 6f, 20f, meleeHit.apply(25.0)))
@@ -413,11 +414,11 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
         if (RetreatChain.releaseReason(20f, 10f, meleeHit.apply(14.0), Long.MAX_VALUE) != null)
             ctx.fail("gap#72-④: hurt-blocked release must classify as null");
 
-        // gap#72-③ geometry leg: the "am I sealed" signal is BunkerProcess's
-        // block-level enclosure ground truth (foot's 4 horizontal neighbors +
-        // head's 4 + the cell above the head all solid), now a public static
-        // gate shared with RetreatChain — single source, and it self-verifies
-        // "龛未破" (a stale SEALED slot over a since-breached pocket reads false).
+        // Geometry check: the "am I sealed" signal is BunkerProcess's block-level
+        // enclosure ground truth (the 4 horizontal neighbours of the foot cell, the 4 of
+        // the head cell, and the cell above the head all solid), a public static gate
+        // shared with RetreatChain. Being a single source, it self-verifies that the
+        // pocket is still intact: a stale SEALED slot over a since-breached pocket reads false.
         BlockPos pFoot = new BlockPos(cx + 8, floorY + 1, cz + 8);
         BlockPos pHead = pFoot.above();
         for (BlockPos b : new BlockPos[]{pFoot.north(), pFoot.south(), pFoot.east(), pFoot.west(),
@@ -430,15 +431,16 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
             ctx.fail("gap#72-③(x): fully enclosed 1×1 pocket must read enclosed=true");
         level.setBlockAndUpdate(pHead.above(), Blocks.AIR.defaultBlockState());   // breach the roof
         if (BunkerProcess.enclosed(pocketView, pFoot))
-            ctx.fail("gap#72-③(y): pocket with a broken roof must read enclosed=false (龛未破 self-verifies)");
+            ctx.fail("gap#72-③(y): pocket with a broken roof must read enclosed=false (the pocket-intact check self-verifies)");
     }
 
     // ==================================================================================
     // wd.walkerTerminalReportMatrix — gap#68-R2a Walker.classifyArrival honesty (5 rows).
     // ==================================================================================
 
-    // gap#68-R2: Walker.classifyArrival 纯函数矩阵 —— ARRIVED 出口必须可区分
-    // (goal-snapped / frontier-giveup 等由调用点直接传标签,本函数只管三态通用出口)
+    // Pure-function matrix for Walker.classifyArrival: the ARRIVED exits must be distinguishable.
+    // Call sites pass specific labels such as goal-snapped or frontier-giveup themselves; this
+    // function covers only the three generic exit states.
     static void walkerTerminalReportMatrix(BiConsumer<Boolean, String> check) {
         check.accept("arrived".equals(Walker.classifyArrival(false, true,  false)), "full path + reached = arrived");
         check.accept("arrived".equals(Walker.classifyArrival(true,  true,  false)), "best-effort + reached = arrived");
@@ -613,14 +615,14 @@ public final class WorldDriverSchedulerScenes implements SceneProvider {
     // matrix (26 rows) + gap#75-b re-arm WORLD leg over a real BunkerProcess (7 rows) = 33.
     // ==================================================================================
 
-    // gap#72-①: duskSecure holds a BunkerProcess (SEALED-hold, active=true endReason=SEALED
-    // = "驻守中" by design) and a higher chain (RetreatChain 100) preempts it. onInterrupt
-    // used to only `process = null` — the slot's ONLY reset point (BunkerProcess.finish)
-    // became forever unreachable, so st.bunker stayed active=true/SEALED as a permanent
-    // orphan and mc.bot.status lied all night (live 2026-07-14 incident). Interrupt/cancel
-    // of a chain-held process must go through the same finish/slot-reset lifecycle as a
+    // duskSecure holds a BunkerProcess (SEALED-hold, active=true endReason=SEALED, which by
+    // design means "holding position") and a higher chain (RetreatChain 100) preempts it.
+    // If onInterrupt only cleared `process`, the slot's ONLY reset point (BunkerProcess.finish)
+    // would become unreachable, st.bunker would stay active=true/SEALED as a permanent orphan,
+    // and mc.bot.status would report a stale bunker indefinitely. Interrupt/cancel of a
+    // chain-held process must therefore go through the same finish/slot-reset lifecycle as a
     // natural completion, with a distinguishable endReason (INTERRUPTED vs CANCELLED vs
-    // SEALED). Pure state matrix — client key release is NOT exercised here (dedicated
+    // SEALED). Pure state matrix: client key release is NOT exercised here (the dedicated
     // server has no client classes; same split as chainEpisodeCancelMatrix).
     static void duskSecureHeldProcessLifecycleMatrix(BiConsumer<Boolean, String> check) {
         // ① preemption (onInterrupt) of a SEALED-hold bunker

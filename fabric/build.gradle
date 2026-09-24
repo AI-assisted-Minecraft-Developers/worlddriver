@@ -262,7 +262,7 @@ loom {
             // 2026-08-20 body-selection instruction puts JoinedBody on the DEDICATED server only, so
             // `SceneBody` refuses to mint one here and every scene that needs a headless body is a
             // recorded skip until its family is converted to the client helm.
-            // The old doctrine「a topology must vary the RUN, never the subject」still applies to
+            // The old doctrine "a topology must vary the RUN, never the subject" still applies to
             // every OTHER pair of topologies, and it is why the skips have to be reconciled against
             // the dedicated gate rather than counted as coverage.
             // Hold the suite until the local player is actually placed. Without it the suite arms at
@@ -340,14 +340,15 @@ loom {
         }
         // ---- The SAME ladder, under the other two topologies. ----
         //
-        // The three exist so that a failed rung can be read as「这具身体做不到」or「这台驱动做不
-        // 对」rather than as one undivided fact. `journeyServer` above is the only one of them that
-        // has ever run, and it is the one with NO client at all: nothing renders, nothing sends a
-        // movement packet, and every client-side class in this repo is absent from the JVM. A defect
-        // that lives on that side cannot be observed there at ALL — which is how
+        // The three exist so that a failed rung can be read as "the player cannot physically do
+        // this" or "the driver does it wrong" rather than as one undivided fact. `journeyServer`
+        // above is the only one of them that has ever run, and it is the one with NO client at
+        // all: nothing renders, nothing sends a movement packet, and every client-side class in
+        // this repo is absent from the JVM. A defect that lives on that side cannot be observed
+        // there at ALL — which is how
         // `ServerPlayerBody.commandUseItem(false)` shipped calling `stopUsingItem()` (clears the
         // flag) instead of `releaseUsingItem()` (routes to `ItemStack.releaseUsing`): a fully drawn
-        // bow「fired」and produced no arrow, with no exception, past 222 green scenes.
+        // bow "fired" and produced no arrow, with no exception, past 222 green scenes.
         //
         // What each one adds, precisely:
         //
@@ -359,8 +360,8 @@ loom {
         //   journeyDedicatedServerWithClient — a real client JOINS over a socket. Same as above but
         //                                      the two halves are separate processes and every
         //                                      packet is actually encoded, which is the difference
-        //                                      between「works in singleplayer」and「works on a
-        //                                      server」.
+        //                                      between "works in singleplayer" and "works on a
+        //                                      server".
         //
         // ⚠️ WHICH BODY CLIMBS IS NOT THE SAME ON ALL THREE, and this comment said the opposite
         // until 2026-08-22. `journeyIntegratedServer` ADOPTS the client's real player
@@ -382,7 +383,8 @@ loom {
             // Hold the suite until the client is actually IN the world it is hosting. Without this
             // the integrated server arms at SERVER_STARTED, which on this topology is before the
             // local player has been placed — so rung 1 would race the very thing this topology
-            // exists to provide, and「有没有真玩家」would depend on boot timing.
+            // exists to provide, and "whether a real player is present" would depend on boot
+            // timing.
             property 'stagewright.awaitPlayer', 'true'
             // Empty unless asked for; the default lives in JourneyRig. -PwalkerDebug=true turns on
             // the per-tick walker/AutoSwim account, which is the only record of what the client
@@ -475,8 +477,8 @@ loom {
                     (project.findProperty('breakAStair') ?: 'false').toString()
             // Make the shaft's wet-column guard TRIP, and its remedy run. The flood that fires it is
             // random on a real climb — the same seed, the same column, dirt on one ladder run and
-            // water on the next — so「换一根柱子」could only ever be verified by being unlucky at
-            // twenty-five minutes a try:
+            // water on the next — so "switch to another column" could only ever be verified by
+            // being unlucky at twenty-five minutes a try:
             //   ./gradlew :fabric:runRehearsalServer -Prehearse=OBSIDIAN -PwetShaft=true
             // Same two locks as breakAStair: off unless asked for, and refused when no rung is being
             // rehearsed. See JourneyShaft.floodTheColumnOnce.
@@ -621,7 +623,7 @@ loom {
         // `journeyDedicatedServerWithClient` matched no clause, fell through, and had their
         // ephemeral ports overwritten with the pinned pair — which on the two-process topology is
         // two JVMs binding one port, and everywhere is a run that fights a live dev client. A guard
-        // whose failure mode is「a config added later is quietly not covered」has to be a rule about
+        // whose failure mode is "a config added later is quietly not covered" has to be a rule about
         // the family, not an enumeration of it.
         if (it.name == 'contractServer' || it.name == 'dogfoodServer'
                 || it.name.startsWith('journey') || it.name.startsWith('rehearsal')

@@ -91,7 +91,7 @@ public final class JourneyRoute {
      * from {@link #firstTree} were 4, then 3, then 2 on consecutive runs. Three logs is twelve
      * planks, and the ladder's bill through the furnace is a table (4), sticks (2), a wooden pickaxe
      * (3) and a replacement table for each craft that finds itself without one. Runs died of exactly
-     * that arithmetic, a rung apart, reporting {@code 缺 1 个 oak_log}. So the wood rung walks to a
+     * that arithmetic, a rung apart, reporting a shortfall of one oak_log. So the wood rung walks to a
      * second trunk, which is what a player does.
      *
      * <p><b>This is the one landmark that could not be baked, and it is not for want of trying.</b>
@@ -161,7 +161,7 @@ public final class JourneyRoute {
      *
      * <p>Two veins are not four ingots either, and four is what the portal kit costs. Measured:
      * a run took {@code vein1.raw_iron=0} and {@code vein2.raw_iron=3}, smelted three, and the kit
-     * rung failed on {@code 缺 1 个 iron_ingot} holding a bucket and six flint it did not need. This
+     * rung failed on a shortfall of one iron_ingot, holding a bucket and six flint it did not need. This
      * seed's veins run one to three ore, so "how many veins" is the wrong question to answer once —
      * the rung digs until it has the bill or runs out of surveyed veins, and this is the third.
      *
@@ -729,8 +729,9 @@ public final class JourneyRoute {
 
         /** What a record line should say — the answer and its price, never one without the other. */
         public String asRecord() {
-            return found.asRecord() + "（耗时 " + millis + " ms，最多搜 " + rings + " 圈放置区）"
-                    + (overBudget() ? " ⚠ 超出勘测预算 " + SURVEY_MS_BUDGET + " ms" : "");
+            return found.asRecord() + " (took " + millis + " ms, searched up to " + rings
+                    + " rings of placement regions)"
+                    + (overBudget() ? " ⚠ over the survey budget of " + SURVEY_MS_BUDGET + " ms" : "");
         }
     }
 
@@ -803,7 +804,7 @@ public final class JourneyRoute {
         long startedNs = System.nanoTime();
         ServerLevel level = ctx.level().getServer().getLevel(where);
         if (level == null) {
-            return new Located(new Found(label + " [维度 " + where.location() + " 没有加载]", null, -1),
+            return new Located(new Found(label + " [dimension " + where.location() + " is not loaded]", null, -1),
                     millisSince(startedNs), rings);
         }
         BlockPos at;
@@ -925,7 +926,7 @@ public final class JourneyRoute {
         //
         // And restricted to the FIRST tree's own kind, which is not fussiness. A swamp mixes oak and
         // birch, so the nearest second tree is often the other species — and measured, a run that
-        // felled 7 logs still failed its next craft with `缺 1 个 oak_log` holding birch, because
+        // felled 7 logs still failed its next craft on a shortfall of one oak_log while holding birch, because
         // CraftProcess's resolver commits to one plank variant instead of treating the planks tag as
         // the recipe does. Two species is therefore two separate piles for planning purposes, and
         // seven logs in two piles buys less than five in one. Same-kind is the scripted way round

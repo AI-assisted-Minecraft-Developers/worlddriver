@@ -1,4 +1,4 @@
-"""journey replay-corpus 清单加载器。"""
+"""Loader for the journey replay-corpus manifest."""
 import json
 from dataclasses import dataclass
 

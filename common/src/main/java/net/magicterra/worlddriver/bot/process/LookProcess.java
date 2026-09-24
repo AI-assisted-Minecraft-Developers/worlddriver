@@ -63,8 +63,8 @@ public final class LookProcess implements BotProcess {
                     ticks, curY, ny, ty, curP, np, tp, yawErr, aligned);
         if (aligned) { st.look.reset(); return true; }
         if (++ticks > MAX_TICKS) {
-            // Split out of `aligned || ++ticks > MAX_TICKS`, which collapsed「the aim converged」and
-            //「the aim never converged in 200 ticks」into ONE unstamped exit. `snapshot()` emits
+            // Split out of `aligned || ++ticks > MAX_TICKS`, which collapsed "the aim converged" and
+            // "the aim never converged in 200 ticks" into ONE unstamped exit. `snapshot()` emits
             // lastError only when it is non-null and `attach` cleared it, so a look that never got
             // there reported exactly the clean finish a look that did reports. The residual comes
             // with it because an aim that stopped 0.6° out and one still 90° out want different

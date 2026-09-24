@@ -19,7 +19,7 @@ import static net.magicterra.worlddriver.WorldDriverCommon.LOG;
 import static net.magicterra.worlddriver.bot.util.BotUtil.yawFor;
 
 /**
- * Agent-invoked "挖三填一" bunker — a sand-SAFE emergency shelter. The Agent calls
+ * Agent-invoked "dig three, fill one" bunker — a sand-SAFE emergency shelter. The Agent calls
  * {@code mc.bot.bunker{depth}} when it plans to (e.g. at sunset when exposed); it
  * is NOT an auto-reflex.
  *
@@ -75,7 +75,7 @@ public final class BunkerProcess implements BotProcess {
      *  endReason/goalReached in place, ONCE, without reset() and without changing the
      *  return value. awaitable's slot fold then carries
      *  {active:true, endReason:"SEALED", goalReached:<enclosed>} = the caller can
-     *  read "真围合成功且在驻守" even though the await itself times out (by design —
+     *  read "genuinely enclosed and holding position" even though the await itself times out (by design —
      *  the process keeps holding the pocket). */
     private boolean sealedVerdictStamped;
 
@@ -217,10 +217,10 @@ public final class BunkerProcess implements BotProcess {
 
     @Override public String failure() { return failure; }
 
-    /** Block-level enclosure ground truth (spec §4.3 修正): the 4 horizontal
-     *  neighbors of the FOOT cell, the head cell's 4 horizontal neighbors, and the
-     *  cell above the head are all solid. hazardSummary.cornered 语义是"被敌对逼
-     *  死角",不可用作围合断言。 */
+    /** Block-level enclosure ground truth: the 4 horizontal neighbors of the FOOT
+     *  cell, the head cell's 4 horizontal neighbors, and the cell above the head are
+     *  all solid. hazardSummary.cornered means "driven into a corner by hostiles" and
+     *  must not be used as an enclosure assertion. */
     private static boolean enclosed(WorldView w, Body a) {
         if (a.entity() == null) return false;
         return enclosed(w, a.entity().blockPosition());
@@ -229,7 +229,7 @@ public final class BunkerProcess implements BotProcess {
     /** Position-keyed enclosure check — public single source (gap#72-③): also the
      *  "am I in a sealed pocket" signal for {@code RetreatChain}'s sealed-pocket
      *  exemption, so the reflex and the bunker agree on what "sealed" means. Being
-     *  a live block read it self-verifies 龛未破: a stale SEALED slot over a
+     *  a live block read it self-verifies that the pocket is still intact: a stale SEALED slot over a
      *  since-breached pocket reads {@code false} here. */
     public static boolean enclosed(WorldView w, BlockPos foot) {
         BlockPos head = foot.above();

@@ -8,11 +8,12 @@ import net.magicterra.worlddriver.bot.movement.Walker;
  *
  * <p><b>The reading rung 6 could not produce.</b> Its timeout of 2026-08-26 spent 8040 ticks on
  * 5788 searches whose goal never moved off one cell, and the futile gate excused 5787 of them
- * under「搜索到达了目标」— by design, and {@code SearchGovernors.deadZoneRepeats} already names
- * the shape in prose: 「it is gated on {@code !res.goalReached()}, and a dead-zone happens when
- * the search SUCCEEDS and the executor then refuses the edge it produced」, measured there as a
- * body that re-routed for a whole 2400-tick leg budget while three separate guards each
- * correctly refused to move it. Four right answers and no legal move.
+ * under the skip reason "the search reached its goal". That exclusion is by design, and
+ * {@code SearchGovernors.deadZoneRepeats} already describes the pattern: "it is gated on
+ * {@code !res.goalReached()}, and a dead-zone happens when the search SUCCEEDS and the executor
+ * then refuses the edge it produced". It was measured there as a bot that re-routed for the whole
+ * 2400-tick budget of one movement task while three separate guards each correctly refused to
+ * move it. Four correct answers and no legal move.
  *
  * <p>Naming WHICH refuser needs the executor's own counters, and every existing home for them
  * missed that rung. {@code death.strideGuard} writes only when the body dies;
@@ -69,19 +70,21 @@ final class WalkerCensus {
         for (int i = 0; i < names.length; i++) {
             long v = Walker.strideGuardSkips.get(i) - skipsAtStart[i];
             skipSum += v;
-            sb.append(i == 0 ? "" : "，").append(names[i]).append('=').append(v);
+            sb.append(i == 0 ? "" : ", ").append(names[i]).append('=').append(v);
         }
         int fires = Walker.strideGuardFires - firesAtStart;
-        return "stride 守卫本级点火 " + fires + " 次、放行 " + skipSum + " tick"
+        return "stride guard on this rung: fired " + fires + " times, let " + skipSum + " ticks pass"
                 + (fires + skipSum == 0
-                        ? "（合计 0 —— 守卫本级一次都没被调用到，所以钉住身体的不是它；"
-                          + "另外两个拒绝者（落脚守卫、解卡跳）此刻还没有读数）"
-                        : "，放行理由：" + sb)
-                + "；强制重规划 " + (Walker.guardForcedRepaths - repathsAtStart)
-                + " 次、钉满但计划仍在前进 " + (Walker.guardKeptPlans - keptPlansAtStart)
-                + " 次、钉满且手里没计划 " + (Walker.guardPinnedWithNoPlan - pinnedNoPlanAtStart)
-                + " 次；walker 最后一 tick 在做（⚠️整趟共享，本级不 tick 时是别级留下的）="
-                + Walker.lastTickTrace
-                + "；最后一个还有支撑的 tick 在做=" + Walker.lastSupportedTrace;
+                        ? " (total 0: the guard was never called on this rung, so it is not what held"
+                          + " the bot in place; the other two refusers, the footing guard and the"
+                          + " unstick hop, have no readings yet)"
+                        : ", pass reasons: " + sb)
+                + "; forced repaths " + (Walker.guardForcedRepaths - repathsAtStart)
+                + ", pinned at the limit with the plan still advancing "
+                + (Walker.guardKeptPlans - keptPlansAtStart)
+                + ", pinned at the limit with no plan " + (Walker.guardPinnedWithNoPlan - pinnedNoPlanAtStart)
+                + "; walker's last tick (shared across the whole playthrough; when this rung is not"
+                + " ticking it is another rung's)=" + Walker.lastTickTrace
+                + "; last tick with support underfoot=" + Walker.lastSupportedTrace;
     }
 }

@@ -1,6 +1,7 @@
-"""跨全 corpus 跑一个 flag 组合,产出 maxStuck 矩阵 + per-archive 发散表,可存盘 + 过接受门。
+"""Run one flag combination across the whole corpus, producing a maxStuck matrix and a
+per-archive divergence table, optionally saved to disk and checked against the acceptance gate.
 
-用法:
+Usage:
   python3 -m scripts.pmcs.sweep --flags '{}' --save baseline.json
   python3 -m scripts.pmcs.sweep --flags '{"walkerX":true}' --baseline baseline.json --timeout 150
 """
@@ -15,13 +16,14 @@ from scripts.pmcs.gate import evaluate_gate
 
 
 def median_int(values):
-    """中位数(对单个 warmup 冷启动离群鲁棒)。"""
+    """Median (robust to a single warm-up cold-start outlier)."""
     return int(statistics.median(values))
 
 
 def sweep(corpus_path, flags, timeout, repeat=1):
-    """每归档跑 repeat 次取 maxStuck 中位数(steep churn 是双稳态混沌 + warmup 冷启动离群,
-    单跑摆动 ~8×;中位数对 1 个离群鲁棒)。返回 [(entry, median_maxStuck, samples, arrive_count, div_union)]。"""
+    """Run each archive `repeat` times and take the median maxStuck (steep churn is bistable and
+    chaotic, plus warm-up cold-start outliers, so a single run swings ~8×; the median is robust to
+    one outlier). Returns [(entry, median_maxStuck, samples, arrive_count, div_union)]."""
     entries = load_corpus(corpus_path)
     results = []
     for e in entries:
@@ -44,10 +46,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", default="config/worlddriver/replays/corpus.json")
     ap.add_argument("--flags", default="{}")
-    ap.add_argument("--baseline", default=None, help="过门:对比的 baseline matrix JSON")
-    ap.add_argument("--save", default=None, help="把本次 matrix 存到此 JSON")
+    ap.add_argument("--baseline", default=None, help="gate check: baseline matrix JSON to compare against")
+    ap.add_argument("--save", default=None, help="save this run's matrix to this JSON file")
     ap.add_argument("--timeout", type=int, default=160)
-    ap.add_argument("--repeat", type=int, default=1, help="每归档跑几次取中位数(steep churn 双稳态,建议 3)")
+    ap.add_argument("--repeat", type=int, default=1, help="runs per archive for the median (steep churn is bistable; 3 is recommended)")
     a = ap.parse_args()
     flags = json.loads(a.flags)
     results = sweep(a.corpus, flags, a.timeout, repeat=a.repeat)

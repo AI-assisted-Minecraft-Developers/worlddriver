@@ -9,7 +9,7 @@ package net.magicterra.worlddriver.bot.movement;
  * {@code releaseKeys()} on EVERY idle tick (no active process). Those keybinds are
  * the SAME objects the player's keyboard drives, and MC only re-asserts a held key
  * on the GLFW press edge — so clearing them 20×/s left a manually-held W/A/S/D/space
- * dead within ~50 ms of each press ("装了模组按键非常卡手"), even with no agent.
+ * dead within ~50 ms of each press (keys felt unresponsive with the mod installed), even with no agent.
  *
  * <p><b>The rule.</b> The bot pressing any movement keybind marks them "dirty"
  * ({@link #markDirtied}). A release ({@link #consumeRelease} → {@code true}) clears

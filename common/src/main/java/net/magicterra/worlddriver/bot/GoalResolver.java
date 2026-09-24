@@ -177,7 +177,7 @@ public static int[] horizontalStep(Entity p, String d) {
  *  ({@code SchemaValidator} rejects an out-of-enum string before {@code DriverApi.route} runs) —
  *  but the two enums do not agree either: {@code mc.bot.goto} declares {@code "backward"} and
  *  {@code mc.bot.construct} declares {@code "back"} ({@code BotTools} 143 / 447). So the word an
- *  agent must type for「the way I came」changes between two verbs of the same API, and each
+ *  agent must type for "the way I came" changes between two verbs of the same API, and each
  *  resolver only understands its own half. Reconciling them means one enum, one accept-set and a
  *  validation script — not quietly widening one side. */
 public static Direction resolveCardinalDirection(Entity pl, String dir) {

@@ -60,7 +60,7 @@ public interface WorldView {
     /** True for a leaf block (the #minecraft:leaves tag). Leaves are full-collision, so the
      *  planner treats a leaf top as ordinary standable ground and will route the bot UP onto a
      *  tree canopy as a climb shortcut — where it bobs/slides on the irregular leaf surfaces and
-     *  rams the dense head-height leaves (the "树下撞树叶" canopy-climb jank). Used by
+     *  rams the dense head-height leaves (the canopy-climb jank of colliding with leaves under a tree). Used by
      *  {@code PathFinder.leafCellTax} to softly price canopy cells so A* prefers the ground route
      *  around/under the tree. Default false (headless/grid views have no leaves). */
     default boolean isLeaves(BlockPos pos) { return false; }
@@ -117,8 +117,8 @@ public interface WorldView {
      * Count of placeable (non-falling) blocks the bot carries — the budget for
      * bridge/pillar/parkour placements. The Walker compares a committed path's
      * placement count against this and, if short, re-searches with placing off so
-     * A* digs/routes around instead of bridging partway and stranding ("搭桥前算够
-     * 不够，否则就挖"). Default {@link Integer#MAX_VALUE} so a non-inventory view
+     * A* digs/routes around instead of bridging partway and stranding (check the block
+     * count before bridging, otherwise dig). Default {@link Integer#MAX_VALUE} so a non-inventory view
      * (headless tests) never triggers the budget reroute. Creative ≈ unbounded. */
     default int placeableBlockCount() { return Integer.MAX_VALUE; }
 

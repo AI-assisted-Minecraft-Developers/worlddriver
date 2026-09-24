@@ -300,15 +300,16 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         int engages = Walker.waterPillarEngages - engages0;
         int bails = Walker.waterPillarCeilingBails - bails0;
         ctx.record("pillar.engages", engages == 0
-                ? "0 —— 这一趟从没走过 pillar 接管那条路，所以它对那条路什么都没测到"
+                ? "0 — this run never took the pillar takeover path, so it measured nothing about that path"
                 : String.valueOf(engages));
         ctx.record("pillar.ceilingBails", engages == 0
-                ? "unavailable/接管一次都没发生，0 不代表守卫没开火而是没人问过它"
-                : bails + " 次越过 engage 脚下 +" + 5 + " 的天花板");
+                ? "unavailable/the takeover never happened; 0 does not mean the guard did not fire, it"
+                        + " means the guard was never consulted"
+                : bails + " times past the ceiling at +" + 5 + " above the feet at engage");
         ctx.record("pillar.topRise", engages == 0
-                ? "unavailable/同上"
-                : Walker.waterPillarTopRise + " 格（离天花板还差 "
-                        + (5 - Walker.waterPillarTopRise) + " 格）");
+                ? "unavailable/same as above"
+                : Walker.waterPillarTopRise + " blocks ("
+                        + (5 - Walker.waterPillarTopRise) + " blocks short of the ceiling)");
         if (!onPlateau)
             ctx.fail("buoyantWall: BUOYANT +5 wall: Walker failed to mount from water: pos=("
                     + fp.getX() + "," + fp.getY() + "," + fp.getZ() + ") maxY=" + maxY
@@ -563,7 +564,7 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
     /** Ported from {@code AgentGameTestWaterBank#tallBankDigClimbArena}: TOOLLESS tall-bank climb-out (live
      *  2026-06-20 deep-water stone-bank). +3 SOLID hill the bot digs a diagonal staircase up THROUGH; the
      *  bot holds only SAND (FallingBlock → no pillar). {@code faithfulBreak} ON models the ~750-tick/block
-     *  slow stone-mine. 兜底 gate: reach the dry plateau within the tick budget. */
+     *  slow stone-mine. Fallback gate: reach the dry plateau within the tick budget. */
     private static void tallBankDigClimb(SceneContext ctx) {
         ServerLevel level = ctx.level();
         final int cx = ctx.origin().getX(), cz = ctx.origin().getZ();
@@ -1375,52 +1376,58 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         }
         int engages = Walker.waterPillarEngages - engages0;
 
-        ctx.record("闸.接管次数", engages);
-        ctx.record("闸.点击开火次数", Walker.waterPillarPlaceCalls - clicks0);
-        ctx.record("账.计数峰值", maxNoPlace);
-        ctx.record("账.判过徒劳吗", sawFutile);
-        ctx.record("柱.钉住格", pinnedAt == null ? "无（水柱被填满了）" : pinnedAt.toShortString()
-                + " 身体y=" + String.format("%.3f", fp.getY()));
-        ctx.record("柱.那一格实心了吗", pinnedAt != null && w.isSolid(pinnedAt));
-        ctx.record("带.身体高于填充格", String.format("[%.3f, %.3f]", bandLow, bandHigh)
-                + "（旧 crest 闸 0.9／原版接受线 1.0）");
-        ctx.record("走.收尾", s + "（用了 " + t + "/400 tick）");
-        ctx.record("走.探针", walker.progressProbe());
+        ctx.record("gate.takeoverEngages", engages);
+        ctx.record("gate.placeClicksFired", Walker.waterPillarPlaceCalls - clicks0);
+        ctx.record("ledger.peakCount", maxNoPlace);
+        ctx.record("ledger.everJudgedFutile", sawFutile);
+        ctx.record("pillar.pinnedCell", pinnedAt == null ? "none (the water column was filled)" : pinnedAt.toShortString()
+                + " bot y=" + String.format("%.3f", fp.getY()));
+        ctx.record("pillar.pinnedCellSolid", pinnedAt != null && w.isSolid(pinnedAt));
+        ctx.record("band.feetAboveFillCell", String.format("[%.3f, %.3f]", bandLow, bandHigh)
+                + " (old crest gate 0.9 / vanilla acceptance line 1.0)");
+        ctx.record("walk.end", s + " (used " + t + "/400 ticks)");
+        ctx.record("walk.probe", walker.progressProbe());
 
         // VACUITY, and this one is load-bearing: with the defect present the counter is 0 because
         // every click zeroes it, and with the takeover never engaged it is 0 because the branch
         // never ran. Those two look identical from the counter alone, so the engage count has to
         // be asked separately or a staging failure would read as a reproduction of the defect.
         if (engages == 0)
-            ctx.fail("pillarLedger: 水中爬出接管一次都没 engage —— 这一趟没有走到被测的那段代码，"
-                    + "计数器是 0 说明的是布景不对，不是账本有问题。探针=" + walker.progressProbe());
+            ctx.fail("pillarLedger: the water climb-out takeover never engaged — this run never reached"
+                    + " the code under test, so a counter of 0 indicates a faulty test setup, not a ledger"
+                    + " defect. probe=" + walker.progressProbe());
         if (pinnedAt != null && w.isSolid(pinnedAt))
-            ctx.fail("pillarLedger: 钉住的那一格 " + pinnedAt.toShortString() + " 竟然变实心了 —— "
-                    + "0.95 这个高度本该被 Level#isUnobstructed 拒绝，布景没有造出「必然被拒」的带。");
+            ctx.fail("pillarLedger: the pinned cell " + pinnedAt.toShortString() + " became solid — a"
+                    + " height of 0.95 should have been refused by Level#isUnobstructed, so the test setup"
+                    + " did not produce the band in which every placement is refused.");
         // THE BAND, self-proved. Without this the scene can go green for the opposite reason: a body
         // that never rose at all also never places, so the counter also climbs and placeFutile also
         // fires — a PASS that says nothing about the refusal band. Asserting both edges pins the
         // staging to the one geometry the defect lived in.
         if (bandHigh < 0.9 || bandHigh >= 1.0 || bandLow < 0.9)
-            ctx.fail("pillarLedger: 身体相对填充格的高度是 [" + String.format("%.3f", bandLow) + ", "
-                    + String.format("%.3f", bandHigh) + "]，没有整趟落在 [0.9, 1.0) 这条带里 —— "
-                    + "低于 0.9 就没进过旧的 crest 闸，到了 1.0 原版就会接受放置。两种情况下这一趟"
-                    + "都不是在问「被拒的点击算不算进展」，绿了也不说明账本记的是结果。");
+            ctx.fail("pillarLedger: the bot's height relative to the fill cell was [" + String.format("%.3f", bandLow)
+                    + ", " + String.format("%.3f", bandHigh) + "], not within the [0.9, 1.0) band for the"
+                    + " whole run — below 0.9 the old crest gate is never entered, and at 1.0 vanilla accepts"
+                    + " the placement. In either case this run does not test whether a refused click counts"
+                    + " as progress, and a pass would not show that the ledger records outcomes.");
 
         // THE CLICK ITSELF, and it has to be asked out loud. Everything above is satisfied by a run
         // in which the crest gate never opened: the cell stays water, the counter climbs, futility
-        // fires. That is not this scene's subject —「被拒的点击不算进展」needs a click to have been
+        // fires. That is not this scene's subject — "a refused click is not progress" needs a click to have been
         // refused. It went unnoticed for one whole gate run, which is why it is a guard now.
         if (Walker.waterPillarPlaceCalls - clicks0 == 0)
-            ctx.fail("pillarLedger: 整趟一次点击都没开火（crest 闸没开过）—— 计数器爬到 " + maxNoPlace
-                    + " 说明的是「没人按」，不是「按了没用」。这一趟没有测到被测的那件事。");
+            ctx.fail("pillarLedger: no click fired during the whole run (the crest gate never opened) — the"
+                    + " counter reaching " + maxNoPlace + " means \"nothing was clicked\", not \"clicks had no"
+                    + " effect\". This run did not test the behaviour under test.");
         if (!sawFutile)
-            ctx.fail("这本账记的是动作不是结果：连续 " + t + " tick 每一次放置都被 vanilla 拒绝（"
-                    + "身体钉在 " + (pinnedAt == null ? "?" : String.valueOf(pinnedAt.getY() + 0.95))
-                    + "，够得着 0.9 的闸但够不着 1.0 的物理线），而 placeFutile 一次都没为真，"
-                    + "pillarNoPlaceTicks 峰值只有 " + maxNoPlace + "。"
-                    + "WalkerTickClimb 在 a.place() 之后无条件把计数器清零，而 Hands.place 是 void、"
-                    + "根本没有成功与否可报 —— 于是 placeFutile 永远为假，它后面那条挖掘后备永远接不了管。");
+            ctx.fail("The ledger records actions, not outcomes: for " + t + " consecutive ticks every placement"
+                    + " was refused by vanilla (the bot was pinned at "
+                    + (pinnedAt == null ? "?" : String.valueOf(pinnedAt.getY() + 0.95))
+                    + ", high enough for the 0.9 gate but below the 1.0 physics line), yet placeFutile was"
+                    + " never true and pillarNoPlaceTicks peaked at only " + maxNoPlace + "."
+                    + " WalkerTickClimb unconditionally zeroes the counter after a.place(), and Hands.place"
+                    + " returns void with no success result to report, so placeFutile is always false and"
+                    + " the dig fallback behind it can never take over.");
     }
 
     /**
@@ -1550,52 +1557,60 @@ public final class WorldDriverWaterBankScenes implements SceneProvider {
         for (BlockPos c : wasWater) if (w.isSolid(c)) filled++;
         int engages = Walker.waterPillarEngages - engages0;
 
-        ctx.record("闸.接管次数", engages);
-        ctx.record("闸.点击开火次数", Walker.waterPillarPlaceCalls - clicks0);
-        ctx.record("柱.真的垫上了几格", filled + "/" + wasWater.size());
-        ctx.record("账.落地那一tick", ledgerAtFill < 0 ? "没观察到落地" : String.valueOf(ledgerAtFill));
-        ctx.record("账.落地后的计数", ledgerAfterFill < 0 ? "没观察到落地" : String.valueOf(ledgerAfterFill));
-        ctx.record("账.读数时接管还在吗", engagedAtRead);
-        ctx.record("脚.格高范围", footLow > footHigh ? "没钉过" : "[" + footLow + ", " + footHigh + "]");
-        ctx.record("走.收尾", s + "（用了 " + t + "/60 tick）");
-        ctx.record("走.探针", walker.progressProbe());
+        ctx.record("gate.takeoverEngages", engages);
+        ctx.record("gate.placeClicksFired", Walker.waterPillarPlaceCalls - clicks0);
+        ctx.record("pillar.cellsActuallyFilled", filled + "/" + wasWater.size());
+        ctx.record("ledger.onFillTick", ledgerAtFill < 0 ? "no fill observed" : String.valueOf(ledgerAtFill));
+        ctx.record("ledger.afterFill", ledgerAfterFill < 0 ? "no fill observed" : String.valueOf(ledgerAfterFill));
+        ctx.record("ledger.takeoverEngagedAtRead", engagedAtRead);
+        ctx.record("feet.cellYRange", footLow > footHigh ? "never pinned" : "[" + footLow + ", " + footHigh + "]");
+        ctx.record("walk.end", s + " (used " + t + "/60 ticks)");
+        ctx.record("walk.probe", walker.progressProbe());
 
         if (engages == 0)
-            ctx.fail("pillarLedgerReal: 接管一次都没 engage —— 布景不对，下面每一行说的都不是被测对象。"
-                    + "探针=" + walker.progressProbe());
+            ctx.fail("pillarLedgerReal: the takeover never engaged — the test setup is wrong, and none of the"
+                    + " rows below describe the subject under test. probe=" + walker.progressProbe());
         // THE SELF-PROOF, and it must come first: without an observed fill, "the ledger stayed at 0"
         // is satisfied by a run in which nothing whatsoever happened.
         if (filled == 0 || ledgerAfterFill < 0)
-            ctx.fail("pillarLedgerReal: 整趟没有观察到任何一格从水变成实心（成了 " + filled + " 格，"
-                    + "落地后读数=" + ledgerAfterFill + "）—— 这条场景要断言的是「真放成了就会清零」，"
-                    + "而前提「真放成了」没有成立。这时候计数器是 0 什么也证明不了（没放成、没engage、"
-                    + "一切顺利，三种情况都会是 0）。要查的是布景两件事：身体钉在 " + (surface + 0.95)
-                    + "（必须落在填充格内的 [+0.9, +1.0) 带里，且脚仍泡在水里，否则 fillCell 会退化成"
-                    + "上一格、判据变成恒假），以及手里必须是泥这类碰撞盒 ≤ 0.875 的方块——满格方块"
-                    + "在这条带里会被 vanilla 拒，永远落不了地。");
+            ctx.fail("pillarLedgerReal: no cell was observed changing from water to solid during the whole run"
+                    + " (" + filled + " cells filled, reading after the fill=" + ledgerAfterFill + ") — this"
+                    + " scene asserts that \"a placement that actually lands resets the counter\", and the"
+                    + " precondition \"a placement actually landed\" did not hold. A counter of 0 then proves"
+                    + " nothing (nothing placed, no engage, and a fully successful run all give 0). Check two"
+                    + " things in the test setup: the bot is pinned at " + (surface + 0.95)
+                    + " (it must be inside the [+0.9, +1.0) band of the fill cell with its feet still in"
+                    + " water, otherwise fillCell degenerates to the cell above and the criterion is always"
+                    + " false), and the held item must be a block with a collision box <= 0.875 tall, such as"
+                    + " mud — a full-cube block is refused by vanilla in this band and never lands.");
         // The counter has to have BEEN something before the landing zeroed it. Otherwise the
         // assertion below is 0 == 0 and passes on a run where the ledger never counted anything.
         if (ledgerAtFill <= 0)
-            ctx.fail("pillarLedgerReal: 落地那一 tick 账本读数是 " + ledgerAtFill + " —— 它在落地之前"
-                    + "就没累加过，那么「落地之后是 0」不构成证据（0 → 0 不是清零）。");
-        // Every bail path zeroes the same counter (WalkerTickClimb 释放时 pillarNoPlaceTicks = 0),
-        // so a zero read after a bail answers this scene's question without the landing doing it.
+            ctx.fail("pillarLedgerReal: the ledger read " + ledgerAtFill + " on the fill tick — it never"
+                    + " accumulated before the fill, so \"0 after the fill\" is not evidence (0 -> 0 is not"
+                    + " a reset).");
+        // Every bail path zeroes the same counter (WalkerTickClimb sets pillarNoPlaceTicks = 0 on
+        // release), so a zero read after a bail answers this scene's question without the landing doing it.
         if (!engagedAtRead)
-            ctx.fail("pillarLedgerReal: 读到清零的那一刻接管已经不在了 —— 每一条 bail 都会把同一个"
-                    + "计数器清零，所以这个 0 说不出自己的来历，这一趟证不了「落地清零」。");
+            ctx.fail("pillarLedgerReal: the takeover was no longer engaged when the reset was read — every"
+                    + " bail path zeroes the same counter, so this 0 does not identify its own cause, and"
+                    + " this run cannot prove that the fill reset the counter.");
         // (b) MUST NOT BE THE EXPLANATION. The body is held at one absolute height, so foot.getY()
         // is constant and the high-water half of the reset rule cannot refresh after the first
         // tick. If this range is wider than one cell the pin failed, and a green run below would be
         // ambiguous between "the landing cleared it" and "the rise cleared it" — the scene would no
         // longer be about the half it claims to test.
         if (footHigh > footLow)
-            ctx.fail("pillarLedgerReal: 脚所在格在 [" + footLow + ", " + footHigh + "] 之间变过 —— "
-                    + "钉位没守住，高水位那一半 (b) 可能才是清零的原因，这一趟证不了 (a)。");
+            ctx.fail("pillarLedgerReal: the feet cell changed within [" + footLow + ", " + footHigh + "] —"
+                    + " the pin did not hold, so the high-water half (b) may be the cause of the reset, and"
+                    + " this run cannot prove (a).");
 
         if (ledgerAfterFill != 0)
-            ctx.fail("一格实实在在垫上了，账本却没清零：落地那一 tick 之后 pillarNoPlaceTicks 是 "
-                    + ledgerAfterFill + "，而身体整趟钉在同一格（脚格 " + footLow + "），"
-                    + "所以高水位那一半不可能代它清零 —— 清零只能来自「那一格真的变实心」这一条，而它没发生。"
-                    + "照这样下去，一次正在成功的攀爬会在 " + "51 tick 后被判徒劳、被挖掘后备抢走。");
+            ctx.fail("A cell was actually filled, but the ledger was not reset: after the fill tick"
+                    + " pillarNoPlaceTicks is " + ledgerAfterFill + ", while the bot stayed pinned in the same"
+                    + " cell for the whole run (feet cell " + footLow + "), so the high-water half cannot have"
+                    + " reset it — the reset can only come from \"that cell actually became solid\", and it"
+                    + " did not. At this rate a climb that is succeeding would be judged futile after "
+                    + "51 ticks and taken over by the dig fallback.");
     }
 }

@@ -91,7 +91,8 @@ public final class JourneyShaft {
      * that would have paid that back. Three of the five unpinned climbs adopted a drifted column
      * inside the alcove and the run recorded {@code forge.carved=67/67} with not one
      * {@code frame.lost.*} — the mould was not eaten. And the pinned raise's own caller recovered its
-     * cell anyway ({@code recover8.spot=站 -8,62,38 瞄 -9,61,38}, {@code recover8.result=CONSUME}),
+     * cell anyway ({@code recover8.spot} standing at {@code -8,62,38} aiming at {@code -9,61,38},
+     * {@code recover8.result=CONSUME}),
      * for the third time on record: the fill re-chooses a stand and re-aims, so the raise it is
      * handed is a hint and never a contract.
      *
@@ -112,9 +113,10 @@ public final class JourneyShaft {
      *
      * <pre>
      * recover8.rise#3.climb.0        = -9,56,36 above=air onGround=false water=true
-     * recover8.rise#3.climb.10.afloat= -11,56,36 浮在水里，8 次都没落地；脚下 0 格内有实底
-     *                                 （-11,55,36 granite），水深 1 格，身体 y=56.00
-     * recover8.rise#3.pinnedShort    = 没垒到 y=60
+     * recover8.rise#3.climb.10.afloat= -11,56,36 afloat in water, not grounded in 8 tries; within
+     *                                 0 blocks below: solid floor (-11,55,36 granite), water
+     *                                 depth 1 blocks, bot y=56.00
+     * recover8.rise#3.pinnedShort    = did not reach y=60
      * recover8.rise#3.gained         = 0/4 block(s)
      * </pre>
      *
@@ -126,7 +128,7 @@ public final class JourneyShaft {
      *
      * <p><b>And by the time it is reached there is no column left to protect.</b> The correction now
      * adopts on drift, so a pinned climb arrives at this point having already printed
-     * {@code driftKeptPinned} twice: the run above ended {@code endedIn=-11,36（就是那一柱）} against
+     * {@code driftKeptPinned} twice: the run above ended {@code endedIn=-11,36 (the same column)} against
      * an aim computed for {@code -9,36}. Refusing the fallback to keep the ray's column defends a
      * column the climb gave up two courses earlier.
      *
@@ -177,7 +179,8 @@ public final class JourneyShaft {
      * <p>The counterpart nobody needed until mining became honest. Before the reach gate the bot
      * never dug a shaft, so it never had to leave one; now a mining rung ends standing at y=60 in a
      * one-wide hole, and the NEXT rung inherits that. Measured: the food rung asked for a cow 67
-     * blocks away and spent its whole 8 000-tick budget "走向猎物" from the bottom of a pit.
+     * blocks away and spent its whole 8 000-tick budget walking toward the prey from the bottom of a
+     * pit.
      *
      * <p>Placing is on, because pillaring is how a player leaves a shaft and the run is carrying
      * the cobblestone it just mined. Best-effort by design — a rung that reached its goal should
@@ -225,20 +228,21 @@ public final class JourneyShaft {
         // flight up course by course without ever choosing a cell — which is how rung 12 filled
         // 0,58,19 and 1,58,19 and then could not walk back down past its own cobblestone.
         // Unconditional row: a climb nowhere near a staircase has to say so too, or a results file
-        // cannot tell「不在楼梯上」from「没问过」.
+        // cannot tell "not on the stairs" from "never checked".
         BlockPos want = new BlockPos(climbColX, rig.player().blockPosition().getY(), climbColZ);
         BlockPos clear = climbPinned ? want : towerColumnClearOfTheFlight(sceneLevel(rig), want);
         rig.evidence(climbName + ".offTheFlight", offTheFlightRow(sceneLevel(rig), want, clear));
         if (clear == null) {
             rig.evidence(climbName + ".column", climbColX + "," + climbColZ
-                    + "（这一柱就是下井楼梯，不起塔，改走楼梯本身）");
+                    + " (this column is the shaft staircase; no tower, use the staircase itself instead)");
             climbTheFlightItself(rig, surfaceY, then);
             return;
         }
         climbColX = clear.getX();
         climbColZ = clear.getZ();
         rig.evidence(climbName + ".column", climbColX + "," + climbColZ
-                + (climbPinned ? "（钉住：换柱等于换射线，不许改）" : "（起塔柱，走不回就改）"));
+                + (climbPinned ? " (pinned: changing the column means changing the ray, so it must not change)"
+                        : " (tower column; changed if the bot cannot walk back to it)"));
         // The `int washedOff` overload on purpose: the `String tag` one is a standalone ENTRY point
         // and resets the column and the pin, which are exactly the two things this method has just
         // set. (Both take six arguments — this comment said "the six-arg form, not the five-arg
@@ -258,11 +262,13 @@ public final class JourneyShaft {
             // ordinary terrain; a pinned raise stands inside the mould, where the tallest thing on
             // any route is the frame the rung is there to build. The fill leg beside it already
             // carries NoBreak for exactly that, after a walk mined a cast cell to climb back up
-            // (`frame.lost.1 … 丢在「recover8 从 -9, 61, 38 收水」这一步里`).
+            // (`frame.lost.1`, lost during the step where recover8 reclaimed the water from
+            // -9, 61, 38).
             if (climbPinned) {
                 rig.evidence(climbName + ".pinnedShort", rig.player().blockPosition().toShortString()
-                        + " 没垒到 y=" + surfaceY + "，指定柱 " + climbColX + "," + climbColZ
-                        + " —— 塔到此为止，交给 YLevel 兜底（不许挖）；落在哪一柱由装水/浇筑自己的射线闸判");
+                        + " did not reach y=" + surfaceY + ", assigned column " + climbColX + "," + climbColZ
+                        + " - the tower stops here and the YLevel fallback takes over (no digging); which"
+                        + " column it ends in is judged by the water-fill/pour step's own ray gate");
                 rig.evidence(climbName + ".pinnedFallback", true);
                 rig.settle(new IntentProcess(new Intent(new Goal.YLevel(surfaceY), List.of(),
                                 CapabilityProfile.ALL, List.of(new NoBreak()))), 3_000,
@@ -278,8 +284,8 @@ public final class JourneyShaft {
             // AND IT MAY NOT LEAVE THE BODY LOWER THAN IT FOUND IT. `Goal.YLevel` is column-blind, so
             // a route to it may descend first, and when the search then fails the body keeps whatever
             // the partial path gave it. Measured 2026-08-19: `vein2.exit#3` reported
-            // `walkerFallback=true`, `gained=-3/20` and `endedIn=100,83（起塔柱是 94,83 —— 不是同一柱）`
-            // — three blocks DEEPER than the leg started, in a different column, and nothing read that
+            // `walkerFallback=true`, `gained=-3/20` and `endedIn=100,83` while the tower column was
+            // 94,83 — three blocks DEEPER than the climb started, in a different column, and nothing read that
             // as anything but a short climb. The rung after it then failed for want of a free cell to
             // put a crafting table in, which is what a body still down a shaft has.
             //
@@ -295,10 +301,10 @@ public final class JourneyShaft {
     /**
      * The way out for a climb that may not tower where it stands: the staircase itself.
      *
-     * <p>Reached only from {@link #towerColumnClearOfTheFlight} returning null, which means「the body
-     * is in a flight column and there is nowhere beside it to stand」. A stairwell cut through rock is
+     * <p>Reached only from {@link #towerColumnClearOfTheFlight} returning null, which means "the body
+     * is in a flight column and there is nowhere beside it to stand". A stairwell cut through rock is
      * exactly that shape — the cells either side of a step are the wall — so this is the branch the
-     * ladder actually takes, and「tower anyway」is not an alternative to it: that is the defect.
+     * ladder actually takes, and "tower anyway" is not an alternative to it: that is the defect.
      *
      * <p><b>Nothing is placed and nothing is broken.</b> A body standing on a step is already ON the
      * route out; the flight is walkable by construction, and a flight that has stopped being one is
@@ -329,8 +335,8 @@ public final class JourneyShaft {
     /**
      * The column a tower may build in without walling up the staircase.
      *
-     * <p>Three answers, and the third is the one that matters: <b>null is not「nothing found, carry
-     * on」— it is「do not tower here at all」</b>. A helper that fell back to the body's own column
+     * <p>Three answers, and the third is the one that matters: <b>null is not "nothing found, carry
+     * on" — it is "do not tower here at all"</b>. A helper that fell back to the body's own column
      * would be a rule with a fallback that ignores it, which is the shape {@link JourneyStairs}
      * already records losing a run to, and the ladder's own geometry makes that fallback the common
      * case rather than the rare one: a flight cut into rock has solid stone on both sides, so there IS
@@ -376,19 +382,22 @@ public final class JourneyShaft {
      * caller asked — so {@link #climbFrom} records the collision and leaves the column alone. That
      * reasoning has exactly one premise: <b>the column is still the one the ray chose</b>. The moment
      * the drift correction gives up and adopts wherever the body ended, the premise is gone — the
-     * ray's column has already been abandoned — and「换了柱就等于换了射线」stops being a reason to
-     * skip the check and becomes the reason to run it.
+     * ray's column has already been abandoned — and "changing the column means changing the ray"
+     * stops being a reason to skip the check and becomes the reason to run it.
      *
      * <p>Measured on the ladder run of 2026-08-19, rung 12, which is the whole reason this is a
      * method and not an inline ternary:
      *
      * <pre>
-     * recover8.rise#9.offTheFlight     起塔柱 2,19 是钉住的…⚠ 这一柱正是 2, 56, 19 那一级所在的柱
-     * recover8.rise#9.climb.1.driftWedged.1   1, 58, 19 这一腿一格没挪
-     * recover8.rise#9.climb.1.driftKeptPinned 1, 58, 19 走不回 2,19，改以这一柱为准
+     * recover8.rise#9.offTheFlight     tower column 2,19 is pinned … ⚠ this column is exactly the
+     *                                  column of step 2, 56, 19
+     * recover8.rise#9.climb.1.driftWedged.1   1, 58, 19 this walk did not move a single cell
+     * recover8.rise#9.climb.1.driftKeptPinned 1, 58, 19 cannot walk back to 2,19; adopting this column
      * recover8.rise#9.climb.3.with / climb.4.with   minecraft:dirt ×173 / ×172
-     * lava9.stairsBroken               2/11 级坏了：1, 57, 19 挡住 …dirt，2, 56, 19 挡住 …dirt
-     * FAIL 走不上楼梯：停在 1, 60, 19 … 1/11 级坏了：1, 57, 19 挡住 1, 58, 19=dirt
+     * lava9.stairsBroken               2/11 steps broken: 1, 57, 19 blocked at …dirt, 2, 56, 19
+     *                                  blocked at …dirt
+     * FAIL could not climb the stairs: stopped at 1, 60, 19 … 1/11 steps broken: 1, 57, 19 blocked
+     *      at 1, 58, 19=dirt
      * </pre>
      *
      * <p>Column {@code 1,19} was never put through {@link #towerColumnClearOfTheFlight} by anybody:
@@ -420,20 +429,23 @@ public final class JourneyShaft {
     static String offTheFlightRow(ServerLevel level, BlockPos want, BlockPos chosen) {
         String col = want.getX() + "," + want.getZ();
         BlockPos step = JourneyStairs.stepInColumn(level, want.getX(), want.getZ());
-        String flight = "（下井楼梯 " + JourneyStairs.steps() + " 级）";
+        String flight = " (shaft staircase has " + JourneyStairs.steps() + " step(s))";
         if (climbPinned)
-            return "起塔柱 " + col + " 是钉住的，射线选的柱不改" + flight
-                    + (step == null ? "；这一柱不在楼梯上"
-                            : "；⚠ 这一柱正是 " + step.toShortString()
-                              + " 那一级所在的柱 —— 只记下来，落在哪一柱由浇筑/装水自己的射线闸判");
-        if (step == null) return "起塔柱 " + col + " 不在楼梯上" + flight + "，照原样起塔";
+            return "tower column " + col + " is pinned; the column the ray chose is not changed" + flight
+                    + (step == null ? "; this column is not on the stairs"
+                            : "; ⚠ this column is exactly the column of step " + step.toShortString()
+                              + " - recorded only; which column the climb ends in is judged by the"
+                              + " pour/water-fill step's own ray gate");
+        if (step == null) return "tower column " + col + " is not on the stairs" + flight
+                + ", towering as requested";
         if (chosen == null)
-            return "起塔柱 " + col + " 正是 " + step.toShortString() + " 那一级所在的柱" + flight
-                    + "，附近 " + OFF_FLIGHT_REACH + " 格内没有一根站得住的非楼梯柱 —— 这一趟不起塔，"
-                    + "改走楼梯本身（塔填的就是起跳那一格，垒下去等于把这一级砌死）";
-        return "起塔柱 " + col + " 正是 " + step.toShortString() + " 那一级所在的柱" + flight
-                + "，改到 " + chosen.getX() + "," + chosen.getZ() + " 起塔（落脚 "
-                + chosen.toShortString() + "）";
+            return "tower column " + col + " is exactly the column of step " + step.toShortString() + flight
+                    + ", and there is no standable non-stair column within " + OFF_FLIGHT_REACH
+                    + " blocks - no tower this time, use the staircase itself instead (the tower would"
+                    + " fill the jump-clearance cell, and building it would wall this step shut)";
+        return "tower column " + col + " is exactly the column of step " + step.toShortString() + flight
+                + ", towering at " + chosen.getX() + "," + chosen.getZ() + " instead (foothold "
+                + chosen.toShortString() + ")";
     }
 
     /**
@@ -454,9 +466,9 @@ public final class JourneyShaft {
     private static void recoverIfLower(JourneyRig rig, int surfaceY, int beforeFallbackY, Runnable then) {
         BlockPos at = rig.player().blockPosition();
         if (at.getY() >= beforeFallbackY || at.getY() >= surfaceY) { recordExit(rig, then); return; }
-        rig.evidence(climbName + ".fallbackWentDown", "兜底腿把身体从 y=" + beforeFallbackY
-                + " 带到了 y=" + at.getY() + "（" + at.toShortString() + "）—— 一段以上升为目的的腿"
-                + "不能以更低收场，就地再垒一次");
+        rig.evidence(climbName + ".fallbackWentDown", "the fallback walk took the bot from y="
+                + beforeFallbackY + " to y=" + at.getY() + " (" + at.toShortString() + ") - a climb"
+                + " whose purpose is to ascend must not end lower, so towering again from here");
         boolean wasPinned = climbPinned;
         climbPinned = false;
         climbColX = at.getX();
@@ -464,7 +476,8 @@ public final class JourneyShaft {
         BlockPos clear = towerColumnClearOfTheFlight(sceneLevel(rig), at);
         if (clear == null) {
             rig.evidence(climbName + ".fallbackWentDown.stopped",
-                    at.toShortString() + " 这一柱就是下井楼梯，附近没有能改去的柱 —— 不补垒");
+                    at.toShortString() + " this column is the shaft staircase and there is no nearby"
+                            + " column to move to - not towering again");
             climbPinned = wasPinned;
             recordExit(rig, then);
             return;
@@ -487,8 +500,8 @@ public final class JourneyShaft {
         // identical readings. See climbPinned for the run this cost.
         BlockPos end = rig.player().blockPosition();
         rig.evidence(climbName + ".endedIn", end.getX() + "," + end.getZ()
-                + (end.getX() == climbColX && end.getZ() == climbColZ ? "（就是那一柱）"
-                        : "（起塔柱是 " + climbColX + "," + climbColZ + " —— 不是同一柱）"));
+                + (end.getX() == climbColX && end.getZ() == climbColZ ? " (the same column)"
+                        : " (the tower column is " + climbColX + "," + climbColZ + " - not the same column)"));
         // AND WHAT IT ENDED *IN*, because height is not the same as being out.
         //
         // The exit's completion test is `y >= surfaceY`, which has no opinion about the medium — the
@@ -513,8 +526,9 @@ public final class JourneyShaft {
         // Wet is not the same as afloat — see afloat(), which is where that distinction lives now
         // and which JourneyCast's ashore walk asks with the same two cells.
         boolean afloat = afloat(sceneLevel(rig), end);
-        rig.evidence(climbName + ".endedOn", "脚格=" + atFeet.getBlock() + "，脚下=" + below.getBlock()
-                + (afloat ? " —— 浮在水里，脚下没有地板；上面每一级都会从一个正在下沉的身体开始" : ""));
+        rig.evidence(climbName + ".endedOn", "foot cell=" + atFeet.getBlock() + ", below=" + below.getBlock()
+                + (afloat ? " - afloat in water with no floor below; every later step will start from"
+                        + " a bot that is sinking" : ""));
         // How much of the climb actually happened, as a fraction rather than as a landing height.
         // `exit.toY=28` beside `exit.fromY=27` is only a shortfall if you remember the rise was 36,
         // and a rung that later finds what it needs underground will otherwise go green carrying a
@@ -523,35 +537,40 @@ public final class JourneyShaft {
         rig.evidence(climbName + ".gained", gained + "/" + exitRise + " block(s)");
         // ONE ROW THAT CANNOT BE MISREAD, because each of the three above is individually true of a
         // failure and the reader is left to join them. Ladder j54's `cast8#10` printed
-        // `gained = 6/6` beside `endedIn = -7,22（不是同一柱）` and `endedOn = 脚格=air，脚下=air`:
-        // a body that gained its full height, ten columns away, standing on nothing. Every row was
-        // honest and the composite was still missing — and `6/6` is what a reader reaches for.
+        // `gained = 6/6` beside `endedIn = -7,22` in a different column and `endedOn = foot
+        // cell=air, below=air`: a bot that gained its full height, ten columns away, standing on
+        // nothing. Every row was honest and the composite was still missing — and `6/6` is what a
+        // reader reaches for.
         //
         // Deliberately NOT replacing them: they are the diagnosis, this is the verdict. And it is
-        // stated as「没垒成」rather than as a fraction, because the whole failure mode here is a
-        // fraction that looks like success.
+        // stated as "tower not completed" rather than as a fraction, because the whole failure mode
+        // here is a fraction that looks like success.
         boolean onColumn = end.getX() == climbColX && end.getZ() == climbColZ;
         boolean footed = below.blocksMotion();
         boolean full = gained >= exitRise;
         rig.evidence(climbName + ".verdict", onColumn && footed && full
-                ? "垒成了：站在指定柱 " + climbColX + "," + climbColZ + " 上，脚下 " + below.getBlock()
-                  + "，涨满 " + gained + "/" + exitRise + " 格"
-                : "没垒成 —— "
-                  + (full ? "" : "只涨了 " + gained + "/" + exitRise + " 格；")
-                  + (onColumn ? "" : "落在 " + end.getX() + "," + end.getZ()
-                        + " 而不是指定柱 " + climbColX + "," + climbColZ + "（射线是照指定柱算的）；")
-                  + (footed ? "" : "脚下 " + below.getBlock() + " 不是地板；")
-                  + "⚠ 上面那行 gained 只量高度差，单独读会把这一趟读成成功");
+                ? "tower completed: standing on the assigned column " + climbColX + "," + climbColZ
+                  + ", on " + below.getBlock() + ", full rise " + gained + "/" + exitRise + " blocks"
+                : "tower not completed - "
+                  + (full ? "" : "rose only " + gained + "/" + exitRise + " blocks; ")
+                  + (onColumn ? "" : "ended at " + end.getX() + "," + end.getZ()
+                        + " instead of the assigned column " + climbColX + "," + climbColZ
+                        + " (the ray was computed for the assigned column); ")
+                  + (footed ? "" : "the block below, " + below.getBlock() + ", is not a floor; ")
+                  + "⚠ the gained row above measures only the height difference and, read alone,"
+                  + " would report this climb as a success");
         // A CLIMB THAT ENDED LOWER IS NOT A SHORT CLIMB. `gained=-3/20` reads as a fraction like any
         // other, and on 2026-08-19 it went past every reader between `vein2.exit#3` and the rung that
         // failed two legs later for want of a free cell to stand a crafting table in. A negative
         // gain has exactly one meaning — the body is further from daylight than the leg found it —
         // and it gets its own key so a results file can be grepped for it.
         if (gained < 0)
-            rig.evidence(climbName + ".lost", "这一段比开始时又深了 " + (-gained)
-                    + " 格（" + exitFromY + " → " + rig.player().blockPosition().getY()
-                    + "，目标 " + (exitFromY + exitRise) + "）—— 不是「垒得不够高」而是「没出来」，"
-                    + "后面所有需要地面的活（放工作台、找树、看天）都建立在它没发生上面");
+            rig.evidence(climbName + ".lost", "this climb ended " + (-gained)
+                    + " block(s) deeper than it started (" + exitFromY + " → "
+                    + rig.player().blockPosition().getY() + ", target " + (exitFromY + exitRise)
+                    + ") - this is not \"did not climb high enough\" but \"did not get out\"; every"
+                    + " later task that needs the surface (placing a crafting table, finding trees,"
+                    + " seeing the sky) assumes this did not happen");
         rig.evidence(climbName + ".cobblestone", rig.carrying("minecraft:cobblestone"));
         // What the climb would spend NEXT, which is the reading that says whether an exit stopped
         // for want of blocks. Cobblestone alone answered that while every shaft ended above y=0.
@@ -654,8 +673,8 @@ public final class JourneyShaft {
             // loop check at the end of this course needs the value the correction was aimed at.
             final int wasColX = climbColX;
             final int wasColZ = climbColZ;
-            rig.evidence(climbKey(step, ".drift"), at.toShortString() + " 偏离起塔柱 "
-                    + climbColX + "," + climbColZ + "，先走回去再垒");
+            rig.evidence(climbKey(step, ".drift"), at.toShortString() + " has drifted off the tower column "
+                    + climbColX + "," + climbColZ + "; walking back before the next course");
             // THE COLUMN, AT WHATEVER HEIGHT IT CAN BE ENTERED — not the cell level with the body.
             //
             // `Goal.Block(climbColX, at.getY(), climbColZ)` is only the right cell on flat ground.
@@ -670,7 +689,7 @@ public final class JourneyShaft {
             // never happened.
             //
             // A tower supplies the height; what the pin is about is the column, which is what
-            // `driftKept`'s own wording ("改以这一柱为准") already says. So the correction asks for
+            // `driftKept`'s own wording ("adopting this column") already says. So the correction asks for
             // the column and lets the walker pick a height it can stand at.
             //
             walkBackToColumn(rig, step, DRIFT_ATTEMPTS, () -> {
@@ -690,10 +709,11 @@ public final class JourneyShaft {
                 boolean adopted = back.getX() != climbColX || back.getZ() != climbColZ;
                 if (adopted) {
                     rig.evidence(climbKey(step, climbPinned ? ".driftKeptPinned" : ".driftKept"),
-                            back.toShortString() + " 走不回 " + climbColX + "," + climbColZ
-                            + "，改以这一柱为准"
-                            + (climbPinned ? " —— 这一柱是射线选的，换了柱就等于换了射线，"
-                                    + "接下来由浇筑/装水自己的射线闸判" : ""));
+                            back.toShortString() + " cannot walk back to " + climbColX + "," + climbColZ
+                            + "; adopting this column"
+                            + (climbPinned ? " - the ray chose that column, so changing the column"
+                                    + " means changing the ray; from here the pour/water-fill step's"
+                                    + " own ray gate decides" : ""));
                     climbColX = back.getX();
                     climbColZ = back.getZ();
                 }
@@ -705,7 +725,8 @@ public final class JourneyShaft {
                 //
                 // This line used to read `climbPinned ? back : towerColumnClearOfTheFlight(...)`,
                 // i.e. a pinned climb skipped the check here as well as at climbFrom. The skip's
-                // stated reason —「换了柱就等于换了射线」— is about a column the ray chose, and the
+                // stated reason — "changing the column means changing the ray" — is about a column
+                // the ray chose, and the
                 // adopt above has just thrown that column away; see towerColumnAfterDrift for the
                 // rung-12 run where the column a DRIFT picked was a staircase column nobody ever
                 // checked. `adopted` is captured before the assignment because after it the two are
@@ -713,11 +734,13 @@ public final class JourneyShaft {
                 BlockPos clear = towerColumnAfterDrift(sceneLevel(rig),
                         new BlockPos(climbColX, back.getY(), climbColZ), climbPinned, adopted);
                 String pinNote = climbPinned && adopted
-                        ? "（钉住的柱已经被漂移换掉了，所以这一次照样问航道）" : "";
+                        ? " (the drift has already replaced the pinned column, so the flight is"
+                                + " consulted this time as well)" : "";
                 if (clear == null) {
                     rig.evidence(climbKey(step, ".driftOntoTheFlight"), climbColX + "," + climbColZ
-                            + " 是楼梯那一柱，附近没有能改去的柱 —— 塔到此为止（垒下去就是把台阶砌死），"
-                            + "交给 climbOut 的兜底腿" + pinNote);
+                            + " is a staircase column and there is no nearby column to move to - the"
+                            + " tower stops here (building on would wall the step shut) and climbOut's"
+                            + " fallback walk takes over" + pinNote);
                     then.run();
                     return;
                 }
@@ -742,17 +765,18 @@ public final class JourneyShaft {
                 // so the tower stops and climbOut's walker fallback carries the rest.
                 if (back.equals(at) && clear.getX() == wasColX && clear.getZ() == wasColZ) {
                     rig.evidence(climbKey(step, ".driftLoop"), climbColX + "," + climbColZ
-                            + " 是楼梯那一柱，而航道要改回的 " + wasColX + "," + wasColZ
-                            + " 正是这一腿刚走不到的那一柱 —— 两次改写互为逆操作，"
-                            + "再垒一课还是停在 " + at.toShortString()
-                            + "；塔到此为止，交给 climbOut 的兜底腿");
+                            + " is a staircase column, and the column the flight check would move back"
+                            + " to, " + wasColX + "," + wasColZ + ", is exactly the one this walk just"
+                            + " failed to reach - the two rewrites undo each other, and another course"
+                            + " would still stop at " + at.toShortString()
+                            + "; the tower stops here and climbOut's fallback walk takes over");
                     then.run();
                     return;
                 }
                 if (clear.getX() != climbColX || clear.getZ() != climbColZ) {
                     rig.evidence(climbKey(step, ".driftOffTheFlight"), climbColX + "," + climbColZ
-                            + " 是楼梯那一柱，改到 " + clear.getX() + "," + clear.getZ()
-                            + "（落脚 " + clear.toShortString() + "）" + pinNote);
+                            + " is a staircase column; moving to " + clear.getX() + "," + clear.getZ()
+                            + " (foothold " + clear.toShortString() + ")" + pinNote);
                     climbColX = clear.getX();
                     climbColZ = clear.getZ();
                 }
@@ -787,10 +811,11 @@ public final class JourneyShaft {
             // upward through rock nobody surveyed, and on the portal rung that hole runs the twelve
             // blocks between the mould and the lava lake the mould is cut under. Measured, run 20:
             // the tower drifted one cell off the shaft, mined fresh rock the rest of the way, and
-            // broke into the lake — `drain.0=等了 200 tick 仍有流体：-7,54,21 = lava` in an alcove
-            // twelve blocks BELOW it, with the corridor cells around it turned to stone where the
-            // lava met the cast's own water. The rung then read the next frame cell as
-            // "canBreak=false, 六邻全实心" and reported a mining failure. The shaft the body came
+            // broke into the lake — `drain.0` reported fluid still present after a 200-tick wait,
+            // `-7,54,21 = lava`, in an alcove twelve blocks BELOW it, with the corridor cells around
+            // it turned to stone where the lava met the cast's own water. The rung then read the next
+            // frame cell as "canBreak=false, all six neighbours solid" and reported a mining failure.
+            // The shaft the body came
             // down is already open, so a climb that needs to mine at all is a climb that has
             // wandered — stopping here is the honest answer, and climbOut's walker fallback is what
             // still gets the body out.
@@ -800,13 +825,13 @@ public final class JourneyShaft {
             // ceiling beside the rung's own water refuses a course that would not have broken
             // anything at all. Measured on the portal rung, run 43's `cast8`: `climb.0=-9,57,36
             // above=Block{minecraft:air}` and, the same leg, `climb.0.wouldOpenFluid=-9,59,36
-            // 挖开就会放出 -9,59,37 = water`. The pour needs the body one row under a cell at y=60
+            // opening it would release -9,59,37 = water`. The pour needs the body one row under a cell at y=60
             // and the climb stopped at y=58 (`cast8.raisedY=58/59`) over water the cast had poured
             // itself, in a column with nothing but air between the feet and the target.
             String wet = fluidTouching(lvl, ceiling);
             if (wet != null) {
                 rig.evidence(climbKey(step, ".wouldOpenFluid"), ceiling.toShortString()
-                        + " 挖开就会放出 " + wet + " —— 不挖，这一段爬升到此为止");
+                        + " opening it would release " + wet + " - not digging; this climb stops here");
                 then.run();
                 return;
             }
@@ -833,16 +858,18 @@ public final class JourneyShaft {
             if (rig.player().isInWater()) {
                 if (washedOff <= 0) {
                     // WHY IT NEVER LANDS, not only that it did not. `HoldStill` releases the inputs
-                    // and nothing else, so gravity still runs — eight legs of sixty ticks is ample
-                    // for a body to sink several blocks. A row that only says「浮在水里，8 次都没落地」
-                    // therefore fits three different worlds and cannot pick between them: the floor
-                    // under the feet is missing (nothing to land ON), the water is deep enough that
-                    // buoyancy holds the body up, or the body IS resting and `onGround` is simply
-                    // false in a fluid. They want three different remedies, and this rung has spent
-                    // two rounds on「垒不高」readings that turned out to be「从来没落地」.
+                    // and nothing else, so gravity still runs — eight settles of sixty ticks is ample
+                    // for a body to sink several blocks. A row that only says "afloat in water, not
+                    // grounded in 8 tries" therefore fits three different worlds and cannot pick
+                    // between them: the floor under the feet is missing (nothing to land ON), the
+                    // water is deep enough that buoyancy holds the body up, or the body IS resting
+                    // and `onGround` is simply false in a fluid. They want three different remedies,
+                    // and this rung has spent two rounds on "the tower does not get high" readings
+                    // that turned out to be "the bot never landed".
                     rig.evidence(climbKey(step, ".afloat"), at.toShortString()
-                            + " 浮在水里，" + WASHED_OFF_RETRIES + " 次都没落地 —— 塔要站在地上才垒得起来，"
-                            + "爬升到此为止；" + afloatWhy(rig, at));
+                            + " afloat in water, not grounded in " + WASHED_OFF_RETRIES + " tries - a"
+                            + " tower can only be built from the ground, so this climb stops here; "
+                            + afloatWhy(rig, at));
                     then.run();
                     return;
                 }
@@ -871,9 +898,10 @@ public final class JourneyShaft {
         // by the hand the SERVER has — which the mine that preceded this course moved to a pickaxe
         // without telling anyone (see JourneyHands.holdBoth). A pickaxe's `useOn` against
         // a block face does nothing at all, silently, and the three rows this course writes report it
-        // as an ordinary stall: `climb.2.stalled=null` (NOT「builder 说没错」— that row read the
-        // SERVER's BotState, which nothing writes once the process went to the client helm, so its
-        // null meant「读的那份没人写过」; now that it is routed, a real stall must start printing
+        // as an ordinary stall: `climb.2.stalled=null` (NOT "the builder reported no error" — that
+        // row read the SERVER's BotState, which nothing writes once the process went to the client
+        // helm, so its null meant "the copy that was read was never written"; now that it is
+        // routed, a real stall must start printing
         // TowerProcess's own `stuck (no Y gain in 60t: …)`), `climb.2.state=onGround=true
         // inWater=false y=56.00`, and
         // `climb.2.stock=minecraft:cobblestone ×137` — the server count NEVER MOVING, which is the
@@ -886,7 +914,7 @@ public final class JourneyShaft {
         // Recorded only when it fails: a course that got what it asked for is already described by
         // `.with`, and thirty-six successful hand-swaps would bury the one that did not.
         if (!JourneyHands.holdBoth(rig, pillarItem)) {
-            rig.evidence(climbKey(step, ".hand"), "拿不到 " + pillar + "，手上是 "
+            rig.evidence(climbKey(step, ".hand"), "could not hold " + pillar + "; holding "
                     + BuiltInRegistries.ITEM.getKey(rig.player().getMainHandItem().getItem()));
         }
         // Land before judging, and that is a bug fix rather than politeness: a jump is not a gain.
@@ -897,7 +925,7 @@ public final class JourneyShaft {
         // every course "gained" a block it did not keep.
         // `true` = reachIntoBag. Handing the block over once is not enough and the measurement says
         // so: every course BREAKS the overhead cell, and the tool swap that serves the break shares
-        // a destination rule with the block swap — 「an empty hotbar slot, else inv.selected」 — so on
+        // a destination rule with the block swap — "an empty hotbar slot, else inv.selected" — so on
         // a full hotbar the pickaxe lands where the cobblestone was and the cobblestone goes back to
         // the bag. Rung 9 of 2026-08-22 then reported `no placeable block in hotbar` at both veins
         // while carrying 47 and 105 cobblestone, and both towers placed nothing.
@@ -936,7 +964,7 @@ public final class JourneyShaft {
             // state the next one starts from, so this is the one case where asking again is a real
             // retry — see WASHED_OFF_RETRIES for the measurement. Recorded every time, so a climb
             // that only got up because the water let go cannot read as one the tower simply made.
-            // ⚠️ 「Washed off」 NAMES A MECHANISM, so ask whether the mechanism happened. The only
+            // ⚠️ "Washed off" NAMES A MECHANISM, so ask whether the mechanism happened. The only
             // test used to be isInWater(), which a STILL pool passes forever — and ladder-15 spent
             // ten courses here on one, every one with placed=0 and the eye at a byte-identical
             // position. Nothing washed anything; the body was simply floating, and a floating body
@@ -961,31 +989,33 @@ public final class JourneyShaft {
                 // the branch below already learned).
                 //
                 // The rung-12 rehearsal of 2026-08-25 is the measurement: 20+ `washedOff` rows, every
-                // one `流速²=1.00000` — a flow CONSTANT across 23 samples is a fed flow, not a
+                // one `flow²=1.00000` — a flow CONSTANT across 23 samples is a fed flow, not a
                 // draining one. Its source was the rung's own pour, still sitting there.
                 //
                 // The instrument already exists and this site's own comment asked for it: the same
-                // `sourcesAround` reading the re-column leg takes. Asking it here is what turns
-                // 「在动」 into 「在动，而且有人在喂」.
+                // `sourcesAround` reading the re-column step takes. Asking it here is what turns
+                // "moving" into "moving, and something is feeding it".
                 String fed = JourneyForge.sourcesAround(bodyLvl,
                         List.of(foot, foot.below(), foot.above()), WASHED_OFF_UPSTREAM);
-                String flowNote = "流速²=" + String.format(java.util.Locale.ROOT, "%.5f", flow);
+                String flowNote = "flow²=" + String.format(java.util.Locale.ROOT, "%.5f", flow);
                 // BOTH ANSWERS GET A ROW. A retry that survives has to carry the reading that let it
                 // survive, so a climb that only got up because nothing was feeding the water cannot
                 // read as one that simply out-waited a flood.
                 rig.evidence(climbKey(step, ".washedOffUpstream"), fed == null
-                        ? "这一柱周围 " + WASHED_OFF_UPSTREAM + " 格内没有水源块 —— 这股水没人喂，"
-                                + "会自己退，重试的前提成立"
-                        : "还在喂它的水源（最高的在前）：" + fed);
+                        ? "no water source block within " + WASHED_OFF_UPSTREAM + " blocks of this column"
+                                + " - nothing is feeding this water, so it will recede on its own and"
+                                + " the premise for retrying holds"
+                        : "water sources still feeding it (highest first): " + fed);
                 if (fed != null) {
-                    rig.evidence(climbKey(step, ".washedOffFed"), "水在动（" + flowNote
-                            + "），但上游有源在喂 —— 它不会自己退，重试等不到那一刻。"
-                            + "不重试（还剩 " + washedOff + " 次没用），交给上层的后备腿");
+                    rig.evidence(climbKey(step, ".washedOffFed"), "the water is moving (" + flowNote
+                            + "), but a source upstream is feeding it - it will not recede on its own,"
+                            + " so a retry would never see it drain. Not retrying (" + washedOff
+                            + " retries left unused); handing off to the caller's fallback");
                     then.run();
                     return;
                 }
-                rig.evidence(climbKey(step, ".washedOff"), "水把身体冲下柱子了（" + flowNote
-                        + "），还剩 " + (washedOff - 1) + " 次重试");
+                rig.evidence(climbKey(step, ".washedOff"), "the water washed the bot off the pillar ("
+                        + flowNote + "), " + (washedOff - 1) + " retries left");
                 rig.settle(new HoldStill(20), 40, () -> ascendByTowering(rig, surfaceY, budget - 1,
                         cap, washedOff - 1, then));
                 return;
@@ -995,8 +1025,9 @@ public final class JourneyShaft {
             // message the run printed for a year claimed the one that was not happening.
             if (rig.player().isInWater() && washedOff > 0)
                 rig.evidence(climbKey(step, ".stillWater"),
-                        "在水里，但水没有流动（流速²=0）——这不是被冲下来，是浮着站不起来。"
-                                + "不重试（还剩 " + washedOff + " 次没用），交给上层的后备腿");
+                        "in water, but the water is not flowing (flow²=0) - this is not a wash-off,"
+                                + " the bot is floating and cannot stand. Not retrying (" + washedOff
+                                + " retries left unused); handing off to the caller's fallback");
             then.run();
         }));
     }
@@ -1164,10 +1195,10 @@ public final class JourneyShaft {
                 }
         JourneyLedger.staged("rehearsal: flooded a " + cells + "-cell lens around "
                 + at.toShortString() + ", to make the shaft's wet-column guard fire");
-        rig.evidence("shaft.sabotage", at.toShortString() + " 周围 3×3、y=" + (below.getY() - FLOOD_DEPTH)
-                + ".." + (at.getY() + 1) + " 共 " + cells + " 格灌成水了"
-                + "（排练专用，只为让「这根柱子不干燥」那条守卫必须触发）"
-                + " —— 下一步应当报 shaft.reColumn.1 并换一根柱子接着挖");
+        rig.evidence("shaft.sabotage", "flooded the 3×3 around " + at.toShortString() + ", y="
+                + (below.getY() - FLOOD_DEPTH) + ".." + (at.getY() + 1) + ", " + cells + " cells in total"
+                + " (rehearsal only, so that the \"this column is not dry\" guard has to fire)"
+                + " - the next step should report shaft.reColumn.1 and continue digging in another column");
     }
 
     /** Whether this run has already staged its flood. One per run: the point is to see the swap
@@ -1239,7 +1270,7 @@ public final class JourneyShaft {
      *
      * <p>Three, and the number comes from what the walker actually says. Measured on the rehearsal
      * of 2026-08-16, cell eight: {@code climb.0.driftInto=-9,56,37} — the column's foothold, found —
-     * and {@code climb.0.driftGoto=end=path-consumed err=null（想去 -9,56,37，停在 -9,57,38）}. Not
+     * and {@code climb.0.driftGoto=end=path-consumed err=null (aimed for -9,56,37, stopped at -9,57,38)}. Not
      * "no route": the walker planned, walked one block of it, and reported the path CONSUMED. That
      * is this repo's own {@code wd.serverWalkerArrivedShort} — {@code IntentProcess} reports its
      * goal reached for a partial path — and the answer to it everywhere else in this suite is to
@@ -1247,7 +1278,8 @@ public final class JourneyShaft {
      * has done for cross-country legs since the iron rung ended one 88 blocks short.
      *
      * <p>One attempt was therefore not a policy, it was a bug: a correction that could have been
-     * made in two legs reported "走不回指定柱" and ended a pinned raise <b>without placing a single
+     * made in two walks reported that the bot could not walk back to the assigned column and ended a
+     * pinned raise <b>without placing a single
      * block</b>.
      */
     static final int DRIFT_ATTEMPTS = 3;
@@ -1279,9 +1311,11 @@ public final class JourneyShaft {
         Goal goal = into != null ? new Goal.Block(into) : new Goal.XZ(climbColX, climbColZ, 0);
         int n = DRIFT_ATTEMPTS - tries + 1;
         rig.evidence(climbKey(step, ".driftInto." + n), into != null
-                ? into.toShortString() + "（这一柱里站得住的那一格，身体在 " + at.toShortString() + "）"
-                : "这一柱 y=" + (at.getY() + 1) + ".." + (at.getY() - COLUMN_FOOTHOLD_DROP)
-                        + " 没有一格站得住 —— 只能按列走，多半走不到");
+                ? into.toShortString() + " (the standable cell in this column; bot at "
+                        + at.toShortString() + ")"
+                : "no standable cell in this column at y=" + (at.getY() + 1) + ".."
+                        + (at.getY() - COLUMN_FOOTHOLD_DROP)
+                        + " - can only walk by column, and will most likely not get there");
         boolean couldBreak = BotConfig.allowBreak;
         BotConfig.allowBreak = false;
         // Longer than the 120 ticks the same-height cell needed, because the column's foothold can
@@ -1296,12 +1330,13 @@ public final class JourneyShaft {
             // stopped" — three findings needing three different answers, and it was the third.
             rig.evidence(climbKey(step, ".driftGoto." + n),
                     JourneyLeg.walkerEnd(rig)
-                            + "（想去 " + (into != null ? into.toShortString()
-                                    : climbColX + "," + climbColZ) + "，停在 "
-                            + back.toShortString() + "）");
+                            + " (aimed for " + (into != null ? into.toShortString()
+                                    : climbColX + "," + climbColZ) + ", stopped at "
+                            + back.toShortString() + ")");
             if (back.equals(at)) {
                 rig.evidence(climbKey(step, ".driftWedged." + n), back.toShortString()
-                        + " 这一腿一格没挪 —— 再问一次也是同一个答案，不问了");
+                        + " this walk did not move a single cell - asking again would get the same"
+                        + " answer, so not asking");
                 then.run();
                 return;
             }
@@ -1349,7 +1384,7 @@ public final class JourneyShaft {
      * <p>It was written twice, byte for byte: here in {@link #recordExit}, which prints
      * {@code endedOn}, and again in {@code JourneyCast.standOnDryGround}, the one caller that took
      * {@code recordExit}'s hand-off and walks the body ashore. Two copies of a predicate whose
-     * failure mode is「it looked wet enough」is how the second caller ends up asking one cell instead
+     * failure mode is "it looked wet enough" is how the second caller ends up asking one cell instead
      * of two, so the question now has one implementation and the remaining callers can be counted.
      *
      * <p><b>Not the same question as {@code JourneyPour.pourLandsFrom}'s {@code afloat}</b>, which
@@ -1367,11 +1402,11 @@ public final class JourneyShaft {
      * {@code afloat} needs the FOOT cell to be fluid too, so it flips to false the moment a head
      * clears the surface — while a body treading water at the surface still has nothing to stand on,
      * cannot place, and cannot work. Measured by {@code wd.journeyGetsAshoreBeforePouring}, which
-     * watched a recovery step from {@code y=220} to {@code y=221}, report {@code 还浮着=false}, and
-     * end with {@code 脚下=water}: every row read like an arrival at the bank and the body was still
-     * in the pool.
+     * watched a recovery step from {@code y=220} to {@code y=221}, report that the bot was no longer
+     * afloat, and end with water below its feet: every row read like an arrival at the bank and the
+     * bot was still in the pool.
      *
-     * <p>So「did I get out of the water」asks about the FLOOR, which is the thing the caller actually
+     * <p>So "did I get out of the water" asks about the FLOOR, which is the thing the caller actually
      * needs. Same lesson as the walker's own: water is not a floor.
      */
     static boolean noDryFooting(ServerLevel level, BlockPos at) {
@@ -1401,8 +1436,9 @@ public final class JourneyShaft {
             wet++;
         }
         return String.format(java.util.Locale.ROOT,
-                "脚下 %d 格内%s（%s %s），水深 %d 格（从 y=%d 起），身体 y=%.2f，头 %s 脚 %s",
-                drop, grounded ? "有实底" : "没有实底",
+                "within %d blocks below: %s (%s %s), water depth %d blocks (from y=%d),"
+                        + " bot y=%.2f, head %s, feet %s",
+                drop, grounded ? "solid floor" : "no solid floor",
                 floor.below().toShortString(), lvl.getBlockState(floor.below()).getBlock(),
                 wet, floor.getY(), rig.player().getY(),
                 lvl.getBlockState(at.above()).getBlock(), lvl.getBlockState(at).getBlock());
@@ -1416,7 +1452,7 @@ public final class JourneyShaft {
      * <p><b>The two are the same world only until the body changes dimension.</b> The sibling
      * helper next door, {@code JourneyEndRungs.levelOf}, is a near-homograph that returns the
      * OTHER one ({@code (ServerLevel) rig.player().level()}), and the two files' method bodies are
-     * otherwise line-for-line twins — so「there is a level helper, use it」is not enough to tell
+     * otherwise line-for-line twins — so "there is a level helper, use it" is not enough to tell
      * which world a read lands in. The names are the only thing standing between a reader and a
      * scan of overworld terrain at nether coordinates.
      *
@@ -1439,7 +1475,7 @@ public final class JourneyShaft {
             BlockPos n = cell.relative(d);
             if (!level.getFluidState(n).isEmpty())
                 return n.toShortString() + " = " + level.getBlockState(n).getBlock()
-                        + "（在 " + cell.toShortString() + " 的 " + d + " 面）";
+                        + " (on the " + d + " side of " + cell.toShortString() + ")";
         }
         return null;
     }
@@ -1455,7 +1491,8 @@ public final class JourneyShaft {
      *        and the wrong one for a rung that chose its column at runtime and can choose again.
      *
      *        <p>This parameter is the whole of a fix, and the bug it closes is worth stating: the
-     *        guard below has always PRINTED「这根柱子不干燥，换一根」and then called {@code ctx.fail}.
+     *        guard below has always PRINTED "this column is not dry, use another" and then called
+     *        {@code ctx.fail}.
      *        A diagnostic that names a remedy the code does not run is worse than one that names
      *        nothing — it ends the search. Two ladder runs were lost to that row before anyone
      *        checked whether anything ever changed columns.
@@ -1465,8 +1502,8 @@ public final class JourneyShaft {
         BlockPos at = rig.player().blockPosition();
         if (at.getY() <= targetY) { then.run(); return; }
         if (budget <= 0) {
-            rig.ctx().fail("竖井挖不下去：目标 y=" + targetY + "，试了 " + cap
-                    + " 次仍停在 " + at + "（方块破了但身体没下沉）");
+            rig.ctx().fail("cannot dig the shaft further down: target y=" + targetY + ", still at "
+                    + at + " after " + cap + " attempts (the block broke but the bot did not sink)");
             return;
         }
         // The block under the body's CENTRE is not necessarily the block holding it up. A player
@@ -1507,11 +1544,12 @@ public final class JourneyShaft {
                     return;
                 }
                 // NO REMEDY IS NAMED HERE, because none runs. This rung digs the column its survey
-                // named and has no second one to move to; saying「换一根」would be the same lie the
-                // callback above exists to stop telling.
-                rig.ctx().fail("竖井挖不动：身体浮在" + sceneLevel(rig).getBlockState(below).getBlock()
-                        + "里（" + at + "，脚下是流体不是地板）—— 这根柱子中段有水，"
-                        + "而这一级的柱子是勘测定死的，换不了");
+                // named and has no second one to move to; saying "use another" would be the same lie
+                // the callback above exists to stop telling.
+                rig.ctx().fail("cannot dig the shaft: the bot is floating in "
+                        + sceneLevel(rig).getBlockState(below).getBlock() + " (" + at
+                        + ", fluid below its feet instead of a floor) - this column has water part way"
+                        + " down, and this rung's column is fixed by the survey, so it cannot be changed");
                 return;
             }
             rig.settle(new HoldStill(40), 60,

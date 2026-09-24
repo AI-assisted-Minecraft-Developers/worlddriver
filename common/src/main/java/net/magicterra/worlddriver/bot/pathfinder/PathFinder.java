@@ -626,7 +626,7 @@ public final class PathFinder {
             // `reached` is the value the rung's failure turns on: `Goal.XZ(dig, 0)` has tolerance
             // ZERO, so a leg that stops one cell short did not miss by a hair — the goal cell was
             // never expanded, which points at the walker's own `canStandAt` rather than at any
-            // tolerance. `end` carries where the committed path actually stops, so「1 格之差」is a
+            // tolerance. `end` carries where the committed path actually stops, so "one block short" is a
             // coordinate a reader can check rather than a claim to believe.
             //
             // Same volume as its sibling (one line per search, and this run's 1427 begins cost
@@ -855,7 +855,7 @@ public final class PathFinder {
             // A SUBMERGED cell (water directly above → a surface bot must dive under to
             // thread it) costs extra, so A* keeps the route ON THE SURFACE instead of
             // dropping onto the seabed / a seagrass corridor it can't climb out of
-            // (live round75 80 s "未能上浮" death-lock). A surface cell (air overhead)
+            // (live round75: an 80 s deadlock that ended in death because the bot could not surface). A surface cell (air overhead)
             // pays only the base tax — an ordinary surface crossing is unchanged.
             // ...and so is a CAPPED cell: a surface water cell under a SOLID overhang
             // (rock/dirt ceiling at head+1, i.e. foot+2) is a submerged CHAMBER / tunnel
@@ -997,7 +997,8 @@ public final class PathFinder {
          *  taxes never see this edge (its {@code to} is dry and the move rises), so
          *  without it A* freely picks a TALL near-bank exit a buoyant bot can't step onto
          *  — every such exit forces the Walker's bob-stuttery bank-dig climb-out (live
-         *  "卡在土墙 / 反复挖同一土块 / 横跳" windows). Pricing the exit ∝ its rise tips A* onto the
+         *  windows of the bot stuck at a dirt wall, digging the same block repeatedly, or
+         *  hopping side to side). Pricing the exit ∝ its rise tips A* onto the
          *  LOWEST available exit (a surface-level bank = rise 0 = free Walk), without
          *  forbidding a tall one when that's all the shoreline offers. XZ goals ONLY: for a
          *  Y-aware land goal it BACKFIRED live (replay A/B) — pricing the climb-OUT makes A*
@@ -1024,7 +1025,8 @@ public final class PathFinder {
             // Steep surcharge ABOVE a buoyant bot's smooth-mount reach (~+3). A tall exit
             // (+4..) can't be swim-jumped or sand-pillared from deep water (the column sinks
             // the falling block); it forces the bob-stuttery toolless bank-DIG — 25× underwater
-            // mining ≈ 3-5 s per riser, the live "卡在土墙 / 反复挖同一土块 / 横跳" windows. Pricing
+            // mining ≈ 3-5 s per riser, the live windows of the bot stuck at a dirt wall, digging
+            // the same block repeatedly, or hopping side to side. Pricing
             // the tall exit well above a gentle multi-step one tips A* onto a LOW bank + a dry
             // walk-up where the shoreline offers it, WITHOUT forbidding the tall exit when it's
             // the only way out (single-exit climb-out arenas still find their path, just dearer).
@@ -1721,7 +1723,7 @@ public final class PathFinder {
             // canyon-exit cost), stop demanding the quality gain and take the best
             // segment/climb on offer. Without this tier the quality gate rode all the
             // way to the hard 60k cap on the nastiest cliff descents — a ~12 s
-            // stand-still the video flagged ("悬崖边缘原地停顿约14秒"). Tiers: open
+            // stand-still the video flagged (about 14 seconds standing still at a cliff edge). Tiers: open
             // terrain commits at the soft budget (gain clears instantly); boxed
             // terrain burns up to 4× hunting a worthwhile segment (canyon exits fit
             // here); only a truly walled-in search degrades to best-available at 4×,

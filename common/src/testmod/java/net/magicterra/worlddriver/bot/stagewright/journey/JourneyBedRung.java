@@ -65,7 +65,7 @@ final class JourneyBedRung {
     static void bed(SceneContext ctx) {
         JourneyRig rig = JourneyRig.enter(ctx, JourneyStage.BED);
         rig.generousPathfinding();
-        rig.attempting("猎羊取三块同色羊毛，合一张床");
+        rig.attempting("hunt sheep for three wool of one colour and craft a bed");
         rig.evidence("bed.dayTime", ctx.level().getDayTime() % 24_000L);
         // Widen the pin, WAIT, then look — the food rung's lesson, and it applies identically here:
         // an entity scan only sees loaded chunks, so scanning on the same line as the pin reports
@@ -104,23 +104,24 @@ final class JourneyBedRung {
                 // rung's second premise, refuted there by its own survey: this seed has no herd at
                 // spawn either, so a walk home would ask the same question from a worse place.
                 rig.evidence("bed.noSheepAt", rig.player().blockPosition().toShortString()
-                        + " —— " + radius + " 格内没有可剪的羊，改用 "
-                        + WorldDriverJourneyScenes.PREY_SEARCH_WIDE + " 格再找一次");
+                        + ": no woolly sheep within " + radius + " blocks, searching again within "
+                        + WorldDriverJourneyScenes.PREY_SEARCH_WIDE + " blocks");
                 JourneyRig.seeAtLeast(WorldDriverJourneyScenes.PREY_SEARCH_WIDE_CHUNKS);
                 rig.settle(new HoldStill(40), 100,
                         () -> woolRound(ctx, rig, roundsLeft, WorldDriverJourneyScenes.PREY_SEARCH_WIDE, false));
                 return;
             }
-            ctx.fail("方圆 " + radius + " 格内没有可剪的羊（已按 "
+            ctx.fail("no woolly sheep within " + radius + " blocks (chunks pinned to "
                     + WorldDriverJourneyScenes.PREY_SEARCH_WIDE_CHUNKS
-                    + " 区块钉住并等到装载）—— 附近只有 " + rig.animalsNearby(radius)
-                    + "；这颗种子的出生沼泽没有羊群，这一级需要一条先去草地群系的腿");
+                    + " and loaded before the scan); only " + rig.animalsNearby(radius)
+                    + " nearby. The spawn swamp of this seed has no flock, so this rung needs a"
+                    + " walk to a grassland biome first");
             return;
         }
         if (roundsLeft <= 0) {
-            ctx.fail("猎了 " + WOOL_HUNT_ROUNDS + " 轮仍没凑齐 " + WOOL_PER_BED + " 块同色羊毛 —— "
-                    + "手上最多的是 " + have + " × " + colour + "，" + radius + " 格内还剩 "
-                    + flock.size() + " 只可剪");
+            ctx.fail("hunted for " + WOOL_HUNT_ROUNDS + " rounds and still short of " + WOOL_PER_BED
+                    + " wool of one colour: the most held is " + have + " × " + colour + ", "
+                    + flock.size() + " woolly sheep left within " + radius + " blocks");
             return;
         }
         // Every row from here down is keyed by round. The first version of this rung shared
@@ -148,23 +149,25 @@ final class JourneyBedRung {
         // reported a kill while the flock size never moved off 6, which one id would have explained
         // in a single glance. The corpse count beside it is the other half: it says whether the
         // scan was ever offering bodies at all.
-        rig.evidence(r + ".flock", flock.size() + " 只可剪（另有尸体 "
-                + rig.deadSheepNearby(radius) + " 具），选 " + target.colour() + " id=" + target.entityId()
-                + " @ " + target.where().toShortString() + "（" + Math.round(target.distance()) + " 格，"
-                + "已有同色 " + woolBefore + "）");
+        rig.evidence(r + ".flock", flock.size() + " woolly (plus "
+                + rig.deadSheepNearby(radius) + " dead), chose " + target.colour() + " id=" + target.entityId()
+                + " @ " + target.where().toShortString() + " (" + Math.round(target.distance()) + " blocks, "
+                + woolBefore + " of that colour already held)");
 
         // Walk first, engage second — CombatProcess scans 32 blocks and gives up at once, so handing
         // it a sheep 90 blocks away fails in two ticks and reads like a broken verb.
-        rig.attempting("走向 " + Math.round(target.distance()) + " 格外的 " + target.colour() + " 羊");
+        rig.attempting("walk to the " + target.colour() + " sheep " + Math.round(target.distance())
+                + " blocks away");
         rig.drive(new IntentProcess(new Intent(new Goal.Near(target.where(), 6))), 6_000, () -> {
-            rig.evidence(r + ".arrived", rig.player().blockPosition().toShortString() + "，离目标 "
-                    + Math.round(Math.sqrt(rig.player().blockPosition().distSqr(target.where()))) + " 格");
+            rig.evidence(r + ".arrived", rig.player().blockPosition().toShortString() + ", "
+                    + Math.round(Math.sqrt(rig.player().blockPosition().distSqr(target.where())))
+                    + " blocks from the target");
             // Weapon in hand before the swing — same reason as the food rung: CombatProcess swings
             // whatever is selected and has no picker of its own. Keyed by round, because which round
             // was fought bare-handed is exactly the question a thin wool haul raises.
             rig.evidence(r + ".weapon", rig.holdBestWeapon());
-            rig.attempting("猎杀 " + target.colour() + " 羊（id=" + target.entityId()
-                    + "）：CombatProcess 没能拿到羊毛");
+            rig.attempting("kill the " + target.colour() + " sheep (id=" + target.entityId()
+                    + "): CombatProcess did not obtain any wool");
             rig.drive(new CombatProcess(CombatProcess.Mode.KILL, target.entityId(), "minecraft:sheep"),
                     4_000, () -> {
                 // Did the chosen sheep actually die? CombatProcess.pick returns null when the id
@@ -174,13 +177,13 @@ final class JourneyBedRung {
                 // the only way to tell those two apart, and telling them apart is the difference
                 // between "the flock is thin" and "the verb reports a kill it did not make".
                 var still = ctx.level().getEntity(target.entityId());
-                rig.evidence(r + ".target", still == null ? "已从世界消失"
-                        : (still.isAlive() ? "仍活着 —— 这一轮没有杀成" : "已死")
-                          + "（血 " + (still instanceof net.minecraft.world.entity.LivingEntity le
+                rig.evidence(r + ".target", still == null ? "gone from the world"
+                        : (still.isAlive() ? "still alive: this round did not kill it" : "dead")
+                          + " (health " + (still instanceof net.minecraft.world.entity.LivingEntity le
                                   ? String.format(java.util.Locale.ROOT, "%.1f", le.getHealth()) : "?")
-                          + "，已移除=" + still.isRemoved()
+                          + ", removed=" + still.isRemoved()
                           + (still.getRemovalReason() == null ? "" : "/" + still.getRemovalReason())
-                          + "，在 " + still.blockPosition().toShortString() + "）");
+                          + ", at " + still.blockPosition().toShortString() + ")");
                 // What is on the ground, whatever it is. `pickup.left` and the three id-taking drop
                 // readers all ask "is wool here?", and eight rounds of `pickup.left=0` at a 32-block
                 // radius answered that question perfectly while leaving the useful one untouched:
@@ -190,7 +193,7 @@ final class JourneyBedRung {
                 rig.evidence(r + ".ground", rig.dropCensus(16));
                 rig.collectByHand(target.woolId(), 2, r, () -> {
                     rig.evidence(r + ".gained", (rig.carrying(target.woolId()) - woolBefore)
-                            + " 块 " + target.colour() + "（此前 " + woolBefore + "）");
+                            + " " + target.colour() + " wool (previously " + woolBefore + ")");
                     woolRound(ctx, rig, roundsLeft - 1, radius, mayWiden);
                 });
             });
@@ -200,14 +203,14 @@ final class JourneyBedRung {
     private static void craftTheBed(SceneContext ctx, JourneyRig rig, String colour) {
         String bedId = "minecraft:" + colour + "_bed";
         rig.evidence("bed.colour", colour);
-        rig.attempting("合成 " + bedId + "：3 " + colour + "_wool + 3 木板");
+        rig.attempting("craft " + bedId + ": 3 " + colour + "_wool + 3 planks");
         // Through the table guard like every other craft on this ladder, which is also what buys the
         // three planks: a bare CraftProcess here would fail on wood the rung never went to get.
         WorldDriverJourneyScenes.craftKeepingTheTable(rig, bedId, 6_000, () -> {
             int made = rig.carrying(bedId);
             rig.evidence("bed.crafted", made);
             ctx.expect(made).as("bed crafted from same-colour wool").isAtLeast(1);
-            WorldDriverJourneyScenes.walkHome(rig, "bed", () -> rig.reach("合成 " + bedId + " ×" + made));
+            WorldDriverJourneyScenes.walkHome(rig, "bed", () -> rig.reach("crafted " + bedId + " ×" + made));
         });
     }
 }

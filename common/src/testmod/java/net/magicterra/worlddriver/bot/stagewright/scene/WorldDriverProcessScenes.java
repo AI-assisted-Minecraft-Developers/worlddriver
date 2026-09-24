@@ -1703,11 +1703,11 @@ public final class WorldDriverProcessScenes implements SceneProvider {
                 ServerAvatarManager.tickAll();
             }
             String err = driver.botState().follow.lastError;
-            ctx.record("结束", "第 " + t + " tick，activeKind=" + driver.activeKind() + "，lastError=" + err);
+            ctx.record("end", "tick " + t + ", activeKind=" + driver.activeKind() + ", lastError=" + err);
             ctx.check(driver.activeKind() == null)
-                    .as("A 追不进围栏的 follow 在 " + 4 * PEN_GIVE_UP_TICKS + " tick 内结束：第 " + t + " tick").isTrue();
+                    .as("A: a follow that cannot get into the pen ends within " + 4 * PEN_GIVE_UP_TICKS + " ticks: ended at tick " + t).isTrue();
             ctx.check(err != null && err.startsWith("unreachable"))
-                    .as("B 以 unreachable 结束：" + err).isTrue();
+                    .as("B: it ends as unreachable: " + err).isTrue();
         });
     }
 
@@ -2149,8 +2149,8 @@ public final class WorldDriverProcessScenes implements SceneProvider {
     /** The guard every scene here opens with. Returns true when the run must stop. */
     private static boolean waiverLeakedIn(SceneContext ctx, String scene) {
         if (!MineProcess.miningALog()) return false;
-        ctx.fail(scene + "：进场时豁免就是开的 —— 有别的场景把 owner 漏了出来。"
-                + "这一趟读到的任何「豁免开着」都不是本场景造成的，不能当证据。");
+        ctx.fail(scene + ": the waiver was already on when the scene started; another scene leaked its owner. "
+                + "Any 'waiver on' reading in this run would not be caused by this scene and cannot count as evidence.");
         return true;
     }
 
@@ -2182,23 +2182,23 @@ public final class WorldDriverProcessScenes implements SceneProvider {
         }
         boolean mined = !level.getBlockState(logPos).is(Blocks.OAK_LOG);
         boolean stillOn = MineProcess.miningALog();
-        ctx.record("闸.豁免开着的 tick 数", onTicks);
-        ctx.record("闸.原木采掉了吗", mined);
-        ctx.record("闸.收尾后豁免还在吗", stillOn);
+        ctx.record("gate.ticks with the waiver on", onTicks);
+        ctx.record("gate.log mined", mined);
+        ctx.record("gate.waiver still on after the order ended", stillOn);
 
         // Order matters. "The waiver never came on" and "the body never reached a log" are the same
         // reading, and only one of them is a defect — so ask about the log first.
         if (!mined) {
-            ctx.fail("mineLogWaiverEngages: 这一趟根本没采到那根原木，所以「豁免没开」说明不了任何事"
-                    + "（未触发，不是证伪）。lastError=" + driver.botState().mine.lastError);
+            ctx.fail("mineLogWaiverEngages: this run never mined the log, so 'the waiver was off' proves nothing "
+                    + "(not triggered, not a counterexample). lastError=" + driver.botState().mine.lastError);
             return;
         }
         if (onTicks == 0)
-            ctx.fail("mineLogWaiverEngages: 原木采掉了，但整趟没有一个 tick 读到豁免开着 —— "
-                    + "推导没接上，采原木的那一段并没有拿到它该拿的定价。");
+            ctx.fail("mineLogWaiverEngages: the log was mined, but no tick in the run read the waiver as on; "
+                    + "the derivation is not wired, so the approach to the log did not get the pricing it should have.");
         if (stillOn)
-            ctx.fail("mineLogWaiverEngages: 订单结束后豁免仍然开着 —— 它会跟着身体走进下一段路，"
-                    + "而那正是这条税存在的理由。");
+            ctx.fail("mineLogWaiverEngages: the waiver is still on after the order ended; it would carry over into "
+                    + "the bot's next route, which is exactly what the tax exists to prevent.");
     }
 
     // wd.mineStoneLeavesTheWaiverOff — the control arm. Same rig, same log standing in the world,
@@ -2233,18 +2233,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             if (MineProcess.miningALog()) onTicks++;
         }
         boolean stoneGone = !level.getBlockState(stonePos).is(Blocks.STONE);
-        ctx.record("闸.豁免开着的 tick 数", onTicks);
-        ctx.record("闸.石头采掉了吗", stoneGone);
-        ctx.record("闸.那根原木还立着吗", level.getBlockState(logPos).is(Blocks.OAK_LOG));
+        ctx.record("gate.ticks with the waiver on", onTicks);
+        ctx.record("gate.stone mined", stoneGone);
+        ctx.record("gate.log still standing", level.getBlockState(logPos).is(Blocks.OAK_LOG));
 
         if (!stoneGone) {
-            ctx.fail("mineStoneLeavesTheWaiverOff: 石头没被采掉，那么「豁免全程没开」只是"
-                    + "「这一趟什么都没干」，不是对照。lastError=" + driver.botState().mine.lastError);
+            ctx.fail("mineStoneLeavesTheWaiverOff: the stone was not mined, so 'the waiver stayed off throughout' only means "
+                    + "'this run did nothing'; it is not a control. lastError=" + driver.botState().mine.lastError);
             return;
         }
         if (onTicks > 0)
-            ctx.fail("mineStoneLeavesTheWaiverOff: 采石头的订单开了 " + onTicks + " 个 tick 的木税豁免 —— "
-                    + "世界里有原木不该武装它，只有目标是原木才该。");
+            ctx.fail("mineStoneLeavesTheWaiverOff: the stone-mining order turned the log-tax waiver on for " + onTicks + " ticks; "
+                    + "a log standing in the world must not arm it, only a log goal may.");
     }
 
     // wd.mineLogWaiverReleasedOnSupersede — the leak scene. It supersedes the order through the
@@ -2278,18 +2278,18 @@ public final class WorldDriverProcessScenes implements SceneProvider {
             ServerAvatarManager.tickAll();
             if (MineProcess.miningALog()) { armed = true; armedAt = t; }
         }
-        ctx.record("闸.第几 tick 武装的", armedAt);
+        ctx.record("gate.tick the waiver armed at", armedAt);
         if (!armed) {
-            ctx.fail("mineLogWaiverReleasedOnSupersede: 400 tick 内豁免从没开过，"
-                    + "那么「取消之后它是关的」就是 0 → 0，证不了释放（未触发）。");
+            ctx.fail("mineLogWaiverReleasedOnSupersede: the waiver never came on within 400 ticks, "
+                    + "so 'it is off after cancellation' would be 0 -> 0 and cannot prove a release (not triggered).");
             return;
         }
 
         driver.runProcess(new HoldStill(1));       // the production door: hand it a new order
         boolean afterSupersede = MineProcess.miningALog();
-        ctx.record("闸.顶替之后豁免还在吗", afterSupersede);
+        ctx.record("gate.waiver still on after supersede", afterSupersede);
         if (afterSupersede)
-            ctx.fail("mineLogWaiverReleasedOnSupersede: 换了订单，豁免还开着 —— 中途被顶替的采集"
-                    + "会把 1.0 的定价永久留给这具身体之后的每一段路。");
+            ctx.fail("mineLogWaiverReleasedOnSupersede: the order was replaced but the waiver is still on; a mining order "
+                    + "superseded midway would leave the 1.0 pricing on every later route this bot plans.");
     }
 }

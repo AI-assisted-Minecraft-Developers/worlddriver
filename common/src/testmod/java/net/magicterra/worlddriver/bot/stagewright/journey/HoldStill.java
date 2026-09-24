@@ -29,22 +29,23 @@ import net.magicterra.worlddriver.bot.process.BotProcess;
  * <p>So the settle asks for no movement at all. Break the block under your feet and wait: that is
  * what a player does, and gravity does not need a pathfinder.
  *
- * <h2>Waiting LONGER is not a safer settle, and it is not「wait until it lands」either</h2>
+ * <h2>Waiting longer is not a safer settle, and neither is "wait until it lands"</h2>
  *
- * <p>Tried, measured, reverted (2026-08-16). Every ray question in {@link JourneyFill} wants the
- * body at rest, so this class briefly grew an「until the position stops changing, capped at ten
- * ticks」mode. The rehearsal that ran on it reported the cap on essentially every call, and the rows
- * say why: {@code recover0.ask.settled = 等了 10 tick 身体还在动（眼睛 y 57.62→57.62，共挪了 0.57
- * 格）} — height dead steady, half a block of HORIZONTAL drift. The recover happens in an alcove the
- * rung has just flooded and flowing water pushes an idle body every tick, so「at rest」is a state
- * this rung does not have.
+ * <p>Every ray query in {@link JourneyFill} wants the bot at rest, but a wait of "until the
+ * position stops changing, capped at ten ticks" hit the cap on essentially every call in the
+ * rehearsal (2026-08-16). The evidence showed why: {@code recover0.ask.settled} reported that the
+ * bot was still moving after 10 ticks (eye y 57.62 to 57.62, 0.57 blocks moved in total), which is
+ * a steady height with half a block of horizontal drift. The recovery happens in an alcove that
+ * the rung has just flooded, and flowing water pushes an idle player entity every tick, so "at
+ * rest" is a state this rung never reaches.
  *
- * <p>Worse, the wait is itself a mover. {@code recover8.ask.settled = 等了 10 tick 身体还在动（眼睛
- * y 61.65→58.06，共挪了 3.60 格）}: eight extra ticks of falling put the body on the alcove floor,
- * from which {@code standToFill} found nothing and the fill WALKED — and that walk, with the
- * casting phase's {@code allowBreak} still on, mined a cast frame cell to climb back
- * ({@code frame.lost.1 … 丢在「recover8 从 -9, 61, 38 收水」这一步里}) and left the body too low to
- * open cell nine at all. A settle that lets the body travel is not a settle.
+ * <p>The wait also moves the bot. {@code recover8.ask.settled} reported the bot still moving
+ * after 10 ticks (eye y 61.65 to 58.06, 3.60 blocks moved in total): eight extra ticks of falling
+ * put the bot on the alcove floor, from which {@code standToFill} found no spot and the fill
+ * walked. That walk, with the casting phase's {@code allowBreak} still enabled, mined a cast frame
+ * cell to climb back ({@code frame.lost.1} attributed the loss to the step "recover8 collects
+ * water from -9, 61, 38") and left the bot too low to open cell nine at all. A settle that lets
+ * the bot travel is not a settle.
  *
  * <p>Two ticks is therefore the number, and the fills' fix for a stale aim is to re-aim AFTER those
  * two ticks rather than to spend more of them — see {@code JourneyFill.scoop}.

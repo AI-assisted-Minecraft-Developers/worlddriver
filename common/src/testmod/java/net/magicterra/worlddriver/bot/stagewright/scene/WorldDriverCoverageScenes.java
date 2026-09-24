@@ -63,12 +63,11 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
                 // read one shared answer (WalkerTickClimb.floodedShaft), so Progress's arrival gate
                 // demands onGround() on a water-SURFACE cell and the pointer waits for the support.
                 //
-                // It was RED, on purpose, and briefly optional. Off 1d1d7b3e both loaders reported
-                // 走.指针高水位=2/3, 柱.分档=指针越过未垫 — the pointer had left the first pillarUp
-                // edge while the support was water. That is the row this scene exists to catch, and
-                // it caught it before any human noticed the divergence. Required again as of the
-                // fix; the reading that says it is honest is 柱.分档=垫上了 with 走.收尾 around 68
-                // ticks — 21 was the number when the pointer did not wait.
+                // The defect this scene catches reads walk.pointerHighWater=2/3 with
+                // pillar.outcomeTier naming a pointer that passed an unplaced support: the pointer
+                // left the first pillarUp edge while the support was still water. The healthy
+                // reading is pillar.outcomeTier naming a placed support, with walk.outcome at about
+                // 68 ticks; a pointer that does not wait finishes in about 21.
                 Scene.of("wd.surfacePillarPointerNeedsItsSupport", 700,
                         WorldDriverCoverageScenes::surfacePillarPointerNeedsItsSupport));
     }
@@ -841,7 +840,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
      * </pre>
      *
      * <p>Progress has no carve-out. So on a water SURFACE cell — destination water, air directly
-     * above — Climb decides「case (b): PLACE a support to gain height」while Progress still calls it
+     * above — Climb decides "case (b): PLACE a support to gain height" while Progress still calls it
      * a {@code waterPillar} and takes the branch that deliberately treats an unfilled place cell as
      * not-really-pending ("the buoyant climb never places the support via the dry path"), checking
      * only for a still-solid ceiling before it may advance. The carve-out is what puts that premise
@@ -901,7 +900,7 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         //     !canStandOn(below) && !isClimbable(foot) && !isWater(foot)
         // and the destination IS water, so the third term exempts it from needing a support ⇒
         // canStandAt(dest) is true ⇒ snapGoalToStandable returns on its own first line. Confirmed
-        // by 走.目标被吸附=false. The real cause was the plan's shape (see the plan below).
+        // by walk.goalSnapped=false. The real cause was the plan's shape (see the plan below).
         BotConfig.walkerPillarReachGoalNoSnap = true;
 
         ServerPlayerBody av = SceneBody.avatar(ctx, level, cx + 0.5, standY, cz + 0.5);
@@ -916,14 +915,14 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // Vacuity guards. Each names the way this arena could go green while staging a DIFFERENT
         // case — which is the failure mode a scene about a flag-gated branch is most exposed to.
         if (!w.isWater(dest))
-            ctx.fail("surfacePillar: 目的格 " + dest.toShortString() + " 不是水 —— 两边的 "
-                    + "shaftFlooded 都会是 false，没有分歧可看，这一趟绿了也不说明什么。");
+            ctx.fail("surfacePillar: the destination cell " + dest.toShortString() + " is not water; "
+                    + "shaftFlooded would be false on both sides, there is no divergence to observe, and a pass proves nothing.");
         if (w.isWater(dest.above()))
-            ctx.fail("surfacePillar: " + dest.above().toShortString() + " 是水，这是 FLOODED 竖井"
-                    + "不是水面竖井 —— 抠除条件不成立，断言会退化成 0==0。");
+            ctx.fail("surfacePillar: " + dest.above().toShortString() + " is water, so this is a FLOODED shaft, "
+                    + "not a water-surface shaft; the carve-out condition does not hold and the assertion degenerates to 0==0.");
         if (!BotConfig.walkerPillarSurfacePlace)
-            ctx.fail("surfacePillar: walkerPillarSurfacePlace 是关的，WalkerTickClimb 那段抠除是"
-                    + "死代码，两个 phase 类按构造必然同答案。");
+            ctx.fail("surfacePillar: walkerPillarSurfacePlace is off, so the WalkerTickClimb carve-out is "
+                    + "dead code and the two phase classes must agree by construction.");
 
         // TWO pillar steps, not one, and the second is what makes the first observable.
         //
@@ -957,19 +956,19 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // goalReached=TRUE, and it is not cosmetic: the 4-arg seam says best-effort, a best-effort
         // segment is one the walker may replace, and on the first run it did — inside tick ONE it ran
         // a continuation search, adopted a real path and threw the synthetic pillarUp edge away. The
-        // tell was 走.收尾理由=path-consumed, a class classifyArrival can only return with
+        // tell was walk.endReason=path-consumed, a class classifyArrival can only return with
         // seg.pathBestEffort FALSE, which the scene's own adopt had set TRUE — so something re-adopted.
         // This plan's last node IS the goal cell, so declaring otherwise was simply wrong.
         if (!walker.adoptForTest(w, plan, edges, foot, true))
-            ctx.fail("surfacePillar: 走行器拒绝了这条两级 pillarUp 计划（锚点闸）——"
-                    + "后面每一行都不再是关于被测对象的。");
+            ctx.fail("surfacePillar: the walker rejected this two-step pillarUp plan (anchor gate); "
+                    + "none of the rows below describe the subject under test.");
         // The earliest possible second-class gate: BEFORE the first tick, is the subject under the
-        // pointer at all? adoptPath starts at step 1, so this reads「指针正指着 pillarUp 那条边」
-        // rather than inferring it from the plan's shape. Three runs died upstream of every other
+        // pointer at all? adoptPath starts at step 1, so this reads "the pointer is on the pillarUp
+        // edge" directly rather than inferring it from the plan's shape. Three runs died upstream of every other
         // guard because nothing asked this one question.
         if (!"pillarUp".equals(walker.pathMove()))
-            ctx.fail("surfacePillar: adopt 之后指针指的是 " + walker.pathMove() + "，不是 pillarUp —— "
-                    + "一 tick 都还没跑，被测对象就已经不在指针底下了。探针=" + walker.progressProbe());
+            ctx.fail("surfacePillar: after adopt the pointer is on " + walker.pathMove() + ", not pillarUp; "
+                    + "the subject under test left the pointer before a single tick ran. probe=" + walker.progressProbe());
 
         final double startY = fp.getY();
         double maxY = startY;
@@ -1004,38 +1003,40 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
             if (walker.pathStep() >= 2 && !placed) pointerPastUnplaced = true;
         }
 
-        ctx.record("柱.目的格", dest.toShortString() + "=" + level.getBlockState(dest).getBlock());
-        ctx.record("柱.支撑格", support.toShortString() + " 垫上了=" + placed
-                + "（现在是 " + level.getBlockState(support).getBlock() + "）");
-        ctx.record("升.起点y", startY);
+        ctx.record("pillar.destination", dest.toShortString() + "=" + level.getBlockState(dest).getBlock());
+        ctx.record("pillar.support", support.toShortString() + " placed=" + placed
+                + " (now " + level.getBlockState(support).getBlock() + ")");
+        ctx.record("rise.startY", startY);
         // Two different lines, and conflating them is what made the first three runs unreadable:
         // the body must clear support+1.0 for vanilla to ACCEPT the placement at all, and reach
         // the crest row for the run to finish. WalkerTickClimb:895 gates the click at +0.9, which
         // is looser than the physics — see the note beside the criterion below.
-        ctx.record("升.峰值y", maxY + "（放置合法线 " + (support.getY() + 1.0)
-                + "，目标排 " + crest.getY() + "）");
-        ctx.record("走.收尾", s + "（用了 " + t + "/200 tick）");
-        ctx.record("走.跑过pillarUp", ranPillarUp);
-        ctx.record("走.指针高水位", maxStep + "/" + plan.size()
-                + "（>=2 表示已离开第一条 pillarUp 边）");
-        ctx.record("柱.指针越过未垫", pointerPastUnplaced);
+        ctx.record("rise.peakY", maxY + " (placement threshold " + (support.getY() + 1.0)
+                + ", goal row " + crest.getY() + ")");
+        ctx.record("walk.outcome", s + " (used " + t + "/200 ticks)");
+        ctx.record("walk.ranPillarUp", ranPillarUp);
+        ctx.record("walk.pointerHighWater", maxStep + "/" + plan.size()
+                + " (>=2 means the pointer has left the first pillarUp edge)");
+        ctx.record("pillar.pointerPastUnplaced", pointerPastUnplaced);
         // THE VERDICT TIER, said outright. The three outcomes are pre-registered beside the
         // criterion below, and a reader must not have to derive which one happened by subtracting
-        // the placement line from 升.峰值y. The divergence wins when both latches are set: a
+        // the placement line from rise.peakY. The divergence wins when both latches are set: a
         // placement that lands after the pointer moved on does not un-advance the pointer.
-        ctx.record("柱.分档", pointerPastUnplaced ? "指针越过未垫 —— 分歧坐实（产品缺陷）"
-                : placed ? "垫上了 —— 两个 phase 类同答案，不分歧"
-                : "身体没升到放置合法线 —— 这一趟没问到分歧，别当成绿");
-        // An outcome without its reason is not an instrument: the first run printed 「ARRIVED，
-        // 1/200 tick」 and that named neither the snap nor the repath. lastEndReason is written at
-        // every terminal() call site and carries the arrival CLASS, goalSnapped included.
-        ctx.record("走.收尾理由", String.valueOf(walker.lastEndReason));
-        ctx.record("走.目标被吸附", walker.goalSnapped());
+        ctx.record("pillar.outcomeTier", pointerPastUnplaced
+                ? "the pointer passed an unplaced support: divergence confirmed (product defect)"
+                : placed ? "the support was placed: both phase classes agree, no divergence"
+                : "the bot never rose to the placement threshold: this run did not test the divergence; "
+                        + "do not read it as a pass");
+        // An outcome without its reason is not an instrument: an outcome of "ARRIVED, 1/200 ticks"
+        // names neither the goal snap nor the repath. lastEndReason is written at every terminal()
+        // call site and carries the arrival CLASS, goalSnapped included.
+        ctx.record("walk.endReason", String.valueOf(walker.lastEndReason));
+        ctx.record("walk.goalSnapped", walker.goalSnapped());
         // The plan the walker ENDED with, next to the one this scene handed it. A swap is the single
         // most likely way this arena stops being about its subject, and inferring it from a terminal
         // class took a full gate run; these two print it.
-        ctx.record("走.收尾计划", walker.planTally());
-        ctx.record("走.探针", walker.progressProbe());
+        ctx.record("walk.finalPlan", walker.planTally());
+        ctx.record("walk.progressProbe", walker.progressProbe());
 
         // THE FOURTH VACUITY GATE, and the one the first design was missing. The three above check
         // the WORLD; none of them checks that the SUBJECT ran. Handing the walker a goal makes it
@@ -1047,36 +1048,41 @@ public final class WorldDriverCoverageScenes implements SceneProvider {
         // off the cell before tick one — and the guard below cannot tell them apart. This one reads
         // the snap bit directly, so it must come first.
         if (walker.goalSnapped())
-            ctx.fail("surfacePillar: 目标被 snapGoalToStandable 从 " + dest.toShortString()
-                    + " 吸附到了别的格 —— 走行器驱的不是被测的那一格，下面每一行说的都是另一个动作。"
-                    + "本级的目的格按构造就是不可站立的（支撑要靠这次 pillarUp 垫出来），"
-                    + "所以豁免它的 walkerPillarReachGoalNoSnap 必须开着；竞技场基线把它关了。");
+            ctx.fail("surfacePillar: snapGoalToStandable moved the goal from " + dest.toShortString()
+                    + " to a different cell, so the walker is not driving toward the cell under test and every row below "
+                    + "describes a different move. This step's destination is unstandable by construction (the support "
+                    + "must be placed by this pillarUp), so walkerPillarReachGoalNoSnap, which exempts it, must be on; "
+                    + "the arena baseline turns it off.");
         if (!ranPillarUp)
-            ctx.fail("surfacePillar: 这一趟从没有一 tick 在执行 pillarUp 边，所以下面的判据说的不是"
-                    + "被测对象。要修的是布景，不是产品。目标没被吸附，所以看「走.收尾计划」"
-                    + "——它若不是那条一步 pillarUp，就是又被重新寻路换掉了。");
+            ctx.fail("surfacePillar: no tick of this run executed the pillarUp edge, so the criteria below do not "
+                    + "describe the subject under test. The test setup needs fixing, not the product. The goal was not "
+                    + "snapped, so check walk.finalPlan: if it is not the one-step pillarUp plan, a repath replaced it.");
 
-        // ── 预登记（写在跑之前，免得事后拿结果凑判词）────────────────────────────────
-        // 这一版是这条场景第一次真的在问「两个 phase 类分不分岔」，所以三种结局各自的含义
-        // 现在就定死：
-        //   垫上了（placed）                    ⇒ 两边同答案，不分岔。PASS，且是有内容的 PASS。
-        //   没垫上而指针已过（pointerPastUnplaced）⇒ 分岔坐实。FAIL，报的是产品缺陷。
-        //   两者都没有                          ⇒ 身体压根没升到放置合法线，这一趟什么都没问到。
-        //                                        那是另一个发现（物理/浮力），按第三档只记录不判罪。
-        // 上一版的判据是 `s != WALKING && !placed && !reachedRow`，第三项恒假：pillarUp 的目的格
-        // 天生是 support+1，而放置要求身体离开 support ⇒「能放置」和「已到达」是同一个不等式，
-        // 所以只要计划停在 dest，这条断言在任何几何下都不可满足（跟浮力、跟水都无关）。
+        // -- Pre-registered outcomes (fixed before the run, so the result message cannot be fitted to the result) --
+        // This scene asks whether the two phase classes diverge, and each of the three outcomes has a
+        // fixed meaning:
+        //   support placed (placed)                   => both sides agree, no divergence. PASS, and a meaningful one.
+        //   not placed, pointer past (pointerPastUnplaced) => divergence confirmed. FAIL, reported as a product defect.
+        //   neither                                   => the bot never rose to the placement threshold, so this run
+        //                                                tested nothing. That is a separate finding (physics or
+        //                                                buoyancy); as the third tier it is recorded, not failed.
+        // A criterion of `s != WALKING && !placed && !reachedRow` cannot work: its third term is always false.
+        // A pillarUp's destination is support+1 by construction, and placement requires the bot to have
+        // cleared the support, so "can place" and "has arrived" are the same inequality. With a plan that
+        // stops at dest, such an assertion cannot be satisfied on any geometry, regardless of buoyancy or water.
         if (pointerPastUnplaced)
-            ctx.fail("指针越过了一块没垫上的支撑：走行器以 " + s + " 收尾（指针最高 " + maxStep
-                    + "/" + plan.size() + "），而 " + support.toShortString() + " 仍是 "
-                    + level.getBlockState(support).getBlock() + "，身体峰值 " + maxY
-                    + "（放置合法线 " + (support.getY() + 1.0) + "）。"
-                    + "WalkerTickClimb 判这是水面竖井、要垫一块支撑（walkerPillarSurfacePlace 开着），"
-                    + "而 WalkerTickProgress 的 shaftFlooded 没有那道抠除，仍把它当浮力柱，"
-                    + "于是「没填的 place 格不算真的 pending」—— 推进越过的是一块还没发生的垫块。");
+            ctx.fail("the pointer passed a support that was never placed: the walker ended with " + s
+                    + " (highest pointer " + maxStep + "/" + plan.size() + "), while " + support.toShortString()
+                    + " is still " + level.getBlockState(support).getBlock() + ", peak y of the bot " + maxY
+                    + " (placement threshold " + (support.getY() + 1.0) + "). "
+                    + "WalkerTickClimb classifies this as a water-surface shaft that needs a support placed "
+                    + "(walkerPillarSurfacePlace is on), but shaftFlooded in WalkerTickProgress lacks that carve-out "
+                    + "and still treats it as a buoyant pillar, so \"an unfilled place cell is not really pending\": "
+                    + "the pointer advanced past a support placement that has not happened yet.");
         if (!placed)
-            WorldDriverCommon.LOG.warn("[wd.surfacePillarPointerNeedsItsSupport] 第三档：指针没越过、"
-                    + "支撑也没垫上（峰值 {} / 合法线 {}）——这一趟没有问到分歧，只说明身体没升上去。"
-                    + "不判罪，但也不要当成绿。", maxY, support.getY() + 1.0);
+            WorldDriverCommon.LOG.warn("[wd.surfacePillarPointerNeedsItsSupport] third tier: the pointer did not pass "
+                    + "and the support was not placed (peak {} / threshold {}). This run did not test the divergence; "
+                    + "it only shows that the bot did not rise. Not a failure, but not a pass either.",
+                    maxY, support.getY() + 1.0);
     }
 }

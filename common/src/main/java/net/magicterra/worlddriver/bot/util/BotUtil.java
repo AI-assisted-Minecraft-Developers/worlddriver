@@ -49,8 +49,8 @@ public final class BotUtil {
      * ({@code RetreatChain#fleeFrom}, and BotApiImpl's waypoint and runAway handlers), and handing
      * one to this {@code Entity} parameter makes the VERIFIER prove {@code LocalPlayer <: Entity}
      * — which loads the class. {@code wd.retreatGateMatrix} and {@code wd.cancelRouting} went from
-     * PASS to「Cannot load class net.minecraft.client.player.LocalPlayer in environment type
-     * SERVER」. The hand-written floor did not do this: {@code p.getX()} is an invokevirtual
+     * PASS to "Cannot load class net.minecraft.client.player.LocalPlayer in environment type
+     * SERVER". The hand-written floor did not do this: {@code p.getX()} is an invokevirtual
      * resolved lazily against the local's own type, and on a server that line never runs.
      * <b>Identical source, different class-loading.</b> "Byte-identical" is a claim about the
      * expression, not about the bytecode a widening call site emits.
@@ -74,7 +74,7 @@ public final class BotUtil {
 
     /** The same floor for a caller whose reference is a client-only type — see the warning on the
      *  overload above. Three doubles ask the verifier nothing about the holder's class, so this
-     *  keeps one authority for「which cell」without dragging a client class onto a server. */
+     *  keeps one authority for "which cell" without dragging a client class onto a server. */
     public static BlockPos blockPosOf(double x, double y, double z) {
         return new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
@@ -176,7 +176,7 @@ public final class BotUtil {
      *
      * <p><b>{@link FluidTags#LAVA}, never {@code Fluids.LAVA}.</b> {@code FluidState.is(Fluid)}
      * compares the exact fluid type, and a lava lake's EDGE and its falls are {@code FLOWING_LAVA}
-     * — under the type compare every flowing cell read as「not a hazard」, so {@code canStandAt}
+     * — under the type compare every flowing cell read as "not a hazard", so {@code canStandAt}
      * admitted feet-in-lava nodes, {@code dangerCost} charged nothing and the walker's
      * {@code hazardAhead} brake stayed blind (round54: the bot waded 6 s through a lava shore at
      * full sprint, enteredLava ×2). Fixing that meant editing the same four lines in three files;
@@ -307,7 +307,7 @@ public final class BotUtil {
      * drifted once, in the clause that matters most: {@code hazard(f.below())} was in
      * {@code LavaProximityEscape}'s copy from the day it was written and missing from
      * {@code ContactDamageEscape}'s — and that copy's ONLY caller is the branch whose own comment
-     * names「the hazard is directly BELOW (magma floor)」as the case it exists for. So an escape off
+     * names "the hazard is directly BELOW (magma floor)" as the case it exists for. So an escape off
      * a magma slab was free to answer with the next cell of the same slab, re-trigger next tick one
      * cell over, and read as a working reflex the world keeps beating.
      *
@@ -489,7 +489,7 @@ public final class BotUtil {
      * Point the body's yaw, head, body and pitch at an exact world point.
      *
      * <p>The four rotation setters and the two {@code atan2} calls were copied into six process
-     * classes; an aim that is written out by hand at every call site is how「瞄的是哪一点」quietly
+     * classes; an aim that is written out by hand at every call site is how "which point is aimed at" quietly
      * comes to differ between two verbs that mean to do the same thing.
      *
      * <p><b>Not the same as {@code BotInteract.aimAtBlockSnap}, and they must not be merged.</b>

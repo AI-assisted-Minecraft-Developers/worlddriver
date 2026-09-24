@@ -1,7 +1,8 @@
-"""#47 验收完整周期: 3x [随机 XZ journey + replay x3], 自动串联。
-用法: accept_cycle.py <cycle_label>
-每条 journey: 随机方向 110-170 格 XZ goal -> live 跟踪 -> 找最新档 -> replay x3。
-持续输出结果行; 死亡自动 respawn+re-give 后继续。
+"""One complete acceptance cycle: 3x [random XZ journey + replay x3], chained automatically.
+Usage: accept_cycle.py <cycle_label>
+Each journey: an XZ goal 110-170 blocks away in a random direction -> live tracking -> find the
+newest archive -> replay x3.
+Prints result lines as it goes; after a death it respawns, re-gives the items and continues.
 """
 import asyncio, sys, math, random, time, os, json
 sys.path.insert(0, '.')
@@ -79,8 +80,9 @@ def click_button(labels, gone_type=None, timeout=6.0):
                        f'after {timeout}s')
 
 
-# Vanilla's respawn button, by locale. Add yours if click_button reports it.
-RESPAWN_LABELS = ('Respawn', '重生', 'deathScreen.respawn')
+# Vanilla's respawn button, by locale. Add yours if click_button reports it. The second entry is
+# the zh_cn label, spelled by code point so the source stays ASCII.
+RESPAWN_LABELS = ('Respawn', chr(0x91CD) + chr(0x751F), 'deathScreen.respawn')
 
 
 def ensure_alive():
@@ -383,12 +385,13 @@ for j in range(1, 4):
         if arc: break
     if arc is None:
         print(f'[{label}] NO matching archive — skip replays', flush=True); continue
-    # arrive 判据: 单轴触线取 journey 的主位移轴(§64续: C27-J3 南北向 journey 用 x 轴
-    # 在启程早期就触线,replay 被提前掐死 → maxStuck 9-10 + atGoal=False 的假失败)。
+    # Arrival criterion: the single-axis finish line uses the journey's main axis of travel. A
+    # north-south journey measured on the x axis crosses the line early in the run, which cuts the
+    # replay short and produces a false failure (maxStuck 9-10, atGoal=False).
     if abs(gx - jsx) >= abs(gz - jsz):
         axis, end_v, start_v = 'x', endx, jsx
     else:
-        axis, end_v, start_v = 'z', gz, jsz     # live 终点 z 未记录,用 goal z 近似(radius 3 内)
+        axis, end_v, start_v = 'z', gz, jsz     # the live end z is not recorded; goal z approximates it (within radius 3)
     cmp = 'ge' if end_v >= start_v else 'le'
     ax = round(end_v - 6) if cmp == 'ge' else round(end_v + 6)
     print(f'[{label}] archive={arc} arrive_{axis}={ax}({cmp})', flush=True)
