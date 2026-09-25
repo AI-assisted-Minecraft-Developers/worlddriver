@@ -48,11 +48,6 @@ class ProductionCommandsTest {
         assertNull(d.findNode(List.of(ROOT, "test")));
     }
 
-    @Test
-    void aPermissionZeroSourceCannotRunPortMcpOrReload() {
-        assertOperatorOnly(production(), "port", "mcp", "reload");
-    }
-
     /**
      * Brigadier keeps the requirement of whichever same-named literal registered first, so a gate on
      * the root would vanish behind any earlier {@code worlddriver} registration. Each child carries

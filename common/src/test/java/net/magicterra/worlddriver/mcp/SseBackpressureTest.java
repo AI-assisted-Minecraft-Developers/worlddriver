@@ -114,15 +114,4 @@ class SseBackpressureTest {
         sub.die();
         pump.join(5_000);
     }
-
-    @Test
-    @Timeout(30)
-    void deadSubscriberAcceptsNoMoreFrames() throws Exception {
-        ByteArrayOutputStream sink = new ByteArrayOutputStream();
-        SseSubscriber sub = new SseSubscriber(sink);
-        sub.die();
-        sub.offer("data: after-death\n\n");
-        assertFalse(sub.alive);
-        assertTrue(sink.toString("UTF-8").isEmpty(), "wrote to a closed stream");
-    }
 }

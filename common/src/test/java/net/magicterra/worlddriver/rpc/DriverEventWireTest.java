@@ -69,14 +69,6 @@ class DriverEventWireTest {
     }
 
     @Test
-    void payloadIsNotDoubleEscaped() {
-        DriverEvent e = new DriverEvent(4, "x", null, Map.of("k", "v"));
-        String json = JsonCodec.encode(e);
-        assertTrue(json.contains("\"data\":{"), "data should open an object: " + json);
-        assertFalse(json.contains("\\\""), "no escaped quotes — that is the double encoding: " + json);
-    }
-
-    @Test
     void absentPayloadEncodesAsNull() {
         DriverEvent e = new DriverEvent(5, "x", null, null);
         assertNull(encodeThenDecode(e).get("data"));

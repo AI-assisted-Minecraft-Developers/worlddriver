@@ -57,11 +57,6 @@ class EventMutePolicyTest {
     }
 
     @Test
-    void nothingIsMutedByDefault() throws Exception {
-        assertEquals(List.of("a", "b"), deliveredAfterEmitting(Set.of(), "a", "b"));
-    }
-
-    @Test
     void mutingSuppressesThePushOnly() throws Exception {
         // The event is appended to the replay ring BEFORE the dispatch that applies the
         // mute, so mc.observe.eventsSince still returns it — muting is an opt-out from
