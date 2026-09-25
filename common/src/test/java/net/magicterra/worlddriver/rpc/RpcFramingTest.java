@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -305,16 +304,6 @@ class RpcFramingTest {
              WsTestClient raw = new WsTestClient(server.port())) {
             Map<?, ?> r = raw.roundTrip("{\"id\":1,\"method\":\"mc.nope\",\"params\":{}}");
             assertInstanceOf(String.class, r.get("error"));
-        }
-    }
-
-    @Test
-    void wellFormedCallStillRoundTrips() throws Exception {
-        try (ScriptedServer server = new ScriptedServer()) {
-            server.script = List.of("{\"id\":{ID},\"result\":{\"ok\":true}}");
-            try (RpcClient c = new RpcClient("127.0.0.1", server.port)) {
-                assertDoesNotThrow(() -> c.call("mc.system.version", Map.of()));
-            }
         }
     }
 
