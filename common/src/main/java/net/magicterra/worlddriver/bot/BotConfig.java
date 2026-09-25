@@ -98,17 +98,9 @@ public final class BotConfig {
      *  zero escapes). The bridge battery's sealed-goal scenes opt in per-scene. */
     public static volatile boolean walkerFromEndNoProgressDiscard = false;
 
-    /** Directional best-effort tail consumption: the tail-overshoot resync used a raw
-     *  distance gate (cur2 > overshoot), which cannot tell a tail the bot BLEW PAST from
-     *  a tail still FAR AHEAD — and string-pulled best-effort segments routinely end in
-     *  a >10-block final leg (the land quick-start stub is literally [start, far-tail]),
-     *  so segments self-consumed on their first tick and journeys ended at their start
-     *  (bridge stop-family livelock, t0 2026-07-20). When ON, overshoot also requires
-     *  the foot to be beyond the tail along the incoming leg's direction (while step
-     *  progress is healthy; a stalled approach falls back to the distance consume).
-     *  <p>ON because OFF spends the far tail of every straight walk past the planner's horizon on
-     *  its first tick, and the walk churns at its start until the walker gives up
-     *  ({@code wd.bridgeLongFlatWalk}, {@code wd.bridgeCausewayOverWater}). */
+    /** A best-effort tail is consumed only once the bot is past it along the path, or has
+     *  stalled; OFF consumes it on distance, which spends the far tail of a walk past the
+     *  planner's horizon on its first tick ({@code wd.bridgeLongFlatWalk}). */
     public static volatile boolean walkerTailConsumeDirectional = true;
 
     /** Corner-clearance repulsion in the walk drive: pure-pursuit cuts corners by design,

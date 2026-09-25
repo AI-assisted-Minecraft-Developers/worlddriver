@@ -88,26 +88,9 @@ final class WalkerTickProgress {
      *  that walled pockets re-enter the repath/churn machinery promptly. */
     static final int TAIL_HOLD_STALL_TICKS = 30;
 
-    /**
-     * Whether a best-effort tail the foot is far from is still AHEAD of it, and so must not be
-     * spent by the tail-overshoot resync (walkerTailConsumeDirectional).
-     *
-     * <p>The raw cur2 gate is blind to which SIDE of the tail the bot is on — a smoothed best-effort
-     * segment whose tail waypoint is still FAR AHEAD (string-pulling routinely leaves the last leg
-     * &gt;10 blocks: the land quick-start stub is literally [start, far-tail]) reads exactly like a
-     * blown-past tail, so the segment self-consumed on its FIRST tick and the segment-end handler
-     * ended the journey at the start (bridge stop-family: stub [(-2,0)→(11,0)] "consumed" at t1,
-     * frontier-giveup ARRIVED at spawn, maxX -1.4 of a reachable 11). The foot must be BEYOND the
-     * tail along the incoming leg's direction; a genuine overshoot still projects positive.
-     *
-     * <p>...but only while the tail is actually being APPROACHED: the distance consume is
-     * load-bearing for walled pockets — consuming the unreachable tail is what feeds the
-     * repath/churn-escalation cycle (boxedChurn asserts churnEsc≥2 and got a tail-held
-     * frontier-giveup instead; descentYaw and both entityLeash legs stalled the same way). A stalled
-     * approach (no step progress for {@link #TAIL_HOLD_STALL_TICKS}) means the far tail is stale or
-     * walled, so it is not held. Nor is a tail reached by a vertical leg (pillarUp, swimUp, a
-     * climb): that leg has no heading to test the foot against.
-     */
+    /** Distance alone reads a tail still far ahead as blown past, so hold it until the foot is
+     *  beyond it along the incoming segment. A stalled approach is not held, since walled pockets
+     *  escape through the consume, and neither is a vertical segment, which has no heading. */
     private static boolean tailStillAhead(Walker wk, LivingEntity p, BlockPos w) {
         if (!BotConfig.walkerTailConsumeDirectional || wk.step == 0
                 || wk.stepProg.noStepProgressTicks > TAIL_HOLD_STALL_TICKS) return false;
