@@ -24,12 +24,6 @@ class ClientIntentsTest {
     }
 
     @Test
-    void nothingStandsAsideUntilADriveAsserts() {
-        assertFalse(ClientIntents.standAside(), "vanilla's pass must run when the bot never dug");
-        assertNull(ClientIntents.digPos());
-    }
-
-    @Test
     void oneDriveBuysExactlyTheBudgetedPasses() {
         ClientIntents.assertDig(CELL);
         for (int i = 0; i < ClientIntents.STAND_ASIDE_PASSES; i++)

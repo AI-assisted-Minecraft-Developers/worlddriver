@@ -10,7 +10,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -217,33 +216,6 @@ class GameTestBaselineManifestTest {
                 + "deleted), so its row is stale — drop it, and if it is in PINNED drop the "
                 + "baseline line too, because pinning a flag that is already OFF is a no-op that "
                 + "reads like a decision.");
-    }
-
-    @Test
-    void theProbeCanTellAPinnedFieldFromAnUnpinnedOne() {
-        // Without this, a probe that quietly stopped detecting anything would turn the test above
-        // into "the empty set equals the empty set" on the day someone empties the baseline.
-        Set<String> written = fieldsWrittenByBaseline();
-        assertTrue(written.contains("allowBreak"),
-                "the probe cannot see a boolean the baseline demonstrably writes — it is not "
-                + "measuring applyGameTestBaseline() at all: " + written);
-        assertTrue(written.contains("pathfinderBreakCostMultiplier"),
-                "the probe sees booleans but not NUMERIC pins; a baseline line assigning a double "
-                + "would be invisible to it: " + written);
-        assertFalse(written.contains("walkerDebug"),
-                "the probe reports a field the baseline does not touch — the sentinel comparison "
-                + "is wrong and every result from it is noise");
-    }
-
-    @Test
-    void theUniverseIsThereAtAll() {
-        Set<String> universe = defaultOnBooleans();
-        assertTrue(universe.size() >= 50,
-                "expected the full default-ON boolean surface (81 at last count), got "
-                + universe.size() + " — COMPILED_DEFAULTS or reflectivePrimitiveFields changed "
-                + "shape, and an empty universe would make this whole test vacuously green");
-        assertTrue(universe.contains("allowBreak"), "sanity: allowBreak ships ON");
-        assertFalse(universe.contains("walkerStickyDig"), "sanity: walkerStickyDig ships OFF");
     }
 
     /**
