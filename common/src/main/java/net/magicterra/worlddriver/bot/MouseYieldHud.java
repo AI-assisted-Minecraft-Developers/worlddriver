@@ -3,6 +3,7 @@ package net.magicterra.worlddriver.bot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
 
 /**
  * The on-screen "the bot is driving" badge. Rendered from each loader's HUD hook
@@ -33,18 +34,20 @@ public final class MouseYieldHud {
         if (!MouseYield.driving()) return;
 
         String who = MouseYield.driver();
-        String line1 = who.isEmpty() ? "● BOT in control" : "● BOT in control · " + who;
-        String line2;
+        Component line1 = who.isEmpty()
+                ? Component.translatable("hud.worlddriver.driving")
+                : Component.translatable("hud.worlddriver.driving.named", who);
+        Component line2;
         int color2;
         if (MouseYield.reclaimed()) {
-            line2 = "You have the mouse · the bot is still acting";
+            line2 = Component.translatable("hud.worlddriver.reclaimed");
             color2 = COLOR_RECLAIM;
         } else if (MouseYield.yielded()) {
-            line2 = "Mouse released · double-press ESC to take it back";
+            line2 = Component.translatable("hud.worlddriver.yielded");
             color2 = COLOR_YIELDED;
         } else {
             // Driving but nothing released — mouseYield off, or a screen owns the cursor.
-            line2 = "Double-press ESC to take back the mouse";
+            line2 = Component.translatable("hud.worlddriver.escHint");
             color2 = COLOR_YIELDED;
         }
 
