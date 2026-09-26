@@ -1747,7 +1747,7 @@ public final class BotConfig {
      *  and {@code wd.serverStepsDownTheLastNodeOfItsPlan}. */
     public static volatile boolean walkerDescentNodeHold = true;
 
-    /** Phase-2 of the arc-length pursuit refactor (#55): aim BOTH the camera and the bot at the bob-immune
+    /** Aim BOTH the camera and the bot at the bob-immune
      *  path TANGENT ahead of the projection ({@code arcProj.tangentYaw}) instead of the immediate-node bearing.
      *  The node bearing flips ~180° the instant the foot overshoots the node — the backward-jump / repeated side-to-side hopping /
      *  facing-the-wall dead-corner stall (live P1 proof: with the step pointer correctly tracked the bot still
@@ -1914,7 +1914,7 @@ public final class BotConfig {
      *  test), not pursuit shrink. */
     public static volatile boolean walkerCarrotHColShrink = false;
 
-    /** Carrot LOS player-width honesty (the §52-identified true fix lane for the jungle-trunk
+    /** Carrot LOS player-width honesty (the true fix for the jungle-trunk
      *  friction): carrotPoint's line-of-sight gate switches from the centre-line RAY test to
      *  {@code PathSmoothing.losWalkableBody} — a 0.6-wide corridor probe (4-corner AABB per
      *  interpolated sample). The far carrot then refuses bearings whose corridor clips a trunk

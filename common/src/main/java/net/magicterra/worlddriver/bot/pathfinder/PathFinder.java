@@ -912,7 +912,7 @@ public final class PathFinder {
          *  VINE (not in #minecraft:leaves) and the leaf canopy sits TWO up; {@link #padCellTax} needs a
          *  COLLIDING instabreak block (a vine has no collision shape, so it isn't an
          *  {@code isBreakableObstruction}). A floating bot pushed onto such a node rams the vine/leaf wall
-         *  at {@code foot+1} height (hCol, hSpd→0, X pins / Z creeps) — the live #47 ~-780,339 bob-jam. This softly
+         *  at {@code foot+1} height (hCol, hSpd→0, X pins / Z creeps) — the live ~-780,339 bob-jam. This softly
          *  prices the cell so A* threads the adjacent clear water and swims AROUND the tree.
          *  <p>Scoped TIGHT, mirroring padCellTax's exactness: the FOOT must be a real water cell (no
          *  dry-canopy / open-water false positives — dry leaf canopy is already {@link #leafCellTax}'d on
@@ -944,7 +944,7 @@ public final class PathFinder {
          *  {@code Goal.Near}), for which {@code padCellTax} returns 0 — so an OPEN-water corridor dotted with
          *  SPARSE single pads is left unpriced and A* threads a crossing node STRAIGHT THROUGH each pad (a
          *  1-pad instabreak dig is cheaper than a 1-block detour). A floating bot then rams + hand-digs the
-         *  pad in its {@code foot+1} cell (hCol, hSpd→0, attack=true) — the live #47 ~-830,363 / -817,298 multi-second
+         *  pad in its {@code foot+1} cell (hCol, hSpd→0, attack=true) — the live ~-830,363 / -817,298 multi-second
          *  bob-jams. This is the SAME structural gap {@link #vineOverWaterTax} closes for vines/leaves (also
          *  goal-neutral), but a lily pad is neither {@code isLeaves} nor {@code isClimbable} (it has a thin
          *  floor collision shape → it IS an {@code isBreakableObstruction}), so the vine tax misses it.

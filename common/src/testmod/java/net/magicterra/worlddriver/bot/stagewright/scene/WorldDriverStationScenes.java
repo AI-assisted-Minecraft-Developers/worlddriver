@@ -50,7 +50,7 @@ import net.minecraft.world.level.block.Blocks;
  * absolute {@code cx/cz} → origin X/Z; absolute {@code floorY=220} → {@code origin.y + 20}
  * (grid {@code GRID_Y = 200}, so the mapped absolute Y equals the legacy Y — geometry unchanged,
  * only X/Z relocate); {@code ServerWorldDriver.create} → {@link ServerWorldDriver#createIsolated}
- * (#48 per-scene isolated player via {@code ServerPlayerBody.createUnique}) + a {@code
+ * (per-scene isolated player via {@code ServerPlayerBody.createUnique}) + a {@code
  * ctx.cleanup(fp::discard)}; {@code try/finally} {@link BotConfig} save/restore →
  * {@link BotConfig#pinnedBaseline()} + {@code ctx.cleanup(pin::close)}; {@code
  * GameTestAssertException}/{@code throw} → {@link SceneContext#fail} with a scene-name prefix;

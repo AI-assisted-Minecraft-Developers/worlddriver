@@ -70,7 +70,7 @@ import net.minecraft.world.phys.Vec3;
  * with a {@code LocalPlayer}. That reshuffles the boundary table around one question, asked of
  * every row: <b>is this difference specific to {@code FakePlayer} (it disappears when that player
  * class does), or is it caused by this driver never going through the real packet handlers
- * (changing the player class will not help)?</b> §6.5 of the doc answers that for all 39 rows —
+ * (changing the player class will not help)?</b> The boundary table answers that for all 39 rows —
  * <i>by reading</i>.
  *
  * <p><b>Two columns made that answer checkable, and the first one is gone.</b> Until the

@@ -138,7 +138,7 @@ public final class WalkerExpectAlarms {
         exPrevX = p.getX(); exPrevZ = p.getZ();
         // DRIVE-tear: the driven heading (body yaw under commandMove decoupling ≈ the
         // carrot bearing) points >90° away from the committed node for 40 straight ticks
-        // while the bot is pinned — the carrot-vs-node tear (§56, user-witnessed: carrot
+        // while the bot is pinned — the carrot-vs-node tear (user-witnessed: carrot
         // east into a wall, node 5 blocks south, attack=false, pinned indefinitely).
         if (path != null && step < path.size()) {
             BlockPos node = path.get(step);

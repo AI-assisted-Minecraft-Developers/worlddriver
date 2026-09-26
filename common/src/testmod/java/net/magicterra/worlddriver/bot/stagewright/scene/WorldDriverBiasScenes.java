@@ -53,7 +53,7 @@ import net.minecraft.world.level.block.Blocks;
  *       vertical geometry is literally unchanged (and A* is integer-cell, so a planner scene
  *       is position-invariant regardless);</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene player, #48) + {@code ctx.cleanup(() -> fp.discard())};</li>
+ *       (per-scene player) + {@code ctx.cleanup(() -> fp.discard())};</li>
  *   <li>the neoforge {@code FakePlayer} handle → the common {@link ServerPlayer} handle
  *       ({@link ServerPlayerBody#fakePlayer()} return type; inventory ops identical);</li>
  *   <li>{@code try/finally} per-key {@code BotConfig} save/restore → the ONLY scenes that

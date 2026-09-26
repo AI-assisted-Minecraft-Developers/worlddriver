@@ -464,7 +464,7 @@ final class WalkerTickAim {
         // current-node bearing — the deadzone hold-heading band (A: aim2 inside the deadzone
         // holds a stale yaw that a stepDown node's within-gate never accepts) or a reversed
         // switchback tangent (B: tangent -180° vs node bearing 14°, corner corrector
-        // default-dead per §13) steers the bot INTO a wall while the node sits elsewhere.
+        // default-dead) steers the bot INTO a wall while the node sits elsewhere.
         // Under the confirmed-stall gate, snap targetYaw back to the current-node bearing so
         // both the drive (descentNodeYaw capture below) and the camera follow. Aims at the
         // CURRENT node under a collision gate — not the §25 step-1 reanchor that bounced.

@@ -67,7 +67,7 @@ import net.minecraft.world.phys.AABB;
  *       {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after
  *       the avatar discard) then the SAME explicit key set the legacy body flipped;</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-profile player, #48) + {@code ctx.cleanup(() -> fp.discard())} (the legacy
+ *       (per-profile player) + {@code ctx.cleanup(() -> fp.discard())} (the legacy
  *       self-shaft-dig-up body never discarded its avatar at all — the port closes
  *       that leak, matching every other migrated scene);</li>
  *   <li>{@code throw new GameTestAssertException(msg)} → {@link SceneContext#fail(String)};</li>
@@ -842,7 +842,7 @@ public final class WorldDriverScenes implements SceneProvider {
             for (int dz = -2; dz <= 2; dz++)
                 level.setBlockAndUpdate(new BlockPos(cx + dx, floorY, cz + dz), Blocks.STONE.defaultBlockState());
 
-        // createIsolated (NOT create) — sanctioned #48 deviation, the driver's own FakePlayer.
+        // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc).
@@ -1015,7 +1015,7 @@ public final class WorldDriverScenes implements SceneProvider {
         BotConfig.pathfinderSliceMs = Long.MAX_VALUE / 2;
         BotConfig.pathfinderMaxMs = Long.MAX_VALUE / 2;
 
-        // createIsolated (NOT create) — sanctioned #48 deviation, the driver's own FakePlayer.
+        // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
         ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). Unlike
@@ -1283,7 +1283,7 @@ public final class WorldDriverScenes implements SceneProvider {
         // parking is a walker trait, not this arena's gate (run-e evidence: reached=true
         // ±1.5 but the exact cell never latched → finished=false forever).
         Intent intent = new Intent(new Goal.Near(goal, 1), List.of(), CapabilityProfile.ALL, List.of(), leash);
-        // createIsolated (NOT create) — sanctioned #48 deviation, the driver's own FakePlayer.
+        // createIsolated (NOT create) — a sanctioned deviation, the driver's own FakePlayer.
         final ServerWorldDriver driver = SceneBody.bare(ctx, level, cx + 0.5, floorY + 1, cz + 0.5);
         final ServerPlayer fp = driver.fakePlayer();
         // Targeted teardown (NOT ServerAvatarManager.clear() — see class javadoc). This scene

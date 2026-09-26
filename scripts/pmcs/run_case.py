@@ -1,6 +1,6 @@
 """Drive one (archive, flags) replay and collect maxStuck plus per-Move conformance.
 
-Live pipeline (spec §7, workflow step 1):
+Live pipeline:
   1) set the flags over WS-RPC (the MCP tool schema strips new flags, so they must go through
      RPC; see the worlddriver-rpc skill)
   2) mc.debug.replay {file, restoreBlocks:true}

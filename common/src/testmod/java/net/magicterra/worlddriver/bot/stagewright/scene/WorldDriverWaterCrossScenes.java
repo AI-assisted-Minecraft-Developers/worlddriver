@@ -54,7 +54,7 @@ import net.minecraft.world.level.block.state.BlockState;
  *       + {@code ctx.cleanup(pin::close)} registered FIRST (LIFO → closes LAST, after the
  *       avatar discard) then the SAME keys the legacy body flipped;</li>
  *   <li>{@code ServerPlayerBody.create(...)} → {@link ServerPlayerBody#createUnique}
- *       (per-scene server-side player, #48) + {@code ctx.cleanup(() -> fp.discard())}. The
+ *       (per-scene server-side player) + {@code ctx.cleanup(() -> fp.discard())}. The
  *       legacy per-arena isolation batches drop out — a player from createUnique cannot bleed
  *       into another scene;</li>
  *   <li>{@code AgentGameTestSupport.grantWaterEffects} → {@link SimProbes#grantWaterEffects};</li>
